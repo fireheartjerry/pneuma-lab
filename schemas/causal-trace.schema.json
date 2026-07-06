@@ -1,0 +1,138 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/causal-trace.schema.json",
+    "title": "CausalTrace",
+    "description": "Auditable causal linkage from evidence to behavior. REQUIRED FOR LEVEL 4: if the project cannot trace event -> internal state -> broadcast -> pressure/request -> behavior, the interiority claim is NOT claimable. This is the receipts backbone; every control-relevant output should reference a CausalTrace. Output contract v0.1.",
+    "type": "object",
+    "x-pneuma-frame-kind": "output",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "causal_trace"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "trace_id": {
+            "type": "string"
+        },
+        "input_evidence_refs": {
+            "type": "array",
+            "description": "Refs to the input frames/events that triggered this state change (WorldFrame events, MemoryFrame scars, InterventionFrame ids).",
+            "items": {
+                "type": "string"
+            }
+        },
+        "previous_state_hash": {
+            "type": "string",
+            "description": "PsycheStateFrame.state_hash before the update."
+        },
+        "new_state_hash": {
+            "type": "string",
+            "description": "PsycheStateFrame.state_hash after the update."
+        },
+        "changed_dimensions": {
+            "type": "array",
+            "description": "Which manifold axes / drives / signals changed, with deltas.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "dimension": {
+                        "type": "string"
+                    },
+                    "from": {
+                        "type": "number"
+                    },
+                    "to": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "dimension"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "state_update_mechanism": {
+            "type": "string",
+            "description": "Which update law/faculty produced the change (e.g. 'affect_manifold.update', 'drives.update', 'instinct_stream.match')."
+        },
+        "causal_path": {
+            "type": "array",
+            "description": "Ordered nodes of the causal chain: event -> internal state -> broadcast -> pressure/request -> behavior.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "stage": {
+                        "type": "string",
+                        "enum": [
+                            "event",
+                            "internal_state",
+                            "broadcast",
+                            "pressure",
+                            "authority_request",
+                            "behavior"
+                        ]
+                    },
+                    "ref": {
+                        "type": "string",
+                        "description": "Id of the frame/record at this stage."
+                    },
+                    "note": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "stage"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "emitted_outputs": {
+            "type": "array",
+            "description": "Refs to the output frames this trace produced (ControlPressureVector, AuthorityRequest, InstinctSignal, WorkspaceBroadcast).",
+            "items": {
+                "type": "string"
+            }
+        },
+        "counterfactual_predictions": {
+            "type": "array",
+            "description": "What the trace predicts WOULD happen under stated counterfactuals (for intervention-robustness scoring).",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "condition": {
+                        "type": "string",
+                        "description": "e.g. 'if tension clamped to 0'."
+                    },
+                    "predicted_outcome": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "condition",
+                    "predicted_outcome"
+                ],
+                "additionalProperties": true
+            }
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "trace_id",
+        "previous_state_hash",
+        "new_state_hash",
+        "causal_path"
+    ],
+    "additionalProperties": true
+}

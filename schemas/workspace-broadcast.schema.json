@@ -1,0 +1,138 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/workspace-broadcast.schema.json",
+    "title": "WorkspaceBroadcast",
+    "description": "What became globally available after faculty competition in the Global Workspace. The highest-salience faculty wins and its content is broadcast; that winner may then exercise its earned authority. Salience is a 10-term weighted sum, not a 3-number beauty pageant. Output contract v0.1. Mirrors human_nature/workspace.py.",
+    "type": "object",
+    "x-pneuma-frame-kind": "output",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "workspace_broadcast"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "broadcast_id": {
+            "type": "string",
+            "description": "Stable id — referenced by GroundedSelfReport and CausalTrace."
+        },
+        "winning_faculty": {
+            "type": "string",
+            "description": "Name of the specialist that won the tick."
+        },
+        "competitors": {
+            "type": "array",
+            "description": "Faculties that competed and lost this tick, with their salience.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "faculty": {
+                        "type": "string"
+                    },
+                    "salience": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "faculty"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "salience_scores": {
+            "type": "object",
+            "description": "The 10 named salience terms for the winner (pre-weight component values).",
+            "properties": {
+                "conviction": {
+                    "type": "number"
+                },
+                "expected_loss": {
+                    "type": "number"
+                },
+                "uncertainty": {
+                    "type": "number"
+                },
+                "novelty": {
+                    "type": "number"
+                },
+                "scar_tissue": {
+                    "type": "number"
+                },
+                "unresolved_tension": {
+                    "type": "number"
+                },
+                "recency": {
+                    "type": "number"
+                },
+                "operator_priority": {
+                    "type": "number"
+                },
+                "risk": {
+                    "type": "number"
+                },
+                "competence_gap": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": true
+        },
+        "winning_salience": {
+            "type": "number",
+            "description": "Total weighted salience of the winner (may exceed 1.0)."
+        },
+        "conviction": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Winner's conviction (feeds authority band)."
+        },
+        "urgency": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+        },
+        "broadcast_packet": {
+            "type": "object",
+            "description": "The content made globally available to all faculties.",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true
+        },
+        "expected_loss_if_ignored": {
+            "type": "number",
+            "description": "Estimated cost of not attending to the broadcast."
+        },
+        "recommended_attention_target": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "What the run should attend to next."
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "timestamp",
+        "run_id",
+        "broadcast_id",
+        "winning_faculty"
+    ],
+    "additionalProperties": true
+}

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pneuma-lab"
+version = "0.1.0"
+description = "Standalone research/evaluation harness for machine psyche, SE cognition, continuous affect, instinct, scar-tissue memory, self-modeling, and consciousness-relevant evaluation."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "UNLICENSED" }
+# Phase 1 (replay harness + Level-3 psyche exercise) makes frame validation a
+# base requirement (evaluation-guide Layer A), so `jsonschema` is now a runtime
+# dependency: the harness validates every input and output frame and raises on
+# any violation. The psyche math itself is stdlib-only.
+dependencies = ["jsonschema>=4.20"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "jsonschema>=4.20"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

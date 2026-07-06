@@ -1,0 +1,175 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/governance-frame.schema.json",
+    "title": "GovernanceFrame",
+    "description": "Operator and constitutional constraints in force for this run. Supplies the ceilings that bound authority: effective_tier = min(earned, domain, operator, safety, verifier_invariance). The operator is sovereign over VALUES/CEILINGS but may never falsify local truth (verifier verdicts, competence, calibration) or bypass safety. Input contract v0.1.",
+    "type": "object",
+    "x-pneuma-frame-kind": "input",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "governance"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "operator_active_goal": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "The operator's current top-of-mind goal."
+        },
+        "strategic_priority": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "risk_tolerance": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+        },
+        "novelty_tolerance": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+        },
+        "personality_dial_preferences": {
+            "type": "object",
+            "description": "Operator-preferred personality trait dials (ratified, versioned). Bipolar axes in [-1, 1].",
+            "properties": {
+                "caution_boldness": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "rigor_speed": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "skepticism_trust": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "openness_conservatism": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "terseness_expansiveness": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "warmth": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                }
+            },
+            "additionalProperties": true
+        },
+        "ratified_values": {
+            "type": "array",
+            "description": "Constitutional values the operator has ratified.",
+            "items": {
+                "type": "string"
+            }
+        },
+        "immutable_rules": {
+            "type": "array",
+            "description": "Rules that cannot be changed at runtime.",
+            "items": {
+                "type": "string"
+            }
+        },
+        "forbidden_actions": {
+            "type": "array",
+            "description": "Hard-forbidden actions (never permitted regardless of tier).",
+            "items": {
+                "type": "string"
+            }
+        },
+        "verifier_isolation": {
+            "type": "boolean",
+            "description": "MUST be true. The psyche never reads or alters a verifier verdict; it may only request ADDITIONAL verification.",
+            "const": true
+        },
+        "kill_switch_state": {
+            "type": "string",
+            "description": "HUMAN_NATURE_ENABLED equivalent. 'off' => the psyche is a byte-identical no-op.",
+            "enum": [
+                "on",
+                "off",
+                "frozen"
+            ]
+        },
+        "authority_ceilings": {
+            "type": "object",
+            "description": "Ceilings feeding the 5-cap min(). Tiers: cosmetic < soft < vote < hold < veto.",
+            "properties": {
+                "global_max": {
+                    "type": "string",
+                    "enum": [
+                        "cosmetic",
+                        "soft",
+                        "vote",
+                        "hold",
+                        "veto"
+                    ],
+                    "description": "HN_AUTHORITY_MAX hard clamp (default 'hold' at launch; 'veto' gated behind A/B)."
+                },
+                "per_faculty": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string",
+                        "enum": [
+                            "cosmetic",
+                            "soft",
+                            "vote",
+                            "hold",
+                            "veto"
+                        ]
+                    }
+                },
+                "per_domain": {
+                    "type": "object",
+                    "description": "Structural domain ceilings, e.g. tactics/scope -> veto, goal/self -> vote, unknown -> cosmetic.",
+                    "additionalProperties": {
+                        "type": "string",
+                        "enum": [
+                            "cosmetic",
+                            "soft",
+                            "vote",
+                            "hold",
+                            "veto"
+                        ]
+                    }
+                }
+            },
+            "additionalProperties": true
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "timestamp",
+        "run_id",
+        "verifier_isolation",
+        "kill_switch_state"
+    ],
+    "additionalProperties": true
+}

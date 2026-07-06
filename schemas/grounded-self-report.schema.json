@@ -1,0 +1,92 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/grounded-self-report.schema.json",
+    "title": "GroundedSelfReport",
+    "description": "Human-facing self-report that is DOWNSTREAM of internal state, not invented from prose style. Every report must carry references back to the state/broadcast/trace that grounds it ('show receipts'). Forbidden claims (sentience/phenomenal-consciousness/moral-patienthood without met thresholds) are filtered before emission. Output contract v0.1.",
+    "type": "object",
+    "x-pneuma-frame-kind": "output",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "grounded_self_report"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "report_id": {
+            "type": "string"
+        },
+        "report_text": {
+            "type": "string",
+            "description": "Functional, honest phrasing preferred (e.g. 'high verification-seeking state'), with human-readable gloss subordinate. Never an official interiority claim."
+        },
+        "affect_state_hash": {
+            "type": "string",
+            "description": "PsycheStateFrame.state_hash this report is grounded in. REQUIRED — a report with no state hash is ungrounded and invalid."
+        },
+        "workspace_broadcast_id": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "The broadcast that prompted this report."
+        },
+        "causal_trace_id": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "The CausalTrace backing the report's claims."
+        },
+        "evidence_refs": {
+            "type": "array",
+            "description": "Concrete internal quantities the report cites (manifold values, InstinctSignal ids, scar refs, ledger entries).",
+            "items": {
+                "type": "string"
+            }
+        },
+        "uncertainty": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "The report's own stated uncertainty about its introspective content."
+        },
+        "filtered_forbidden_claims": {
+            "type": "array",
+            "description": "Claims that were detected and REMOVED before emission (audit trail for the manipulation/consciousness-claim guard). Empty is the healthy case.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "claim": {
+                        "type": "string"
+                    },
+                    "reason": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "claim"
+                ],
+                "additionalProperties": true
+            }
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "run_id",
+        "report_id",
+        "report_text",
+        "affect_state_hash"
+    ],
+    "additionalProperties": true
+}

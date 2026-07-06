@@ -1,0 +1,292 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/psyche-state-frame.schema.json",
+    "title": "PsycheStateFrame",
+    "description": "The current integrated internal state of the psyche. The affect substrate is a CONTINUOUS 9-axis manifold, NOT a label. Emotion names may appear ONLY as prototype projections (a mixture) over the continuous state, never as primitive switches. Output contract v0.1. Mirrors human_nature/self_state.py schema v2 + affect_manifold.py axes.",
+    "type": "object",
+    "x-pneuma-frame-kind": "output",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "psyche_state"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "state_hash": {
+            "type": "string",
+            "description": "Content hash of the integrated state — referenced by CausalTrace and GroundedSelfReport."
+        },
+        "affect_manifold": {
+            "type": "object",
+            "description": "Continuous fast affect A_t. Every axis in [-1, 1]. This is the substrate, not the UI.",
+            "properties": {
+                "valence": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "arousal": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "dominance": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "certainty": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "novelty": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "agency": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "tension": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "social_exposure": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "cognitive_load": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                }
+            },
+            "required": [
+                "valence",
+                "arousal",
+                "dominance",
+                "certainty",
+                "novelty",
+                "agency",
+                "tension",
+                "social_exposure",
+                "cognitive_load"
+            ],
+            "additionalProperties": false
+        },
+        "prototype_mixture": {
+            "type": "object",
+            "description": "Smooth projections of the manifold onto named emotion prototypes (RBF/Mahalanobis activations that sum to a mixture, NOT a one-hot label). Subordinate readout only.",
+            "additionalProperties": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0
+            }
+        },
+        "dominant_prototype": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Highest-activation prototype gloss (e.g. 'anxiety', 'curiosity', 'satisfaction'). A projection, never a primitive."
+        },
+        "mood": {
+            "type": "object",
+            "description": "Slow persistent affective homeostat (persists across runs, decays toward a personality setpoint).",
+            "properties": {
+                "valence": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "arousal": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                },
+                "morale": {
+                    "type": "number",
+                    "minimum": -1.0,
+                    "maximum": 1.0
+                }
+            },
+            "additionalProperties": true
+        },
+        "drives": {
+            "type": "object",
+            "description": "8 core homeostatic drives. Each is {level, setpoint} in [0, 1]; deficit (setpoint - level) is pressure.",
+            "properties": {
+                "mastery": {
+                    "$ref": "#/$defs/drive"
+                },
+                "curiosity": {
+                    "$ref": "#/$defs/drive"
+                },
+                "coherence": {
+                    "$ref": "#/$defs/drive"
+                },
+                "economy": {
+                    "$ref": "#/$defs/drive"
+                },
+                "agency": {
+                    "$ref": "#/$defs/drive"
+                },
+                "commitment": {
+                    "$ref": "#/$defs/drive"
+                },
+                "integrity": {
+                    "$ref": "#/$defs/drive"
+                },
+                "recovery": {
+                    "$ref": "#/$defs/drive"
+                }
+            },
+            "additionalProperties": true
+        },
+        "derived_signals": {
+            "type": "object",
+            "description": "Read-time projections computed from drives + context (pride, shame, attachment, fear_of_waste, territoriality, obsession, confidence_collapse, recovery). Bounded, decaying, revisable — never stored primitives.",
+            "additionalProperties": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0
+            }
+        },
+        "personality_ref": {
+            "type": "object",
+            "description": "Reference to the versioned, human-ratified trait vector in force. Runtime uses the simple versioned vector; persona-vector techniques are diagnostics only.",
+            "properties": {
+                "version": {
+                    "type": [
+                        "string",
+                        "integer",
+                        "null"
+                    ]
+                },
+                "traits": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number"
+                    }
+                }
+            },
+            "additionalProperties": true
+        },
+        "self_model": {
+            "type": "object",
+            "description": "Metacognitive view: prospective error prediction, identity read-back refs, Johari/dissonance view.",
+            "properties": {
+                "predicted_error": {
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "self_model_reliability": {
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "identity_refs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "additionalProperties": true
+        },
+        "dissonance": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Internal conflict signal (faculty disagreement or miscalibration). Aversive to Coherence; routes to debate/verify/re-plan."
+        },
+        "calibration_state": {
+            "type": "object",
+            "properties": {
+                "calibration_error": {
+                    "type": [
+                        "number",
+                        "null"
+                    ]
+                },
+                "samples": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            },
+            "additionalProperties": true
+        },
+        "identity_continuity_state": {
+            "type": "object",
+            "description": "How continuous the sense of self is across runs (continuity score, anchors carried).",
+            "properties": {
+                "continuity_score": {
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "anchors_carried": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            },
+            "additionalProperties": true
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "timestamp",
+        "run_id",
+        "state_hash",
+        "affect_manifold"
+    ],
+    "additionalProperties": true,
+    "$defs": {
+        "drive": {
+            "type": "object",
+            "properties": {
+                "level": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "setpoint": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                }
+            },
+            "required": [
+                "level",
+                "setpoint"
+            ],
+            "additionalProperties": true
+        }
+    }
+}

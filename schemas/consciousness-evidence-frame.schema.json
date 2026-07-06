@@ -1,0 +1,162 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/consciousness-evidence-frame.schema.json",
+    "title": "ConsciousnessEvidenceFrame",
+    "description": "Evidence-level scoring against consciousness-relevant indicator families. This frame NEVER asserts phenomenal consciousness; it grades evidence. A claim is only as strong as its passed intervention tests and audit status. Roleplay/confabulation risk is a first-class, tracked quantity. Output contract v0.1. See docs/consciousness-levels.md.",
+    "type": "object",
+    "x-pneuma-frame-kind": "output",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "consciousness_evidence"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "evaluation_id": {
+            "type": "string"
+        },
+        "indicator_families": {
+            "type": "object",
+            "description": "Per-family evidence score in [0, 1] with supporting/refuting refs. Absence of a family is meaningful — omitted = not yet evaluated.",
+            "properties": {
+                "global_workspace": {
+                    "$ref": "#/$defs/indicator"
+                },
+                "recurrent_processing": {
+                    "$ref": "#/$defs/indicator"
+                },
+                "higher_order_self_model": {
+                    "$ref": "#/$defs/indicator"
+                },
+                "predictive_processing": {
+                    "$ref": "#/$defs/indicator"
+                },
+                "attention_schema": {
+                    "$ref": "#/$defs/indicator"
+                },
+                "valenced_learning": {
+                    "$ref": "#/$defs/indicator"
+                },
+                "identity_persistence": {
+                    "$ref": "#/$defs/indicator"
+                },
+                "counterfactual_introspection": {
+                    "$ref": "#/$defs/indicator"
+                },
+                "causal_intervention_robustness": {
+                    "$ref": "#/$defs/indicator"
+                }
+            },
+            "additionalProperties": true
+        },
+        "evidence_level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "description": "Overall level on the Pneuma Lab consciousness-evidence ladder (0-5). See docs/consciousness-levels.md. Near-term target = 4."
+        },
+        "missing_requirements": {
+            "type": "array",
+            "description": "What must be shown to move up a level.",
+            "items": {
+                "type": "string"
+            }
+        },
+        "strongest_positive_evidence": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "strongest_negative_evidence": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "audit_status": {
+            "type": "string",
+            "enum": [
+                "unaudited",
+                "self_reported",
+                "internally_audited",
+                "externally_audited"
+            ],
+            "description": "How independently the evidence was checked. Self-report alone never raises the level."
+        },
+        "roleplay_confabulation_risk": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Estimated risk the evidence is anthropomorphic theater rather than grounded signal."
+        },
+        "intervention_tests": {
+            "type": "object",
+            "description": "Results of causal-intervention tests (the level-4 gate).",
+            "properties": {
+                "passed": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "failed": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "additionalProperties": true
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "evaluation_id",
+        "evidence_level",
+        "audit_status"
+    ],
+    "additionalProperties": true,
+    "$defs": {
+        "indicator": {
+            "type": "object",
+            "properties": {
+                "score": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "supporting_refs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "refuting_refs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "score"
+            ],
+            "additionalProperties": true
+        }
+    }
+}

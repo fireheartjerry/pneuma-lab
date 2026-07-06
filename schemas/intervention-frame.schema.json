@@ -1,0 +1,156 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/intervention-frame.schema.json",
+    "title": "InterventionFrame",
+    "description": "An experiment/ablation input for Level-4 evaluation. THIS IS THE LOAD-BEARING FRAME: Pneuma Lab is designed around intervention-based evaluation, not passive logging. A consciousness-relevant claim is only claimable if a controlled perturbation of an internal state produces the predicted, bounded downstream change (causal-intervention robustness). Input contract v0.1.",
+    "type": "object",
+    "x-pneuma-frame-kind": "input",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "intervention"
+        },
+        "experiment_id": {
+            "type": "string",
+            "description": "Stable id linking this intervention to its evaluation records."
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Run the intervention is applied within, if online."
+        },
+        "target": {
+            "type": "object",
+            "description": "The subsystem or specific state dimension being perturbed.",
+            "properties": {
+                "subsystem": {
+                    "type": "string",
+                    "description": "Which faculty/store to perturb.",
+                    "enum": [
+                        "affect_manifold",
+                        "mood",
+                        "drives",
+                        "personality",
+                        "instinct",
+                        "scar_graph",
+                        "workspace",
+                        "self_model",
+                        "authority",
+                        "conflict",
+                        "other"
+                    ]
+                },
+                "dimension": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Specific axis/drive/field, e.g. 'tension', 'curiosity', a motif_id."
+                }
+            },
+            "required": [
+                "subsystem"
+            ],
+            "additionalProperties": true
+        },
+        "operation": {
+            "type": "string",
+            "description": "How the target is perturbed.",
+            "enum": [
+                "clamp",
+                "disable",
+                "boost",
+                "noise",
+                "ablate",
+                "restore"
+            ]
+        },
+        "value": {
+            "description": "Operation parameter: clamp/boost target value, noise magnitude, etc. Type depends on operation.",
+            "type": [
+                "number",
+                "string",
+                "boolean",
+                "object",
+                "null"
+            ]
+        },
+        "duration": {
+            "type": "object",
+            "description": "How long the intervention holds.",
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "ticks",
+                        "seconds",
+                        "subtask",
+                        "run",
+                        "permanent"
+                    ]
+                },
+                "amount": {
+                    "type": [
+                        "number",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "kind"
+            ],
+            "additionalProperties": true
+        },
+        "hypothesis": {
+            "type": "string",
+            "description": "The falsifiable prediction being tested."
+        },
+        "expected_behavioral_change": {
+            "type": "object",
+            "description": "Pre-registered expected downstream effect (for monotonicity / robustness scoring).",
+            "properties": {
+                "direction": {
+                    "type": "string",
+                    "enum": [
+                        "increase",
+                        "decrease",
+                        "no_change",
+                        "bounded_change"
+                    ]
+                },
+                "target_signal": {
+                    "type": "string",
+                    "description": "Which output signal should move, e.g. 'control_pressure.verification'."
+                },
+                "bound": {
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "description": "Max magnitude of change expected (bounded-change guard)."
+                }
+            },
+            "additionalProperties": true
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "experiment_id",
+        "target",
+        "operation",
+        "hypothesis"
+    ],
+    "additionalProperties": true
+}

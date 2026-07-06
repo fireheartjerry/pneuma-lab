@@ -1,0 +1,105 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/control-pressure-vector.schema.json",
+    "title": "ControlPressureVector",
+    "description": "Continuous, BOUNDED pressure over control dimensions — NOT direct commands. This output MUST NOT directly override the host agent (9to5). It is pressure only: a modulator, never a replacement. Each component is a signed pressure in [-1, 1] (negative = ease off, positive = push harder), applied within the authority caps. Output contract v0.1.",
+    "type": "object",
+    "x-pneuma-frame-kind": "output",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "control_pressure"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "authority_tier": {
+            "type": "string",
+            "description": "Effective tier that gates how much of this pressure is actually applied (min over 5 caps).",
+            "enum": [
+                "cosmetic",
+                "soft",
+                "vote",
+                "hold",
+                "veto"
+            ]
+        },
+        "pressures": {
+            "type": "object",
+            "description": "Signed bounded pressures. Positive pushes toward more of the named dimension; negative eases off. All in [-1, 1].",
+            "properties": {
+                "effort": {
+                    "$ref": "#/$defs/pressure",
+                    "description": "Compute/effort allocation (bidirectional; may raise OR lower)."
+                },
+                "verification": {
+                    "$ref": "#/$defs/pressure",
+                    "description": "Verification depth. ADDITIVE ONLY — may deepen, never reduces below the verifier's own requirement."
+                },
+                "planning": {
+                    "$ref": "#/$defs/pressure"
+                },
+                "execution": {
+                    "$ref": "#/$defs/pressure"
+                },
+                "society_debate": {
+                    "$ref": "#/$defs/pressure",
+                    "description": "Pressure to spawn a heterogeneous critic / debate."
+                },
+                "memory_consolidation": {
+                    "$ref": "#/$defs/pressure"
+                },
+                "exploration": {
+                    "$ref": "#/$defs/pressure"
+                },
+                "scope_narrowing": {
+                    "$ref": "#/$defs/pressure",
+                    "description": "Positive = narrow scope / reduce diff."
+                },
+                "strategy_switching": {
+                    "$ref": "#/$defs/pressure"
+                }
+            },
+            "additionalProperties": false
+        },
+        "sources": {
+            "type": "array",
+            "description": "Provenance: which signals produced this pressure (instinct signal ids, drive pressures, dissonance).",
+            "items": {
+                "type": "string"
+            }
+        },
+        "causal_trace_id": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Ref to the CausalTrace that produced this vector (receipts)."
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "timestamp",
+        "run_id",
+        "authority_tier",
+        "pressures"
+    ],
+    "additionalProperties": true,
+    "$defs": {
+        "pressure": {
+            "type": "number",
+            "minimum": -1.0,
+            "maximum": 1.0
+        }
+    }
+}

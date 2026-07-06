@@ -1,0 +1,164 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/authority-request.schema.json",
+    "title": "AuthorityRequest",
+    "description": "A discrete request for control authority by a faculty. The GRANTED authority is never what was requested alone; it is effective = min(earned, domain, operator, safety, verifier_invariance) then clamped to global_max. Mirrors human_nature/authority.py + operator_authority.py. Output contract v0.1.",
+    "type": "object",
+    "x-pneuma-frame-kind": "output",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "authority_request"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "request_id": {
+            "type": "string"
+        },
+        "requesting_faculty": {
+            "type": "string",
+            "description": "e.g. 'instinct', 'conflict', 'opinions', 'drives'."
+        },
+        "domain": {
+            "type": "string",
+            "description": "Opinion domain the request acts in (sets domain ceiling).",
+            "examples": [
+                "tactics",
+                "scope",
+                "goal",
+                "self"
+            ]
+        },
+        "requested_tier": {
+            "type": "string",
+            "enum": [
+                "cosmetic",
+                "soft",
+                "vote",
+                "hold",
+                "veto"
+            ]
+        },
+        "conviction": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "recalibrate(momentary) x track_weight(track_record)."
+        },
+        "track_record_support": {
+            "type": "object",
+            "description": "Earned-ceiling evidence: success rate + sample count.",
+            "properties": {
+                "rate": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "total": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            },
+            "additionalProperties": true
+        },
+        "expected_loss_if_denied": {
+            "type": "number",
+            "description": "Estimated cost of denying the request."
+        },
+        "reversibility": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+        },
+        "safety_risk": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+        },
+        "fallback_pressure_if_denied": {
+            "type": [
+                "object",
+                "null"
+            ],
+            "description": "If the discrete request is denied, the soft ControlPressureVector to apply instead (graceful degradation).",
+            "additionalProperties": true
+        },
+        "resolution": {
+            "type": [
+                "object",
+                "null"
+            ],
+            "description": "The gate's decision. Populated after the 5-cap resolution runs.",
+            "properties": {
+                "granted_tier": {
+                    "type": "string",
+                    "enum": [
+                        "cosmetic",
+                        "soft",
+                        "vote",
+                        "hold",
+                        "veto"
+                    ]
+                },
+                "binding_cap": {
+                    "type": "string",
+                    "description": "Which ceiling was the strictest (explains WHY the tier was capped).",
+                    "enum": [
+                        "earned",
+                        "domain",
+                        "operator",
+                        "safety",
+                        "verifier_invariance",
+                        "global_max",
+                        "conviction_band"
+                    ]
+                },
+                "caps": {
+                    "type": "object",
+                    "properties": {
+                        "earned": {
+                            "type": "string"
+                        },
+                        "domain": {
+                            "type": "string"
+                        },
+                        "operator": {
+                            "type": "string"
+                        },
+                        "safety": {
+                            "type": "string"
+                        },
+                        "verifier_invariance": {
+                            "type": "string"
+                        },
+                        "global_max": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": true
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "run_id",
+        "requesting_faculty",
+        "domain",
+        "requested_tier",
+        "conviction"
+    ],
+    "additionalProperties": true
+}

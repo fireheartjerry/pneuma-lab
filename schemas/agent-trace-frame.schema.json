@@ -1,0 +1,186 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/agent-trace-frame.schema.json",
+    "title": "AgentTraceFrame",
+    "description": "Observable agent cognition and action traces for one step. EXPLICIT, OBSERVABLE traces only — never hidden chain-of-thought. If a field cannot be grounded in an emitted plan, tool call, or self-report the agent actually surfaced, it MUST be omitted rather than invented. Input contract v0.1.",
+    "type": "object",
+    "x-pneuma-frame-kind": "input",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "agent_trace"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "subtask_id": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "phase": {
+            "type": "string",
+            "enum": [
+                "preamble",
+                "plan",
+                "subtask",
+                "execution",
+                "verification",
+                "teardown",
+                "other"
+            ]
+        },
+        "current_plan": {
+            "type": [
+                "object",
+                "null"
+            ],
+            "description": "The plan the agent has explicitly committed to (steps, scope). Observable artifact, not inferred intent.",
+            "properties": {
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scope": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true
+        },
+        "assumptions": {
+            "type": "array",
+            "description": "Assumptions the agent explicitly stated it is relying on.",
+            "items": {
+                "type": "string"
+            }
+        },
+        "known_unknowns": {
+            "type": "array",
+            "description": "Gaps the agent explicitly flagged as unresolved.",
+            "items": {
+                "type": "string"
+            }
+        },
+        "alternatives_considered": {
+            "type": "array",
+            "description": "Options the agent explicitly weighed.",
+            "items": {
+                "type": "string"
+            }
+        },
+        "selected_action": {
+            "type": [
+                "object",
+                "null"
+            ],
+            "description": "The action the agent chose to take this step.",
+            "properties": {
+                "kind": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true
+        },
+        "rejected_actions": {
+            "type": "array",
+            "description": "Actions explicitly rejected, when the agent surfaced them.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string"
+                    },
+                    "reason": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": true
+            }
+        },
+        "tool_calls": {
+            "type": "array",
+            "description": "Tool calls issued this step (observable).",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "tool": {
+                        "type": "string"
+                    },
+                    "args_digest": {
+                        "type": "string",
+                        "description": "Redacted / hashed argument summary — never raw secrets."
+                    }
+                },
+                "required": [
+                    "tool"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "retry_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Retries of the same subtask so far (RETRY_SAME_STRATEGY signal)."
+        },
+        "strategy_switches": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of distinct strategies attempted."
+        },
+        "self_reported_confidence": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Agent's own stated confidence, if surfaced. Treated as a NOISY observable — never as ground truth (know-act gap: confidence predicts correctness but the model may not act on it)."
+        },
+        "predicted_success": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "minimum": 0.0,
+            "maximum": 1.0
+        },
+        "predicted_error_type": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Agent's stated guess at how this might fail."
+        },
+        "uncertainty": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "minimum": 0.0,
+            "maximum": 1.0
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "timestamp",
+        "run_id",
+        "phase"
+    ],
+    "additionalProperties": true
+}

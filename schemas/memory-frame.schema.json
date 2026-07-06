@@ -1,0 +1,207 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/memory-frame.schema.json",
+    "title": "MemoryFrame",
+    "description": "Retrieved continuity, competence, scars, and history read back at preamble/step. This is the 'self lives in memory, read back' input: continuity + competence + scars must be RETRIEVED, not just written. Input contract v0.1.",
+    "type": "object",
+    "x-pneuma-frame-kind": "input",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "memory"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "retrieved_continuity": {
+            "type": "array",
+            "description": "Continuity letters / identity anchors retrieved for this run (ID-RAG style).",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "ref": {
+                        "type": "string"
+                    },
+                    "text": {
+                        "type": "string"
+                    },
+                    "run_id": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": true
+            }
+        },
+        "recent_lessons": {
+            "type": "array",
+            "description": "Lessons learned in recent runs relevant to this task.",
+            "items": {
+                "type": "string"
+            }
+        },
+        "stable_preferences": {
+            "type": "array",
+            "description": "Durable preferences that persist across runs.",
+            "items": {
+                "type": "string"
+            }
+        },
+        "unresolved_tensions": {
+            "type": "array",
+            "description": "Open dissonances carried forward (feeds salience unresolved_tension term).",
+            "items": {
+                "type": "string"
+            }
+        },
+        "competence_by_domain": {
+            "type": "object",
+            "description": "Per-domain competence estimate. Mirrors self_state competence {p, n}: p = success rate, n = sample count.",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "p": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "n": {
+                        "type": "integer",
+                        "minimum": 0
+                    }
+                },
+                "additionalProperties": true
+            }
+        },
+        "calibration_error": {
+            "type": [
+                "number",
+                "null"
+            ],
+            "description": "Aggregate gap between predicted and observed success (self-model reliability signal)."
+        },
+        "scar_motif_matches": {
+            "type": "array",
+            "description": "Scar-graph motifs whose preconditions the retrieved history matches (pre-instinct context, distinct from live InstinctSignal).",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "motif_id": {
+                        "type": "string"
+                    },
+                    "similarity": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "historical_base_rate": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    }
+                },
+                "required": [
+                    "motif_id"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "historical_failures": {
+            "type": "array",
+            "description": "Prior failures relevant to this task/area.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "motif_id": {
+                        "type": "string"
+                    },
+                    "summary": {
+                        "type": "string"
+                    },
+                    "run_id": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": true
+            }
+        },
+        "historical_recoveries": {
+            "type": "array",
+            "description": "Recovery strategies that previously worked for similar failures (Dijkstra recovery-path source).",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "strategy": {
+                        "type": "string"
+                    },
+                    "for_motif": {
+                        "type": "string"
+                    },
+                    "success_rate": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    }
+                },
+                "additionalProperties": true
+            }
+        },
+        "prior_authority_exercises": {
+            "type": "array",
+            "description": "Past authority exercises with outcomes (calibrates earned ceiling).",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "faculty": {
+                        "type": "string"
+                    },
+                    "domain": {
+                        "type": "string"
+                    },
+                    "tier": {
+                        "type": "string",
+                        "enum": [
+                            "cosmetic",
+                            "soft",
+                            "vote",
+                            "hold",
+                            "veto"
+                        ]
+                    },
+                    "beneficial": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
+                    }
+                },
+                "additionalProperties": true
+            }
+        },
+        "false_positives": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Instinct false-positive count (scar decay / trust signal)."
+        },
+        "false_negatives": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Missed-warning count."
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "timestamp",
+        "run_id"
+    ],
+    "additionalProperties": true
+}

@@ -1,0 +1,294 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/world-frame.schema.json",
+    "title": "WorldFrame",
+    "description": "The software-engineering world/body state at one instant of a run. This is Pneuma Lab's exteroception: the ground truth about the repository, the task, and the tools that the psyche perceives. It carries NO interior state (see PsycheStateFrame for that). Input contract v0.1.",
+    "type": "object",
+    "x-pneuma-frame-kind": "input",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "world"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 UTC timestamp when this frame was captured."
+        },
+        "run_id": {
+            "type": "string",
+            "description": "Stable id of the full work session (9to5 Run)."
+        },
+        "subtask_id": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Id of the current Subtask, if inside one."
+        },
+        "objective": {
+            "type": "object",
+            "description": "What this task/subtask is trying to achieve.",
+            "properties": {
+                "text": {
+                    "type": "string"
+                },
+                "acceptance": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "additionalProperties": true
+        },
+        "phase": {
+            "type": "string",
+            "description": "Coarse lifecycle phase of the run.",
+            "enum": [
+                "preamble",
+                "plan",
+                "subtask",
+                "execution",
+                "verification",
+                "teardown",
+                "other"
+            ]
+        },
+        "repo_state": {
+            "type": "object",
+            "description": "Snapshot of the repository body the agent is acting on.",
+            "properties": {
+                "branch": {
+                    "type": "string"
+                },
+                "head_sha": {
+                    "type": "string"
+                },
+                "dirty": {
+                    "type": "boolean"
+                },
+                "ahead_behind": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                }
+            },
+            "additionalProperties": true
+        },
+        "changed_files": {
+            "type": "array",
+            "description": "Files touched in the current unit of work.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    },
+                    "change": {
+                        "type": "string",
+                        "enum": [
+                            "added",
+                            "modified",
+                            "deleted",
+                            "renamed"
+                        ]
+                    },
+                    "added_lines": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "removed_lines": {
+                        "type": "integer",
+                        "minimum": 0
+                    }
+                },
+                "required": [
+                    "path"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "diff_size": {
+            "type": "object",
+            "description": "Aggregate size of the pending diff — a load-bearing instinct feature (PATCH_LARGE / PATCH_SIZE_SPIKE).",
+            "properties": {
+                "files": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "added_lines": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "removed_lines": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "net_lines": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": true
+        },
+        "touched_symbols": {
+            "type": "array",
+            "description": "Qualified names of functions/classes/modules touched (blast-radius signal).",
+            "items": {
+                "type": "string"
+            }
+        },
+        "tool_events": {
+            "type": "array",
+            "description": "Observable tool invocations since the last frame (edit/read/run/search/etc.).",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "tool": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "ok",
+                            "error",
+                            "timeout",
+                            "denied"
+                        ]
+                    },
+                    "duration_ms": {
+                        "type": "number",
+                        "minimum": 0
+                    }
+                },
+                "required": [
+                    "tool"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "test_state": {
+            "type": "object",
+            "description": "Current known state of the test suite relevant to the change.",
+            "properties": {
+                "ran": {
+                    "type": "boolean"
+                },
+                "passed": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "failed": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "skipped": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "not_yet_run": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true
+        },
+        "verification_signals": {
+            "type": "object",
+            "description": "Verifier-owned signals, READ-ONLY to the psyche. The psyche may never alter a verdict; it may only request ADDITIONAL verification. Mirrors the verifier-invariance ceiling.",
+            "properties": {
+                "verdict": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "enum": [
+                        "pass",
+                        "fail",
+                        "pending",
+                        null
+                    ]
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "regression_found": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true
+        },
+        "build_lint_type_state": {
+            "type": "object",
+            "description": "Build / lint / typecheck health.",
+            "properties": {
+                "build": {
+                    "type": "string",
+                    "enum": [
+                        "ok",
+                        "fail",
+                        "unknown"
+                    ]
+                },
+                "lint": {
+                    "type": "string",
+                    "enum": [
+                        "ok",
+                        "fail",
+                        "unknown"
+                    ]
+                },
+                "typecheck": {
+                    "type": "string",
+                    "enum": [
+                        "ok",
+                        "fail",
+                        "unknown"
+                    ]
+                }
+            },
+            "additionalProperties": true
+        },
+        "stakes": {
+            "type": "object",
+            "description": "Risk / stakes / reversibility of the current action — feeds salience (risk term) and authority (safety ceiling).",
+            "properties": {
+                "risk": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "stakes": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "reversibility": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "1.0 = fully reversible, 0.0 = irreversible."
+                }
+            },
+            "additionalProperties": true
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "timestamp",
+        "run_id",
+        "phase"
+    ],
+    "additionalProperties": true
+}
