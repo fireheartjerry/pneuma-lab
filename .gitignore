@@ -33,3 +33,11 @@ lerna-debug.log*
 
 # OS
 Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
