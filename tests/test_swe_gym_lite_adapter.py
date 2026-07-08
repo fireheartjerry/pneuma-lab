@@ -51,3 +51,42 @@ def test_governance_frame_validates():
     assert f["verifier_isolation"] is True
     assert f["kill_switch_state"] == "off"
     assert validate.iter_errors(f) == []
+
+
+from pneuma_lab.adapters import envelope as env
+
+
+def test_build_trace_structure_and_validation():
+    trace = swe.build_trace(
+        SAMPLE_ROW,
+        hf_revision="f70b1a29",
+        source_file="raw/.../train.parquet",
+        source_row=0,
+    )
+    assert trace["trace_id"].startswith("ptrace:")
+    assert trace["run_id"].startswith("run:")
+    assert trace["labels"]["has_patch"] is True
+    assert trace["labels"]["benchmark"] == "swe-gym-lite"
+    assert trace["oracle"]["fail_to_pass"] == ["tests/x.py::test_a"]
+    assert trace["reference_supervision"]["gold_patch"] == SAMPLE_ROW["patch"]
+    assert trace["reference_supervision"]["hints_text"] == "Here's the culprit"
+    assert (
+        trace["build"]["frame_sources"]["governance-frame"]
+        == "synthetic-contract-minimum"
+    )
+    assert [f["frame_kind"] for f in trace["frames"]] == ["world", "governance"]
+    # content hash recomputes to the stored value
+    assert env.content_hash(trace) == trace["build"]["content_hash"]
+    # whole envelope validates
+    assert env.envelope_errors(trace) == []
+    # each frame validates against its existing schema
+    for f in trace["frames"]:
+        assert validate.iter_errors(f) == []
+
+
+def test_build_trace_skips_row_missing_base_commit():
+    bad = dict(SAMPLE_ROW)
+    del bad["base_commit"]
+    with pytest.raises(swe.SkipRow) as ei:
+        swe.build_trace(bad, hf_revision="f70b1a29", source_file="f", source_row=1)
+    assert "base_commit" in str(ei.value)
