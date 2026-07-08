@@ -12,6 +12,7 @@ import json
 from datetime import datetime, timezone
 
 from pneuma_lab.adapters import envelope as env
+from pneuma_lab.schemas import validate
 
 FRAME_SCHEMA_VERSION = "0.1.0"
 
@@ -160,3 +161,112 @@ def build_trace(row: dict, hf_revision: str, source_file: str, source_row: int) 
     trace["build"]["content_hash"] = env.content_hash(trace)
     trace["validation"] = {"schema": env.ENVELOPE_SCHEMA_FILE, "status": "valid"}
     return trace
+
+
+ADAPTER_REPORT_SCHEMA_VERSION = "0.1.0"
+
+
+def _index_row(trace: dict) -> dict:
+    labels = trace["labels"]
+    return {
+        "trace_id": trace["trace_id"],
+        "run_id": trace["run_id"],
+        "source_id": labels["instance_id"],
+        "repo": labels["repo"],
+        "split": labels["split"],
+        "benchmark": labels["benchmark"],
+        "has_patch": labels["has_patch"],
+        "has_tests": labels["has_tests"],
+        "has_trajectory": labels["has_trajectory"],
+        "num_frames": len(trace["frames"]),
+        "frame_kinds": ["world-frame", "governance-frame"],
+        "oracle_kind": trace["oracle"]["kind"],
+        "privacy_status": trace["privacy"]["status"],
+        "validation_status": trace["validation"]["status"],
+        "content_hash": trace["build"]["content_hash"],
+    }
+
+
+def _jsonl(objs: list[dict]) -> str:
+    return "".join(env.canonical_json(o) + "\n" for o in objs)
+
+
+def run(rows, hf_revision: str, source_file: str) -> dict[str, str]:
+    """Build all traces; return the four output files as canonical strings."""
+    indexed = sorted(enumerate(rows), key=lambda p: str(p[1].get("instance_id", "")))
+    valid, invalid, skipped = [], [], []
+    for source_row, row in indexed:
+        try:
+            trace = build_trace(row, hf_revision, source_file, source_row)
+        except SkipRow as exc:
+            skipped.append(
+                {
+                    "source_id": row.get("instance_id", f"<row {source_row}>"),
+                    "reason": str(exc),
+                }
+            )
+            continue
+        frame_errs = [e for f in trace["frames"] for e in validate.iter_errors(f)]
+        env_errs = env.envelope_errors(trace)
+        if frame_errs or env_errs:
+            trace["validation"]["status"] = "invalid"
+            invalid.append(
+                {
+                    "trace_id": trace["trace_id"],
+                    "source_id": trace["provenance"]["source_id"],
+                    "errors": {"envelope": env_errs, "frames": frame_errs},
+                    "trace": trace,
+                }
+            )
+        else:
+            valid.append(trace)
+
+    traces_str = _jsonl(valid)
+    invalid_str = _jsonl(invalid)
+    index_str = _jsonl([_index_row(t) for t in valid])
+
+    def present(field):
+        return sum(1 for t in valid if t["reference_supervision"].get(field))
+
+    report = {
+        "adapter_report_schema_version": ADAPTER_REPORT_SCHEMA_VERSION,
+        "adapter": dict(ADAPTER),
+        "dataset": DATASET,
+        "hf_repo": HF_REPO,
+        "hf_revision": hf_revision,
+        "counts": {
+            "source_rows": len(rows),
+            "traces_emitted": len(valid) + len(invalid),
+            "valid": len(valid),
+            "invalid": len(invalid),
+            "skipped": len(skipped),
+        },
+        "frame_validation": {
+            "world-frame": {"valid": len(valid), "invalid": len(invalid)},
+            "governance-frame": {"valid": len(valid), "invalid": len(invalid)},
+        },
+        "oracle_coverage": {
+            "fail_to_pass_present": sum(
+                1 for t in valid if t["oracle"]["fail_to_pass"]
+            ),
+            "pass_to_pass_present": sum(
+                1 for t in valid if t["oracle"]["pass_to_pass"]
+            ),
+            "gold_patch_present": present("gold_patch"),
+            "test_patch_present": present("test_patch"),
+            "hints_present": present("hints_text"),
+        },
+        "ordering": {"emission_sort_key": "instance_id", "source_row_preserved": True},
+        "skipped_source_ids": skipped,
+        "invalid_source_ids": [x["source_id"] for x in invalid],
+        "traces_file_sha256": _sha256(traces_str),
+        "trace_index_file_sha256": _sha256(index_str),
+        "invalid_traces_file_sha256": _sha256(invalid_str),
+        "warnings": [],
+    }
+    return {
+        "pneuma_traces.jsonl": traces_str,
+        "pneuma_traces.invalid.jsonl": invalid_str,
+        "trace_index.jsonl": index_str,
+        "adapter_report.json": env.canonical_json(report) + "\n",
+    }

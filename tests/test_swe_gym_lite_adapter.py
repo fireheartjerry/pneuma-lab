@@ -90,3 +90,56 @@ def test_build_trace_skips_row_missing_base_commit():
     with pytest.raises(swe.SkipRow) as ei:
         swe.build_trace(bad, hf_revision="f70b1a29", source_file="f", source_row=1)
     assert "base_commit" in str(ei.value)
+
+
+def _rows():
+    r2 = dict(
+        SAMPLE_ROW, instance_id="aaa__lib-1", hints_text=""
+    )  # sorts first, no hints
+    r3 = dict(SAMPLE_ROW, instance_id="zzz__lib-9")  # sorts last
+    return [SAMPLE_ROW, r2, r3]
+
+
+def test_run_counts_sort_and_determinism():
+    out1 = swe.run(_rows(), hf_revision="f70b1a29", source_file="f.parquet")
+    out2 = swe.run(_rows(), hf_revision="f70b1a29", source_file="f.parquet")
+    assert out1 == out2  # byte-identical across runs
+
+    import json as _json
+
+    report = _json.loads(out1["adapter_report.json"])
+    assert report["counts"] == {
+        "source_rows": 3,
+        "traces_emitted": 3,
+        "valid": 3,
+        "invalid": 0,
+        "skipped": 0,
+    }
+    assert report["ordering"] == {
+        "emission_sort_key": "instance_id",
+        "source_row_preserved": True,
+    }
+    assert report["oracle_coverage"]["hints_present"] == 2  # r2 has empty hints
+    # traces sorted by instance_id
+    ids = [
+        _json.loads(l)["labels"]["instance_id"]
+        for l in out1["pneuma_traces.jsonl"].splitlines()
+    ]
+    assert ids == ["aaa__lib-1", "getmoto__moto-5752", "zzz__lib-9"]
+    # index rows carry the required fields
+    idx0 = _json.loads(out1["trace_index.jsonl"].splitlines()[0])
+    assert idx0["frame_kinds"] == ["world-frame", "governance-frame"]
+    assert idx0["content_hash"]
+
+
+def test_run_skips_unbuildable_row():
+    bad = dict(SAMPLE_ROW, instance_id="bad__row-1")
+    del bad["base_commit"]
+    out = swe.run(_rows() + [bad], hf_revision="f70b1a29", source_file="f.parquet")
+    import json as _json
+
+    report = _json.loads(out["adapter_report.json"])
+    assert report["counts"]["skipped"] == 1
+    assert report["skipped_source_ids"] == [
+        {"source_id": "bad__row-1", "reason": "missing base_commit"}
+    ]
