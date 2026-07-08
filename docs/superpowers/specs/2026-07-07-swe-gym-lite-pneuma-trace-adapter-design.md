@@ -46,7 +46,7 @@ supervision, wrapping a list of _existing, validated_ Pneuma input frames. Top l
         }
       },
       "privacy": { "status": "clean", "pii_scanned": false, "redactions": [] },
-      "validation": { "schema": "pneuma_trace.schema.json", "status": "valid" },
+      "validation": { "schema": "pneuma-trace.schema.json", "status": "valid" },
       "labels": {
         "instance_id": "getmoto__moto-5752", "benchmark": "swe-gym-lite",
         "repo": "getmoto/moto", "language": "python", "split": "train",
@@ -141,7 +141,7 @@ Pneuma's replay tests byte-compare output; the adapter must be fully determinist
 
 ## 6. Validation & failure policy
 
-Three validations per trace: envelope vs `pneuma_trace.schema.json`; each frame vs
+Three validations per trace: envelope vs `pneuma-trace.schema.json`; each frame vs
 its existing schema — reusing `src/pneuma_lab/schemas/validate.py`.
 
 - **valid** → `pneuma_traces.jsonl`.
@@ -186,7 +186,7 @@ is deterministic, and a present-but-empty quarantine file beats an absent one.
 
 ## 9. Code & schema layout (in-repo)
 
-- **`schemas/pneuma_trace.schema.json`** — Draft 2020-12; repo conventions
+- **`schemas/pneuma-trace.schema.json`** — Draft 2020-12; repo conventions
   (`$schema`, `$id`, `title`, `description`, `type`, `x-pneuma-version`); marker
   **`x-pneuma-schema-kind: "envelope"`** (a contract, not a frame).
 - **`src/pneuma_lab/schemas/__init__.py`** — expose three buckets: input frames,
@@ -223,7 +223,7 @@ A tiny committed sample so `pytest` never touches `/c/pneuma-data` or the networ
 
 ## 11. Test suite (TDD, all hermetic)
 
-1. Schema validity — `pneuma_trace.schema.json` parses; all `schemas/` load;
+1. Schema validity — `pneuma-trace.schema.json` parses; all `schemas/` load;
    envelope registered in the `envelopes` bucket.
 2. Envelope unit — deterministic `trace_id`/`run_id`; `content_hash` stability &
    self-exclusion; canonical-JSON round-trip.
@@ -234,7 +234,7 @@ A tiny committed sample so `pytest` never touches `/c/pneuma-data` or the networ
 5. Two-run determinism — same input twice → byte-identical.
 6. Quarantine + skip — missing `base_commit` → `skipped_source_ids`; forced invalid
    frame → `pneuma_traces.invalid.jsonl`.
-7. Malformed envelope rejected by `pneuma_trace.schema.json`.
+7. Malformed envelope rejected by `pneuma-trace.schema.json`.
 8. Oracle-coverage counts — report counts (fail/pass_to_pass, gold/test patch,
    hints present) are correct (catches silent field-dropping).
 9. Fixture-drift protection — `--emit-fixture` fails on drift; rewrite only via
@@ -242,7 +242,7 @@ A tiny committed sample so `pytest` never touches `/c/pneuma-data` or the networ
 
 ## 12. Definition of done
 
-- `schemas/pneuma_trace.schema.json` exists, valid, registered in `envelopes` bucket.
+- `schemas/pneuma-trace.schema.json` exists, valid, registered in `envelopes` bucket.
 - `envelope.py` + `swe_gym_lite.py` + CLI produce the four files under
   `processed/swe-gym/lite/` for all 230 Lite rows, byte-deterministically.
 - All 9 tests pass; full suite (`pytest tests/ -q`) stays green.
