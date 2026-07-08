@@ -9,6 +9,11 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from functools import lru_cache
+
+from jsonschema import Draft202012Validator
+
+from pneuma_lab.schemas import load_schema
 
 SCHEMA_VERSION = "0.1.0"
 ENVELOPE_SCHEMA_FILE = "pneuma-trace.schema.json"
@@ -41,10 +46,29 @@ def content_hash(trace: dict) -> str:
     ).hexdigest()
 
 
+@lru_cache(maxsize=1)
+def _envelope_validator() -> Draft202012Validator:
+    return Draft202012Validator(load_schema(ENVELOPE_SCHEMA_FILE))
+
+
+def envelope_errors(trace: dict) -> list[str]:
+    """Human-readable envelope-schema errors (empty list = valid)."""
+    if not isinstance(trace, dict):
+        return [f"trace is not an object: {type(trace).__name__}"]
+    out: list[str] = []
+    for err in sorted(
+        _envelope_validator().iter_errors(trace), key=lambda e: list(e.path)
+    ):
+        loc = "/".join(str(p) for p in err.path) or "<root>"
+        out.append(f"{loc}: {err.message}")
+    return out
+
+
 __all__ = [
     "SCHEMA_VERSION",
     "ENVELOPE_SCHEMA_FILE",
     "canonical_json",
     "derive_ids",
     "content_hash",
+    "envelope_errors",
 ]

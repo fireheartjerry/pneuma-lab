@@ -36,3 +36,42 @@ def test_content_hash_excludes_self_and_validation():
     trace2["build"]["content_hash"] = "DIFFERENT"
     trace2["validation"] = {"status": "invalid"}
     assert env.content_hash(trace2) == h1  # blanked/removed before hashing
+
+
+def _minimal_valid_trace():
+    return {
+        "schema_version": "0.1.0",
+        "trace_id": "ptrace:abc123",
+        "run_id": "run:abc123",
+        "adapter": {"name": "swe-gym", "version": "0.1.0"},
+        "provenance": {
+            "dataset": "swe-gym",
+            "source_id": "x",
+            "hf_repo": "r",
+            "hf_revision": "rev",
+            "source_file": "f",
+            "source_row": 0,
+        },
+        "build": {
+            "deterministic": True,
+            "content_hash": "h",
+            "generated_from": ["dataset"],
+            "frame_sources": {"world-frame": "dataset-derived"},
+        },
+        "privacy": {"status": "clean", "pii_scanned": False, "redactions": []},
+        "labels": {},
+        "oracle": {"kind": "test-based"},
+        "reference_supervision": {},
+        "frames": [{"frame_kind": "world"}],
+    }
+
+
+def test_valid_envelope_passes():
+    assert env.envelope_errors(_minimal_valid_trace()) == []
+
+
+def test_malformed_envelope_rejected():
+    bad = _minimal_valid_trace()
+    del bad["provenance"]
+    errs = env.envelope_errors(bad)
+    assert errs and any("provenance" in e for e in errs)
