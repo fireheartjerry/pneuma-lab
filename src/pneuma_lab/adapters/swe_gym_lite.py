@@ -7,9 +7,14 @@ the envelope, never psyche-input frames. No agent-trace/memory frames (no agent 
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import os
+import sys
 from datetime import datetime, timezone
+
+import pyarrow.parquet as pq
 
 from pneuma_lab.adapters import envelope as env
 from pneuma_lab.schemas import validate
@@ -270,3 +275,112 @@ def run(rows, hf_revision: str, source_file: str) -> dict[str, str]:
         "trace_index.jsonl": index_str,
         "adapter_report.json": env.canonical_json(report) + "\n",
     }
+
+
+OUTPUT_FILES = (
+    "pneuma_traces.jsonl",
+    "pneuma_traces.invalid.jsonl",
+    "trace_index.jsonl",
+    "adapter_report.json",
+)
+
+# Fields the adapter reads; the fixture keeps exactly these (minimum needed).
+SOURCE_FIELDS = (
+    "instance_id",
+    "repo",
+    "base_commit",
+    "version",
+    "created_at",
+    "problem_statement",
+    "patch",
+    "test_patch",
+    "hints_text",
+    "FAIL_TO_PASS",
+    "PASS_TO_PASS",
+)
+
+
+def read_lite_parquet(path: str) -> list[dict]:
+    """Read the raw SWE-Gym-Lite parquet into a list of row dicts."""
+    table = pq.read_table(path)
+    return table.to_pylist()
+
+
+def write_outputs(out_dir: str, files: dict[str, str]) -> None:
+    """Write the four canonical strings to out_dir (created if needed)."""
+    os.makedirs(out_dir, exist_ok=True)
+    for name in OUTPUT_FILES:
+        with open(os.path.join(out_dir, name), "w", encoding="utf-8", newline="") as fh:
+            fh.write(files[name])
+
+
+DEFAULT_INPUT = (
+    "C:/pneuma-data/raw/swe-gym/SWE-Gym-Lite/data/train-00000-of-00001.parquet"
+)
+DEFAULT_OUT = "C:/pneuma-data/processed/swe-gym/lite"
+DEFAULT_HF_REVISION = "f70b1a29ab120eb0a0ee7a1deb029825e735b2b0"
+FIXTURE_DIR = os.path.join("fixtures", "adapters", "swe_gym_lite")
+FIXTURE_SOURCE_FILE = "fixtures/adapters/swe_gym_lite/input_rows.jsonl"
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="pneuma_lab.adapters.swe_gym_lite")
+    p.add_argument("--input", default=DEFAULT_INPUT)
+    p.add_argument("--out", default=DEFAULT_OUT)
+    p.add_argument("--hf-revision", default=DEFAULT_HF_REVISION)
+    p.add_argument(
+        "--emit-fixture",
+        action="store_true",
+        help="Check adapter output against the committed golden fixture (fails on drift).",
+    )
+    p.add_argument(
+        "--update-fixture",
+        action="store_true",
+        help="Rewrite the golden fixture from the fixture input (explicit opt-in).",
+    )
+    return p
+
+
+def _fixture_rows() -> list[dict]:
+    with open(os.path.join(FIXTURE_DIR, "input_rows.jsonl"), encoding="utf-8") as fh:
+        return [json.loads(line) for line in fh if line.strip()]
+
+
+def main(argv=None) -> int:
+    args = _build_parser().parse_args(argv)
+
+    if args.emit_fixture or args.update_fixture:
+        files = run(
+            _fixture_rows(),
+            hf_revision=DEFAULT_HF_REVISION,
+            source_file=FIXTURE_SOURCE_FILE,
+        )
+        golden = os.path.join(FIXTURE_DIR, "golden")
+        if args.update_fixture:
+            write_outputs(golden, files)
+            print(f"golden fixture rewritten in {golden}")
+            return 0
+        drift = [
+            name
+            for name in OUTPUT_FILES
+            if open(os.path.join(golden, name), encoding="utf-8").read() != files[name]
+        ]
+        if drift:
+            print(
+                f"FIXTURE DRIFT in: {drift}. Re-run with --update-fixture to accept.",
+                file=sys.stderr,
+            )
+            return 1
+        print("fixture matches golden.")
+        return 0
+
+    rows = read_lite_parquet(args.input)
+    files = run(rows, hf_revision=args.hf_revision, source_file=args.input)
+    write_outputs(args.out, files)
+    report = json.loads(files["adapter_report.json"])
+    print(f"wrote {report['counts']['valid']} traces to {args.out}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
