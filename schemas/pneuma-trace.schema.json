@@ -1,0 +1,116 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/pneuma-trace.schema.json",
+    "title": "PneumaTrace",
+    "description": "A durable, deterministic envelope wrapping existing validated Pneuma input frames plus dataset provenance, privacy status, labels, test oracle, and reference supervision. NON-cognitive: it introduces no new interior/cognition semantics. Envelope contract v0.1.",
+    "type": "object",
+    "x-pneuma-schema-kind": "envelope",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "schema_version",
+        "trace_id",
+        "run_id",
+        "adapter",
+        "provenance",
+        "build",
+        "privacy",
+        "labels",
+        "oracle",
+        "reference_supervision",
+        "frames"
+    ],
+    "properties": {
+        "schema_version": { "type": "string", "const": "0.1.0" },
+        "trace_id": { "type": "string", "pattern": "^ptrace:[0-9a-f]+$" },
+        "run_id": { "type": "string", "pattern": "^run:[0-9a-f]+$" },
+        "adapter": {
+            "type": "object",
+            "required": ["name", "version"],
+            "properties": {
+                "name": { "type": "string" },
+                "version": { "type": "string" }
+            },
+            "additionalProperties": true
+        },
+        "provenance": {
+            "type": "object",
+            "required": [
+                "dataset",
+                "source_id",
+                "hf_repo",
+                "hf_revision",
+                "source_file",
+                "source_row"
+            ],
+            "properties": {
+                "dataset": { "type": "string" },
+                "dataset_variant": { "type": "string" },
+                "source_id": { "type": "string" },
+                "hf_repo": { "type": "string" },
+                "hf_revision": { "type": "string" },
+                "source_file": { "type": "string" },
+                "source_row": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": true
+        },
+        "build": {
+            "type": "object",
+            "required": [
+                "deterministic",
+                "content_hash",
+                "generated_from",
+                "frame_sources"
+            ],
+            "properties": {
+                "deterministic": { "type": "boolean", "const": true },
+                "content_hash": { "type": "string" },
+                "generated_from": { "type": "array", "items": { "type": "string" } },
+                "frame_sources": {
+                    "type": "object",
+                    "additionalProperties": { "type": "string" }
+                }
+            },
+            "additionalProperties": true
+        },
+        "privacy": {
+            "type": "object",
+            "required": ["status", "pii_scanned", "redactions"],
+            "properties": {
+                "status": { "type": "string" },
+                "pii_scanned": { "type": "boolean" },
+                "redactions": { "type": "array" }
+            },
+            "additionalProperties": true
+        },
+        "validation": {
+            "type": "object",
+            "properties": {
+                "schema": { "type": "string" },
+                "status": { "type": "string" }
+            },
+            "additionalProperties": true
+        },
+        "labels": { "type": "object" },
+        "oracle": {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+                "kind": { "type": "string" },
+                "fail_to_pass": { "type": "array", "items": { "type": "string" } },
+                "pass_to_pass": { "type": "array", "items": { "type": "string" } }
+            },
+            "additionalProperties": true
+        },
+        "reference_supervision": { "type": "object" },
+        "frames": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["frame_kind"],
+                "properties": { "frame_kind": { "type": "string" } },
+                "additionalProperties": true
+            }
+        }
+    },
+    "additionalProperties": true
+}

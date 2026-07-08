@@ -25,7 +25,8 @@ def test_schema_dir_exists() -> None:
 def test_expected_counts() -> None:
     assert len(pls.INPUT_SCHEMA_FILES) == EXPECTED_INPUT_COUNT
     assert len(pls.OUTPUT_SCHEMA_FILES) == EXPECTED_OUTPUT_COUNT
-    assert len(pls.ALL_SCHEMA_FILES) == EXPECTED_INPUT_COUNT + EXPECTED_OUTPUT_COUNT
+    assert len(pls.ENVELOPE_SCHEMA_FILES) == 1
+    assert len(pls.ALL_SCHEMA_FILES) == EXPECTED_INPUT_COUNT + EXPECTED_OUTPUT_COUNT + 1
 
 
 @pytest.mark.parametrize("filename", pls.ALL_SCHEMA_FILES)
@@ -50,7 +51,7 @@ def test_schema_has_core_metadata(filename: str) -> None:
     assert schema.get("description"), filename
 
 
-@pytest.mark.parametrize("filename", pls.ALL_SCHEMA_FILES)
+@pytest.mark.parametrize("filename", pls.INPUT_SCHEMA_FILES + pls.OUTPUT_SCHEMA_FILES)
 def test_schema_declares_frame_kind_and_version(filename: str) -> None:
     schema = pls.load_schema(filename)
     kind = schema.get("x-pneuma-frame-kind")
@@ -103,3 +104,16 @@ def test_schemas_are_utf8_json_on_disk() -> None:
         raw = pls.schema_path(name).read_bytes()
         assert not raw.startswith(b"\xef\xbb\xbf"), f"{name} has a UTF-8 BOM"
         json.loads(raw.decode("utf-8"))
+
+
+def test_envelope_bucket_registered() -> None:
+    assert pls.ENVELOPE_SCHEMA_FILES == ("pneuma-trace.schema.json",)
+    assert "pneuma-trace.schema.json" in pls.ALL_SCHEMA_FILES
+
+
+def test_envelope_schema_shape() -> None:
+    schema = pls.load_schema("pneuma-trace.schema.json")
+    assert schema["x-pneuma-schema-kind"] == "envelope"
+    assert schema["type"] == "object"
+    for key in ("trace_id", "run_id", "provenance", "build", "frames"):
+        assert key in schema["properties"], f"missing property {key}"
