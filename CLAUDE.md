@@ -25,9 +25,11 @@ scaffold seams.
 ## Read When Relevant
 
 - Project overview: `README.md`
+- Research program (evidence-graded; start at the overview): `docs/research/00-program-overview.md`
 - Architecture intent: `docs/vision.md`
 - Frame contract map: `docs/io-contract.md`
 - Evidence ladder: `docs/consciousness-levels.md`
+- Canonical L3-vs-L4 evidence demo: `docs/level4-evidence-demo.md`
 - 9to5 source crosswalk: `docs/source-map.md`
 - Migration account: `migration/MIGRATION_REPORT.md`
 - Copied reference material: `migration/copied-from-9to5/` and
@@ -45,17 +47,46 @@ scaffold seams.
   `migration/copied-from-9to5/reference-interfaces/` (manifold, prototypes,
   mood, drives, authority — with the 9to5 `config` defaults inlined).
 - `src/pneuma_lab/replay/` (Phase 1) is the deterministic replay harness + JSONL
-  IO + tick grouping + a `python -m pneuma_lab.replay` CLI.
-- `src/pneuma_lab/evals/` (Phase 1) holds `ConsciousnessEvidenceScorer`
-  (Level 0–3 only; hard-capped because Phase 1 runs no interventions).
-- `src/pneuma_lab/adapters/` is still a planned seam (Phase 2).
+  IO + tick grouping + a `python -m pneuma_lab.replay` CLI. The harness accepts an
+  optional intervention `schedule` (Phase 2); the CLI auto-runs paired mode when
+  the timeline contains `InterventionFrame`s.
+- `src/pneuma_lab/interventions/` (Phase 2) is the Level-4 intervention harness:
+  pure operation math (`operations`), the `PerturbationSet` surface the psyche
+  consults (`perturbation`), duration-window resolution (`schedule`), the
+  expected-vs-observed delta report (`report`), and the `PairedReplayRunner`
+  (control/treated/null) that scores Level 4 honestly (`runner`). The package
+  eager-imports only its two leaf modules and lazily loads the rest to avoid an
+  import cycle with `psyche`/`replay`.
+- `src/pneuma_lab/evals/` holds `ConsciousnessEvidenceScorer` (Level 0–4). Level 4
+  is reachable only via the paired runner: interventions execute AND pass, the
+  null holds, the causal trace stays complete, grounded reports change under
+  perturbation, and confab risk is low. Hard-capped at 4 (never Level 5).
+- `src/pneuma_lab/demo.py` is the canonical evidence demo (`python -m
+pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
+  paired replay of every `fixtures/interventions/*.jsonl`, each replayed twice and
+  compared byte-for-byte, consolidated into `build/canonical/summary.json` (+
+  `summary.md`). It exits non-zero on any determinism regression and never
+  re-scores the psyche — it drives the same harness/runner the tests use.
+- `src/pneuma_lab/adapters/` (Phase 3 / 3.1) holds the deterministic
+  PneumaTrace envelope (`envelope.py`, incl. the v0.2 anti-fake-cognition
+  `consistency_errors` gate), the task-only SWE-Gym-Lite adapter
+  (`swe_gym_lite.py`), the observable-only trajectory extraction rules
+  (`trajectory.py`), and the trajectory-bearing OpenHands-Sampled adapter
+  (`openhands_sampled.py`). See `docs/phase-3-1-trajectory-traces.md`.
+  Agent-trace frames are permitted ONLY when a real recorded trajectory
+  exists; raw trajectory text never enters frames (digests + lengths only).
 - `fixtures/sample_run.jsonl` is a failure-motif escalation timeline used by the
-  replay tests and CLI.
+  replay tests and CLI. `fixtures/interventions/` holds the canonical Level-4
+  scenarios (ablate scar graph, clamp tension, boost curiosity, remove identity
+  anchors, disable workspace) plus a `restore` null and a failing-hypothesis case.
 - `docs/` explains the research contract in human language;
-  `docs/superpowers/` holds the Phase-1 design spec + implementation plan.
+  `docs/superpowers/` holds the Phase-1 and Phase-2 design specs + plans.
 - `migration/` is read-only provenance and design/reference material.
 - `tests/` verifies schema validity, frame validation, ported psyche math,
-  output-frame validity, deterministic replay, and evidence scoring.
+  output-frame validity, deterministic replay, evidence scoring, the perturbation
+  hooks, the intervention schedule/report, deterministic paired replay, and the
+  Level-4 gate (including honest refusal when interventions are absent or fail),
+  and the canonical demo (valid summary, byte-determinism, L3/L4 buckets).
 
 ## Core Rules
 

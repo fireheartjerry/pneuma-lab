@@ -33,6 +33,7 @@ class ReplayResult:
     input_count: int = 0
     tick_count: int = 0
     interventions_seen: int = 0
+    interventions_executed: int = 0
 
 
 class ReplayHarness:
@@ -44,7 +45,11 @@ class ReplayHarness:
         self._scorer = ConsciousnessEvidenceScorer()
 
     def run(
-        self, input_frames: list[dict], *, strip_memory: bool = False
+        self,
+        input_frames: list[dict],
+        *,
+        strip_memory: bool = False,
+        schedule=None,
     ) -> ReplayResult:
         """Replay ``input_frames`` and return outputs + a scored evidence frame.
 
@@ -52,20 +57,35 @@ class ReplayHarness:
             input_frames: flat JSONL-style stream of input frame dicts.
             strip_memory: if True, drop MemoryFrames before ticking (used by the
                 L2 memory-readback ablation test — no readback ⇒ weaker outputs).
+            schedule: an optional ``InterventionSchedule``. When given and the psyche
+                implements ``Perturbable``, the interventions active on each tick are
+                installed before that tick (a *treated* replay). A single replay never
+                self-certifies Level 4 (``intervention_tests=None``); the paired runner
+                supplies real pass/fail results.
         """
+        from ..interventions.perturbation import (
+            Perturbable,
+        )  # local: avoid import cycle
+
         if self.validate:
             for frame in input_frames:
                 validate_or_raise(frame)
 
         ticks = group_into_ticks(input_frames)
         self.psyche.reset()
+        perturbable = isinstance(self.psyche, Perturbable)
 
         output_frames: list[dict] = []
         tick_outputs: list[PsycheOutputs] = []
         interventions_seen = 0
+        executed_ids: set = set()
 
         for tick in ticks:
             interventions_seen += len(tick.interventions)
+            active = schedule.active(tick.index) if schedule is not None else []
+            if perturbable:
+                self.psyche.set_active_interventions(active)
+            executed_ids.update(iv.get("experiment_id") for iv in active)
             inputs = self._tick_to_inputs(tick, strip_memory=strip_memory)
             outputs = self.psyche.tick(inputs)
             frames = outputs.all_frames()
@@ -75,13 +95,15 @@ class ReplayHarness:
             output_frames.extend(frames)
             tick_outputs.append(outputs)
 
+        interventions_executed = len(executed_ids)
         run_id = ticks[0].world.get("run_id") if ticks else None
         evidence = self._scorer.score(
             run_id=run_id,
             input_frames=input_frames,
             tick_outputs=tick_outputs,
-            interventions_executed=0,  # Phase 1 never executes interventions
+            interventions_executed=interventions_executed,
             memory_readback_present=any(t.memory for t in ticks) and not strip_memory,
+            intervention_tests=None,  # a single replay never self-certifies Level 4
         )
         if self.validate:
             validate_or_raise(evidence)
@@ -93,6 +115,7 @@ class ReplayHarness:
             input_count=len(input_frames),
             tick_count=len(ticks),
             interventions_seen=interventions_seen,
+            interventions_executed=interventions_executed,
         )
 
     @staticmethod

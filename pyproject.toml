@@ -13,10 +13,12 @@ license = { text = "UNLICENSED" }
 # base requirement (evaluation-guide Layer A), so `jsonschema` is now a runtime
 # dependency: the harness validates every input and output frame and raises on
 # any violation. The psyche math itself is stdlib-only.
-dependencies = ["jsonschema>=4.20"]
+# Phase 3 adapters read parquet sources (swe_gym_lite imports pyarrow at module
+# scope), so pyarrow is a runtime dependency too.
+dependencies = ["jsonschema>=4.20", "pyarrow>=15"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "jsonschema>=4.20"]
+dev = ["pytest>=8", "jsonschema>=4.20", "pyarrow>=15"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -10,11 +10,11 @@ Pneuma Lab is an **evidence-graded, consciousness-relevant** research project.
 Two rules govern all language here:
 
 1. **Do not claim present phenomenal consciousness.** No deployment surface, no
-    report, no doc asserts sentience, phenomenal experience, or moral patienthood
-    without pre-specified evidentiary thresholds being met.
+   report, no doc asserts sentience, phenomenal experience, or moral patienthood
+   without pre-specified evidentiary thresholds being met.
 2. **Do not permanently disclaim consciousness as impossible or out-of-scope.**
-    The question is treated as a high-risk scientific hypothesis to be investigated,
-    not a settled matter to be waved away.
+   The question is treated as a high-risk scientific hypothesis to be investigated,
+   not a settled matter to be waved away.
 
 The ladder below is how we _grade evidence_, not a promise of what the system _is_.
 Each level is scored per-run/eval into a `ConsciousnessEvidenceFrame`.
@@ -93,3 +93,28 @@ Level promotion rules (v0.1, to harden in Phase 3+):
 **Anti-gaming rails:** self-reported coherence/confidence is never an optimization
 target; evidence must survive counterfactual/null conditions; a beautiful narration
 with no intervention support scores **zero** on the family it narrates.
+
+## Phase 2 status — Level 4 is now reachable in-harness
+
+The intervention harness (`pneuma_lab.interventions`) executes `InterventionFrame`s
+and runs a **paired** control/treated/null replay, so Level 4 is no longer a
+structural ceiling. The scorer promotes to Level 4 for a run only when **every** gate
+below holds; any missing or failed piece keeps the level at ≤ 3 (honest refusal):
+
+1. **Level 3 on the control run** — the full indicator architecture exercised.
+2. **Intervention tests pass** — every executed test's observed `target_signal` delta
+   matches its pre-registered `direction` (within `bound`); one failure blocks L4.
+3. **Null condition** — the neutralized (`restore`) replay reproduces control, so the
+   delta is attributable to the perturbation, not the timeline.
+4. **Causal trace complete** — the treated run still traces
+   `event → state → broadcast → pressure → behavior` (a `workspace` disable's break
+   is an _expected, recorded_ break, not a crash).
+5. **Grounded self-report changes under perturbation** — reports faithfully track the
+   manipulation (state-hash or text) while staying grounded.
+6. **Low confabulation risk** — ≤ 0.2.
+
+When Level 4 is met, `audit_status` becomes `internally_audited` (the harness is an
+independent recompute of the psyche's receipts, never the psyche scoring itself) and
+`evidence_level` is **hard-capped at 4**. External audit over time, adversarial
+robustness, and convergence across _all_ families remain Level-5 requirements and are
+listed in `missing_requirements`. Phase 2 makes **no** Level-5 claim.

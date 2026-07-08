@@ -41,3 +41,25 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+
+out.txt
+
+# Datasets (Phase-3 acquisition). Raw corpora live OUTSIDE the repo under
+# C:\pneuma-data (/c/pneuma-data). Never commit raw datasets, samples, caches,
+# or model weights into Pneuma Lab. These guards cover accidental in-repo copies.
+/pneuma-data/
+pneuma-data/
+/data/
+data/raw/
+data/samples/
+data/processed/
+*.parquet
+*.arrow
+*.hf
+*.safetensors
+*.ckpt
+*.pt
+*.bin
+.huggingface/
+hf_cache/
+datasets_cache/

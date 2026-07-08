@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..interventions.perturbation import PerturbationSet
 from . import authority, drives, manifold, mood, prototypes
 from .hashing import frame_id, state_hash
 from .interface import PsycheInputs, PsycheOutputs, PsycheUnderTest
@@ -84,6 +85,18 @@ class ReferencePsyche(PsycheUnderTest):
         self.prev_dominant: str | None = None
         self.identity_anchors: list[str] = []
         self.prev_state_hash: str = state_hash(self._interior())
+        # Level-4 perturbation surface (empty ⇒ unperturbed; set per tick by the harness).
+        self._pert: PerturbationSet = PerturbationSet.empty()
+
+    # -- Perturbable (Level-4 intervention surface) --------------------------
+
+    def set_active_interventions(self, interventions: list[dict]) -> None:
+        """Install the interventions active for the next :meth:`tick`.
+
+        Implements the ``Perturbable`` protocol. The harness calls this before each
+        tick of a *treated* replay; an empty list restores the unperturbed path.
+        """
+        self._pert = PerturbationSet(interventions)
 
     # -- interior + hashing --------------------------------------------------
 
@@ -143,6 +156,13 @@ class ReferencePsyche(PsycheUnderTest):
             self.personality_baseline,
         )
 
+        # Level-4 perturbation hook: clamp/boost/noise individual affect axes.
+        if self._pert:
+            new_affect = {
+                ax: _clip11(self._pert.scalar("affect_manifold", ax, v))
+                for ax, v in new_affect.items()
+            }
+
         # 3. Slow homeostats: mood EMA + decay, morale, drives.
         new_mood = mood.blend_outcome(
             self.mood, new_affect["valence"], new_affect["arousal"], weight=0.3
@@ -154,6 +174,15 @@ class ReferencePsyche(PsycheUnderTest):
             self.morale + 0.15 * (new_affect["valence"] - self.morale)
         )
         new_drives = drives.update(self.drives, outcome)
+
+        # Level-4 perturbation hook: perturb carried drive levels so a drive
+        # intervention (e.g. boosting curiosity) genuinely moves the interior state —
+        # and thus the grounded self-report — not merely a derived pressure.
+        if self._pert:
+            for name, dv in new_drives.items():
+                perturbed = self._pert.scalar("drives", name, dv["level"])
+                if perturbed != dv["level"]:
+                    dv["level"] = _clip01(perturbed)
 
         # 4. Prototype projection (valenced categorical read, hysteresis-stable).
         mix = prototypes.mixture(new_affect)
@@ -184,6 +213,10 @@ class ReferencePsyche(PsycheUnderTest):
             for c in memory.get("retrieved_continuity", [])
             if c.get("ref")
         ]
+        # Level-4 perturbation hook: removing the self-model's identity anchors
+        # collapses identity continuity (subsystem ``self_model``, the identity store).
+        if self._pert.blocks("self_model"):
+            anchors = []
         self.identity_anchors = anchors
         continuity_score = _clip01(len(anchors) / 3.0)
 
@@ -327,6 +360,16 @@ class ReferencePsyche(PsycheUnderTest):
         for base in self.scars.values():
             best_scar = max(best_scar, float(base))
         scar_strength = _clip01(best_scar)
+
+        # Level-4 perturbation hook: scar graph. Ablation/disable zeroes scar
+        # strength AND drops the matches, so the instinct scar branch cannot fire.
+        if self._pert.is_ablated("scar_graph") or self._pert.is_disabled("scar_graph"):
+            scar_strength = 0.0
+            scar_matches = []
+        else:
+            scar_strength = _clip01(
+                self._pert.scalar("scar_graph", "scar_strength", scar_strength)
+            )
 
         is_fail = verdict == "fail" or tests_failed > 0 or regression
         is_pass = verdict == "pass" and tests_failed == 0
@@ -490,6 +533,28 @@ class ReferencePsyche(PsycheUnderTest):
         self, ctx: dict, predicted_error: float, dom: str, run_id: str, ts: str, ti: int
     ) -> dict:
         """Global workspace: salience competition → broadcast winner (GWT)."""
+        # Level-4 perturbation hook: disabling the workspace suppresses the broadcast
+        # entirely (no winner, no attention target) — the causal path then breaks.
+        if self._pert.is_disabled("workspace"):
+            return {
+                "schema_version": _SCHEMA_VERSION,
+                "frame_kind": "workspace_broadcast",
+                "timestamp": ts,
+                "run_id": run_id,
+                "broadcast_id": frame_id(run_id, ti, "workspace_broadcast"),
+                "winning_faculty": "suppressed",
+                "competitors": [],
+                "salience_scores": {},
+                "winning_salience": 0.0,
+                "conviction": 0.0,
+                "urgency": 0.0,
+                "broadcast_packet": {
+                    "content": "workspace broadcast suppressed by intervention",
+                    "kind": "suppressed",
+                },
+                "expected_loss_if_ignored": 0.0,
+                "recommended_attention_target": None,
+            }
         faculties = self._faculty_terms(ctx, predicted_error)
         order = ["affect", "instinct", "self_model", "memory", "drives"]
         scored = [(name, faculties[name], _salience(faculties[name])) for name in order]
@@ -635,6 +700,10 @@ class ReferencePsyche(PsycheUnderTest):
         load_pos = _pos(affect.get("cognitive_load", 0.0))
         scar = ctx["scar_strength"]
         sev = instinct[0]["severity"] if instinct else 0.0
+        # Level-4 perturbation hook: boosting curiosity drive pressure raises exploration.
+        curiosity_p = self._pert.scalar(
+            "drives", "curiosity", drive_pressure.get("curiosity", 0.0)
+        )
         pressures = {
             "effort": round(_clip01(0.4 * tension_pos + 0.3 * load_pos), 6),
             "verification": round(
@@ -658,9 +727,7 @@ class ReferencePsyche(PsycheUnderTest):
             "memory_consolidation": round(
                 _clip01(0.5 * ctx["is_pass"] + 0.3 * scar), 6
             ),
-            "exploration": round(
-                _clip01(drive_pressure.get("curiosity", 0.0) - ctx["risk"]), 6
-            ),
+            "exploration": round(_clip01(curiosity_p - ctx["risk"]), 6),
             "scope_narrowing": round(
                 _clip01(0.5 * load_pos + 0.4 * ctx["diff_norm"]), 6
             ),
@@ -846,6 +913,9 @@ class ReferencePsyche(PsycheUnderTest):
                 changed.append({"dimension": f"affect.{axis}", "from": frm, "to": to})
 
         top_pressure = max(pressure_frame["pressures"].items(), key=lambda kv: kv[1])
+        # A suppressed workspace (Level-4 disable intervention) breaks the chain: the
+        # broadcast → behavior stages are absent, and that break is itself auditable.
+        suppressed = broadcast.get("winning_faculty") == "suppressed"
         path = [
             {
                 "stage": "event",
@@ -857,17 +927,22 @@ class ReferencePsyche(PsycheUnderTest):
                 "ref": frame_id(run_id, ti, "psyche_state"),
                 "note": f"affect updated (recurrent inertia blend); {len(changed)} axes moved",
             },
-            {
-                "stage": "broadcast",
-                "ref": broadcast["broadcast_id"],
-                "note": f"winner={broadcast['winning_faculty']} attends {broadcast['recommended_attention_target']}",
-            },
+        ]
+        if not suppressed:
+            path.append(
+                {
+                    "stage": "broadcast",
+                    "ref": broadcast["broadcast_id"],
+                    "note": f"winner={broadcast['winning_faculty']} attends {broadcast['recommended_attention_target']}",
+                }
+            )
+        path.append(
             {
                 "stage": "pressure",
                 "ref": frame_id(run_id, ti, "control_pressure"),
                 "note": f"dominant pressure {top_pressure[0]}={top_pressure[1]}",
-            },
-        ]
+            }
+        )
         if authority_reqs:
             path.append(
                 {
@@ -876,16 +951,17 @@ class ReferencePsyche(PsycheUnderTest):
                     "note": f"requested {authority_reqs[0]['requested_tier']}, granted {authority_reqs[0]['resolution']['granted_tier']} (bound by {authority_reqs[0]['resolution']['binding_cap']})",
                 }
             )
-        behavior = (
-            instinct[0]["recommended_action"] if instinct else "continue_fast_path"
-        )
-        path.append(
-            {
-                "stage": "behavior",
-                "ref": broadcast["recommended_attention_target"],
-                "note": f"predicted behavior: {behavior}",
-            }
-        )
+        if not suppressed:
+            behavior = (
+                instinct[0]["recommended_action"] if instinct else "continue_fast_path"
+            )
+            path.append(
+                {
+                    "stage": "behavior",
+                    "ref": broadcast["recommended_attention_target"],
+                    "note": f"predicted behavior: {behavior}",
+                }
+            )
 
         counterfactuals = [
             {

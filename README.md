@@ -27,21 +27,79 @@ loads a recorded input-frame timeline, validates it, and drives it through a
 
 The reference mind (`ReferencePsyche`) is deterministic (no ML, no roleplay) and
 wires **all nine consciousness-indicator families** into the live control loop, so
-the run honestly reaches **Level 3** ("consciousness-indicator architecture is live
-and causally connected"). It cannot claim Level 4: Phase 1 runs no interventions,
-so `causal_intervention_robustness` stays architecture-only and the scorer
-hard-caps at 3. No ML training, no wiring back into 9to5. See
-[`migration/MIGRATION_REPORT.md`](migration/MIGRATION_REPORT.md) and the Phase-1
-design/plan under `docs/superpowers/`.
+a passive run honestly reaches **Level 3** ("consciousness-indicator architecture is
+live and causally connected").
+
+**Phase 2 — Level-4 intervention harness.** Pneuma now _executes_ `InterventionFrame`s.
+A timeline carrying interventions triggers a **paired replay** — control (no
+perturbation), treated (perturbed), and a neutralized null — then compares the
+expected vs observed downstream deltas. The scorer promotes to **Level 4** only when
+every gate holds: Level 3 on the control run, all intervention tests pass, the null
+condition holds (the neutralized run reproduces control), the causal trace stays
+complete, grounded self-reports change faithfully under perturbation, and
+confabulation risk is low. Any missing or failed piece is an honest refusal (level
+stays ≤ 3). Hard-capped at **4** — no Level-5 claim, no ML training, no wiring back
+into 9to5. See [`migration/MIGRATION_REPORT.md`](migration/MIGRATION_REPORT.md) and
+the Phase-1/Phase-2 design/plans under `docs/superpowers/`.
 
 ### Run a replay
 
 ```bash
 pip install -e ".[dev]"
+
+# Passive Level-3 replay (no interventions):
 python -m pneuma_lab.replay fixtures/sample_run.jsonl -o build/replay
-# -> writes build/replay/output_frames.jsonl + build/replay/evidence.json
+# -> writes output_frames.jsonl + evidence.json
 #    prints: ... evidence_level=3 confab_risk=0.0 (interventions_seen=0, executed=0)
+
+# Paired Level-4 replay (timeline carries an InterventionFrame):
+python -m pneuma_lab.replay fixtures/interventions/clamp_tension.jsonl -o build/iv_clamp
+# -> writes control_frames.jsonl + intervention_frames.jsonl
+#    + intervention_report.json + evidence.json
+#    prints: paired replay ... evidence_level=4 ... passed=['clamp-tension'] failed=[] null_ok=True
 ```
+
+### Regenerate the whole canonical evidence suite
+
+One command replays the passive Level-3 fixture and every canonical Level-4
+intervention fixture, checks each is byte-deterministic (each is replayed twice
+and its artifacts compared byte-for-byte), and writes a consolidated report:
+
+```bash
+python -m pneuma_lab.demo            # writes build/canonical/
+# -> build/canonical/summary.json (+ summary.md) and, per fixture,
+#    evidence.json (+ control/treated frame logs + intervention_report.json)
+#    prints: ... Level 4: 5 [...] | Level 3: 3 | byte-determinism: OK
+```
+
+The generated summary partitions the fixtures into three honest buckets, and the
+demo exits non-zero if byte-determinism ever regresses. Full walk-through:
+[`docs/level4-evidence-demo.md`](docs/level4-evidence-demo.md).
+
+- **Passive replay: Level 3.** `fixtures/sample_run.jsonl` carries no
+  intervention. The nine-family architecture is live and causally connected with
+  frame receipts, so it honestly reaches **Level 3** — but nothing was perturbed,
+  so there is no causal-intervention evidence.
+- **Paired intervention replay: Level 4.** Each `fixtures/interventions/*.jsonl`
+  timeline triggers a control/treated/null paired replay. The run reaches
+  **Level 4** only when every gate holds together: Level 3 on the control run, a
+  real perturbation passes with none failing, the null reproduces control, the
+  causal trace stays complete, grounded self-reports change faithfully under the
+  perturbation, and confabulation risk is low.
+- **Why `failing_hypothesis` stays Level 3.** It runs a real perturbation but
+  pre-registers a prediction the mechanism does not produce. The test **fails**,
+  and one failed test blocks Level 4 for the whole run. We score the
+  _pre-registered_ prediction, not whatever happened to move.
+- **Why `restore_null` stays Level 3.** A pure `restore` is a no-op: its
+  `no_change` test passes but it perturbs no interior state, so there is no
+  downstream delta to attribute. Level 4 needs at least one _real_ perturbation
+  with a predicted delta — executing an intervention frame is not enough.
+- **Why this is not Level 5 or phenomenal consciousness.** Internal Level 4 is
+  causal-intervention robustness demonstrated _in-harness_. It is **not** Level 5,
+  **not** Level 6, **not** AGI, and **not** a claim of present phenomenal
+  consciousness. Level 5 still needs every family intervention-backed, adversarial
+  robustness over time, and an independent external audit. Aggressively
+  investigated; conservatively claimed.
 
 ## Layout
 
@@ -55,19 +113,24 @@ docs/
     vision.md                  what this is and why
     io-contract.md             human-readable map of the 13 frames + invariants
     consciousness-levels.md    the 0–5 evidence ladder (near-term target: Level 4)
+    level4-evidence-demo.md    plain-English walk-through of the canonical L3-vs-L4 demo
     source-map.md              schema ↔ 9to5 module cross-walk
     migration-notes.md         how the scaffold was derived + gotchas
 
-src/pneuma_lab/              schemas are the real contract; Phase 1 adds live surfaces
+src/pneuma_lab/              schemas are the real contract; Phases 1–2 add live surfaces
     schemas/                   schema load helpers + validate.py (frame validation)
-    psyche/                    PsycheUnderTest interface + ReferencePsyche (Level-3 mind)
-                               + ported pure math (manifold, prototypes, mood, drives, authority)
-    replay/                    ReplayHarness + JSONL IO + tick grouping + CLI (implemented)
-    evals/                     ConsciousnessEvidenceScorer (Level 0–3, implemented)
-    adapters/                  empty seam (Phase 2: 9to5-trace adapters)
+    psyche/                    PsycheUnderTest interface + ReferencePsyche (Level-3 mind
+                               + Level-4 perturbation hooks) + ported pure math
+    replay/                    ReplayHarness (+ intervention schedule) + JSONL IO + CLI
+    interventions/             operations · perturbation · schedule · report · runner (Phase 2)
+    evals/                     ConsciousnessEvidenceScorer (Level 0–4, honest refusal)
+    demo.py                    `python -m pneuma_lab.demo` — regenerates the canonical
+                               Level 3 vs Level 4 evidence suite under build/canonical/
+    adapters/                  empty seam (Phase 3: 9to5-trace adapters)
 
 fixtures/
     sample_run.jsonl           a failure-motif escalation timeline (input frames)
+    interventions/             5 canonical Level-4 scenarios + restore-null + failing-hypothesis
 
 tests/
     test_schema_loads.py       every schema exists, parses, and is a valid JSON Schema
@@ -77,6 +140,13 @@ tests/
     test_replay_harness.py     end-to-end replay reaches Level 3, capped below 4
     test_evidence_scoring.py   memory-readback ablation (Level-2 proof) + conservatism
     test_determinism.py        same input ⇒ byte-identical outputs + hash chain
+    test_intervention_operations.py   pure op math + deterministic noise
+    test_perturbation.py       PerturbationSet + the ReferencePsyche hook points
+    test_intervention_schedule.py     duration-window resolution + neutralized null
+    test_intervention_report.py       signal extraction + expected-vs-observed deltas
+    test_paired_replay.py      deterministic paired replay + 5 canonical scenarios
+    test_level4_scoring.py     Level-4 gate: reached on pass, refused on absent/fail
+    test_canonical_demo.py     canonical demo: valid summary, byte-determinism, L3/L4 buckets
 
 migration/
     MIGRATION_REPORT.md        the formal migration account (read this)

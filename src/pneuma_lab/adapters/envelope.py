@@ -64,11 +64,85 @@ def envelope_errors(trace: dict) -> list[str]:
     return out
 
 
+# frame_sources values that mark a frame as coming from a real recording rather
+# than adapter synthesis. Anything else on a cognition-bearing frame kind is
+# treated as fabricated cognition and rejected.
+TRAJECTORY_SOURCE = "dataset-derived-trajectory"
+_COGNITION_FRAME_KINDS = {"agent_trace": "agent-trace-frame", "memory": "memory-frame"}
+
+
+def consistency_errors(trace: dict) -> list[str]:
+    """Anti-fake-cognition cross-checks the JSON Schema cannot express.
+
+    Rules (v0.2 envelope contract):
+      * agent_trace frames are allowed ONLY when a real trajectory exists:
+        ``trajectory`` block present, ``labels.has_trajectory`` true, and
+        ``build.frame_sources['agent-trace-frame'] == 'dataset-derived-trajectory'``;
+      * ``trajectory.num_agent_steps`` must equal the number of agent_trace frames;
+      * a task-only trace (no trajectory block) must carry NO agent_trace or
+        memory frames and must not claim ``has_trajectory``;
+      * memory frames likewise require a real recorded source declared in
+        ``frame_sources['memory-frame']``.
+    """
+    if not isinstance(trace, dict):
+        return [f"trace is not an object: {type(trace).__name__}"]
+    out: list[str] = []
+    frames = trace.get("frames") or []
+    labels = trace.get("labels") or {}
+    sources = (trace.get("build") or {}).get("frame_sources") or {}
+    trajectory = trace.get("trajectory")
+    has_traj_label = labels.get("has_trajectory") is True
+    n_agent = sum(
+        1
+        for f in frames
+        if isinstance(f, dict) and f.get("frame_kind") == "agent_trace"
+    )
+    n_memory = sum(
+        1 for f in frames if isinstance(f, dict) and f.get("frame_kind") == "memory"
+    )
+
+    if trajectory is not None:
+        if not has_traj_label:
+            out.append(
+                "trajectory: block present but labels.has_trajectory is not true"
+            )
+        if n_agent == 0:
+            out.append("trajectory: block present but no agent_trace frame emitted")
+        declared = trajectory.get("num_agent_steps")
+        if declared != n_agent:
+            out.append(
+                f"trajectory: num_agent_steps={declared!r} but "
+                f"{n_agent} agent_trace frame(s) present"
+            )
+    else:
+        if has_traj_label:
+            out.append("labels: has_trajectory is true but no trajectory block exists")
+        if n_agent:
+            out.append(
+                f"frames: {n_agent} agent_trace frame(s) present without a real "
+                "trajectory block (fabricated cognition)"
+            )
+
+    if n_agent and sources.get("agent-trace-frame") != TRAJECTORY_SOURCE:
+        out.append(
+            "build.frame_sources: agent-trace-frame must be declared "
+            f"'{TRAJECTORY_SOURCE}' when agent_trace frames are present"
+        )
+    if n_memory and sources.get("memory-frame") != TRAJECTORY_SOURCE:
+        out.append(
+            "build.frame_sources: memory-frame must be declared "
+            f"'{TRAJECTORY_SOURCE}' when memory frames are present"
+        )
+    return out
+
+
 __all__ = [
     "SCHEMA_VERSION",
     "ENVELOPE_SCHEMA_FILE",
+    "TRAJECTORY_SOURCE",
     "canonical_json",
     "derive_ids",
     "content_hash",
     "envelope_errors",
+    "consistency_errors",
 ]

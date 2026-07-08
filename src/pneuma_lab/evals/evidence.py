@@ -20,13 +20,23 @@ Phase 1 and is reported as such.
 
 from __future__ import annotations
 
-# The Level-4 evidence that Phase 1 structurally cannot provide.
+# The Level-4 evidence that a passive (no-intervention) run structurally cannot provide.
 _L4_MISSING = [
-    "intervention_evidence: no InterventionFrame was executed (Phase 1 boundary)",
+    "intervention_evidence: no InterventionFrame was executed",
     "null_condition_evidence: no ablation/null-condition runs compared in-harness",
     "grounded_self_report_perturbation: reports not yet shown to change under state perturbation",
     "external_audit: audit_status is self_reported, not externally audited",
 ]
+
+# What remains once Level 4 is met — the honest gap up to the Level-5 north star.
+_L5_MISSING = [
+    "convergent_evidence: Level 4 shown on one battery; Level 5 needs every family intervention-backed",
+    "adversarial_robustness: evidence not yet stress-tested against adversarial perturbation over time",
+    "external_audit: internally auditable in-harness; Level 5 needs independent external audit",
+]
+
+# Grounded self-reports must stay this clean for a Level-4 claim (anti-confabulation rail).
+_CONFAB_MAX_FOR_L4 = 0.2
 
 _ALL_FAMILIES = (
     "global_workspace",
@@ -52,22 +62,51 @@ class ConsciousnessEvidenceScorer:
         tick_outputs: list,
         interventions_executed: int,
         memory_readback_present: bool,
+        intervention_tests: dict | None = None,
+        null_condition_passed: bool = False,
+        causal_trace_complete: bool = False,
+        grounded_report_changed: bool = False,
     ) -> dict:
-        families = self._score_families(tick_outputs, interventions_executed)
-        evidenced = {k for k, rec in families.items() if rec["status"] == "evidenced"}
+        # Intervention test results (supplied only by the paired runner). A single
+        # replay passes ``intervention_tests=None`` and therefore can never reach L4.
+        passed = list((intervention_tests or {}).get("passed", []))
+        failed = list((intervention_tests or {}).get("failed", []))
+        interventions_ok = bool(intervention_tests) and bool(passed) and not failed
+
+        families = self._score_families(tick_outputs, intervention_tests)
+        strong = {
+            k
+            for k, rec in families.items()
+            if rec["status"] in ("evidenced", "intervention_backed")
+        }
 
         # -- Level ladder (conservative; each level requires the ones below it) --
         l1 = self._level1_signal_changes_behavior(tick_outputs)
         l2 = memory_readback_present and self._level2_readback_changed_output(
             tick_outputs
         )
-        # L3: every family exercised EXCEPT the intervention family (architecture-only here).
+        # L3: every family exercised EXCEPT the intervention family (architecture until perturbed).
         non_intervention = [
             f for f in _ALL_FAMILIES if f != "causal_intervention_robustness"
         ]
-        l3 = l1 and l2 and all(f in evidenced for f in non_intervention)
+        l3 = l1 and l2 and all(f in strong for f in non_intervention)
 
-        if l3:
+        confab_risk, ungrounded = self._confabulation_risk(tick_outputs)
+        confab_ok = confab_risk <= _CONFAB_MAX_FOR_L4
+
+        # -- Level 4 gate (all must hold; any gap ⇒ level stays ≤ 3) --
+        l4 = (
+            l3
+            and interventions_ok
+            and null_condition_passed
+            and causal_trace_complete
+            and grounded_report_changed
+            and confab_ok
+        )
+
+        if l4:
+            level = 4
+        elif l3:
             level = 3
         elif l2:
             level = 2
@@ -76,27 +115,25 @@ class ConsciousnessEvidenceScorer:
         else:
             level = 0
 
-        confab_risk, ungrounded = self._confabulation_risk(tick_outputs)
-
-        missing = list(_L4_MISSING)
-        for fam in _ALL_FAMILIES:
-            if families[fam]["status"] != "evidenced":
-                missing.append(f"family_unevidenced: {fam} ({families[fam]['note']})")
-        if not l2 and memory_readback_present:
-            missing.append(
-                "level2: memory readback present but no measurable output effect detected"
-            )
-
-        positive = self._strongest_positive(families, level)
-        negative = (
-            "causal_intervention_robustness is architecture-only: no perturbation was "
-            "run, so no intervention/null-condition evidence exists (blocks Level 4)."
+        missing = self._missing_requirements(
+            level,
+            families,
+            memory_readback_present,
+            l2,
+            intervention_tests,
+            passed,
+            failed,
+            null_condition_passed,
+            causal_trace_complete,
+            grounded_report_changed,
+            confab_ok,
         )
-        if ungrounded:
-            negative = (
-                f"{ungrounded} self-report(s) lacked a matching state/trace hash. "
-                + negative
-            )
+
+        positive = self._strongest_positive(families, level, passed)
+        negative = self._strongest_negative(
+            families, ungrounded, interventions_ok, failed
+        )
+        audit_status = "internally_audited" if interventions_ok else "self_reported"
 
         ts = self._timestamp(tick_outputs)
         return {
@@ -104,31 +141,88 @@ class ConsciousnessEvidenceScorer:
             "frame_kind": "consciousness_evidence",
             "timestamp": ts,
             "run_id": run_id,
-            "evaluation_id": f"eval:{run_id}:phase1",
+            "evaluation_id": f"eval:{run_id}",
             "indicator_families": families,
-            "evidence_level": min(
-                level, 3
-            ),  # HARD CAP: Phase 1 can never exceed Level 3
+            "evidence_level": min(level, 4),  # HARD CAP: never Level 5 in Phase 2
             "missing_requirements": missing,
             "strongest_positive_evidence": positive,
             "strongest_negative_evidence": negative,
-            "audit_status": "self_reported",
+            "audit_status": audit_status,
             "roleplay_confabulation_risk": round(confab_risk, 6),
-            "intervention_tests": {"passed": [], "failed": []},
+            "intervention_tests": {"passed": passed, "failed": failed},
         }
+
+    # -- requirement + narrative helpers ------------------------------------
+
+    @staticmethod
+    def _missing_requirements(
+        level,
+        families,
+        memory_readback_present,
+        l2,
+        intervention_tests,
+        passed,
+        failed,
+        null_condition_passed,
+        causal_trace_complete,
+        grounded_report_changed,
+        confab_ok,
+    ) -> list[str]:
+        if level >= 4:
+            return list(_L5_MISSING)
+        missing = list(_L4_MISSING)
+        for fam in _ALL_FAMILIES:
+            if families[fam]["status"] not in ("evidenced", "intervention_backed"):
+                missing.append(f"family_unevidenced: {fam} ({families[fam]['note']})")
+        if not l2 and memory_readback_present:
+            missing.append(
+                "level2: memory readback present but no measurable output effect detected"
+            )
+        # Concrete Level-4 gaps (only meaningful once interventions were attempted).
+        if intervention_tests:
+            if failed:
+                missing.append(f"intervention_tests_failed: {failed}")
+            if not passed:
+                missing.append("intervention_tests: no intervention test passed")
+            if not null_condition_passed:
+                missing.append(
+                    "null_condition: neutralized replay did not reproduce control"
+                )
+            if not causal_trace_complete:
+                missing.append(
+                    "causal_trace_incomplete: chain does not span event→behavior"
+                )
+            if not grounded_report_changed:
+                missing.append(
+                    "grounded_report_unchanged: self-reports did not track the perturbation"
+                )
+            if not confab_ok:
+                missing.append("confabulation_risk_too_high: exceeds the Level-4 rail")
+        return missing
 
     # -- family scoring ------------------------------------------------------
 
-    def _score_families(self, tick_outputs: list, interventions_executed: int) -> dict:
+    def _score_families(
+        self, tick_outputs: list, intervention_tests: dict | None
+    ) -> dict:
         broadcasts = [o.workspace_broadcast for o in tick_outputs]
         states = [o.psyche_state for o in tick_outputs]
         traces = [o.causal_trace for o in tick_outputs]
         instincts = [s for o in tick_outputs for s in o.instinct_signals]
 
-        # Conservative score per status. Even a fully-exercised family caps at 0.6
-        # in Phase 1: "present and exercised" is architectural plausibility (Level 3),
-        # NOT intervention-backed proof (which would earn the top of the [0,1] band).
-        _STATUS_SCORE = {"evidenced": 0.6, "architecture_only": 0.2, "absent": 0.0}
+        # Conservative score per status. A merely-exercised family caps at 0.6:
+        # "present and exercised" is architectural plausibility (Level 3), NOT
+        # intervention-backed proof. Only a passed causal-intervention test earns the
+        # top of the band (``intervention_backed`` = 0.85).
+        _STATUS_SCORE = {
+            "intervention_backed": 0.85,
+            "evidenced": 0.6,
+            "attempted": 0.3,
+            "architecture_only": 0.2,
+            "absent": 0.0,
+        }
+
+        supported_statuses = ("evidenced", "intervention_backed")
 
         def rec(status: str, ticks_exercised: int, note: str) -> dict:
             out = {
@@ -136,10 +230,10 @@ class ConsciousnessEvidenceScorer:
                 "status": status,
                 "ticks_exercised": ticks_exercised,
                 "note": note,
-                "supporting_refs": [note] if status == "evidenced" else [],
+                "supporting_refs": [note] if status in supported_statuses else [],
                 "refuting_refs": (
-                    ["no intervention/null-condition evidence (Phase 1)"]
-                    if status != "evidenced"
+                    ["no passed intervention/null-condition evidence"]
+                    if status not in supported_statuses
                     else []
                 ),
             }
@@ -249,18 +343,29 @@ class ConsciousnessEvidenceScorer:
             else "no counterfactual predictions",
         )
 
-        # causal_intervention_robustness: architecture-only in Phase 1.
-        if interventions_executed > 0:
+        # causal_intervention_robustness: earned only by passed causal-intervention
+        # tests. Attempted-but-failed is honestly downgraded, not hidden.
+        passed = list((intervention_tests or {}).get("passed", []))
+        failed = list((intervention_tests or {}).get("failed", []))
+        if intervention_tests and passed and not failed:
             fam["causal_intervention_robustness"] = rec(
-                "evidenced",
-                interventions_executed,
-                "interventions executed with predicted vs observed effects",
+                "intervention_backed",
+                len(passed),
+                f"perturbations produced the predicted bounded change, absent under the "
+                f"null ({len(passed)} test(s) passed): {passed}",
+            )
+        elif intervention_tests and (passed or failed):
+            fam["causal_intervention_robustness"] = rec(
+                "attempted",
+                len(passed),
+                f"interventions executed but not all passed (passed={passed}, failed={failed}); "
+                "blocks Level 4",
             )
         else:
             fam["causal_intervention_robustness"] = rec(
                 "architecture_only",
                 0,
-                "seam exposed but no perturbation executed (Phase 1); blocks Level 4",
+                "seam exposed but no perturbation executed; blocks Level 4",
             )
         return fam
 
@@ -336,12 +441,50 @@ class ConsciousnessEvidenceScorer:
         return ungrounded / len(reports), ungrounded
 
     @staticmethod
-    def _strongest_positive(families: dict, level: int) -> str:
-        evidenced = [k for k, v in families.items() if v["status"] == "evidenced"]
+    def _strongest_positive(families: dict, level: int, passed: list) -> str:
+        strong = [
+            k
+            for k, v in families.items()
+            if v["status"] in ("evidenced", "intervention_backed")
+        ]
+        if level >= 4 and passed:
+            return (
+                f"Level {level}: causal-intervention robustness demonstrated — perturbation "
+                f"produced the predicted bounded change and was absent under the null "
+                f"({len(passed)} test(s) passed: {passed}); "
+                f"{len(strong)}/9 families backed by receipts."
+            )
         return (
-            f"Level {level}: {len(evidenced)}/9 indicator families exercised with frame "
-            f"receipts this run ({', '.join(sorted(evidenced))})."
+            f"Level {level}: {len(strong)}/9 indicator families exercised with frame "
+            f"receipts this run ({', '.join(sorted(strong))})."
         )
+
+    @staticmethod
+    def _strongest_negative(
+        families: dict, ungrounded: int, interventions_ok: bool, failed: list
+    ) -> str:
+        if failed:
+            negative = (
+                f"intervention test(s) {failed} did not produce the predicted change, "
+                "so causal-intervention robustness is not established (blocks Level 4)."
+            )
+        elif not interventions_ok:
+            negative = (
+                "causal_intervention_robustness is architecture-only: no passed "
+                "perturbation, so no intervention/null-condition evidence exists "
+                "(blocks Level 4)."
+            )
+        else:
+            negative = (
+                "evidence is internally auditable but not yet externally audited over "
+                "time or stress-tested adversarially (blocks Level 5)."
+            )
+        if ungrounded:
+            negative = (
+                f"{ungrounded} self-report(s) lacked a matching state/trace hash. "
+                + negative
+            )
+        return negative
 
     @staticmethod
     def _timestamp(tick_outputs: list) -> str:
