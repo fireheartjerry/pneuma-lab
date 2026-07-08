@@ -1,0 +1,4 @@
+# Byte-deterministic fixtures must keep LF line endings on every platform, so a
+# committed golden file never gets CRLF-rewritten on checkout (autocrlf) and then
+# byte-mismatches the adapter's LF output. Applies to the hermetic adapter fixtures.
+fixtures/adapters/** text eol=lf

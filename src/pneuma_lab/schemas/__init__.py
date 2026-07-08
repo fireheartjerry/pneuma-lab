@@ -38,7 +38,9 @@ OUTPUT_SCHEMA_FILES = (
     "grounded-self-report.schema.json",
 )
 
-ALL_SCHEMA_FILES = INPUT_SCHEMA_FILES + OUTPUT_SCHEMA_FILES
+ENVELOPE_SCHEMA_FILES = ("pneuma-trace.schema.json",)
+
+ALL_SCHEMA_FILES = INPUT_SCHEMA_FILES + OUTPUT_SCHEMA_FILES + ENVELOPE_SCHEMA_FILES
 
 
 def schema_path(filename: str) -> Path:
@@ -61,6 +63,7 @@ __all__ = [
     "SCHEMA_DIR",
     "INPUT_SCHEMA_FILES",
     "OUTPUT_SCHEMA_FILES",
+    "ENVELOPE_SCHEMA_FILES",
     "ALL_SCHEMA_FILES",
     "schema_path",
     "load_schema",
