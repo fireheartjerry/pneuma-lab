@@ -27,6 +27,17 @@ def test_normalize_created_at():
     )
 
 
+def test_normalize_created_at_iso_z():
+    # SWE-Gym-Lite created_at is inconsistent: some rows are ISO-8601 with 'Z'.
+    assert (
+        swe.normalize_created_at("2020-04-02T01:00:02Z") == "2020-04-02T01:00:02+00:00"
+    )
+    # space-separated naive still works (unchanged contract)
+    assert (
+        swe.normalize_created_at("2022-12-10 20:23:01") == "2022-12-10T20:23:01+00:00"
+    )
+
+
 def test_as_list_handles_json_string_and_list():
     assert swe.as_list('["a","b"]') == ["a", "b"]
     assert swe.as_list(["a", "b"]) == ["a", "b"]

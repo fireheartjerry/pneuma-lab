@@ -23,10 +23,18 @@ FRAME_SCHEMA_VERSION = "0.1.0"
 
 
 def normalize_created_at(raw: str) -> str:
-    """'2022-12-10 20:23:01' -> ISO-8601 UTC. Raises ValueError if unparseable."""
-    dt = datetime.strptime(raw.strip(), "%Y-%m-%d %H:%M:%S").replace(
-        tzinfo=timezone.utc
-    )
+    """SWE-Gym created_at -> ISO-8601 UTC. Handles both '2022-12-10 20:23:01'
+    (space, naive) and '2020-04-02T01:00:02Z' (ISO-8601). Raises ValueError if
+    unparseable."""
+    s = raw.strip()
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
     return dt.isoformat()
 
 
