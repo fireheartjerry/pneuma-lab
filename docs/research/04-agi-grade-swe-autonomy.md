@@ -235,6 +235,8 @@ Properties of this definition:
 
 Current composite status: **M0 on every axis.** The gap between M0 and M1 is dominated by _measurement construction_ (exporter, calibration set, curve fitting, A/B harness), not by agent capability work — which is exactly why the eval suite (`09-eval-suite.md`) is the critical path.
 
+External calibration anchor (verified 2026-07-07): on contamination-resistant SWE-Bench Pro (arXiv:2509.16941; copyleft + held-out + proprietary repos), frontier models scored ~23% at its Sept 2025 launch and 46–59% by mid-2026, versus >70% headline scores on the now-discredited SWE-bench Verified (OpenAI stopped reporting it in Feb 2026 after finding 59.4% of audited hard instances flawed plus cross-provider gold-patch memorization); on SWE-Lancer's real freelance-value grading (arXiv:2502.12115) the best 2025 model earned ~$403k of $1M. The M3 bands above (≥70% across all categories, none <50%) therefore sit deliberately BEYOND the verified 2026 frontier on honest benchmarks — a target, and one whose distance is now externally quantified.
+
 ---
 
 ## 5. What even M3 would NOT prove

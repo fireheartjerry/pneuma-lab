@@ -331,18 +331,18 @@ meaningless; only rank metrics (AUROC/PR-AUC) and calibration are reported.
 
 ## 9. Gap register (what must exist before each suite tier runs)
 
-| Gap                                                                                  | Blocks                                                                    | Owner doc                 |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- | ------------------------- |
-| Commit the uncommitted intervention harness + Phase 3.1 tree                         | everything (frozen-corpus integrity)                                      | this doc                  |
-| Bridge `src/pneuma_lab/replay/bridge.py`                                             | E-0, all H-OFF                                                            | this doc, §3.2            |
-| N-arm runner                                                                         | multi-arm H-OFF sweeps                                                    | this doc, §3.1            |
-| `NullPsyche` (B0) + static-heuristic psyche (B1)                                     | baseline arms offline                                                     | this doc                  |
-| 9to5 → PneumaTrace exporter (experience.db, hn_event_log, trajectory spans → frames) | the actual 9to5 claim; today only docstring stubs exist [VERIFIED absent] | integration sibling doc   |
-| Live shadow logger at the `human_nature_bridge` seam                                 | Phase L1                                                                  | integration sibling doc   |
-| Learned estimators (B3)                                                              | B3 arm                                                                    | RSI/training sibling docs |
-| Live RSI loop producing artifacts (adapters, lessons) + cross-run psyche persistence | M10, M12, M13-live, A4 non-vacuous                                        | RSI sibling docs          |
-| OpenHands-Verifier adapter                                                           | E-0 replication corpus                                                    | adapter roadmap           |
-| Baseline 9to5 success/discordance rates measured from `state/experience.db`          | §6.5 live power numbers                                                   | this doc                  |
+| Gap                                                                                                                                                             | Blocks                                                                    | Owner doc                 |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------- |
+| ~~Commit the uncommitted intervention harness + Phase 3.1 tree~~ DONE 2026-07-07                                                                                | —                                                                         | this doc                  |
+| ~~Bridge `src/pneuma_lab/replay/bridge.py`~~ DONE 2026-07-07 (commit `cf014b7`); E-0 RAN and FAILED pre-registered hypotheses — see `experiments/e0-results.md` | —                                                                         | this doc, §3.2            |
+| N-arm runner                                                                                                                                                    | multi-arm H-OFF sweeps                                                    | this doc, §3.1            |
+| `NullPsyche` (B0): ~~missing~~ DONE — `psyche/hollow.py` (HollowPsyche, scores level 0, G-01); static-heuristic psyche (B1) still missing                       | B1 arm offline                                                            | this doc                  |
+| 9to5 → PneumaTrace exporter (experience.db, hn_event_log, trajectory spans → frames)                                                                            | the actual 9to5 claim; today only docstring stubs exist [VERIFIED absent] | integration sibling doc   |
+| Live shadow logger at the `human_nature_bridge` seam                                                                                                            | Phase L1                                                                  | integration sibling doc   |
+| Learned estimators (B3)                                                                                                                                         | B3 arm                                                                    | RSI/training sibling docs |
+| Live RSI loop producing artifacts (adapters, lessons) + cross-run psyche persistence                                                                            | M10, M12, M13-live, A4 non-vacuous                                        | RSI sibling docs          |
+| OpenHands-Verifier adapter                                                                                                                                      | E-0 replication corpus                                                    | adapter roadmap           |
+| Baseline 9to5 success/discordance rates measured from `state/experience.db`                                                                                     | §6.5 live power numbers                                                   | this doc                  |
 
 The suite is deliberately ordered so that the cheapest, safest, most deterministic evidence
 (E-0) is gathered first, and the most consequential claim ("Pneuma materially improves 9to5

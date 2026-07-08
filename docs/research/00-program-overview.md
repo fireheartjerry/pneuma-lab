@@ -50,3 +50,24 @@ detection in Claude Opus 4.1, introspective failure the norm; Macar et al. 2026
 (arXiv:2305.04388) — systematic chain-of-thought unfaithfulness. Together these fix
 the program's stance: self-report is the weakest instrument and mechanistic +
 intervention evidence is the only path that can carry weight.
+
+**SWE-capability measurement literature** (verified 2026-07-07, second pass):
+SWE-bench Verified is discredited as a capability headline — SWE-Bench+
+(arXiv:2410.06992: 32.67% solution leakage, 31.08% weak tests, 12.47%→3.97%
+after filtering), the SWE-Bench Illusion memorization study (arXiv:2506.12286:
+76% buggy-file identification from issue text alone vs ≤53% off-benchmark),
+and OpenAI's Feb 2026 deprecation (59.4% of audited hard instances flawed;
+cross-provider gold-patch memorization). Honest 2026 frontier ≈46–59% on
+contamination-resistant SWE-Bench Pro (arXiv:2509.16941); economically graded
+SWE-Lancer (arXiv:2502.12115) shows majority of real freelance value unearned.
+Consequence for this program: doc 04's M-bands are calibrated against honest
+benchmarks, and doc 06's contamination rules are mandatory, not advisory.
+
+**Coverage note:** three adversarial research passes verified the
+consciousness-science and SWE-measurement literatures; the RSI-in-practice
+(AlphaEvolve, self-improving frameworks, reward hacking) and AI-welfare
+("Taking AI Welfare Seriously", Anthropic model-welfare program, METR time
+horizons) angles produced ZERO adversarially-verified claims across all
+passes (fetch/verify infrastructure failures, not refutations). Citations to
+those literatures in docs 03/04/05 remain [literature; verification pending]
+and must not be upgraded without a dedicated verified pass.

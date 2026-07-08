@@ -10,8 +10,10 @@ byte-determinism checks replayed twice per fixture — all [VERIFIED], 234/234 t
 Everything past that core — external audit, contamination scans, PII scans over pneuma-data,
 doc-drift CI, learned-estimator defenses — is [PLANNED] and specified below as build items. The
 single largest current honesty risk is structural, not technical: all Level-4 evidence concerns
-ReferencePsyche, a toy co-designed with its own fixtures, and the entire intervention harness plus
-Phase 3.1 exists only as uncommitted working-tree state (HEAD = b3102c6) [VERIFIED].
+ReferencePsyche, a toy co-designed with its own fixtures. (Update 2026-07-07: the intervention
+harness, Phase 3.1, the replay bridge, HollowPsyche, and the E-0 experiment are now committed —
+`cf014b7`, `d9df2f5` — so the former uncommitted-tree gap is closed; G-12's `--official`
+provenance mode remains a build item.)
 
 This document enumerates every way this program could fool itself, and for each failure mode gives
 (a) the concrete guardrail and (b) the executable test — either its current location or where it
@@ -90,12 +92,13 @@ implementation inside its own harness." `tests/test_canonical_demo.py::test_read
 and `::test_docs_page_explains_the_ceiling` already enforce that the README and
 `docs/consciousness-levels.md` state the ceiling [VERIFIED].
 
-**G-01 (MISSING): adversarial non-mind baseline.** Build a `HollowPsyche` — a lookup-table/replay
-stub with no workspace, no scars, no self-model, engineered only to emit schema-valid frames — and
-require the harness to score it ≤ 2. If a hollow stub reaches L3/L4, the fixtures measure schema
-compliance, not indicator families. Must live: `src/pneuma_lab/psyche/hollow.py` +
-`tests/test_hollow_baseline.py`. Acceptance: `test_hollow_psyche_never_exceeds_level2` passes and
-is wired into the canonical demo summary as a standing negative control.
+**G-01 (BUILT 2026-07-07, commit `cf014b7`): adversarial non-mind baseline.**
+`src/pneuma_lab/psyche/hollow.py` (`HollowPsyche`, alias `NullPsyche`) emits schema-valid,
+causally hollow frames. Result: scores **level 0** with confabulation risk 0.0 — grounding is
+cheap, causation is not; the ladder discriminates (ReferencePsyche 3 > Hollow 0 on the same
+fixture). Tests: `tests/test_hollow_baseline.py` (6, incl.
+`test_hollow_psyche_never_exceeds_level2` and per-family failure assertions). Remaining
+sub-item: wire Hollow into the canonical demo summary as a standing negative control [PLANNED].
 
 ## 3. AGI branding without capability
 
