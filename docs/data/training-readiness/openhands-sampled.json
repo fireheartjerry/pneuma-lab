@@ -118,6 +118,8 @@
         "docs/data/conversion/openhands-sampled-to-training-examples.md",
         "docs/data/conversion/openhands-sampled-full-conversion-review.md",
         "docs/data/training-readiness/openhands-sampled-split-review.md",
+        "docs/data/training-readiness/openhands-sampled-baseline-training-plan.md",
+        "docs/data/training-readiness/openhands-sampled-baseline-training-plan.json",
         "build/training_examples/openhands-sampled/full/conversion_report.json",
         "build/training_examples/openhands-sampled/full/hash_manifest.json",
         "build/training_examples/openhands-sampled/splits/split_report.json",

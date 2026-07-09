@@ -1,0 +1,131 @@
+{
+    "manifest_schema_version": "0.1.0",
+    "dataset_id": "swe-gym-openhands-sampled",
+    "task_type": "RISK_PREDICTION",
+    "target_field": "target.resolved",
+    "target_semantics": "OpenHands/SWE-Gym harness outcome, not absolute truth",
+    "training_authorization": "not_authorized",
+    "current_model_use_tier": "train_after_adapter",
+    "current_training_weight": 0.0,
+    "split_manifest_status": "generated_reviewed",
+    "allowed_feature_families": [
+        "trajectory_counts",
+        "agent_step_counts",
+        "tool_call_counts",
+        "retry_summaries",
+        "strategy_switch_summaries",
+        "error_marker_summaries",
+        "assistant_text_length_summaries",
+        "observation_length_summaries",
+        "feature_refs",
+        "digest_metadata",
+        "approved_source_metadata"
+    ],
+    "blocked_feature_keys": [
+        "target",
+        "resolved",
+        "outcome",
+        "labels",
+        "gold",
+        "oracle",
+        "fail_to_pass",
+        "pass_to_pass",
+        "raw_objective_text",
+        "raw_issue_text",
+        "patch",
+        "test_patch",
+        "verifier_answers",
+        "final_outcome_fields"
+    ],
+    "required_metrics": [
+        "AUROC",
+        "AUPRC",
+        "Brier score",
+        "ECE",
+        "confusion_matrix_at_predeclared_thresholds",
+        "precision_recall_for_low_survival_or_high_risk_buckets",
+        "per_split_resolved_rate",
+        "per_repo_breakdown",
+        "baseline_lift_over_constant_predictor"
+    ],
+    "baseline_ladder": [
+        "constant_base_rate",
+        "simple_count_length",
+        "retry_error_heuristic",
+        "logistic_regression_approved_structured_features",
+        "gradient_boosted_trees_after_logistic_report",
+        "no_sequence_model_yet",
+        "no_sft_dpo_lora"
+    ],
+    "imbalance_strategy_options": [
+        "class_weighting_declared_in_run_manifest",
+        "balanced_sampling_declared_in_run_manifest",
+        "balanced_batches_declared_in_run_manifest",
+        "validation_only_threshold_selection",
+        "do_not_judge_by_raw_accuracy_alone"
+    ],
+    "future_artifact_root": "build/training_runs/openhands-sampled/risk-baseline-v0/",
+    "expected_future_artifacts": [
+        "run_manifest.json",
+        "feature_manifest.json",
+        "metrics.json",
+        "predictions_validation.jsonl",
+        "predictions_test.jsonl",
+        "model_artifact.*",
+        "hash_manifest.json",
+        "training_report.md"
+    ],
+    "run_manifest_requirements": [
+        "git_sha",
+        "dataset_id",
+        "input_examples_hash",
+        "split_manifest_hash",
+        "feature_extractor_version",
+        "model_type",
+        "hyperparameters",
+        "random_seed",
+        "class_weighting_strategy",
+        "metrics",
+        "blocked_feature_checks",
+        "output_artifact_hashes"
+    ],
+    "approval_gates": [
+        "baseline_training_plan_committed",
+        "feature_allowlist_defined",
+        "leakage_checker_implemented",
+        "split_manifest_reviewed",
+        "run_manifest_schema_or_convention_defined",
+        "generated_outputs_path_approved",
+        "no_runtime_integration",
+        "no_training_weight_promotion_without_explicit_approval"
+    ],
+    "invalidation_conditions": [
+        "target_leakage_found",
+        "repo_or_task_leakage_found",
+        "feature_uses_blocked_field",
+        "test_split_used_for_tuning",
+        "class_imbalance_hidden_behind_accuracy",
+        "model_fails_to_beat_base_rate_or_heuristic_baselines",
+        "metrics_not_reported_per_split_and_per_repo",
+        "run_not_reproducible",
+        "model_artifacts_written_outside_approved_paths"
+    ],
+    "non_goals": [
+        "no_training_in_this_pass",
+        "no_calibration_in_this_pass",
+        "no_runtime_integration",
+        "no_j_space",
+        "no_swe_chat",
+        "no_consciousness_claims",
+        "no_moral_patienthood_claims"
+    ],
+    "evidence_refs": [
+        "docs/data/training-readiness/openhands-sampled.md",
+        "docs/data/training-readiness/openhands-sampled.json",
+        "docs/data/training-readiness/openhands-sampled-split-review.md",
+        "docs/data/training-readiness/openhands-sampled-baseline-training-plan.md",
+        "schemas/pneuma-training-example.schema.json",
+        "build/training_examples/openhands-sampled/full/conversion_report.json",
+        "build/training_examples/openhands-sampled/splits/split_report.json"
+    ]
+}

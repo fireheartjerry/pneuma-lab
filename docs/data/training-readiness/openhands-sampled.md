@@ -21,6 +21,8 @@ inspection, raw or processed data mutation, or writes to `C:/pneuma-data`.
   `docs/data/conversion/openhands-sampled-full-conversion-review.md`
 - Split review:
   `docs/data/training-readiness/openhands-sampled-split-review.md`
+- Baseline/training plan:
+  `docs/data/training-readiness/openhands-sampled-baseline-training-plan.md`
 - Ignored full conversion report:
   `build/training_examples/openhands-sampled/full/conversion_report.json`
 - Ignored full hash manifest:
@@ -133,8 +135,7 @@ Required before any training-oriented use:
 
 ## Next Steps
 
-1. Review the split caveats and class balance.
-2. Draft a baseline/training design document with objective, metrics, class
-   imbalance handling, artifact paths, and approval gates.
+1. Implement a baseline run manifest convention.
+2. Implement a feature allowlist and leakage checker.
 3. Only then consider a first baseline or training run, still behind explicit
    authorization.
