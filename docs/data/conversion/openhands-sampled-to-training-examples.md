@@ -9,6 +9,13 @@ convert data, train models, run E1/E2, calibrate, change runtime behavior,
 process SWE-chat, inspect raw sensitive content, mutate raw or processed data,
 or make consciousness claims.
 
+Implementation note: a fixture-first converter now exists at
+`src/pneuma_lab/converters/openhands_sampled_training.py`. It consumes committed
+fixture `PneumaTrace` records only, emits conservative
+`train_after_adapter` examples with `training_weight: 0.0`, and is not a full
+processed dataset conversion. Full processed conversion remains a later
+explicit step.
+
 ## 1. Purpose
 
 The converter will eventually map each processed OpenHands sampled
