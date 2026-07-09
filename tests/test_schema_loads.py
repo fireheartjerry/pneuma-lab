@@ -16,6 +16,7 @@ from pneuma_lab import schemas as pls
 
 EXPECTED_INPUT_COUNT = 5
 EXPECTED_OUTPUT_COUNT = 8
+EXPECTED_TRAINING_COUNT = 1
 
 
 def test_schema_dir_exists() -> None:
@@ -26,7 +27,11 @@ def test_expected_counts() -> None:
     assert len(pls.INPUT_SCHEMA_FILES) == EXPECTED_INPUT_COUNT
     assert len(pls.OUTPUT_SCHEMA_FILES) == EXPECTED_OUTPUT_COUNT
     assert len(pls.ENVELOPE_SCHEMA_FILES) == 1
-    assert len(pls.ALL_SCHEMA_FILES) == EXPECTED_INPUT_COUNT + EXPECTED_OUTPUT_COUNT + 1
+    assert len(pls.TRAINING_SCHEMA_FILES) == EXPECTED_TRAINING_COUNT
+    assert (
+        len(pls.ALL_SCHEMA_FILES)
+        == EXPECTED_INPUT_COUNT + EXPECTED_OUTPUT_COUNT + 1 + EXPECTED_TRAINING_COUNT
+    )
 
 
 @pytest.mark.parametrize("filename", pls.ALL_SCHEMA_FILES)
@@ -109,6 +114,11 @@ def test_schemas_are_utf8_json_on_disk() -> None:
 def test_envelope_bucket_registered() -> None:
     assert pls.ENVELOPE_SCHEMA_FILES == ("pneuma-trace.schema.json",)
     assert "pneuma-trace.schema.json" in pls.ALL_SCHEMA_FILES
+
+
+def test_training_example_bucket_registered() -> None:
+    assert pls.TRAINING_SCHEMA_FILES == ("pneuma-training-example.schema.json",)
+    assert "pneuma-training-example.schema.json" in pls.ALL_SCHEMA_FILES
 
 
 def test_envelope_schema_shape() -> None:

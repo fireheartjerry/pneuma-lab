@@ -1,0 +1,242 @@
+[
+    {
+        "example_id": "synthetic:swe-gym:trajectory:risk:001",
+        "dataset_id": "synthetic-swe-gym-trajectory",
+        "dataset_family": "swe-gym",
+        "source_path_or_hash": "sha256:synthetic-trajectory-risk-001",
+        "source_revision": "synthetic",
+        "example_type": "TrajectoryExample",
+        "input_modality": "event_sequence",
+        "task_type": "RISK_PREDICTION",
+        "task_mask": ["RISK_PREDICTION"],
+        "input": {
+            "trace_ref": "ptrace:synthetic001",
+            "prefix_fraction": 0.5,
+            "event_features": {
+                "tool_call_count": 8,
+                "error_marker_count": 2,
+                "retry_count_max": 3
+            }
+        },
+        "target": {
+            "resolved": false
+        },
+        "label_provenance": {
+            "kind": "harness_outcome",
+            "description": "Synthetic resolved label for schema validation only.",
+            "confidence": "high"
+        },
+        "privacy_status": "redaction_verified",
+        "redaction_receipt": {
+            "status": "verified",
+            "report_ref": "synthetic:redaction-report:swe-gym"
+        },
+        "leakage_risk": "medium",
+        "allowed_training_uses": ["synthetic schema validation"],
+        "blocked_training_uses": ["real model training"],
+        "model_use_tier": "train_ok",
+        "training_weight": 1.0,
+        "split_policy": "repo_grouped",
+        "split_group": {
+            "repo": "synthetic/repo",
+            "task_id": "synthetic-task-001",
+            "session_or_user": null,
+            "era": "synthetic-era-1"
+        },
+        "canonical_feature_refs": ["synthetic:features:trajectory-risk"],
+        "evidence_refs": [
+            {
+                "kind": "synthetic_fixture",
+                "ref": "fixtures/training_examples/valid_examples.json#0"
+            }
+        ]
+    },
+    {
+        "example_id": "synthetic:swe-gym:verifier:value:001",
+        "dataset_id": "synthetic-swe-gym-verifier",
+        "dataset_family": "swe-gym",
+        "source_path_or_hash": "sha256:synthetic-verifier-value-001",
+        "source_revision": "synthetic",
+        "example_type": "VerifierExample",
+        "input_modality": "structured_features",
+        "task_type": "VERIFIER_VALUE",
+        "task_mask": ["VERIFIER_VALUE"],
+        "input": {
+            "policy_variant": "synthetic-onpolicy",
+            "candidate_count": 2,
+            "verifier_features": {
+                "agreement_count": 1,
+                "disagreement_count": 1
+            }
+        },
+        "target": {
+            "verifier_helped": true
+        },
+        "label_provenance": {
+            "kind": "verifier_verdict",
+            "description": "Synthetic verifier verdict for schema validation only.",
+            "confidence": "medium"
+        },
+        "privacy_status": "redaction_verified",
+        "redaction_receipt": {
+            "status": "verified",
+            "report_ref": "synthetic:redaction-report:verifier"
+        },
+        "leakage_risk": "medium",
+        "allowed_training_uses": ["synthetic schema validation"],
+        "blocked_training_uses": ["real model training"],
+        "model_use_tier": "train_ok",
+        "training_weight": 0.5,
+        "split_policy": "task_grouped",
+        "split_group": {
+            "repo": "synthetic/repo",
+            "task_id": "synthetic-task-002",
+            "session_or_user": null,
+            "era": "synthetic-era-1"
+        },
+        "canonical_feature_refs": ["synthetic:features:verifier-value"],
+        "evidence_refs": [
+            {
+                "kind": "synthetic_fixture",
+                "ref": "fixtures/training_examples/valid_examples.json#1"
+            }
+        ]
+    },
+    {
+        "example_id": "synthetic:dialogue-swe-bench:task:difficulty:001",
+        "dataset_id": "synthetic-dialogue-swe-bench",
+        "dataset_family": "dialogue-swe-bench",
+        "source_path_or_hash": "sha256:synthetic-dialogue-task-001",
+        "source_revision": "synthetic",
+        "example_type": "TaskExample",
+        "input_modality": "dialogue",
+        "task_type": "TASK_DIFFICULTY",
+        "task_mask": ["TASK_DIFFICULTY"],
+        "input": {
+            "turn_count": 4,
+            "simulated_operator_corrections": 1,
+            "task_metadata": {
+                "language": "python",
+                "requires_patch": true
+            }
+        },
+        "target": {
+            "difficulty": "medium"
+        },
+        "label_provenance": {
+            "kind": "simulated_label",
+            "description": "Synthetic simulated-dialogue difficulty label.",
+            "confidence": "low"
+        },
+        "privacy_status": "public_or_benchmark",
+        "redaction_receipt": {
+            "status": "not_needed",
+            "report_ref": null
+        },
+        "leakage_risk": "high",
+        "allowed_training_uses": ["synthetic schema validation"],
+        "blocked_training_uses": ["real-human operator claims"],
+        "model_use_tier": "train_after_adapter",
+        "training_weight": 0.25,
+        "split_policy": "task_grouped",
+        "split_group": {
+            "repo": "synthetic/dialogue-repo",
+            "task_id": "synthetic-dialogue-task-001",
+            "session_or_user": "synthetic-simulated-persona",
+            "era": null
+        },
+        "canonical_feature_refs": ["synthetic:features:dialogue-difficulty"],
+        "evidence_refs": [
+            {
+                "kind": "synthetic_fixture",
+                "ref": "fixtures/training_examples/valid_examples.json#2"
+            }
+        ]
+    },
+    {
+        "example_id": "synthetic:swe-chat:blocked:001",
+        "dataset_id": "synthetic-swe-chat-blocked",
+        "dataset_family": "swe-chat",
+        "source_path_or_hash": "sha256:synthetic-swe-chat-blocked-001",
+        "source_revision": "synthetic",
+        "example_type": "PreferenceExample",
+        "input_modality": "dialogue",
+        "task_type": "OPERATOR_PUSHBACK",
+        "task_mask": ["OPERATOR_PUSHBACK"],
+        "input": {},
+        "target": {},
+        "label_provenance": {
+            "kind": "none",
+            "description": "Synthetic privacy-blocked placeholder.",
+            "confidence": "low"
+        },
+        "privacy_status": "pii_blocked",
+        "redaction_receipt": {
+            "status": "required_missing",
+            "report_ref": null
+        },
+        "leakage_risk": "high",
+        "allowed_training_uses": [],
+        "blocked_training_uses": ["training", "raw content access"],
+        "model_use_tier": "blocked",
+        "training_weight": 0,
+        "split_policy": "session_grouped",
+        "split_group": {
+            "repo": null,
+            "task_id": null,
+            "session_or_user": "synthetic-blocked-user",
+            "era": null
+        },
+        "canonical_feature_refs": [],
+        "evidence_refs": [
+            {
+                "kind": "synthetic_fixture",
+                "ref": "fixtures/training_examples/valid_examples.json#3"
+            }
+        ]
+    },
+    {
+        "example_id": "synthetic:swe-mera:eval-only:001",
+        "dataset_id": "synthetic-swe-mera-eval",
+        "dataset_family": "swe-mera",
+        "source_path_or_hash": "sha256:synthetic-swe-mera-eval-001",
+        "source_revision": "synthetic",
+        "example_type": "TaskExample",
+        "input_modality": "task_metadata",
+        "task_type": "PATCH_SUCCESS",
+        "task_mask": ["PATCH_SUCCESS"],
+        "input": {
+            "benchmark_family": "synthetic-freshness-eval"
+        },
+        "target": {},
+        "label_provenance": {
+            "kind": "none",
+            "description": "Synthetic eval-only placeholder with no training target.",
+            "confidence": "low"
+        },
+        "privacy_status": "eval_only",
+        "redaction_receipt": {
+            "status": "not_needed",
+            "report_ref": null
+        },
+        "leakage_risk": "eval_only",
+        "allowed_training_uses": [],
+        "blocked_training_uses": ["training"],
+        "model_use_tier": "eval_only",
+        "training_weight": 0,
+        "split_policy": "eval_only",
+        "split_group": {
+            "repo": "synthetic/eval-repo",
+            "task_id": "synthetic-eval-task-001",
+            "session_or_user": null,
+            "era": "synthetic-freshness-window"
+        },
+        "canonical_feature_refs": [],
+        "evidence_refs": [
+            {
+                "kind": "synthetic_fixture",
+                "ref": "fixtures/training_examples/valid_examples.json#4"
+            }
+        ]
+    }
+]

@@ -1,0 +1,131 @@
+{
+    "unknown_task_type": {
+        "example_id": "synthetic:invalid:unknown-task",
+        "dataset_id": "synthetic-invalid",
+        "dataset_family": "swe-gym",
+        "source_path_or_hash": "sha256:synthetic-invalid-task",
+        "source_revision": "synthetic",
+        "example_type": "TrajectoryExample",
+        "input_modality": "event_sequence",
+        "task_type": "UNKNOWN_TASK",
+        "task_mask": ["UNKNOWN_TASK"],
+        "input": {},
+        "target": {
+            "resolved": false
+        },
+        "label_provenance": {
+            "kind": "harness_outcome",
+            "description": "Invalid unknown task fixture.",
+            "confidence": "low"
+        },
+        "privacy_status": "public_or_benchmark",
+        "redaction_receipt": {
+            "status": "not_needed",
+            "report_ref": null
+        },
+        "leakage_risk": "medium",
+        "allowed_training_uses": ["synthetic schema validation"],
+        "blocked_training_uses": [],
+        "model_use_tier": "train_ok",
+        "training_weight": 1.0,
+        "split_policy": "repo_grouped",
+        "split_group": {
+            "repo": "synthetic/repo",
+            "task_id": "synthetic-task-invalid",
+            "session_or_user": null,
+            "era": null
+        },
+        "canonical_feature_refs": [],
+        "evidence_refs": [
+            {
+                "kind": "synthetic_fixture",
+                "ref": "fixtures/training_examples/invalid_examples.json#unknown_task_type"
+            }
+        ]
+    },
+    "missing_required_field": {
+        "example_id": "synthetic:invalid:missing-required",
+        "dataset_family": "swe-gym",
+        "source_path_or_hash": "sha256:synthetic-missing-required",
+        "source_revision": "synthetic",
+        "example_type": "TrajectoryExample",
+        "input_modality": "event_sequence",
+        "task_type": "RISK_PREDICTION",
+        "task_mask": ["RISK_PREDICTION"],
+        "input": {},
+        "target": {
+            "resolved": false
+        },
+        "label_provenance": {
+            "kind": "harness_outcome",
+            "description": "Invalid fixture missing dataset_id.",
+            "confidence": "low"
+        },
+        "privacy_status": "public_or_benchmark",
+        "redaction_receipt": {
+            "status": "not_needed",
+            "report_ref": null
+        },
+        "leakage_risk": "medium",
+        "allowed_training_uses": ["synthetic schema validation"],
+        "blocked_training_uses": [],
+        "model_use_tier": "train_ok",
+        "training_weight": 1.0,
+        "split_policy": "repo_grouped",
+        "split_group": {
+            "repo": "synthetic/repo",
+            "task_id": "synthetic-task-missing",
+            "session_or_user": null,
+            "era": null
+        },
+        "canonical_feature_refs": [],
+        "evidence_refs": [
+            {
+                "kind": "synthetic_fixture",
+                "ref": "fixtures/training_examples/invalid_examples.json#missing_required_field"
+            }
+        ]
+    },
+    "blocked_positive_weight": {
+        "example_id": "synthetic:invalid:blocked-positive-weight",
+        "dataset_id": "synthetic-swe-chat-blocked-invalid",
+        "dataset_family": "swe-chat",
+        "source_path_or_hash": "sha256:synthetic-blocked-positive-weight",
+        "source_revision": "synthetic",
+        "example_type": "PreferenceExample",
+        "input_modality": "dialogue",
+        "task_type": "OPERATOR_PUSHBACK",
+        "task_mask": ["OPERATOR_PUSHBACK"],
+        "input": {},
+        "target": {},
+        "label_provenance": {
+            "kind": "none",
+            "description": "Invalid blocked fixture with positive weight.",
+            "confidence": "low"
+        },
+        "privacy_status": "pii_blocked",
+        "redaction_receipt": {
+            "status": "required_missing",
+            "report_ref": null
+        },
+        "leakage_risk": "high",
+        "allowed_training_uses": [],
+        "blocked_training_uses": ["training"],
+        "model_use_tier": "blocked",
+        "training_weight": 0.1,
+        "split_policy": "session_grouped",
+        "split_group": {
+            "repo": null,
+            "task_id": null,
+            "session_or_user": "synthetic-blocked-user",
+            "era": null
+        },
+        "canonical_feature_refs": [],
+        "evidence_refs": [
+            {
+                "kind": "synthetic_fixture",
+                "ref": "fixtures/training_examples/invalid_examples.json#blocked_positive_weight"
+            }
+        ]
+    }
+}

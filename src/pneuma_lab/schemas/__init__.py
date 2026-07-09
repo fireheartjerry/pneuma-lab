@@ -17,8 +17,8 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_DIR = _REPO_ROOT / "schemas"
 
-# All 13 first-pass contracts (5 input + 8 output). Kept explicit so a missing
-# or accidentally-added schema file is caught by the scaffolding test.
+# All first-pass contracts. Kept explicit so a missing or accidentally-added
+# schema file is caught by the scaffolding test.
 INPUT_SCHEMA_FILES = (
     "world-frame.schema.json",
     "agent-trace-frame.schema.json",
@@ -40,7 +40,14 @@ OUTPUT_SCHEMA_FILES = (
 
 ENVELOPE_SCHEMA_FILES = ("pneuma-trace.schema.json",)
 
-ALL_SCHEMA_FILES = INPUT_SCHEMA_FILES + OUTPUT_SCHEMA_FILES + ENVELOPE_SCHEMA_FILES
+TRAINING_SCHEMA_FILES = ("pneuma-training-example.schema.json",)
+
+ALL_SCHEMA_FILES = (
+    INPUT_SCHEMA_FILES
+    + OUTPUT_SCHEMA_FILES
+    + ENVELOPE_SCHEMA_FILES
+    + TRAINING_SCHEMA_FILES
+)
 
 
 def schema_path(filename: str) -> Path:
@@ -64,6 +71,7 @@ __all__ = [
     "INPUT_SCHEMA_FILES",
     "OUTPUT_SCHEMA_FILES",
     "ENVELOPE_SCHEMA_FILES",
+    "TRAINING_SCHEMA_FILES",
     "ALL_SCHEMA_FILES",
     "schema_path",
     "load_schema",

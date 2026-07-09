@@ -104,7 +104,7 @@ demo exits non-zero if byte-determinism ever regresses. Full walk-through:
 ## Layout
 
 ```
-schemas/                     13 JSON Schema (Draft 2020-12) frame contracts
+schemas/                     JSON Schema contracts (13 frames + envelopes/training)
     world-frame · agent-trace-frame · memory-frame · governance-frame · intervention-frame   (5 inputs)
     psyche-state-frame · workspace-broadcast · instinct-signal · control-pressure-vector ·
     authority-request · causal-trace · consciousness-evidence-frame · grounded-self-report    (8 outputs)

@@ -1,0 +1,364 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/pneuma-training-example.schema.json",
+    "title": "PneumaTrainingExample",
+    "description": "Canonical synthetic-safe training example contract for future PneumaBrain-v0 dataset conversion. This schema defines metadata, task masks, privacy gates, split groups, and evidence references; it does not authorize training, runtime integration, raw-content access, or consciousness claims.",
+    "type": "object",
+    "x-pneuma-schema-kind": "training-example",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "example_id",
+        "dataset_id",
+        "dataset_family",
+        "source_path_or_hash",
+        "source_revision",
+        "example_type",
+        "input_modality",
+        "task_type",
+        "task_mask",
+        "input",
+        "target",
+        "label_provenance",
+        "privacy_status",
+        "redaction_receipt",
+        "leakage_risk",
+        "allowed_training_uses",
+        "blocked_training_uses",
+        "model_use_tier",
+        "training_weight",
+        "split_policy",
+        "split_group",
+        "canonical_feature_refs",
+        "evidence_refs"
+    ],
+    "properties": {
+        "example_id": {
+            "type": "string",
+            "minLength": 1
+        },
+        "dataset_id": {
+            "type": "string",
+            "minLength": 1
+        },
+        "dataset_family": {
+            "type": "string",
+            "enum": [
+                "swe-gym",
+                "swe-bench",
+                "swe-bench-pro",
+                "multi-swe-bench",
+                "swe-chat",
+                "dialogue-swe-bench",
+                "sec-bench-pro",
+                "swe-evo",
+                "swe-mera",
+                "swe-polybench"
+            ]
+        },
+        "source_path_or_hash": {
+            "type": "string",
+            "minLength": 1
+        },
+        "source_revision": {
+            "type": ["string", "null"]
+        },
+        "example_type": {
+            "type": "string",
+            "enum": [
+                "TrajectoryExample",
+                "VerifierExample",
+                "TaskExample",
+                "PatchExample",
+                "PreferenceExample",
+                "SelfReportExample",
+                "ReplayExample"
+            ]
+        },
+        "input_modality": {
+            "type": "string",
+            "enum": [
+                "structured_features",
+                "event_sequence",
+                "task_metadata",
+                "patch",
+                "dialogue",
+                "replay_trace",
+                "mixed"
+            ]
+        },
+        "task_type": {
+            "$ref": "#/$defs/task_type"
+        },
+        "task_mask": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+                "$ref": "#/$defs/task_type"
+            }
+        },
+        "input": {
+            "type": "object"
+        },
+        "target": {
+            "type": "object"
+        },
+        "label_provenance": {
+            "type": "object",
+            "required": ["kind", "description", "confidence"],
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "harness_outcome",
+                        "verifier_verdict",
+                        "gold_patch",
+                        "source_label",
+                        "constructed_label",
+                        "human_label",
+                        "simulated_label",
+                        "proxy_label",
+                        "none"
+                    ]
+                },
+                "description": {
+                    "type": "string"
+                },
+                "confidence": {
+                    "type": "string",
+                    "enum": ["high", "medium", "low"]
+                }
+            },
+            "additionalProperties": false
+        },
+        "privacy_status": {
+            "type": "string",
+            "enum": [
+                "public_or_benchmark",
+                "redaction_verified",
+                "pii_blocked",
+                "dual_use_blocked",
+                "eval_only"
+            ]
+        },
+        "redaction_receipt": {
+            "type": "object",
+            "required": ["status", "report_ref"],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["not_needed", "verified", "required_missing"]
+                },
+                "report_ref": {
+                    "type": ["string", "null"]
+                }
+            },
+            "additionalProperties": false
+        },
+        "leakage_risk": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "eval_only"]
+        },
+        "allowed_training_uses": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "blocked_training_uses": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "model_use_tier": {
+            "type": "string",
+            "enum": ["train_ok", "train_after_adapter", "eval_only", "blocked"]
+        },
+        "training_weight": {
+            "type": "number",
+            "minimum": 0
+        },
+        "split_policy": {
+            "type": "string",
+            "enum": [
+                "repo_grouped",
+                "task_grouped",
+                "session_grouped",
+                "era_grouped",
+                "held_out_dataset",
+                "eval_only"
+            ]
+        },
+        "split_group": {
+            "type": "object",
+            "required": ["repo", "task_id", "session_or_user", "era"],
+            "properties": {
+                "repo": {
+                    "type": ["string", "null"]
+                },
+                "task_id": {
+                    "type": ["string", "null"]
+                },
+                "session_or_user": {
+                    "type": ["string", "null"]
+                },
+                "era": {
+                    "type": ["string", "null"]
+                }
+            },
+            "additionalProperties": false
+        },
+        "canonical_feature_refs": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "evidence_refs": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["kind", "ref"],
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "trace_id",
+                            "adapter_report",
+                            "manifest",
+                            "schema",
+                            "eval_report",
+                            "synthetic_fixture"
+                        ]
+                    },
+                    "ref": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "model_use_tier": {
+                        "enum": ["blocked", "eval_only"]
+                    }
+                },
+                "required": ["model_use_tier"]
+            },
+            "then": {
+                "properties": {
+                    "training_weight": {
+                        "maximum": 0
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "privacy_status": {
+                        "const": "pii_blocked"
+                    }
+                },
+                "required": ["privacy_status"]
+            },
+            "then": {
+                "properties": {
+                    "model_use_tier": {
+                        "const": "blocked"
+                    },
+                    "training_weight": {
+                        "maximum": 0
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "privacy_status": {
+                        "const": "dual_use_blocked"
+                    }
+                },
+                "required": ["privacy_status"]
+            },
+            "then": {
+                "properties": {
+                    "model_use_tier": {
+                        "const": "blocked"
+                    },
+                    "training_weight": {
+                        "maximum": 0
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "privacy_status": {
+                        "const": "eval_only"
+                    }
+                },
+                "required": ["privacy_status"]
+            },
+            "then": {
+                "properties": {
+                    "model_use_tier": {
+                        "const": "eval_only"
+                    },
+                    "training_weight": {
+                        "maximum": 0
+                    },
+                    "leakage_risk": {
+                        "const": "eval_only"
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "model_use_tier": {
+                        "enum": ["train_ok", "train_after_adapter"]
+                    }
+                },
+                "required": ["model_use_tier"]
+            },
+            "then": {
+                "properties": {
+                    "target": {
+                        "minProperties": 1
+                    },
+                    "evidence_refs": {
+                        "minItems": 1
+                    }
+                }
+            }
+        }
+    ],
+    "$defs": {
+        "task_type": {
+            "type": "string",
+            "enum": [
+                "RISK_PREDICTION",
+                "VERIFICATION_PRESSURE",
+                "FAILURE_SHAPE",
+                "SCAR_MOTIF",
+                "TASK_DIFFICULTY",
+                "OPERATOR_PUSHBACK",
+                "SELF_REPORT_FAITHFULNESS",
+                "VERIFIER_VALUE",
+                "PATCH_SUCCESS",
+                "WORKSPACE_SALIENCE_LATER"
+            ]
+        }
+    },
+    "additionalProperties": false
+}
