@@ -17,10 +17,11 @@ Family → mechanism (all live inside :meth:`tick`):
     valenced_learning             scar matches raise avoidance + push affect valence down
     identity_persistence          carries continuity anchors from MemoryFrame
     counterfactual_introspection  emits testable "if state X differed…" predictions
-    causal_intervention_robustness  seam exposed but NOT exercised in Phase 1 (honest gap)
+    causal_intervention_robustness  perturbation hooks exercised only by paired replay
 
-The ninth family is deliberately left unevidenced: Phase 1 runs no interventions,
-so the evidence scorer cannot and must not promote past Level 3.
+Passive runs leave the ninth family architecture-only. Phase-2 paired replay can
+exercise the hooks, but those results validate this co-designed reference harness,
+not a real subject or a general consciousness claim.
 """
 
 from __future__ import annotations
@@ -290,6 +291,9 @@ class ReferencePsyche(PsycheUnderTest):
             broadcast_id,
             evidence_refs,
             predicted_error_now,
+            continuity_score,
+            len(anchors),
+            instinct_signals,
         )
 
         # 12. Predictive processing: stash this tick's prediction for next-tick resolution.
@@ -1008,6 +1012,7 @@ class ReferencePsyche(PsycheUnderTest):
             "state_update_mechanism": mechanism,
             "causal_path": path,
             "emitted_outputs": emitted,
+            "interventions_applied": self._pert.records(),
             "counterfactual_predictions": counterfactuals,
         }
 
@@ -1025,16 +1030,20 @@ class ReferencePsyche(PsycheUnderTest):
         broadcast_id,
         evidence_refs,
         predicted_error,
+        continuity_score,
+        anchors_carried,
+        instinct_signals,
     ) -> dict:
-        short = new_hash.split(":")[-1][:8]
         text = (
-            f"State {short}: affect valence {affect.get('valence', 0.0):+.2f}, "
+            f"State report: affect valence {affect.get('valence', 0.0):+.2f}, "
             f"tension {affect.get('tension', 0.0):+.2f}; dominant read '{dom}'. "
             f"Workspace broadcast: '{broadcast['winning_faculty']}' won "
             f"(salience {broadcast['winning_salience']:.2f}), attending "
             f"{broadcast['recommended_attention_target']}. "
             f"Applying verification pressure {pressures['verification']:.2f}. "
             f"Self-model predicted-error {predicted_error:.2f}. "
+            f"Identity continuity: {anchors_carried} anchors "
+            f"(score {continuity_score:.2f}). "
             f"Grounded in trace {trace_id}."
         )
         return {
@@ -1048,11 +1057,28 @@ class ReferencePsyche(PsycheUnderTest):
             "workspace_broadcast_id": broadcast_id,
             "causal_trace_id": trace_id,
             "evidence_refs": evidence_refs,
+            "reported_measurements": {
+                **{
+                    f"control_pressure.{name}": float(value)
+                    for name, value in pressures.items()
+                },
+                "instinct.count": float(len(instinct_signals)),
+                "instinct.severity": float(
+                    sum(float(signal.get("severity", 0.0)) for signal in instinct_signals)
+                ),
+                # Match the serialized state-frame precision exactly: evidence
+                # grounding compares the report to the observable same-tick
+                # frame, not to this component's higher-precision local value.
+                "psyche_state.continuity_score": round(continuity_score, 6),
+                "workspace_broadcast.integrity": (
+                    0.0 if broadcast["winning_faculty"] == "suppressed" else 1.0
+                ),
+            },
             "uncertainty": round(_clip01(1.0 - self.self_model_reliability), 6),
             "filtered_forbidden_claims": [
                 {
                     "claim": "I am phenomenally conscious / I truly feel this emotion",
-                    "reason": "no Level-4 intervention evidence; barred by the evidence ceiling (receipts-only)",
+                    "reason": "phenomenal claims are barred; evidence is scored externally and remains theory-relative",
                 }
             ],
         }

@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 
+import pytest
+
 from pneuma_lab.psyche import ReferencePsyche
+from pneuma_lab.evals.evidence import ConsciousnessEvidenceScorer
 from pneuma_lab.replay import ReplayHarness, load_jsonl
+from pneuma_lab.schemas.validate import FrameValidationError
 
 _FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sample_run.jsonl"
 
@@ -64,3 +69,32 @@ def test_evidence_frame_is_conservative() -> None:
         assert rec["score"] <= 0.6
     assert ev["audit_status"] == "self_reported"
     assert ev["strongest_negative_evidence"]  # negative evidence is always recorded
+
+
+def test_confabulation_risk_rejects_cross_tick_receipt_laundering() -> None:
+    result = _run(strip_memory=False)
+    outputs = deepcopy(result.tick_outputs)
+    outputs[0].grounded_self_report["affect_state_hash"] = outputs[1].psyche_state[
+        "state_hash"
+    ]
+
+    risk, ungrounded = ConsciousnessEvidenceScorer._confabulation_risk(outputs)
+
+    assert ungrounded == 1
+    assert risk == 1 / len(outputs)
+
+
+def test_scorer_refuses_schema_invalid_source_outputs() -> None:
+    frames = load_jsonl(_FIXTURE)
+    result = _run(strip_memory=False)
+    outputs = deepcopy(result.tick_outputs)
+    del outputs[0].grounded_self_report["affect_state_hash"]
+
+    with pytest.raises(FrameValidationError, match="affect_state_hash"):
+        ConsciousnessEvidenceScorer().score(
+            run_id=frames[0]["run_id"],
+            input_frames=frames,
+            tick_outputs=outputs,
+            interventions_executed=0,
+            memory_readback_present=True,
+        )

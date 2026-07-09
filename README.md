@@ -23,7 +23,8 @@ production agent's constraints.
 On top of the 13 frame schemas, Pneuma Lab now has a working replay surface: it
 loads a recorded input-frame timeline, validates it, and drives it through a
 `PsycheUnderTest` implementation that emits schema-valid output frames with
-`CausalTrace` receipts, then scores a Level 0–3 `ConsciousnessEvidenceFrame`.
+`CausalTrace` receipts, then scores a passive Level 0–3
+`ConsciousnessEvidenceFrame`; paired intervention replay is the only Level-4 path.
 
 The reference mind (`ReferencePsyche`) is deterministic (no ML, no roleplay) and
 wires **all nine consciousness-indicator families** into the live control loop, so
@@ -33,14 +34,25 @@ live and causally connected").
 **Phase 2 — Level-4 intervention harness.** Pneuma now _executes_ `InterventionFrame`s.
 A timeline carrying interventions triggers a **paired replay** — control (no
 perturbation), treated (perturbed), and a neutralized null — then compares the
-expected vs observed downstream deltas. The scorer promotes to **Level 4** only when
-every gate holds: Level 3 on the control run, all intervention tests pass, the null
-condition holds (the neutralized run reproduces control), the causal trace stays
-complete, grounded self-reports change faithfully under perturbation, and
-confabulation risk is low. Any missing or failed piece is an honest refusal (level
-stays ≤ 3). Hard-capped at **4** — no Level-5 claim, no ML training, no wiring back
-into 9to5. See [`migration/MIGRATION_REPORT.md`](migration/MIGRATION_REPORT.md) and
+expected vs observed downstream deltas. This is explicitly an **internal-harness**
+methodology score (`real_subject_claim_status: not_evaluated`), not evidence that a
+real subject is conscious. The scorer promotes to **Level 4** only when
+every gate holds: Level 3 on the control run, all intervention tests pass, the test
+inventory contains one tick-attached intervention and matches its execution exactly,
+runner-issued digests bind the exact inputs and arm outputs, all three arms reproduce
+identically across counterbalanced factory order, the null condition holds (the
+neutralized run reproduces control), the causal trace stays complete,
+and grounded self-reports expose structured measurements that match their same-tick
+state/broadcast/trace receipts and the tested target signal. Any missing or failed
+piece is an honest refusal (level
+stays ≤ 3). Hard-capped at **4** — no Level-5 claim; offline learned estimators never
+raise this evidence level; no wiring back into 9to5. See
+[`migration/MIGRATION_REPORT.md`](migration/MIGRATION_REPORT.md) and
 the Phase-1/Phase-2 design/plans under `docs/superpowers/`.
+
+The v0.2 promotion path is deliberately certified only for the exact deterministic
+`ReferencePsyche` factory. Custom subjects remain diagnostic (≤ Level 3) until a
+future snapshot/clone equivalence contract can prove their initial state.
 
 ### Run a replay
 
@@ -91,9 +103,10 @@ demo exits non-zero if byte-determinism ever regresses. Full walk-through:
 - **Paired intervention replay: Level 4.** Each `fixtures/interventions/*.jsonl`
   timeline triggers a control/treated/null paired replay. The run reaches
   **Level 4** only when every gate holds together: Level 3 on the control run, a
-  real perturbation passes with none failing, the null reproduces control, the
-  causal trace stays complete, grounded self-reports change faithfully under the
-  perturbation, and confabulation risk is low.
+  real perturbation passes, the single-intervention inventory reconciles,
+  runner-issued arm digests pass counterbalanced-order invariance, the null
+  reproduces control, the causal trace stays complete, and grounded
+  self-reports carry same-tick measurements that faithfully track the tested signal.
 - **Why `failing_hypothesis` stays Level 3.** It runs a real perturbation but
   pre-registers a prediction the mechanism does not produce. The test **fails**,
   and one failed test blocks Level 4 for the whole run. We score the

@@ -78,7 +78,7 @@ class PerturbationSet:
         return self.is_disabled(subsystem) or self.is_ablated(subsystem)
 
     def records(self) -> list[dict]:
-        """Audit rows: one per active intervention (stable order)."""
+        """Audit rows for active non-null interventions (stable order)."""
         return [
             {
                 "experiment_id": iv.get("experiment_id"),
@@ -88,6 +88,7 @@ class PerturbationSet:
                 "value": iv.get("value"),
             }
             for iv in self._ivs
+            if iv.get("operation") != "restore"
         ]
 
 

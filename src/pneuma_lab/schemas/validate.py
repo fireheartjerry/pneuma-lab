@@ -11,6 +11,7 @@ module imports it unconditionally: it is now a declared runtime dependency.
 
 from __future__ import annotations
 
+import math
 from functools import lru_cache
 
 from jsonschema import Draft202012Validator
@@ -61,11 +62,33 @@ def iter_errors(frame: dict) -> list[str]:
     if kind not in FRAME_KIND_TO_SCHEMA:
         return [f"unknown frame_kind: {kind!r}"]
     validator = validator_for(kind)
-    messages: list[str] = []
+    # Python's jsonschema accepts NaN and infinity as numbers even though they
+    # are not JSON values. Reject them before schema evaluation so numeric
+    # bounds and downstream equality checks cannot be bypassed.
+    messages = _non_finite_errors(frame)
     for err in sorted(validator.iter_errors(frame), key=lambda e: list(e.path)):
         loc = "/".join(str(p) for p in err.path) or "<root>"
         messages.append(f"{loc}: {err.message}")
     return messages
+
+
+def _non_finite_errors(value, path: str = "<root>") -> list[str]:
+    """Return paths to floats that cannot be represented in strict JSON."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return [f"{path}: non-finite number {value!r} is not valid JSON"]
+    if isinstance(value, dict):
+        errors: list[str] = []
+        for key, child in value.items():
+            child_path = str(key) if path == "<root>" else f"{path}/{key}"
+            errors.extend(_non_finite_errors(child, child_path))
+        return errors
+    if isinstance(value, list):
+        errors = []
+        for index, child in enumerate(value):
+            child_path = str(index) if path == "<root>" else f"{path}/{index}"
+            errors.extend(_non_finite_errors(child, child_path))
+        return errors
+    return []
 
 
 def is_valid(frame: dict) -> bool:

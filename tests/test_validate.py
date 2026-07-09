@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
+
 import pytest
 
 from pneuma_lab.schemas import validate as v
@@ -40,6 +42,18 @@ def test_bad_enum_is_rejected() -> None:
 def test_unknown_frame_kind_raises() -> None:
     with pytest.raises(v.FrameValidationError):
         v.validate_or_raise({"frame_kind": "nonsense"})
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_numbers_are_not_valid_json_frames(value) -> None:
+    frame = deepcopy(_good_world_frame())
+    frame["stakes"] = {"risk": value}
+
+    errors = v.iter_errors(frame)
+
+    assert any("non-finite number" in error for error in errors)
+    with pytest.raises(v.FrameValidationError, match="non-finite number"):
+        v.validate_or_raise(frame)
 
 
 def test_all_output_kinds_have_a_schema() -> None:

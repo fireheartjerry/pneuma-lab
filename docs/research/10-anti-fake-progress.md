@@ -227,9 +227,21 @@ git-based provenance to mean anything).
 
 Failure: the psyche's grounded self-reports narrate causes that the causal trace does not contain.
 
-Guardrail [VERIFIED]: confabulation risk is computed from hash cross-checks between report-cited
-state and the recurrent state-hash chain, not from prose; L4 requires grounded reports to _track
-the perturbation_ (report content must change under intervention and match the treated trace), and
+Guardrail [VERIFIED]: confabulation risk requires every report to bind to its same-tick state hash,
+workspace broadcast, causal trace, run, and timestamp—not merely any receipt elsewhere in the run.
+L4 requires grounded reports to _track the perturbation_ through structured measurements that
+equal their same-tick output frames and change on the pre-registered target signal; unrelated prose
+or changed receipts are insufficient. Treated causal traces must also carry the exact active
+intervention receipt and the complete ordered causal stages. The scorer requires exactly one
+tick-attached intervention and reconciles its execution with the typed result record before any
+L4 promotion. Strict frame validation rejects NaN/infinity before numeric comparisons;
+the scorer derives and cross-checks one timeline run ID; and control/null traces must
+carry no active-intervention receipts, preventing copied receipts from laundering a run.
+Raw caller-built arm outputs are capped at L3: L4 additionally requires runner-issued
+input/arm digests and byte-identical logical-arm outputs across counterbalanced
+control/treated/null factory orders. All pass digests are retained, and v0.2 limits
+promotion to the exact deterministic `ReferencePsyche` factory; custom factories are
+diagnostic-only until initial-state clone/snapshot equivalence is specified. Finally,
 `roleplay_confabulation_risk` is emitted on every evidence frame (`evidence.py`). Honest-refusal is
 fixture-tested: `tests/test_canonical_demo.py::test_failing_hypothesis_reports_level3` and
 `::test_restore_null_reports_level3` prove that a failing pre-registered hypothesis and a

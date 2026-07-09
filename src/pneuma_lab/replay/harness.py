@@ -8,9 +8,10 @@ Pipeline (evaluation-guide Layers A + C + H):
     4. validate every emitted output frame (Layer A),
     5. hand the full run log to the evidence scorer (Layers C/D-gap).
 
-Phase-1 boundary: an ``InterventionFrame`` in the stream is *counted* but never
-executed. The harness records ``interventions_executed = 0`` so the scorer keeps
-``causal_intervention_robustness`` unevidenced and cannot promote past Level 3.
+Without a schedule, ``InterventionFrame`` inputs are registered but not executed.
+With a schedule, the harness can execute perturbations for one treated replay, but
+a single replay never self-certifies Level 4: only the paired runner supplies the
+cross-checked control/treated/null test inventory.
 """
 
 from __future__ import annotations
@@ -85,7 +86,7 @@ class ReplayHarness:
             active = schedule.active(tick.index) if schedule is not None else []
             if perturbable:
                 self.psyche.set_active_interventions(active)
-            executed_ids.update(iv.get("experiment_id") for iv in active)
+                executed_ids.update(iv.get("experiment_id") for iv in active)
             inputs = self._tick_to_inputs(tick, strip_memory=strip_memory)
             outputs = self.psyche.tick(inputs)
             frames = outputs.all_frames()
@@ -103,7 +104,6 @@ class ReplayHarness:
             tick_outputs=tick_outputs,
             interventions_executed=interventions_executed,
             memory_readback_present=any(t.memory for t in ticks) and not strip_memory,
-            intervention_tests=None,  # a single replay never self-certifies Level 4
         )
         if self.validate:
             validate_or_raise(evidence)

@@ -65,19 +65,33 @@ A single intervention test **passes** only when all of the following hold:
 And for the **run** to earn Level 4, every gate below must hold together:
 
 - Level 3 already holds on the **control** run;
+- exactly one tick-attached intervention is registered (no duplicate, stray, or
+  piggybacked joint-arm tests), and its executed count and reported
+  passed/failed/total inventory agree exactly;
+- the runner binds the input and arm outputs into SHA-256 receipts, rotates all
+  arms through control/treated/null factory order, and observes byte-identical
+  output for each logical arm across those ordinals; every pass digest is retained;
+- the subject factory is the exact deterministic `ReferencePsyche` certified by
+  v0.2 (custom factories are capped at Level 3 pending clone/snapshot equivalence);
 - at least one real perturbation passed and **none failed**;
 - the **null condition** holds (neutralized run reproduces control);
 - the **causal trace stays complete** (each non-suppressed tick spans
   event → … → behavior; a deliberately suppressed broadcast is allowed to break
   the chain, and that break is itself traced, not a crash);
-- **grounded self-reports change faithfully** under the perturbation — the report's
-  own state/trace hashes still match the run log, and either the hash or the
-  rendered text moved;
-- **confabulation risk stays low** (every self-report is grounded in a real state +
-  trace hash from _this_ run).
+- **grounded self-reports track the tested signal** — every report binds to the
+  state hash, broadcast ID, causal-trace ID, run, and timestamp from its own tick;
+  structured reported measurements must equal those frames and change on the
+  pre-registered target signal. Unrelated prose or changed receipt IDs are not enough;
+- **confabulation risk stays low** under that same-tick binding check.
 
 Any missing or failed piece is an honest refusal: the level stays ≤ 3. The psyche
 under test never scores itself — the scorer recomputes the verdict from receipts.
+The public raw-output scorer is intentionally diagnostic-only and capped at Level 3;
+only the counterbalanced runner can issue the provenance required for promotion.
+The emitted frame is mechanically scoped to `evaluation_scope: internal_harness`
+and `real_subject_claim_status: not_evaluated`; passing this demo validates the
+methodology against its deterministic reference implementation, not consciousness
+in a real subject.
 
 ## Why null controls matter
 

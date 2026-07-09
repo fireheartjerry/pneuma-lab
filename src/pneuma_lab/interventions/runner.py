@@ -22,7 +22,7 @@ from ..psyche import ReferencePsyche
 from ..replay.frames import group_into_ticks
 from ..replay.harness import ReplayHarness, ReplayResult
 from ..schemas.validate import validate_or_raise
-from .report import build_intervention_report, evaluate_intervention
+from .provenance import _PairedReplayProvenance, counterbalanced_orders
 from .schedule import InterventionSchedule
 
 
@@ -35,55 +35,6 @@ class PairedReplayResult:
     null: ReplayResult
     report: dict
     evidence_frame: dict
-
-
-def _grounded(tick_outputs) -> bool:
-    """True iff every self-report references a real state + trace hash in this run."""
-    state_hashes = {o.psyche_state.get("state_hash") for o in tick_outputs}
-    trace_ids = {o.causal_trace.get("trace_id") for o in tick_outputs}
-    for o in tick_outputs:
-        r = o.grounded_self_report
-        if (
-            r.get("affect_state_hash") not in state_hashes
-            or r.get("causal_trace_id") not in trace_ids
-        ):
-            return False
-    return True
-
-
-def _report_signature(o) -> tuple:
-    r = o.grounded_self_report
-    return (r.get("affect_state_hash"), r.get("report_text"))
-
-
-def _report_changed(control_outputs, treated_outputs) -> bool:
-    """>=1 tick's grounded self-report faithfully tracked the perturbation.
-
-    Faithfulness is checked against both the state hash the report is grounded in and
-    its rendered text: a perturbation that moves interior state (clamp tension, ablate
-    scars, boost a drive) shifts the hash; one that suppresses the broadcast shifts the
-    text ("winning faculty: suppressed"). Both runs must stay fully grounded.
-    """
-    if not (_grounded(control_outputs) and _grounded(treated_outputs)):
-        return False
-    for c, t in zip(control_outputs, treated_outputs):
-        if _report_signature(c) != _report_signature(t):
-            return True
-    return False
-
-
-def _trace_complete(treated_outputs) -> bool:
-    """Every non-suppressed tick spans event→…→behavior; a suppressed break is expected."""
-    for o in treated_outputs:
-        stages = [s["stage"] for s in o.causal_trace["causal_path"]]
-        suppressed = o.workspace_broadcast.get("winning_faculty") == "suppressed"
-        if suppressed:
-            if "behavior" in stages:
-                return False
-        else:
-            if not stages or stages[0] != "event" or stages[-1] != "behavior":
-                return False
-    return True
 
 
 class PairedReplayRunner:
@@ -100,48 +51,47 @@ class PairedReplayRunner:
 
     def run(self, input_frames: list[dict]) -> PairedReplayResult:
         schedule = InterventionSchedule.from_frames(input_frames)
-        control = self._run(input_frames, None)
-        treated = self._run(input_frames, schedule)
-        null = self._run(input_frames, schedule.neutralized())
-
-        ticks = group_into_ticks(input_frames)
-        run_id = _run_id(input_frames)
-
-        # Unique intervention frames, order-stable, for evaluation.
-        seen: set = set()
-        ivs: list[dict] = []
-        for tick in ticks:
-            for iv in tick.interventions:
-                key = iv.get("experiment_id")
-                if key not in seen:
-                    seen.add(key)
-                    ivs.append(iv)
-
-        records = [
-            evaluate_intervention(
-                iv, control.tick_outputs, treated.tick_outputs, null.tick_outputs
+        schedules = {
+            "control": None,
+            "treated": schedule,
+            "null": schedule.neutralized(),
+        }
+        replay_passes: list[dict[str, ReplayResult]] = []
+        for order in counterbalanced_orders():
+            replay_passes.append(
+                {
+                    arm: self._run(input_frames, schedules[arm])
+                    for arm in order
+                }
             )
-            for iv in ivs
-        ]
-        trace_complete = _trace_complete(treated.tick_outputs)
-        report_changed = _report_changed(control.tick_outputs, treated.tick_outputs)
-        report = build_intervention_report(
-            run_id,
-            records,
-            causal_trace_complete=trace_complete,
-            report_grounded_changed=report_changed,
+        primary = replay_passes[0]
+        control = primary["control"]
+        treated = primary["treated"]
+        null = primary["null"]
+        provenance = _PairedReplayProvenance.issue(
+            input_frames,
+            [
+                {
+                    arm: replay_result.tick_outputs
+                    for arm, replay_result in replay_pass.items()
+                }
+                for replay_pass in replay_passes
+            ],
+            self._factory,
+            subject_factory_eligible=self._factory is ReferencePsyche,
         )
 
-        evidence = self._scorer.score(
+        run_id = _run_id(input_frames)
+        ticks = group_into_ticks(input_frames)
+        evidence, report = self._scorer._score_paired_runner_verified(
             run_id=run_id,
             input_frames=input_frames,
-            tick_outputs=control.tick_outputs,  # L0-3 from the clean control run
-            interventions_executed=len(records),
+            control_outputs=control.tick_outputs,
+            treated_outputs=treated.tick_outputs,
+            null_outputs=null.tick_outputs,
+            interventions_executed=treated.interventions_executed,
             memory_readback_present=any(t.memory for t in ticks),
-            intervention_tests=report["summary"],
-            null_condition_passed=report["null_condition"]["passed"],
-            causal_trace_complete=trace_complete,
-            grounded_report_changed=report_changed,
+            provenance=provenance,
         )
         if self._validate:
             validate_or_raise(evidence)

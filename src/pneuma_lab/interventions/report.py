@@ -2,8 +2,9 @@
 
 A test *passes* when the observed change in its pre-registered ``target_signal``
 matches the pre-registered ``direction`` (and stays within ``bound`` for a
-bounded/no-change prediction), AND the neutralized-null replay shows ~0 change vs
-control (so the effect is attributable to the perturbation, not the timeline).
+bounded/no-change prediction), AND the neutralized-null replay shows ~0 change on
+the target signal. The assembled run report additionally requires every neutralized
+output frame to equal control, so off-target null drift cannot pass Level 4.
 """
 
 from __future__ import annotations
@@ -108,12 +109,18 @@ def evaluate_intervention(iv, control_outputs, treated_outputs, null_outputs) ->
 
 
 def build_intervention_report(
-    run_id, records, *, causal_trace_complete, report_grounded_changed
+    run_id,
+    records,
+    *,
+    causal_trace_complete,
+    report_grounded_changed,
+    null_output_equivalent,
 ) -> dict:
     """Assemble the auditable intervention report from per-test records."""
     passed = [r["experiment_id"] for r in records if r["passed"]]
     failed = [r["experiment_id"] for r in records if not r["passed"]]
-    null_ok = all(abs(r["null_delta"]) <= _EPS for r in records)
+    target_signals_match = all(abs(r["null_delta"]) <= _EPS for r in records)
+    null_ok = bool(target_signals_match and null_output_equivalent)
     return {
         "report_id": f"intervention_report:{run_id}",
         "run_id": run_id,
@@ -121,12 +128,14 @@ def build_intervention_report(
         "summary": {"passed": passed, "failed": failed, "total": len(records)},
         "null_condition": {
             "passed": bool(null_ok),
+            "target_signals_match": bool(target_signals_match),
+            "full_output_equivalent": bool(null_output_equivalent),
             "note": (
-                "neutralized (restore) replay reproduces control -> deltas are "
-                "perturbation-caused"
+                "neutralized (restore) replay is fully identical to control -> "
+                "treated deltas are perturbation-caused"
                 if null_ok
-                else "neutralized replay diverged from control (non-causal or "
-                "nondeterministic)"
+                else "neutralized replay diverged from control in target signals or "
+                "full output frames (non-causal or nondeterministic)"
             ),
         },
         "causal_trace_complete": bool(causal_trace_complete),

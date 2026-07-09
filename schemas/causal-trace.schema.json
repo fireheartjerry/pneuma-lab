@@ -104,6 +104,37 @@
                 "type": "string"
             }
         },
+        "interventions_applied": {
+            "type": "array",
+            "description": "Active non-restore intervention receipts applied to this tick. Empty for control and neutralized-null replays.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "experiment_id": {
+                        "type": "string"
+                    },
+                    "operation": {
+                        "type": "string"
+                    },
+                    "subsystem": {
+                        "type": "string"
+                    },
+                    "dimension": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "value": {}
+                },
+                "required": [
+                    "experiment_id",
+                    "operation",
+                    "subsystem"
+                ],
+                "additionalProperties": false
+            }
+        },
         "counterfactual_predictions": {
             "type": "array",
             "description": "What the trace predicts WOULD happen under stated counterfactuals (for intervention-robustness scoring).",

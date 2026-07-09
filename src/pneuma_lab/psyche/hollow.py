@@ -186,6 +186,7 @@ class HollowPsyche(PsycheUnderTest):
                 pressure_id,
                 report_id,
             ],
+            "interventions_applied": [],
             "counterfactual_predictions": [],
         }
 
@@ -206,6 +207,16 @@ class HollowPsyche(PsycheUnderTest):
             "workspace_broadcast_id": broadcast_id,
             "causal_trace_id": trace_id,
             "evidence_refs": [f"state_hash:{constant}"],
+            "reported_measurements": {
+                **{
+                    f"control_pressure.{name}": float(value)
+                    for name, value in _ZERO_PRESSURES.items()
+                },
+                "instinct.count": 0.0,
+                "instinct.severity": 0.0,
+                "psyche_state.continuity_score": 0.0,
+                "workspace_broadcast.integrity": 1.0,
+            },
             "uncertainty": 0.0,
             "filtered_forbidden_claims": [],
         }

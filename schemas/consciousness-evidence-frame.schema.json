@@ -2,14 +2,14 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://pneuma-lab.local/schemas/consciousness-evidence-frame.schema.json",
     "title": "ConsciousnessEvidenceFrame",
-    "description": "Evidence-level scoring against consciousness-relevant indicator families. This frame NEVER asserts phenomenal consciousness; it grades evidence. A claim is only as strong as its passed intervention tests and audit status. Roleplay/confabulation risk is a first-class, tracked quantity. Output contract v0.1. See docs/consciousness-levels.md.",
+    "description": "Evidence-level scoring against consciousness-relevant indicator families. This frame NEVER asserts phenomenal consciousness; it grades evidence. A claim is only as strong as its passed intervention tests and audit status. Roleplay/confabulation risk is a first-class, tracked quantity. Output contract v0.2. See docs/consciousness-levels.md.",
     "type": "object",
     "x-pneuma-frame-kind": "output",
-    "x-pneuma-version": "0.1.0",
+    "x-pneuma-version": "0.2.0",
     "properties": {
         "schema_version": {
             "type": "string",
-            "const": "0.1.0"
+            "const": "0.2.0"
         },
         "frame_kind": {
             "type": "string",
@@ -28,9 +28,19 @@
         "evaluation_id": {
             "type": "string"
         },
+        "evaluation_scope": {
+            "type": "string",
+            "const": "internal_harness",
+            "description": "This score grades an internally controlled replay harness; it is not evidence about a real biological or deployed agent subject."
+        },
+        "real_subject_claim_status": {
+            "type": "string",
+            "const": "not_evaluated",
+            "description": "The v0.2 executable scorer does not evaluate or promote claims about a real subject."
+        },
         "indicator_families": {
             "type": "object",
-            "description": "Per-family evidence score in [0, 1] with supporting/refuting refs. Absence of a family is meaningful — omitted = not yet evaluated.",
+            "description": "Complete per-family evidence score in [0, 1] with supporting/refuting refs.",
             "properties": {
                 "global_workspace": {
                     "$ref": "#/$defs/indicator"
@@ -60,13 +70,24 @@
                     "$ref": "#/$defs/indicator"
                 }
             },
-            "additionalProperties": true
+            "required": [
+                "global_workspace",
+                "recurrent_processing",
+                "higher_order_self_model",
+                "predictive_processing",
+                "attention_schema",
+                "valenced_learning",
+                "identity_persistence",
+                "counterfactual_introspection",
+                "causal_intervention_robustness"
+            ],
+            "additionalProperties": false
         },
         "evidence_level": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 5,
-            "description": "Overall level on the Pneuma Lab consciousness-evidence ladder (0-5). See docs/consciousness-levels.md. Near-term target = 4."
+            "maximum": 4,
+            "description": "Current internally scored harness level. This v0.2 contract hard-caps at 4 and does not imply the corresponding real-subject claim; Level 5 needs a future schema and gate."
         },
         "missing_requirements": {
             "type": "array",
@@ -107,30 +128,400 @@
             "type": "object",
             "description": "Results of causal-intervention tests (the level-4 gate).",
             "properties": {
-                "passed": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "experiment_id": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "outcome": {
+                                "type": "string",
+                                "enum": [
+                                    "passed",
+                                    "failed",
+                                    "not_evaluated"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "experiment_id",
+                            "outcome"
+                        ],
+                        "additionalProperties": false
+                    }
+                },
+                "executed_count": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "reported_total": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "minimum": 0
+                },
+                "integrity_ok": {
+                    "type": "boolean",
+                    "description": "True only when registered, executed, passed, failed, and total inventories agree exactly and are non-empty."
+                },
+                "integrity_errors": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "failed": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                "genuine_perturbation": {
+                    "type": "boolean",
+                    "description": "At least one evaluated non-restore intervention produced a recomputed nonzero observed delta."
                 }
             },
-            "additionalProperties": true
+            "required": [
+                "results",
+                "executed_count",
+                "reported_total",
+                "integrity_ok",
+                "integrity_errors",
+                "genuine_perturbation"
+            ],
+            "additionalProperties": false
+        },
+        "paired_replay_provenance": {
+            "type": "object",
+            "description": "Digest-bound provenance for the control, treated, and null arms. Raw caller-supplied outputs remain diagnostic and cannot promote to Level 4.",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "unverified_raw_outputs",
+                        "order_confounded",
+                        "uncertified_subject",
+                        "runner_verified"
+                    ]
+                },
+                "runner": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "subject_factory": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "subject_factory_eligible": {
+                    "type": "boolean"
+                },
+                "input_frames_sha256": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "arm_output_sha256": {
+                    "type": "object",
+                    "properties": {
+                        "control": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^sha256:[0-9a-f]{64}$"
+                        },
+                        "treated": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^sha256:[0-9a-f]{64}$"
+                        },
+                        "null": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^sha256:[0-9a-f]{64}$"
+                        }
+                    },
+                    "required": [
+                        "control",
+                        "treated",
+                        "null"
+                    ],
+                    "additionalProperties": false
+                },
+                "arm_orders": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "control",
+                                "treated",
+                                "null"
+                            ]
+                        },
+                        "minItems": 3,
+                        "maxItems": 3,
+                        "uniqueItems": true
+                    }
+                },
+                "counterbalanced_passes": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "order": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": [
+                                        "control",
+                                        "treated",
+                                        "null"
+                                    ]
+                                },
+                                "minItems": 3,
+                                "maxItems": 3,
+                                "uniqueItems": true
+                            },
+                            "arm_output_sha256": {
+                                "type": "object",
+                                "properties": {
+                                    "control": {
+                                        "type": "string",
+                                        "pattern": "^sha256:[0-9a-f]{64}$"
+                                    },
+                                    "treated": {
+                                        "type": "string",
+                                        "pattern": "^sha256:[0-9a-f]{64}$"
+                                    },
+                                    "null": {
+                                        "type": "string",
+                                        "pattern": "^sha256:[0-9a-f]{64}$"
+                                    }
+                                },
+                                "required": [
+                                    "control",
+                                    "treated",
+                                    "null"
+                                ],
+                                "additionalProperties": false
+                            }
+                        },
+                        "required": [
+                            "order",
+                            "arm_output_sha256"
+                        ],
+                        "additionalProperties": false
+                    }
+                },
+                "ordinal_invariant": {
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "status",
+                "runner",
+                "subject_factory",
+                "subject_factory_eligible",
+                "input_frames_sha256",
+                "arm_output_sha256",
+                "arm_orders",
+                "counterbalanced_passes",
+                "ordinal_invariant"
+            ],
+            "additionalProperties": false
         }
     },
     "required": [
         "schema_version",
         "frame_kind",
+        "timestamp",
+        "run_id",
         "evaluation_id",
+        "evaluation_scope",
+        "real_subject_claim_status",
+        "indicator_families",
         "evidence_level",
-        "audit_status"
+        "missing_requirements",
+        "strongest_positive_evidence",
+        "strongest_negative_evidence",
+        "audit_status",
+        "roleplay_confabulation_risk",
+        "intervention_tests",
+        "paired_replay_provenance"
     ],
     "additionalProperties": true,
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "evidence_level": {
+                        "const": 4
+                    }
+                },
+                "required": [
+                    "evidence_level"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "audit_status": {
+                        "enum": [
+                            "internally_audited",
+                            "externally_audited"
+                        ]
+                    },
+                    "roleplay_confabulation_risk": {
+                        "maximum": 0.2
+                    },
+                    "indicator_families": {
+                        "properties": {
+                            "causal_intervention_robustness": {
+                                "properties": {
+                                    "status": {
+                                        "const": "intervention_backed"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "intervention_tests": {
+                        "properties": {
+                            "results": {
+                                "minItems": 1,
+                                "maxItems": 1,
+                                "items": {
+                                    "properties": {
+                                        "outcome": {
+                                            "const": "passed"
+                                        }
+                                    }
+                                }
+                            },
+                            "executed_count": {
+                                "const": 1
+                            },
+                            "reported_total": {
+                                "const": 1
+                            },
+                            "integrity_ok": {
+                                "const": true
+                            },
+                            "integrity_errors": {
+                                "maxItems": 0
+                            },
+                            "genuine_perturbation": {
+                                "const": true
+                            }
+                        }
+                    },
+                    "paired_replay_provenance": {
+                        "properties": {
+                            "status": {
+                                "const": "runner_verified"
+                            },
+                            "runner": {
+                                "const": "pneuma_lab.interventions.PairedReplayRunner/v1"
+                            },
+                            "subject_factory": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "subject_factory_eligible": {
+                                "const": true
+                            },
+                            "input_frames_sha256": {
+                                "type": "string"
+                            },
+                            "arm_output_sha256": {
+                                "properties": {
+                                    "control": {
+                                        "type": "string"
+                                    },
+                                    "treated": {
+                                        "type": "string"
+                                    },
+                                    "null": {
+                                        "type": "string"
+                                    }
+                                }
+                            },
+                            "arm_orders": {
+                                "const": [
+                                    [
+                                        "control",
+                                        "treated",
+                                        "null"
+                                    ],
+                                    [
+                                        "treated",
+                                        "null",
+                                        "control"
+                                    ],
+                                    [
+                                        "null",
+                                        "control",
+                                        "treated"
+                                    ]
+                                ]
+                            },
+                            "counterbalanced_passes": {
+                                "minItems": 3,
+                                "maxItems": 3,
+                                "prefixItems": [
+                                    {
+                                        "properties": {
+                                            "order": {
+                                                "const": [
+                                                    "control",
+                                                    "treated",
+                                                    "null"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "properties": {
+                                            "order": {
+                                                "const": [
+                                                    "treated",
+                                                    "null",
+                                                    "control"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "properties": {
+                                            "order": {
+                                                "const": [
+                                                    "null",
+                                                    "control",
+                                                    "treated"
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            "ordinal_invariant": {
+                                "const": true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ],
     "$defs": {
         "indicator": {
             "type": "object",
@@ -139,6 +530,23 @@
                     "type": "number",
                     "minimum": 0.0,
                     "maximum": 1.0
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "intervention_backed",
+                        "evidenced",
+                        "attempted",
+                        "architecture_only",
+                        "absent"
+                    ]
+                },
+                "ticks_exercised": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "note": {
+                    "type": "string"
                 },
                 "supporting_refs": {
                     "type": "array",
@@ -154,7 +562,12 @@
                 }
             },
             "required": [
-                "score"
+                "score",
+                "status",
+                "ticks_exercised",
+                "note",
+                "supporting_refs",
+                "refuting_refs"
             ],
             "additionalProperties": true
         }

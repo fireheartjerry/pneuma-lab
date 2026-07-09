@@ -54,6 +54,13 @@
                 "type": "string"
             }
         },
+        "reported_measurements": {
+            "type": "object",
+            "description": "Structured same-tick measurements reported by the subject. The Level-4 scorer cross-checks these against the actual output frames and the intervention target signal.",
+            "additionalProperties": {
+                "type": "number"
+            }
+        },
         "uncertainty": {
             "type": "number",
             "minimum": 0.0,

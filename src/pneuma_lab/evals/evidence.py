@@ -1,4 +1,4 @@
-"""ConsciousnessEvidenceScorer — honest, conservative Level 0-3 scoring.
+"""ConsciousnessEvidenceScorer — honest, conservative Level 0-4 scoring.
 
 This scorer reads a whole replay's output frames and decides an ``evidence_level``
 using the ladder in ``docs/consciousness-levels.md``. It is built to *under*-claim:
@@ -9,9 +9,10 @@ using the ladder in ``docs/consciousness-levels.md``. It is built to *under*-cla
     * it NEVER promotes on self-report; ``roleplay_confabulation_risk`` is
     computed by checking every grounded self-report's hashes against the run log,
     not from how the prose reads;
-    * it HARD-CAPS at Level 3. Level 4 needs intervention + null-condition
-    evidence, which Phase 1 never produces (``interventions_executed == 0``), so
-    the L4 requirements always appear in ``missing_requirements``.
+    * Level 4 requires a structurally consistent inventory of registered,
+    executed, and reported intervention tests in addition to the null, trace,
+    report-grounding, and confabulation gates;
+    * it HARD-CAPS at Level 4. Level 5 remains a separately specified target.
 
 The nine indicator families map to the mechanisms ``ReferencePsyche`` exercises;
 ``causal_intervention_robustness`` is the one family that is architecture-only in
@@ -20,13 +21,20 @@ Phase 1 and is reported as such.
 
 from __future__ import annotations
 
-# The Level-4 evidence that a passive (no-intervention) run structurally cannot provide.
-_L4_MISSING = [
-    "intervention_evidence: no InterventionFrame was executed",
-    "null_condition_evidence: no ablation/null-condition runs compared in-harness",
-    "grounded_self_report_perturbation: reports not yet shown to change under state perturbation",
-    "external_audit: audit_status is self_reported, not externally audited",
-]
+from dataclasses import dataclass
+
+from ..interventions.provenance import (
+    _PairedReplayProvenance,
+    unverified_provenance_record,
+)
+from ..interventions.report import build_intervention_report, evaluate_intervention
+from ..schemas.validate import FrameValidationError, validate_or_raise
+from .grounding import (
+    report_is_grounded_to_tick,
+    reports_track_target_signal,
+    treated_trace_is_complete,
+    unperturbed_traces_are_clean,
+)
 
 # What remains once Level 4 is met — the honest gap up to the Level-5 north star.
 _L5_MISSING = [
@@ -51,8 +59,208 @@ _ALL_FAMILIES = (
 )
 
 
+@dataclass(frozen=True)
+class _InterventionGate:
+    """Normalized, cross-checked intervention inventory used by the L4 gate."""
+
+    registered: tuple[str, ...]
+    passed: tuple[str, ...]
+    failed: tuple[str, ...]
+    executed: int
+    reported_total: int | None
+    has_test_results: bool
+    non_restore_evaluated: bool
+    genuine_perturbation: bool
+    inventory_errors: tuple[str, ...]
+    provenance_errors: tuple[str, ...]
+
+    @property
+    def integrity_errors(self) -> tuple[str, ...]:
+        return self.inventory_errors + self.provenance_errors
+
+    @property
+    def inventory_ok(self) -> bool:
+        return bool(self.registered) and not self.inventory_errors
+
+    @property
+    def integrity_ok(self) -> bool:
+        return bool(self.registered) and not self.integrity_errors
+
+    @property
+    def promotion_ready(self) -> bool:
+        return (
+            self.integrity_ok
+            and self.genuine_perturbation
+            and bool(self.passed)
+            and not self.failed
+        )
+
+    def as_record(self) -> dict:
+        outcomes = {experiment_id: "passed" for experiment_id in self.passed}
+        outcomes.update({experiment_id: "failed" for experiment_id in self.failed})
+        return {
+            "results": [
+                {
+                    "experiment_id": experiment_id,
+                    "outcome": outcomes.get(experiment_id, "not_evaluated"),
+                }
+                for experiment_id in self.registered
+            ],
+            "executed_count": self.executed,
+            "reported_total": self.reported_total,
+            "integrity_ok": self.integrity_ok,
+            "integrity_errors": list(self.integrity_errors),
+            "genuine_perturbation": self.genuine_perturbation,
+        }
+
+
+def _string_ids(value, label: str, errors: list[str]) -> tuple[str, ...]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        errors.append(f"{label} must be a list of strings")
+        return ()
+    return tuple(value)
+
+
+def _unique_intervention_frames(
+    input_frames: list[dict],
+) -> tuple[list[dict], list[str], int]:
+    """Return attached first-seen interventions, duplicate IDs, and stray count."""
+    # Local import avoids the replay package's harness -> scorer import cycle.
+    from ..replay.frames import group_into_ticks
+
+    attached = [
+        intervention
+        for tick in group_into_ticks(input_frames)
+        for intervention in tick.interventions
+    ]
+    raw_count = sum(
+        1
+        for frame in input_frames
+        if isinstance(frame, dict) and frame.get("frame_kind") == "intervention"
+    )
+    unique: list[dict] = []
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for frame in attached:
+        experiment_id = frame.get("experiment_id")
+        if not isinstance(experiment_id, str) or not experiment_id:
+            unique.append(frame)
+            continue
+        if experiment_id in seen:
+            duplicates.append(experiment_id)
+            continue
+        seen.add(experiment_id)
+        unique.append(frame)
+    return unique, duplicates, raw_count - len(attached)
+
+
+def _intervention_gate(
+    input_frames: list[dict],
+    interventions_executed: int,
+    intervention_tests: dict | None,
+    intervention_records: list[dict] | None = None,
+    provenance_errors: list[str] | None = None,
+) -> _InterventionGate:
+    """Cross-check registered IDs, execution count, and report partition."""
+    registered: list[str] = []
+    errors: list[str] = []
+    intervention_frames, duplicate_ids, unattached_count = _unique_intervention_frames(
+        input_frames
+    )
+    for duplicate_id in duplicate_ids:
+        errors.append(f"duplicate registered experiment_id: {duplicate_id}")
+    if unattached_count:
+        errors.append(
+            f"{unattached_count} InterventionFrame(s) are not attached to any world tick"
+        )
+    for frame in intervention_frames:
+        experiment_id = frame.get("experiment_id")
+        if not isinstance(experiment_id, str) or not experiment_id:
+            errors.append("registered intervention has no non-empty experiment_id")
+            continue
+        registered.append(experiment_id)
+
+    has_results = intervention_tests is not None
+    tests = intervention_tests if isinstance(intervention_tests, dict) else {}
+    if intervention_tests is not None and not isinstance(intervention_tests, dict):
+        errors.append("intervention_tests must be an object")
+    passed = _string_ids(tests.get("passed", []), "passed", errors)
+    failed = _string_ids(tests.get("failed", []), "failed", errors)
+    reported_total = tests.get("total") if has_results else None
+
+    if not isinstance(interventions_executed, int) or isinstance(
+        interventions_executed, bool
+    ):
+        errors.append("interventions_executed must be an integer")
+        executed = 0
+    else:
+        executed = interventions_executed
+
+    if not registered:
+        errors.append("no InterventionFrame is registered")
+    elif len(registered) > 1:
+        errors.append(
+            "multiple interventions require isolated treated/null arms or an "
+            "explicit joint-intervention hypothesis"
+        )
+    if not has_results:
+        errors.append("no intervention test summary was supplied")
+    if has_results and (
+        not isinstance(reported_total, int) or isinstance(reported_total, bool)
+    ):
+        errors.append("intervention test summary total must be an integer")
+        reported_total = None
+    if len(set(passed)) != len(passed):
+        errors.append("passed contains duplicate experiment IDs")
+    if len(set(failed)) != len(failed):
+        errors.append("failed contains duplicate experiment IDs")
+    if set(passed) & set(failed):
+        errors.append("passed and failed experiment IDs overlap")
+
+    expected = set(registered)
+    reported = set(passed) | set(failed)
+    if expected != reported:
+        errors.append(
+            "reported experiment IDs do not exactly partition registered IDs: "
+            f"registered={sorted(expected)}, reported={sorted(reported)}"
+        )
+    if executed != len(registered):
+        errors.append(
+            f"executed count {executed} does not match registered count {len(registered)}"
+        )
+    if reported_total != len(registered):
+        errors.append(
+            f"reported total {reported_total!r} does not match registered count "
+            f"{len(registered)}"
+        )
+
+    non_restore_evaluated = any(
+        record.get("experiment_id") in registered
+        and record.get("operation") != "restore"
+        for record in (intervention_records or [])
+    )
+    genuine = any(
+        record.get("experiment_id") in registered
+        and record.get("operation") != "restore"
+        and abs(float(record.get("observed_delta", 0.0))) > 1e-6
+        for record in (intervention_records or [])
+    )
+    return _InterventionGate(
+        registered=tuple(registered),
+        passed=passed,
+        failed=failed,
+        executed=executed,
+        reported_total=reported_total,
+        has_test_results=has_results,
+        non_restore_evaluated=non_restore_evaluated,
+        genuine_perturbation=genuine,
+        inventory_errors=tuple(errors),
+        provenance_errors=tuple(provenance_errors or []),
+    )
+
+
 class ConsciousnessEvidenceScorer:
-    """Score a replay's output frames into a Level 0-3 ConsciousnessEvidenceFrame."""
+    """Score a replay's output frames into a Level 0-4 ConsciousnessEvidenceFrame."""
 
     def score(
         self,
@@ -62,18 +270,200 @@ class ConsciousnessEvidenceScorer:
         tick_outputs: list,
         interventions_executed: int,
         memory_readback_present: bool,
-        intervention_tests: dict | None = None,
-        null_condition_passed: bool = False,
-        causal_trace_complete: bool = False,
-        grounded_report_changed: bool = False,
     ) -> dict:
-        # Intervention test results (supplied only by the paired runner). A single
-        # replay passes ``intervention_tests=None`` and therefore can never reach L4.
-        passed = list((intervention_tests or {}).get("passed", []))
-        failed = list((intervention_tests or {}).get("failed", []))
-        interventions_ok = bool(intervention_tests) and bool(passed) and not failed
+        """Score one replay, which can never self-certify Level 4."""
+        self._validate_source_frames(input_frames, tick_outputs)
+        run_id = self._validate_run_identity(run_id, input_frames, tick_outputs)
+        intervention_gate = _intervention_gate(
+            input_frames,
+            interventions_executed,
+            None,
+        )
+        return self._score(
+            run_id=run_id,
+            tick_outputs=tick_outputs,
+            memory_readback_present=memory_readback_present,
+            intervention_gate=intervention_gate,
+            intervention_tests=None,
+            null_condition_passed=False,
+            causal_trace_complete=False,
+            grounded_report_changed=False,
+            paired_provenance=unverified_provenance_record(),
+        )
 
-        families = self._score_families(tick_outputs, intervention_tests)
+    def score_paired(
+        self,
+        *,
+        run_id: str | None,
+        input_frames: list[dict],
+        control_outputs: list,
+        treated_outputs: list,
+        null_outputs: list,
+        interventions_executed: int,
+        memory_readback_present: bool,
+    ) -> tuple[dict, dict]:
+        """Diagnose raw paired outputs without allowing them to self-certify L4."""
+        return self._score_paired(
+            run_id=run_id,
+            input_frames=input_frames,
+            control_outputs=control_outputs,
+            treated_outputs=treated_outputs,
+            null_outputs=null_outputs,
+            interventions_executed=interventions_executed,
+            memory_readback_present=memory_readback_present,
+            provenance=None,
+        )
+
+    def _score_paired_runner_verified(
+        self,
+        *,
+        run_id: str | None,
+        input_frames: list[dict],
+        control_outputs: list,
+        treated_outputs: list,
+        null_outputs: list,
+        interventions_executed: int,
+        memory_readback_present: bool,
+        provenance: _PairedReplayProvenance,
+    ) -> tuple[dict, dict]:
+        """Score arms carrying a digest capability issued by the paired runner."""
+        return self._score_paired(
+            run_id=run_id,
+            input_frames=input_frames,
+            control_outputs=control_outputs,
+            treated_outputs=treated_outputs,
+            null_outputs=null_outputs,
+            interventions_executed=interventions_executed,
+            memory_readback_present=memory_readback_present,
+            provenance=provenance,
+        )
+
+    def _score_paired(
+        self,
+        *,
+        run_id: str | None,
+        input_frames: list[dict],
+        control_outputs: list,
+        treated_outputs: list,
+        null_outputs: list,
+        interventions_executed: int,
+        memory_readback_present: bool,
+        provenance: _PairedReplayProvenance | None,
+    ) -> tuple[dict, dict]:
+        """Recompute paired evidence and bind any runner-issued provenance."""
+        self._validate_source_frames(
+            input_frames,
+            control_outputs,
+            treated_outputs,
+            null_outputs,
+        )
+        run_id = self._validate_run_identity(
+            run_id,
+            input_frames,
+            control_outputs,
+            treated_outputs,
+            null_outputs,
+        )
+        intervention_frames, _duplicates, _unattached = _unique_intervention_frames(
+            input_frames
+        )
+        records = [
+            evaluate_intervention(
+                intervention,
+                control_outputs,
+                treated_outputs,
+                null_outputs,
+            )
+            for intervention in intervention_frames
+        ]
+        from ..interventions.perturbation import PerturbationSet
+        from ..interventions.schedule import InterventionSchedule
+
+        schedule = InterventionSchedule.from_frames(input_frames)
+        expected_intervention_receipts = [
+            PerturbationSet(schedule.active(index)).records()
+            for index in range(len(treated_outputs))
+        ]
+        causal_trace_complete = (
+            treated_trace_is_complete(
+                treated_outputs,
+                expected_intervention_receipts,
+            )
+            and unperturbed_traces_are_clean(control_outputs, null_outputs)
+        )
+        target_signal = None
+        if len(intervention_frames) == 1:
+            target_signal = (
+                intervention_frames[0].get("expected_behavioral_change") or {}
+            ).get("target_signal")
+        grounded_report_changed = reports_track_target_signal(
+            control_outputs,
+            treated_outputs,
+            target_signal,
+        )
+        null_output_equivalent = bool(control_outputs) and [
+            output.all_frames() for output in control_outputs
+        ] == [output.all_frames() for output in null_outputs]
+        report = build_intervention_report(
+            run_id,
+            records,
+            causal_trace_complete=causal_trace_complete,
+            report_grounded_changed=grounded_report_changed,
+            null_output_equivalent=null_output_equivalent,
+        )
+        if provenance is None:
+            paired_provenance = unverified_provenance_record()
+            provenance_errors = [
+                "raw paired outputs lack runner-issued counterbalanced provenance"
+            ]
+        else:
+            paired_provenance = provenance.as_record()
+            provenance_errors = provenance.integrity_errors(
+                input_frames,
+                control_outputs,
+                treated_outputs,
+                null_outputs,
+            )
+        report["paired_replay_provenance"] = paired_provenance
+        intervention_gate = _intervention_gate(
+            input_frames,
+            interventions_executed,
+            report["summary"],
+            records,
+            provenance_errors,
+        )
+        evidence = self._score(
+            run_id=run_id,
+            tick_outputs=control_outputs,
+            memory_readback_present=memory_readback_present,
+            intervention_gate=intervention_gate,
+            intervention_tests=report["summary"],
+            null_condition_passed=report["null_condition"]["passed"],
+            causal_trace_complete=causal_trace_complete,
+            grounded_report_changed=grounded_report_changed,
+            paired_provenance=paired_provenance,
+        )
+        return evidence, report
+
+    def _score(
+        self,
+        *,
+        run_id: str | None,
+        tick_outputs: list,
+        memory_readback_present: bool,
+        intervention_gate: _InterventionGate,
+        intervention_tests: dict | None,
+        null_condition_passed: bool,
+        causal_trace_complete: bool,
+        grounded_report_changed: bool,
+        paired_provenance: dict,
+    ) -> dict:
+        """Shared L0-L4 scorer after paired evidence has been recomputed."""
+        passed = list(intervention_gate.passed)
+        failed = list(intervention_gate.failed)
+        interventions_ok = intervention_gate.promotion_ready
+
+        families = self._score_families(tick_outputs, intervention_gate)
         strong = {
             k
             for k, rec in families.items()
@@ -127,21 +517,22 @@ class ConsciousnessEvidenceScorer:
             causal_trace_complete,
             grounded_report_changed,
             confab_ok,
+            intervention_gate,
         )
 
         positive = self._strongest_positive(families, level, passed)
-        negative = self._strongest_negative(
-            families, ungrounded, interventions_ok, failed
-        )
-        audit_status = "internally_audited" if interventions_ok else "self_reported"
+        negative = self._strongest_negative(ungrounded, intervention_gate, failed)
+        audit_status = "internally_audited" if l4 else "self_reported"
 
         ts = self._timestamp(tick_outputs)
-        return {
-            "schema_version": "0.1.0",
+        frame = {
+            "schema_version": "0.2.0",
             "frame_kind": "consciousness_evidence",
             "timestamp": ts,
             "run_id": run_id,
             "evaluation_id": f"eval:{run_id}",
+            "evaluation_scope": "internal_harness",
+            "real_subject_claim_status": "not_evaluated",
             "indicator_families": families,
             "evidence_level": min(level, 4),  # HARD CAP: never Level 5 in Phase 2
             "missing_requirements": missing,
@@ -149,8 +540,71 @@ class ConsciousnessEvidenceScorer:
             "strongest_negative_evidence": negative,
             "audit_status": audit_status,
             "roleplay_confabulation_risk": round(confab_risk, 6),
-            "intervention_tests": {"passed": passed, "failed": failed},
+            "intervention_tests": intervention_gate.as_record(),
+            "paired_replay_provenance": paired_provenance,
         }
+        validate_or_raise(frame)
+        return frame
+
+    @staticmethod
+    def _validate_source_frames(input_frames: list[dict], *output_runs: list) -> None:
+        """Make schema validity non-optional for every evidence-scoring path."""
+        for frame in input_frames:
+            validate_or_raise(frame)
+        for outputs in output_runs:
+            for output in outputs:
+                for frame in output.all_frames():
+                    validate_or_raise(frame)
+
+    @staticmethod
+    def _validate_run_identity(
+        requested_run_id: str | None,
+        input_frames: list[dict],
+        *output_runs: list,
+    ) -> str:
+        """Derive one run ID from world frames and reject every relabeling path."""
+        world_ids = [
+            frame.get("run_id")
+            for frame in input_frames
+            if frame.get("frame_kind") == "world"
+        ]
+        unique_world_ids = set(world_ids)
+        if (
+            len(unique_world_ids) != 1
+            or not world_ids
+            or not isinstance(world_ids[0], str)
+            or not world_ids[0]
+        ):
+            raise FrameValidationError(
+                "evidence scoring requires exactly one non-empty world run_id; "
+                f"found {sorted(repr(value) for value in unique_world_ids)}"
+            )
+        canonical_run_id = world_ids[0]
+        if requested_run_id != canonical_run_id:
+            raise FrameValidationError(
+                f"requested run_id {requested_run_id!r} does not match timeline "
+                f"run_id {canonical_run_id!r}"
+            )
+
+        for index, frame in enumerate(input_frames):
+            frame_run_id = frame.get("run_id")
+            if "run_id" in frame and frame_run_id is not None:
+                if frame_run_id != canonical_run_id:
+                    raise FrameValidationError(
+                        f"input frame {index} run_id {frame_run_id!r} does not match "
+                        f"timeline run_id {canonical_run_id!r}"
+                    )
+        for lane_index, outputs in enumerate(output_runs):
+            for tick_index, output in enumerate(outputs):
+                for frame in output.all_frames():
+                    frame_run_id = frame.get("run_id")
+                    if frame_run_id != canonical_run_id:
+                        raise FrameValidationError(
+                            f"output lane {lane_index} tick {tick_index} "
+                            f"{frame.get('frame_kind')} run_id {frame_run_id!r} does "
+                            f"not match timeline run_id {canonical_run_id!r}"
+                        )
+        return canonical_run_id
 
     # -- requirement + narrative helpers ------------------------------------
 
@@ -167,10 +621,33 @@ class ConsciousnessEvidenceScorer:
         causal_trace_complete,
         grounded_report_changed,
         confab_ok,
+        intervention_gate,
     ) -> list[str]:
         if level >= 4:
             return list(_L5_MISSING)
-        missing = list(_L4_MISSING)
+        missing: list[str] = []
+        if not intervention_gate.registered:
+            missing.append("intervention_evidence: no InterventionFrame was executed")
+        if not intervention_gate.has_test_results:
+            missing.append(
+                "null_condition_evidence: no ablation/null-condition runs compared in-harness"
+            )
+            missing.append(
+                "grounded_self_report_perturbation: reports not yet shown to change "
+                "under state perturbation"
+            )
+        if intervention_gate.integrity_errors:
+            missing.append(
+                "intervention_test_integrity: "
+                + "; ".join(intervention_gate.integrity_errors)
+            )
+        if intervention_gate.has_test_results and not intervention_gate.genuine_perturbation:
+            missing.append(
+                "genuine_perturbation: no passed non-restore directional intervention"
+            )
+        missing.append(
+            "external_audit: audit_status is self_reported, not externally audited"
+        )
         for fam in _ALL_FAMILIES:
             if families[fam]["status"] not in ("evidenced", "intervention_backed"):
                 missing.append(f"family_unevidenced: {fam} ({families[fam]['note']})")
@@ -203,7 +680,9 @@ class ConsciousnessEvidenceScorer:
     # -- family scoring ------------------------------------------------------
 
     def _score_families(
-        self, tick_outputs: list, intervention_tests: dict | None
+        self,
+        tick_outputs: list,
+        intervention_gate: _InterventionGate,
     ) -> dict:
         broadcasts = [o.workspace_broadcast for o in tick_outputs]
         states = [o.psyche_state for o in tick_outputs]
@@ -345,21 +824,39 @@ class ConsciousnessEvidenceScorer:
 
         # causal_intervention_robustness: earned only by passed causal-intervention
         # tests. Attempted-but-failed is honestly downgraded, not hidden.
-        passed = list((intervention_tests or {}).get("passed", []))
-        failed = list((intervention_tests or {}).get("failed", []))
-        if intervention_tests and passed and not failed:
+        passed = list(intervention_gate.passed)
+        failed = list(intervention_gate.failed)
+        if intervention_gate.promotion_ready:
             fam["causal_intervention_robustness"] = rec(
                 "intervention_backed",
                 len(passed),
                 f"perturbations produced the predicted bounded change, absent under the "
                 f"null ({len(passed)} test(s) passed): {passed}",
             )
-        elif intervention_tests and (passed or failed):
+        elif (
+            intervention_gate.inventory_ok
+            and intervention_gate.non_restore_evaluated
+            and (passed or failed)
+        ):
             fam["causal_intervention_robustness"] = rec(
                 "attempted",
                 len(passed),
                 f"interventions executed but not all passed (passed={passed}, failed={failed}); "
                 "blocks Level 4",
+            )
+        elif intervention_gate.has_test_results and intervention_gate.integrity_errors:
+            fam["causal_intervention_robustness"] = rec(
+                "architecture_only",
+                0,
+                "intervention evidence inventory failed integrity checks; blocks Level 4: "
+                + "; ".join(intervention_gate.integrity_errors),
+            )
+        elif intervention_gate.has_test_results:
+            fam["causal_intervention_robustness"] = rec(
+                "architecture_only",
+                0,
+                "registered tests were restore/no-change only; no genuine perturbation "
+                "backs this family",
             )
         else:
             fam["causal_intervention_robustness"] = rec(
@@ -424,21 +921,13 @@ class ConsciousnessEvidenceScorer:
 
     @staticmethod
     def _confabulation_risk(tick_outputs: list) -> tuple[float, int]:
-        """Fraction of self-reports not grounded in a real state + trace hash."""
-        state_hashes = {o.psyche_state.get("state_hash") for o in tick_outputs}
-        trace_ids = {o.causal_trace.get("trace_id") for o in tick_outputs}
-        reports = [o.grounded_self_report for o in tick_outputs]
-        if not reports:
+        """Fraction of reports whose receipts do not bind to their same tick."""
+        if not tick_outputs:
             return 0.0, 0
-        ungrounded = 0
-        for r in reports:
-            grounded = (
-                r.get("affect_state_hash") in state_hashes
-                and r.get("causal_trace_id") in trace_ids
-            )
-            if not grounded:
-                ungrounded += 1
-        return ungrounded / len(reports), ungrounded
+        ungrounded = sum(
+            1 for output in tick_outputs if not report_is_grounded_to_tick(output)
+        )
+        return ungrounded / len(tick_outputs), ungrounded
 
     @staticmethod
     def _strongest_positive(families: dict, level: int, passed: list) -> str:
@@ -461,14 +950,28 @@ class ConsciousnessEvidenceScorer:
 
     @staticmethod
     def _strongest_negative(
-        families: dict, ungrounded: int, interventions_ok: bool, failed: list
+        ungrounded: int,
+        intervention_gate: _InterventionGate,
+        failed: list,
     ) -> str:
-        if failed:
+        if intervention_gate.provenance_errors:
+            negative = (
+                "paired replay provenance failed: "
+                + "; ".join(intervention_gate.provenance_errors)
+                + " (blocks Level 4)."
+            )
+        elif intervention_gate.inventory_errors:
+            negative = (
+                "intervention inventory integrity failed: "
+                + "; ".join(intervention_gate.inventory_errors)
+                + " (blocks Level 4)."
+            )
+        elif failed:
             negative = (
                 f"intervention test(s) {failed} did not produce the predicted change, "
                 "so causal-intervention robustness is not established (blocks Level 4)."
             )
-        elif not interventions_ok:
+        elif not intervention_gate.promotion_ready:
             negative = (
                 "causal_intervention_robustness is architecture-only: no passed "
                 "perturbation, so no intervention/null-condition evidence exists "

@@ -17,6 +17,9 @@ from pneuma_lab import schemas as pls
 EXPECTED_INPUT_COUNT = 5
 EXPECTED_OUTPUT_COUNT = 8
 EXPECTED_TRAINING_COUNT = 1
+SCHEMA_VERSION_OVERRIDES = {
+    "consciousness-evidence-frame.schema.json": "0.2.0",
+}
 
 
 def test_schema_dir_exists() -> None:
@@ -61,7 +64,8 @@ def test_schema_declares_frame_kind_and_version(filename: str) -> None:
     schema = pls.load_schema(filename)
     kind = schema.get("x-pneuma-frame-kind")
     assert kind in {"input", "output"}, f"{filename}: bad frame kind {kind!r}"
-    assert schema.get("x-pneuma-version") == "0.1.0", filename
+    expected_version = SCHEMA_VERSION_OVERRIDES.get(filename, "0.1.0")
+    assert schema.get("x-pneuma-version") == expected_version, filename
 
 
 def test_input_output_partition_matches_files() -> None:

@@ -75,8 +75,7 @@ def _run_paired(input_frames: list[dict], out_dir: Path, *, validate: bool) -> i
         f"paired replay ({res.treated.tick_count} ticks) | "
         f"evidence_level={ev['evidence_level']} "
         f"confab_risk={ev['roleplay_confabulation_risk']} | "
-        f"passed={ev['intervention_tests']['passed']} "
-        f"failed={ev['intervention_tests']['failed']} | "
+        f"results={ev['intervention_tests']['results']} | "
         f"null_ok={res.report['null_condition']['passed']} "
         f"trace_complete={res.report['causal_trace_complete']} | out={out_dir}"
     )

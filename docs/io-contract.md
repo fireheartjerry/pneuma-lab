@@ -1,12 +1,14 @@
-# Pneuma Lab — I/O Contract (v0.1)
+# Pneuma Lab — I/O Contract
 
 The contract is the stable core of Pneuma Lab. Everything else (replay, adapters,
 evals) is built on it. The authoritative definitions are the JSON Schema files in
 [`../schemas/`](../schemas/); this doc is the human-readable map.
 
 - **Meta-schema:** JSON Schema Draft 2020-12.
-- **Versioning:** every frame carries `schema_version` (`"0.1.0"`) and
-  `x-pneuma-frame-kind` (`input`|`output`). Bump on incompatible shape changes.
+- **Versioning:** every frame carries `schema_version` and
+  `x-pneuma-frame-kind` (`input`|`output`). Most contracts remain `0.1.0`;
+  `ConsciousnessEvidenceFrame` is `0.2.0` after its fail-closed gate migration.
+  Incompatible changes bump the affected frame version.
 - **Openness:** frames are `additionalProperties: true` on purpose — this is a
   research contract and will grow. Required fields are kept minimal; semantics are
   in the schema `description`s.
@@ -54,9 +56,9 @@ verifier_invariance)` then clamped to `global_max`.
 | **InstinctSignal**             | `instinct-signal.schema.json`              | Fast scar/motif/anomaly detection        | `motif_id`, `match_type`, `confidence`, `severity`, `matched_events`, `historical_base_rate`, `false_positive_rate`, `recommended_action`, `authority_request`, `explanation_trace_id`                |
 | **ControlPressureVector**      | `control-pressure-vector.schema.json`      | Bounded pressure (NOT commands)          | `authority_tier`, `pressures` (effort, verification, planning, execution, society_debate, memory_consolidation, exploration, scope_narrowing, strategy_switching), `causal_trace_id`                  |
 | **AuthorityRequest**           | `authority-request.schema.json`            | Discrete requested authority             | `requesting_faculty`, `domain`, `requested_tier`, `conviction`, `track_record_support`, `expected_loss_if_denied`, `resolution` (granted_tier + binding_cap + all 5 caps)                             |
-| **CausalTrace**                | `causal-trace.schema.json`                 | Auditable causal linkage (**Level-4**)   | `input_evidence_refs`, `previous_state_hash`, `new_state_hash`, `changed_dimensions`, `state_update_mechanism`, `causal_path`, `emitted_outputs`, `counterfactual_predictions`                        |
-| **ConsciousnessEvidenceFrame** | `consciousness-evidence-frame.schema.json` | Evidence-level scoring                   | `indicator_families` (9), `evidence_level` (0–5), `missing_requirements`, `audit_status`, `roleplay_confabulation_risk`, `intervention_tests`                                                         |
-| **GroundedSelfReport**         | `grounded-self-report.schema.json`         | Human-facing report, downstream of state | `report_text`, `affect_state_hash` (required), `workspace_broadcast_id`, `causal_trace_id`, `evidence_refs`, `filtered_forbidden_claims`                                                              |
+| **CausalTrace**                | `causal-trace.schema.json`                 | Auditable causal linkage (**Level-4**)   | `input_evidence_refs`, `previous_state_hash`, `new_state_hash`, `changed_dimensions`, `state_update_mechanism`, `causal_path`, `emitted_outputs`, `interventions_applied`, `counterfactual_predictions` |
+| **ConsciousnessEvidenceFrame** | `consciousness-evidence-frame.schema.json` | Evidence-level scoring                   | `indicator_families` (9), `evidence_level` (0–4 in v0.2), `evaluation_scope`, `real_subject_claim_status`, typed `intervention_tests.results`, `paired_replay_provenance`                           |
+| **GroundedSelfReport**         | `grounded-self-report.schema.json`         | Human-facing report, downstream of state | `report_text`, `affect_state_hash` (required), `workspace_broadcast_id`, `causal_trace_id`, `reported_measurements`, `evidence_refs`, `filtered_forbidden_claims`                                   |
 
 ## The authority `min` (shared by GovernanceFrame + AuthorityRequest)
 
@@ -97,8 +99,8 @@ WorldFrame event  →  PsycheStateFrame change  →  WorkspaceBroadcast
 The replay harness (`python -m pneuma_lab.replay`) drives a recorded input-frame
 timeline through a `PsycheUnderTest` (the deterministic `ReferencePsyche`), which
 emits the output frames above with real `CausalTrace` receipts. The
-`ConsciousnessEvidenceScorer` then scores a Level 0–3 `ConsciousnessEvidenceFrame`
-over the whole run. The `causal_path` chain above is emitted per tick and the
+`ConsciousnessEvidenceScorer` scores a single replay at Level 0–3; only the paired
+control/treated/null path can produce a v0.2 Level-4 frame. The `causal_path` chain is emitted per tick and the
 state-hash chain links tick to tick.
 
 `causal_intervention_robustness` is the one indicator family a _passive_ replay

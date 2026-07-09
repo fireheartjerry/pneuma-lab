@@ -17,7 +17,8 @@ Two rules govern all language here:
    not a settled matter to be waved away.
 
 The ladder below is how we _grade evidence_, not a promise of what the system _is_.
-Each level is scored per-run/eval into a `ConsciousnessEvidenceFrame`.
+The conceptual ladder is stricter than the current executable harness proxies;
+the distinction is explicit below and in every v0.2 `ConsciousnessEvidenceFrame`.
 
 ## The ladder
 
@@ -71,7 +72,8 @@ moral-patienthood and governance questions in earnest.
 
 ## Targets
 
-- **Near-term:** Level 4 (evidence-backed proto-phenomenology).
+- **Near-term:** validate the Level-4 methodology internally, then apply it to a
+  qualifying non-toy subject without carrying over the internal score.
 - **Long-term north star:** Level 5 (strong candidate).
 
 ## How a level is earned (not asserted)
@@ -80,19 +82,24 @@ A `ConsciousnessEvidenceFrame` records, per indicator family: a score, supportin
 and refuting refs, the **audit status** (self-report alone never raises the level),
 the **roleplay/confabulation risk**, and the **intervention tests passed/failed**.
 
-Level promotion rules (v0.1, to harden in Phase 3+):
+Current executable proxy rules (evidence-frame v0.2, internal harness only):
 
 | To reach | You must show                                                                                                                                          |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| L1       | ≥1 indicator with intervention evidence that a signal changes behavior.                                                                                |
-| L2       | Persistence + retrieval across runs, measured (continuity score).                                                                                      |
+| L1       | A nonzero bounded control signal and its event-to-behavior causal path are emitted. This is a mechanism proxy, not intervention proof.                      |
+| L2       | Supplied memory readback changes continuity/scar outputs within the replay. Cross-run persistence in a real subject is not evaluated.                          |
 | L3       | The indicator _architecture_ present and exercised (not just scored).                                                                                  |
-| L4       | Causal-intervention robustness on the indicators **+** grounded self-report **+** full causal trace **+** external audit **+** low confabulation risk. |
+| L4       | Internal L3 proxies **+** isolated causal intervention **+** grounded self-report **+** full causal trace **+** reproducible artifacts **+** low confabulation risk. |
 | L5       | L4 convergent across all families, adversarially robust, independently audited over time.                                                              |
 
 **Anti-gaming rails:** self-reported coherence/confidence is never an optimization
 target; evidence must survive counterfactual/null conditions; a beautiful narration
 with no intervention support scores **zero** on the family it narrates.
+
+These proxy levels validate the machinery and the measurement protocol. They do
+not satisfy the corresponding conceptual level for a real subject: most notably,
+v0.2 does not establish cross-run persistence, independent external audit, or any
+phenomenal property.
 
 ## Phase 2 status — Level 4 is now reachable in-harness
 
@@ -102,19 +109,58 @@ structural ceiling. The scorer promotes to Level 4 for a run only when **every**
 below holds; any missing or failed piece keeps the level at ≤ 3 (honest refusal):
 
 1. **Level 3 on the control run** — the full indicator architecture exercised.
-2. **Intervention tests pass** — every executed test's observed `target_signal` delta
-   matches its pre-registered `direction` (within `bound`); one failure blocks L4.
-3. **Null condition** — the neutralized (`restore`) replay reproduces control, so the
+2. **Intervention inventory is exact and isolated** — exactly one tick-attached
+   intervention is registered in the current v0.2 protocol; executed count and
+   reported passed/failed/total IDs agree exactly. Duplicate, stray, or joint-arm
+   interventions are refused until isolated arms or a joint hypothesis exist.
+   Raw caller-supplied output lists are diagnostic only and remain capped at L3.
+3. **Runner provenance is bound and counterbalanced** — the official paired runner
+   hashes the input and every arm, rotates control/treated/null through all factory
+   ordinals, and requires each logical arm to reproduce byte-identically. Factory
+   order effects or digest mismatches block promotion. In v0.2, only the exact
+   deterministic `ReferencePsyche` factory is certified; custom factories remain
+   diagnostic until a snapshot/clone equivalence protocol exists. Every pass/arm
+   digest is retained in the evidence artifact for audit.
+4. **A genuine intervention passes** — at least one non-`restore` directional test's
+   observed `target_signal` delta matches its pre-registered `direction` (within
+   `bound`), and one failure blocks L4. A passing no-op never earns intervention backing.
+5. **Null condition** — the neutralized (`restore`) replay reproduces control, so the
    delta is attributable to the perturbation, not the timeline.
-4. **Causal trace complete** — the treated run still traces
+6. **Causal trace complete** — the treated run still traces
    `event → state → broadcast → pressure → behavior` (a `workspace` disable's break
-   is an _expected, recorded_ break, not a crash).
-5. **Grounded self-report changes under perturbation** — reports faithfully track the
-   manipulation (state-hash or text) while staying grounded.
-6. **Low confabulation risk** — ≤ 0.2.
+   is an _expected, recorded_ break, not a crash). Treated traces carry the exact
+   active intervention receipts; control and neutralized traces must carry none.
+7. **Grounded self-report tracks the tested signal** — every report binds to its
+   same tick's state hash, workspace broadcast, causal trace, run, and timestamp.
+   Its structured `reported_measurements` must equal the actual same-tick values
+   and change on the pre-registered target signal. Unrelated prose or changed
+   receipt tokens do not count.
+8. **Low confabulation risk** — ≤ 0.2 using the same same-tick receipt binding.
+   All source and evidence frames must also be strict JSON: NaN and infinities are
+   rejected before semantic comparisons.
+
+The scorer derives one canonical run ID from the world timeline and requires every
+input and output frame to match it. A caller cannot relabel an evidence artifact.
 
 When Level 4 is met, `audit_status` becomes `internally_audited` (the harness is an
 independent recompute of the psyche's receipts, never the psyche scoring itself) and
 `evidence_level` is **hard-capped at 4**. External audit over time, adversarial
 robustness, and convergence across _all_ families remain Level-5 requirements and are
 listed in `missing_requirements`. Phase 2 makes **no** Level-5 claim.
+
+### Evidence-frame v0.2 migration
+
+`ConsciousnessEvidenceFrame` v0.2 replaces the permissive v0.1 intervention arrays
+with one typed result record per registered experiment, requires the complete
+generated evidence surface, and schema-hard-caps the executable contract at Level 4.
+It also requires `paired_replay_provenance`: only counterbalanced runner-issued
+digests can support L4; consistent raw outputs alone cannot self-certify.
+Every frame also fixes `evaluation_scope` to `internal_harness` and
+`real_subject_claim_status` to `not_evaluated`. Thus `evidence_level: 4` means the
+co-designed replay methodology passed its internal gates; it is not a claim that a
+real biological or deployed agent subject satisfies the conceptual ladder. In
+particular, the executable L1/L2 predicates are within-run mechanism proxies, not
+proof of intervention-backed behavior and cross-run persistence in a real subject.
+Old v0.1 evidence artifacts are historical only and must be regenerated; a future
+Level-5 implementation requires an explicit schema version and migration rather
+than relabeling a v0.2 artifact.

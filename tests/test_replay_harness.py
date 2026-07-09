@@ -57,7 +57,8 @@ def test_level_is_hard_capped_below_4(result) -> None:
     joined = " ".join(ev["missing_requirements"])
     assert "intervention_evidence" in joined
     assert "null_condition_evidence" in joined
-    assert ev["intervention_tests"] == {"passed": [], "failed": []}
+    assert ev["intervention_tests"]["results"] == []
+    assert ev["intervention_tests"]["integrity_ok"] is False
 
 
 def test_all_nine_families_have_records_eight_evidenced(result) -> None:

@@ -7,7 +7,8 @@ evaluation. It supplies:
     - :class:`PerturbationSet` — the surface a psyche consults during a treated replay,
     - :class:`InterventionSchedule` — resolves ``duration`` windows to per-tick sets,
     - report helpers — expected-vs-observed delta scoring,
-    - :class:`PairedReplayRunner` — control/treated/null replay + honest Level-4 scoring.
+    - :class:`PairedReplayRunner` — counterbalanced control/treated/null replay,
+      digest provenance, and honest Level-4 scoring.
 
 Only the two leaf modules (``operations``, ``perturbation``) are imported eagerly.
 The heavier modules (``schedule``, ``report``, ``runner``) reach back into
