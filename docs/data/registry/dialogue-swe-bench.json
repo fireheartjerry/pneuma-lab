@@ -1,0 +1,171 @@
+{
+    "manifest_schema_version": "0.1.0",
+    "dataset_id": "dialogue-swe-bench",
+    "dataset_status": "onboarded_metadata_only",
+    "registry_status": "multi_dataset_metadata_registry",
+    "human_name": "Dialogue SWE-Bench",
+    "data_root_variable": "PNEUMA_DATA_ROOT",
+    "default_observed_data_root": "C:/pneuma-data",
+    "raw_path_relative": "raw/dialogue-swe-bench/SWE-Bench_Dialogue",
+    "processed_path_relative": "processed/dialogue-swe-bench",
+    "source_of_truth_report_relative": "processed/dialogue-swe-bench/row_counts.json",
+    "validation_profile": "metadata_inventory",
+    "metadata_inventory": {
+        "row_counts_relative": "processed/dialogue-swe-bench/row_counts.json",
+        "file_index_relative": "processed/dialogue-swe-bench/file_index.jsonl",
+        "provenance_relative": "processed/dialogue-swe-bench/provenance.json",
+        "normalized_metadata_relative": "processed/dialogue-swe-bench/normalized_metadata.jsonl"
+    },
+    "adapter": {
+        "name": null,
+        "module": null,
+        "version": null,
+        "status": "not_available"
+    },
+    "schema": {
+        "artifact": "PneumaTrainingExample",
+        "version": "0.1.0",
+        "readiness": "schema_ready_no_converter",
+        "canonical_examples_emitted": false
+    },
+    "source": {
+        "dataset": "dialogue-swe-bench",
+        "hf_repo": "Brendan/SWE-Bench_Dialogue",
+        "hf_revision": "88f083e830d9cd48e19470aa887a9df2914d3547",
+        "git_repo": "https://github.com/jlab-nlp/dialogue_swe_bench",
+        "git_commit_sha": "86689bbb8e4eb459939fc7eb8b3e4220b5215ede",
+        "license": null
+    },
+    "expected_from_metadata_files": {
+        "total_rows": 550,
+        "files": 2,
+        "metadata_rows": 550,
+        "raw_files": [
+            {
+                "path_relative": "raw/dialogue-swe-bench/SWE-Bench_Dialogue/data/ablation-00000-of-00001.parquet",
+                "format": "parquet",
+                "bytes": 254437,
+                "rows": 50,
+                "sha256": "d25937529e38c4d0e7db22fdaebb35e6df13b2eaf10e0f30591c011856c8c83f"
+            },
+            {
+                "path_relative": "raw/dialogue-swe-bench/SWE-Bench_Dialogue/data/test-00000-of-00001.parquet",
+                "format": "parquet",
+                "bytes": 2159487,
+                "rows": 500,
+                "sha256": "fecd76c172a41ae56db9b110385b192cca620d3e20d6df914ab253b97cb8211a"
+            }
+        ],
+        "huggingface_snapshot": {
+            "repo_id": "Brendan/SWE-Bench_Dialogue",
+            "revision": "88f083e830d9cd48e19470aa887a9df2914d3547"
+        },
+        "git_repo": {
+            "url": "https://github.com/jlab-nlp/dialogue_swe_bench",
+            "commit_sha": "86689bbb8e4eb459939fc7eb8b3e4220b5215ede"
+        },
+        "normalized_metadata_keys": [
+            "base_commit",
+            "dataset",
+            "has_dialogue",
+            "has_outcome",
+            "has_patch",
+            "has_security_sensitive_content",
+            "has_tests",
+            "has_trajectory",
+            "language",
+            "license",
+            "provenance_ref",
+            "repo",
+            "source_file",
+            "source_id",
+            "source_row",
+            "split",
+            "task_type"
+        ]
+    },
+    "source_counts": {
+        "total_rows": 550,
+        "splits": {
+            "ablation": 50,
+            "test": 500
+        },
+        "source_files": 2
+    },
+    "label_fields_available": [
+        "difficulty",
+        "persona",
+        "FAIL_TO_PASS",
+        "PASS_TO_PASS",
+        "patch",
+        "test_patch"
+    ],
+    "label_provenance": "Dataset metadata describes SWE-Bench-derived task, patch, test, difficulty, and simulated persona/dialogue fields. No PneumaTrainingExample labels were constructed in this pass.",
+    "privacy_status": "public_or_benchmark_simulated_metadata_only",
+    "redaction_status": "No redaction receipt is available or required for this metadata-only onboarding pass; raw dialogue/parquet content was not inspected or converted.",
+    "leakage_risk": "medium",
+    "adapter_report_availability": "not_available",
+    "recommended_canonical_example_types": [
+        "TaskExample",
+        "PatchExample",
+        "PreferenceExample",
+        "SelfReportExample"
+    ],
+    "supported_future_task_types": [
+        "OPERATOR_PUSHBACK",
+        "SELF_REPORT_FAITHFULNESS",
+        "TASK_DIFFICULTY",
+        "PATCH_SUCCESS"
+    ],
+    "allowed_uses": [
+        "dataset onboarding validation",
+        "dialogue-shaped schema planning",
+        "future adapter planning",
+        "future canonical conversion only after separate approval"
+    ],
+    "blocked_uses": [
+        "ML training in this pass",
+        "PneumaTrainingExample conversion in this pass",
+        "E1/E2 estimator fitting or calibration in this pass",
+        "runtime control integration",
+        "J-space or Jacobian Lens work",
+        "SWE-chat processing",
+        "raw dialogue content inspection beyond metadata/schema footers",
+        "consciousness-level claims"
+    ],
+    "split_strategy_recommendation": "Preserve the source test/ablation split for adapter sanity checks, then use repo-grouped or task-grouped splits before any approved training-oriented conversion.",
+    "known_caveats": [
+        "The dialogue/operator shape is simulated and must not be treated as real-human behavior.",
+        "The dataset is SWE-Bench-derived, so contamination and benchmark leakage caveats apply.",
+        "No canonical converter or adapter report exists yet.",
+        "License/provenance sidecars list a null license value; do not assume a broader use grant without review.",
+        "No resolved outcome field was observed in the metadata sidecars; task labels must be mapped carefully in a future adapter.",
+        "This onboarding pass validated metadata sidecars only and did not inspect raw dialogue content."
+    ],
+    "evidence_refs": [
+        {
+            "kind": "row_counts",
+            "ref": "processed/dialogue-swe-bench/row_counts.json"
+        },
+        {
+            "kind": "file_index",
+            "ref": "processed/dialogue-swe-bench/file_index.jsonl"
+        },
+        {
+            "kind": "provenance",
+            "ref": "processed/dialogue-swe-bench/provenance.json"
+        },
+        {
+            "kind": "metadata_inventory",
+            "ref": "processed/dialogue-swe-bench/normalized_metadata.jsonl"
+        },
+        {
+            "kind": "dataset_card",
+            "ref": "raw/dialogue-swe-bench/SWE-Bench_Dialogue/README.md"
+        }
+    ],
+    "last_verified": {
+        "status": "expected values copied from metadata sidecars",
+        "verification_command": "python scripts/verify_dataset_onboarding.py --dataset dialogue-swe-bench --data-root C:/pneuma-data"
+    }
+}

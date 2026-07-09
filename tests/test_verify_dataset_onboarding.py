@@ -9,6 +9,7 @@ from pathlib import Path
 
 SCRIPT = Path("scripts/verify_dataset_onboarding.py")
 DATASET_ID = "swe-gym-openhands-sampled"
+DIALOGUE_DATASET_ID = "dialogue-swe-bench"
 
 
 def _report():
@@ -120,12 +121,12 @@ def _write_tree(tmp_path: Path, manifest=None, report=None):
     return data_root, registry
 
 
-def _run(data_root: Path | None, registry: Path, env=None):
+def _run(data_root: Path | None, registry: Path, env=None, dataset: str = DATASET_ID):
     cmd = [
         sys.executable,
         str(SCRIPT),
         "--dataset",
-        DATASET_ID,
+        dataset,
         "--registry-root",
         str(registry),
     ]
@@ -138,7 +139,7 @@ def test_passes_against_synthetic_manifest_and_report(tmp_path):
     data_root, registry = _write_tree(tmp_path)
     result = _run(data_root, registry)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "PASS: dataset onboarding manifest matches adapter report" in result.stdout
+    assert "PASS: dataset onboarding manifest matches local metadata" in result.stdout
     assert "valid_traces=2" in result.stdout
 
 
@@ -187,6 +188,117 @@ def test_data_root_argument_overrides_environment(tmp_path):
     result = _run(data_root, registry, env=env)
     assert result.returncode == 0, result.stdout + result.stderr
     assert f"data_root={data_root}" in result.stdout
+
+
+def test_metadata_inventory_dataset_passes_against_sidecar_files(tmp_path):
+    registry = tmp_path / "registry"
+    registry.mkdir()
+    data_root = tmp_path / "data"
+    raw = data_root / "raw/dialogue-swe-bench/SWE-Bench_Dialogue"
+    processed = data_root / "processed/dialogue-swe-bench"
+    raw.mkdir(parents=True)
+    processed.mkdir(parents=True)
+
+    raw_file = raw / "data/test-00000-of-00001.parquet"
+    raw_file.parent.mkdir(parents=True)
+    raw_file.write_text("", encoding="utf-8")
+    (processed / "row_counts.json").write_text(
+        json.dumps(
+            {
+                "total_rows": 1,
+                "files": 1,
+                "by_file": {str(raw_file): 1},
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    (processed / "file_index.jsonl").write_text(
+        json.dumps(
+            {
+                "path": str(raw_file),
+                "format": "parquet",
+                "bytes": 123,
+                "rows": 1,
+                "sha256": "abc",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (processed / "provenance.json").write_text(
+        json.dumps(
+            {
+                "git_repos": [{"url": "https://example.test/repo", "commit_sha": "def"}],
+                "huggingface_snapshots": [{"repo_id": "Example/Dialogue", "revision": "rev"}],
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    (processed / "normalized_metadata.jsonl").write_text(
+        json.dumps({"dataset": "dialogue-swe-bench", "has_dialogue": True}, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest = {
+        "manifest_schema_version": "0.1.0",
+        "dataset_id": DIALOGUE_DATASET_ID,
+        "dataset_status": "onboarded",
+        "registry_status": "multi_dataset_metadata_registry",
+        "human_name": "Synthetic Dialogue SWE-Bench",
+        "data_root_variable": "PNEUMA_DATA_ROOT",
+        "default_observed_data_root": "C:/pneuma-data",
+        "raw_path_relative": "raw/dialogue-swe-bench/SWE-Bench_Dialogue",
+        "processed_path_relative": "processed/dialogue-swe-bench",
+        "source_of_truth_report_relative": "processed/dialogue-swe-bench/row_counts.json",
+        "validation_profile": "metadata_inventory",
+        "metadata_inventory": {
+            "row_counts_relative": "processed/dialogue-swe-bench/row_counts.json",
+            "file_index_relative": "processed/dialogue-swe-bench/file_index.jsonl",
+            "provenance_relative": "processed/dialogue-swe-bench/provenance.json",
+            "normalized_metadata_relative": (
+                "processed/dialogue-swe-bench/normalized_metadata.jsonl"
+            ),
+        },
+        "adapter": {"name": None, "module": None, "version": None},
+        "schema": {"artifact": "PneumaTrainingExample", "readiness": "not_converted"},
+        "source": {
+            "dataset": "dialogue-swe-bench",
+            "hf_repo": "Example/Dialogue",
+            "hf_revision": "rev",
+        },
+        "expected_from_metadata_files": {
+            "total_rows": 1,
+            "files": 1,
+            "metadata_rows": 1,
+            "raw_files": [
+                {
+                    "path_relative": "raw/dialogue-swe-bench/SWE-Bench_Dialogue/data/test-00000-of-00001.parquet",
+                    "rows": 1,
+                    "bytes": 123,
+                    "sha256": "abc",
+                }
+            ],
+            "huggingface_snapshot": {"repo_id": "Example/Dialogue", "revision": "rev"},
+            "git_repo": {"url": "https://example.test/repo", "commit_sha": "def"},
+            "normalized_metadata_keys": ["dataset", "has_dialogue"],
+        },
+        "privacy_status": "public/simulated metadata sidecars only",
+        "allowed_uses": ["dataset onboarding validation"],
+        "blocked_uses": ["ML training in this pass"],
+    }
+    (registry / "dialogue-swe-bench.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    result = _run(data_root, registry, dataset=DIALOGUE_DATASET_ID)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "validation_profile=metadata_inventory" in result.stdout
+    assert "metadata_rows=1" in result.stdout
 
 
 def test_environment_data_root_used_when_argument_absent(tmp_path):
