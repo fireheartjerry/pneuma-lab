@@ -1,0 +1,106 @@
+{
+    "manifest_schema_version": "0.1.0",
+    "dataset_id": "swe-gym-openhands-sampled",
+    "dataset_status": "onboarded",
+    "registry_status": "single_dataset_pilot",
+    "human_name": "SWE-Gym OpenHands Sampled Trajectories",
+    "data_root_variable": "PNEUMA_DATA_ROOT",
+    "default_observed_data_root": "C:/pneuma-data",
+    "raw_path_relative": "raw/swe-gym/OpenHands-Sampled-Trajectories",
+    "processed_path_relative": "processed/swe-gym/openhands-sampled",
+    "source_of_truth_report_relative": "processed/swe-gym/openhands-sampled/adapter_report.json",
+    "adapter": {
+        "name": "openhands-sampled",
+        "module": "pneuma_lab.adapters.openhands_sampled",
+        "version": "0.1.0"
+    },
+    "schema": {
+        "artifact": "PneumaTrace",
+        "envelope_version": "0.2.0"
+    },
+    "source": {
+        "dataset": "swe-gym",
+        "hf_repo": "SWE-Gym/OpenHands-Sampled-Trajectories",
+        "hf_revision": "baf3a4e4bff514d48ddc08a93a2ade5c126212c7",
+        "task_join_hf_repo": "SWE-Gym/SWE-Gym"
+    },
+    "expected_from_adapter_report": {
+        "adapter_report_schema_version": "0.1.0",
+        "counts": {
+            "source_rows": 6055,
+            "traces_emitted": 6055,
+            "valid": 6055,
+            "invalid": 0,
+            "skipped": 0
+        },
+        "trajectory": {
+            "traces_with_task_join": 6055,
+            "traces_missing_task_join": 0,
+            "total_agent_steps": 114461,
+            "resolved_true": 491,
+            "resolved_false": 5564
+        },
+        "privacy": {
+            "redaction_totals": [
+                {
+                    "count": 16,
+                    "kind": "assigned_secret"
+                },
+                {
+                    "count": 4,
+                    "kind": "aws_access_key"
+                },
+                {
+                    "count": 103,
+                    "kind": "email"
+                }
+            ]
+        },
+        "hashes": {
+            "traces_file_sha256": "6ec06b724e71be2735b2495291a3d5102bc3efa4f24f0d03d824f549f79feb6b",
+            "trace_index_file_sha256": "b1d99a62197cb6091067a3ae585f05459ec3f59a77699632e674856f8e6637a1",
+            "invalid_traces_file_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+    },
+    "label_fields_available": [
+        "labels.resolved",
+        "outcome.resolved",
+        "outcome.report.resolved"
+    ],
+    "label_provenance": "SWE-Gym/OpenHands sampled trajectory harness outcome fields carried through the adapter envelope.",
+    "class_balance": {
+        "resolved_true": 491,
+        "resolved_false": 5564,
+        "resolved_true_fraction": 0.08109
+    },
+    "privacy_status": "redaction-verified processed outputs available",
+    "redaction_status": "adapter_report privacy.redaction_totals records deterministic counts only; validation does not inspect raw trajectory content",
+    "deterministic_rebuild_status": "adapter report includes deterministic output hashes; fixture drift check is available via python -m pneuma_lab.adapters.openhands_sampled --emit-fixture",
+    "allowed_uses": [
+        "dataset onboarding validation",
+        "feature extraction planning",
+        "split design",
+        "later modeling only after separate approval"
+    ],
+    "blocked_uses": [
+        "ML training in this pass",
+        "E1/E2 estimator fitting or calibration in this pass",
+        "runtime control integration",
+        "J-space or Jacobian Lens work",
+        "SWE-chat processing",
+        "consciousness-level claims"
+    ],
+    "split_strategy_recommendation": "Use grouped splits by labels.repo, with explicit caveats about class imbalance and small repo-cluster counts.",
+    "known_caveats": [
+        "The labels are OpenHands/SWE-Gym harness outcomes, not Pneuma outcomes.",
+        "The traces describe OpenHands behavior, not Pneuma interiority.",
+        "Resolved labels are highly imbalanced: 491 resolved and 5564 unresolved.",
+        "Timestamps are synthetic ordinal timestamps; order is real but wall-clock time is not observed.",
+        "Raw trajectory content is non-targeted in this onboarding pass.",
+        "Counts and hashes should be refreshed only by comparing against adapter_report.json."
+    ],
+    "last_verified": {
+        "status": "expected values copied from adapter_report.json",
+        "verification_command": "python scripts/verify_dataset_onboarding.py --dataset swe-gym-openhands-sampled --data-root C:/pneuma-data"
+    }
+}
