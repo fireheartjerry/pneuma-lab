@@ -1,0 +1,83 @@
+{
+    "manifest_schema_version": "0.1.0",
+    "dataset_id": "swe-gym-openhands-sampled",
+    "dataset_family": "swe-gym",
+    "converted_corpus_kind": "PneumaTrainingExample full-trace RISK_PREDICTION examples",
+    "generated_artifact_refs": {
+        "examples_jsonl": "build/training_examples/openhands-sampled/full/examples.jsonl",
+        "conversion_report": "build/training_examples/openhands-sampled/full/conversion_report.json",
+        "hash_manifest": "build/training_examples/openhands-sampled/full/hash_manifest.json",
+        "invalid_examples_jsonl": "build/training_examples/openhands-sampled/full/invalid_examples.jsonl"
+    },
+    "counts": {
+        "examples": 6055,
+        "invalid_examples": 0,
+        "quarantined_examples": 0,
+        "agent_steps": 114461
+    },
+    "class_balance": {
+        "target_field": "target.resolved",
+        "resolved": 491,
+        "unresolved": 5564,
+        "resolved_fraction": 0.08109,
+        "warning": "unresolved class dominates; future training requires explicit imbalance handling"
+    },
+    "current_model_use_tier": "train_after_adapter",
+    "current_training_weight": 0.0,
+    "approved_task_types": [
+        "RISK_PREDICTION"
+    ],
+    "blocked_task_types": [
+        "OPERATOR_PUSHBACK",
+        "SELF_REPORT_FAITHFULNESS",
+        "WORKSPACE_SALIENCE_LATER"
+    ],
+    "future_task_types_requiring_new_labels_or_extractors": [
+        "FAILURE_SHAPE",
+        "SCAR_MOTIF"
+    ],
+    "recommended_split_policy": {
+        "primary": "repo_grouped",
+        "secondary_grouping": "task_instance_grouped_where_available",
+        "preserve_trace_ids_for_audit": true,
+        "avoid_same_repo_or_task_across_train_test": true,
+        "do_not_use_outcome_labels_for_assignment_except_stratification_reporting": true,
+        "split_manifest_status": "planned"
+    },
+    "split_manifest_status": "planned",
+    "training_authorization": "not_authorized",
+    "required_gates_before_training": [
+        "full_conversion_artifacts_reproducible",
+        "split_manifest_generated_and_reviewed",
+        "leakage_scan_passes",
+        "class_imbalance_handling_specified",
+        "baseline_metrics_specified",
+        "training_objective_approved",
+        "model_use_tier_promoted_or_approved_manifest_override",
+        "training_outputs_restricted_to_approved_build_or_model_artifact_paths",
+        "no_runtime_integration"
+    ],
+    "leakage_risks": [
+        "resolved_outcome_labels_leakage",
+        "task_or_repo_id_shortcut",
+        "objective_digest_or_length_shortcut",
+        "source_order_shortcut",
+        "benchmark_contamination",
+        "harness_outcome_is_not_absolute_truth"
+    ],
+    "caveats": [
+        "training readiness package does not authorize training",
+        "examples remain training_weight 0.0",
+        "class balance is highly skewed",
+        "generated build artifacts are ignored and not committed",
+        "no E1/E2 calibration runtime integration J-space SWE-chat or raw data work is authorized"
+    ],
+    "evidence_refs": [
+        "docs/data/registry/openhands-sampled.json",
+        "docs/data/onboarding/openhands-sampled.md",
+        "docs/data/conversion/openhands-sampled-to-training-examples.md",
+        "docs/data/conversion/openhands-sampled-full-conversion-review.md",
+        "build/training_examples/openhands-sampled/full/conversion_report.json",
+        "build/training_examples/openhands-sampled/full/hash_manifest.json"
+    ]
+}
