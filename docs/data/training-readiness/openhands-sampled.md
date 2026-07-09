@@ -19,10 +19,16 @@ inspection, raw or processed data mutation, or writes to `C:/pneuma-data`.
   `docs/data/conversion/openhands-sampled-to-training-examples.md`
 - Full conversion review:
   `docs/data/conversion/openhands-sampled-full-conversion-review.md`
+- Split review:
+  `docs/data/training-readiness/openhands-sampled-split-review.md`
 - Ignored full conversion report:
   `build/training_examples/openhands-sampled/full/conversion_report.json`
 - Ignored full hash manifest:
   `build/training_examples/openhands-sampled/full/hash_manifest.json`
+- Ignored split report:
+  `build/training_examples/openhands-sampled/splits/split_report.json`
+- Ignored split hash manifest:
+  `build/training_examples/openhands-sampled/splits/hash_manifest.json`
 
 The generated `build/` artifacts are local review evidence and are not committed
 repository state.
@@ -62,6 +68,8 @@ Every emitted example remains `model_use_tier: train_after_adapter` and
 
 ## Split Policy
 
+Status: generated and reviewed.
+
 Recommended primary policy: repo-grouped split.
 
 - Group by repository first, using `split_group.repo`.
@@ -73,6 +81,18 @@ Recommended primary policy: repo-grouped split.
   for a clean repo-only split.
 - Do not use outcome labels in split assignment except for stratification
   reporting and post-hoc balance checks.
+
+Generated split summary:
+
+| Split | Examples | Repos | Tasks | Resolved | Unresolved | Resolved Rate |
+|---|---:|---:|---:|---:|---:|---:|
+| train | 3,803 | 8 | 1,252 | 306 | 3,497 | 0.08046 |
+| validation | 1,208 | 2 | 449 | 115 | 1,093 | 0.09520 |
+| test | 1,044 | 1 | 737 | 70 | 974 | 0.06705 |
+
+Every example was assigned exactly once, and no repo appears in multiple splits.
+The 70/15/15 ratios are imperfect because repo groups are assigned intact; the
+train split differs from the target by more than five percent of the corpus.
 
 ## Mixture Policy
 
@@ -113,7 +133,8 @@ Required before any training-oriented use:
 
 ## Next Steps
 
-1. Implement a split manifest generator.
-2. Generate a split manifest from converted examples.
-3. Review the split and class-balance report.
-4. Only then plan a first baseline or training run.
+1. Review the split caveats and class balance.
+2. Draft a baseline/training design document with objective, metrics, class
+   imbalance handling, artifact paths, and approval gates.
+3. Only then consider a first baseline or training run, still behind explicit
+   authorization.

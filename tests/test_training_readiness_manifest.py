@@ -24,15 +24,19 @@ def test_openhands_training_readiness_manifest_loads_and_points_to_docs() -> Non
     assert manifest["current_model_use_tier"] == "train_after_adapter"
     assert manifest["current_training_weight"] == 0.0
     assert manifest["training_authorization"] == "not_authorized"
-    assert manifest["split_manifest_status"] == "planned"
+    assert manifest["split_manifest_status"] == "generated_reviewed"
     assert manifest["recommended_split_policy"]["primary"] == "repo_grouped"
+    assert manifest["recommended_split_policy"]["same_repo_in_multiple_splits"] is False
+    assert manifest["recommended_split_policy"]["split_counts"]["train"]["examples"] == 3803
+    assert manifest["recommended_split_policy"]["split_counts"]["validation"]["examples"] == 1208
+    assert manifest["recommended_split_policy"]["split_counts"]["test"]["examples"] == 1044
     assert manifest["approved_task_types"] == ["RISK_PREDICTION"]
     assert "OPERATOR_PUSHBACK" in manifest["blocked_task_types"]
     assert "SELF_REPORT_FAITHFULNESS" in manifest["blocked_task_types"]
     assert "WORKSPACE_SALIENCE_LATER" in manifest["blocked_task_types"]
 
     for ref in manifest["generated_artifact_refs"].values():
-        assert ref.startswith("build/training_examples/openhands-sampled/full/")
+        assert ref.startswith("build/training_examples/openhands-sampled/")
         assert "C:/pneuma-data" not in ref
         assert "C:\\pneuma-data" not in ref
 

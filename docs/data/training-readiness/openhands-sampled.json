@@ -7,7 +7,10 @@
         "examples_jsonl": "build/training_examples/openhands-sampled/full/examples.jsonl",
         "conversion_report": "build/training_examples/openhands-sampled/full/conversion_report.json",
         "hash_manifest": "build/training_examples/openhands-sampled/full/hash_manifest.json",
-        "invalid_examples_jsonl": "build/training_examples/openhands-sampled/full/invalid_examples.jsonl"
+        "invalid_examples_jsonl": "build/training_examples/openhands-sampled/full/invalid_examples.jsonl",
+        "split_manifest": "build/training_examples/openhands-sampled/splits/split_manifest.json",
+        "split_report": "build/training_examples/openhands-sampled/splits/split_report.json",
+        "split_hash_manifest": "build/training_examples/openhands-sampled/splits/hash_manifest.json"
     },
     "counts": {
         "examples": 6055,
@@ -42,9 +45,46 @@
         "preserve_trace_ids_for_audit": true,
         "avoid_same_repo_or_task_across_train_test": true,
         "do_not_use_outcome_labels_for_assignment_except_stratification_reporting": true,
-        "split_manifest_status": "planned"
+        "split_manifest_status": "generated_reviewed",
+        "ratios": {
+            "train": 0.7,
+            "validation": 0.15,
+            "test": 0.15
+        },
+        "split_counts": {
+            "train": {
+                "examples": 3803,
+                "repos": 8,
+                "tasks": 1252,
+                "resolved": 306,
+                "unresolved": 3497,
+                "resolved_rate": 0.08046
+            },
+            "validation": {
+                "examples": 1208,
+                "repos": 2,
+                "tasks": 449,
+                "resolved": 115,
+                "unresolved": 1093,
+                "resolved_rate": 0.0952
+            },
+            "test": {
+                "examples": 1044,
+                "repos": 1,
+                "tasks": 737,
+                "resolved": 70,
+                "unresolved": 974,
+                "resolved_rate": 0.06705
+            }
+        },
+        "same_repo_in_multiple_splits": false,
+        "split_caveats": [
+            "train split count differs from target ratio by more than five percent because repo groups are assigned intact",
+            "test split contains one repo group",
+            "outcome labels were used only for post-hoc balance reporting"
+        ]
     },
-    "split_manifest_status": "planned",
+    "split_manifest_status": "generated_reviewed",
     "training_authorization": "not_authorized",
     "required_gates_before_training": [
         "full_conversion_artifacts_reproducible",
@@ -77,7 +117,10 @@
         "docs/data/onboarding/openhands-sampled.md",
         "docs/data/conversion/openhands-sampled-to-training-examples.md",
         "docs/data/conversion/openhands-sampled-full-conversion-review.md",
+        "docs/data/training-readiness/openhands-sampled-split-review.md",
         "build/training_examples/openhands-sampled/full/conversion_report.json",
-        "build/training_examples/openhands-sampled/full/hash_manifest.json"
+        "build/training_examples/openhands-sampled/full/hash_manifest.json",
+        "build/training_examples/openhands-sampled/splits/split_report.json",
+        "build/training_examples/openhands-sampled/splits/hash_manifest.json"
     ]
 }
