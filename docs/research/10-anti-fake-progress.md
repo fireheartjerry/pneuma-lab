@@ -6,14 +6,16 @@ replay (`src/pneuma_lab/interventions/runner.py`), honest-refusal fixtures
 (`fixtures/interventions/failing_hypothesis.jsonl`, `restore_null.jsonl`), receipts-based scoring
 with hash-derived confabulation risk, the anti-fake-cognition consistency gate
 (`src/pneuma_lab/adapters/envelope.py::consistency_errors`), drift-failing golden-fixture CLIs, and
-byte-determinism checks replayed twice per fixture — all [VERIFIED], 234/234 tests passing.
+byte-determinism checks replayed twice per fixture — all [VERIFIED], with the full test suite
+green at the latest validation.
 Everything past that core — external audit, contamination scans, PII scans over pneuma-data,
 doc-drift CI, learned-estimator defenses — is [PLANNED] and specified below as build items. The
 single largest current honesty risk is structural, not technical: all Level-4 evidence concerns
 ReferencePsyche, a toy co-designed with its own fixtures. (Update 2026-07-07: the intervention
 harness, Phase 3.1, the replay bridge, HollowPsyche, and the E-0 experiment are now committed —
-`cf014b7`, `d9df2f5` — so the former uncommitted-tree gap is closed; G-12's `--official`
-provenance mode remains a build item.)
+`cf014b7`, `d9df2f5` — so the former uncommitted-tree gap is closed. G-12 now stamps every
+canonical summary with its source commit/tree state and makes `--official` refuse dirty or
+unpublished source commits.)
 
 This document enumerates every way this program could fool itself, and for each failure mode gives
 (a) the concrete guardrail and (b) the executable test — either its current location or where it
@@ -50,7 +52,7 @@ Summary table (G = guarded now, P = partially guarded, U = unguarded / build ite
 | 14  | Accidental PII exposure                            | P      | G-10       |
 | 15  | Goodharting the Level-5 evals                      | U      | G-09/G-11  |
 | 16  | Determinism theater (quantized-float hashing)      | P      | G-11       |
-| 17  | Uncommitted-code audit gap                         | U      | G-12       |
+| 17  | Uncommitted-code audit gap                         | G      | G-12       |
 | 18  | Doc drift rewriting history                        | U      | G-07       |
 | 19  | Metric-definition drift between cycles             | U      | G-07       |
 | 20  | Integration mirage (claiming pipelines that gap)   | P      | G-02       |
@@ -367,18 +369,19 @@ limit.
 
 ## 17. Uncommitted-code audit gap
 
-Failure: results are published from working-tree code no auditor can check out. Current state:
-HEAD = b3102c6 contains only the Phase-3 adapter; the entire intervention harness, demo, and Phase
-3.1 adapter are uncommitted [VERIFIED]. Every [VERIFIED] tag above that touches those modules is
-verified against the working tree, not against auditable history.
+Failure: results are published from working-tree code no auditor can check out. The historical
+instance is closed: the intervention harness, Phase 3.1, replay bridge, HollowPsyche, and E-0 are
+committed. The remaining risk is accidentally regenerating or citing evidence from later dirty or
+local-only source state.
 
-**G-12 (MISSING, highest priority): commit-or-it-didn't-happen rule.** No evidence-level claim,
-fixture hash, or summary artifact may be cited in any research doc unless produced from a clean
-checkout of a pushed commit, with the commit hash embedded in `build/canonical/summary.json`. Must
-live: `src/pneuma_lab/demo.py` extension (embed `git rev-parse HEAD` + dirty-tree flag; refuse
-`--official` mode on a dirty tree) + `tests/test_summary_provenance.py`. Acceptance: `--official`
-run on a dirty tree exits nonzero; summary without a commit hash is rejected by the claims linter
-(G-02). First action under this rule: commit the Phase-2/3.1 working tree.
+**G-12 (VERIFIED): commit-or-it-didn't-happen rule.** Every canonical summary records the exact
+Git commit, clean/dirty tree state, fetched remote refs containing that commit, publication status,
+and whether the run was official. `python -m pneuma_lab.demo --official` fails before writing when
+the tree is dirty or HEAD is not contained in a fetched remote ref. Regular local runs remain
+available but are explicitly marked non-official. The behavior lives in
+`src/pneuma_lab/demo.py`; `tests/test_summary_provenance.py` covers commit stamping, both refusal
+paths, no-write-on-refusal, and the clean/published success path. G-02 remains responsible for
+rejecting prose claims or archived summaries that omit this provenance.
 
 ## 18–19. Doc drift and metric-definition drift
 
@@ -405,7 +408,7 @@ methodology evidence only.
 ## Promotion protocol (binding)
 
 1.  **Claim source of record.** An evidence-level claim exists only as a row in a committed
-    `build/canonical/summary.json` produced by `python -m pneuma_lab.demo` from a clean pushed
+    `build/canonical/summary.json` produced by `python -m pneuma_lab.demo --official` from a clean pushed
     commit (G-12). Prose never upgrades a level; it can only quote the artifact, with the mandatory
     phrasing for the current ceiling: "Level 4 of a hand-coded reference implementation inside its
     own harness."
@@ -467,5 +470,5 @@ methodology evidence only.
 | G-11 | Pre-registration regime + sub-quantum drift probe | `src/pneuma_lab/evals/preregistration.py`                          | `tests/test_preregistration.py`, `tests/test_full_precision_determinism.py` |
 | G-12 | Commit-provenance in official summaries           | `src/pneuma_lab/demo.py` (`--official`)                            | `tests/test_summary_provenance.py`                                          |
 
-Priority order: G-12 (audit gap is live now) → G-02/G-07 (claims and doc drift are live now) →
-G-10 (PII exposure is live now) → G-01 → G-05 → the rest as their triggering capabilities land.
+Priority order after G-12: G-02/G-07 (claims and doc drift are live now) → G-10 (PII exposure is
+live now) → G-01 status reconciliation → G-05 → the rest as their triggering capabilities land.

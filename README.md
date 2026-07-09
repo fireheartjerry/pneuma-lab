@@ -70,7 +70,15 @@ python -m pneuma_lab.demo            # writes build/canonical/
 # -> build/canonical/summary.json (+ summary.md) and, per fixture,
 #    evidence.json (+ control/treated frame logs + intervention_report.json)
 #    prints: ... Level 4: 5 [...] | Level 3: 3 | byte-determinism: OK
+
+# Publication gate: also requires a clean source commit present on a remote ref.
+python -m pneuma_lab.demo --official
 ```
+
+Every summary records the exact Git commit, tree state, and fetched remote refs
+that contain the source commit. Regular local runs remain useful but are marked
+non-official; `--official` fails closed before writing if the tree is dirty or the
+commit is not present on a fetched remote ref.
 
 The generated summary partitions the fixtures into three honest buckets, and the
 demo exits non-zero if byte-determinism ever regresses. Full walk-through:
