@@ -65,6 +65,11 @@
         "do_not_judge_by_raw_accuracy_alone"
     ],
     "future_artifact_root": "build/training_runs/openhands-sampled/risk-baseline-v0/",
+    "dataset1_infrastructure_ref": "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json",
+    "feature_allowlist_ref": "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json#feature_allowlist",
+    "leakage_checker_module": "pneuma_lab.training.governance",
+    "run_manifest_convention_ref": "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json#run_manifest_convention",
+    "run_manifest_template_function": "pneuma_lab.training.governance.build_pre_run_manifest_template",
     "expected_future_artifacts": [
         "run_manifest.json",
         "feature_manifest.json",
@@ -99,6 +104,16 @@
         "no_runtime_integration",
         "no_training_weight_promotion_without_explicit_approval"
     ],
+    "approval_gates_status": {
+        "baseline_training_plan_committed": "complete",
+        "feature_allowlist_defined": "complete",
+        "leakage_checker_implemented": "complete",
+        "split_manifest_reviewed": "complete",
+        "run_manifest_schema_or_convention_defined": "complete",
+        "generated_outputs_path_approved": "build/training_runs/openhands-sampled/",
+        "no_runtime_integration": "required",
+        "no_training_weight_promotion_without_explicit_approval": "required"
+    },
     "invalidation_conditions": [
         "target_leakage_found",
         "repo_or_task_leakage_found",
@@ -124,7 +139,9 @@
         "docs/data/training-readiness/openhands-sampled.json",
         "docs/data/training-readiness/openhands-sampled-split-review.md",
         "docs/data/training-readiness/openhands-sampled-baseline-training-plan.md",
+        "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json",
         "schemas/pneuma-training-example.schema.json",
+        "src/pneuma_lab/training/governance.py",
         "build/training_examples/openhands-sampled/full/conversion_report.json",
         "build/training_examples/openhands-sampled/splits/split_report.json"
     ]

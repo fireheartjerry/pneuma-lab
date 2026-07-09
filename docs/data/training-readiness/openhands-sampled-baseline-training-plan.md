@@ -160,6 +160,10 @@ No model artifacts should be committed.
 
 ## Run Manifest Requirements
 
+Committed convention: see
+`docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json`
+and `pneuma_lab.training.governance`.
+
 A future training run must record:
 
 - git SHA;
@@ -175,15 +179,22 @@ A future training run must record:
 - blocked feature checks;
 - output artifact hashes.
 
+The pre-run template starts with `training_authorization: not_authorized`,
+`training_weight: 0.0`, and `runtime_integration: none`. A fit-ready manifest
+must materialize the input-example and split-manifest SHA-256 hashes and pass
+the feature allowlist/leakage checker before any model fitting starts.
+
 ## Approval Gates Before Training
 
 Required before any training run:
 
 - baseline/training plan committed;
-- feature allowlist defined;
-- leakage checker implemented;
+- feature allowlist defined
+  (`docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json`);
+- leakage checker implemented (`pneuma_lab.training.governance`);
 - split manifest reviewed;
-- run manifest schema or convention defined;
+- run manifest schema or convention defined
+  (`pneuma_lab.training.governance.build_pre_run_manifest_template`);
 - generated outputs path approved;
 - no runtime integration;
 - no training weight promotion without explicit approval.
@@ -217,3 +228,8 @@ A baseline run is failed or invalid if any of these occur:
 Implement a baseline run manifest convention plus a feature allowlist and
 leakage checker before actually training. The checker should prove blocked
 fields cannot enter the feature matrix and should run before any model fitting.
+
+Dataset #1 infrastructure status: the feature allowlist, leakage checker, and
+pre-run manifest convention are now committed. The remaining next step is a
+separately authorized baseline run that materializes hashes and runs the
+checker before fitting.

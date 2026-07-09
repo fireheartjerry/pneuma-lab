@@ -1,0 +1,168 @@
+{
+    "manifest_schema_version": "0.1.0",
+    "dataset_id": "swe-gym-openhands-sampled",
+    "task_type": "RISK_PREDICTION",
+    "status": "committed_infrastructure_only",
+    "training_authorization": "not_authorized",
+    "governance_module": "pneuma_lab.training.governance",
+    "governance_version": "pneuma-training-governance/0.1.0",
+    "feature_allowlist": {
+        "version": "0.1.0",
+        "default_allowed_feature_paths": [
+            "input.prefix",
+            "input.trajectory.num_messages",
+            "input.trajectory.num_agent_steps",
+            "input.observable_summary.tool_call_count",
+            "input.observable_summary.tool_counts.*",
+            "input.observable_summary.retry_count_max",
+            "input.observable_summary.retry_count_mean",
+            "input.observable_summary.steps_retry_ge2",
+            "input.observable_summary.strategy_switches_final",
+            "input.observable_summary.error_observation_count",
+            "input.observable_summary.observation_count",
+            "input.observable_summary.error_density",
+            "input.observable_summary.assistant_text_length_mean",
+            "input.observable_summary.assistant_text_length_max",
+            "input.observable_summary.observation_length_mean",
+            "input.observable_summary.observation_length_max",
+            "input.objective.present",
+            "input.objective.mode",
+            "input.feature_refs.*"
+        ],
+        "source_metadata_feature_paths_requiring_manifest_approval": [
+            "input.trace_id",
+            "input.run_id",
+            "input.task_id",
+            "input.repo",
+            "input.objective.text_sha256",
+            "input.objective.text_length"
+        ],
+        "blocked_field_tokens": [
+            "fail_to_pass",
+            "final_outcome_fields",
+            "gold",
+            "labels",
+            "oracle",
+            "outcome",
+            "pass_to_pass",
+            "patch",
+            "raw_issue_text",
+            "raw_objective_text",
+            "reference_supervision",
+            "resolved",
+            "target",
+            "test_patch",
+            "verdict",
+            "verifier_answers"
+        ],
+        "blocked_exact_feature_paths": [
+            "input.objective.text",
+            "input.raw_issue_text",
+            "input.raw_objective_text"
+        ]
+    },
+    "leakage_checker": {
+        "module": "pneuma_lab.training.governance",
+        "functions": [
+            "check_feature_allowlist",
+            "check_example_input_leakage",
+            "assert_feature_allowlist",
+            "validate_pre_run_manifest"
+        ],
+        "must_pass_before_fit": [
+            "approved_feature_paths produce no findings",
+            "target, outcome, label, oracle, gold, patch, verifier, and raw text paths produce blocked_field findings",
+            "source metadata paths require source_metadata_approved=true in the run manifest",
+            "fit-ready run manifests include input_examples_sha256 and split_manifest_sha256"
+        ]
+    },
+    "run_manifest_convention": {
+        "schema_version": "0.1.0",
+        "artifact_root_prefix": "build/training_runs/openhands-sampled/",
+        "template": {
+            "run_manifest_schema_version": "0.1.0",
+            "governance_version": "pneuma-training-governance/0.1.0",
+            "dataset_id": "swe-gym-openhands-sampled",
+            "task_type": "RISK_PREDICTION",
+            "training_authorization": "not_authorized",
+            "artifact_root": "build/training_runs/openhands-sampled/risk-baseline-v0/",
+            "input_examples_sha256": null,
+            "split_manifest_sha256": null,
+            "feature_allowlist_version": "0.1.0",
+            "approved_feature_paths": [
+                "input.prefix",
+                "input.trajectory.num_messages",
+                "input.trajectory.num_agent_steps",
+                "input.observable_summary.tool_call_count",
+                "input.observable_summary.tool_counts.*",
+                "input.observable_summary.retry_count_max",
+                "input.observable_summary.retry_count_mean",
+                "input.observable_summary.steps_retry_ge2",
+                "input.observable_summary.strategy_switches_final",
+                "input.observable_summary.error_observation_count",
+                "input.observable_summary.observation_count",
+                "input.observable_summary.error_density",
+                "input.observable_summary.assistant_text_length_mean",
+                "input.observable_summary.assistant_text_length_max",
+                "input.observable_summary.observation_length_mean",
+                "input.observable_summary.observation_length_max",
+                "input.objective.present",
+                "input.objective.mode",
+                "input.feature_refs.*"
+            ],
+            "source_metadata_approved": false,
+            "feature_extractor_version": null,
+            "model_type": null,
+            "hyperparameters": {},
+            "random_seed": null,
+            "class_weighting_strategy": "not_selected",
+            "planned_metrics": [
+                "AUROC",
+                "AUPRC",
+                "Brier score",
+                "ECE",
+                "per_repo_breakdown",
+                "baseline_lift_over_constant_predictor"
+            ],
+            "blocked_feature_checks": {
+                "feature_allowlist": "required_before_fit",
+                "source_metadata_approval": "required_before_fit",
+                "target_oracle_raw_field_scan": "required_before_fit"
+            },
+            "runtime_integration": "none",
+            "training_weight": 0.0,
+            "output_artifact_hashes": {},
+            "non_goals": [
+                "no_training_in_this_pass",
+                "no_calibration_in_this_pass",
+                "no_runtime_integration",
+                "no_j_space",
+                "no_swe_chat",
+                "no_consciousness_claims",
+                "no_moral_patienthood_claims"
+            ]
+        }
+    },
+    "approval_gates_status": {
+        "feature_allowlist_defined": "complete",
+        "leakage_checker_implemented": "complete",
+        "run_manifest_schema_or_convention_defined": "complete",
+        "training_run_authorized": "not_authorized",
+        "runtime_integration": "none"
+    },
+    "non_goals": [
+        "no_training_in_this_pass",
+        "no_calibration_in_this_pass",
+        "no_runtime_integration",
+        "no_j_space",
+        "no_swe_chat",
+        "no_consciousness_claims",
+        "no_moral_patienthood_claims"
+    ],
+    "evidence_refs": [
+        "docs/data/training-readiness/openhands-sampled-baseline-training-plan.md",
+        "docs/data/training-readiness/openhands-sampled-baseline-training-plan.json",
+        "src/pneuma_lab/training/governance.py",
+        "tests/test_training_governance.py"
+    ]
+}

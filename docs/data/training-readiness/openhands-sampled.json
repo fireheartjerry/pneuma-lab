@@ -12,6 +12,13 @@
         "split_report": "build/training_examples/openhands-sampled/splits/split_report.json",
         "split_hash_manifest": "build/training_examples/openhands-sampled/splits/hash_manifest.json"
     },
+    "dataset1_infrastructure": {
+        "feature_allowlist": "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json#feature_allowlist",
+        "leakage_checker": "pneuma_lab.training.governance",
+        "run_manifest_convention": "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json#run_manifest_convention",
+        "training_authorization": "not_authorized",
+        "runtime_integration": "none"
+    },
     "counts": {
         "examples": 6055,
         "invalid_examples": 0,
@@ -120,6 +127,7 @@
         "docs/data/training-readiness/openhands-sampled-split-review.md",
         "docs/data/training-readiness/openhands-sampled-baseline-training-plan.md",
         "docs/data/training-readiness/openhands-sampled-baseline-training-plan.json",
+        "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json",
         "build/training_examples/openhands-sampled/full/conversion_report.json",
         "build/training_examples/openhands-sampled/full/hash_manifest.json",
         "build/training_examples/openhands-sampled/splits/split_report.json",
