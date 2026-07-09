@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 import sys
 from collections.abc import Iterable
 from pathlib import Path
@@ -30,17 +31,39 @@ TASK_TYPE = "RISK_PREDICTION"
 CONVERTER_VERSION = "openhands-sampled-training/0.1.0"
 TRAINING_EXAMPLE_SCHEMA = "pneuma-training-example.schema.json"
 BOUNDED_SAMPLE_MODE = "bounded-sample"
+FULL_MODE = "full"
 RECOMMENDED_BOUNDED_LIMIT = 10
 MAX_BOUNDED_LIMIT = 25
 DEFAULT_ADAPTER_REPORT_REF = (
     "fixtures/adapters/openhands_sampled/golden/adapter_report.json"
 )
-DEFAULT_BUILD_DIR = Path("build") / "training_examples" / "openhands-sampled" / "bounded-sample"
-DEFAULT_EXAMPLES_OUT = DEFAULT_BUILD_DIR / "examples.jsonl"
-DEFAULT_REPORT_OUT = DEFAULT_BUILD_DIR / "conversion_report.json"
-DEFAULT_HASH_MANIFEST_OUT = DEFAULT_BUILD_DIR / "hash_manifest.json"
+DEFAULT_BOUNDED_BUILD_DIR = (
+    Path("build") / "training_examples" / "openhands-sampled" / BOUNDED_SAMPLE_MODE
+)
+DEFAULT_FULL_BUILD_DIR = (
+    Path("build") / "training_examples" / "openhands-sampled" / FULL_MODE
+)
+DEFAULT_EXAMPLES_OUT = DEFAULT_BOUNDED_BUILD_DIR / "examples.jsonl"
+DEFAULT_REPORT_OUT = DEFAULT_BOUNDED_BUILD_DIR / "conversion_report.json"
+DEFAULT_HASH_MANIFEST_OUT = DEFAULT_BOUNDED_BUILD_DIR / "hash_manifest.json"
+DEFAULT_INVALID_OUT = DEFAULT_BOUNDED_BUILD_DIR / "invalid_examples.jsonl"
+DEFAULT_FULL_EXAMPLES_OUT = DEFAULT_FULL_BUILD_DIR / "examples.jsonl"
+DEFAULT_FULL_REPORT_OUT = DEFAULT_FULL_BUILD_DIR / "conversion_report.json"
+DEFAULT_FULL_HASH_MANIFEST_OUT = DEFAULT_FULL_BUILD_DIR / "hash_manifest.json"
+DEFAULT_FULL_INVALID_OUT = DEFAULT_FULL_BUILD_DIR / "invalid_examples.jsonl"
 FORBIDDEN_INPUT_PATH_PARTS = ("swe-chat", "/raw/", "\\raw\\")
 FORBIDDEN_OUTPUT_ROOT = Path("C:/pneuma-data")
+FORBIDDEN_INPUT_KEYS = {
+    "resolved",
+    "outcome",
+    "labels",
+    "gold",
+    "oracle",
+    "fail_to_pass",
+    "pass_to_pass",
+    "patch",
+    "verdict",
+}
 
 
 def _short_hash(value: str) -> str:
@@ -285,11 +308,35 @@ def reject_forbidden_input_path(path: str | os.PathLike[str]) -> None:
 
 
 def reject_forbidden_output_path(path: str | os.PathLike[str]) -> None:
-    """Prevent bounded conversion from writing into C:/pneuma-data."""
+    """Prevent conversion from writing outside ignored build outputs."""
     resolved = Path(path).resolve()
     forbidden = FORBIDDEN_OUTPUT_ROOT.resolve()
     if resolved == forbidden or forbidden in resolved.parents:
-        raise ValueError(f"refusing to write bounded output under {FORBIDDEN_OUTPUT_ROOT}")
+        raise ValueError(f"refusing to write output under {FORBIDDEN_OUTPUT_ROOT}")
+    if resolved.name == "build" or not any(part.lower() == "build" for part in resolved.parts):
+        raise ValueError("refusing to write output outside a build/ directory")
+
+
+def _walk_keys(value) -> list[str]:
+    if isinstance(value, dict):
+        keys = list(value)
+        for child in value.values():
+            keys.extend(_walk_keys(child))
+        return keys
+    if isinstance(value, list):
+        keys: list[str] = []
+        for child in value:
+            keys.extend(_walk_keys(child))
+        return keys
+    return []
+
+
+def validate_no_forbidden_input_keys(example: dict) -> None:
+    """Reject examples whose input carries target-bearing or raw-field keys."""
+    input_keys = {key.lower() for key in _walk_keys(example.get("input") or {})}
+    forbidden = sorted(FORBIDDEN_INPUT_KEYS.intersection(input_keys))
+    if forbidden:
+        raise ValueError(f"example input has forbidden leakage keys: {forbidden}")
 
 
 def read_bounded_trace_lines(lines: Iterable[str], limit: int) -> list[dict]:
@@ -330,18 +377,32 @@ def validate_training_examples(examples: list[dict]) -> None:
     schema = load_schema(TRAINING_EXAMPLE_SCHEMA)
     validator = Draft202012Validator(schema)
     for index, example in enumerate(examples):
+        validate_no_forbidden_input_keys(example)
         errors = sorted(validator.iter_errors(example), key=lambda err: list(err.path))
         if errors:
             message = "; ".join(error.message for error in errors)
             raise ValueError(f"example {index} failed schema validation: {message}")
 
 
-def _jsonl_bytes(examples: list[dict]) -> str:
-    return "".join(_canonical_json(example) + "\n" for example in examples)
-
-
 def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _schema_version() -> str | None:
+    return load_schema(TRAINING_EXAMPLE_SCHEMA).get("x-pneuma-version")
+
+
+def _git_sha() -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return result.stdout.strip() or None
 
 
 def _write_atomic(path: str | os.PathLike[str], text: str) -> None:
@@ -353,22 +414,121 @@ def _write_atomic(path: str | os.PathLike[str], text: str) -> None:
     os.replace(tmp, target)
 
 
+def _jsonl_bytes(records: list[dict]) -> str:
+    return "".join(_canonical_json(record) + "\n" for record in records)
+
+
+def _target_counts(examples: list[dict]) -> dict[str, int]:
+    resolved = sum(1 for example in examples if example.get("target", {}).get("resolved"))
+    unresolved = sum(
+        1 for example in examples if example.get("target", {}).get("resolved") is False
+    )
+    return {"resolved": resolved, "unresolved": unresolved}
+
+
+def _trace_agent_steps(trace: dict) -> int:
+    trajectory = trace.get("trajectory") or {}
+    frames = agentFrames(trace)
+    return int(trajectory.get("num_agent_steps", len(frames)) or 0)
+
+
+def _adapter_expected_counts(adapter_report: dict) -> dict:
+    counts = adapter_report.get("counts") or {}
+    trajectory = adapter_report.get("trajectory") or {}
+    valid = counts.get("valid", counts.get("traces_emitted"))
+    return {
+        "valid_traces": valid,
+        "invalid_traces": counts.get("invalid"),
+        "skipped_rows": counts.get("skipped"),
+        "agent_steps": trajectory.get("total_agent_steps"),
+        "resolved": trajectory.get("resolved_true"),
+        "unresolved": trajectory.get("resolved_false"),
+    }
+
+
+def _count_reconciliation(
+    *,
+    mode: str,
+    adapter_report: dict,
+    traces_read: int,
+    agent_steps: int,
+    examples: list[dict],
+    invalid_records: list[dict],
+) -> dict:
+    expected = _adapter_expected_counts(adapter_report)
+    targets = _target_counts(examples)
+    observed = {
+        "traces_read": traces_read,
+        "examples_emitted": len(examples),
+        "invalid_examples": len(invalid_records),
+        "quarantined_examples": len(invalid_records),
+        "agent_steps": agent_steps,
+        "resolved": targets["resolved"],
+        "unresolved": targets["unresolved"],
+    }
+    checks = {
+        "examples_plus_quarantined_match_traces_read": (
+            len(examples) + len(invalid_records) == traces_read
+        ),
+        "traces_read_match_adapter_valid": (
+            mode != FULL_MODE
+            or expected["valid_traces"] is None
+            or traces_read == expected["valid_traces"]
+        ),
+        "agent_steps_match_adapter_report": (
+            mode != FULL_MODE
+            or expected["agent_steps"] is None
+            or agent_steps == expected["agent_steps"]
+        ),
+        "resolved_targets_match_adapter_report": (
+            mode != FULL_MODE
+            or expected["resolved"] is None
+            or targets["resolved"] == expected["resolved"]
+        ),
+        "unresolved_targets_match_adapter_report": (
+            mode != FULL_MODE
+            or expected["unresolved"] is None
+            or targets["unresolved"] == expected["unresolved"]
+        ),
+    }
+    return {
+        "expected": expected,
+        "observed": observed,
+        "checks": checks,
+        "reconciled": all(checks.values()),
+    }
+
+
 def build_conversion_report(
     *,
+    mode: str,
     input_path: str | os.PathLike[str],
     adapter_report_path: str | os.PathLike[str],
     adapter_report: dict,
-    limit: int,
-    traces: list[dict],
+    limit: int | None,
+    traces_read: int,
+    agent_steps: int,
     examples: list[dict],
+    invalid_records: list[dict],
+    output_hashes: dict,
 ) -> dict:
-    """Build deterministic bounded conversion metadata."""
+    """Build deterministic conversion metadata."""
+    target_counts = _target_counts(examples)
+    reconciliation = _count_reconciliation(
+        mode=mode,
+        adapter_report=adapter_report,
+        traces_read=traces_read,
+        agent_steps=agent_steps,
+        examples=examples,
+        invalid_records=invalid_records,
+    )
     return {
         "conversion_report_schema_version": "0.1.0",
-        "mode": BOUNDED_SAMPLE_MODE,
+        "mode": mode,
         "converter": {
             "name": "openhands-sampled-training",
             "version": CONVERTER_VERSION,
+            "git_sha": _git_sha(),
         },
         "dataset_id": DATASET_ID,
         "dataset_family": DATASET_FAMILY,
@@ -376,13 +536,21 @@ def build_conversion_report(
             "trace_jsonl": str(input_path),
             "adapter_report": str(adapter_report_path),
             "requested_limit": limit,
-            "loaded_traces": len(traces),
-            "selection": "first_n_adapter_emission_order",
+            "loaded_traces": traces_read,
+            "selection": (
+                "all_adapter_emitted_processed_traces"
+                if mode == FULL_MODE
+                else "first_n_adapter_emission_order"
+            ),
         },
         "output": {
             "examples_emitted": len(examples),
-            "invalid_examples": 0,
-            "quarantined_examples": 0,
+            "invalid_examples": len(invalid_records),
+            "quarantined_examples": len(invalid_records),
+            "resolved_targets": target_counts["resolved"],
+            "unresolved_targets": target_counts["unresolved"],
+            "hashes": output_hashes,
+            "schema_validation_passed": len(invalid_records) == 0,
         },
         "source_hashes": {
             "traces_file_sha256": adapter_report.get("traces_file_sha256"),
@@ -392,9 +560,12 @@ def build_conversion_report(
             ),
         },
         "source_counts": adapter_report.get("counts", {}),
+        "source_trajectory": adapter_report.get("trajectory", {}),
+        "count_reconciliation": reconciliation,
         "privacy": adapter_report.get("privacy", {}),
         "schema": {
             "training_example": TRAINING_EXAMPLE_SCHEMA,
+            "training_example_version": _schema_version(),
         },
         "training_authorization": {
             "model_use_tier": "train_after_adapter",
@@ -406,18 +577,24 @@ def build_conversion_report(
 
 def build_hash_manifest(
     *,
+    mode: str,
     examples_text: str,
+    invalid_text: str,
     report_text: str,
-    limit: int,
+    limit: int | None,
     input_path: str | os.PathLike[str],
     adapter_report_path: str | os.PathLike[str],
 ) -> dict:
-    """Build deterministic content hashes for bounded outputs."""
+    """Build deterministic content hashes for conversion outputs."""
     return {
         "hash_manifest_schema_version": "0.1.0",
-        "mode": BOUNDED_SAMPLE_MODE,
+        "mode": mode,
         "dataset_id": DATASET_ID,
         "converter_version": CONVERTER_VERSION,
+        "hash_manifest_hash_convention": (
+            "hash_manifest_json_sha256 is the sha256 of canonical manifest JSON "
+            "with hashes.hash_manifest_json_sha256 set to null"
+        ),
         "input": {
             "trace_jsonl": str(input_path),
             "adapter_report": str(adapter_report_path),
@@ -425,7 +602,9 @@ def build_hash_manifest(
         },
         "hashes": {
             "examples_jsonl_sha256": _sha256_text(examples_text),
+            "invalid_examples_jsonl_sha256": _sha256_text(invalid_text),
             "conversion_report_json_sha256": _sha256_text(report_text),
+            "hash_manifest_json_sha256": None,
         },
     }
 
@@ -455,24 +634,37 @@ def run_bounded_sample_conversion(
     validate_training_examples(examples)
 
     examples_text = _jsonl_bytes(examples)
+    invalid_records: list[dict] = []
+    invalid_text = ""
+    output_hashes = {
+        "examples_jsonl_sha256": _sha256_text(examples_text),
+        "invalid_examples_jsonl_sha256": _sha256_text(invalid_text),
+    }
     report = build_conversion_report(
+        mode=BOUNDED_SAMPLE_MODE,
         input_path=input_path,
         adapter_report_path=adapter_report_path,
         adapter_report=adapter_report,
         limit=limit,
-        traces=traces,
+        traces_read=len(traces),
+        agent_steps=sum(_trace_agent_steps(trace) for trace in traces),
         examples=examples,
+        invalid_records=invalid_records,
+        output_hashes=output_hashes,
     )
     report_text = _canonical_json(report) + "\n"
     manifest = build_hash_manifest(
+        mode=BOUNDED_SAMPLE_MODE,
         examples_text=examples_text,
+        invalid_text=invalid_text,
         report_text=report_text,
         limit=limit,
         input_path=input_path,
         adapter_report_path=adapter_report_path,
     )
-    manifest_text = _canonical_json(manifest) + "\n"
-    manifest["hashes"]["hash_manifest_json_sha256"] = _sha256_text(manifest_text)
+    manifest["hashes"]["hash_manifest_json_sha256"] = _sha256_text(
+        _canonical_json(manifest) + "\n"
+    )
     manifest_text = _canonical_json(manifest) + "\n"
 
     _write_atomic(examples_path, examples_text)
@@ -491,36 +683,196 @@ def run_bounded_sample_conversion(
     }
 
 
+def _invalid_record(
+    *,
+    line_number: int,
+    line: str,
+    error: Exception,
+    trace: dict | None = None,
+) -> dict:
+    build = (trace or {}).get("build") or {}
+    return {
+        "record_kind": "invalid_training_example",
+        "line_number": line_number,
+        "trace_id": (trace or {}).get("trace_id"),
+        "source_hash": build.get("content_hash"),
+        "line_sha256": _sha256_text(line),
+        "error_type": type(error).__name__,
+        "error": str(error),
+    }
+
+
+def _convert_full_trace_lines(
+    lines: Iterable[str],
+    *,
+    adapter_report_ref: str,
+    manifest_ref: str,
+) -> tuple[list[dict], list[dict], int, int]:
+    examples: list[dict] = []
+    invalid_records: list[dict] = []
+    traces_read = 0
+    agent_steps = 0
+    for line_number, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+        trace: dict | None = None
+        try:
+            trace = json.loads(line)
+            traces_read += 1
+            agent_steps += _trace_agent_steps(trace)
+            example = convert_trace(
+                trace,
+                adapter_report_ref=adapter_report_ref,
+                manifest_ref=manifest_ref,
+            )
+            validate_training_examples([example])
+            examples.append(example)
+        except (json.JSONDecodeError, ValueError) as exc:
+            invalid_records.append(
+                _invalid_record(
+                    line_number=line_number,
+                    line=line,
+                    error=exc,
+                    trace=trace,
+                )
+            )
+    return examples, invalid_records, traces_read, agent_steps
+
+
+def run_full_conversion(
+    *,
+    input_path: str | os.PathLike[str],
+    adapter_report_path: str | os.PathLike[str],
+    examples_path: str | os.PathLike[str] = DEFAULT_FULL_EXAMPLES_OUT,
+    report_path: str | os.PathLike[str] = DEFAULT_FULL_REPORT_OUT,
+    hash_manifest_path: str | os.PathLike[str] = DEFAULT_FULL_HASH_MANIFEST_OUT,
+    invalid_output_path: str | os.PathLike[str] = DEFAULT_FULL_INVALID_OUT,
+    confirm_full_conversion: bool,
+) -> dict:
+    """Run the explicitly confirmed full processed conversion."""
+    if not confirm_full_conversion:
+        raise ValueError("--confirm-full-conversion is required for --mode full")
+    reject_forbidden_input_path(input_path)
+    for output_path in (
+        examples_path,
+        report_path,
+        hash_manifest_path,
+        invalid_output_path,
+    ):
+        reject_forbidden_output_path(output_path)
+
+    adapter_report = load_adapter_report(adapter_report_path)
+    manifest_ref = "full/hash_manifest.json"
+    with open(input_path, encoding="utf-8") as fh:
+        examples, invalid_records, traces_read, agent_steps = _convert_full_trace_lines(
+            fh,
+            adapter_report_ref=str(adapter_report_path),
+            manifest_ref=manifest_ref,
+        )
+
+    examples_text = _jsonl_bytes(examples)
+    invalid_text = _jsonl_bytes(invalid_records)
+    output_hashes = {
+        "examples_jsonl_sha256": _sha256_text(examples_text),
+        "invalid_examples_jsonl_sha256": _sha256_text(invalid_text),
+    }
+    report = build_conversion_report(
+        mode=FULL_MODE,
+        input_path=input_path,
+        adapter_report_path=adapter_report_path,
+        adapter_report=adapter_report,
+        limit=None,
+        traces_read=traces_read,
+        agent_steps=agent_steps,
+        examples=examples,
+        invalid_records=invalid_records,
+        output_hashes=output_hashes,
+    )
+    report_text = _canonical_json(report) + "\n"
+    manifest = build_hash_manifest(
+        mode=FULL_MODE,
+        examples_text=examples_text,
+        invalid_text=invalid_text,
+        report_text=report_text,
+        limit=None,
+        input_path=input_path,
+        adapter_report_path=adapter_report_path,
+    )
+    manifest["hashes"]["hash_manifest_json_sha256"] = _sha256_text(
+        _canonical_json(manifest) + "\n"
+    )
+    manifest_text = _canonical_json(manifest) + "\n"
+
+    _write_atomic(examples_path, examples_text)
+    _write_atomic(invalid_output_path, invalid_text)
+    _write_atomic(report_path, report_text)
+    _write_atomic(hash_manifest_path, manifest_text)
+
+    return {
+        "examples": examples,
+        "invalid_records": invalid_records,
+        "report": report,
+        "hash_manifest": manifest,
+        "paths": {
+            "examples": str(examples_path),
+            "invalid_examples": str(invalid_output_path),
+            "report": str(report_path),
+            "hash_manifest": str(hash_manifest_path),
+        },
+    }
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m pneuma_lab.converters.openhands_sampled_training"
     )
-    parser.add_argument("--mode", required=True, choices=[BOUNDED_SAMPLE_MODE])
+    parser.add_argument("--mode", required=True, choices=[BOUNDED_SAMPLE_MODE, FULL_MODE])
     parser.add_argument("--input", required=True)
     parser.add_argument("--adapter-report", required=True)
-    parser.add_argument("--limit", required=True, type=int)
-    parser.add_argument("--output", default=str(DEFAULT_EXAMPLES_OUT))
-    parser.add_argument("--report", default=str(DEFAULT_REPORT_OUT))
-    parser.add_argument("--hash-manifest", default=str(DEFAULT_HASH_MANIFEST_OUT))
+    parser.add_argument("--limit", type=int)
+    parser.add_argument("--confirm-full-conversion", action="store_true")
+    parser.add_argument("--output")
+    parser.add_argument("--report")
+    parser.add_argument("--hash-manifest")
+    parser.add_argument("--invalid-output")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     try:
-        result = run_bounded_sample_conversion(
+        if args.mode == BOUNDED_SAMPLE_MODE:
+            if args.limit is None:
+                raise ValueError("--limit is required for --mode bounded-sample")
+            result = run_bounded_sample_conversion(
+                input_path=args.input,
+                adapter_report_path=args.adapter_report,
+                examples_path=args.output or DEFAULT_EXAMPLES_OUT,
+                report_path=args.report or DEFAULT_REPORT_OUT,
+                hash_manifest_path=args.hash_manifest or DEFAULT_HASH_MANIFEST_OUT,
+                limit=args.limit,
+            )
+            print(
+                f"wrote {len(result['examples'])} bounded examples to "
+                f"{result['paths']['examples']}"
+            )
+            return 0
+        result = run_full_conversion(
             input_path=args.input,
             adapter_report_path=args.adapter_report,
-            examples_path=args.output,
-            report_path=args.report,
-            hash_manifest_path=args.hash_manifest,
-            limit=args.limit,
+            examples_path=args.output or DEFAULT_FULL_EXAMPLES_OUT,
+            report_path=args.report or DEFAULT_FULL_REPORT_OUT,
+            hash_manifest_path=args.hash_manifest or DEFAULT_FULL_HASH_MANIFEST_OUT,
+            invalid_output_path=args.invalid_output or DEFAULT_FULL_INVALID_OUT,
+            confirm_full_conversion=args.confirm_full_conversion,
         )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
     print(
-        f"wrote {len(result['examples'])} bounded examples to {result['paths']['examples']}"
+        f"wrote {len(result['examples'])} full examples and "
+        f"{len(result['invalid_records'])} invalid records to "
+        f"{result['paths']['examples']}"
     )
     return 0
 
@@ -530,6 +882,8 @@ __all__ = [
     "CONVERTER_VERSION",
     "DATASET_FAMILY",
     "DATASET_ID",
+    "FORBIDDEN_INPUT_KEYS",
+    "FULL_MODE",
     "MAX_BOUNDED_LIMIT",
     "RECOMMENDED_BOUNDED_LIMIT",
     "TASK_TYPE",
@@ -541,6 +895,8 @@ __all__ = [
     "read_bounded_trace_lines",
     "read_bounded_traces",
     "run_bounded_sample_conversion",
+    "run_full_conversion",
+    "validate_no_forbidden_input_keys",
     "validate_training_examples",
 ]
 

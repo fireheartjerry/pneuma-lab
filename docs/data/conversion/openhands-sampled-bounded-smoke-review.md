@@ -71,12 +71,16 @@ Forbidden input keys checked:
    `examples_jsonl_sha256` and `conversion_report_json_sha256` values match the
    generated files.
 
+## Follow-Up Update
+
+- The later full-conversion infrastructure pass updated
+  `hash_manifest_json_sha256` to use a directly recomputable convention:
+  hash the canonical manifest JSON with
+  `hashes.hash_manifest_json_sha256` set to `null`, then store that digest in
+  the final manifest.
+
 ## Caveats
 
-- `hash_manifest_json_sha256` is present, but as currently emitted it is
-  self-referential. Treat it as a recorded manifest-construction hash unless a
-  later pass defines a directly recomputable convention, such as hashing the
-  manifest with that field omitted.
 - The reviewed sample is a bounded smoke over the first 10 adapter-emitted
   traces. It is not class-balanced, representative, or suitable for training.
 - The report does not yet include an explicit `schema_validation_passed: true`

@@ -1,20 +1,23 @@
 # OpenHands Sampled to PneumaTrainingExample Plan
 
-Status: read-only planning only.
+Status: implemented through fixture-first, bounded-sample, and explicitly gated
+full processed conversion infrastructure.
 
-This document plans a future converter from processed
-`swe-gym-openhands-sampled` PneumaTrace records into canonical
-`PneumaTrainingExample` records for future `PneumaBrain-v0` work. It does not
-convert data, train models, run E1/E2, calibrate, change runtime behavior,
-process SWE-chat, inspect raw sensitive content, mutate raw or processed data,
-or make consciousness claims.
+This document describes the converter from processed `swe-gym-openhands-sampled`
+PneumaTrace records into canonical `PneumaTrainingExample` records for future
+`PneumaBrain-v0` work. It does not train models, run E1/E2, calibrate, change
+runtime behavior, process SWE-chat, inspect raw sensitive content, mutate raw or
+processed data, or make consciousness claims.
 
 Implementation note: a fixture-first converter now exists at
-`src/pneuma_lab/converters/openhands_sampled_training.py`. It consumes committed
-fixture `PneumaTrace` records only, emits conservative
-`train_after_adapter` examples with `training_weight: 0.0`, and is not a full
-processed dataset conversion. Full processed conversion remains a later
-explicit step.
+`src/pneuma_lab/converters/openhands_sampled_training.py`. It supports committed
+fixture conversion, bounded processed conversion with `--mode bounded-sample`
+and a hard `--limit <= 25`, and explicitly confirmed full processed conversion
+with `--mode full --confirm-full-conversion`. Generated artifacts are written
+only under ignored repo-local `build/` paths and the converter refuses outputs
+under `C:/pneuma-data`. Emitted examples remain `model_use_tier:
+train_after_adapter` with `training_weight: 0.0`; this is not training
+authorization, E1/E2 authorization, calibration, or runtime integration.
 
 ## 1. Purpose
 
@@ -326,28 +329,29 @@ Recommended tests:
 
 ## 10. Output Artifact Plan
 
-Do not create these paths in this planning pass.
+Generated conversion artifacts are intentionally ignored and repo-local. Do not
+write training examples back into `C:/pneuma-data`.
 
-Future processed output root:
+Full processed output root:
 
-`C:/pneuma-data/processed/swe-gym/openhands-sampled/training_examples/`
+`build/training_examples/openhands-sampled/full/`
 
-Planned artifacts:
+Full-mode artifacts:
 
 | Artifact | Purpose |
 |---|---|
-| `pneuma_training_examples.jsonl` | Canonical examples. |
-| `pneuma_training_examples.invalid.jsonl` | Quarantined invalid examples with errors. |
-| `training_example_index.jsonl` | Compact index: example ID, trace ID, task type, split group, target summary, hash. |
-| `conversion_manifest.json` | Converter version, source paths, source hashes, schema version, counts. |
-| `conversion_report.json` | Count reconciliation, privacy/redaction receipt, leakage checks, deterministic hashes. |
-| `hash_report.json` | Output SHA-256 values and two-run hash comparison. |
+| `examples.jsonl` | Canonical schema-valid examples. |
+| `invalid_examples.jsonl` | Metadata-only quarantine records for invalid traces/examples. Empty when all examples validate. |
+| `conversion_report.json` | Count reconciliation, privacy/redaction receipt, schema version, git SHA when available, conservative training authorization, and deterministic output hashes for examples and invalid records. |
+| `hash_manifest.json` | Recomputable SHA-256 manifest for examples, invalid records, and report bytes. |
 
-Repo-local artifacts should be tiny fixtures only, for example:
+Hash manifest convention:
 
-- `fixtures/training_examples/openhands_sampled_converter/input_traces.jsonl`
-- `fixtures/training_examples/openhands_sampled_converter/golden_examples.jsonl`
-- `fixtures/training_examples/openhands_sampled_converter/golden_report.json`
+- `hashes.hash_manifest_json_sha256` is computed over the canonical manifest
+  JSON with `hashes.hash_manifest_json_sha256` set to `null`;
+- the stored final manifest then replaces that field with the computed digest;
+- this avoids the older self-referential bounded-smoke caveat and makes the
+  manifest directly recomputable.
 
 ## 11. Non-Goals
 
@@ -361,34 +365,27 @@ Repo-local artifacts should be tiny fixtures only, for example:
 - No SWE-chat processing.
 - No raw sensitive content reading.
 - No raw or processed data mutation.
-- No full dataset conversion in the next pass unless separately approved.
+- No full dataset conversion without `--mode full --confirm-full-conversion`.
+- No generated conversion artifacts outside ignored repo-local `build/`.
 - No consciousness, Level 4/5, interiority, or moral-patienthood claims.
 
-## 12. Recommended Implementation Prompt
+## 12. Full Conversion Command
 
-Use this prompt after this planning document is approved:
+Approved full processed conversion command:
 
-```text
-Work in C:\pneuma-lab. Implement a tiny fixture-first converter for
-OpenHands sampled PneumaTrace records into PneumaTrainingExample records.
-
-Do not train models, run E1/E2, calibrate, modify runtime behavior, implement
-J-space/Jacobian Lens, process SWE-chat, inspect raw sensitive content, mutate
-raw or processed data, or run full conversion.
-
-Create a converter module that accepts in-memory or fixture PneumaTrace records
-and emits schema-valid PneumaTrainingExample records for full-trace
-RISK_PREDICTION only. Use committed synthetic or tiny existing OpenHands sampled
-fixtures, not C:\pneuma-data raw rows. Keep input observable-only, put
-resolved only in target, preserve evidence refs, and emit a deterministic
-conversion report. Add tests for schema validity, determinism, count
-reconciliation, no target leakage, and no raw content inclusion.
-
-Validate with:
-python -m pytest tests/ -q
-git diff --check
+```powershell
+python -m pneuma_lab.converters.openhands_sampled_training `
+  --mode full `
+  --confirm-full-conversion `
+  --input C:/pneuma-data/processed/swe-gym/openhands-sampled/pneuma_traces.jsonl `
+  --adapter-report C:/pneuma-data/processed/swe-gym/openhands-sampled/adapter_report.json `
+  --output build/training_examples/openhands-sampled/full/examples.jsonl `
+  --report build/training_examples/openhands-sampled/full/conversion_report.json `
+  --hash-manifest build/training_examples/openhands-sampled/full/hash_manifest.json `
+  --invalid-output build/training_examples/openhands-sampled/full/invalid_examples.jsonl
 ```
 
-Decision after that fixture-first pass: choose between a bounded sample
-converter over a tiny number of processed redaction-verified traces, or a
-full-output implementation plan. Full conversion should remain later.
+This command consumes processed redaction-verified `PneumaTrace` records only
+and writes ignored repo-local build artifacts only. It does not authorize model
+training, E1/E2, calibration, runtime behavior changes, or nonzero training
+weights.
