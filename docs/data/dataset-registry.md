@@ -13,7 +13,7 @@ validator `--data-root` argument.
 | Dataset ID | Name | Status | Manifest | Report | Training Readiness |
 |---|---|---|---|---|---|
 | `swe-gym-openhands-sampled` | SWE-Gym OpenHands Sampled Trajectories | onboarded | `docs/data/registry/openhands-sampled.json` | `docs/data/onboarding/openhands-sampled.md` | `docs/data/training-readiness/openhands-sampled.md` |
-| `dialogue-swe-bench` | Dialogue SWE-Bench | onboarded metadata-only | `docs/data/registry/dialogue-swe-bench.json` | `docs/data/onboarding/dialogue-swe-bench.md` | not authorized; license review required before real-row conversion |
+| `dialogue-swe-bench` | Dialogue SWE-Bench | onboarded metadata-only | `docs/data/registry/dialogue-swe-bench.json` | `docs/data/onboarding/dialogue-swe-bench.md` | `docs/data/training-readiness/dialogue-swe-bench.json` |
 
 ## Boundaries
 

@@ -21,6 +21,14 @@ calibration, runtime integration, SWE-chat processing, or writes to
 `C:/pneuma-data`. Upstream license review and separate approval remain required
 before any real-data bounded conversion or training-oriented use.
 
+Readiness update: the Dataset #2 license/provenance review and guardrail
+manifest are now committed at
+`docs/data/training-readiness/dialogue-swe-bench-license-provenance-review.md`
+and `docs/data/training-readiness/dialogue-swe-bench.json`. Real-row bounded
+conversion remains blocked because the local provenance license is `null`, the
+local normalized metadata says `hf_dataset=not declared; github=none`, and live
+source checks did not find a dataset license.
+
 Repository state observed for this planning pass:
 
 - `git status --short --branch` reported `main...origin/main [ahead 13]`.

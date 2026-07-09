@@ -28,6 +28,14 @@
         "readiness": "schema_ready_no_converter",
         "canonical_examples_emitted": false
     },
+    "training_readiness": {
+        "status": "guardrails_committed_real_conversion_blocked",
+        "manifest": "docs/data/training-readiness/dialogue-swe-bench.json",
+        "license_review": "docs/data/training-readiness/dialogue-swe-bench-license-provenance-review.md",
+        "governance_module": "pneuma_lab.training.dialogue_governance",
+        "bounded_real_conversion": "blocked_until_license_review",
+        "training_authorization": "not_authorized"
+    },
     "source": {
         "dataset": "dialogue-swe-bench",
         "hf_repo": "Brendan/SWE-Bench_Dialogue",

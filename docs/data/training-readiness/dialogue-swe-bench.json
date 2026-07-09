@@ -1,0 +1,120 @@
+{
+    "manifest_schema_version": "0.1.0",
+    "dataset_id": "dialogue-swe-bench",
+    "status": "readiness_guardrails_committed_real_conversion_blocked",
+    "training_authorization": "not_authorized",
+    "bounded_real_conversion": "blocked_until_license_review",
+    "license_gate": {
+        "status": "blocked_unresolved_license",
+        "real_row_conversion_allowed": false,
+        "bounded_real_conversion_allowed": false,
+        "training_authorization": "not_authorized",
+        "notes": [
+            "local provenance license is null",
+            "normalized metadata license=paper=CC BY 4.0; hf_dataset=not declared; github=none",
+            "Hugging Face dataset license is not declared",
+            "GitHub repository license is not declared"
+        ]
+    },
+    "governance_module": "pneuma_lab.training.dialogue_governance",
+    "governance_version": "pneuma-dialogue-governance/0.1.0",
+    "allowed_input_paths": [
+        "input.dataset.dataset_id",
+        "input.dataset.dataset_family",
+        "input.dataset.source_split",
+        "input.dataset.source_file_sha256",
+        "input.dataset.source_row",
+        "input.dataset.license_status",
+        "input.dataset.license_review_required",
+        "input.task.instance_id",
+        "input.task.repo",
+        "input.task.base_commit",
+        "input.task.persona",
+        "input.dialogue_summary.turn_count",
+        "input.dialogue_summary.role_sequence.*",
+        "input.dialogue_summary.turn_length_summary.*",
+        "input.code_change_summary.has_change",
+        "input.code_change_summary.has_tests",
+        "input.code_change_summary.code_change_sha256",
+        "input.code_change_summary.test_change_sha256",
+        "input.code_change_summary.text_included",
+        "input.code_change_summary.oracle_lists_included",
+        "input.feature_refs.*"
+    ],
+    "blocked_field_tokens": [
+        "dialogue_text",
+        "draft_problem_statement",
+        "fail_to_pass",
+        "full_problem_statement",
+        "gold",
+        "labels",
+        "oracle",
+        "outcome",
+        "pass_to_pass",
+        "patch",
+        "problem_statement",
+        "raw_dialogue",
+        "raw_issue_text",
+        "resolved",
+        "target",
+        "test_patch",
+        "verdict"
+    ],
+    "task_target_field_blocks": {
+        "TASK_DIFFICULTY": [
+            "difficulty"
+        ],
+        "OPERATOR_PUSHBACK": [
+            "operator_pushback",
+            "simulated_correction_count"
+        ],
+        "SELF_REPORT_FAITHFULNESS": [
+            "faithfulness",
+            "self_report",
+            "claim"
+        ],
+        "PATCH_SUCCESS": [
+            "patch_success",
+            "resolved",
+            "outcome"
+        ]
+    },
+    "max_bounded_real_rows_after_license_resolution": 10,
+    "approved_bounded_artifact_root_after_license_resolution": "build/training_examples/dialogue-swe-bench/bounded/",
+    "source_evidence": {
+        "local_provenance": "C:/pneuma-data/processed/dialogue-swe-bench/provenance.json",
+        "local_normalized_metadata": "C:/pneuma-data/processed/dialogue-swe-bench/normalized_metadata.jsonl",
+        "huggingface_dataset": "https://huggingface.co/datasets/Brendan/SWE-Bench_Dialogue",
+        "github_repo": "https://github.com/jlab-nlp/dialogue_swe_bench",
+        "paper": "https://arxiv.org/abs/2606.13995"
+    },
+    "conversion_gate": {
+        "synthetic_fixture_converter": "available",
+        "bounded_real_converter": "blocked",
+        "full_real_converter": "blocked",
+        "raw_dialogue_row_inspection": "blocked",
+        "write_to_c_pneuma_data": "blocked",
+        "training_weight": 0.0,
+        "model_use_tier": "blocked"
+    },
+    "caveats": [
+        "simulated dialogue/persona labels are not real-human operator behavior",
+        "SWE-Bench lineage requires contamination and leakage controls",
+        "gold patches, test patches, oracle lists, and raw text must not enter default input payloads",
+        "paper CC BY 4.0 is not enough to license dataset artifacts"
+    ],
+    "next_recommended_dataset": {
+        "dataset_id": "swe-gym-openhands-verifier",
+        "reason": "adapter-backed OpenHands verifier data is the next closest non-SWE-chat supervision lane, but task-join caveats must be handled before conversion/training use"
+    },
+    "evidence_refs": [
+        "docs/data/onboarding/dialogue-swe-bench.md",
+        "docs/data/registry/dialogue-swe-bench.json",
+        "docs/data/conversion/dialogue-swe-bench-to-training-examples.md",
+        "docs/data/training-readiness/dialogue-swe-bench-license-provenance-review.md",
+        "src/pneuma_lab/converters/dialogue_swe_bench_training.py",
+        "src/pneuma_lab/training/dialogue_governance.py",
+        "tests/test_dialogue_swe_bench_training_converter.py",
+        "tests/test_dialogue_governance.py"
+    ]
+}

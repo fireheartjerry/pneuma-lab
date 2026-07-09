@@ -7,6 +7,12 @@ legible to the registry; it does not implement an adapter, emit
 `PneumaTrainingExample` records, train a model, run E1/E2, calibrate anything,
 touch runtime behavior, process SWE-chat, or make consciousness-level claims.
 
+Current training-readiness status: guardrails are committed in
+`docs/data/training-readiness/dialogue-swe-bench.json`, and real-row conversion
+is blocked until upstream dataset licensing is resolved. The license/provenance
+review is recorded in
+`docs/data/training-readiness/dialogue-swe-bench-license-provenance-review.md`.
+
 ## Why Selected As Dataset #2
 
 `dialogue-swe-bench` is small, local, and shaped around simulated dialogue and
@@ -94,12 +100,16 @@ the SWE-Bench lineage carries contamination risk.
 - Draft a future adapter/conversion plan for canonical examples.
 - Define explicit label mapping and leakage controls before conversion.
 - Review upstream license/provenance before any training-oriented use.
+- Continue synthetic-fixture converter validation while real-row conversion is
+    license-blocked.
 
 ## Blocked Next Steps
 
 - Do not train models in this pass.
 - Do not run E1/E2 or calibration in this pass.
 - Do not convert rows into `PneumaTrainingExample` records in this pass.
+- Do not run bounded real-row conversion until a dataset license is declared or
+    otherwise resolved.
 - Do not inspect raw dialogue content beyond metadata/schema-level evidence.
 - Do not process SWE-chat.
 - Do not modify runtime behavior.
