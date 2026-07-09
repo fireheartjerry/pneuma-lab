@@ -1,0 +1,152 @@
+{
+    "manifest_schema_version": "0.1.0",
+    "package_kind": "training-authorization-review",
+    "package_status": "review_only",
+    "dataset": {
+        "dataset_id": "swe-gym-openhands-sampled",
+        "dataset_family": "swe-gym",
+        "source_name": "SWE-Gym OpenHands Sampled Trajectories",
+        "hf_repo": "SWE-Gym/OpenHands-Sampled-Trajectories",
+        "hf_revision": "baf3a4e4bff514d48ddc08a93a2ade5c126212c7",
+        "task_join_hf_repo": "SWE-Gym/SWE-Gym",
+        "data_root_variable": "PNEUMA_DATA_ROOT",
+        "raw_path_relative": "raw/swe-gym/OpenHands-Sampled-Trajectories",
+        "processed_path_relative": "processed/swe-gym/openhands-sampled",
+        "source_hashes": {
+            "traces_file_sha256": "sha256:6ec06b724e71be2735b2495291a3d5102bc3efa4f24f0d03d824f549f79feb6b",
+            "trace_index_file_sha256": "sha256:b1d99a62197cb6091067a3ae585f05459ec3f59a77699632e674856f8e6637a1",
+            "invalid_traces_file_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+    },
+    "converted_corpus": {
+        "corpus_kind": "PneumaTrainingExample full-trace RISK_PREDICTION examples",
+        "examples": 6055,
+        "invalid_examples": 0,
+        "agent_steps": 114461,
+        "resolved": 491,
+        "unresolved": 5564,
+        "examples_jsonl_sha256": "sha256:fe1121d268be107519f8f5f460644409851d906361c6cfc7917fc4db3dde31ad",
+        "conversion_report_json_sha256": "sha256:384dc4ed589719749ded743de5e1f6124434eec0bf03083d287e12b33ee1ee0c",
+        "full_hash_manifest_json_sha256": "sha256:ab03260c8fb5289db4b5606019db5f4bbb0d11e2ae7f34a1dfb53e8ab78d4810",
+        "converter": {
+            "name": "openhands-sampled-training",
+            "version": "openhands-sampled-training/0.1.0",
+            "git_sha": "69208669c6511b2295393b9e59b2778c752f757c"
+        }
+    },
+    "split": {
+        "policy": "repo_grouped",
+        "manifest_path": "build/training_examples/openhands-sampled/splits/split_manifest.json",
+        "manifest_sha256": "sha256:c410705005e51d821d70d966bf14adce466f56a765508353f45bef0bfe6de4cb",
+        "report_path": "build/training_examples/openhands-sampled/splits/split_report.json",
+        "report_sha256": "sha256:22d8aa39ba0958c35fa7e3cc3ca53156bdd0ff3e9c68112da1c57315154dc483",
+        "hash_manifest_path": "build/training_examples/openhands-sampled/splits/hash_manifest.json",
+        "hash_manifest_sha256": "sha256:62f3171b7915fa4fab4301fff44b4f4992ffc71e78d5f3f28a97794fba7e4cb4",
+        "examples_jsonl_sha256": "sha256:fe1121d268be107519f8f5f460644409851d906361c6cfc7917fc4db3dde31ad",
+        "counts": {
+            "train": 3803,
+            "validation": 1208,
+            "test": 1044,
+            "repo_groups": 11,
+            "same_repo_in_multiple_splits": false
+        }
+    },
+    "code_state": {
+        "authorized_code_commit": "4e55121396b029565237d41433a9b17142d1a51e",
+        "protected_paths": [
+            "src/",
+            "schemas/",
+            "pyproject.toml"
+        ],
+        "required_worktree_state": "clean",
+        "package_change_scope": "docs_and_tests_only"
+    },
+    "controlled_training_scope": {
+        "task_type": "RISK_PREDICTION",
+        "target_field": "target.resolved",
+        "source_examples": 6055,
+        "feature_allowlist_ref": "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json#feature_allowlist",
+        "converter_ref": "src/pneuma_lab/converters/openhands_sampled_training.py",
+        "readiness_manifest_ref": "docs/data/training-readiness/openhands-sampled.json",
+        "governance_ref": "src/pneuma_lab/training/governance.py",
+        "preflight_ref": "src/pneuma_lab/training/preflight.py",
+        "schema_ref": "schemas/pneuma-training-example.schema.json",
+        "blocked_task_types": [
+            "OPERATOR_PUSHBACK",
+            "SELF_REPORT_FAITHFULNESS",
+            "WORKSPACE_SALIENCE_LATER"
+        ]
+    },
+    "output_policy": {
+        "allowed_root": "build/training_runs/openhands-sampled/risk-baseline-v0/",
+        "root_must_be_repo_local": true,
+        "root_must_be_empty_before_run": true,
+        "forbidden_roots": [
+            "C:/pneuma-data",
+            "C:\\pneuma-data"
+        ],
+        "runtime_integration": "none"
+    },
+    "training_constants": {
+        "algorithm": "full-batch-logistic-regression-l2-v1",
+        "learning_rate": 0.3,
+        "learning_rate_decay": 0.005,
+        "iterations": 800,
+        "l2_lambda": 0.001,
+        "randomness": "none",
+        "class_imbalance_handling": "unweighted_baseline_reproduction_only",
+        "model_use": "offline_advisory_only",
+        "training_weight": 0.0,
+        "required_metrics": [
+            "AUROC",
+            "AUPRC",
+            "Brier score",
+            "ECE",
+            "per_repo_breakdown",
+            "baseline_lift_over_constant_predictor"
+        ]
+    },
+    "pre_training_checks": {
+        "commands": [
+            "python -m pytest tests/ -q",
+            "python -m pneuma_lab.status --check",
+            "python -m compileall -q src",
+            "git diff --check",
+            "git status --short --branch"
+        ],
+        "required_evidence": [
+            "full conversion and hash manifests reconcile to the source hashes",
+            "repo-grouped split hashes and counts match this package",
+            "leakage scan produces no blocked input fields",
+            "class imbalance handling and baseline metrics are declared",
+            "tracked human authorization artifact exists and matches every binding",
+            "authorized code commit is an ancestor, protected paths are unchanged, and the worktree is clean",
+            "training output is contained under the approved root"
+        ]
+    },
+    "authorization": {
+        "training_authorized": false,
+        "decision": "pending_human_review",
+        "reviewer": null,
+        "reviewed_at": null,
+        "approval_record_ref": null,
+        "required_human_decision": "Approve or reject this exact source, split, code, output-root, and constants binding; approval must create a separate tracked authorization artifact before any training command is allowed."
+    },
+    "references": [
+        "docs/data/registry/openhands-sampled.json",
+        "docs/data/training-readiness/openhands-sampled.json",
+        "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json",
+        "docs/data/training-readiness/openhands-sampled-baseline-training-plan.json",
+        "docs/data/conversion/openhands-sampled-full-conversion-review.md",
+        "docs/data/training-readiness/openhands-sampled-authorization-review.md",
+        "src/pneuma_lab/converters/openhands_sampled_training.py",
+        "src/pneuma_lab/training/governance.py",
+        "src/pneuma_lab/training/preflight.py",
+        "tests/test_training_governance.py",
+        "tests/test_estimator_preflight.py"
+    ],
+    "package_integrity": {
+        "canonicalization": "UTF-8 JSON, sorted keys, compact separators, trailing newline, with this sha256 field set to null",
+        "sha256": "d6285e1d579ab10082edd26ebe7cc31a510956c0cebe287eaa30b4c4a8fa5335"
+    }
+}

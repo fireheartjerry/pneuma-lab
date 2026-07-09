@@ -128,6 +128,8 @@
         "docs/data/training-readiness/openhands-sampled-baseline-training-plan.md",
         "docs/data/training-readiness/openhands-sampled-baseline-training-plan.json",
         "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json",
+        "docs/data/training-readiness/openhands-sampled-authorization-review.json",
+        "docs/data/training-readiness/openhands-sampled-authorization-review.md",
         "build/training_examples/openhands-sampled/full/conversion_report.json",
         "build/training_examples/openhands-sampled/full/hash_manifest.json",
         "build/training_examples/openhands-sampled/splits/split_report.json",

@@ -21,7 +21,7 @@
                 "leakage_controls_present": true
             },
             "blockers": [
-                "missing authorization manifest",
+                "human decision and tracked authorization artifact are pending",
                 "training authorization is not granted",
                 "class imbalance and leakage controls require an approved training plan"
             ],
@@ -36,12 +36,14 @@
                     {"path": "docs/data/onboarding/openhands-sampled.md"},
                     {"path": "docs/data/conversion/openhands-sampled-to-training-examples.md"},
                     {"path": "docs/data/training-readiness/openhands-sampled.md"},
-                    {"path": "docs/data/training-readiness/openhands-sampled-split-review.md"}
+                    {"path": "docs/data/training-readiness/openhands-sampled-split-review.md"},
+                    {"path": "docs/data/training-readiness/openhands-sampled-authorization-review.md"}
                 ],
                 "manifests": [
                     {"path": "docs/data/registry/openhands-sampled.json"},
                     {"path": "docs/data/training-readiness/openhands-sampled.json"},
-                    {"path": "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json"}
+                    {"path": "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json"},
+                    {"path": "docs/data/training-readiness/openhands-sampled-authorization-review.json"}
                 ],
                 "fixtures": [
                     {"path": "fixtures/adapters/openhands_sampled/golden/adapter_report.json"}
@@ -56,7 +58,8 @@
                     {"path": "tests/test_openhands_sampled_adapter.py"},
                     {"path": "tests/test_openhands_sampled_training_converter.py"},
                     {"path": "tests/test_training_governance.py"},
-                    {"path": "tests/test_estimator_preflight.py"}
+                    {"path": "tests/test_estimator_preflight.py"},
+                    {"path": "tests/test_openhands_authorization_review.py"}
                 ]
             }
         },

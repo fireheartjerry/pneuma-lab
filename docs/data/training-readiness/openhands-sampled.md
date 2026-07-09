@@ -23,6 +23,10 @@ inspection, raw or processed data mutation, or writes to `C:/pneuma-data`.
   `docs/data/training-readiness/openhands-sampled-split-review.md`
 - Baseline/training plan:
   `docs/data/training-readiness/openhands-sampled-baseline-training-plan.md`
+- Authorization review package:
+  `docs/data/training-readiness/openhands-sampled-authorization-review.md`
+- Authorization review manifest:
+  `docs/data/training-readiness/openhands-sampled-authorization-review.json`
 - Ignored full conversion report:
   `build/training_examples/openhands-sampled/full/conversion_report.json`
 - Ignored full hash manifest:
@@ -111,6 +115,11 @@ train split differs from the target by more than five percent of the corpus.
 
 ## Authorization Gates
 
+The authorization review package is ready for human review, but it is not a
+human authorization record and does not change the `not_authorized` state.
+Approval requires a separate tracked artifact accepted by the fail-closed
+trainer preflight.
+
 Required before any training-oriented use:
 
 - Full conversion artifacts are reproducible.
@@ -137,5 +146,6 @@ Required before any training-oriented use:
 
 1. Implement a baseline run manifest convention.
 2. Implement a feature allowlist and leakage checker.
-3. Only then consider a first baseline or training run, still behind explicit
-   authorization.
+3. Obtain explicit human approval of the review package and create the
+   corresponding tracked authorization artifact.
+4. Only then consider a first baseline or training run.
