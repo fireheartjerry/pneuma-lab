@@ -1,24 +1,28 @@
 # Pneuma Lab -- AI navigation index
 
-> Hand-authored from the 9to5 agent guide pattern for this standalone scaffold.
+> Hand-authored from the 9to5 agent guide pattern for this standalone lab.
 > Keep it short, current, and useful for fresh agent sessions.
 
 ## Mental Model
 
-1. **Contracts first** -- `schemas/` defines the observable I/O frame language.
-2. **Loaders second** -- `src/pneuma_lab/schemas/` proves the contracts are
-    locatable and parseable from Python.
-3. **Replay later** -- adapters, replay, and evals are named seams until real
-    producers and fixtures exist.
-4. **Claims last** -- consciousness language is evidence-graded, conservative,
-    and tied to externally auditable causal traces.
+1. **Status first** -- `docs/project-status.json` is the canonical current-state
+    manifest; run its checker before trusting dated research prose.
+2. **Contracts next** -- `schemas/` defines frames, envelopes, training records,
+    and machine-readable status.
+3. **Evidence by replay** -- replay and paired interventions are implemented for
+    the internal reference harness; adapters and estimators are offline surfaces.
+4. **Integration is absent** -- Pneuma is not wired into 9to5 and is not an
+    operational nervous system.
+5. **Claims last** -- internal Level-4 methodology does not evaluate a real
+    subject or establish phenomenal consciousness.
 
 ## Commands
 
 | Task | Command |
 |---|---|
+| Check current project status | `python -m pneuma_lab.status --check` |
 | Install dev extras | `pip install -e ".[dev]"` |
-| Run scaffold tests | `python -m pytest tests/ -q` |
+| Run the full suite | `python -m pytest tests/ -q` |
 | Run schema tests only | `python -m pytest tests/test_schema_loads.py -q` |
 | Check whitespace | `git diff --check` |
 | List tracked/untracked state | `git status --short` |
@@ -42,10 +46,12 @@
 ## Tree Guide
 
 - `README.md` gives the public one-page overview.
+- `docs/project-status.json` is the machine-readable current-state source.
 - `CLAUDE.md` gives session guidance for coding agents.
 - `schemas/` is the stable frame-contract surface.
 - `src/pneuma_lab/` is the importable package.
-- `tests/` protects schema validity and scaffold importability.
+- `tests/` protects contracts, replay, interventions, adapters, governance, and
+    offline estimator behavior.
 - `docs/` contains the research narrative, invariants, and crosswalks.
 - `migration/` contains provenance and read-only reference material copied from
     9to5 and manager-data.
@@ -54,11 +60,15 @@
 
 | Package | Purpose | Status |
 |---|---|---|
-| `pneuma_lab` | Public package metadata and frame lists | scaffolded |
+| `pneuma_lab` | Public package metadata and frame lists | implemented |
 | `pneuma_lab.schemas` | Schema pathing/loading helpers | implemented |
-| `pneuma_lab.adapters` | Future imports from exported 9to5/manager data | seam |
-| `pneuma_lab.replay` | Future deterministic replay harness | seam |
-| `pneuma_lab.evals` | Future perturbation and evidence scoring suites | seam |
+| `pneuma_lab.adapters` | Deterministic offline dataset-to-trace adapters | implemented |
+| `pneuma_lab.replay` | Deterministic replay + trace bridge | implemented |
+| `pneuma_lab.interventions` | Control/treated/null internal harness | implemented |
+| `pneuma_lab.evals` | Internal-harness evidence scoring, capped at 4 | implemented |
+| `pneuma_lab.converters` | Guarded training-example conversion | implemented |
+| `pneuma_lab.training` | Split/readiness governance + estimator-run preflight | implemented, no positive authorization |
+| `pneuma_lab.estimators` | Offline advisory E1/E2 estimators | implemented, no runtime wiring |
 
 ## Boundaries
 
@@ -66,4 +76,6 @@
 - This repo does not modify 9to5 branches, PRs, runtime state, or private data.
 - Migration files are reference/provenance unless the user explicitly asks to
     promote something into the live package.
+- JSpace/J-lens work is a documented research contract only; no implementation,
+    model access, or result exists.
 - Use 4-space indentation everywhere.

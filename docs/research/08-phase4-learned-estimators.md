@@ -1,5 +1,9 @@
 # 08 — Phase 4: Learned Estimators Plan
 
+> **Historical snapshot (2026-07-07).** This plan predates the committed E1/E2
+> offline estimator implementation. It remains useful as design rationale, not
+> current status. See [`docs/project-status.json`](../project-status.json).
+
 Status line (2026-07-07, evidence-graded): **Zero learned estimators exist today** — the
 9-agent audit found no training code, no model artifacts, no inference path in
 `C:\pneuma-lab` [VERIFIED absence]. What DOES exist is the substrate this phase trains on:

@@ -1,5 +1,9 @@
 # 06 — Dataset-to-Evidence Map
 
+> **Historical snapshot (2026-07-07).** Dataset counts and adapter/module status
+> below are point-in-time audit claims. See
+> [`docs/project-status.json`](../project-status.json) for current truth.
+
 **Status (2026-07-07):** 10 SWE dataset groups are local and inventoried under `C:\pneuma-data` (37,711 files, 48.95 GB, pinned revision SHAs in `C:\pneuma-data\manifests\provenance_dossiers.json`) [VERIFIED]. Exactly two dataset→PneumaTrace adapters are shipped: `src/pneuma_lab/adapters/swe_gym_lite.py` (230 task-only traces, world+governance frames, `has_trajectory=false`, committed) [VERIFIED] and `src/pneuma_lab/adapters/openhands_sampled.py` (6,055/6,055 trajectory-bearing traces, 114,461 real agent steps, 491 resolved / 5,564 unresolved labels, byte-deterministic twice-run sha256 match, deterministic PII redaction; **uncommitted working-tree state**) [VERIFIED]. No learned estimator, no eval suite, and no harness replay path consumes any adapter output today — the pipe from `adapters/` into `replay/harness.py` does not exist [VERIFIED gap]. Everything below the two shipped adapters is design, graded NEAR/FAR/NONE. Corpus row-count honesty: the global inventory's "8,521,307 verified rows" mixes JSONL line counts with parsed records; the honest parsed-record total is ≈5.99M (swe-chat parsed = 3,098,007 vs 5,626,805 lines) [VERIFIED].
 
 Scope of this document: map the 10 datasets onto the program's 12 evidence targets; grade every cell; specify per-dataset signal, required PneumaTrace extensions, leakage/contamination risk, and privacy class; order the adapter build queue by evidence-value per engineering cost; and state plainly which targets no local dataset can evidence. Sibling documents in `docs/research/` cover the evidence ladder, the harness methodology, and the RSI roadmap; this document is the data plane.

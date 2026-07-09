@@ -1,9 +1,4 @@
-"""Scaffolding tests: every I/O contract schema exists, parses, and is coherent.
-
-Deliberately lightweight (this is a migration/scaffolding pass): we prove the
-contracts are well-formed and the empty package structure imports. We do NOT test
-behavior of a runtime that does not exist yet.
-"""
+"""Registry tests: every contract and status schema is valid and discoverable."""
 
 from __future__ import annotations
 
@@ -17,6 +12,7 @@ from pneuma_lab import schemas as pls
 EXPECTED_INPUT_COUNT = 5
 EXPECTED_OUTPUT_COUNT = 8
 EXPECTED_TRAINING_COUNT = 3
+EXPECTED_MANIFEST_COUNT = 1
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
 }
@@ -31,9 +27,14 @@ def test_expected_counts() -> None:
     assert len(pls.OUTPUT_SCHEMA_FILES) == EXPECTED_OUTPUT_COUNT
     assert len(pls.ENVELOPE_SCHEMA_FILES) == 1
     assert len(pls.TRAINING_SCHEMA_FILES) == EXPECTED_TRAINING_COUNT
+    assert len(pls.MANIFEST_SCHEMA_FILES) == EXPECTED_MANIFEST_COUNT
     assert (
         len(pls.ALL_SCHEMA_FILES)
-        == EXPECTED_INPUT_COUNT + EXPECTED_OUTPUT_COUNT + 1 + EXPECTED_TRAINING_COUNT
+        == EXPECTED_INPUT_COUNT
+        + EXPECTED_OUTPUT_COUNT
+        + 1
+        + EXPECTED_TRAINING_COUNT
+        + EXPECTED_MANIFEST_COUNT
     )
 
 
@@ -91,8 +92,7 @@ def test_package_metadata() -> None:
     assert len(OUTPUT_FRAMES) == EXPECTED_OUTPUT_COUNT
 
 
-def test_empty_subpackages_import() -> None:
-    # The scaffold seams must import cleanly even though they are empty.
+def test_public_subpackages_import() -> None:
     import pneuma_lab.adapters  # noqa: F401
     import pneuma_lab.evals  # noqa: F401
     import pneuma_lab.replay  # noqa: F401
@@ -120,13 +120,20 @@ def test_envelope_bucket_registered() -> None:
     assert "pneuma-trace.schema.json" in pls.ALL_SCHEMA_FILES
 
 
-def test_training_example_bucket_registered() -> None:
+def test_training_schema_bucket_registered() -> None:
     assert pls.TRAINING_SCHEMA_FILES == (
         "pneuma-training-example.schema.json",
         "estimator-run-manifest.schema.json",
         "estimator-training-authorization.schema.json",
     )
     assert "pneuma-training-example.schema.json" in pls.ALL_SCHEMA_FILES
+
+
+def test_manifest_schema_bucket_registered() -> None:
+    assert pls.MANIFEST_SCHEMA_FILES == ("project-status.schema.json",)
+    schema = pls.load_schema("project-status.schema.json")
+    assert schema["x-pneuma-schema-kind"] == "manifest"
+    assert "project-status.schema.json" in pls.ALL_SCHEMA_FILES
 
 
 def test_envelope_schema_shape() -> None:

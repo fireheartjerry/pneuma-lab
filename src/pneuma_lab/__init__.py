@@ -5,17 +5,15 @@ scar-tissue memory, self-modeling, authority pressure, and consciousness-relevan
 evaluation. It is the external lab for the Human-Nature / Psyche architecture
 prototyped inside 9to5 (see docs/source-map.md).
 
-This first pass is scaffolding + I/O contracts only. No runtime, no ML training,
-no wiring back into 9to5. See docs/vision.md and migration/MIGRATION_REPORT.md.
+The package now includes schema validation, deterministic replay, paired
+interventions, offline dataset adapters, a trace-to-replay bridge, guarded
+training-example conversion, and offline advisory estimators. Its strongest
+evidence result is internal-harness methodology validation; it does not evaluate
+a real subject or claim phenomenal consciousness.
 
-The package is deliberately thin: the SCHEMAS (see the repo-root ``schemas/``
-directory) are the real contract. Python sub-packages are empty seams to be
-filled in later phases:
-
-    - schemas   : schema loading + validation helpers (Phase 1)
-    - adapters  : translate 9to5 / manager-data records into Pneuma frames (Phase 1)
-    - replay    : deterministic replay of recorded runs through the contracts (Phase 1)
-    - evals     : intervention tests + evidence scoring (Phase 3+)
+Pneuma remains standalone: there is no live wiring back into 9to5, no operational
+nervous-system loop, and no JSpace/J-lens implementation. See
+``docs/project-status.json`` for the canonical current state and blockers.
 """
 
 from __future__ import annotations

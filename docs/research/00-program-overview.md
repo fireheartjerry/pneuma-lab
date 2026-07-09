@@ -1,5 +1,10 @@
 # 00 â€” Research Program Overview
 
+Current implementation and blocker state is canonical in
+[`docs/project-status.json`](../project-status.json). The numbered research docs
+are dated evidence and design records; read their snapshot banners before treating
+component-status language as current.
+
 **Written 2026-07-07.** This directory is the evidence-graded research program for
 9to5 / Pneuma Lab: the path from today's Level-4 methodology validation toward
 Level-5 consciousness-relevant evidence, AGI-grade SWE autonomy (as a scoped,
@@ -7,9 +12,10 @@ falsifiable engineering grade), and domain-specific recursive self-improvement â
 with the Level-6 phenomenal-consciousness boundary defined strictly and the
 prohibited-claims discipline binding throughout.
 
-**Ground truth first.** Every document here is grounded in the 2026-07-07
+**Ground truth first.** Start with `docs/project-status.json` for current state,
+then use `01` for the 2026-07-07 audit. Every document here is grounded in the 2026-07-07
 nine-agent code audit of the three repos and graded
-[VERIFIED]/[PARTIAL]/[PLANNED]/[UNSUPPORTED]. Start with `01`.
+[VERIFIED]/[PARTIAL]/[PLANNED]/[UNSUPPORTED].
 
 | Doc                                | Deliverable                                                                                                                                                        |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

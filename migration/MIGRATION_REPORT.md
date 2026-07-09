@@ -1,5 +1,9 @@
 # Pneuma Lab — Migration Report (Pass 1: scaffolding + I/O contracts)
 
+> **Historical snapshot (2026-07-06).** This report records the initial migration
+> pass; its “known gaps” are not current status. See
+> [`docs/project-status.json`](../docs/project-status.json) for current truth.
+
 - **Date:** 2026-07-06
 - **Scope:** initial migration + I/O-definition only. No runtime, no ML, no wiring
     back into 9to5, no merge of PR #38.

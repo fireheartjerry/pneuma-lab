@@ -1,5 +1,7 @@
 # Dataset Adapters (Phase 3)
 
+Current project status: [`docs/project-status.json`](../project-status.json).
+
 `src/pneuma_lab/adapters/` converts external SWE datasets into durable, validated,
 byte-deterministic **`PneumaTrace`** artifacts.
 
@@ -54,7 +56,15 @@ Design + plan:
 - `docs/superpowers/specs/2026-07-07-swe-gym-lite-pneuma-trace-adapter-design.md`
 - `docs/superpowers/plans/2026-07-07-swe-gym-lite-pneuma-trace-adapter.md`
 
-## Next
+## Trajectory-bearing adapters and replay bridge
 
-Phase 3.1: fuzzy-join `OpenHands-SFT-Trajectories` → real `agent-trace-frame`s.
-Then reuse the envelope for SWE-bench, Multi-SWE-bench, and (privacy-gated) SWE-chat.
+- `openhands_sampled.py` emits trajectory-bearing traces with task joins and
+  observable-only agent steps.
+- `openhands_verifier.py` emits verifier trajectories while preserving its
+  missing task/run identity caveats rather than guessing joins.
+- `replay/bridge.py` expands a trajectory-bearing PneumaTrace into a per-step
+  replay timeline; the E-0 experiment exercised this path at corpus scale.
+
+These are offline research adapters, not a 9to5 exporter or live integration.
+SWE-chat remains privacy-gated, and no adapter output establishes an interiority
+or consciousness claim.

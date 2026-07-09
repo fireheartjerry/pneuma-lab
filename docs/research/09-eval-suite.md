@@ -1,5 +1,9 @@
 # 09 — Level 5 / AGI / RSI Eval Suite: Proving Pneuma Materially Improves 9to5 Judgment
 
+> **Historical snapshot (2026-07-07).** The experiment design remains useful, but
+> its top-level module and commit-state inventory is stale. See
+> [`docs/project-status.json`](../project-status.json) for current truth.
+
 Status (2026-07-07, evidence-graded):
 
 - What exists today that this suite builds on: the three-arm paired replay runner

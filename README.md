@@ -10,6 +10,9 @@ lifts the _ideas and contracts_ into a clean environment where interior states c
 be defined, replayed, **perturbed**, and **externally audited** — without a
 production agent's constraints.
 
+Canonical current state and blockers: [`docs/project-status.json`](docs/project-status.json).
+Verify it with `python -m pneuma_lab.status --check`.
+
 > Pneuma Lab does not claim present phenomenal consciousness by assertion.
 > It is designed to build and evaluate progressively stronger machine interiority:
 > persistent, integrated, valenced, self-modeling, causally active, perturbable,
@@ -49,6 +52,15 @@ stays ≤ 3). Hard-capped at **4** — no Level-5 claim; offline learned estimat
 raise this evidence level; no wiring back into 9to5. See
 [`migration/MIGRATION_REPORT.md`](migration/MIGRATION_REPORT.md) and
 the Phase-1/Phase-2 design/plans under `docs/superpowers/`.
+
+**Offline research surfaces.** Three deterministic dataset adapters, the
+PneumaTrace-to-replay bridge, guarded training-example converters, split/readiness
+governance, and advisory E1/E2 estimators are implemented. New training remains
+unauthorized, and the trainer now refuses runs without tracked, hash- and
+code-bound local-research authorization. None of these
+surfaces is wired into 9to5, operates as an RSI loop, or raises an evidence level.
+JSpace/J-lens has an experiment-readiness contract but no implementation or model
+access.
 
 The v0.2 promotion path is deliberately certified only for the exact deterministic
 `ReferencePsyche` factory. Custom subjects remain diagnostic (≤ Level 3) until a
@@ -125,20 +137,22 @@ demo exits non-zero if byte-determinism ever regresses. Full walk-through:
 ## Layout
 
 ```
-schemas/                     JSON Schema contracts (13 frames + envelopes/training)
+schemas/                     JSON Schema contracts (13 frames + envelope/training/status)
     world-frame · agent-trace-frame · memory-frame · governance-frame · intervention-frame   (5 inputs)
     psyche-state-frame · workspace-broadcast · instinct-signal · control-pressure-vector ·
     authority-request · causal-trace · consciousness-evidence-frame · grounded-self-report    (8 outputs)
 
 docs/
+    project-status.json          canonical machine-readable current state + blockers
     vision.md                  what this is and why
     io-contract.md             human-readable map of the 13 frames + invariants
-    consciousness-levels.md    the 0–5 evidence ladder (near-term target: Level 4)
+    consciousness-levels.md    the 0–5 evidence ladder + strict Level-6 boundary
     level4-evidence-demo.md    plain-English walk-through of the canonical L3-vs-L4 demo
     source-map.md              schema ↔ 9to5 module cross-walk
+    research/jspace-readiness.md  preregistered workspace/J-lens research contract
     migration-notes.md         how the scaffold was derived + gotchas
 
-src/pneuma_lab/              schemas are the real contract; Phases 1–2 add live surfaces
+src/pneuma_lab/              contracts + implemented internal/offline research surfaces
     schemas/                   schema load helpers + validate.py (frame validation)
     psyche/                    PsycheUnderTest interface + ReferencePsyche (Level-3 mind
                                + Level-4 perturbation hooks) + ported pure math
@@ -147,7 +161,11 @@ src/pneuma_lab/              schemas are the real contract; Phases 1–2 add liv
     evals/                     ConsciousnessEvidenceScorer (Level 0–4, honest refusal)
     demo.py                    `python -m pneuma_lab.demo` — regenerates the canonical
                                Level 3 vs Level 4 evidence suite under build/canonical/
-    adapters/                  empty seam (Phase 3: 9to5-trace adapters)
+    adapters/                  deterministic SWE-Gym/OpenHands dataset-to-trace adapters
+    converters/                guarded PneumaTrainingExample conversion
+    training/                  fail-closed run preflight; no positive authorization
+    estimators/                offline advisory E1/E2 models; no runtime integration
+    status.py                  validates and reports docs/project-status.json
 
 fixtures/
     sample_run.jsonl           a failure-motif escalation timeline (input frames)
@@ -191,6 +209,7 @@ no-op. Full map: [`docs/io-contract.md`](docs/io-contract.md).
 
 ```bash
 pip install -e ".[dev]"             # jsonschema (runtime) + pytest
+python -m pneuma_lab.status --check  # canonical status + checkout coherence
 python -m pytest tests/ -q          # schema + psyche + replay + evidence + determinism
 python -m pneuma_lab.replay fixtures/sample_run.jsonl -o build/replay
 ```
@@ -203,5 +222,8 @@ output frame (evaluation Layer A).
 
 - Pneuma Lab never imports from — nor is imported by — 9to5.
 - No 9to5 production code, branch, or PR (#38) is modified by this project.
+- Pneuma is not an operational 9to5 nervous system; every host integration edge
+  beyond offline trace replay remains blocked.
+- JSpace/J-lens work has no implementation, configured model access, or result.
 - manager-data is **possible future operator-preference context only**, never the
   base mind and never overfit to. No data/secrets were copied.

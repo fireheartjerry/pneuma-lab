@@ -1,11 +1,11 @@
-"""Schema loading helpers for Pneuma Lab I/O contracts.
+"""Schema loading helpers for Pneuma Lab contracts and manifests.
 
 The JSON Schema files live in the repo-root ``schemas/`` directory (NOT inside
 the package) so they are language-agnostic and easy to diff against the 9to5
 source modules. This module locates that directory and loads the schemas as
-plain dicts. Validation against them (via ``jsonschema``) is a Phase-1 concern;
-for now we only need load + parse so scaffolding tests can prove every contract
-is well-formed.
+plain dicts. The explicit registry keeps frames, envelopes, training controls,
+and project-state manifests discoverable and makes accidental schema drift fail
+the test suite.
 """
 
 from __future__ import annotations
@@ -17,8 +17,7 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_DIR = _REPO_ROOT / "schemas"
 
-# All first-pass contracts. Kept explicit so a missing or accidentally-added
-# schema file is caught by the scaffolding test.
+# Kept explicit so a missing or accidentally-added schema is caught by tests.
 INPUT_SCHEMA_FILES = (
     "world-frame.schema.json",
     "agent-trace-frame.schema.json",
@@ -46,11 +45,14 @@ TRAINING_SCHEMA_FILES = (
     "estimator-training-authorization.schema.json",
 )
 
+MANIFEST_SCHEMA_FILES = ("project-status.schema.json",)
+
 ALL_SCHEMA_FILES = (
     INPUT_SCHEMA_FILES
     + OUTPUT_SCHEMA_FILES
     + ENVELOPE_SCHEMA_FILES
     + TRAINING_SCHEMA_FILES
+    + MANIFEST_SCHEMA_FILES
 )
 
 
@@ -66,7 +68,7 @@ def load_schema(filename: str) -> dict:
 
 
 def load_all_schemas() -> dict[str, dict]:
-    """Load every first-pass schema, keyed by filename."""
+    """Load every registered schema, keyed by filename."""
     return {name: load_schema(name) for name in ALL_SCHEMA_FILES}
 
 
@@ -76,6 +78,7 @@ __all__ = [
     "OUTPUT_SCHEMA_FILES",
     "ENVELOPE_SCHEMA_FILES",
     "TRAINING_SCHEMA_FILES",
+    "MANIFEST_SCHEMA_FILES",
     "ALL_SCHEMA_FILES",
     "schema_path",
     "load_schema",

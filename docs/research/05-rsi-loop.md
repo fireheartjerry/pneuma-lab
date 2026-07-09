@@ -1,5 +1,10 @@
 # 05 — Domain-Specific RSI Integration Design: the 9to5 x Pneuma Lab x pneuma-data Loop
 
+> **Historical snapshot (2026-07-07).** The target loop remains design, but some
+> component-status statements below predate the replay bridge and offline
+> estimators. See [`docs/project-status.json`](../project-status.json) for current
+> implementation and blockers.
+
 **Status line (2026-07-07).** Nothing that exists today constitutes recursive self-improvement.
 What exists: a production autonomous engineering agent (C:\9to5) with real persistent memory and
 retrieval-injected experience [VERIFIED], a dormant LoRA/DPO substrate that has never produced an

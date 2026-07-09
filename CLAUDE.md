@@ -4,9 +4,11 @@ Pneuma Lab is a standalone research and evaluation harness for machine psyche:
 software-engineering cognition, continuous affect, instinct, scar-tissue memory,
 self-modeling, authority pressure, and consciousness-relevant evaluation.
 
-This repo is intentionally smaller and cleaner than 9to5. Treat the JSON schemas
-as the current source of truth; runtime, replay, adapters, and evals are still
-scaffold seams.
+This repo is intentionally smaller and cleaner than 9to5. Read
+`docs/project-status.json` first for current implementation and blocker state;
+the JSON schemas remain the observable contract surface. Replay, paired
+interventions, dataset adapters, conversion guardrails, and offline estimators
+exist, but live 9to5 integration and JSpace/J-lens experiments do not.
 
 ## Vocabulary
 
@@ -24,6 +26,7 @@ scaffold seams.
 
 ## Read When Relevant
 
+- Current machine-readable status: `docs/project-status.json`
 - Project overview: `README.md`
 - Research program (evidence-graded; start at the overview): `docs/research/00-program-overview.md`
 - Architecture intent: `docs/vision.md`
@@ -71,10 +74,21 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
   PneumaTrace envelope (`envelope.py`, incl. the v0.2 anti-fake-cognition
   `consistency_errors` gate), the task-only SWE-Gym-Lite adapter
   (`swe_gym_lite.py`), the observable-only trajectory extraction rules
-  (`trajectory.py`), and the trajectory-bearing OpenHands-Sampled adapter
-  (`openhands_sampled.py`). See `docs/phase-3-1-trajectory-traces.md`.
+  (`trajectory.py`), and the trajectory-bearing OpenHands-Sampled and
+  OpenHands-Verifier adapters (`openhands_sampled.py`, `openhands_verifier.py`).
+  See `docs/phase-3-1-trajectory-traces.md`.
   Agent-trace frames are permitted ONLY when a real recorded trajectory
   exists; raw trajectory text never enters frames (digests + lengths only).
+- `src/pneuma_lab/replay/bridge.py` expands trajectory-bearing PneumaTrace
+  envelopes into deterministic per-step replay timelines.
+- `src/pneuma_lab/converters/` and `src/pneuma_lab/training/` implement guarded,
+  repo-local training-example conversion, split policy, readiness checks, and a
+  tracked authorization/code/source-bound estimator preflight. No current
+  manifest positively authorizes a training run.
+- `src/pneuma_lab/estimators/` contains deterministic offline E1/E2 advisory
+  estimators. They are not runtime control wiring or consciousness evidence.
+- `src/pneuma_lab/status.py` validates and reports the canonical current-state
+  manifest with `python -m pneuma_lab.status --check`.
 - `fixtures/sample_run.jsonl` is a failure-motif escalation timeline used by the
   replay tests and CLI. `fixtures/interventions/` holds the canonical Level-4
   scenarios (ablate scar graph, clamp tension, boost curiosity, remove identity
@@ -98,7 +112,8 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
   does not assert present phenomenal consciousness.
 - Preserve verifier invariance: evidence and verdicts are additive/auditable,
   never overwritten by the psyche under test.
-- Prefer narrow, schema-first changes until runtime/replay/eval surfaces exist.
+- Prefer narrow, schema-first changes and preserve implemented replay/eval
+  invariants.
 - Use 4-space indentation across source, schemas, and docs.
 - Avoid adding heavy dependencies without a concrete phase that needs them.
 - Do not touch secrets, `.git`, caches, virtualenvs, or private datasets unless
@@ -107,7 +122,7 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
 ## Fast Editing Loop
 
 1. Inspect the closest contract or doc before editing.
-2. Make the smallest change that preserves the current scaffold boundary.
+2. Make the smallest change that preserves the current standalone boundary.
 3. Run the focused tests.
 4. If a schema changed, verify all schemas parse and validate.
 5. Update the nearest doc when a frame meaning, invariant, command, or workflow
@@ -118,6 +133,7 @@ Useful commands:
 ```txt
 python -m pytest tests/ -q
 pip install -e ".[dev]"
+python -m pneuma_lab.status --check
 python -m pytest tests/test_schema_loads.py -q
 git diff --check
 ```
@@ -126,7 +142,8 @@ git diff --check
 
 - JSON schemas use Draft 2020-12 and 4-space indentation.
 - Every frame declares `$schema`, `$id`, `title`, `description`, `type`,
-  `x-pneuma-frame-kind`, and `x-pneuma-version`.
+  `x-pneuma-frame-kind`, and `x-pneuma-version`; non-frame manifests declare
+  `x-pneuma-schema-kind` instead.
 - Required fields should stay minimal until runtime producers exist.
 - Put semantics in descriptions when shape stability is still unknown.
 - Keep input/output partitioning aligned with `src/pneuma_lab/schemas/__init__.py`.

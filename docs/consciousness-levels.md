@@ -2,6 +2,9 @@
 
 Pneuma Lab is an **evidence-graded, consciousness-relevant** research project.
 
+Canonical current implementation and blocker status:
+[`docs/project-status.json`](project-status.json).
+
 > Pneuma Lab does not claim present phenomenal consciousness by assertion.
 > It is designed to build and evaluate progressively stronger machine interiority:
 > persistent, integrated, valenced, self-modeling, causally active, perturbable,

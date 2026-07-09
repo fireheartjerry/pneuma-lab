@@ -1,5 +1,7 @@
 # Pneuma Lab — Vision
 
+Current implementation and blocker status: [`docs/project-status.json`](project-status.json).
+
 ## What this is
 
 **Pneuma Lab** is a standalone research project for _machine psyche_: software-
@@ -49,12 +51,17 @@ evidence.
 6. **Evaluate by intervention, not by vibe.** The load-bearing test is causal:
     perturb an internal state, predict the bounded downstream change, and check it.
 
-## What Pneuma Lab is NOT (this pass)
+## Current boundaries
 
-- Not a runtime. There is no live psyche loop here yet.
-- Not an ML training project. No models are trained or fine-tuned.
-- Not wired into 9to5. Pneuma Lab never imports from, or is imported by, 9to5.
-- Not a consciousness _claim_. See `consciousness-levels.md`.
+- The deterministic replay/intervention runtime is an **internal harness**, not a
+    deployed psyche or a real-subject consciousness result.
+- Offline E1/E2 estimators exist, but they are advisory research artifacts. New
+    training remains unauthorized; the trainer enforces a fail-closed, tracked
+    authorization preflight, and nothing is wired into runtime control.
+- Pneuma is not wired into 9to5. It never imports from, or is imported by, 9to5.
+- JSpace/J-lens work has a readiness contract only; no probe, model access, or
+    result exists.
+- Pneuma makes no present consciousness claim. See `consciousness-levels.md`.
 
 ## The shape of the lab (target)
 
@@ -72,7 +79,8 @@ InterventionFrame ───┘         ▲    │            Authority,       �
 ```
 
 The **contracts** (the `schemas/` directory + `io-contract.md`) are the stable
-core. The replay harness, adapters, and evals are built on top in later phases.
+core. Replay, adapters, interventions, and evals are implemented on top; live
+integration and real-subject evidence remain future gated work.
 
 ## North star
 

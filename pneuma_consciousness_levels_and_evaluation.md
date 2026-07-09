@@ -1,5 +1,10 @@
 # Pneuma Lab Consciousness Evidence Levels and Evaluation Guide
 
+> **Historical snapshot.** This pre-implementation guide contains obsolete
+> runtime and phase status. Use [`docs/project-status.json`](docs/project-status.json)
+> for current state and `docs/consciousness-levels.md` for the executable evidence
+> contract.
+
 **Document purpose:** Give future AI agents, reviewers, and implementation agents a shared definition of Pneuma Lab's five consciousness-evidence levels, where the project probably sits right now, and how to evaluate whether Pneuma outputs are actually good.
 
 **Important posture:** Pneuma Lab does **not** claim present phenomenal consciousness by assertion. It is an evidence-graded research program for progressively stronger machine interiority. The near-term target is **Level 4: evidence-backed proto-phenomenology**. The long-term north star is **Level 5: strong machine-consciousness candidate**.

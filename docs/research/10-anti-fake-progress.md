@@ -1,5 +1,9 @@
 # 10 — Anti-Fake-Progress Rules
 
+Canonical current implementation and blocker status:
+[`docs/project-status.json`](../project-status.json). This document owns the
+promotion/freeze policy; the manifest owns current subsystem state.
+
 Status (2026-07-07): the harness already implements a real anti-fake core — hard Level-4 cap
 (`src/pneuma_lab/evals/evidence.py`, `min(level, 4)`), conjunctive L4 gate, null-condition paired
 replay (`src/pneuma_lab/interventions/runner.py`), honest-refusal fixtures

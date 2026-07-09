@@ -1,0 +1,650 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/project-status.schema.json",
+    "title": "PneumaProjectStatus",
+    "description": "Canonical machine-readable status for Pneuma Lab. This manifest separates implemented internal methodology from real-subject, integration, training, RSI, and JSpace claims.",
+    "type": "object",
+    "x-pneuma-schema-kind": "manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "$schema",
+        "manifest_kind",
+        "manifest_schema_version",
+        "as_of",
+        "project",
+        "evidence",
+        "systems",
+        "nine_to_five",
+        "jspace",
+        "training_and_rsi",
+        "artifact_policy",
+        "authoritative_docs",
+        "historical_snapshots",
+        "blockers"
+    ],
+    "properties": {
+        "$schema": {
+            "const": "../schemas/project-status.schema.json"
+        },
+        "manifest_kind": {
+            "const": "pneuma_project_status"
+        },
+        "manifest_schema_version": {
+            "const": "0.1.0"
+        },
+        "as_of": {
+            "type": "string",
+            "format": "date"
+        },
+        "project": {
+            "$ref": "#/$defs/project"
+        },
+        "evidence": {
+            "$ref": "#/$defs/evidence"
+        },
+        "systems": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "$ref": "#/$defs/status_record"
+            }
+        },
+        "nine_to_five": {
+            "$ref": "#/$defs/nine_to_five"
+        },
+        "jspace": {
+            "$ref": "#/$defs/jspace"
+        },
+        "training_and_rsi": {
+            "$ref": "#/$defs/training_and_rsi"
+        },
+        "artifact_policy": {
+            "$ref": "#/$defs/artifact_policy"
+        },
+        "authoritative_docs": {
+            "$ref": "#/$defs/path_list"
+        },
+        "historical_snapshots": {
+            "$ref": "#/$defs/path_list"
+        },
+        "blockers": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/blocker"
+            }
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "repo_path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*[:\\\\]).+$"
+        },
+        "path_list": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/repo_path"
+            },
+            "uniqueItems": true
+        },
+        "id_list": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "string",
+                "minLength": 1
+            },
+            "uniqueItems": true
+        },
+        "blocker_refs": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": "^B-[A-Z0-9-]+$"
+            },
+            "uniqueItems": true
+        },
+        "status": {
+            "enum": [
+                "implemented",
+                "partial",
+                "specified",
+                "in_progress",
+                "not_implemented",
+                "blocked",
+                "boundary_only"
+            ]
+        },
+        "project": {
+            "type": "object",
+            "required": [
+                "role",
+                "integration_mode",
+                "phenomenal_consciousness_claim",
+                "operational_nervous_system"
+            ],
+            "properties": {
+                "role": {
+                    "const": "standalone_research_evaluation_harness"
+                },
+                "integration_mode": {
+                    "const": "standalone"
+                },
+                "phenomenal_consciousness_claim": {
+                    "const": "not_claimed"
+                },
+                "operational_nervous_system": {
+                    "const": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "status_record": {
+            "type": "object",
+            "required": [
+                "id",
+                "status",
+                "scope",
+                "evidence_refs",
+                "blockers"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "status": {
+                    "$ref": "#/$defs/status"
+                },
+                "scope": {
+                    "enum": [
+                        "standalone",
+                        "internal_harness",
+                        "offline_research",
+                        "production_9to5",
+                        "none"
+                    ]
+                },
+                "evidence_refs": {
+                    "$ref": "#/$defs/path_list"
+                },
+                "blockers": {
+                    "$ref": "#/$defs/blocker_refs"
+                }
+            },
+            "additionalProperties": false
+        },
+        "implementation_record": {
+            "type": "object",
+            "required": [
+                "status",
+                "evidence_refs",
+                "blockers"
+            ],
+            "properties": {
+                "status": {
+                    "$ref": "#/$defs/status"
+                },
+                "evidence_refs": {
+                    "$ref": "#/$defs/path_list"
+                },
+                "blockers": {
+                    "$ref": "#/$defs/blocker_refs"
+                }
+            },
+            "additionalProperties": false
+        },
+        "gated_evidence_record": {
+            "type": "object",
+            "required": [
+                "status",
+                "blockers"
+            ],
+            "properties": {
+                "status": {
+                    "$ref": "#/$defs/status"
+                },
+                "evidence_refs": {
+                    "$ref": "#/$defs/path_list"
+                },
+                "blockers": {
+                    "$ref": "#/$defs/blocker_refs"
+                }
+            },
+            "additionalProperties": false
+        },
+        "evidence": {
+            "type": "object",
+            "required": [
+                "executable_contract",
+                "evaluation_scope",
+                "real_subject_claim_status",
+                "internal_harness_ceiling",
+                "strongest_result",
+                "real_subject_level4",
+                "level5",
+                "level6",
+                "negative_results"
+            ],
+            "properties": {
+                "executable_contract": {
+                    "const": "consciousness-evidence-frame/0.2.0"
+                },
+                "evaluation_scope": {
+                    "const": "internal_harness"
+                },
+                "real_subject_claim_status": {
+                    "const": "not_evaluated"
+                },
+                "internal_harness_ceiling": {
+                    "const": 4
+                },
+                "strongest_result": {
+                    "$ref": "#/$defs/strongest_result"
+                },
+                "real_subject_level4": {
+                    "allOf": [
+                        {
+                            "$ref": "#/$defs/gated_evidence_record"
+                        },
+                        {
+                            "properties": {
+                                "status": {
+                                    "const": "not_implemented"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "level5": {
+                    "allOf": [
+                        {
+                            "$ref": "#/$defs/gated_evidence_record"
+                        },
+                        {
+                            "properties": {
+                                "status": {
+                                    "const": "blocked"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "level6": {
+                    "$ref": "#/$defs/level6"
+                },
+                "negative_results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/negative_result"
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "strongest_result": {
+            "type": "object",
+            "required": [
+                "id",
+                "status",
+                "scope",
+                "claim",
+                "evidence_refs",
+                "blockers"
+            ],
+            "properties": {
+                "id": {
+                    "const": "reference_psyche_internal_level4_methodology"
+                },
+                "status": {
+                    "const": "implemented"
+                },
+                "scope": {
+                    "const": "internal_harness"
+                },
+                "claim": {
+                    "const": "methodology_validation_only"
+                },
+                "evidence_refs": {
+                    "$ref": "#/$defs/path_list"
+                },
+                "blockers": {
+                    "$ref": "#/$defs/blocker_refs"
+                }
+            },
+            "additionalProperties": false
+        },
+        "level6": {
+            "type": "object",
+            "required": [
+                "status",
+                "roadmap_milestone",
+                "evidence_exists",
+                "evidence_refs",
+                "blockers"
+            ],
+            "properties": {
+                "status": {
+                    "const": "boundary_only"
+                },
+                "roadmap_milestone": {
+                    "const": false
+                },
+                "evidence_exists": {
+                    "const": false
+                },
+                "evidence_refs": {
+                    "$ref": "#/$defs/path_list"
+                },
+                "blockers": {
+                    "$ref": "#/$defs/blocker_refs"
+                }
+            },
+            "additionalProperties": false
+        },
+        "negative_result": {
+            "type": "object",
+            "required": [
+                "id",
+                "verdict",
+                "evidence_refs"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "verdict": {
+                    "enum": [
+                        "failed_preregistered_hypotheses",
+                        "passed_preregistered_hypotheses",
+                        "inconclusive",
+                        "not_run"
+                    ]
+                },
+                "evidence_refs": {
+                    "$ref": "#/$defs/path_list"
+                }
+            },
+            "additionalProperties": false
+        },
+        "nine_to_five": {
+            "type": "object",
+            "required": [
+                "direct_import_policy",
+                "operational_nervous_system",
+                "required_edge_ids",
+                "edges"
+            ],
+            "properties": {
+                "direct_import_policy": {
+                    "const": "forbidden"
+                },
+                "operational_nervous_system": {
+                    "const": false
+                },
+                "required_edge_ids": {
+                    "$ref": "#/$defs/id_list"
+                },
+                "edges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/integration_edge"
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "integration_edge": {
+            "type": "object",
+            "required": [
+                "id",
+                "status",
+                "evidence_refs",
+                "blockers"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "status": {
+                    "$ref": "#/$defs/status"
+                },
+                "evidence_refs": {
+                    "$ref": "#/$defs/path_list"
+                },
+                "blockers": {
+                    "$ref": "#/$defs/blocker_refs"
+                }
+            },
+            "additionalProperties": false
+        },
+        "jspace": {
+            "type": "object",
+            "required": [
+                "status",
+                "claim_relevance",
+                "supports_consciousness_claim",
+                "readiness_contract",
+                "workspace_harness_substrate",
+                "black_gray_box_workspace_probes",
+                "white_box_jlens",
+                "causal_negative_controls"
+            ],
+            "properties": {
+                "status": {
+                    "const": "not_implemented"
+                },
+                "claim_relevance": {
+                    "const": "workspace_interpretability_only"
+                },
+                "supports_consciousness_claim": {
+                    "const": false
+                },
+                "readiness_contract": {
+                    "$ref": "#/$defs/repo_path"
+                },
+                "workspace_harness_substrate": {
+                    "allOf": [
+                        {
+                            "$ref": "#/$defs/implementation_record"
+                        },
+                        {
+                            "properties": {
+                                "status": {
+                                    "const": "implemented"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "black_gray_box_workspace_probes": {
+                    "allOf": [
+                        {
+                            "$ref": "#/$defs/implementation_record"
+                        },
+                        {
+                            "properties": {
+                                "status": {
+                                    "const": "not_implemented"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "white_box_jlens": {
+                    "allOf": [
+                        {
+                            "$ref": "#/$defs/implementation_record"
+                        },
+                        {
+                            "properties": {
+                                "status": {
+                                    "const": "not_implemented"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "causal_negative_controls": {
+                    "allOf": [
+                        {
+                            "$ref": "#/$defs/implementation_record"
+                        },
+                        {
+                            "properties": {
+                                "status": {
+                                    "const": "not_implemented"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "training_and_rsi": {
+            "type": "object",
+            "required": [
+                "training_examples",
+                "offline_estimators",
+                "new_training_authorization",
+                "trainer_preflight",
+                "pneuma_brain_training",
+                "runtime_model_integration",
+                "rsi_loop",
+                "evidence_refs",
+                "blockers"
+            ],
+            "properties": {
+                "training_examples": {
+                    "const": "implemented_guarded"
+                },
+                "offline_estimators": {
+                    "const": "implemented_advisory_only"
+                },
+                "new_training_authorization": {
+                    "const": "not_authorized"
+                },
+                "trainer_preflight": {
+                    "$ref": "#/$defs/trainer_preflight"
+                },
+                "pneuma_brain_training": {
+                    "const": "not_started"
+                },
+                "runtime_model_integration": {
+                    "const": "none"
+                },
+                "rsi_loop": {
+                    "const": "not_operational"
+                },
+                "evidence_refs": {
+                    "$ref": "#/$defs/path_list"
+                },
+                "blockers": {
+                    "$ref": "#/$defs/blocker_refs"
+                }
+            },
+            "additionalProperties": false
+        },
+        "trainer_preflight": {
+            "type": "object",
+            "required": [
+                "status",
+                "integrated",
+                "training_authorization",
+                "evidence_refs",
+                "blockers"
+            ],
+            "properties": {
+                "status": {
+                    "$ref": "#/$defs/status"
+                },
+                "integrated": {
+                    "type": "boolean"
+                },
+                "training_authorization": {
+                    "const": "not_authorized"
+                },
+                "evidence_refs": {
+                    "$ref": "#/$defs/path_list"
+                },
+                "blockers": {
+                    "$ref": "#/$defs/blocker_refs"
+                }
+            },
+            "additionalProperties": false
+        },
+        "artifact_policy": {
+            "type": "object",
+            "required": [
+                "generated_root",
+                "default_tracking",
+                "canonical_evidence_record",
+                "tracked_records"
+            ],
+            "properties": {
+                "generated_root": {
+                    "const": "build"
+                },
+                "default_tracking": {
+                    "const": "ignored"
+                },
+                "canonical_evidence_record": {
+                    "$ref": "#/$defs/canonical_evidence_record"
+                },
+                "tracked_records": {
+                    "$ref": "#/$defs/path_list"
+                }
+            },
+            "additionalProperties": false
+        },
+        "canonical_evidence_record": {
+            "type": "object",
+            "required": [
+                "path",
+                "generation_command",
+                "required_for_claim_of_record",
+                "record_status"
+            ],
+            "properties": {
+                "path": {
+                    "const": "build/canonical/summary.json"
+                },
+                "generation_command": {
+                    "const": "python -m pneuma_lab.demo --official"
+                },
+                "required_for_claim_of_record": {
+                    "const": true
+                },
+                "record_status": {
+                    "enum": [
+                        "absent",
+                        "present"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "blocker": {
+            "type": "object",
+            "required": [
+                "id",
+                "summary"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^B-[A-Z0-9-]+$"
+                },
+                "summary": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}

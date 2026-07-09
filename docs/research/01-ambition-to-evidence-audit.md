@@ -1,5 +1,9 @@
 # 01 — Ambition-to-Evidence Audit
 
+> **Historical snapshot (2026-07-07).** Counts, commit state, and missing-module
+> claims below describe that audit date and are not current. See
+> [`docs/project-status.json`](../project-status.json) for current truth.
+
 Status (2026-07-07): What exists today, evidence-graded. Three disconnected repos. (a) `C:\pneuma-lab`: a deterministic consciousness-evidence harness that scores a hand-coded ReferencePsyche at internal Level 4 with pre-registered interventions, null controls, and honest refusal — 234/234 tests pass, byte-deterministic [VERIFIED], but the flagship intervention harness and all Phase 3.1 work are uncommitted working-tree state (HEAD `b3102c6`). (b) `C:\9to5`: a working autonomous engineering orchestrator (local Ollama brain, Claude Code CLI hands, deterministic verification gate, 4,555 collected tests) with a populated 37 MB experience ledger [VERIFIED] and zero Pneuma integration [VERIFIED]. (c) `C:\pneuma-data`: a 48.95 GB, 10-dataset, provenance-pinned corpus [VERIFIED], mostly inert relative to the evidence ladder except through two shipped adapters — Phase 3 (230 task-only traces) and Phase 3.1 (6,055 trajectory-bearing traces from real agent runs) [VERIFIED]. No wire connects the three repos at runtime. Nothing here demonstrates AGI, RSI, or machine consciousness; what is demonstrated is a methodology and a substrate.
 
 This document audits the stated ambition — AGI-grade autonomous software engineering, domain-specific recursive self-improvement, and a long-term path toward evidence about phenomenal machine consciousness — against what the system actually shows. Ambition is retained as target throughout; every capability claim is graded [VERIFIED] / [PARTIAL] / [PLANNED] / [UNSUPPORTED]. Sources: the 2026-07-07 nine-agent code audit (8 subsystem reports + cross-check) and the grounding brief; both were produced from direct reads of the three repos.
