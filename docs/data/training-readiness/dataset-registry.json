@@ -1,0 +1,191 @@
+{
+    "registry_schema_version": "0.1.0",
+    "registry_id": "pneuma-dataset-readiness",
+    "purpose": "Canonical graded dataset and training-readiness state; metadata-only and non-authorizing.",
+    "lanes": [
+        {
+            "lane_id": "swe-gym-openhands-sampled",
+            "name": "SWE-Gym OpenHands Sampled Trajectories",
+            "source_family": "swe-gym",
+            "owning_adapter": "pneuma_lab.adapters.openhands_sampled",
+            "current_stage": "preflight-only",
+            "training_readiness": "close-but-needs-human-authorization",
+            "authorization": {
+                "training_authorized": false,
+                "reason": "The fail-closed trainer still requires a tracked human authorization manifest, exact source/split hashes, frozen constants, approved output root, and clean authorized code binding."
+            },
+            "validation": {
+                "task_joins_validated": true,
+                "labels_validated": true,
+                "split_validated": true,
+                "leakage_controls_present": true
+            },
+            "blockers": [
+                "missing authorization manifest",
+                "training authorization is not granted",
+                "class imbalance and leakage controls require an approved training plan"
+            ],
+            "advancement_criteria": [
+                "explicit human training authorization",
+                "source and split hash reconciliation in the run manifest",
+                "frozen training constants and clean authorized code-state binding",
+                "approved output containment and leakage-scan evidence"
+            ],
+            "references": {
+                "docs": [
+                    {"path": "docs/data/onboarding/openhands-sampled.md"},
+                    {"path": "docs/data/conversion/openhands-sampled-to-training-examples.md"},
+                    {"path": "docs/data/training-readiness/openhands-sampled.md"},
+                    {"path": "docs/data/training-readiness/openhands-sampled-split-review.md"}
+                ],
+                "manifests": [
+                    {"path": "docs/data/registry/openhands-sampled.json"},
+                    {"path": "docs/data/training-readiness/openhands-sampled.json"},
+                    {"path": "docs/data/training-readiness/openhands-sampled-dataset1-infrastructure.json"}
+                ],
+                "fixtures": [
+                    {"path": "fixtures/adapters/openhands_sampled/golden/adapter_report.json"}
+                ],
+                "adapters": [
+                    {"path": "src/pneuma_lab/adapters/openhands_sampled.py"}
+                ],
+                "converters": [
+                    {"path": "src/pneuma_lab/converters/openhands_sampled_training.py"}
+                ],
+                "tests": [
+                    {"path": "tests/test_openhands_sampled_adapter.py"},
+                    {"path": "tests/test_openhands_sampled_training_converter.py"},
+                    {"path": "tests/test_training_governance.py"},
+                    {"path": "tests/test_estimator_preflight.py"}
+                ]
+            }
+        },
+        {
+            "lane_id": "dialogue-swe-bench",
+            "name": "Dialogue SWE-Bench",
+            "source_family": "dialogue-swe-bench",
+            "owning_adapter": null,
+            "current_stage": "license-blocked-for-release",
+            "training_readiness": "blocked",
+            "artifact_license": {"status": "undeclared", "paper_license_is_not_artifact_license": true},
+            "authorization": {"training_authorized": false, "reason": "Dataset artifact license and provenance terms are unresolved."},
+            "validation": {"task_joins_validated": false, "labels_validated": false, "split_validated": false, "leakage_controls_present": true},
+            "blockers": [
+                "missing or undeclared license",
+                "missing adapter",
+                "missing source-to-target label mapping",
+                "split leakage and benchmark contamination controls are not yet evidenced"
+            ],
+            "advancement_criteria": [
+                "explicit dataset artifact license and provenance evidence",
+                "fixture-first adapter and deterministic converter",
+                "explicit label provenance and leakage tests",
+                "grouped split validation and human authorization"
+            ],
+            "references": {
+                "docs": [
+                    {"path": "docs/data/onboarding/dialogue-swe-bench.md"},
+                    {"path": "docs/data/conversion/dialogue-swe-bench-to-training-examples.md"},
+                    {"path": "docs/data/training-readiness/dialogue-swe-bench-license-provenance-review.md"}
+                ],
+                "manifests": [
+                    {"path": "docs/data/registry/dialogue-swe-bench.json"},
+                    {"path": "docs/data/training-readiness/dialogue-swe-bench.json"}
+                ],
+                "fixtures": [
+                    {"path": "fixtures/training_examples/dialogue_swe_bench_synthetic_source.json"}
+                ],
+                "adapters": [],
+                "converters": [
+                    {"path": "src/pneuma_lab/converters/dialogue_swe_bench_training.py"}
+                ],
+                "tests": [
+                    {"path": "tests/test_dialogue_governance.py"},
+                    {"path": "tests/test_dialogue_swe_bench_training_converter.py"}
+                ]
+            }
+        },
+        {
+            "lane_id": "swe-gym-openhands-verifier",
+            "name": "SWE-Gym OpenHands Verifier Trajectories",
+            "source_family": "swe-gym",
+            "owning_adapter": "pneuma_lab.adapters.openhands_verifier",
+            "current_stage": "join-blocked",
+            "training_readiness": "blocked",
+            "authorization": {"training_authorized": false, "reason": "The adapter honestly records zero task joins; verifier labels are not yet validated as a training target."},
+            "validation": {"task_joins_validated": false, "labels_validated": false, "split_validated": false, "leakage_controls_present": false},
+            "blockers": [
+                "missing or unstable task joins",
+                "ambiguous label semantics: verifier verdict must not be coerced into task outcome",
+                "missing converter",
+                "target leakage and split controls are not yet evidenced"
+            ],
+            "advancement_criteria": [
+                "task/repo join validation with stable source keys",
+                "label provenance tests distinguishing verifier verdict from task outcome",
+                "fixture-first deterministic converter",
+                "target leakage and grouped split tests"
+            ],
+            "references": {
+                "docs": [],
+                "manifests": [],
+                "fixtures": [
+                    {"path": "fixtures/adapters/openhands_verifier/golden/adapter_report.json"},
+                    {"path": "fixtures/adapters/openhands_verifier/golden/pneuma_traces.jsonl"}
+                ],
+                "adapters": [
+                    {"path": "src/pneuma_lab/adapters/openhands_verifier.py"}
+                ],
+                "converters": [
+                    {"path": "src/pneuma_lab/converters/openhands_verifier_training.py", "planned": true}
+                ],
+                "tests": [
+                    {"path": "tests/test_openhands_verifier_adapter.py"},
+                    {"path": "tests/test_openhands_verifier_golden.py"}
+                ]
+            }
+        },
+        {
+            "lane_id": "swe-gym-lite",
+            "name": "SWE-Gym-Lite Task Rows",
+            "source_family": "swe-gym",
+            "owning_adapter": "pneuma_lab.adapters.swe_gym_lite",
+            "current_stage": "adapter-only",
+            "training_readiness": "local-research-only",
+            "authorization": {"training_authorized": false, "reason": "A deterministic task-only adapter exists, but no training-example converter or readiness package exists."},
+            "validation": {"task_joins_validated": false, "labels_validated": false, "split_validated": false, "leakage_controls_present": false},
+            "blockers": [
+                "missing converter",
+                "missing readiness manifest",
+                "missing training-specific split and leakage evidence",
+                "gold patch and test fields require target/input separation"
+            ],
+            "advancement_criteria": [
+                "fixture-first converter that keeps oracle fields out of input",
+                "schema validation and deterministic conversion tests",
+                "grouped split and leakage validation",
+                "training governance manifest and explicit authorization"
+            ],
+            "references": {
+                "docs": [
+                    {"path": "docs/superpowers/specs/2026-07-07-swe-gym-lite-pneuma-trace-adapter-design.md"}
+                ],
+                "manifests": [],
+                "fixtures": [
+                    {"path": "fixtures/adapters/swe_gym_lite/golden/adapter_report.json"},
+                    {"path": "fixtures/adapters/swe_gym_lite/golden/pneuma_traces.jsonl"}
+                ],
+                "adapters": [
+                    {"path": "src/pneuma_lab/adapters/swe_gym_lite.py"}
+                ],
+                "converters": [
+                    {"path": "src/pneuma_lab/converters/swe_gym_lite_training.py", "planned": true}
+                ],
+                "tests": [
+                    {"path": "tests/test_swe_gym_lite_adapter.py"},
+                    {"path": "tests/test_swe_gym_lite_golden.py"}
+                ]
+            }
+        }
+    ]
+}
