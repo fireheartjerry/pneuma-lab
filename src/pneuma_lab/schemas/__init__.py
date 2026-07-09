@@ -40,7 +40,11 @@ OUTPUT_SCHEMA_FILES = (
 
 ENVELOPE_SCHEMA_FILES = ("pneuma-trace.schema.json",)
 
-TRAINING_SCHEMA_FILES = ("pneuma-training-example.schema.json",)
+TRAINING_SCHEMA_FILES = (
+    "pneuma-training-example.schema.json",
+    "estimator-run-manifest.schema.json",
+    "estimator-training-authorization.schema.json",
+)
 
 ALL_SCHEMA_FILES = (
     INPUT_SCHEMA_FILES

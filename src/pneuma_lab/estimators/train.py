@@ -2,7 +2,8 @@
 
 Usage:
     python -m pneuma_lab.estimators.train --traces <pneuma_traces.jsonl> \
-        --out build/estimators
+        --run-manifest <estimator-run-manifest.json> \
+        --out build/training_runs/openhands-sampled/<run-id>/
 
 Deterministic end to end: grouped repo split via sha256, frozen dev tool
 vocabulary, zero-init full-batch logistic, canonical-JSON artifacts. Running
@@ -20,12 +21,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
+import sys
+from pathlib import Path
 
 from pneuma_lab.adapters.envelope import canonical_json
 from pneuma_lab.estimators import features as feat
 from pneuma_lab.estimators import logistic as logit
 from pneuma_lab.estimators import metrics as met
+from pneuma_lab.training import preflight
 
 EVAL_BUCKET_COUNT = 10
 EVAL_BUCKET_THRESHOLD = 3
@@ -39,6 +42,13 @@ E2_PROXY_TAG = (
 )
 
 FRACTION_NAMES = tuple(name for name, _, _ in feat.PREFIX_FRACTIONS)
+ESTIMATOR_ARTIFACT_FILES = tuple(
+    f"{estimator}/{filename}"
+    for estimator in ("e1-v0", "e2-v0")
+    for filename in ("model.json", "metrics.json", "report.md")
+)
+COMPLETE_RUN_FILES = frozenset((*ESTIMATOR_ARTIFACT_FILES, "run_receipt.json"))
+COMPLETE_RUN_DIRS = frozenset(("e1-v0", "e2-v0"))
 
 
 def splitOfRepo(repo: str) -> str:
@@ -50,9 +60,10 @@ def splitOfRepo(repo: str) -> str:
     return "eval" if bucket < EVAL_BUCKET_THRESHOLD else "dev"
 
 
-def loadCorpus(path: str) -> tuple[list, dict]:
-    """One pass over the JSONL: labels, QC exclusions, split, prefix stats."""
+def loadCorpus(path: str, *, expected_sha256: str | None = None) -> tuple[list, dict]:
+    """One byte-bound pass: digest, labels, exclusions, split, prefix stats."""
     records: list[dict] = []
+    digest = hashlib.sha256()
     counts = {
         "total_lines": 0,
         "excluded_error_eval": 0,
@@ -60,9 +71,10 @@ def loadCorpus(path: str) -> tuple[list, dict]:
         "excluded_total": 0,
         "skipped_no_agent_frames": 0,
     }
-    with open(path, "r", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
+    with open(path, "rb") as handle:
+        for raw_line in handle:
+            digest.update(raw_line)
+            line = raw_line.decode("utf-8").strip()
             if not line:
                 continue
             counts["total_lines"] += 1
@@ -91,6 +103,12 @@ def loadCorpus(path: str) -> tuple[list, dict]:
                     "fractions": fractions,
                 }
             )
+    observed_sha256 = f"sha256:{digest.hexdigest()}"
+    if expected_sha256 is not None and observed_sha256 != expected_sha256:
+        raise preflight.PreflightError(
+            "source_changed_during_load",
+            "the trace bytes parsed by loadCorpus differ from the authorized hash",
+        )
     return records, counts
 
 
@@ -209,13 +227,212 @@ def repoListSha(records: list, split: str) -> tuple[str, int]:
     return digest, len(repos)
 
 
+def fileSha256(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
+
+
+def buildTrainingProvenance(run: preflight.VerifiedEstimatorRun) -> dict:
+    """Canonical source/authorization binding copied into future model files."""
+    manifest = run.manifest
+    authorization = run.authorization
+    manifest_ref = run.manifest_path.relative_to(run.repo_root).as_posix()
+    return {
+        "binding_status": "verified_before_fit",
+        "run_id": manifest["run_id"],
+        "run_manifest": {
+            "path": manifest_ref,
+            "sha256": run.manifest_sha256,
+        },
+        "source_code": {
+            "authorized_code_commit": run.code_state.authorized_code_commit,
+            "execution_head": run.code_state.execution_head,
+            "required_tree_state": manifest["source_code"][
+                "required_tree_state"
+            ],
+            "verified_tree_state": "clean",
+            "protected_paths_unchanged": [
+                "src/",
+                "schemas/",
+                "pyproject.toml",
+            ],
+        },
+        "authorization": {
+            "authorization_id": authorization["authorization_id"],
+            "path": manifest["authorization_ref"]["path"],
+            "sha256": manifest["authorization_ref"]["sha256"],
+            "decision": authorization["decision"],
+            "scope": authorization["scope"],
+            "reviewer": authorization["reviewer"],
+            "reviewed_at": authorization["reviewed_at"],
+        },
+        "source": {
+            "traces_path": manifest["source"]["traces_path"],
+            "traces_sha256": manifest["source"]["traces_sha256"],
+            "adapter_report_path": manifest["source"]["adapter_report_path"],
+            "adapter_report_sha256": manifest["source"][
+                "adapter_report_sha256"
+            ],
+            "hf_repo": manifest["source"]["hf_repo"],
+            "hf_revision": manifest["source"]["hf_revision"],
+        },
+        "split": {
+            "manifest_path": manifest["split"]["manifest_path"],
+            "manifest_sha256": manifest["split"]["manifest_sha256"],
+            "method": manifest["split"]["method"],
+        },
+        "class_imbalance_handling": manifest["class_imbalance_handling"],
+        "model_use": manifest["model_use"],
+        "artifact_root": manifest["artifact_root"],
+        "release_authorization": manifest["release_authorization"],
+        "runtime_integration": manifest["runtime_integration"],
+    }
+
+
 def writeText(path: str, text: str) -> None:
-    with open(path, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(text)
+    try:
+        with open(path, "x", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+    except FileExistsError:
+        _output_failure(
+            "artifact_layout_invalid",
+            "output target appeared before its exclusive write",
+        )
 
 
 def writeJson(path: str, obj) -> None:
     writeText(path, canonical_json(obj) + "\n")
+
+
+def _output_failure(code: str, message: str) -> None:
+    raise preflight.PreflightError(code, message)
+
+
+def _assert_output_path_contained(root: Path, path: Path) -> None:
+    if path.is_symlink():
+        _output_failure("artifact_path_not_approved", "output path is a symlink")
+    try:
+        path.parent.resolve().relative_to(root.resolve())
+    except ValueError:
+        _output_failure(
+            "artifact_path_not_approved",
+            "output target resolves outside the authorized artifact root",
+        )
+
+
+def prepareOutputPaths(run: preflight.VerifiedEstimatorRun) -> dict[str, Path]:
+    """Claim an absent/empty root and create only the two expected directories."""
+    root = run.artifact_root
+    preflight.require_empty_artifact_root(root)
+    root.mkdir(parents=True, exist_ok=True)
+    if root.is_symlink() or root.resolve() != root:
+        _output_failure(
+            "artifact_root_not_approved",
+            "artifact root became a symlink or junction",
+        )
+    for directory in sorted(COMPLETE_RUN_DIRS):
+        target = root / directory
+        try:
+            target.mkdir(exist_ok=False)
+        except FileExistsError:
+            _output_failure(
+                "artifact_root_not_empty",
+                "unexpected output entry appeared before artifact writes",
+            )
+        _assert_output_path_contained(root, target / "placeholder")
+    paths = {relative: root / relative for relative in COMPLETE_RUN_FILES}
+    for path in paths.values():
+        _assert_output_path_contained(root, path)
+        if path.exists() or path.is_symlink():
+            _output_failure(
+                "artifact_root_not_empty",
+                "an expected output target already exists",
+            )
+    return paths
+
+
+def validateCompletedOutputLayout(run: preflight.VerifiedEstimatorRun) -> None:
+    """Require the exact receipt-backed file and directory set after writes."""
+    root = run.artifact_root.resolve()
+    actual_files: set[str] = set()
+    actual_dirs: set[str] = set()
+    for path in run.artifact_root.rglob("*"):
+        relative = path.relative_to(run.artifact_root).as_posix()
+        if path.is_symlink():
+            _output_failure(
+                "artifact_layout_invalid", f"symlink found in output: {relative}"
+            )
+        try:
+            path.resolve().relative_to(root)
+        except ValueError:
+            _output_failure(
+                "artifact_layout_invalid",
+                f"output resolves outside artifact root: {relative}",
+            )
+        if path.is_file():
+            actual_files.add(relative)
+        elif path.is_dir():
+            actual_dirs.add(relative)
+        else:
+            _output_failure(
+                "artifact_layout_invalid", f"unsupported output entry: {relative}"
+            )
+    if actual_files != COMPLETE_RUN_FILES or actual_dirs != COMPLETE_RUN_DIRS:
+        _output_failure(
+            "artifact_layout_invalid",
+            "completed run does not contain the exact authorized artifact set",
+        )
+
+
+def writeRunReceipt(
+    run: preflight.VerifiedEstimatorRun,
+    training_provenance: dict,
+    written_artifacts: list[str],
+) -> dict:
+    """Write the deterministic completion receipt after every artifact exists."""
+    root = run.artifact_root
+    relative_artifacts: set[str] = set()
+    for path_text in written_artifacts:
+        path = Path(path_text)
+        _assert_output_path_contained(root, path)
+        if not path.is_file() or path.is_symlink():
+            _output_failure(
+                "artifact_layout_invalid", "receipt input is not a regular file"
+            )
+        try:
+            relative_artifacts.add(
+                path.resolve().relative_to(root.resolve()).as_posix()
+            )
+        except ValueError:
+            _output_failure(
+                "artifact_layout_invalid",
+                "receipt input resolves outside the artifact root",
+            )
+    if relative_artifacts != set(ESTIMATOR_ARTIFACT_FILES):
+        _output_failure(
+            "artifact_layout_invalid",
+            "receipt inputs differ from the exact estimator artifact set",
+        )
+    artifact_hashes = {
+        Path(path).resolve().relative_to(root.resolve()).as_posix(): fileSha256(path)
+        for path in sorted(written_artifacts)
+    }
+    receipt = {
+        "estimator_run_receipt_schema_version": "0.1.0",
+        "status": "completed_local_research",
+        "training_provenance": training_provenance,
+        "artifacts_sha256": artifact_hashes,
+    }
+    receipt_path = root / "run_receipt.json"
+    _assert_output_path_contained(root, receipt_path)
+    if receipt_path.exists() or receipt_path.is_symlink():
+        _output_failure("artifact_layout_invalid", "run receipt already exists")
+    writeJson(str(receipt_path), receipt)
+    validateCompletedOutputLayout(run)
+    return receipt
 
 
 def fmt(value) -> str:
@@ -297,13 +514,53 @@ def main(argv=None) -> int:
         description="Train month-1 estimators E1 (risk) and E2 stage-1.",
     )
     parser.add_argument("--traces", required=True, help="pneuma_traces.jsonl path")
-    parser.add_argument("--out", default="build/estimators", help="artifact root")
+    parser.add_argument(
+        "--run-manifest",
+        required=True,
+        help="schema-valid, separately authorized estimator run manifest",
+    )
+    parser.add_argument(
+        "--out",
+        required=True,
+        help="run-scoped artifact root declared by --run-manifest",
+    )
     args = parser.parse_args(argv)
 
-    records, counts = loadCorpus(args.traces)
-    tool_vocab = freezeToolVocab(records)
+    try:
+        verified_run = preflight.verify_estimator_run(
+            args.run_manifest,
+            args.traces,
+            args.out,
+        )
+    except preflight.PreflightError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    records, counts = loadCorpus(
+        str(verified_run.traces_path),
+        expected_sha256=verified_run.manifest["source"]["traces_sha256"],
+    )
     dev_sha, n_dev_repos = repoListSha(records, "dev")
     eval_sha, n_eval_repos = repoListSha(records, "eval")
+    dev_traces = sum(rec["split"] == "dev" for rec in records)
+    eval_traces = sum(rec["split"] == "eval" for rec in records)
+    excluded_traces = counts["total_lines"] - len(records)
+    try:
+        preflight.verify_loaded_corpus(
+            verified_run,
+            dev_repos_sha256=dev_sha,
+            eval_repos_sha256=eval_sha,
+            dev_traces=dev_traces,
+            eval_traces=eval_traces,
+            excluded_traces=excluded_traces,
+            total_traces=counts["total_lines"],
+        )
+    except preflight.PreflightError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    tool_vocab = freezeToolVocab(records)
+    training_provenance = buildTrainingProvenance(verified_run)
 
     split_block = {}
     for split_name, n_repos in (("dev", n_dev_repos), ("eval", n_eval_repos)):
@@ -316,6 +573,7 @@ def main(argv=None) -> int:
 
     shared_meta = {
         "feature_extractor_version": feat.FEATURE_EXTRACTOR_VERSION,
+        "training_provenance": training_provenance,
         "frozen_tool_list": tool_vocab,
         "split": {
             "method": (
@@ -500,17 +758,25 @@ def main(argv=None) -> int:
         + e2_positive_lines,
     )
 
+    output_paths = prepareOutputPaths(verified_run)
+    written_artifacts: list[str] = []
     for sub, model_doc, metrics_doc, report_text in (
         ("e1-v0", e1_model_doc, e1_metrics, e1_report),
         ("e2-v0", e2_model_doc, e2_metrics, e2_report),
     ):
-        out_dir = os.path.join(args.out, sub)
-        os.makedirs(out_dir, exist_ok=True)
-        writeJson(os.path.join(out_dir, "model.json"), model_doc)
-        writeJson(os.path.join(out_dir, "metrics.json"), metrics_doc)
-        writeText(os.path.join(out_dir, "report.md"), report_text)
+        model_path = str(output_paths[f"{sub}/model.json"])
+        metrics_path = str(output_paths[f"{sub}/metrics.json"])
+        report_path = str(output_paths[f"{sub}/report.md"])
+        for path in (model_path, metrics_path, report_path):
+            _assert_output_path_contained(verified_run.artifact_root, Path(path))
+        writeJson(model_path, model_doc)
+        writeJson(metrics_path, metrics_doc)
+        writeText(report_path, report_text)
+        written_artifacts.extend((model_path, metrics_path, report_path))
 
-    print(f"trained e1-v0 + e2-v0 -> {args.out}")
+    writeRunReceipt(verified_run, training_provenance, written_artifacts)
+
+    print(f"trained e1-v0 + e2-v0 -> {verified_run.artifact_root}")
     print(
         f"traces={counts['total_lines']} excluded={counts['excluded_total']} "
         f"dev={split_block['dev']['n_traces']} eval={split_block['eval']['n_traces']}"

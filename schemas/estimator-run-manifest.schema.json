@@ -1,0 +1,185 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/estimator-run-manifest.schema.json",
+    "title": "EstimatorRunManifest",
+    "description": "Fail-closed, hash-bound authorization contract for a local E1/E2 estimator training run.",
+    "type": "object",
+    "x-pneuma-schema-kind": "training-run-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "estimator_run_manifest_schema_version",
+        "run_id",
+        "dataset_id",
+        "estimators",
+        "task_types",
+        "training_authorization",
+        "authorization_ref",
+        "release_authorization",
+        "runtime_integration",
+        "source_code",
+        "source",
+        "split",
+        "feature_contract",
+        "training",
+        "class_imbalance_handling",
+        "model_use",
+        "artifact_root"
+    ],
+    "properties": {
+        "estimator_run_manifest_schema_version": {"const": "0.1.0"},
+        "run_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+        "dataset_id": {"const": "swe-gym-openhands-sampled"},
+        "estimators": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {"enum": ["e1-v0", "e2-v0"]}
+        },
+        "task_types": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {"enum": ["RISK_PREDICTION", "VERIFICATION_PRESSURE"]}
+        },
+        "training_authorization": {"const": "authorized_local_research"},
+        "authorization_ref": {
+            "type": "object",
+            "required": ["authorization_id", "path", "sha256"],
+            "properties": {
+                "authorization_id": {"type": "string", "minLength": 1},
+                "path": {
+                    "type": "string",
+                    "pattern": "^docs/data/training-authorizations/[A-Za-z0-9._/-]+\\.json$"
+                },
+                "sha256": {"$ref": "#/$defs/sha256"}
+            },
+            "additionalProperties": false
+        },
+        "release_authorization": {"const": "not_authorized"},
+        "runtime_integration": {"const": "none"},
+        "source_code": {
+            "type": "object",
+            "required": ["authorized_code_commit", "required_tree_state"],
+            "properties": {
+                "authorized_code_commit": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                },
+                "required_tree_state": {"const": "clean"}
+            },
+            "additionalProperties": false
+        },
+        "source": {
+            "type": "object",
+            "required": [
+                "traces_path",
+                "traces_sha256",
+                "adapter_report_path",
+                "adapter_report_sha256",
+                "adapter_name",
+                "adapter_version",
+                "hf_repo",
+                "hf_revision",
+                "expected_trace_count"
+            ],
+            "properties": {
+                "traces_path": {"type": "string", "minLength": 1},
+                "traces_sha256": {"$ref": "#/$defs/sha256"},
+                "adapter_report_path": {"type": "string", "minLength": 1},
+                "adapter_report_sha256": {"$ref": "#/$defs/sha256"},
+                "adapter_name": {"const": "openhands-sampled"},
+                "adapter_version": {"const": "0.1.0"},
+                "hf_repo": {"const": "SWE-Gym/OpenHands-Sampled-Trajectories"},
+                "hf_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+                "expected_trace_count": {"type": "integer", "minimum": 1}
+            },
+            "additionalProperties": false
+        },
+        "split": {
+            "type": "object",
+            "required": [
+                "manifest_path",
+                "manifest_sha256",
+                "method",
+                "dev_repos_sha256",
+                "eval_repos_sha256",
+                "expected_dev_traces",
+                "expected_eval_traces",
+                "expected_excluded_traces"
+            ],
+            "properties": {
+                "manifest_path": {
+                    "type": "string",
+                    "pattern": "^docs/data/training-readiness/[A-Za-z0-9._/-]+\\.json$"
+                },
+                "manifest_sha256": {"$ref": "#/$defs/sha256"},
+                "method": {"const": "sha256_repo_mod10_lt3_eval_v1"},
+                "dev_repos_sha256": {"$ref": "#/$defs/sha256"},
+                "eval_repos_sha256": {"$ref": "#/$defs/sha256"},
+                "expected_dev_traces": {"type": "integer", "minimum": 1},
+                "expected_eval_traces": {"type": "integer", "minimum": 1},
+                "expected_excluded_traces": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+        },
+        "feature_contract": {
+            "type": "object",
+            "required": ["feature_extractor_version", "scrubbed_fields"],
+            "properties": {
+                "feature_extractor_version": {"const": "pneuma-estimators-features/0.1.0"},
+                "scrubbed_fields": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "uniqueItems": true,
+                    "items": {
+                        "enum": [
+                            "outcome",
+                            "oracle",
+                            "reference_supervision",
+                            "labels.resolved"
+                        ]
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "training": {
+            "type": "object",
+            "required": [
+                "algorithm",
+                "learning_rate",
+                "learning_rate_decay",
+                "iterations",
+                "l2_lambda",
+                "randomness"
+            ],
+            "properties": {
+                "algorithm": {"const": "full-batch-logistic-regression-l2-v1"},
+                "learning_rate": {"const": 0.3},
+                "learning_rate_decay": {"const": 0.005},
+                "iterations": {"const": 800},
+                "l2_lambda": {"const": 0.001},
+                "randomness": {"const": "none"}
+            },
+            "additionalProperties": false
+        },
+        "class_imbalance_handling": {
+            "const": "unweighted_baseline_reproduction_only"
+        },
+        "model_use": {"const": "offline_advisory_only"},
+        "artifact_root": {
+            "type": "string",
+            "pattern": "^build/training_runs/openhands-sampled/[a-z0-9][a-z0-9._-]+/$"
+        }
+    },
+    "$defs": {
+        "sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+    },
+    "additionalProperties": false
+}

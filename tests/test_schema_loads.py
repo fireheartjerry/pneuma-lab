@@ -16,7 +16,7 @@ from pneuma_lab import schemas as pls
 
 EXPECTED_INPUT_COUNT = 5
 EXPECTED_OUTPUT_COUNT = 8
-EXPECTED_TRAINING_COUNT = 1
+EXPECTED_TRAINING_COUNT = 3
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
 }
@@ -121,7 +121,11 @@ def test_envelope_bucket_registered() -> None:
 
 
 def test_training_example_bucket_registered() -> None:
-    assert pls.TRAINING_SCHEMA_FILES == ("pneuma-training-example.schema.json",)
+    assert pls.TRAINING_SCHEMA_FILES == (
+        "pneuma-training-example.schema.json",
+        "estimator-run-manifest.schema.json",
+        "estimator-training-authorization.schema.json",
+    )
     assert "pneuma-training-example.schema.json" in pls.ALL_SCHEMA_FILES
 
 

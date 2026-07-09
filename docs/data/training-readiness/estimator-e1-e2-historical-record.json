@@ -1,0 +1,47 @@
+{
+    "historical_estimator_record_schema_version": "0.1.0",
+    "record_kind": "post_hoc_classification_not_authorization",
+    "estimators": [
+        "e1-v0",
+        "e2-v0"
+    ],
+    "classification": "historical_local_research",
+    "training_commit": "adb6e1cb8470a4b9f54fac41b705d148fe169f61",
+    "authorization_at_run": "not_recorded",
+    "retroactive_authorization": false,
+    "source": {
+        "dataset_id": "swe-gym-openhands-sampled",
+        "dataset_identity_basis": "historical design document and artifact reports",
+        "source_binding": "inferred_not_cryptographically_recorded",
+        "source_traces_sha256": null,
+        "adapter_report_sha256": null,
+        "run_manifest_sha256": null,
+        "authorization_artifact_sha256": null
+    },
+    "split": {
+        "method_recorded_in_models": "int(sha256(labels.repo),16) % 10 < 3 -> eval; empty repo -> dev",
+        "dev_repos_sha256": "sha256:cb89b6b0f83be13f24110d4bde33785fd333422d14183e5833028da9d8c95904",
+        "eval_repos_sha256": "sha256:74a37947402fd4d09a9bb48b71ea13c7f386f47a45a0bf6387a2ab53993c7be4",
+        "split_contract_at_run": "not_recorded",
+        "binding_status": "model_embedded_repo_digests_only"
+    },
+    "artifact_hashes": {
+        "build/estimators/e1-v0/metrics.json": "sha256:01d36055be5e32243f27a403ff5eb36283a0603ee85f9298dd6d19227605402b",
+        "build/estimators/e1-v0/model.json": "sha256:d74529d2b186babfb2e8e414784daa6b24c1f08d559d3eae96f3f823e69a3f2d",
+        "build/estimators/e1-v0/report.md": "sha256:929b2130a976797fb6d1539d06be63f5b0967d102a65ce0daecf4d35791b38e4",
+        "build/estimators/e2-v0/metrics.json": "sha256:d5714e5e19bd0850ac3cf94359b61bb0d03822f8806d4915085c83db049fcb0a",
+        "build/estimators/e2-v0/model.json": "sha256:1df609510b7d2d9da681fb1d49a518ebb770fc65abf7c745edc53b27258f86a6",
+        "build/estimators/e2-v0/report.md": "sha256:ac091e87290f20bb833f308a0bee1cf13d21723ec71bb694927385faaa205bf0"
+    },
+    "model_use": "offline_advisory_only",
+    "deployment_status": "blocked",
+    "release_status": "blocked_license_and_lineage_review",
+    "runtime_integration": "none",
+    "limitations": [
+        "This post-hoc record classifies existing artifacts; it does not authorize them or a new run.",
+        "No run manifest, authorization artifact, source trace hash, or adapter report hash was embedded at training time.",
+        "The model-embedded repo digests do not establish exact source-corpus identity.",
+        "E2 is a stage-1 proxy whose quiet-gate feature partially determines its label.",
+        "E1 prefix-25 failed the recorded monotonicity probe."
+    ]
+}
