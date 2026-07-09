@@ -1,0 +1,83 @@
+[
+    {
+        "dataset": {
+            "dataset_id": "dialogue-swe-bench",
+            "dataset_family": "dialogue-swe-bench",
+            "source_revision": "88f083e830d9cd48e19470aa887a9df2914d3547",
+            "license_status": null,
+            "license_review_required": true
+        },
+        "source": {
+            "split": "test",
+            "source_file_sha256": "fecd76c172a41ae56db9b110385b192cca620d3e20d6df914ab253b97cb8211a",
+            "source_row": 17,
+            "source_record_digest": "sha256:synthetic-dialogue-swe-bench-test-row-17"
+        },
+        "task": {
+            "instance_id": "synthetic-dialogue-task-001",
+            "repo": "synthetic/example-project",
+            "base_commit": "1111111111111111111111111111111111111111",
+            "difficulty": "medium",
+            "persona": "simulated-reviewer"
+        },
+        "dialogue_structure": {
+            "turn_count": 6,
+            "role_sequence": ["system", "developer", "assistant", "user", "assistant", "user"],
+            "turn_length_summary": {
+                "min_chars": 24,
+                "mean_chars": 88.5,
+                "max_chars": 180
+            },
+            "simulated_correction_count": 1
+        },
+        "change_structure": {
+            "has_change": true,
+            "has_tests": true,
+            "change_sha256": "sha256:synthetic-code-change-digest-001",
+            "test_change_sha256": "sha256:synthetic-test-change-digest-001"
+        },
+        "simulated_labels": {
+            "operator_pushback": true,
+            "pushback_source": "synthetic explicit simulated correction label"
+        }
+    },
+    {
+        "dataset": {
+            "dataset_id": "dialogue-swe-bench",
+            "dataset_family": "dialogue-swe-bench",
+            "source_revision": "88f083e830d9cd48e19470aa887a9df2914d3547",
+            "license_status": null,
+            "license_review_required": true
+        },
+        "source": {
+            "split": "ablation",
+            "source_file_sha256": "d25937529e38c4d0e7db22fdaebb35e6df13b2eaf10e0f30591c011856c8c83f",
+            "source_row": 3,
+            "source_record_digest": "sha256:synthetic-dialogue-swe-bench-ablation-row-3"
+        },
+        "task": {
+            "instance_id": "synthetic-dialogue-task-002",
+            "repo": "synthetic/example-project",
+            "base_commit": "2222222222222222222222222222222222222222",
+            "difficulty": "hard",
+            "persona": "simulated-maintainer"
+        },
+        "dialogue_structure": {
+            "turn_count": 4,
+            "role_sequence": ["system", "assistant", "user", "assistant"],
+            "turn_length_summary": {
+                "min_chars": 18,
+                "mean_chars": 74.0,
+                "max_chars": 141
+            },
+            "simulated_correction_count": 0
+        },
+        "change_structure": {
+            "has_change": true,
+            "has_tests": false,
+            "change_sha256": "sha256:synthetic-code-change-digest-002",
+            "test_change_sha256": null
+        },
+        "simulated_labels": {}
+    }
+]

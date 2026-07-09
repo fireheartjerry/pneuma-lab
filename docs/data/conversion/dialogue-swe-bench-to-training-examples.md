@@ -10,6 +10,17 @@ J-space/Jacobian Lens work, process SWE-chat, inspect raw dialogue row content,
 mutate raw or processed data, or make consciousness, Level 4/5, interiority,
 sentience, or moral-patienthood claims.
 
+Implementation note: a synthetic fixture-first converter now exists at
+`src/pneuma_lab/converters/dialogue_swe_bench_training.py`. It consumes only the
+committed synthetic fixture
+`fixtures/training_examples/dialogue_swe_bench_synthetic_source.json`, emits
+schema-valid blocked examples with `training_weight: 0.0`, and carries the
+local `null` license caveat into example metadata and blocked uses. It did not
+run bounded conversion, full conversion, real parquet-row inspection, training,
+calibration, runtime integration, SWE-chat processing, or writes to
+`C:/pneuma-data`. Upstream license review and separate approval remain required
+before any real-data bounded conversion or training-oriented use.
+
 Repository state observed for this planning pass:
 
 - `git status --short --branch` reported `main...origin/main [ahead 13]`.
