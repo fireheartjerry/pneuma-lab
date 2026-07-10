@@ -246,3 +246,44 @@ campaigns.
 python -m pneuma_lab.nervous_system.campaign_report --out build/evidence_campaigns/subject-v0
 python -m pytest tests/test_subject_evidence_campaign.py -q
 ```
+
+## 13. CertifiedSubjectFactory-v0 — real eligibility, honest block
+
+The plain campaign (§12) noted the subject was `subject_factory`-ineligible, so its
+evidence was useful harness evidence but not _promotable_. This removes that
+blocker **honestly** by building the documented **snapshot/clone-equivalence
+protocol** (`src/pneuma_lab/interventions/certified_subjects.py`):
+`certify(factory, probe_frames)` registers a factory only after it passes a strict
+probe — (1) clone equivalence (two constructions replay byte-identically), (2)
+reset determinism, (3) ordinal invariance via the real `PairedReplayRunner`, (4)
+`PsycheUnderTest` + `Perturbable` interface. The runner's eligibility check
+consults that registry (`factory is ReferencePsyche or is_certified(factory)`).
+
+`CertifiedBaselineSubjectFactory` passes the probe, so `BaselinePsycheSubject`
+earns a **REAL** `subject_factory_eligible`. `certified_campaign.py` runs the five
+slices through the **promotable** `PairedReplayRunner` with that certified factory
+and surfaces the runner-issued provenance:
+
+- per paired slice: `subject_factory_eligible: true`, `provenance_status:
+"runner_verified"`, control/treated/null `arm_output_sha256`,
+  `input_frames_sha256`, `ordinal_invariant`, `intervention_refs`;
+- `l2_persistence`: `state_persistence_refs` (scar-store + run1/run2 state hashes);
+- a transparent `scorer_diagnostic` = the promotable scorer's actual
+  `internal_harness_evidence_level`.
+
+**The honest outcome:** eligibility is now real and the arms are `runner_verified`,
+but the promotable scorer's diagnostic level stays **below Level 4** — blocked by
+three unevidenced families (`higher_order_self_model` uncalibrated,
+`predictive_processing` unresolved, `attention_schema` absent), plus toy fixtures
+and no external audit. So `overall.claim` is `no_level_claim`,
+`overall.certified: true`, `overall.promotion_blocked_by` lists the gates, and
+every headline `evidence_frame` stays `evidence_level ≤ 1`. **Eligibility real;
+promotion still blocked.**
+
+Making the subject exercise the missing families (a richer subject) is the _next_
+blocker — not this task.
+
+```txt
+python -m pneuma_lab.nervous_system.certified_campaign --out build/evidence_campaigns/certified-subject-v0
+python -m pytest tests/test_certified_subject_campaign.py -q
+```

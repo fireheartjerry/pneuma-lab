@@ -194,13 +194,18 @@
                 "src/pneuma_lab/nervous_system/scar_memory.py",
                 "src/pneuma_lab/nervous_system/campaign.py",
                 "src/pneuma_lab/nervous_system/campaign_report.py",
+                "src/pneuma_lab/interventions/certified_subjects.py",
+                "src/pneuma_lab/nervous_system/certified_subject.py",
+                "src/pneuma_lab/nervous_system/certified_campaign.py",
                 "schemas/subject-evidence-campaign.schema.json",
                 "docs/nervous-system-v0.md",
                 "docs/superpowers/specs/2026-07-10-baseline-psyche-subject-v0-design.md",
                 "docs/superpowers/specs/2026-07-10-subject-evidence-campaign-v0-design.md",
+                "docs/superpowers/specs/2026-07-10-certified-subject-factory-v0-design.md",
                 "tests/test_nervous_system.py",
                 "tests/test_baseline_psyche_subject.py",
-                "tests/test_subject_evidence_campaign.py"
+                "tests/test_subject_evidence_campaign.py",
+                "tests/test_certified_subject_campaign.py"
             ],
             "blockers": []
         }

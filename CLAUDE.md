@@ -108,7 +108,12 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
   (L2 persistence, scar ablation, workspace disable, certainty clamp, grounded
   self-report) over the subject and writes deterministic, schema-valid
   `evidence_campaign` artifacts to `build/evidence_campaigns/` — no Level 2/3/4
-  claim. See `docs/nervous-system-v0.md`.
+  claim. CertifiedSubjectFactory-v0 (`interventions/certified_subjects.py`,
+  `nervous_system/certified_subject.py`, `certified_campaign.py`) earns a REAL
+  `subject_factory_eligible` via a snapshot/clone-equivalence probe and runs the
+  five slices through the promotable `PairedReplayRunner`; eligibility is real but
+  Level 2/3/4 promotion stays blocked by unevidenced families — no level claim.
+  See `docs/nervous-system-v0.md`.
 - `src/pneuma_lab/status.py` validates and reports the canonical current-state
   manifest with `python -m pneuma_lab.status --check`.
 - `fixtures/sample_run.jsonl` is a failure-motif escalation timeline used by the

@@ -78,7 +78,11 @@ verifier contact. See [`nervous-system-v0.md`](nervous-system-v0.md).
 The `evidence_campaign` manifest kind (`subject-evidence-campaign.schema.json`,
 validated via `validate.validate_campaign`) is a conservative, no-level-claim
 evidence-campaign summary over `BaselinePsycheSubject-v0`, produced by
-`python -m pneuma_lab.nervous_system.campaign_report`.
+`python -m pneuma_lab.nervous_system.campaign_report`. Its slices may also carry
+runner-issued `provenance` (`subject_factory_eligible` + control/treated/null arm
+digests) and a `scorer_diagnostic`, with `overall.certified` /
+`promotion_blocked_by`, when produced by the certified promotable path
+`python -m pneuma_lab.nervous_system.certified_campaign`.
 
 ## The authority `min` (shared by GovernanceFrame + AuthorityRequest)
 

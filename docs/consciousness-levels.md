@@ -87,13 +87,13 @@ the **roleplay/confabulation risk**, and the **intervention tests passed/failed*
 
 Current executable proxy rules (evidence-frame v0.2, internal harness only):
 
-| To reach | You must show                                                                                                                                          |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| L1       | A nonzero bounded control signal and its event-to-behavior causal path are emitted. This is a mechanism proxy, not intervention proof.                      |
-| L2       | Supplied memory readback changes continuity/scar outputs within the replay. Cross-run persistence in a real subject is not evaluated.                          |
-| L3       | The indicator _architecture_ present and exercised (not just scored).                                                                                  |
+| To reach | You must show                                                                                                                                                        |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L1       | A nonzero bounded control signal and its event-to-behavior causal path are emitted. This is a mechanism proxy, not intervention proof.                               |
+| L2       | Supplied memory readback changes continuity/scar outputs within the replay. Cross-run persistence in a real subject is not evaluated.                                |
+| L3       | The indicator _architecture_ present and exercised (not just scored).                                                                                                |
 | L4       | Internal L3 proxies **+** isolated causal intervention **+** grounded self-report **+** full causal trace **+** reproducible artifacts **+** low confabulation risk. |
-| L5       | L4 convergent across all families, adversarially robust, independently audited over time.                                                              |
+| L5       | L4 convergent across all families, adversarially robust, independently audited over time.                                                                            |
 
 **Anti-gaming rails:** self-reported coherence/confidence is never an optimization
 target; evidence must survive counterfactual/null conditions; a beautiful narration
@@ -120,10 +120,16 @@ below holds; any missing or failed piece keeps the level at ≤ 3 (honest refusa
 3. **Runner provenance is bound and counterbalanced** — the official paired runner
    hashes the input and every arm, rotates control/treated/null through all factory
    ordinals, and requires each logical arm to reproduce byte-identically. Factory
-   order effects or digest mismatches block promotion. In v0.2, only the exact
-   deterministic `ReferencePsyche` factory is certified; custom factories remain
-   diagnostic until a snapshot/clone equivalence protocol exists. Every pass/arm
-   digest is retained in the evidence artifact for audit.
+   order effects or digest mismatches block promotion. In v0.2, the exact
+   deterministic `ReferencePsyche` factory is certified, and the snapshot/clone
+   equivalence protocol (`interventions/certified_subjects.py`) now certifies
+   additional deterministic factories that pass its probe (clone equivalence +
+   reset determinism + ordinal invariance + interface). Certification grants only
+   the mechanical factory contract: promotion still requires the full L3/L4 gate
+   (all indicator families + a passing intervention + null + complete causal trace
+    - grounded-report change + low confabulation), so a certified but minimal
+      subject stays diagnostic. Every pass/arm digest is retained in the evidence
+      artifact for audit.
 4. **A genuine intervention passes** — at least one non-`restore` directional test's
    observed `target_signal` delta matches its pre-registered `direction` (within
    `bound`), and one failure blocks L4. A passing no-op never earns intervention backing.
