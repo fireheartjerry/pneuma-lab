@@ -41,6 +41,12 @@
         "consciousness_evidence": {
             "type": ["object", "null"]
         },
+        "psyche_state": {
+            "type": ["object", "null"]
+        },
+        "workspace_broadcast": {
+            "type": ["object", "null"]
+        },
         "blocked_uses": {
             "type": "array",
             "items": {

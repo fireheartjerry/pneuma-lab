@@ -140,6 +140,8 @@ _BUNDLE_MEMBER_KEYS = (
     "control_pressure",
     "causal_trace",
     "consciousness_evidence",
+    "psyche_state",
+    "workspace_broadcast",
 )
 
 
