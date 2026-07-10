@@ -47,6 +47,10 @@ IO_BUNDLE_SCHEMA_FILES = (
     "pneuma-output-bundle.schema.json",
 )
 
+# Evidence-campaign summary manifests (conservative, no level claim). Validated
+# via ``validate.validate_campaign``.
+EVIDENCE_CAMPAIGN_SCHEMA_FILES = ("subject-evidence-campaign.schema.json",)
+
 TRAINING_SCHEMA_FILES = (
     "pneuma-training-example.schema.json",
     "estimator-run-manifest.schema.json",
@@ -61,6 +65,7 @@ ALL_SCHEMA_FILES = (
     + OUTPUT_SCHEMA_FILES
     + ENVELOPE_SCHEMA_FILES
     + IO_BUNDLE_SCHEMA_FILES
+    + EVIDENCE_CAMPAIGN_SCHEMA_FILES
     + TRAINING_SCHEMA_FILES
     + MANIFEST_SCHEMA_FILES
 )
@@ -88,6 +93,7 @@ __all__ = [
     "OUTPUT_SCHEMA_FILES",
     "ENVELOPE_SCHEMA_FILES",
     "IO_BUNDLE_SCHEMA_FILES",
+    "EVIDENCE_CAMPAIGN_SCHEMA_FILES",
     "TRAINING_SCHEMA_FILES",
     "MANIFEST_SCHEMA_FILES",
     "ALL_SCHEMA_FILES",

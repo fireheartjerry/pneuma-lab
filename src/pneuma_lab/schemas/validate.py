@@ -166,6 +166,32 @@ def validate_bundle(bundle: dict) -> dict:
     return bundle
 
 
+@lru_cache(maxsize=None)
+def _campaign_validator() -> Draft202012Validator:
+    return Draft202012Validator(load_schema("subject-evidence-campaign.schema.json"))
+
+
+def validate_campaign(summary: dict) -> dict:
+    """Validate a campaign summary shell, then each embedded evidence frame."""
+    if not isinstance(summary, dict):
+        raise FrameValidationError(
+            f"campaign is not an object: {type(summary).__name__}"
+        )
+    messages = _non_finite_errors(summary)
+    for err in sorted(
+        _campaign_validator().iter_errors(summary), key=lambda e: list(e.path)
+    ):
+        loc = "/".join(str(p) for p in err.path) or "<root>"
+        messages.append(f"{loc}: {err.message}")
+    if messages:
+        raise FrameValidationError("invalid evidence campaign: " + "; ".join(messages))
+    for sl in summary.get("slices", []):
+        frame = sl.get("evidence_frame")
+        if isinstance(frame, dict):
+            validate_or_raise(frame)
+    return summary
+
+
 __all__ = [
     "FRAME_KIND_TO_SCHEMA",
     "BUNDLE_KIND_TO_SCHEMA",
@@ -175,4 +201,5 @@ __all__ = [
     "is_valid",
     "validate_or_raise",
     "validate_bundle",
+    "validate_campaign",
 ]

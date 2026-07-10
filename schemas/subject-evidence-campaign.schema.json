@@ -1,0 +1,96 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/subject-evidence-campaign.schema.json",
+    "title": "SubjectEvidenceCampaign",
+    "description": "A conservative, replayable evidence-campaign summary over a machine-psyche subject. It records per-slice observed effects and an embedded conservative ConsciousnessEvidenceFrame, and it NEVER claims a level: overall.claim is always 'no_level_claim'. This is compatible harness evidence, not a system-level promotion.",
+    "type": "object",
+    "x-pneuma-schema-kind": "evidence_campaign",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "manifest_kind": {
+            "type": "string",
+            "const": "subject_evidence_campaign"
+        },
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "campaign_id": {
+            "type": "string"
+        },
+        "subject": {
+            "type": "string"
+        },
+        "generated_from": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "slices": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "hypothesis": {
+                        "type": "string"
+                    },
+                    "effect_observed": {
+                        "type": "boolean"
+                    },
+                    "readiness": {
+                        "type": "string",
+                        "enum": ["compatible_harness_evidence", "not_observed"]
+                    },
+                    "observed": {
+                        "type": "object"
+                    },
+                    "evidence_frame": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "id",
+                    "kind",
+                    "hypothesis",
+                    "effect_observed",
+                    "readiness",
+                    "evidence_frame"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "overall": {
+            "type": "object",
+            "properties": {
+                "claim": {
+                    "type": "string",
+                    "const": "no_level_claim"
+                },
+                "posture": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                }
+            },
+            "required": ["claim", "posture"],
+            "additionalProperties": true
+        }
+    },
+    "required": [
+        "manifest_kind",
+        "schema_version",
+        "campaign_id",
+        "subject",
+        "slices",
+        "overall"
+    ],
+    "additionalProperties": true
+}

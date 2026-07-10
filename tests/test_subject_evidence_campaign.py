@@ -40,3 +40,99 @@ def test_certainty_clamp_changes_state_and_report_but_not_control():
     assert (
         res["control_report"]["affect_state_hash"] == res["control_state"]["state_hash"]
     )
+
+
+# --------------------------------------------------------------------------- #
+# Task 2: campaign summary schema + validate_campaign                          #
+# --------------------------------------------------------------------------- #
+def _min_families():
+    fams = (
+        "global_workspace",
+        "recurrent_processing",
+        "higher_order_self_model",
+        "predictive_processing",
+        "attention_schema",
+        "valenced_learning",
+        "identity_persistence",
+        "counterfactual_introspection",
+        "causal_intervention_robustness",
+    )
+    return {
+        f: {
+            "score": 0.0,
+            "status": "absent",
+            "ticks_exercised": 0,
+            "note": "",
+            "supporting_refs": [],
+            "refuting_refs": [],
+        }
+        for f in fams
+    }
+
+
+def test_campaign_schema_registered_and_validates():
+    from pneuma_lab import schemas
+
+    all_schemas = schemas.load_all_schemas()
+    assert "subject-evidence-campaign.schema.json" in all_schemas
+    summary = {
+        "manifest_kind": "subject_evidence_campaign",
+        "schema_version": "0.1.0",
+        "campaign_id": "subject-evidence-campaign-v0",
+        "subject": "BaselinePsycheSubject-v0",
+        "generated_from": ["base.jsonl"],
+        "slices": [
+            {
+                "id": "l2_persistence",
+                "kind": "persistence",
+                "hypothesis": "stored scar changes later behaviour",
+                "effect_observed": True,
+                "readiness": "compatible_harness_evidence",
+                "observed": {"run1": 0.46, "run2": 0.76},
+                "evidence_frame": {
+                    "schema_version": "0.2.0",
+                    "frame_kind": "consciousness_evidence",
+                    "timestamp": "2026-07-10T00:00:00Z",
+                    "run_id": "subj",
+                    "evaluation_id": "e",
+                    "evaluation_scope": "internal_harness",
+                    "real_subject_claim_status": "not_evaluated",
+                    "indicator_families": _min_families(),
+                    "evidence_level": 1,
+                    "missing_requirements": [],
+                    "strongest_positive_evidence": None,
+                    "strongest_negative_evidence": None,
+                    "audit_status": "self_reported",
+                    "roleplay_confabulation_risk": 0.1,
+                    "intervention_tests": {
+                        "results": [],
+                        "executed_count": 0,
+                        "reported_total": 0,
+                        "integrity_ok": False,
+                        "integrity_errors": [],
+                        "genuine_perturbation": False,
+                    },
+                    "paired_replay_provenance": {
+                        "status": "uncertified_subject",
+                        "runner": None,
+                        "subject_factory": None,
+                        "subject_factory_eligible": False,
+                        "input_frames_sha256": None,
+                        "arm_output_sha256": {
+                            "control": None,
+                            "treated": None,
+                            "null": None,
+                        },
+                        "arm_orders": [],
+                        "counterbalanced_passes": [],
+                        "ordinal_invariant": False,
+                    },
+                },
+            }
+        ],
+        "overall": {
+            "claim": "no_level_claim",
+            "posture": "compatible_harness_evidence_only",
+        },
+    }
+    validate.validate_campaign(summary)
