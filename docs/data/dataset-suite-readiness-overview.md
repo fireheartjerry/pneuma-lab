@@ -3,7 +3,8 @@
 Single source of truth for where every dataset lane stands before the unified
 `PneumaBrain-v0` trainer phase. Machine-readable companion:
 `docs/data/training-readiness/dataset-registry.json` (validated by
-`python -m pneuma_lab.dataset_readiness --check`). This doc authorizes no
+`python -m pneuma_lab.dataset_readiness --check`). Overall project state lives in
+`docs/project-status.json`. This doc authorizes no
 training; every lane stays `training_weight: 0.0` until a specific
 authorization manifest says otherwise.
 
