@@ -29,6 +29,16 @@ def _last_verification(replay_result):
     return outs[-1].control_pressure["pressures"]["verification"] if outs else 0.0
 
 
+def _last_report(replay_result):
+    outs = replay_result.tick_outputs
+    return outs[-1].grounded_self_report if outs else {}
+
+
+def _last_state(replay_result):
+    outs = replay_result.tick_outputs
+    return outs[-1].psyche_state if outs else {}
+
+
 def run_subject_ablation(input_frames, *, seed_scars=None):
     seed = dict(seed_scars or {})
     runner = PairedReplayRunner(
@@ -69,6 +79,11 @@ def run_subject_ablation(input_frames, *, seed_scars=None):
         "observed_delta": observed_delta,
         "null_delta": null_delta,
         "null_holds": null_holds,
+        "control_report": _last_report(paired.control),
+        "treated_report": _last_report(paired.treated),
+        "null_report": _last_report(paired.null),
+        "control_state": _last_state(paired.control),
+        "treated_state": _last_state(paired.treated),
         "report": paired.report,
         "evidence_frame": evidence,
     }

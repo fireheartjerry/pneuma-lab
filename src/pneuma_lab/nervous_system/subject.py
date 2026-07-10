@@ -85,16 +85,19 @@ class BaselinePsycheSubject(PsycheUnderTest):
         uncertainty_in = float(trace.get("uncertainty", 0.0) or 0.0)
 
         # 2. update affect (minimal explicit law over the 9-axis manifold)
-        self.affect["tension"] = _clip(0.5 * self.affect["tension"] + 0.5 * error)
-        self.affect["cognitive_load"] = _clip(min(1.0, retry / 3.0))
-        self.affect["certainty"] = _clip(1.0 - 2.0 * uncertainty_in)
-        self.self_model_uncertainty = _clip(uncertainty_in, 0.0, 1.0)
-
-        # perturbations act at the affect axes the candidates read
-        tension = pert.scalar("affect_manifold", "tension", self.affect["tension"])
-        certainty = pert.scalar(
-            "affect_manifold", "certainty", self.affect["certainty"]
+        # Interventions are applied IN PLACE so a clamp is visible in the state
+        # hash, the psyche_state frame, and the grounded self-report. An empty
+        # PerturbationSet returns each value verbatim, so control is unchanged.
+        self.affect["tension"] = pert.scalar(
+            "affect_manifold",
+            "tension",
+            _clip(0.5 * self.affect["tension"] + 0.5 * error),
         )
+        self.affect["cognitive_load"] = _clip(min(1.0, retry / 3.0))
+        self.affect["certainty"] = pert.scalar(
+            "affect_manifold", "certainty", _clip(1.0 - 2.0 * uncertainty_in)
+        )
+        self.self_model_uncertainty = _clip(uncertainty_in, 0.0, 1.0)
 
         # 3. update persistent scars from the input MemoryFrame
         motif = sm.motif_of(memory)
@@ -106,13 +109,16 @@ class BaselinePsycheSubject(PsycheUnderTest):
         new_hash = state_hash(self._interior())
 
         # 4. three candidate saliences (honoring perturbations)
-        risk_sal = _clip(0.4 * error + 0.3 * max(0.0, tension), 0.0, 1.0)
+        risk_sal = _clip(0.4 * error + 0.3 * max(0.0, self.affect["tension"]), 0.0, 1.0)
         if pert.blocks("scar_graph") or motif is None:
             scar_sal = 0.0
         else:
             scar_sal = _clip(0.4 * motif[1] + self.scars.get(motif[0], 0.0), 0.0, 1.0)
         uncertainty_sal = _clip(
-            0.5 * self.self_model_uncertainty + 0.5 * max(0.0, -certainty), 0.0, 1.0
+            0.5 * self.self_model_uncertainty
+            + 0.5 * max(0.0, -self.affect["certainty"]),
+            0.0,
+            1.0,
         )
 
         # 5. workspace competition (suppressed when workspace is disabled)
@@ -224,7 +230,11 @@ class BaselinePsycheSubject(PsycheUnderTest):
             "affect_state_hash": new_hash,
             "workspace_broadcast_id": bc_id,
             "causal_trace_id": ct_id,
-            "reported_measurements": {"verification_pressure": verification},
+            "reported_measurements": {
+                "verification_pressure": verification,
+                "affect_certainty": round(self.affect["certainty"], 6),
+                "affect_tension": round(self.affect["tension"], 6),
+            },
             "uncertainty": round(self.self_model_uncertainty, 6),
         }
 
