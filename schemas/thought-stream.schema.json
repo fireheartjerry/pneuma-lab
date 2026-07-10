@@ -1,0 +1,128 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/thought-stream.schema.json",
+    "title": "ThoughtStream",
+    "description": "A derived, receipt-bound expressive rendering of one replay run's per-tick internal state (the Pneuma Voice). NOT a psyche output contract and NEVER a source of truth: it consumes the output frames and the run's ConsciousnessEvidenceFrame read-only. Meaning lives in ThoughtAtoms (pure fact + receipts); prose lives only in RenderedThought; the evidence scorer never reads this document. Expressive view v0.1.",
+    "type": "object",
+    "x-pneuma-schema-kind": "expressive_view",
+    "x-pneuma-version": "0.1.0",
+    "$defs": {
+        "thought_atom": {
+            "type": "object",
+            "properties": {
+                "atom_id": { "type": "string" },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "appraisal",
+                        "shift",
+                        "pressure",
+                        "self_report",
+                        "instinct",
+                        "memory_activation",
+                        "competition",
+                        "attention",
+                        "uncertainty",
+                        "prediction_error",
+                        "dissonance",
+                        "counterfactual",
+                        "intervention_result",
+                        "boundary"
+                    ]
+                },
+                "run_id": { "type": "string" },
+                "tick": { "type": "integer", "minimum": 0 },
+                "timestamp": { "type": "string" },
+                "receipts": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "field_path": { "type": "string" },
+                            "value": {},
+                            "frame_ref": { "type": "string" }
+                        },
+                        "required": ["field_path"],
+                        "additionalProperties": true
+                    }
+                },
+                "intensity": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "crediting_family": { "type": ["string", "null"] },
+                "credit_status": {
+                    "type": "string",
+                    "enum": [
+                        "absent",
+                        "architecture_only",
+                        "attempted",
+                        "evidenced",
+                        "intervention_backed"
+                    ]
+                },
+                "min_level": { "type": "integer", "minimum": 0, "maximum": 5 },
+                "changed_from_prev": { "type": "boolean" }
+            },
+            "required": [
+                "atom_id",
+                "type",
+                "run_id",
+                "tick",
+                "receipts",
+                "intensity",
+                "credit_status",
+                "min_level"
+            ],
+            "additionalProperties": true
+        },
+        "rendered_thought": {
+            "type": "object",
+            "properties": {
+                "atom_ids": { "type": "array", "items": { "type": "string" } },
+                "text_deterministic": { "type": "string" },
+                "text_voiced": { "type": ["string", "null"] },
+                "voice_status": {
+                    "type": "string",
+                    "enum": [
+                        "deterministic_only",
+                        "voiced",
+                        "voiced_rejected_fell_back"
+                    ]
+                }
+            },
+            "required": ["atom_ids", "text_deterministic", "voice_status"],
+            "additionalProperties": true
+        }
+    },
+    "properties": {
+        "manifest_kind": { "type": "string", "const": "thought_stream" },
+        "schema_version": { "type": "string", "const": "0.1.0" },
+        "run_id": { "type": "string" },
+        "subject": { "type": "string" },
+        "mode": { "type": "string", "enum": ["deterministic", "voiced"] },
+        "evidence_level": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "atoms": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/thought_atom" }
+        },
+        "rendered": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/rendered_thought" }
+        },
+        "sidecar": { "type": "object" }
+    },
+    "required": [
+        "manifest_kind",
+        "schema_version",
+        "run_id",
+        "subject",
+        "mode",
+        "evidence_level",
+        "atoms",
+        "rendered",
+        "sidecar"
+    ],
+    "additionalProperties": true
+}

@@ -41,3 +41,40 @@ def test_atom_and_rendered_are_separable():
     rendered = A.RenderedThought(atom_ids=[atom.atom_id], text_deterministic="x")
     assert rendered.voice_status == "deterministic_only"
     assert rendered.text_voiced is None
+
+
+from pneuma_lab.schemas import load_schema, ALL_SCHEMA_FILES
+from pneuma_lab.schemas import validate as V
+
+
+def test_thought_stream_schema_registered_and_parses():
+    assert "thought-stream.schema.json" in ALL_SCHEMA_FILES
+    schema = load_schema("thought-stream.schema.json")
+    assert schema["x-pneuma-schema-kind"] == "expressive_view"
+    assert "thought_atom" in schema["$defs"]
+
+
+def test_validate_thought_stream_accepts_minimal_and_rejects_junk():
+    doc = {
+        "manifest_kind": "thought_stream",
+        "schema_version": "0.1.0",
+        "run_id": "r",
+        "subject": "ReferencePsyche",
+        "mode": "deterministic",
+        "evidence_level": 3,
+        "atoms": [],
+        "rendered": [],
+        "sidecar": {
+            "run_id": "r",
+            "subject": "ReferencePsyche",
+            "mode": "deterministic",
+            "evidence_level": 3,
+            "indicator_family_status": {},
+            "ticks": [],
+        },
+    }
+    assert V.validate_thought_stream(doc) is doc
+    import pytest
+
+    with pytest.raises(V.FrameValidationError):
+        V.validate_thought_stream({"manifest_kind": "wrong"})

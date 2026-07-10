@@ -192,6 +192,28 @@ def validate_campaign(summary: dict) -> dict:
     return summary
 
 
+@lru_cache(maxsize=None)
+def _thought_stream_validator() -> Draft202012Validator:
+    return Draft202012Validator(load_schema("thought-stream.schema.json"))
+
+
+def validate_thought_stream(doc: dict) -> dict:
+    """Validate a Pneuma Voice thought-stream document (expressive view)."""
+    if not isinstance(doc, dict):
+        raise FrameValidationError(
+            f"thought_stream is not an object: {type(doc).__name__}"
+        )
+    messages = _non_finite_errors(doc)
+    for err in sorted(
+        _thought_stream_validator().iter_errors(doc), key=lambda e: list(e.path)
+    ):
+        loc = "/".join(str(p) for p in err.path) or "<root>"
+        messages.append(f"{loc}: {err.message}")
+    if messages:
+        raise FrameValidationError("invalid thought_stream: " + "; ".join(messages))
+    return doc
+
+
 __all__ = [
     "FRAME_KIND_TO_SCHEMA",
     "BUNDLE_KIND_TO_SCHEMA",
@@ -202,4 +224,5 @@ __all__ = [
     "validate_or_raise",
     "validate_bundle",
     "validate_campaign",
+    "validate_thought_stream",
 ]
