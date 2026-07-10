@@ -366,6 +366,314 @@
                     { "path": "tests/test_swe_gym_lite_golden.py" }
                 ]
             }
+        },
+        {
+            "lane_id": "swe-chat",
+            "name": "SWE-chat",
+            "source_family": "swe-chat",
+            "owning_adapter": null,
+            "active": false,
+            "current_stage": "provenance-blocked",
+            "training_readiness": "blocked",
+            "artifact_license": {
+                "status": "declared",
+                "value": "odc-by",
+                "note": "underlying repos retain own licenses; the block is privacy, not license"
+            },
+            "authorization": {
+                "training_authorized": false,
+                "reason": "Real human user data (PII corpus), HF contact-info-gated; not downloaded here (no token/terms). Project rule forbids processing SWE-chat until privacy gates are explicitly satisfied."
+            },
+            "validation": {
+                "task_joins_validated": false,
+                "labels_validated": false,
+                "split_validated": false,
+                "leakage_controls_present": false
+            },
+            "blockers": [
+                "real human user PII corpus; no privacy/redaction plan",
+                "HF gate (token + contact-info terms) not accepted; bytes not present",
+                "project hard rule: do not process SWE-chat unless privacy gates satisfied"
+            ],
+            "advancement_criteria": [
+                "human decision to provision HF token and accept the gate/terms",
+                "committed PII/privacy review and redaction receipt policy",
+                "digest-only adapter with privacy_status gated on redaction"
+            ],
+            "references": {
+                "docs": [{ "path": "docs/data/candidate-reviews/swe-chat.md" }],
+                "tests": [{ "path": "tests/test_blocked_dataset_lanes.py" }]
+            }
+        },
+        {
+            "lane_id": "sec-bench-pro",
+            "name": "SEC-bench-Pro",
+            "source_family": "sec-bench-pro",
+            "owning_adapter": null,
+            "active": false,
+            "current_stage": "provenance-blocked",
+            "training_readiness": "blocked",
+            "artifact_license": {
+                "status": "declared",
+                "value": "mit / apache-2.0",
+                "note": "licenses are permissive; the block is dual-use, not license"
+            },
+            "authorization": {
+                "training_authorized": false,
+                "reason": "Dual-use security corpus (memory-safety/sandbox/JIT exploits). Metadata only; safety restriction forbids PoC execution; exploit-adjacent text must be gated/redacted before any pass-through."
+            },
+            "validation": {
+                "task_joins_validated": false,
+                "labels_validated": false,
+                "split_validated": false,
+                "leakage_controls_present": false
+            },
+            "blockers": [
+                "dual-use exploit-adjacent content requires a dual-use review",
+                "no-PoC-execution safety restriction must be preserved end to end",
+                "description/bug_report/patch fields need redaction before frames"
+            ],
+            "advancement_criteria": [
+                "committed dual-use review deciding eval_only vs fully blocked",
+                "redaction pass removing exploit-reproduction detail with a receipt",
+                "hard guarantee of no PoC build/execution in the pipeline"
+            ],
+            "references": {
+                "docs": [
+                    { "path": "docs/data/candidate-reviews/sec-bench-pro.md" }
+                ],
+                "tests": [{ "path": "tests/test_blocked_dataset_lanes.py" }]
+            }
+        },
+        {
+            "lane_id": "swe-mera",
+            "name": "SWE-MERA",
+            "source_family": "swe-mera",
+            "owning_adapter": null,
+            "active": false,
+            "current_stage": "eval-only",
+            "training_readiness": "eval-only",
+            "artifact_license": {
+                "status": "declared",
+                "value": "mit",
+                "note": "paper text says CC BY 4.0; inconsistency recorded, does not gate eval-only use"
+            },
+            "authorization": {
+                "training_authorized": false,
+                "reason": "Anti-contamination dynamic benchmark; explicitly HELD-OUT EVALUATION ONLY. Training on it would destroy its purpose and contaminate evaluation."
+            },
+            "validation": {
+                "task_joins_validated": false,
+                "labels_validated": false,
+                "split_validated": false,
+                "leakage_controls_present": true
+            },
+            "blockers": [
+                "held-out eval-only by design; not a training source",
+                "counts drift over time (pin sha + fetch date)"
+            ],
+            "advancement_criteria": [
+                "not a training lane; wire as held-out eval/calibration once an eval harness exists"
+            ],
+            "references": {
+                "docs": [{ "path": "docs/data/candidate-reviews/swe-mera.md" }],
+                "tests": [{ "path": "tests/test_blocked_dataset_lanes.py" }]
+            }
+        },
+        {
+            "lane_id": "swe-bench",
+            "name": "SWE-bench (family)",
+            "source_family": "swe-bench",
+            "owning_adapter": null,
+            "active": false,
+            "current_stage": "eval-only",
+            "training_readiness": "eval-only",
+            "artifact_license": {
+                "status": "undeclared",
+                "note": "harness code MIT; HF dataset content has no explicit tag, inherits 12 upstream repo licenses"
+            },
+            "authorization": {
+                "training_authorized": false,
+                "reason": "Canonical SWE-agent evaluation benchmark; training on it contaminates evaluation. Also ~1/3 Verified solution leakage and weak-test oracles make it a poor training target, and it has no explicit HF artifact license."
+            },
+            "validation": {
+                "task_joins_validated": false,
+                "labels_validated": false,
+                "split_validated": false,
+                "leakage_controls_present": true
+            },
+            "blockers": [
+                "evaluation contamination: held-out by role",
+                "no explicit HF artifact license",
+                "known label-quality issues (solution leakage, weak oracles)"
+            ],
+            "advancement_criteria": [
+                "not a training lane; wire as held-out evaluation once an eval harness exists"
+            ],
+            "references": {
+                "docs": [
+                    { "path": "docs/data/candidate-reviews/swe-bench.md" }
+                ],
+                "tests": [{ "path": "tests/test_blocked_dataset_lanes.py" }]
+            }
+        },
+        {
+            "lane_id": "swe-bench-pro",
+            "name": "SWE-bench Pro (public split)",
+            "source_family": "swe-bench-pro",
+            "owning_adapter": null,
+            "active": false,
+            "current_stage": "license-blocked-for-release",
+            "training_readiness": "blocked",
+            "artifact_license": {
+                "status": "undeclared",
+                "paper_license_is_not_artifact_license": true,
+                "note": "code MIT, paper CC BY 4.0, HF card unspecified"
+            },
+            "authorization": {
+                "training_authorized": false,
+                "reason": "Unspecified HF artifact license (as with archived dialogue-swe-bench). Held-out benchmark role; only 731 of 1865 instances are public. Not authorized for training."
+            },
+            "validation": {
+                "task_joins_validated": false,
+                "labels_validated": false,
+                "split_validated": false,
+                "leakage_controls_present": true
+            },
+            "blockers": [
+                "unspecified HF dataset-artifact license",
+                "held-out benchmark role; public split is 731/1865",
+                "Pneuma constructs would be synthesized, not native"
+            ],
+            "advancement_criteria": [
+                "explicit dataset-artifact license or authoritative release statement",
+                "role decision (most likely eval_only given held-out design)",
+                "only then a task-only adapter keeping oracle out of input"
+            ],
+            "references": {
+                "docs": [
+                    { "path": "docs/data/candidate-reviews/swe-bench-pro.md" }
+                ],
+                "tests": [{ "path": "tests/test_blocked_dataset_lanes.py" }]
+            }
+        },
+        {
+            "lane_id": "swe-polybench",
+            "name": "SWE-PolyBench",
+            "source_family": "swe-polybench",
+            "owning_adapter": null,
+            "active": true,
+            "current_stage": "planned",
+            "training_readiness": "local-research-only",
+            "artifact_license": {
+                "status": "declared",
+                "value": "mit"
+            },
+            "authorization": {
+                "training_authorized": false,
+                "reason": "Clean-MIT, well-shaped task-only benchmark and a genuine training candidate, but no stage-1 adapter/converter exists yet."
+            },
+            "validation": {
+                "task_joins_validated": false,
+                "labels_validated": false,
+                "split_validated": false,
+                "leakage_controls_present": false
+            },
+            "blockers": [
+                "no task-only stage-1 adapter yet (swe_gym_lite pattern)",
+                "no converter, split, or leakage check over real rows yet"
+            ],
+            "advancement_criteria": [
+                "task-only PneumaTrace adapter (world+governance+oracle, no agent-trace frames)",
+                "converter keeping oracle/patch fields out of input",
+                "split + cross-dataset leakage check for multi-language repos",
+                "readiness package and guardrails mirroring Dataset #1"
+            ],
+            "references": {
+                "docs": [
+                    { "path": "docs/data/candidate-reviews/swe-polybench.md" }
+                ],
+                "tests": [{ "path": "tests/test_blocked_dataset_lanes.py" }]
+            }
+        },
+        {
+            "lane_id": "multi-swe-bench",
+            "name": "Multi-SWE-bench",
+            "source_family": "multi-swe-bench",
+            "owning_adapter": null,
+            "active": true,
+            "current_stage": "planned",
+            "training_readiness": "local-research-only",
+            "artifact_license": {
+                "status": "ambiguous",
+                "value": "other / cc0-1.0",
+                "note": "README claims CC0; HF card tag is 'other' -- confirm before release-style training use"
+            },
+            "authorization": {
+                "training_authorized": false,
+                "reason": "Training candidate with a CC0 claim, but the artifact license tag is ambiguous ('other') and no adapter exists yet; trajectory data ships as ZIPs needing normalization."
+            },
+            "validation": {
+                "task_joins_validated": false,
+                "labels_validated": false,
+                "split_validated": false,
+                "leakage_controls_present": false
+            },
+            "blockers": [
+                "artifact license ambiguous (CC0 README vs 'other' tag) -- confirm before release use",
+                "no task-only adapter/converter yet",
+                "agent trajectories are ZIPs (need unzip/normalize) -- deferred"
+            ],
+            "advancement_criteria": [
+                "confirm CC0-vs-'other' artifact license",
+                "task-only adapter over the curated 1632-instance eval split",
+                "converter/split/leakage check for the 7 non-Python languages",
+                "later: normalize the ZIP trajectories for a trajectory-bearing lane"
+            ],
+            "references": {
+                "docs": [
+                    { "path": "docs/data/candidate-reviews/multi-swe-bench.md" }
+                ],
+                "tests": [{ "path": "tests/test_blocked_dataset_lanes.py" }]
+            }
+        },
+        {
+            "lane_id": "swe-evo",
+            "name": "SWE-EVO",
+            "source_family": "swe-evo",
+            "owning_adapter": null,
+            "active": true,
+            "current_stage": "planned",
+            "training_readiness": "local-research-only",
+            "artifact_license": {
+                "status": "declared",
+                "value": "apache-2.0",
+                "note": "code MIT; dataset Apache-2.0"
+            },
+            "authorization": {
+                "training_authorized": false,
+                "reason": "Clean-licensed and trajectory-bearing, but tiny (48 core tasks) and its 7 Python repos overlap heavily with Dataset #1/#2 (conan/dask/dvc/modin/scikit-learn); no adapter exists and it is a low-priority, leakage-heavy candidate."
+            },
+            "validation": {
+                "task_joins_validated": false,
+                "labels_validated": false,
+                "split_validated": false,
+                "leakage_controls_present": false
+            },
+            "blockers": [
+                "no adapter/converter yet",
+                "severe cross-dataset repo overlap with Dataset #1/#2 (must quarantine)",
+                "tiny core (48 tasks) -- low marginal value for a unified model"
+            ],
+            "advancement_criteria": [
+                "register SWE-EVO repo set in the cross-dataset leakage registry and quarantine overlaps",
+                "decide training vs held-out-eval role given redundancy",
+                "if training: trajectory-bearing adapter over infer_logs mirroring Open-SWE-Traces"
+            ],
+            "references": {
+                "docs": [{ "path": "docs/data/candidate-reviews/swe-evo.md" }],
+                "tests": [{ "path": "tests/test_blocked_dataset_lanes.py" }]
+            }
         }
     ]
 }
