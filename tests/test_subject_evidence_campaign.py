@@ -184,3 +184,55 @@ def test_run_campaign_is_deterministic(tmp_path):
     a = run_campaign(work_dir=tmp_path / "a")
     b = run_campaign(work_dir=tmp_path / "b")
     assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+
+
+# --------------------------------------------------------------------------- #
+# Task 4: report writer + CLI                                                  #
+# --------------------------------------------------------------------------- #
+def test_write_campaign_is_deterministic_and_schema_valid(tmp_path):
+    from pneuma_lab.nervous_system.campaign import run_campaign
+    from pneuma_lab.nervous_system.campaign_report import write_campaign
+
+    summary = run_campaign(work_dir=tmp_path / "work")
+    out1 = write_campaign(summary, tmp_path / "out1")
+    out2 = write_campaign(summary, tmp_path / "out2")
+    j1 = out1["json"].read_text(encoding="utf-8")
+    j2 = out2["json"].read_text(encoding="utf-8")
+    assert j1 == j2
+    validate.validate_campaign(json.loads(j1))
+    assert out1["md"].exists()
+    assert "no_level_claim" in out1["md"].read_text(encoding="utf-8")
+
+
+def test_campaign_cli_writes_artifacts(tmp_path):
+    import subprocess
+    import sys
+
+    out = tmp_path / "camp"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pneuma_lab.nervous_system.campaign_report",
+            "--out",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO),
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert (out / "summary.json").exists()
+    validate.validate_campaign(
+        json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    )
+
+
+def test_campaign_causal_trace_refs_resolve():
+    from pneuma_lab.nervous_system.subject_runtime import run_subject
+
+    bundle = run_subject(_frames("base.jsonl"))[-1]
+    ct = bundle["causal_trace"]
+    assert bundle["control_pressure"]["causal_trace_id"] == ct["trace_id"]
+    assert bundle["workspace_broadcast"]["broadcast_id"] in ct["emitted_outputs"]
+    assert bundle["psyche_state"]["state_hash"] == ct["new_state_hash"]
