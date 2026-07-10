@@ -84,6 +84,11 @@ digests) and a `scorer_diagnostic`, with `overall.certified` /
 `promotion_blocked_by`, when produced by the certified promotable path
 `python -m pneuma_lab.nervous_system.certified_campaign`.
 
+`thought-stream.schema.json` (`x-pneuma-schema-kind: expressive_view`) is a
+derived, non-authoritative rendering of the output frames above (produced by
+`src/pneuma_lab/voice/`) — read-only, never a source of truth. See
+[`pneuma-voice-v0.md`](pneuma-voice-v0.md).
+
 ## The authority `min` (shared by GovernanceFrame + AuthorityRequest)
 
 ```

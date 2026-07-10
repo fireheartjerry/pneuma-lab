@@ -65,6 +65,7 @@ _CURRENT_SYSTEM_STATE = {
     "pneuma_brain_v0_corpus": ("implemented", "offline_research"),
     "pneuma_brain_trainer": ("implemented", "offline_research"),
     "pneuma_nervous_system_shadow": ("implemented", "internal_harness"),
+    "pneuma_voice_shadow": ("implemented", "internal_harness"),
 }
 
 _CURRENT_NEGATIVE_RESULTS = {

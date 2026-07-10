@@ -9,7 +9,15 @@ cycle with ``psyche``/``replay``.
 
 from __future__ import annotations
 
-__all__ = ["atoms", "extract", "gate", "render_deterministic", "sidecar", "stream"]
+__all__ = [
+    "atoms",
+    "extract",
+    "gate",
+    "render_deterministic",
+    "sidecar",
+    "stream",
+    "transcript",
+]
 
 
 def __getattr__(name: str):  # pragma: no cover - thin lazy loader

@@ -114,6 +114,15 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
   five slices through the promotable `PairedReplayRunner`; eligibility is real but
   Level 2/3/4 promotion stays blocked by unevidenced families — no level claim.
   See `docs/nervous-system-v0.md`.
+- `src/pneuma_lab/voice/` (PneumaVoice-v0, Phase A) is the read-only expressive
+  surface: per-tick output frames → `ThoughtAtom`s (pure fact + receipts) →
+  `RenderedThought` + evidence sidecar, deterministic and receipt-bound. The
+  observed-vs-credited gate always shows observed atoms and hedges
+  uncredited-family atoms as "architecture-only, not promotable evidence"; the
+  scorer never reads rendered prose. Ships a byte-deterministic transcript
+  (`stream.md`/`stream.jsonl`/`sidecar.json`) and a
+  `python -m pneuma_lab.voice` CLI. Phase B (verified LLM voiced skin) and
+  Phase C (HTML mind monitor) are future work. See `docs/pneuma-voice-v0.md`.
 - `src/pneuma_lab/status.py` validates and reports the canonical current-state
   manifest with `python -m pneuma_lab.status --check`.
 - `fixtures/sample_run.jsonl` is a failure-motif escalation timeline used by the

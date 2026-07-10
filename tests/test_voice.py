@@ -345,3 +345,22 @@ def test_transcript_md_reads_as_a_thought_stream(tmp_path):
     md = (tmp_path / "stream.md").read_text(encoding="utf-8")
     assert "evidence level 3" in md.lower()
     assert "tick 0" in md.lower()
+
+
+import pathlib
+
+
+def test_voice_package_imports_no_9to5_or_verifier():
+    root = pathlib.Path(__file__).resolve().parents[1] / "src" / "pneuma_lab" / "voice"
+    for py in root.glob("*.py"):
+        text = py.read_text(encoding="utf-8").lower()
+        assert "9to5" not in text, f"{py.name} references 9to5"
+        assert "import verifier" not in text and "from verifier" not in text, py.name
+
+
+def test_voice_all_submodules_are_lazily_importable():
+    import importlib
+    import pneuma_lab.voice as v
+
+    for name in v.__all__:
+        assert importlib.import_module(f"pneuma_lab.voice.{name}") is getattr(v, name)

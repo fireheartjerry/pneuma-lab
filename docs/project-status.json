@@ -208,6 +208,25 @@
                 "tests/test_certified_subject_campaign.py"
             ],
             "blockers": []
+        },
+        {
+            "id": "pneuma_voice_shadow",
+            "status": "implemented",
+            "scope": "internal_harness",
+            "evidence_refs": [
+                "src/pneuma_lab/voice/atoms.py",
+                "src/pneuma_lab/voice/extract.py",
+                "src/pneuma_lab/voice/gate.py",
+                "src/pneuma_lab/voice/render_deterministic.py",
+                "src/pneuma_lab/voice/sidecar.py",
+                "src/pneuma_lab/voice/stream.py",
+                "src/pneuma_lab/voice/transcript.py",
+                "src/pneuma_lab/voice/__main__.py",
+                "schemas/thought-stream.schema.json",
+                "docs/pneuma-voice-v0.md",
+                "tests/test_voice.py"
+            ],
+            "blockers": []
         }
     ],
     "nine_to_five": {
