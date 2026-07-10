@@ -137,3 +137,84 @@ def test_subject_ticks_produce_valid_linked_frames_via_harness():
         assert o.grounded_self_report["affect_state_hash"] == ps["state_hash"]
     winners = [o.workspace_broadcast["winning_faculty"] for o in outs]
     assert "memory_scar" in winners
+
+
+# --------------------------------------------------------------------------- #
+# Task 7: conservative subject evidence                                        #
+# --------------------------------------------------------------------------- #
+def test_subject_evidence_is_conservative():
+    from pneuma_lab.nervous_system import shadow_evidence as nse
+
+    frame = nse.subject_evidence_frame(
+        ablation_result={"direction_ok": True, "null_holds": True},
+        families_exercised=(
+            "global_workspace",
+            "valenced_learning",
+            "identity_persistence",
+            "higher_order_self_model",
+        ),
+        run_id="subj",
+        timestamp="2026-07-10T00:00:00Z",
+    )
+    validate.validate_or_raise(frame)
+    assert frame["evidence_level"] <= 1
+    assert frame["real_subject_claim_status"] == "not_evaluated"
+    assert frame["paired_replay_provenance"]["status"] == "uncertified_subject"
+    for fam in (
+        "global_workspace",
+        "valenced_learning",
+        "identity_persistence",
+        "higher_order_self_model",
+        "causal_intervention_robustness",
+    ):
+        assert frame["indicator_families"][fam]["status"] != "intervention_backed"
+    assert frame["indicator_families"]["global_workspace"]["status"] in (
+        "attempted",
+        "architecture_only",
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Task 6: run_subject runtime + persistence                                    #
+# --------------------------------------------------------------------------- #
+def test_run_subject_is_deterministic_schema_valid_and_persists(tmp_path):
+    from pneuma_lab.nervous_system.subject_runtime import run_subject
+
+    frames = _frames("base.jsonl")
+    store = tmp_path / "scars.json"
+    b1 = run_subject(
+        frames, scar_store_path=store, shadow_log_path=tmp_path / "l1.jsonl"
+    )
+    b2 = run_subject(
+        frames,
+        scar_store_path=tmp_path / "store2.json",
+        shadow_log_path=tmp_path / "l2.jsonl",
+    )
+    for b in b1:
+        validate.validate_bundle(b)
+        assert b["control_pressure"]["authority_tier"] in ("cosmetic", "soft")
+        assert b["control_pressure"]["pressures"]["verification"] >= 0.0
+        assert "verdict" not in b["control_pressure"]
+        assert b["causal_trace"]["new_state_hash"] == b["psyche_state"]["state_hash"]
+    assert json.dumps(b1, sort_keys=True) == json.dumps(b2, sort_keys=True)
+    assert store.exists()
+    b3 = run_subject(
+        frames, scar_store_path=store, shadow_log_path=tmp_path / "l3.jsonl"
+    )
+    p1 = b1[0]["control_pressure"]["pressures"]["verification"]
+    p3 = b3[0]["control_pressure"]["pressures"]["verification"]
+    assert p3 != p1
+
+
+def test_run_subject_kill_switch_suppresses(tmp_path):
+    from pneuma_lab.nervous_system.subject_runtime import run_subject
+
+    frames = _frames("base.jsonl")
+    frames[0] = {**frames[0], "kill_switch_state": "off"}
+    log = tmp_path / "log.jsonl"
+    out = run_subject(frames, scar_store_path=tmp_path / "s.json", shadow_log_path=log)
+    assert out == []
+    rows = [
+        json.loads(x) for x in log.read_text(encoding="utf-8").splitlines() if x.strip()
+    ]
+    assert rows and rows[0]["status"] == "suppressed_by_governance"

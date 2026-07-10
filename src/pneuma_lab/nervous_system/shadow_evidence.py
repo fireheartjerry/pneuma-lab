@@ -110,3 +110,76 @@ def shadow_evidence_frame(*, ablation_result, run_id, timestamp):
             "ordinal_invariant": False,
         },
     }
+
+
+def subject_evidence_frame(*, ablation_result, families_exercised, run_id, timestamp):
+    """Conservative evidence for the BaselinePsycheSubject slice (never > L1).
+
+    Families genuinely exercised by the subject are marked ``architecture_only``
+    (architecture present + exercised) but NEVER ``intervention_backed``; the
+    headline evidence_level stays <= 1. This is harness evidence, not a Level-2/3/4
+    claim.
+    """
+    coupled = bool(ablation_result.get("direction_ok")) and bool(
+        ablation_result.get("null_holds")
+    )
+    level = 1 if coupled else 0
+    note = (
+        "Level-1-compatible harness evidence from an integrated minimal subject: "
+        "3-candidate workspace + persistent scars + verification pressure, with "
+        "intervention/null behaviour. NOT a Level-2/3/4 claim."
+    )
+    families = {
+        name: _family("absent", 0.0, "not exercised in subject slice") for name in _FAMILIES
+    }
+    for name in families_exercised:
+        if name in families:
+            families[name] = _family(
+                "architecture_only",
+                0.2,
+                "architecture present and exercised; not intervention-certified",
+            )
+    families["causal_intervention_robustness"] = _family(
+        "attempted" if coupled else "absent", 0.3 if coupled else 0.0, note
+    )
+    return {
+        "schema_version": "0.2.0",
+        "frame_kind": "consciousness_evidence",
+        "timestamp": timestamp,
+        "run_id": run_id,
+        "evaluation_id": f"subject_evidence:{run_id}",
+        "evaluation_scope": "internal_harness",
+        "real_subject_claim_status": "not_evaluated",
+        "indicator_families": families,
+        "evidence_level": level,
+        "missing_requirements": list(_MISSING),
+        "strongest_positive_evidence": (
+            "intervention flips the workspace winner / changes verification pressure; null holds"
+            if coupled
+            else None
+        ),
+        "strongest_negative_evidence": (
+            "minimal non-certified subject; no promotable paired-runner certification; no real subject"
+        ),
+        "audit_status": "self_reported",
+        "roleplay_confabulation_risk": 0.1,
+        "intervention_tests": {
+            "results": [],
+            "executed_count": 0,
+            "reported_total": 0,
+            "integrity_ok": False,
+            "integrity_errors": ["subject slice is not a certified paired-runner intervention"],
+            "genuine_perturbation": False,
+        },
+        "paired_replay_provenance": {
+            "status": "uncertified_subject",
+            "runner": None,
+            "subject_factory": None,
+            "subject_factory_eligible": False,
+            "input_frames_sha256": None,
+            "arm_output_sha256": {"control": None, "treated": None, "null": None},
+            "arm_orders": [],
+            "counterbalanced_passes": [],
+            "ordinal_invariant": False,
+        },
+    }
