@@ -163,9 +163,15 @@
             "scope": "offline_research",
             "evidence_refs": [
                 "src/pneuma_lab/brain/train.py",
+                "src/pneuma_lab/brain/train_full.py",
                 "src/pneuma_lab/brain/model.py",
                 "src/pneuma_lab/brain/preflight.py",
-                "tests/test_brain_train.py"
+                "src/pneuma_lab/brain/evaluate.py",
+                "src/pneuma_lab/brain/predict.py",
+                "tests/test_brain_train.py",
+                "tests/test_brain_train_full.py",
+                "docs/models/pneuma-brain-v0-1-model-card.md",
+                "docs/data/training-authorizations/pneuma-brain-v0.signed.json"
             ],
             "blockers": []
         }
@@ -267,7 +273,7 @@
             ],
             "blockers": []
         },
-        "pneuma_brain_training": "corpus_specified_pending_authorization",
+        "pneuma_brain_training": "v0_1_trained_local_research",
         "runtime_model_integration": "none",
         "rsi_loop": "not_operational",
         "evidence_refs": [

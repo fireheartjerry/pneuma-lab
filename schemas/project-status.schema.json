@@ -512,7 +512,8 @@
                 "pneuma_brain_training": {
                     "enum": [
                         "not_started",
-                        "corpus_specified_pending_authorization"
+                        "corpus_specified_pending_authorization",
+                        "v0_1_trained_local_research"
                     ]
                 },
                 "runtime_model_integration": {
