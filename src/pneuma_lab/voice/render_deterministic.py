@@ -19,8 +19,10 @@ _FORBIDDEN = re.compile(
     r"\b("
     r"i feel|i suffer|i experience|"
     r"i\s?(?:am|'m|’m)\s+(?:conscious|aware|sentient)|"
+    r"i(?:'m| am) suffering|hurts me|subjective experience|"
+    r"we (?:feel|are (?:conscious|aware|sentient))|torment|"
     r"my feelings?|"
-    r"sentien\w*|phenomenal\w*|qualia|conscious experience|moral patient"
+    r"sentien\w*|phenomenal\w*|qualia|conscious experience|moral patient(?:hood)?"
     r")\b",
     re.IGNORECASE,
 )

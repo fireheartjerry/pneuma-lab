@@ -427,3 +427,25 @@ def test_verify_rejects_dropped_hedge():
         "A workspace race resolved (self_model, 1.00).", source
     )
     assert not ok and any("architecture-only" in r for r in reasons)
+
+
+def test_verify_rejects_bulk_ungrounded_expansion():
+    source = ["A verification pressure of 0.42 forms and is held there."]
+    voiced = (
+        "A verification pressure of 0.42 forms and is held there, and then it "
+        "collapses into a wave of panic and an unbearable, crushing dread that "
+        "spreads through every corner of the mind without pause or relief."
+    )
+    ok, reasons = VF.verify_voiced(voiced, source)
+    assert not ok and any("expands" in r for r in reasons)
+
+
+def test_scrub_catches_more_phenomenology():
+    for phrase in (
+        "I am suffering here",
+        "this hurts me deeply",
+        "it has subjective experience",
+        "we feel uneasy",
+    ):
+        clean, removed = R.scrub_forbidden(phrase)
+        assert removed, f"not scrubbed: {phrase}"
