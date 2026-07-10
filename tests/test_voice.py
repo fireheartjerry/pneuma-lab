@@ -257,3 +257,34 @@ def test_scrub_forbidden_catches_contractions_and_possessives():
         clean, removed = R.scrub_forbidden(phrase)
         assert removed, f"not scrubbed: {phrase}"
         assert "[filtered]" in clean
+
+
+from pneuma_lab.voice import sidecar as S
+
+
+def test_sidecar_records_receipts_credit_and_family_status():
+    result = _reference_result()
+    ev = result.evidence_frame
+    per_tick_atoms = []
+    for i, out in enumerate(result.tick_outputs):
+        prev = result.tick_outputs[i - 1] if i else None
+        per_tick_atoms.append(X.atoms_for_tick(out, prev, tick=i, evidence_frame=ev))
+    sc = S.build_sidecar(
+        run_id=ev["run_id"],
+        subject="ReferencePsyche",
+        mode="deterministic",
+        evidence_frame=ev,
+        per_tick_atoms=per_tick_atoms,
+    )
+    assert sc["evidence_level"] == ev["evidence_level"]
+    assert sc["indicator_family_status"]["global_workspace"] in {
+        "evidenced",
+        "intervention_backed",
+        "architecture_only",
+        "attempted",
+        "absent",
+    }
+    assert len(sc["ticks"]) == len(result.tick_outputs)
+    first = sc["ticks"][0]
+    assert first["tick"] == 0
+    assert all("credit_status" in a and "receipts" in a for a in first["atoms"])
