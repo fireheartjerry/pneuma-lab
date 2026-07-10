@@ -211,3 +211,38 @@ adversarial, and external-audit evidence.
 ```txt
 python -m pytest tests/test_baseline_psyche_subject.py -q
 ```
+
+## 12. SubjectEvidenceCampaign-v0 — formal evidence campaigns
+
+`src/pneuma_lab/nervous_system/campaign.py` composes the subject helpers into a
+certified, replayable **evidence campaign** with five conservative slices, and
+`campaign_report.py` writes deterministic, schema-valid artifacts to
+`build/evidence_campaigns/subject-v0/` (`summary.json` + `summary.md`).
+
+| slice                  | what it shows                                                                                                  |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `l2_persistence`       | past event → stored scar → retrieved next run → changed tick-0 winner/pressure                                 |
+| `scar_ablation`        | control `memory_scar` → treated `risk_instinct`; pressure drops; null holds                                    |
+| `workspace_disable`    | treated: no broadcast, `verification == 0`; null holds                                                         |
+| `certainty_clamp`      | treated internal `state_hash` + `affect_certainty` self-report measurement change; null holds                  |
+| `grounded_self_report` | report references actual `state_hash`, workspace winner, and `causal_trace_id`, and changes under perturbation |
+
+Each slice carries a conservative `ConsciousnessEvidenceFrame` and a `readiness` of
+`compatible_harness_evidence` | `not_observed`. The artifact is validated against
+`schemas/subject-evidence-campaign.schema.json` via `validate.validate_campaign`.
+
+**No level claim.** The summary's `overall.claim` is always `no_level_claim`;
+embedded frames stay `evidence_level ≤ 1`, `real_subject_claim_status:
+not_evaluated`, `paired_replay_provenance.status: uncertified_subject`. This is
+compatible harness evidence for Level-2/3/4 _readiness_, not a promotion.
+
+**Before a Level-2/3/4 claim** could be made: certified promotable paired-runner
+certification over a persistent integrated subject; grounded self-report that
+changes faithfully under perturbation on a promotable path; a real, non-toy
+subject; and longitudinal-across-many-runs, adversarial, and external-audit
+campaigns.
+
+```txt
+python -m pneuma_lab.nervous_system.campaign_report --out build/evidence_campaigns/subject-v0
+python -m pytest tests/test_subject_evidence_campaign.py -q
+```

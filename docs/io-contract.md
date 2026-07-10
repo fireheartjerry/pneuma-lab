@@ -75,6 +75,11 @@ The producer is the shadow nervous system (`python -m pneuma_lab.nervous_system`
 it wraps PneumaBrain-v0.1 risk into advisory frames without runtime authority or
 verifier contact. See [`nervous-system-v0.md`](nervous-system-v0.md).
 
+The `evidence_campaign` manifest kind (`subject-evidence-campaign.schema.json`,
+validated via `validate.validate_campaign`) is a conservative, no-level-claim
+evidence-campaign summary over `BaselinePsycheSubject-v0`, produced by
+`python -m pneuma_lab.nervous_system.campaign_report`.
+
 ## The authority `min` (shared by GovernanceFrame + AuthorityRequest)
 
 ```

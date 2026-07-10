@@ -103,7 +103,12 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
   3-candidate global workspace (`workspace.py`), verification-only pressure, and
   scar/affect/workspace intervention tests (`subject_ablation.py`) — driven by the
   existing `ReplayHarness`/`PairedReplayRunner` but reported as conservative
-  harness evidence only (no Level 2/3/4 claim). See `docs/nervous-system-v0.md`.
+  harness evidence only (no Level 2/3/4 claim). SubjectEvidenceCampaign-v0
+  (`campaign.py`, `campaign_report.py`) runs five conservative evidence slices
+  (L2 persistence, scar ablation, workspace disable, certainty clamp, grounded
+  self-report) over the subject and writes deterministic, schema-valid
+  `evidence_campaign` artifacts to `build/evidence_campaigns/` — no Level 2/3/4
+  claim. See `docs/nervous-system-v0.md`.
 - `src/pneuma_lab/status.py` validates and reports the canonical current-state
   manifest with `python -m pneuma_lab.status --check`.
 - `fixtures/sample_run.jsonl` is a failure-motif escalation timeline used by the
