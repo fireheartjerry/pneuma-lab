@@ -22,6 +22,7 @@ from ..psyche import ReferencePsyche
 from ..replay.frames import group_into_ticks
 from ..replay.harness import ReplayHarness, ReplayResult
 from ..schemas.validate import validate_or_raise
+from .certified_subjects import is_certified
 from .provenance import _PairedReplayProvenance, counterbalanced_orders
 from .schedule import InterventionSchedule
 
@@ -59,10 +60,7 @@ class PairedReplayRunner:
         replay_passes: list[dict[str, ReplayResult]] = []
         for order in counterbalanced_orders():
             replay_passes.append(
-                {
-                    arm: self._run(input_frames, schedules[arm])
-                    for arm in order
-                }
+                {arm: self._run(input_frames, schedules[arm]) for arm in order}
             )
         primary = replay_passes[0]
         control = primary["control"]
@@ -78,7 +76,9 @@ class PairedReplayRunner:
                 for replay_pass in replay_passes
             ],
             self._factory,
-            subject_factory_eligible=self._factory is ReferencePsyche,
+            subject_factory_eligible=(
+                self._factory is ReferencePsyche or is_certified(self._factory)
+            ),
         )
 
         run_id = _run_id(input_frames)
