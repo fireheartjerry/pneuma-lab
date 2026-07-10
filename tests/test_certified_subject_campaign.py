@@ -122,3 +122,18 @@ def test_certified_baseline_factory_is_byte_stable_and_earns_eligibility():
     assert result["passed"] is True
     assert cs.is_certified(certified_factory) is True
     assert "CertifiedBaselineSubjectFactory" in result["subject_factory"]
+
+
+# --------------------------------------------------------------------------- #
+# Task 3: campaign schema optional provenance fields                          #
+# --------------------------------------------------------------------------- #
+def test_campaign_schema_accepts_provenance_and_certified_overall():
+    from pneuma_lab import schemas
+
+    schema = schemas.load_schema("subject-evidence-campaign.schema.json")
+    slice_props = schema["properties"]["slices"]["items"]["properties"]
+    assert "provenance" in slice_props
+    assert "scorer_diagnostic" in slice_props
+    overall_props = schema["properties"]["overall"]["properties"]
+    assert "certified" in overall_props
+    assert "promotion_blocked_by" in overall_props

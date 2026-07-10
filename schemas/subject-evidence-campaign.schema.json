@@ -53,6 +53,12 @@
                     },
                     "evidence_frame": {
                         "type": "object"
+                    },
+                    "provenance": {
+                        "type": "object"
+                    },
+                    "scorer_diagnostic": {
+                        "type": "object"
                     }
                 },
                 "required": [
@@ -78,6 +84,18 @@
                 },
                 "note": {
                     "type": "string"
+                },
+                "certified": {
+                    "type": "boolean"
+                },
+                "subject_factory_eligible": {
+                    "type": "boolean"
+                },
+                "promotion_blocked_by": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             },
             "required": ["claim", "posture"],
