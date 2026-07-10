@@ -218,3 +218,117 @@ def test_shadow_evidence_level_zero_when_ablation_fails():
     )
     validate.validate_or_raise(frame)
     assert frame["evidence_level"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# Task 6: ShadowNervousSystem runtime + kill switch + shadow log              #
+# --------------------------------------------------------------------------- #
+def _model():
+    return brain_predict.load_model(FIX / "model.json")
+
+
+def _gov(name="governance_on.json"):
+    return json.loads((FIX / name).read_text(encoding="utf-8"))
+
+
+def test_runtime_emits_valid_bundle_and_is_deterministic(tmp_path):
+    from pneuma_lab.nervous_system import ShadowNervousSystem
+
+    trace = _load_trace(FIX / "trace_high_risk.jsonl")
+    sys_a = ShadowNervousSystem(_model(), shadow_log_path=tmp_path / "log_a.jsonl")
+    bundles_1 = sys_a.run_trace(trace, _gov(), prefixes=("full",))
+    for b in bundles_1:
+        validate.validate_bundle(b)
+    sys_b = ShadowNervousSystem(_model(), shadow_log_path=tmp_path / "log_b.jsonl")
+    bundles_2 = sys_b.run_trace(trace, _gov(), prefixes=("full",))
+    assert json.dumps(bundles_1, sort_keys=True) == json.dumps(
+        bundles_2, sort_keys=True
+    )
+
+
+def test_runtime_grants_no_authority_and_no_verifier_bypass(tmp_path):
+    from pneuma_lab.nervous_system import ShadowNervousSystem
+
+    sys_a = ShadowNervousSystem(_model(), shadow_log_path=tmp_path / "log.jsonl")
+    bundle = sys_a.run_trace(
+        _load_trace(FIX / "trace_high_risk.jsonl"), _gov(), prefixes=("full",)
+    )[0]
+    assert bundle["risk_estimate"]["authority_granted"] == "none"
+    assert bundle["control_pressure"]["authority_tier"] in ("cosmetic", "soft")
+    assert bundle["control_pressure"]["pressures"]["verification"] >= 0.0
+    assert "no_runtime_authority" in bundle["blocked_uses"]
+    assert bundle["governance_status"] == "emitted"
+    for attr in ("actuate", "apply", "execute", "act"):
+        assert not hasattr(sys_a, attr)
+    for member in ("risk_estimate", "instinct", "control_pressure", "causal_trace"):
+        assert "verdict" not in bundle[member]
+
+
+def test_runtime_causal_trace_refs_are_complete(tmp_path):
+    from pneuma_lab.nervous_system import ShadowNervousSystem
+
+    sys_a = ShadowNervousSystem(_model(), shadow_log_path=tmp_path / "log.jsonl")
+    bundle = sys_a.run_trace(
+        _load_trace(FIX / "trace_high_risk.jsonl"), _gov(), prefixes=("full",)
+    )[0]
+    ct = bundle["causal_trace"]
+    present = {
+        f"risk_estimate:{bundle['run_id']}:full",
+        f"instinct:{bundle['run_id']}:full",
+        f"control_pressure:{bundle['run_id']}:full",
+    }
+    assert set(ct["emitted_outputs"]) == present
+    assert bundle["control_pressure"]["causal_trace_id"] == ct["trace_id"]
+    assert bundle["instinct"]["explanation_trace_id"] == ct["trace_id"]
+    assert bundle["risk_estimate"]["causal_trace_id"] == ct["trace_id"]
+    stages = [n["stage"] for n in ct["causal_path"]]
+    assert stages == ["event", "internal_state", "pressure"]
+
+
+def test_runtime_kill_switch_suppresses_and_audits(tmp_path):
+    from pneuma_lab.nervous_system import ShadowNervousSystem
+
+    log = tmp_path / "log.jsonl"
+    sys_a = ShadowNervousSystem(_model(), shadow_log_path=log)
+    bundles = sys_a.run_trace(
+        _load_trace(FIX / "trace_high_risk.jsonl"),
+        _gov("governance_killswitch_off.json"),
+        prefixes=("full",),
+    )
+    assert bundles == []
+    rows = [
+        json.loads(x) for x in log.read_text(encoding="utf-8").splitlines() if x.strip()
+    ]
+    assert len(rows) == 1
+    assert rows[0]["status"] == "suppressed_by_governance"
+
+
+# --------------------------------------------------------------------------- #
+# Task 7: ablation / null test                                                #
+# --------------------------------------------------------------------------- #
+def test_ablation_drops_pressure_and_null_holds():
+    from pneuma_lab.nervous_system import ablation as nsa
+
+    result = nsa.run_ablation(
+        _model(), _load_trace(FIX / "trace_high_risk.jsonl"), _gov(), prefix="full"
+    )
+    assert result["control_value"] > 0.0
+    assert result["treated_value"] == 0.0
+    assert result["observed_delta"] < 0.0
+    assert abs(result["null_delta"]) <= 1e-6
+    assert result["direction_ok"] is True
+    assert result["null_holds"] is True
+    validate.validate_or_raise(result["evidence_frame"])
+    assert result["evidence_frame"]["evidence_level"] == 1
+
+
+def test_low_risk_control_pressure_below_high():
+    from pneuma_lab.nervous_system import ablation as nsa
+
+    hi = nsa.run_ablation(
+        _model(), _load_trace(FIX / "trace_high_risk.jsonl"), _gov(), prefix="full"
+    )
+    lo = nsa.run_ablation(
+        _model(), _load_trace(FIX / "trace_low_risk.jsonl"), _gov(), prefix="full"
+    )
+    assert lo["control_value"] < hi["control_value"]

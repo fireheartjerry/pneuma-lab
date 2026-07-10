@@ -22,8 +22,8 @@ LIMITATIONS = (
     "no_real_subject_evaluated",
 )
 
-# NOTE: ``ShadowNervousSystem`` is re-exported at the bottom of this module once
-# runtime.py exists (added with Task 6). Constants above are defined first so the
-# leaf modules (frames, shadow_evidence) can import them without a cycle.
+# Constants above are defined before this import so the leaf modules (frames,
+# shadow_evidence, runtime) can import them without a cycle.
+from pneuma_lab.nervous_system.runtime import ShadowNervousSystem  # noqa: E402
 
-__all__ = ["MODEL_ID", "BLOCKED_USES", "LIMITATIONS"]
+__all__ = ["ShadowNervousSystem", "MODEL_ID", "BLOCKED_USES", "LIMITATIONS"]
