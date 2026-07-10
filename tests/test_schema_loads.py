@@ -11,7 +11,7 @@ from pneuma_lab import schemas as pls
 
 EXPECTED_INPUT_COUNT = 5
 EXPECTED_OUTPUT_COUNT = 8
-EXPECTED_TRAINING_COUNT = 3
+EXPECTED_TRAINING_COUNT = 4
 EXPECTED_MANIFEST_COUNT = 1
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
@@ -125,6 +125,7 @@ def test_training_schema_bucket_registered() -> None:
         "pneuma-training-example.schema.json",
         "estimator-run-manifest.schema.json",
         "estimator-training-authorization.schema.json",
+        "pneuma-brain-corpus-authorization.schema.json",
     )
     assert "pneuma-training-example.schema.json" in pls.ALL_SCHEMA_FILES
 

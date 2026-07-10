@@ -1,0 +1,133 @@
+{
+    "corpus_schema_version": "0.1.0",
+    "corpus_id": "pneuma-brain-v0",
+    "purpose": "Authoritative, metadata-only specification of the unified PneumaBrain-v0 training corpus: the terminal role of every dataset lane, the v0.1 training members with their remaining gates, the quarantined cross-dataset overlap repos, the split policy, and the single human authorization gate. This manifest authorizes no training and grants no training weight; it makes the readiness state machine-checkable via python -m pneuma_lab.dataset_readiness --check.",
+    "as_of": "2026-07-10",
+    "roadmap_ref": "docs/superpowers/specs/2026-07-10-pneuma-brain-v0-roadmap-design.md",
+    "registry_ref": "docs/data/training-readiness/dataset-registry.json",
+    "leakage_registry_ref": "docs/data/training-readiness/cross-dataset-leakage-registry.json",
+    "training_example_schema": "schemas/pneuma-training-example.schema.json",
+    "v0_1_heads": [
+        "RISK_PREDICTION",
+        "VERIFICATION_PRESSURE",
+        "FAILURE_SHAPE",
+        "SCAR_MOTIF",
+        "TASK_DIFFICULTY"
+    ],
+    "role_definitions": {
+        "v0_1_train": "Member of the first unified training corpus; carries real agent attempts with a distributed pass/fail outcome. Still zero training weight until the corpus authorization is signed.",
+        "expansion_train_later": "Genuine training candidate deferred to a later version; needs adapter, join, license, or quarantine work before it can join the corpus.",
+        "eval_only": "Held-out evaluation or calibration set; never a training source (training on it would contaminate evaluation).",
+        "blocked": "Excluded until a hard license, privacy, or dual-use gate clears."
+    },
+    "lane_roles": {
+        "swe-gym-openhands-sampled": "v0_1_train",
+        "open-swe-traces": "v0_1_train",
+        "swe-gym-openhands-verifier": "expansion_train_later",
+        "swe-gym-lite": "expansion_train_later",
+        "swe-polybench": "expansion_train_later",
+        "multi-swe-bench": "expansion_train_later",
+        "swe-evo": "expansion_train_later",
+        "swe-bench": "eval_only",
+        "swe-mera": "eval_only",
+        "swe-chat": "blocked",
+        "sec-bench-pro": "blocked",
+        "swe-bench-pro": "blocked",
+        "dialogue-swe-bench": "blocked"
+    },
+    "members": [
+        {
+            "lane_id": "swe-gym-openhands-sampled",
+            "training_weight_intent": "high_capped",
+            "current_stage": "preflight-only",
+            "label_provenance": "harness_outcome",
+            "authorization_ready": true,
+            "remaining_gates": [
+                "signed corpus authorization manifest (decision=authorized) with source/split/code bindings"
+            ]
+        },
+        {
+            "lane_id": "open-swe-traces",
+            "training_weight_intent": "medium_capped",
+            "current_stage": "leakage-blocked",
+            "label_provenance": "harness_outcome",
+            "authorization_ready": false,
+            "remaining_gates": [
+                "reproducible full-corpus conversion artifacts under build/",
+                "full-corpus repo-grouped split generated and reviewed",
+                "explicit resolution or sign-off on the Minimax/Qwen output-ToS caveat",
+                "overlapping repos quarantined to a single split (see quarantine)"
+            ]
+        }
+    ],
+    "minimum_viable_corpus": {
+        "lanes": ["swe-gym-openhands-sampled"],
+        "note": "Dataset #1 is the only lane with validated trajectory+outcome, splits, and leakage controls today, so it can form a minimum viable v0.1 corpus on its own once authorized. open-swe-traces joins as soon as its member gates clear."
+    },
+    "quarantine": {
+        "reason": "repo-level train/test leakage between the two v0_1_train lanes",
+        "policy": "each overlapping repo must be assigned to a single split across all member lanes, or held out entirely",
+        "source": "cross-dataset-leakage-registry.json pairs[0] (swe-gym-openhands-sampled x open-swe-traces)",
+        "overlap_count": 7,
+        "repos": [
+            "conan-io/conan",
+            "dask/dask",
+            "facebookresearch/hydra",
+            "getmoto/moto",
+            "iterative/dvc",
+            "modin-project/modin",
+            "pandas-dev/pandas"
+        ]
+    },
+    "split_policy": {
+        "method": "repo_grouped",
+        "note": "No repository may appear in both train and eval across member lanes; all variants, candidates, and trajectories for one instance stay together. Mirrors the estimator split method sha256_repo_mod10_lt3_eval_v1."
+    },
+    "mixture_caps": {
+        "per_dataset_family_max_fraction": 0.7,
+        "class_balancing": "loss_weighted_or_class_balanced_for_skewed_labels",
+        "task_sampling": "balanced separately from dataset sampling",
+        "note": "OpenHands-Sampled is imbalanced (few resolved vs many unresolved); the trainer must class-balance and cap any single family per optimization window."
+    },
+    "eval_only_lanes": [
+        {
+            "lane_id": "swe-bench",
+            "reason": "canonical held-out benchmark; training would contaminate evaluation, plus solution-leakage and weak-oracle label issues"
+        },
+        {
+            "lane_id": "swe-mera",
+            "reason": "anti-contamination dynamic benchmark; held-out evaluation and calibration only"
+        }
+    ],
+    "blocked_lanes": [
+        {
+            "lane_id": "swe-chat",
+            "reason": "real human PII corpus; privacy-gated"
+        },
+        {
+            "lane_id": "sec-bench-pro",
+            "reason": "dual-use exploit-adjacent content"
+        },
+        {
+            "lane_id": "swe-bench-pro",
+            "reason": "unspecified HF artifact license; held-out role"
+        },
+        {
+            "lane_id": "dialogue-swe-bench",
+            "reason": "archived; undeclared artifact license; superseded by open-swe-traces"
+        }
+    ],
+    "authorization": {
+        "status": "not_authorized",
+        "schema": "schemas/pneuma-brain-corpus-authorization.schema.json",
+        "pending_template": "docs/data/training-authorizations/pneuma-brain-v0.pending.json",
+        "requires": [
+            "every member lane's remaining_gates resolved",
+            "overlapping repos quarantined per the quarantine policy",
+            "explicit human decision=authorized with corpus_manifest_sha256, per-member source/split hashes, and authorized_code_commit",
+            "clean, authorized code state at run time"
+        ]
+    },
+    "specification_complete": true,
+    "training_authorized": false
+}

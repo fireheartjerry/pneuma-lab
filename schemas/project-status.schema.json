@@ -142,13 +142,7 @@
         },
         "status_record": {
             "type": "object",
-            "required": [
-                "id",
-                "status",
-                "scope",
-                "evidence_refs",
-                "blockers"
-            ],
+            "required": ["id", "status", "scope", "evidence_refs", "blockers"],
             "properties": {
                 "id": {
                     "type": "string",
@@ -177,11 +171,7 @@
         },
         "implementation_record": {
             "type": "object",
-            "required": [
-                "status",
-                "evidence_refs",
-                "blockers"
-            ],
+            "required": ["status", "evidence_refs", "blockers"],
             "properties": {
                 "status": {
                     "$ref": "#/$defs/status"
@@ -197,10 +187,7 @@
         },
         "gated_evidence_record": {
             "type": "object",
-            "required": [
-                "status",
-                "blockers"
-            ],
+            "required": ["status", "blockers"],
             "properties": {
                 "status": {
                     "$ref": "#/$defs/status"
@@ -345,11 +332,7 @@
         },
         "negative_result": {
             "type": "object",
-            "required": [
-                "id",
-                "verdict",
-                "evidence_refs"
-            ],
+            "required": ["id", "verdict", "evidence_refs"],
             "properties": {
                 "id": {
                     "type": "string",
@@ -398,12 +381,7 @@
         },
         "integration_edge": {
             "type": "object",
-            "required": [
-                "id",
-                "status",
-                "evidence_refs",
-                "blockers"
-            ],
+            "required": ["id", "status", "evidence_refs", "blockers"],
             "properties": {
                 "id": {
                     "type": "string",
@@ -532,7 +510,10 @@
                     "$ref": "#/$defs/trainer_preflight"
                 },
                 "pneuma_brain_training": {
-                    "const": "not_started"
+                    "enum": [
+                        "not_started",
+                        "corpus_specified_pending_authorization"
+                    ]
                 },
                 "runtime_model_integration": {
                     "const": "none"
@@ -620,20 +601,14 @@
                     "const": true
                 },
                 "record_status": {
-                    "enum": [
-                        "absent",
-                        "present"
-                    ]
+                    "enum": ["absent", "present"]
                 }
             },
             "additionalProperties": false
         },
         "blocker": {
             "type": "object",
-            "required": [
-                "id",
-                "summary"
-            ],
+            "required": ["id", "summary"],
             "properties": {
                 "id": {
                     "type": "string",

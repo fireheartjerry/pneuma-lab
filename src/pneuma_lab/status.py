@@ -35,13 +35,9 @@ _STALE_PHRASES = {
         "future deterministic replay harness",
         "future perturbation and evidence scoring suites",
     ),
-    "CLAUDE.md": (
-        "runtime, replay, adapters, and evals are still scaffold seams",
-    ),
+    "CLAUDE.md": ("runtime, replay, adapters, and evals are still scaffold seams",),
     "README.md": ("adapters/ empty seam",),
-    "docs/adapters/README.md": (
-        "phase 3.1: fuzzy-join",
-    ),
+    "docs/adapters/README.md": ("phase 3.1: fuzzy-join",),
     "docs/vision.md": (
         "not a runtime. there is no live psyche loop here yet",
         "not an ml training project. no models are trained or fine-tuned",
@@ -65,7 +61,8 @@ _CURRENT_SYSTEM_STATE = {
     "dataset_trace_adapters": ("implemented", "offline_research"),
     "trace_to_replay_bridge": ("implemented", "offline_research"),
     "training_example_conversion": ("implemented", "offline_research"),
-    "dataset_registry": ("partial", "offline_research"),
+    "dataset_registry": ("implemented", "offline_research"),
+    "pneuma_brain_v0_corpus": ("implemented", "offline_research"),
 }
 
 _CURRENT_NEGATIVE_RESULTS = {
@@ -98,7 +95,9 @@ def _schema_errors(manifest: dict) -> list[str]:
     schema = _load_json(STATUS_SCHEMA)
     validator = Draft202012Validator(schema, format_checker=FormatChecker())
     errors: list[str] = []
-    for error in sorted(validator.iter_errors(manifest), key=lambda item: list(item.path)):
+    for error in sorted(
+        validator.iter_errors(manifest), key=lambda item: list(item.path)
+    ):
         location = ".".join(str(part) for part in error.path) or "<root>"
         errors.append(f"schema:{location}: {error.message}")
     return errors
@@ -211,7 +210,9 @@ def _official_record_errors(record: dict, *, root: Path) -> list[str]:
         and all(ch in "0123456789abcdef" for ch in commit.lower())
     )
     if not commit_valid:
-        errors.append("canonical source_provenance.git_commit must be a 40-character hex id")
+        errors.append(
+            "canonical source_provenance.git_commit must be a 40-character hex id"
+        )
 
     tree_state = provenance["tree_state"]
     tree_state_valid = isinstance(tree_state, str) and tree_state in {"clean", "dirty"}
@@ -259,7 +260,9 @@ def _official_record_errors(record: dict, *, root: Path) -> list[str]:
         errors.append(str(exc))
     else:
         if not fetched_refs:
-            errors.append("canonical source commit is not contained in any fetched remote ref")
+            errors.append(
+                "canonical source commit is not contained in any fetched remote ref"
+            )
         missing_refs = sorted(set(refs) - fetched_refs)
         if missing_refs:
             errors.append(
@@ -372,7 +375,9 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
         ("blocker", blockers),
     ):
         identifiers = [record.get("id") for record in records]
-        duplicates = sorted({item for item in identifiers if identifiers.count(item) > 1})
+        duplicates = sorted(
+            {item for item in identifiers if identifiers.count(item) > 1}
+        )
         if duplicates:
             errors.append(f"{label} ids are duplicated: {duplicates}")
 
@@ -397,7 +402,9 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
 
     system_map = {record["id"]: record for record in systems}
     if set(system_map) != set(_CURRENT_SYSTEM_STATE):
-        errors.append("system ids must exactly match the canonical current-state registry")
+        errors.append(
+            "system ids must exactly match the canonical current-state registry"
+        )
     else:
         for system_id, expected_state in _CURRENT_SYSTEM_STATE.items():
             actual_state = (
@@ -448,7 +455,10 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
                     f"negative result {result_id} must remain {expected['verdict']} "
                     "until its evidence and validator are updated"
                 )
-            if frozenset(result.get("evidence_refs") or []) != expected["evidence_refs"]:
+            if (
+                frozenset(result.get("evidence_refs") or [])
+                != expected["evidence_refs"]
+            ):
                 errors.append(
                     f"negative result {result_id} must retain its canonical evidence refs"
                 )
@@ -503,7 +513,9 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
     training = manifest["training_and_rsi"]
     if training.get("new_training_authorization") == "not_authorized":
         if training.get("runtime_model_integration") != "none":
-            errors.append("unauthorized training state requires runtime_model_integration=none")
+            errors.append(
+                "unauthorized training state requires runtime_model_integration=none"
+            )
     preflight = training.get("trainer_preflight") or {}
     if preflight.get("status") == "in_progress" and preflight.get("integrated"):
         errors.append("in-progress trainer preflight cannot be marked integrated")
@@ -517,7 +529,9 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
     if preflight.get("training_authorization") != "not_authorized":
         errors.append("trainer preflight must not authorize training")
     if training.get("rsi_loop") != "not_operational":
-        errors.append("RSI loop cannot be operational while its declared blockers remain")
+        errors.append(
+            "RSI loop cannot be operational while its declared blockers remain"
+        )
 
     artifacts = manifest["artifact_policy"]
     for relative in artifacts.get("tracked_records") or []:
@@ -534,9 +548,13 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
             errors.append("canonical evidence record is tracked but status says absent")
         if canonical.get("record_status") == "present":
             if not canonical_file.is_file():
-                errors.append("canonical evidence record says present but the file is absent")
+                errors.append(
+                    "canonical evidence record says present but the file is absent"
+                )
             elif not canonical_tracked:
-                errors.append("canonical evidence record says present but is not Git-tracked")
+                errors.append(
+                    "canonical evidence record says present but is not Git-tracked"
+                )
             else:
                 try:
                     record = _load_json(canonical_file)
@@ -551,11 +569,15 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
             continue
         text = path.read_text(encoding="utf-8")
         if STATUS_DOC_REF not in text:
-            errors.append(f"authoritative doc does not link {STATUS_DOC_REF}: {relative}")
+            errors.append(
+                f"authoritative doc does not link {STATUS_DOC_REF}: {relative}"
+            )
         normalized = _normalize_text(text)
         for phrase in _STALE_PHRASES.get(relative, ()):
             if phrase in normalized:
-                errors.append(f"authoritative doc retains stale phrase {phrase!r}: {relative}")
+                errors.append(
+                    f"authoritative doc retains stale phrase {phrase!r}: {relative}"
+                )
 
     for relative in manifest["historical_snapshots"]:
         path = root / relative

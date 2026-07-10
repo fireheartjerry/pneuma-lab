@@ -1,12 +1,31 @@
 # Pneuma Dataset Suite — Readiness Overview
 
 Single source of truth for where every dataset lane stands before the unified
-`PneumaBrain-v0` trainer phase. Machine-readable companion:
-`docs/data/training-readiness/dataset-registry.json` (validated by
-`python -m pneuma_lab.dataset_readiness --check`). Overall project state lives in
-`docs/project-status.json`. This doc authorizes no
-training; every lane stays `training_weight: 0.0` until a specific
-authorization manifest says otherwise.
+`PneumaBrain-v0` trainer phase. Machine-readable companions:
+`docs/data/training-readiness/dataset-registry.json` (per-lane state) and
+`docs/data/training-readiness/pneuma-brain-v0-corpus.json` (terminal role of
+every lane + the v0.1 mixture), both validated by
+`python -m pneuma_lab.dataset_readiness --check`. The locked roadmap is
+`docs/superpowers/specs/2026-07-10-pneuma-brain-v0-roadmap-design.md`; overall
+project state lives in `docs/project-status.json`. This doc authorizes no
+training; every lane stays `training_weight: 0.0` until the corpus authorization
+manifest (`schemas/pneuma-brain-corpus-authorization.schema.json`) is signed.
+
+## Terminal roles and the unified v0.1 corpus
+
+Every lane is resolved to exactly one terminal role in the corpus manifest, so
+"all lanes ready" is machine-verifiable. "Ready to start training" means each
+lane has a role, the `v0_1_train` set is fully specified (members, weights,
+quarantined overlap repos, split policy, per-member remaining gates), and the
+only remaining action to begin a run is a human signing the corpus
+authorization. It does **not** mean every lane becomes training data.
+
+| Role                    | Lanes                                                                             |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| `v0_1_train`            | swe-gym-openhands-sampled (auth-pending), open-swe-traces (member gates open)     |
+| `expansion_train_later` | swe-gym-openhands-verifier, swe-gym-lite, swe-polybench, multi-swe-bench, swe-evo |
+| `eval_only`             | swe-bench, swe-mera                                                               |
+| `blocked`               | swe-chat, sec-bench-pro, swe-bench-pro, dialogue-swe-bench                        |
 
 ## The training-vs-eval distinction
 

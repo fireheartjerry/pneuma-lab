@@ -43,6 +43,7 @@ TRAINING_SCHEMA_FILES = (
     "pneuma-training-example.schema.json",
     "estimator-run-manifest.schema.json",
     "estimator-training-authorization.schema.json",
+    "pneuma-brain-corpus-authorization.schema.json",
 )
 
 MANIFEST_SCHEMA_FILES = ("project-status.schema.json",)

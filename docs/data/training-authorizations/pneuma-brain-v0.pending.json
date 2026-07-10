@@ -1,0 +1,9 @@
+{
+    "authorization_schema_version": "0.1.0",
+    "authorization_id": "pneuma-brain-v0-pending",
+    "corpus_id": "pneuma-brain-v0",
+    "decision": "not_authorized",
+    "scope": "local_research",
+    "release_authorization": "not_authorized",
+    "runtime_integration": "none"
+}

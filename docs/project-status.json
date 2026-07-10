@@ -135,10 +135,27 @@
         },
         {
             "id": "dataset_registry",
-            "status": "partial",
+            "status": "implemented",
             "scope": "offline_research",
-            "evidence_refs": ["docs/data/dataset-registry.md"],
-            "blockers": ["B-REGISTRY-NORMALIZATION"]
+            "evidence_refs": [
+                "docs/data/training-readiness/dataset-registry.json",
+                "src/pneuma_lab/dataset_readiness.py",
+                "tests/test_dataset_readiness.py"
+            ],
+            "blockers": []
+        },
+        {
+            "id": "pneuma_brain_v0_corpus",
+            "status": "implemented",
+            "scope": "offline_research",
+            "evidence_refs": [
+                "docs/superpowers/specs/2026-07-10-pneuma-brain-v0-roadmap-design.md",
+                "docs/data/training-readiness/pneuma-brain-v0-corpus.json",
+                "schemas/pneuma-brain-corpus-authorization.schema.json",
+                "docs/data/training-authorizations/pneuma-brain-v0.pending.json",
+                "tests/test_pneuma_brain_corpus.py"
+            ],
+            "blockers": []
         }
     ],
     "nine_to_five": {
@@ -238,7 +255,7 @@
             ],
             "blockers": []
         },
-        "pneuma_brain_training": "not_started",
+        "pneuma_brain_training": "corpus_specified_pending_authorization",
         "runtime_model_integration": "none",
         "rsi_loop": "not_operational",
         "evidence_refs": [
@@ -362,10 +379,6 @@
         {
             "id": "B-RSI-DEPLOYMENT",
             "summary": "No closed evaluator-to-trainer-to-deployment loop exists."
-        },
-        {
-            "id": "B-REGISTRY-NORMALIZATION",
-            "summary": "Dataset and readiness manifests lack one shared normalized contract."
         }
     ]
 }

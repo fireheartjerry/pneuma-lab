@@ -76,9 +76,7 @@ def test_missing_nested_status_field_fails_closed() -> None:
     manifest = copy.deepcopy(_manifest())
     del manifest["nine_to_five"]["edges"]
     findings = status.validate_manifest(manifest)
-    assert any(
-        "nine_to_five" in finding and "edges" in finding for finding in findings
-    )
+    assert any("nine_to_five" in finding and "edges" in finding for finding in findings)
 
 
 def test_incomplete_edges_cannot_claim_an_operational_nervous_system() -> None:
@@ -202,10 +200,17 @@ def test_edge_status_requires_known_enum_and_current_state() -> None:
 
 def test_system_and_negative_result_cannot_be_word_promoted() -> None:
     manifest = copy.deepcopy(_manifest())
-    manifest["systems"][-1]["status"] = "implemented"
-    manifest["systems"][-1]["blockers"] = []
+    registry_system = next(
+        system for system in manifest["systems"] if system["id"] == "dataset_registry"
+    )
+    registry_system["status"] = "partial"
+    registry_system["blockers"] = ["B-TRAIN-AUTHORIZATION"]
     findings = status.validate_manifest(manifest)
-    assert any("dataset_registry must remain status=partial" in finding for finding in findings)
+    assert any(
+        "dataset_registry must remain status=implemented, scope=offline_research"
+        in finding
+        for finding in findings
+    )
 
     manifest = copy.deepcopy(_manifest())
     manifest["systems"][4]["scope"] = "production_9to5"
@@ -221,7 +226,9 @@ def test_system_and_negative_result_cannot_be_word_promoted() -> None:
         "passed_preregistered_hypotheses"
     )
     findings = status.validate_manifest(manifest)
-    assert any("must remain failed_preregistered_hypotheses" in finding for finding in findings)
+    assert any(
+        "must remain failed_preregistered_hypotheses" in finding for finding in findings
+    )
 
 
 def test_negative_result_rejects_duplicate_claims_and_provenance_replacement() -> None:
@@ -235,7 +242,9 @@ def test_negative_result_rejects_duplicate_claims_and_provenance_replacement() -
     manifest = copy.deepcopy(_manifest())
     manifest["evidence"]["negative_results"][0]["evidence_refs"] = ["README.md"]
     findings = status.validate_manifest(manifest)
-    assert any("must retain its canonical evidence refs" in finding for finding in findings)
+    assert any(
+        "must retain its canonical evidence refs" in finding for finding in findings
+    )
 
 
 def test_canonical_record_requires_path_without_crashing() -> None:
@@ -250,9 +259,9 @@ def test_canonical_record_requires_path_without_crashing() -> None:
 
 def test_canonical_record_path_cannot_escape_repo() -> None:
     manifest = copy.deepcopy(_manifest())
-    manifest["artifact_policy"]["canonical_evidence_record"][
-        "path"
-    ] = "../../outside.json"
+    manifest["artifact_policy"]["canonical_evidence_record"]["path"] = (
+        "../../outside.json"
+    )
     findings = status.validate_manifest(manifest)
     assert any("canonical_evidence_record.path" in finding for finding in findings)
 
@@ -266,7 +275,9 @@ def test_official_record_rejects_boolean_only_provenance() -> None:
     assert any("missing fields" in finding for finding in findings)
 
 
-def test_official_record_reuses_demo_gate_and_verifies_fetched_refs(monkeypatch) -> None:
+def test_official_record_reuses_demo_gate_and_verifies_fetched_refs(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(
         status,
         "_remote_refs_containing",
@@ -299,7 +310,9 @@ def test_status_manifest_does_not_embed_drift_prone_counts_or_git_head() -> None
     assert "rows_verified" not in text
 
 
-def test_cli_corrupted_manifest_fails_without_output_artifacts(tmp_path, capsys) -> None:
+def test_cli_corrupted_manifest_fails_without_output_artifacts(
+    tmp_path, capsys
+) -> None:
     manifest = copy.deepcopy(_manifest())
     manifest["manifest_kind"] = "not_pneuma_status"
     path = tmp_path / "broken-status.json"
