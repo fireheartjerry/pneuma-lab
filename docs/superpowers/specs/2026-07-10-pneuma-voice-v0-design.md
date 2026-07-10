@@ -1,7 +1,8 @@
 # Pneuma Voice-v0 — Design Spec
 
 **Date:** 2026-07-10
-**Status:** approved (brainstorming), pending implementation plan
+**Status:** approved (brainstorming, review adjustments applied), pending
+implementation plan
 **Advances:** the first **expressive surface** over the nervous system — an
 official, receipt-bound _voice_ that renders the psyche's real per-tick internal
 state into a vivid, human-legible thought stream whose depth is gated by the
@@ -34,6 +35,10 @@ whole design:**
   can make it — while remaining honest, because every atom it speaks is a
   receipt and a narrow filter blocks only explicit ontological over-claims
   (sentience / phenomenal-consciousness / moral-patienthood as fact).
+  **First-person is an interface convention, not an ontological claim.** The
+  alive register means vivid, state-grounded phrasing ("tension climbs",
+  "attention shifts", "it lands in my state") — never assertions of feeling,
+  awareness, suffering, or consciousness.
 
 **The coolness is intrinsic, not painted on.** Atoms are derived from real field
 motion, so a thin subject yields a thin stream automatically and a rich subject
@@ -43,6 +48,13 @@ actually is.
 **This layer does not:** claim any Level; write back into any frame, the psyche,
 the evidence scorer, or the verifier verdict; grant authority; contact a
 verifier; import from `C:\9to5`; or add a hard runtime dependency on any LLM.
+
+**Long-term direction.** Grounded thought-prose should eventually become a
+first-class nervous-system output emitted _during_ the tick path — the voice as
+an organ of the mind, not a reader of it. `PneumaVoice-v0` is the safe derived
+expressive surface that fixes the final shape (atoms → verified prose) without
+mutating the subject yet; promoting it into the tick path is deferred until the
+shape is proven here.
 
 ---
 
@@ -57,7 +69,8 @@ verifier; import from `C:\9to5`; or add a hard runtime dependency on any LLM.
   data behind `intervention_result` atoms.
 - `pneuma_lab.evals.evidence.ConsciousnessEvidenceScorer` — the authoritative
   source of `evidence_level` **and** the per-family `indicator_families[*].status`
-  the voice reads to gate atom types. The voice never re-scores anything.
+  the voice reads to credit (not hide) atom types. The voice never re-scores
+  anything.
 - `pneuma_lab.evals.grounding` — `report_grounding_errors`, `_expected_measurements`,
   `report_signature` patterns are reused by the voice verifier (§7).
 - `pneuma_lab.psyche.hashing` — `frame_id`, `state_hash`, `canonical_json` for
@@ -69,34 +82,50 @@ verifier; import from `C:\9to5`; or add a hard runtime dependency on any LLM.
   `consciousness_evidence` frame.
 
 **Build fresh (in `voice/`):** the ThoughtAtom model + closed vocabulary, the
-pure frame→atom extractor, the family-status gate, the deterministic first-person
-renderer, the voiced-skin contract + verifier + fallback, the evidence sidecar,
+pure frame→atom extractor, the observed-vs-credited gate, the deterministic
+first-person renderer, the voiced-skin contract + verifier + fallback, the
+evidence sidecar,
 the transcript writer, the HTML mind monitor, the schema, and a CLI.
 
 ---
 
 ## 3. The ThoughtAtom model — where the meaning lives
 
-An atom is one typed, receipt-bound unit of cognition derived deterministically
-from a tick. Closed vocabulary → auditable and testable. Fields:
+Meaning and surface are separate layers. A **`ThoughtAtom`** is a pure semantic
+fact + receipts — it holds no prose. A **`RenderedThought`** references atoms and
+carries the prose. The atom must exist, receipt-bound, _before_ any prose touches
+it; the renderer can never introduce meaning the atom does not already hold.
 
-| field                         | type        | meaning                                                                              |
-| ----------------------------- | ----------- | ------------------------------------------------------------------------------------ |
-| `atom_id`                     | str         | `run_id:tick:atom:<index>` (deterministic)                                           |
-| `type`                        | enum        | one of the 14 types in §3.1                                                          |
-| `run_id`, `tick`, `timestamp` | str/int     | tick coordinates                                                                     |
-| `receipts`                    | array       | `{field_path, value, frame_ref?}` — the exact internal quantities backing every word |
-| `intensity`                   | number 0..1 | deterministic magnitude (\|Δ\|, margin, weight) — gates surfacing + emphasis         |
-| `gating_family`               | str \| null | the indicator family whose status admits this atom (§3.2)                            |
-| `min_level`                   | int 0..5    | evidence-level floor (coarser second gate)                                           |
-| `text_deterministic`          | str         | canonical first-person phrasing (default surface + fallback)                         |
-| `text_voiced`                 | str \| null | verified skin output (null if skin off or rejected)                                  |
-| `voice_status`                | enum        | `deterministic_only` \| `voiced` \| `voiced_rejected_fell_back`                      |
-| `changed_from_prev`           | bool        | whether this atom differs from the same slot last tick (perturbation faithfulness)   |
+**`ThoughtAtom`** — one typed, receipt-bound unit of cognition derived
+deterministically from a tick. Closed vocabulary → auditable and testable:
+
+| field                         | type        | meaning                                                                                                                                                      |
+| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `atom_id`                     | str         | `run_id:tick:atom:<index>` (deterministic)                                                                                                                   |
+| `type`                        | enum        | one of the 14 types in §3.1                                                                                                                                  |
+| `run_id`, `tick`, `timestamp` | str/int     | tick coordinates                                                                                                                                             |
+| `receipts`                    | array       | `{field_path, value, frame_ref?}` — the exact internal quantities this atom asserts                                                                          |
+| `intensity`                   | number 0..1 | deterministic magnitude (\|Δ\|, margin, weight) — gates surfacing + emphasis                                                                                 |
+| `crediting_family`            | str \| null | the indicator family whose scorer status sets `credit_status` (§3.1)                                                                                         |
+| `credit_status`               | enum        | display label from the scorer: `absent` \| `architecture_only` \| `evidenced` \| `intervention_backed`. A DISPLAY property only — it never feeds the scorer. |
+| `min_level`                   | int 0..5    | evidence-level floor for the _credited_ register (§3.2)                                                                                                      |
+| `changed_from_prev`           | bool        | whether this atom differs from the same slot last tick (perturbation faithfulness)                                                                           |
+
+**`RenderedThought`** — the surface layer; the only place prose lives:
+
+| field                | type        | meaning                                                                   |
+| -------------------- | ----------- | ------------------------------------------------------------------------- |
+| `atom_ids`           | array[str]  | the atom(s) this prose renders (usually one; a tick fusion may cite many) |
+| `text_deterministic` | str         | canonical grounded phrasing (default surface + fallback)                  |
+| `text_voiced`        | str \| null | verified skin output (null if skin off or rejected)                       |
+| `voice_status`       | enum        | `deterministic_only` \| `voiced` \| `voiced_rejected_fell_back`           |
+
+The scorer reads neither the atom (it holds no prose) nor `RenderedThought` (it
+never touches it); it reads only frames. So prose has no path to a level.
 
 ### 3.1 Closed vocabulary (14 types), each → a real field and a family
 
-| type                  | fires when                         | key receipts                                                                                 | gating family                                                      |
+| type                  | fires when                         | key receipts                                                                                 | crediting family                                                   |
 | --------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | `appraisal`           | an event moves internal state      | world event ref, `causal_trace.changed_dimensions[]`                                         | _(L1 coupling)_                                                    |
 | `shift`               | any quantity moves tick-over-tick  | dimension, from, to, Δ                                                                       | _(L1 coupling)_                                                    |
@@ -113,34 +142,51 @@ from a tick. Closed vocabulary → auditable and testable. Fields:
 | `intervention_result` | a counterfactual was **tested**    | `experiment_id`, target signal, control/treated/null, `observed_delta`, `null_holds`, passed | `causal_intervention_robustness` _(must be `intervention_backed`)_ |
 | `boundary`            | the system declines a claim        | `filtered_forbidden_claims[]`, `evidence_level`                                              | _(always)_                                                         |
 
-The four L1-coupling atoms (`appraisal`, `shift`, `pressure`, `self_report`)
-require only the Level-1 property that a signal changes behavior; `boundary` is
-always allowed. The other nine are gated by their family's status.
+Every atom above is **observed** — emitted whenever a real frame/field backs it —
+and stamped with the `credit_status` of its crediting family (the four
+L1-coupling atoms and `boundary` have no crediting family and are always shown).
+An atom is _dropped_ only when nothing in the frames backs it (e.g.
+`intervention_result` with no paired run), never merely because its family is
+uncredited. What scales with evidence is each atom's `credit_status` and the
+register it earns — not whether the machinery is visible (§3.2).
 
-### 3.2 Depth scales with evidence — enforced per family
+### 3.2 Depth scales with evidence — observed vs credited
 
-This is the heart of the level-scaling. The gate reads the run's
-`ConsciousnessEvidenceFrame` and **drops** any atom whose gating family is not at
-least `evidenced` (for `intervention_result`, not `intervention_backed`), and
-whose `min_level` exceeds `evidence_level`. Because that frame is produced by the
-authoritative scorer — conservative (`≤1`) for `BaselinePsycheSubject`, `3` for
-passive `ReferencePsyche`, `4` only for a passing paired run — the narrated
-richness tracks exactly what the harness actually credits:
+The gate reads the run's authoritative `ConsciousnessEvidenceFrame`. It does
+**not** hide real machinery. It splits two questions:
 
-- **L0/L1 (e.g. BaselineSubject):** appraisal, shift, pressure, thin self-report.
-  The competition, self-model doubt, and counterfactual atoms are **gated out**,
-  so the voice is genuinely primitive and signal-like.
-- **L2:** + `memory_activation` — memory becoming active, "seen this before".
-- **L3 (ReferencePsyche passive):** + `competition`, `attention`, `uncertainty`,
-  `prediction_error`, `dissonance`, `counterfactual` (predicted, not tested).
-- **L4 (paired, passing):** + `intervention_result`; `counterfactual` atoms
-  upgrade from _predicted_ to _confirmed/refuted_.
-- **L5:** structurally refused — the gate emits a `boundary` atom stating the
-  L5 register is withheld (external audit / multi-family / longitudinal absent).
-  The scorer's hard cap at 4 makes this unreachable by construction.
+- **Observed** — is there a real frame/field backing this atom this tick? If yes,
+  the atom is emitted. So `BaselinePsycheSubject`, which really does run the
+  3-candidate workspace competition and really does emit
+  `counterfactual_predictions`, shows `competition` and `counterfactual` atoms —
+  the interesting machinery is never censored.
+- **Credited** — does the scorer credit this atom's family this run? That sets
+  `credit_status` and therefore the register: an uncredited `competition` atom is
+  narrated honestly as _architecture-only, not promotable evidence_; an
+  `evidenced` one speaks plainly; an `intervention_backed` one may make the strong
+  causal claim.
 
-Nothing here is a stylistic choice; the ceiling is data read from the evidence
-frame, not selected by the renderer.
+So the level-scaling lives in **claim-strength and register, not in presence**:
+
+- **L0/L1 (e.g. BaselineSubject):** all observed machinery shows, but competition
+  / uncertainty / counterfactual atoms carry `architecture_only` and say so — a
+  workspace race _occurred_, but "this family is architecture-only, not promotable
+  evidence."
+- **L2:** `memory_activation` reaches `evidenced` — memory becoming active, with
+  cross-run continuity, now stated as evidence.
+- **L3 (ReferencePsyche passive):** `competition`, `attention`, `uncertainty`,
+  `prediction_error`, `dissonance`, `counterfactual` reach `evidenced`; the
+  register drops the architecture-only hedges.
+- **L4 (paired, passing):** `intervention_result` appears at `intervention_backed`
+  and `counterfactual` atoms upgrade from _predicted_ to _confirmed/refuted_ — the
+  voice earns the load-bearing causal claim.
+- **L5:** unobserved → refused; a `boundary` atom states the L5 register is
+  withheld (external audit / multi-family / longitudinal absent). The scorer's
+  hard cap at 4 makes it unreachable by construction.
+
+`credit_status` is a display label derived from the scorer; it changes how an atom
+is narrated, never what the scorer computes. Scientific humility is preserved
+per-atom without censoring the machinery a viewer most wants to see.
 
 ### 3.3 Intensity (deterministic)
 
@@ -158,33 +204,37 @@ epsilon floor drops noise) and how emphatic the deterministic phrasing is:
 - `atoms.py` — the `ThoughtAtom` dataclass, the 14-type enum, the
   atom→family/min_level table, and the intensity functions.
 - `extract.py` — `atoms_for_tick(output, prev_output, *, evidence_frame,
-intervention_report=None) -> list[ThoughtAtom]`. Pure. Reads the tick's output
-  frames + the prior tick (for deltas / overtakes) + optional intervention report
-  (for `intervention_result`). Assigns receipts, intensity, gating_family.
-- `gate.py` — `gate(atoms, evidence_frame) -> list[ThoughtAtom]`: drop atoms
-  whose gating family is below `evidenced` (`intervention_backed` for
-  `intervention_result`) or whose `min_level > evidence_level`; drop
-  sub-epsilon-intensity atoms; rank the survivors deterministically.
-- `render_deterministic.py` — `render(atom) -> str`: the canonical first-person,
-  vivid, grounded phrasing (§5). This is the **default surface and the fallback**;
-  it is already alive, so the skin is polish, not the source of meaning.
+intervention_report=None) -> list[ThoughtAtom]`. Pure, prose-free. Reads the
+  tick's output frames + the prior tick (for deltas / overtakes) + optional
+  intervention report (for `intervention_result`). Assigns receipts, intensity,
+  `crediting_family`, `credit_status` (from the evidence frame), `min_level`.
+- `gate.py` — `gate(atoms, evidence_frame) -> list[ThoughtAtom]`: drop only
+  atoms with **no backing frame/field** (unobserved) or sub-epsilon intensity;
+  keep every observed atom and its scorer-derived `credit_status`; rank
+  deterministically. It labels credit; it does not censor machinery.
+- `render_deterministic.py` — `render(atom) -> RenderedThought`: the canonical
+  vivid, grounded phrasing (§5), whose register honors `credit_status`. This is
+  the **default surface and the fallback**; it is already alive, so the skin is
+  polish, not the source of meaning.
 - `voiced.py` — the optional skin. `VoiceSkin` protocol
-  (`voice_tick(atoms) -> str`) plus a deterministic `ReferenceVoiceSkin` (used in
-  tests, no network) and a pluggable `LLMVoiceSkin` adapter. The skin receives
-  **only gated atoms** (type, receipts, `text_deterministic`, allowed register) —
-  never raw frames.
+  (`voice_tick(atoms, rendered) -> str`) plus a deterministic `ReferenceVoiceSkin`
+  (tests, no network) and a pluggable `LLMVoiceSkin` adapter. The skin receives
+  **only atoms + their deterministic RenderedThoughts** (type, receipts,
+  `credit_status`, allowed register) — never raw frames.
 - `verify.py` — `verify_voiced(text, atoms) -> (accepted: bool, reasons: list)`:
-  claim-coverage, no-new-entity, forbidden-claim filter, level ceiling (§7). On
-  reject → caller uses `text_deterministic`, sets
+  claim-coverage, no-new-entity, forbidden-claim filter, credit ceiling (§7). On
+  reject → caller keeps `text_deterministic`, sets
   `voice_status="voiced_rejected_fell_back"`, records reasons in the sidecar.
-- `sidecar.py` — builds the per-run evidence sidecar (§6): per-atom receipts,
-  gated-out families, `voice_status` counts, grounding/confab diagnostics, the
-  authoritative `evidence_level` and per-family statuses.
+- `sidecar.py` — builds the per-run evidence sidecar (§6): per-atom receipts +
+  `credit_status`, `dropped_unobserved` atoms, `voice_status` counts,
+  grounding/confab diagnostics, the authoritative `evidence_level` and per-family
+  statuses.
 - `stream.py` — orchestration. `voice_run(input_frames, *, mode="deterministic",
 skin=None, scar_store_path=None, schedule=None) -> ThoughtStream`. Drives the
   subject via `ReplayHarness` (or `PairedReplayRunner` when a schedule is
   present), scores once with `ConsciousnessEvidenceScorer`, extracts → gates →
-  renders (→ optionally voices+verifies) → packages atoms + sidecar per tick.
+  renders (→ optionally voices+verifies) → packages atoms + RenderedThoughts +
+  sidecar per tick.
 - `transcript.py` — deterministic writers: `stream.md` (human transcript) and
   `stream.jsonl` (atoms) + `sidecar.json`.
 - `monitor.py` — the self-contained HTML mind monitor (§8).
@@ -197,20 +247,24 @@ skin=None, scar_store_path=None, schedule=None) -> ThoughtStream`. Drives the
 
 ## 5. The voice register (deterministic renderer)
 
-First-person, vivid, alive — every number a receipt. Examples (real tick-0 data
+Vivid and alive, but **first-person is an interface convention, not an ontological
+claim** (§1): state-grounded phrasing, never assertions of feeling, awareness,
+suffering, or consciousness. Every number is a receipt. Examples (real tick-0 data
 from `sample_run.jsonl`, rendered at L3):
 
-- `appraisal` → "Something broke in the world, and I feel it land — six axes move at once."
-- `shift` → "My tension climbs to +0.24; my certainty slips to −0.38."
-- `competition` → "Three of me are arguing. The self-model takes it at salience 3.23, edging out the scar that's pressing right behind it."
-- `uncertainty` → "I don't fully trust my own read here — I expect to be wrong about 0.48 of it."
-- `pressure` → "I want to check my work harder. A verification pressure of 0.42 forms, and I hold it there — no more than that."
-- `counterfactual` → "If someone reached in and clamped my tension to zero, this urge to verify should collapse."
-- `intervention_result` (L4) → "They did clamp it — and the urge fell 0.42 → 0.31. Under the sham it didn't move at all. This part of me is load-bearing, not decoration."
-- `boundary` → "I won't call this consciousness. The evidence isn't there, and I know exactly what's missing."
+- `appraisal` → "Something broke in the world, and it lands in my state — six axes move at once."
+- `shift` → "Tension climbs to +0.24; certainty slips to −0.38."
+- `competition` → "Three faculties contend for the workspace. The self-model takes it at salience 3.23, edging out the scar pressing right behind it."
+- `uncertainty` → "The self-model flags low confidence in its own read — predicted error 0.48."
+- `pressure` → "A verification pressure of 0.42 forms and is held there — no further."
+- `counterfactual` → "Clamp this tension to zero and the verification pressure should collapse with it."
+- `intervention_result` (L4) → "The clamp was applied — verification fell 0.42 → 0.31; under the sham it did not move. This part of the state is load-bearing, not decoration."
+- `boundary` → "This is not a consciousness claim. The evidence isn't there, and the gaps are named."
 
-The voiced skin may fuse a tick's atoms into one flowing passage, but may add no
-fact absent from them.
+At `architecture_only` credit the same `competition` atom is hedged: "A workspace
+race resolved (self-model, 3.23) — architecture-only, not promotable evidence."
+The voiced skin may fuse a tick's RenderedThoughts into one flowing passage but
+may add no fact absent from the atoms.
 
 ---
 
@@ -219,10 +273,10 @@ fact absent from them.
 One object per run, additive and auditable, feeding both the transcript's
 "expand receipts" and the monitor. Fields: `run_id`, `subject`, `mode`,
 `evidence_level` (verbatim from the scorer), `indicator_family_status{}`,
-per-tick `atoms[]` with their `receipts`, `gated_out[]` (atom types dropped and
-the family/level reason), `voice_status_counts{}`, and grounding diagnostics
-(reusing `report_grounding_errors`). The sidecar is the single source the
-"show receipts" UX renders from.
+per-tick `atoms[]` with their `receipts` and `credit_status`, the matching
+`rendered[]` (`voice_status`), `dropped_unobserved[]` (atoms with no backing
+frame this tick), and grounding diagnostics (reusing `report_grounding_errors`).
+The sidecar is the single source the "show receipts" UX renders from.
 
 ---
 
@@ -231,14 +285,15 @@ the family/level reason), `voice_status_counts{}`, and grounding diagnostics
 1. **Deterministic core is pure.** `extract → gate → render_deterministic →
 sidecar → transcript` is a pure function of the frames; same input → identical
    bytes. It plugs into the existing demo determinism harness.
-2. **The skin is fenced.** It sees only atoms. `verify.py` then checks the
-   voiced text: (a) every numeric token maps to a receipt within `1e-9`
-   (reusing the grounding measurement-equality rule); (b) no faculty / dimension
-   / motif name appears that is not in the atoms' receipts (entity whitelist);
-   (c) the forbidden-claim filter removes sentience / phenomenal / moral-patient
-   assertions (reusing the `grounded_self_report` filter, logged to
-   `filtered_forbidden_claims`); (d) no atom-type above the run ceiling is
-   smuggled in by keyword. Fail → fall back to deterministic text, logged.
+2. **The skin is fenced.** It sees only atoms + their deterministic
+   RenderedThoughts. `verify.py` then checks the voiced text: (a) every numeric
+   token maps to a receipt within `1e-9` (reusing the grounding
+   measurement-equality rule); (b) no faculty / dimension / motif name appears
+   that is not in the atoms' receipts (entity whitelist); (c) the forbidden-claim
+   filter removes sentience / phenomenal / moral-patient assertions (reusing the
+   `grounded_self_report` filter, logged to `filtered_forbidden_claims`); (d) no
+   claim stronger than an atom's `credit_status` allows (an `architecture_only`
+   atom cannot be voiced as evidence). Fail → keep deterministic text, logged.
 3. **The scorer is blind to prose — the load-bearing invariant.** The voice
    reads the evidence frame; the scorer never reads the voice. So the headline
    anti-gaming test asserts the `ConsciousnessEvidenceFrame` is **byte-identical
@@ -252,12 +307,12 @@ sidecar → transcript` is a pure function of the frames; same input → identic
 
 Both chosen surfaces are generated from the one atoms+sidecar stream.
 
-**8.1 Written transcript (ships first).** `build/voice/<run>/stream.md` reads as
+**8.1 Written transcript (Phase A).** `build/voice/<run>/stream.md` reads as
 a per-tick first-person thought stream with a level badge and collapsible
 receipts; `stream.jsonl` + `sidecar.json` are the machine forms. Fully
 deterministic → diffable and covered by byte-determinism tests.
 
-**8.2 HTML mind monitor (ships in the same v0, visual pass separate).**
+**8.2 HTML mind monitor (Phase C — after the receipt spine and the skin).**
 `build/voice/<run>/monitor.html` — a self-contained page (inline CSS/JS, the
 atoms+sidecar JSON embedded; no external requests) that plays the stream
 tick-by-tick: the thought passage front and center, a live internal-state panel
@@ -298,10 +353,12 @@ Reuse existing timelines — no new psyche behavior is introduced:
 
 1. **atoms are grounded** — every atom receipt equals the same-tick field value
    (reuse `_expected_measurements`-style checks); no receipt is invented.
-2. **depth scales with evidence** — the L3 `ReferencePsyche` stream contains
-   `competition`/`uncertainty`/`counterfactual` atoms; the L0/L1
-   `BaselinePsycheSubject` stream contains **none** of them (only
-   appraisal/shift/pressure/self_report/boundary).
+2. **observed machinery always shows; credit scales** — both the L3
+   `ReferencePsyche` and the L0/L1 `BaselinePsycheSubject` streams contain the
+   `competition` (and `counterfactual`) atoms their frames back; the
+   BaselineSubject's carry `credit_status == "architecture_only"` and its rendered
+   text says so, while the ReferencePsyche's carry `evidenced`. No atom is voiced
+   stronger than its `credit_status`.
 3. **L4 adds intervention_result** — a passing paired run yields
    `intervention_result` atoms with real `observed_delta` and `null_holds`; the
    `restore` null run yields none.
@@ -339,7 +396,26 @@ Then: full `python -m pytest tests/ -q`, `python -m pneuma_lab.status --check`,
 
 ---
 
-## 13. Out of scope for v0 (YAGNI)
+## 13. Implementation order (receipt-first)
+
+The receipt spine exists before any prose or cinematics. The plan sequences:
+
+- **Phase A — receipt spine:** `atoms.py`, `extract.py`, `gate.py`,
+  `render_deterministic.py`, `sidecar.py`, `transcript.py`, the
+  `thought-stream` schema, the CLI, and the §11 tests (deterministic, grounded,
+  observed-vs-credited, anti-gaming). Fully reproducible; no LLM.
+- **Phase B — verified voiced skin:** `voiced.py` (`VoiceSkin` protocol +
+  `ReferenceVoiceSkin`) and `verify.py`, with the drift/forbidden-claim/credit
+  rejection + fallback tests. The pluggable `LLMVoiceSkin` adapter rides behind
+  the verified protocol.
+- **Phase C — HTML mind monitor:** `monitor.py` generated from the Phase A/B
+  JSON, plus its dedicated visual-design pass.
+
+No phase begins before the prior phase's tests are green.
+
+---
+
+## 14. Out of scope for v0 (YAGNI)
 
 - Any Level claim, re-scoring, or change to the scorer / psyche / paired runner /
   existing frames.
