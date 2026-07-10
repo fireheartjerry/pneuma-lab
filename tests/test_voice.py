@@ -78,3 +78,50 @@ def test_validate_thought_stream_accepts_minimal_and_rejects_junk():
 
     with pytest.raises(V.FrameValidationError):
         V.validate_thought_stream({"manifest_kind": "wrong"})
+
+
+from pathlib import Path
+from pneuma_lab.psyche import ReferencePsyche
+from pneuma_lab.replay import ReplayHarness, load_jsonl
+from pneuma_lab.voice import extract as X
+
+_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sample_run.jsonl"
+
+
+def _reference_result():
+    return ReplayHarness(ReferencePsyche()).run(load_jsonl(_FIXTURE))
+
+
+def test_extract_produces_grounded_atoms_for_tick0():
+    result = _reference_result()
+    ev = result.evidence_frame
+    atoms = X.atoms_for_tick(result.tick_outputs[0], None, tick=0, evidence_frame=ev)
+    kinds = {a.type for a in atoms}
+    assert "appraisal" in kinds
+    assert "competition" in kinds
+    assert "pressure" in kinds
+    ps = result.tick_outputs[0].psyche_state
+    for a in atoms:
+        assert a.receipts, f"{a.type} has no receipts"
+        assert 0.0 <= a.intensity <= 1.0
+        assert a.run_id == ps["run_id"]
+        assert a.timestamp == ps["timestamp"]
+
+
+def test_extract_competition_credit_follows_family_status():
+    result = _reference_result()
+    ev_evidenced = result.evidence_frame
+    atoms = X.atoms_for_tick(
+        result.tick_outputs[0], None, tick=0, evidence_frame=ev_evidenced
+    )
+    comp = next(a for a in atoms if a.type == "competition")
+    assert comp.credit_status == "evidenced"
+    ev_arch = {
+        "evidence_level": 1,
+        "indicator_families": {"global_workspace": {"status": "architecture_only"}},
+    }
+    atoms2 = X.atoms_for_tick(
+        result.tick_outputs[0], None, tick=0, evidence_frame=ev_arch
+    )
+    comp2 = next(a for a in atoms2 if a.type == "competition")
+    assert comp2.credit_status == "architecture_only"
