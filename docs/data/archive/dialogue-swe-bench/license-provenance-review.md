@@ -1,5 +1,10 @@
 # Dialogue SWE-Bench License And Provenance Review
 
+**ARCHIVED — inactive.** Superseded as the active Dataset #2 by
+`open-swe-traces`, whose license is a declared structured field (`cc-by-4.0`)
+rather than `null`. Kept for provenance; not deleted. The findings below
+remain accurate as of this review; they are not retroactively changed.
+
 Status: conversion blocked by unresolved dataset license.
 
 This review advances Dataset #2 as far as the current evidence permits. It does
@@ -25,9 +30,9 @@ this pass does not push.
 
 Local committed metadata:
 
-- `docs/data/registry/dialogue-swe-bench.json`
-- `docs/data/onboarding/dialogue-swe-bench.md`
-- `docs/data/conversion/dialogue-swe-bench-to-training-examples.md`
+- `docs/data/archive/dialogue-swe-bench/registry.json`
+- `docs/data/archive/dialogue-swe-bench/onboarding.md`
+- `docs/data/archive/dialogue-swe-bench/conversion.md`
 - `src/pneuma_lab/converters/dialogue_swe_bench_training.py`
 - `tests/test_dialogue_swe_bench_training_converter.py`
 
@@ -72,18 +77,18 @@ license/provenance:
 - local normalized metadata says GitHub has no license;
 - live source check did not find a dataset license;
 - raw fields include dialogue/task text, gold patches, test patches, and oracle
-    lists, so leakage controls must be in place before any future conversion.
+  lists, so leakage controls must be in place before any future conversion.
 
 ## Safe Work Completed
 
 - Added a Dataset #2 governance module:
   `src/pneuma_lab/training/dialogue_governance.py`.
 - Added a committed readiness/guardrail manifest:
-  `docs/data/training-readiness/dialogue-swe-bench.json`.
+  `docs/data/archive/dialogue-swe-bench/training-readiness.json`.
 - Updated the registry/readiness references so Dataset #2 has a mechanical
-    block instead of an informal caveat.
+  block instead of an informal caveat.
 - Added tests for license gating, input leakage checks, manifest consistency,
-    and bounded-conversion request rejection.
+  and bounded-conversion request rejection.
 
 ## Remaining Safe Next Step
 

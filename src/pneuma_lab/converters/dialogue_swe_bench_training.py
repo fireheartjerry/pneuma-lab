@@ -28,10 +28,8 @@ TRAINING_EXAMPLE_SCHEMA = "pneuma-training-example.schema.json"
 SYNTHETIC_FIXTURE_REF = (
     "fixtures/training_examples/dialogue_swe_bench_synthetic_source.json"
 )
-REGISTRY_REF = "docs/data/registry/dialogue-swe-bench.json"
-CONVERSION_PLAN_REF = (
-    "docs/data/conversion/dialogue-swe-bench-to-training-examples.md"
-)
+REGISTRY_REF = "docs/data/archive/dialogue-swe-bench/registry.json"
+CONVERSION_PLAN_REF = "docs/data/archive/dialogue-swe-bench/conversion.md"
 LICENSE_BLOCKED_USE = (
     "training blocked until upstream license review resolves local null license"
 )
@@ -120,7 +118,9 @@ def _input_payload(record: dict, *, task_type: str) -> dict:
             "source_file_sha256": source.get("source_file_sha256"),
             "source_row": source.get("source_row"),
             "license_status": dataset.get("license_status"),
-            "license_review_required": bool(dataset.get("license_review_required", True)),
+            "license_review_required": bool(
+                dataset.get("license_review_required", True)
+            ),
         },
         "task": {
             "instance_id": task.get("instance_id"),
@@ -141,7 +141,9 @@ def _input_payload(record: dict, *, task_type: str) -> dict:
     }
 
 
-def _base_example(record: dict, *, task_type: str, example_type: str, target: dict) -> dict:
+def _base_example(
+    record: dict, *, task_type: str, example_type: str, target: dict
+) -> dict:
     source_hash = _source_hash(record)
     task = record.get("task") or {}
     source = record.get("source") or {}

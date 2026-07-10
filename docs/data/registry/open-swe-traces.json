@@ -1,0 +1,581 @@
+{
+    "manifest_schema_version": "0.1.0",
+    "dataset_id": "open-swe-traces",
+    "dataset_status": "onboarded_metadata_only",
+    "registry_status": "multi_dataset_metadata_registry",
+    "human_name": "Open-SWE-Traces",
+    "data_root_variable": "PNEUMA_DATA_ROOT",
+    "default_observed_data_root": "C:/pneuma-data",
+    "raw_path_relative": "raw/open-swe-traces/Open-SWE-Traces",
+    "processed_path_relative": "processed/open-swe-traces",
+    "source_of_truth_report_relative": "processed/open-swe-traces/row_counts.json",
+    "validation_profile": "metadata_inventory",
+    "metadata_inventory": {
+        "row_counts_relative": "processed/open-swe-traces/row_counts.json",
+        "file_index_relative": "processed/open-swe-traces/file_index.jsonl",
+        "provenance_relative": "processed/open-swe-traces/provenance.json",
+        "normalized_metadata_relative": "processed/open-swe-traces/normalized_metadata.jsonl"
+    },
+    "adapter": {
+        "name": null,
+        "module": null,
+        "version": null
+    },
+    "schema": {
+        "artifact": "PneumaTrainingExample",
+        "readiness": "not_converted"
+    },
+    "source": {
+        "dataset": "open-swe-traces",
+        "hf_repo": "nvidia/Open-SWE-Traces",
+        "hf_revision": "474d016b4a35a0411a7f57183579eab8924e9ea5"
+    },
+    "expected_from_metadata_files": {
+        "total_rows": 207489,
+        "files": 86,
+        "metadata_rows": 207489,
+        "raw_files": [
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00000-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 208847192,
+                "sha256": "a4681db6adaa064dcde96d70d50c1cc2ead2082a218eb35e61bcb85cfcd7bdf9:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00001-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 204174552,
+                "sha256": "bca3b3a7efac024f5dff7e460933aa8caa926cf53003c2febe5c311b9956215b:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00002-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 224802172,
+                "sha256": "0155faafb5ef3357cc91685a783f59d6e496572a9280ab444d61403c32ed516f:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00003-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 211071262,
+                "sha256": "1815b6e6a65db635f017b8a2cdc3af7177f855315624919790ee9cc9e76dc8cd:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00004-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 214251905,
+                "sha256": "bc1fde1a755d0d2a3b565e4eb8aa81547e440d0bae907b6a79cf884da13e8510:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00005-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 215933356,
+                "sha256": "a2da644d34b22043583796dd606c5938a93540ce9683544136608e1b87fe76bb:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00006-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 202840922,
+                "sha256": "93d966df0f8d74bf4d79852100328798b761e4b362081e29e5536d865df02e88:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00007-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 212418352,
+                "sha256": "8ec4f906c0586939d930b91f1f35f696cac309062e1545f617e6f38407489369:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00008-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 212971953,
+                "sha256": "2dc4ea0629639da2abcd593fdbe021106dc2f3557611c1c26d8cce33adba8ac8:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00009-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 246529959,
+                "sha256": "99ec79cb3f939215c2456d8e74738e19eab96f7a7558bd679fd37d3885afc9aa:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00010-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 211574153,
+                "sha256": "f5156925fa0c51f1c4b988bda1abfadaf2ad1e34c251a6d99a7a85eb3ca976b4:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00011-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 202909037,
+                "sha256": "a155e875508dd39ef73a29f571564da663e6861da89948a982c94353dd746a53:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00012-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 208195277,
+                "sha256": "e5700b8a41da5a6d9944270665de716b3697cff58e08f9d69ba108448705c321:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00013-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 214672060,
+                "sha256": "c55f807f10ffadc8464fc811987a38cfd4b3d931aff71e117b89285baa080fa1:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00014-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 204210859,
+                "sha256": "a574b0fb1abbf679d0055ad0deeb3d0b8a194202d8b3d45263ff0074b47d032e:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00015-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 213697248,
+                "sha256": "136bbec0bcefe6e16146b18441de73227215a3291cab178225c1aa382c132528:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00016-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 215414051,
+                "sha256": "96a4cc5c931bf21269a2b1f746cd1bdac31be9c58d6a8cdb08dab2ccd0daa3d9:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00017-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 222735333,
+                "sha256": "84c35ec88f0eec4fdd3cbf5629a7fe5df8d92444904419f28ad7b4cd6203e51f:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00018-of-00020.parquet",
+                "rows": 2500,
+                "bytes": 236501623,
+                "sha256": "d1d1d18727a5c7fad5772909885d2828a836d265825d2bddafe6a7a7f01cc60d:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00019-of-00020.parquet",
+                "rows": 2448,
+                "bytes": 240767319,
+                "sha256": "52b75c7f39cff503ac2c01c527dcb8345323078ebcb05fbb204e222c933cbe6c:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00000-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 212662000,
+                "sha256": "8bf8b28878a48fc6a80a1ef0b5e5291c4e3257fe6bb93dbf213770238d7ed1cc:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00001-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 200725031,
+                "sha256": "bae8d5a45945a3a099a6d5cdbc11e8b8b88061cd3a0440a927d619e12c247538:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00002-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 197531273,
+                "sha256": "92a98fcd8959449a4a96466c9f6a1043f59ef1dfa88a057ccd4bc73b418a5289:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00003-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 192660711,
+                "sha256": "7c2ba6b7ebd0a886007a988e3a970666e9febce197fa4e9317ef55475c7c0256:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00004-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 188492999,
+                "sha256": "253474aca35165dab681cd90604f67364fb0ccb89f088dc6a2ff1a64f48773e8:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00005-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 187659145,
+                "sha256": "df8a3569bea3150a447b3b83e5f515a07a234c6b4e3509995b8bdd470d613565:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00006-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 185250563,
+                "sha256": "6fe88361761d8504905d26a6d9b723c38f94dc66c511ff4f6855fc27b4ccad1d:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00007-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 198324884,
+                "sha256": "c2a66698ea9265d510031f0c7228d3861849dd3640cb5b8ec3fc4d625c3e18b9:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00008-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 184845205,
+                "sha256": "4bb5fd84a0cf684503e20de3d91e160a285dfabc01a54ff4b370e9e51d909fdc:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00009-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 187376018,
+                "sha256": "a0d9be4d6a9ea104dc13c3f7dfe4bf92991e0c648a3676ea74d1bc292da59d5a:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00010-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 191020768,
+                "sha256": "1083af3828fb8c6cdd97a2336babaa8f1af5f181a474b484b9019decdfea12a5:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00011-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 185657639,
+                "sha256": "fc23cc38ee9d4f0690d3fcefca7e7fe3391ee9b6f61f35d8bc0d2f159207fe0a:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00012-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 182306529,
+                "sha256": "47d74cb16f98a7b092a10a7ed4ebe2d1f5922a7acdf587d34458b8fc1f2ae736:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00013-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 185883283,
+                "sha256": "5a917f35576c4d282378fe1173a35b88cfbfd9d01a97108bc7dc5f4612eb93e7:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00014-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 179774492,
+                "sha256": "1ab1bc1a65598e24977e010430b3730a7971cdab580ce56bcb2829608bd724a1:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00015-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 177286797,
+                "sha256": "d1b552a3eca27c5359e39e7c99e7e2ba59472fa72f2510ec6c043d4ee133dc58:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00016-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 179605322,
+                "sha256": "7cda77731e3e3cd7d2d0a1fb42626fe5794a7aa7c413b0e74d1846fa2a98ef23:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00017-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 178477039,
+                "sha256": "ed0b9853e4b361d11504296f26423a87d3cb196cc0e748909971624d9731a86f:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00018-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 199102689,
+                "sha256": "f65148b79a34f289541b23fc4143988a4854299a2304c4f4c8b08d1ba152d4da:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00019-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 202638593,
+                "sha256": "9c6d6f9f21e3f9c8c186eeea921661f2780daf7d561c357258597d4915cea72a:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00020-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 216096782,
+                "sha256": "3f485e6f9d4fdc0cc37ff5337158ff3201898b4ae922c9edbcdbb9d10b2cc6e9:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00021-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 231781841,
+                "sha256": "cdd8d2005853a5ef7defb1537ebbac6f7263959e9db4b8a614d1d825af077d75:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_sweagent_trajectories/train-00022-of-00023.parquet",
+                "rows": 2268,
+                "bytes": 230224294,
+                "sha256": "f50cc05f2434036ff1b9a6a74dcd5e60f9a3c4bdbbf4f636508a170b13267397:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00000-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 237468305,
+                "sha256": "d968f48f58295eff0931bd6ebb089fa84d82619dfbba61dc19648fd6c68e5e32:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00001-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 225622285,
+                "sha256": "1974f87494c53533d2ed746821f6ea75a60d7a87f4f6388b1112b043303fbf77:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00002-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 238212724,
+                "sha256": "3b06a6f291d2b6700f711c9d925550e97d3bc3b68ae8b961f385ba799bf545c2:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00003-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 226112949,
+                "sha256": "cf1ecbfb9b1dc7c05cff72222ee3c2e09b996c0a841312380651fc9a4a79865f:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00004-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 229052630,
+                "sha256": "b91bf49409f626c25d2e261aa7f7bdfebe56a4121793a116f1c710cd782631ab:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00005-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 249554289,
+                "sha256": "bc096cf0b9a7abcd83eebd7676dfb532440bc9399c468bcf37c35a00e8f3a33e:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00006-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 242389883,
+                "sha256": "de718e08e80c1dcc2546f717ca7c16666c2ddaf5a8786c425cf52ec209e261c4:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00007-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 232690603,
+                "sha256": "c631bb88da3b6994f384041d38430af916730bdb6b7eb2184bb28b08b8e4ba59:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00008-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 240343716,
+                "sha256": "4f0b10f6fa98ba4c3f686364188876c61727e3418be775e7be6d872019195578:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00009-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 228823858,
+                "sha256": "22ae002cd2c0eb75bac313d7af65d7deb92051e9c61f6ed1a37116a30e7491cd:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00010-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 231552321,
+                "sha256": "a7b402e70f97475eb311ebc97a0a0c9adee71e6229be3f1875ab66c1c292fe12:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00011-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 226559439,
+                "sha256": "26522b011804e763e242fae527f918255abcad06960826229316b6153c946d27:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00012-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 240271489,
+                "sha256": "44971f29a3620a3bc8b231acbdc88cb46ec7d0b4b715feac1e7253fd352c045a:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00013-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 227974716,
+                "sha256": "ea55f120729a70abc6ed2fac9f2b53366617302249f3b1933f20611fec9da08d:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00014-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 234639720,
+                "sha256": "574ceede0f4766b41c9526a0a58e3e49e70bedac732c89be405c758ad64ee906:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00015-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 231279799,
+                "sha256": "0326afff37a936b962fa752d59b39329242d55e5552221a461741535f6ad3d74:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00016-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 225417412,
+                "sha256": "8c4063062162bd4ad53a7626ad468d456824931183c05112eecf98433fff24f6:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00017-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 224218313,
+                "sha256": "5a3762e2987a55c5c74b65c87f329bbda18d338bdf41ef9a3f3fa4625be4be4e:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00018-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 245060801,
+                "sha256": "1864a83af0928eb7e3ce183e61a9c8392f5e3c8eb16c008d6f36132ebe70bd5e:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00019-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 239155254,
+                "sha256": "0a83e5e042b5e4f93e9129650d9aadd86f02f51d4bbeb380518b1ac60cc194c0:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00020-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 242209471,
+                "sha256": "dc416247e698de9ee0f2737d29ce3fad16e92a9e7f8bc9c26306c1e48863df5b:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00021-of-00023.parquet",
+                "rows": 2500,
+                "bytes": 242610948,
+                "sha256": "5ea2dee39b5d056484545ad4a2dbdfad44f676fa610e56830887c923d1d83aa7:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_openhands_trajectories/train-00022-of-00023.parquet",
+                "rows": 488,
+                "bytes": 45178574,
+                "sha256": "952b6e460ad85ea73ef3ea89fbbe1ff4fb1fd4bad6d9d3f21dbfd516ce5a7224:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00000-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 241951555,
+                "sha256": "babb8427e8286e4feb3ceadb4461356cc3e27cba726faf05b95ca2390e186e55:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00001-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 239258114,
+                "sha256": "7a707e219253e0af3a2a08f1f723b2095ff8adae441431226f6e5eaf266f9474:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00002-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 240246622,
+                "sha256": "87bdcd1be871be678c5018821d2458c4cc01a778d3f3bba49ffadf595f6d82e2:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00003-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 238936396,
+                "sha256": "9c4ccc838324dae37df207b422f53e451e30626214f36e64c21805c57aeed25e:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00004-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 241419994,
+                "sha256": "6a5af7fd2f6c9895d078b2fdf5f347319a61c9da60a67473e645c6abbced12c6:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00005-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 242069621,
+                "sha256": "08a8c2812f794223356bd92b579713a2cdb8864bb5a6d49a96ff74e77deba01f:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00006-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 241982918,
+                "sha256": "e26a1babc08f39ff91b65cc22a54d3f60e601db14717c45c805005b590c9260e:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00007-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 246645710,
+                "sha256": "ef49c9e8aba4d5ed4b4ee1ae2f997950550da3d6d2c58c5b68119b6d4963b5f4:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00008-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 239097457,
+                "sha256": "b740f2cd10171432fcc8719ac8ae334c9dda8ba2e2c1e68d784c52d2b27bfc96:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00009-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 247462009,
+                "sha256": "775f0f193864d53b76df4e2a598a6c9909427a9b6f10bf13cec284f18cb341a1:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00010-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 232416637,
+                "sha256": "7c41d1ac98e70551522c7f67b9da11c420c69e40319a9dfdab8cecb0c99fa19d:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00011-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 233967060,
+                "sha256": "c0338b1c2080b54bafe8510a1c7f9231e8f5438c3e9628e812fd478f27cc3126:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00012-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 243970802,
+                "sha256": "bafbadf1b8d1c6cda51a06128584abd8fa954b691370b59212fc94ea73730044:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00013-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 244866485,
+                "sha256": "fa50e37577fc9bba7b689bd6f4ba130902f71b4fc4d3eb9a7e1f008d4aac2a11:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00014-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 243824610,
+                "sha256": "20349fd797e2f33b1ad21a0c4c9b7672c77b11e3dbff82b66377650d0cdbd489:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00015-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 243419456,
+                "sha256": "b893da1b8ec9b456d085ec4d4acf3ef45e07ddf72ee649ca5bff7345dca08100:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00016-of-00018.parquet",
+                "rows": 2500,
+                "bytes": 244962688,
+                "sha256": "942ba1ed608533ca8adb3f9bb7ceb3d654ae8767bbabe9cc0edd6a3b4982a79d:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/qwen35_sweagent_trajectories/train-00017-of-00018.parquet",
+                "rows": 2285,
+                "bytes": 225589953,
+                "sha256": "91f55409b39ac71fdcbceee72844c92b74571fe95447331b753f39de7db1fb50:first33554432B"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/openhands_tools.json",
+                "rows": null,
+                "bytes": 9915,
+                "sha256": "c12f3c0fd8b3ad2aa71307bf2be44dfe729846fb3b829d74354d7a7f72d7805b"
+            },
+            {
+                "path_relative": "raw/open-swe-traces/Open-SWE-Traces/sweagent_tools.json",
+                "rows": null,
+                "bytes": 3959,
+                "sha256": "f71b87a368f5a8226ed8dda1ff47ab8d1945afe78e9a57d9b92b7d7d3161a3c7"
+            }
+        ],
+        "huggingface_snapshot": {
+            "repo_id": "nvidia/Open-SWE-Traces",
+            "revision": "474d016b4a35a0411a7f57183579eab8924e9ea5"
+        },
+        "git_repo": {},
+        "normalized_metadata_keys": [
+            "dataset",
+            "language",
+            "resolved",
+            "source_group"
+        ]
+    },
+    "privacy_status": "public benchmark-derived synthetic trajectories; metadata-only onboarding, no adapter/converter output yet",
+    "allowed_uses": [
+        "dataset onboarding validation",
+        "future adapter design"
+    ],
+    "blocked_uses": [
+        "ML training in this pass",
+        "raw trajectory/patch content extraction in this pass"
+    ],
+    "license": {
+        "declared_value": "cc-by-4.0",
+        "declared_source": "huggingface dataset card cardData.license (structured field)",
+        "review_doc": "docs/data/candidate-reviews/open-swe-traces.md"
+    }
+}

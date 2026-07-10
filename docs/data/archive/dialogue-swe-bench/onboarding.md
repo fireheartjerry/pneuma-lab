@@ -1,5 +1,11 @@
 # Dataset Onboarding: Dialogue SWE-Bench
 
+**ARCHIVED — inactive.** Superseded as the active Dataset #2 by
+`open-swe-traces` (see `docs/data/candidate-reviews/open-swe-traces.md`)
+because this dataset's license remained unresolved (`null`) at every source
+checked. Kept for provenance; not deleted. Do not treat as the active
+Dataset #2 candidate.
+
 ## Status
 
 Onboarded as Dataset #2 in metadata-only form. This pass makes the dataset
@@ -8,10 +14,10 @@ legible to the registry; it does not implement an adapter, emit
 touch runtime behavior, process SWE-chat, or make consciousness-level claims.
 
 Current training-readiness status: guardrails are committed in
-`docs/data/training-readiness/dialogue-swe-bench.json`, and real-row conversion
+`docs/data/archive/dialogue-swe-bench/training-readiness.json`, and real-row conversion
 is blocked until upstream dataset licensing is resolved. The license/provenance
 review is recorded in
-`docs/data/training-readiness/dialogue-swe-bench-license-provenance-review.md`.
+`docs/data/archive/dialogue-swe-bench/license-provenance-review.md`.
 
 ## Why Selected As Dataset #2
 
@@ -27,16 +33,16 @@ The dialogue/persona shape is simulated and must stay labeled that way.
 
 Source of truth: metadata sidecars under `processed/dialogue-swe-bench/`.
 
-| Field | Value |
-|---|---:|
-| Total rows | 550 |
-| Source files | 2 |
-| Test rows | 500 |
-| Ablation rows | 50 |
-| Hugging Face repo | `Brendan/SWE-Bench_Dialogue` |
-| Hugging Face revision | `88f083e830d9cd48e19470aa887a9df2914d3547` |
-| GitHub provenance | `https://github.com/jlab-nlp/dialogue_swe_bench` |
-| Git commit | `86689bbb8e4eb459939fc7eb8b3e4220b5215ede` |
+| Field                 |                                            Value |
+| --------------------- | -----------------------------------------------: |
+| Total rows            |                                              550 |
+| Source files          |                                                2 |
+| Test rows             |                                              500 |
+| Ablation rows         |                                               50 |
+| Hugging Face repo     |                     `Brendan/SWE-Bench_Dialogue` |
+| Hugging Face revision |       `88f083e830d9cd48e19470aa887a9df2914d3547` |
+| GitHub provenance     | `https://github.com/jlab-nlp/dialogue_swe_bench` |
+| Git commit            |       `86689bbb8e4eb459939fc7eb8b3e4220b5215ede` |
 
 The raw dataset directory contains a Hugging Face snapshot with a README and two
 parquet files. This pass inspected directory listings, metadata sidecars, the
@@ -101,7 +107,7 @@ the SWE-Bench lineage carries contamination risk.
 - Define explicit label mapping and leakage controls before conversion.
 - Review upstream license/provenance before any training-oriented use.
 - Continue synthetic-fixture converter validation while real-row conversion is
-    license-blocked.
+  license-blocked.
 
 ## Blocked Next Steps
 
@@ -109,19 +115,19 @@ the SWE-Bench lineage carries contamination risk.
 - Do not run E1/E2 or calibration in this pass.
 - Do not convert rows into `PneumaTrainingExample` records in this pass.
 - Do not run bounded real-row conversion until a dataset license is declared or
-    otherwise resolved.
+  otherwise resolved.
 - Do not inspect raw dialogue content beyond metadata/schema-level evidence.
 - Do not process SWE-chat.
 - Do not modify runtime behavior.
 - Do not implement J-space/Jacobian Lens work.
 - Do not make consciousness, interiority, sentience, Level 4/5, or
-    moral-patienthood claims.
+  moral-patienthood claims.
 
 ## Caveats
 
 - Dialogue/operator signals are simulated, not real-human behavior.
 - The dataset is SWE-Bench-derived, so contamination and benchmark leakage
-    caveats apply.
+  caveats apply.
 - No canonical adapter exists yet.
 - No redaction receipt or adapter report exists yet.
 - License is unresolved in local provenance metadata.

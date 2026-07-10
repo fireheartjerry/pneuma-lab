@@ -7,7 +7,14 @@ from pneuma_lab.training import dialogue_governance as gov
 
 
 ROOT = Path(__file__).resolve().parents[1]
-READINESS = ROOT / "docs" / "data" / "training-readiness" / "dialogue-swe-bench.json"
+READINESS = (
+    ROOT
+    / "docs"
+    / "data"
+    / "archive"
+    / "dialogue-swe-bench"
+    / "training-readiness.json"
+)
 
 
 def test_license_gate_blocks_current_local_provenance() -> None:

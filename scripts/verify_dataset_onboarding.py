@@ -18,8 +18,8 @@ from pathlib import Path
 DEFAULT_DATA_ROOT = "C:/pneuma-data"
 DEFAULT_REGISTRY_ROOT = Path("docs/data/registry")
 SUPPORTED_DATASETS = {
-    "dialogue-swe-bench": "dialogue-swe-bench.json",
     "swe-gym-openhands-sampled": "openhands-sampled.json",
+    "open-swe-traces": "open-swe-traces.json",
 }
 
 COMMON_REQUIRED_FIELDS = (
@@ -65,11 +65,15 @@ def _manifest_path(dataset: str, registry_root: Path) -> Path:
     name = SUPPORTED_DATASETS.get(dataset)
     if name is None:
         supported = ", ".join(sorted(SUPPORTED_DATASETS))
-        raise ValidationError(f"unsupported dataset {dataset!r}; supported: {supported}")
+        raise ValidationError(
+            f"unsupported dataset {dataset!r}; supported: {supported}"
+        )
     return registry_root / name
 
 
-def _require_fields(manifest: dict, required: tuple[str, ...] = COMMON_REQUIRED_FIELDS) -> None:
+def _require_fields(
+    manifest: dict, required: tuple[str, ...] = COMMON_REQUIRED_FIELDS
+) -> None:
     missing = [field for field in required if field not in manifest]
     if missing:
         raise ValidationError(f"manifest missing required fields: {', '.join(missing)}")
@@ -87,7 +91,9 @@ def _compare(expected, actual, label: str, errors: list[str]) -> None:
         errors.append(f"{label}: expected {expected!r}, got {actual!r}")
 
 
-def _compare_block(expected: dict, actual: dict, prefix: str, errors: list[str]) -> None:
+def _compare_block(
+    expected: dict, actual: dict, prefix: str, errors: list[str]
+) -> None:
     for key, value in expected.items():
         if isinstance(value, dict):
             _compare_block(value, actual.get(key, {}), f"{prefix}.{key}", errors)
@@ -111,7 +117,9 @@ def _validate_adapter_report(
     errors: list[str],
 ) -> list[str]:
     if "expected_from_adapter_report" not in manifest:
-        raise ValidationError("adapter_report validation requires expected_from_adapter_report")
+        raise ValidationError(
+            "adapter_report validation requires expected_from_adapter_report"
+        )
 
     report = _load_json(report_path)
     expected = manifest["expected_from_adapter_report"]
@@ -122,9 +130,21 @@ def _validate_adapter_report(
         "adapter_report_schema_version",
         errors,
     )
-    _compare(manifest["adapter"]["name"], report.get("adapter", {}).get("name"), "adapter.name", errors)
-    _compare(manifest["adapter"]["version"], report.get("adapter", {}).get("version"), "adapter.version", errors)
-    _compare(manifest["source"]["hf_repo"], report.get("hf_repo"), "source.hf_repo", errors)
+    _compare(
+        manifest["adapter"]["name"],
+        report.get("adapter", {}).get("name"),
+        "adapter.name",
+        errors,
+    )
+    _compare(
+        manifest["adapter"]["version"],
+        report.get("adapter", {}).get("version"),
+        "adapter.version",
+        errors,
+    )
+    _compare(
+        manifest["source"]["hf_repo"], report.get("hf_repo"), "source.hf_repo", errors
+    )
     _compare(
         manifest["source"]["hf_revision"],
         report.get("hf_revision"),
@@ -137,7 +157,9 @@ def _validate_adapter_report(
         "source.task_join_hf_repo",
         errors,
     )
-    _compare_block(expected.get("counts", {}), report.get("counts", {}), "counts", errors)
+    _compare_block(
+        expected.get("counts", {}), report.get("counts", {}), "counts", errors
+    )
     _compare_block(
         expected.get("trajectory", {}),
         report.get("trajectory", {}),
@@ -213,7 +235,12 @@ def _validate_metadata_inventory(
     file_index_rows = _load_jsonl(file_index_path)
     normalized_metadata_rows = _load_jsonl(normalized_metadata_path)
 
-    _compare(expected.get("total_rows"), row_counts.get("total_rows"), "row_counts.total_rows", errors)
+    _compare(
+        expected.get("total_rows"),
+        row_counts.get("total_rows"),
+        "row_counts.total_rows",
+        errors,
+    )
     _compare(expected.get("files"), row_counts.get("files"), "row_counts.files", errors)
     _compare(
         expected.get("metadata_rows"),
@@ -245,19 +272,30 @@ def _validate_metadata_inventory(
         for path, count in row_counts.get("by_file", {}).items()
     }
     expected_row_counts = {
-        item["path_relative"]: item["rows"]
-        for item in expected_files
+        item["path_relative"]: item["rows"] for item in expected_files
     }
     _compare(expected_row_counts, actual_row_counts, "row_counts.by_file", errors)
 
     expected_hf = expected.get("huggingface_snapshot", {})
     actual_hf = (provenance.get("huggingface_snapshots") or [{}])[0]
-    _compare(expected_hf.get("repo_id"), actual_hf.get("repo_id"), "provenance.hf_repo_id", errors)
-    _compare(expected_hf.get("revision"), actual_hf.get("revision"), "provenance.hf_revision", errors)
+    _compare(
+        expected_hf.get("repo_id"),
+        actual_hf.get("repo_id"),
+        "provenance.hf_repo_id",
+        errors,
+    )
+    _compare(
+        expected_hf.get("revision"),
+        actual_hf.get("revision"),
+        "provenance.hf_revision",
+        errors,
+    )
 
     expected_git = expected.get("git_repo", {})
     actual_git = (provenance.get("git_repos") or [{}])[0]
-    _compare(expected_git.get("url"), actual_git.get("url"), "provenance.git_url", errors)
+    _compare(
+        expected_git.get("url"), actual_git.get("url"), "provenance.git_url", errors
+    )
     _compare(
         expected_git.get("commit_sha"),
         actual_git.get("commit_sha"),
@@ -299,7 +337,9 @@ def validate(dataset: str, data_root: Path, registry_root: Path) -> list[str]:
 
     validation_profile = manifest.get("validation_profile", "adapter_report")
     if validation_profile == "adapter_report":
-        summary = _validate_adapter_report(manifest, data_root, processed_path, report_path, errors)
+        summary = _validate_adapter_report(
+            manifest, data_root, processed_path, report_path, errors
+        )
     elif validation_profile == "metadata_inventory":
         summary = _validate_metadata_inventory(manifest, data_root, errors)
     else:

@@ -9,7 +9,7 @@ from pathlib import Path
 
 SCRIPT = Path("scripts/verify_dataset_onboarding.py")
 DATASET_ID = "swe-gym-openhands-sampled"
-DIALOGUE_DATASET_ID = "dialogue-swe-bench"
+OPEN_SWE_TRACES_DATASET_ID = "open-swe-traces"
 
 
 def _report():
@@ -194,12 +194,14 @@ def test_metadata_inventory_dataset_passes_against_sidecar_files(tmp_path):
     registry = tmp_path / "registry"
     registry.mkdir()
     data_root = tmp_path / "data"
-    raw = data_root / "raw/dialogue-swe-bench/SWE-Bench_Dialogue"
-    processed = data_root / "processed/dialogue-swe-bench"
+    raw = data_root / "raw/open-swe-traces/Open-SWE-Traces"
+    processed = data_root / "processed/open-swe-traces"
     raw.mkdir(parents=True)
     processed.mkdir(parents=True)
 
-    raw_file = raw / "data/test-00000-of-00001.parquet"
+    raw_file = (
+        raw / "data/minimax_m25_openhands_trajectories/train-00000-of-00001.parquet"
+    )
     raw_file.parent.mkdir(parents=True)
     raw_file.write_text("", encoding="utf-8")
     (processed / "row_counts.json").write_text(
@@ -230,43 +232,47 @@ def test_metadata_inventory_dataset_passes_against_sidecar_files(tmp_path):
     (processed / "provenance.json").write_text(
         json.dumps(
             {
-                "git_repos": [{"url": "https://example.test/repo", "commit_sha": "def"}],
-                "huggingface_snapshots": [{"repo_id": "Example/Dialogue", "revision": "rev"}],
+                "git_repos": [],
+                "huggingface_snapshots": [
+                    {"repo_id": "Example/OpenSWETraces", "revision": "rev"}
+                ],
             },
             sort_keys=True,
         ),
         encoding="utf-8",
     )
     (processed / "normalized_metadata.jsonl").write_text(
-        json.dumps({"dataset": "dialogue-swe-bench", "has_dialogue": True}, sort_keys=True)
+        json.dumps(
+            {"dataset": "open-swe-traces", "has_trajectory": True}, sort_keys=True
+        )
         + "\n",
         encoding="utf-8",
     )
     manifest = {
         "manifest_schema_version": "0.1.0",
-        "dataset_id": DIALOGUE_DATASET_ID,
+        "dataset_id": OPEN_SWE_TRACES_DATASET_ID,
         "dataset_status": "onboarded",
         "registry_status": "multi_dataset_metadata_registry",
-        "human_name": "Synthetic Dialogue SWE-Bench",
+        "human_name": "Synthetic Open-SWE-Traces",
         "data_root_variable": "PNEUMA_DATA_ROOT",
         "default_observed_data_root": "C:/pneuma-data",
-        "raw_path_relative": "raw/dialogue-swe-bench/SWE-Bench_Dialogue",
-        "processed_path_relative": "processed/dialogue-swe-bench",
-        "source_of_truth_report_relative": "processed/dialogue-swe-bench/row_counts.json",
+        "raw_path_relative": "raw/open-swe-traces/Open-SWE-Traces",
+        "processed_path_relative": "processed/open-swe-traces",
+        "source_of_truth_report_relative": "processed/open-swe-traces/row_counts.json",
         "validation_profile": "metadata_inventory",
         "metadata_inventory": {
-            "row_counts_relative": "processed/dialogue-swe-bench/row_counts.json",
-            "file_index_relative": "processed/dialogue-swe-bench/file_index.jsonl",
-            "provenance_relative": "processed/dialogue-swe-bench/provenance.json",
+            "row_counts_relative": "processed/open-swe-traces/row_counts.json",
+            "file_index_relative": "processed/open-swe-traces/file_index.jsonl",
+            "provenance_relative": "processed/open-swe-traces/provenance.json",
             "normalized_metadata_relative": (
-                "processed/dialogue-swe-bench/normalized_metadata.jsonl"
+                "processed/open-swe-traces/normalized_metadata.jsonl"
             ),
         },
         "adapter": {"name": None, "module": None, "version": None},
         "schema": {"artifact": "PneumaTrainingExample", "readiness": "not_converted"},
         "source": {
-            "dataset": "dialogue-swe-bench",
-            "hf_repo": "Example/Dialogue",
+            "dataset": "open-swe-traces",
+            "hf_repo": "Example/OpenSWETraces",
             "hf_revision": "rev",
         },
         "expected_from_metadata_files": {
@@ -275,26 +281,29 @@ def test_metadata_inventory_dataset_passes_against_sidecar_files(tmp_path):
             "metadata_rows": 1,
             "raw_files": [
                 {
-                    "path_relative": "raw/dialogue-swe-bench/SWE-Bench_Dialogue/data/test-00000-of-00001.parquet",
+                    "path_relative": "raw/open-swe-traces/Open-SWE-Traces/data/minimax_m25_openhands_trajectories/train-00000-of-00001.parquet",
                     "rows": 1,
                     "bytes": 123,
                     "sha256": "abc",
                 }
             ],
-            "huggingface_snapshot": {"repo_id": "Example/Dialogue", "revision": "rev"},
-            "git_repo": {"url": "https://example.test/repo", "commit_sha": "def"},
-            "normalized_metadata_keys": ["dataset", "has_dialogue"],
+            "huggingface_snapshot": {
+                "repo_id": "Example/OpenSWETraces",
+                "revision": "rev",
+            },
+            "git_repo": {},
+            "normalized_metadata_keys": ["dataset", "has_trajectory"],
         },
-        "privacy_status": "public/simulated metadata sidecars only",
+        "privacy_status": "public benchmark-derived metadata sidecars only",
         "allowed_uses": ["dataset onboarding validation"],
         "blocked_uses": ["ML training in this pass"],
     }
-    (registry / "dialogue-swe-bench.json").write_text(
+    (registry / "open-swe-traces.json").write_text(
         json.dumps(manifest, sort_keys=True),
         encoding="utf-8",
     )
 
-    result = _run(data_root, registry, dataset=DIALOGUE_DATASET_ID)
+    result = _run(data_root, registry, dataset=OPEN_SWE_TRACES_DATASET_ID)
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "validation_profile=metadata_inventory" in result.stdout
