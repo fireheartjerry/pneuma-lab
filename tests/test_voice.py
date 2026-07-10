@@ -492,3 +492,22 @@ def test_voiced_falls_back_on_rejected_drift():
     on = ST.voice_run(frames, skin=DriftSkin())
     assert all("0.99999" not in (r.get("text_voiced") or "") for r in on["rendered"])
     assert any(r["voice_status"] == "voiced_rejected_fell_back" for r in on["rendered"])
+
+
+def test_cli_paired_and_skin(tmp_path):
+    from pneuma_lab.voice.__main__ import main
+
+    rc = main(
+        [
+            str(_IV_DIR / "clamp_tension.jsonl"),
+            "--paired",
+            "--skin",
+            "reference",
+            "--out",
+            str(tmp_path),
+        ]
+    )
+    assert rc == 0
+    assert (tmp_path / "stream.md").exists()
+    md = (tmp_path / "stream.md").read_text(encoding="utf-8")
+    assert "counterfactual was tested" in md.lower()

@@ -8,7 +8,8 @@ from pathlib import Path
 from pneuma_lab.psyche import ReferencePsyche
 from pneuma_lab.replay import load_jsonl
 
-from .stream import voice_run
+from . import voiced
+from .stream import voice_run, voice_run_paired
 from .transcript import write_transcript
 
 
@@ -29,9 +30,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--subject", choices=("reference", "baseline"), default="reference"
     )
+    parser.add_argument(
+        "--paired",
+        action="store_true",
+        help="run a paired replay and narrate the tested counterfactual",
+    )
+    parser.add_argument(
+        "--skin",
+        choices=("none", "reference"),
+        default="none",
+        help="voiced skin over the deterministic stream",
+    )
     args = parser.parse_args(argv)
 
-    stream = voice_run(load_jsonl(args.fixture), subject_factory=_factory(args.subject))
+    skin = voiced.ReferenceVoiceSkin() if args.skin == "reference" else None
+    factory = _factory(args.subject)
+    if args.paired:
+        stream = voice_run_paired(
+            load_jsonl(args.fixture), subject_factory=factory, skin=skin
+        )
+    else:
+        stream = voice_run(load_jsonl(args.fixture), subject_factory=factory, skin=skin)
     out_dir = Path(args.out) if args.out else Path("build/voice") / stream["run_id"]
     write_transcript(stream, out_dir)
     print(

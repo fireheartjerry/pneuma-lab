@@ -99,8 +99,47 @@ python -m pytest tests/test_voice.py -q
 `--subject` selects `reference` (`ReferencePsyche`, richer atom set) or
 `baseline` (`BaselinePsycheSubject`, intentionally thinner).
 
-## 8. Future work
+## 8. Phase B — verified voiced skin + tested counterfactuals
 
-Phase B (a verified LLM voiced skin populating `text_voiced`) and Phase C (an
-HTML mind monitor) are future work per the Pneuma Voice plan/spec — not
-implemented here.
+Phase B adds a second, optional prose register over the same atoms/receipts —
+it never changes what is extracted or how it is credited.
+
+- **`VoiceSkin` protocol + skins** (`voiced.py`). A `VoiceSkin` exposes
+  `voice_tick(atoms, rendered) -> str`. `ReferenceVoiceSkin` is the
+  deterministic default: it fuses the tick's `text_deterministic` lines into
+  one paragraph with no model call, so it is byte-reproducible.
+  `LLMVoiceSkin` is a thin adapter around a caller-supplied `generate(prompt)`
+  callable — it builds the prompt from the same deterministic lines and does
+  not itself talk to any provider.
+- **The `verify_voiced` gate** (`verify.py`) is a syntactic + heuristic check
+  run on every voiced candidate before it can replace the deterministic text:
+  every number and snake_case/dotted identifier in the candidate must already
+  appear in the deterministic source lines, no forbidden ontological claim
+  (`scrub_forbidden`) may be introduced, the architecture-only hedge must
+  survive if the source carried one, and the candidate must not grossly
+  expand length versus the source. This is **not** a semantic-entailment
+  check — that remains future work; `verify_voiced` only bounds surface
+  drift.
+- **Deterministic fallback.** If `verify_voiced` rejects a candidate, the tick
+  keeps `text_deterministic` and its `voice_status` becomes
+  `"voiced_rejected_fell_back"` — the stream never ships unverified prose.
+- **`intervention_result` + `voice_run_paired`** (`extract.py`, `stream.py`).
+  `voice_run_paired` drives a `PairedReplayRunner`, renders the treated arm
+  like `voice_run`, and appends `intervention_result` atoms — built from the
+  paired report's `observed_delta`/`experiment_id`/null result — to the final
+  tick. This is how the stream narrates a **tested** counterfactual, in
+  contrast to the passive-replay `counterfactual` atom, which is explicitly
+  labeled "(Predicted, not tested.)".
+- **Anti-gaming invariant, reaffirmed.** The skin cannot inflate the level:
+  `test_skin_cannot_inflate_the_level` asserts the echoed `evidence_frame` and
+  `evidence_level` are byte-identical whether or not a skin is attached: only
+  `rendered[*].text_voiced`/`voice_status` differ.
+
+CLI flags: `--paired` (run the paired replay and narrate the tested
+counterfactual) and `--skin {none,reference}` (attach `ReferenceVoiceSkin`;
+default `none` keeps Phase A's deterministic-only output).
+
+## 9. Future work
+
+Phase C (an HTML mind monitor) is future work per the Pneuma Voice plan/spec —
+not implemented here.
