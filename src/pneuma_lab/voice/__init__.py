@@ -17,6 +17,8 @@ __all__ = [
     "sidecar",
     "stream",
     "transcript",
+    "voiced",
+    "verify",
 ]
 
 

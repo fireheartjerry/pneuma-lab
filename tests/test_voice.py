@@ -364,3 +364,66 @@ def test_voice_all_submodules_are_lazily_importable():
 
     for name in v.__all__:
         assert importlib.import_module(f"pneuma_lab.voice.{name}") is getattr(v, name)
+
+
+from pneuma_lab.voice import voiced as VZ
+from pneuma_lab.voice import verify as VF
+from pneuma_lab.voice import render_deterministic as R
+
+
+def _rt(text):
+    return {
+        "atom_ids": ["a"],
+        "text_deterministic": text,
+        "text_voiced": None,
+        "voice_status": "deterministic_only",
+    }
+
+
+def test_reference_skin_is_deterministic_and_fuses():
+    rendered = [
+        _rt("Tension climbs to -0.38."),
+        _rt("A verification pressure of 0.42 forms and is held there."),
+    ]
+    skin = VZ.ReferenceVoiceSkin()
+    a = skin.voice_tick([], rendered)
+    b = skin.voice_tick([], rendered)
+    assert a == b
+    assert "-0.38" in a and "0.42" in a
+
+
+def test_verify_accepts_faithful_fusion():
+    source = ["Tension climbs to -0.38.", "self_model takes it at salience 1.00."]
+    ok, reasons = VF.verify_voiced(
+        "Tension climbs to -0.38 while self_model takes it at salience 1.00.", source
+    )
+    assert ok, reasons
+
+
+def test_verify_rejects_invented_number():
+    source = ["A verification pressure of 0.42 forms."]
+    ok, reasons = VF.verify_voiced("A verification pressure of 0.99 forms.", source)
+    assert not ok and any("0.99" in r for r in reasons)
+
+
+def test_verify_rejects_invented_identifier():
+    source = ["self_model takes it at salience 1.00."]
+    ok, reasons = VF.verify_voiced("risk_instinct takes it at salience 1.00.", source)
+    assert not ok and any("risk_instinct" in r for r in reasons)
+
+
+def test_verify_rejects_forbidden_claim():
+    ok, reasons = VF.verify_voiced(
+        "I'm conscious of the tension at 0.42.", ["tension at 0.42."]
+    )
+    assert not ok and any("forbidden" in r.lower() for r in reasons)
+
+
+def test_verify_rejects_dropped_hedge():
+    source = [
+        "A workspace race resolved (self_model, 1.00) — architecture-only, not promotable evidence."
+    ]
+    ok, reasons = VF.verify_voiced(
+        "A workspace race resolved (self_model, 1.00).", source
+    )
+    assert not ok and any("architecture-only" in r for r in reasons)
