@@ -66,10 +66,10 @@ verifier_invariance)` then clamped to `global_max`.
 Two container manifests aggregate the frames above for the shadow nervous system
 (`x-pneuma-schema-kind: io_bundle`, validated via `validate.validate_bundle`):
 
-| Bundle                 | Schema                             | Members                                                                                                                                                   |
-| ---------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **PneumaInputBundle**  | `pneuma-input-bundle.schema.json`  | `world`, `agent_trace`, `governance` + nullable placeholders `memory`, `psyche_state`, `workspace`                                                        |
-| **PneumaOutputBundle** | `pneuma-output-bundle.schema.json` | `risk_estimate`, `instinct`, `control_pressure` (candidate), `causal_trace`, `consciousness_evidence`, `blocked_uses`, `limitations`, `governance_status` |
+| Bundle                 | Schema                             | Members                                                                                                                                                                                                                                                           |
+| ---------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PneumaInputBundle**  | `pneuma-input-bundle.schema.json`  | `world`, `agent_trace`, `governance` + nullable placeholders `memory`, `psyche_state`, `workspace`                                                                                                                                                                |
+| **PneumaOutputBundle** | `pneuma-output-bundle.schema.json` | `risk_estimate`, `instinct`, `control_pressure` (candidate), `causal_trace`, `consciousness_evidence`, `blocked_uses`, `limitations`, `governance_status`; also `psyche_state` + `workspace_broadcast` when produced by `BaselinePsycheSubject` via `run_subject` |
 
 The producer is the shadow nervous system (`python -m pneuma_lab.nervous_system`);
 it wraps PneumaBrain-v0.1 risk into advisory frames without runtime authority or

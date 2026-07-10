@@ -168,6 +168,46 @@ With no `--model`, the CLI uses the trained elite model under `build/` if presen
 else the hermetic fixture model. Tests always use the fixture model (the trained
 artifact lives under the gitignored `build/` tree).
 
-```
+## 11. BaselinePsycheSubject-v0 — the first integrated subject
 
+`src/pneuma_lab/nervous_system/subject.py` moves past v0's single model-risk
+signal to the **first integrated, replayable psyche subject**. It implements the
+existing `PsycheUnderTest` seam + the `Perturbable` hook, so the shipped
+`ReplayHarness` and `PairedReplayRunner` drive it unchanged.
+
+- **State across ticks.** A 9-axis affect manifold (`psyche/manifold`) updated per
+  tick; each `psyche_state` carries a `state_hash`, and the `CausalTrace`
+  `previous_state_hash → new_state_hash` chain links tick to tick.
+- **Persistent scar memory** (`scar_memory.py`). Scars are seeded from a JSON store
+  at run start, incremented on matched motifs, and written back at run end. Run-2
+  over the same motif shows a stronger scar salience (and can flip the winner)
+  versus run-1 — cross-run memory, not per-run state.
+- **3-candidate global workspace** (`workspace.py`): `risk_instinct` (fast anomaly
+  proxy), `memory_scar` (persistent scar strength), `uncertainty_self_model`. The
+  highest salience wins and is broadcast; the winner becomes
+  `verification = clamp(winner_salience, 0, 1)` — **verification only**,
+  additive-only, `authority_tier ≤ soft`.
+- **Fuller receipts.** `CausalTrace.causal_path` is
+  `event → internal_state → broadcast → pressure`.
+- **Interventions / null.** Via the existing paired runner on the subject fixtures:
+  `scar_graph` **ablate** (scar salience → 0, winner flips off `memory_scar`),
+  `affect_manifold.certainty` **clamp** (uncertainty salience drops), `workspace`
+  **disable** (no broadcast, pressure → 0). The null arm reproduces control.
+
+**Harness evidence only — no Level 2/3/4 claim.** `run_subject` packages per-tick
+`PneumaOutputBundle`s (now carrying `psyche_state` + `workspace_broadcast`) and a
+deliberately conservative `ConsciousnessEvidenceFrame`: the promotable psyche
+scorer's frame is **discarded**; `evidence_level ≤ 1`; genuinely-exercised families
+(`global_workspace`, `valenced_learning`, `identity_persistence`,
+`higher_order_self_model`) are marked at most `architecture_only` — never
+`intervention_backed`; provenance is `uncertified_subject`;
+`real_subject_claim_status: not_evaluated`; `audit_status: self_reported`.
+
+**Before a Level-2/3/4 claim** could be made: certified promotable paired-runner
+certification over a persistent integrated subject; grounded self-report that
+changes faithfully under perturbation; a real, non-toy subject; and longitudinal,
+adversarial, and external-audit evidence.
+
+```txt
+python -m pytest tests/test_baseline_psyche_subject.py -q
 ```

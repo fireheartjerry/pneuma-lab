@@ -98,7 +98,12 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
   ablation/null test emits a conservative Level-1-compatible
   `ConsciousnessEvidenceFrame`. It never actuates, grants authority, or contacts a
   verifier; the kill switch suppresses control frames and writes an audit row.
-  See `docs/nervous-system-v0.md`.
+  It also hosts BaselinePsycheSubject-v0 (`subject.py`): a minimal integrated,
+  replayable `PsycheUnderTest` with persistent scar memory (`scar_memory.py`), a
+  3-candidate global workspace (`workspace.py`), verification-only pressure, and
+  scar/affect/workspace intervention tests (`subject_ablation.py`) — driven by the
+  existing `ReplayHarness`/`PairedReplayRunner` but reported as conservative
+  harness evidence only (no Level 2/3/4 claim). See `docs/nervous-system-v0.md`.
 - `src/pneuma_lab/status.py` validates and reports the canonical current-state
   manifest with `python -m pneuma_lab.status --check`.
 - `fixtures/sample_run.jsonl` is a failure-motif escalation timeline used by the
