@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from pneuma_lab import schemas
+from pneuma_lab.brain import predict as brain_predict
 from pneuma_lab.schemas import validate
 
 REPO = Path(__file__).resolve().parents[1]
@@ -75,3 +76,24 @@ def test_bundles_load_and_validate():
         "limitations": ["shadow_mode"],
     }
     validate.validate_bundle(out_bundle)
+
+
+# --------------------------------------------------------------------------- #
+# Task 3: hermetic fixtures                                                    #
+# --------------------------------------------------------------------------- #
+def test_fixture_model_gives_high_and_low_risk():
+    model = brain_predict.load_model(FIX / "model.json")
+    high = brain_predict.risk_estimate(
+        model, _load_trace(FIX / "trace_high_risk.jsonl"), prefix="full"
+    )
+    low = brain_predict.risk_estimate(
+        model, _load_trace(FIX / "trace_low_risk.jsonl"), prefix="full"
+    )
+    assert high["failure_probability"] > low["failure_probability"]
+    assert high["risk_bucket"] == "high"
+    assert low["risk_bucket"] == "low"
+
+
+def test_fixture_governance_frames_valid():
+    for name in ("governance_on.json", "governance_killswitch_off.json"):
+        validate.validate_or_raise(json.loads((FIX / name).read_text(encoding="utf-8")))

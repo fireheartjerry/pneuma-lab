@@ -1,0 +1,15 @@
+{
+    "authority_ceilings": {
+        "global_max": "hold",
+        "per_domain": {
+            "verification": "hold"
+        },
+        "per_faculty": {}
+    },
+    "frame_kind": "governance",
+    "kill_switch_state": "on",
+    "run_id": "ns-high",
+    "schema_version": "0.1.0",
+    "timestamp": "2026-07-10T00:00:00Z",
+    "verifier_isolation": true
+}
