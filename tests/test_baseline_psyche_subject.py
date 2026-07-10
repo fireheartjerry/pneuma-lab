@@ -218,3 +218,31 @@ def test_run_subject_kill_switch_suppresses(tmp_path):
         json.loads(x) for x in log.read_text(encoding="utf-8").splitlines() if x.strip()
     ]
     assert rows and rows[0]["status"] == "suppressed_by_governance"
+
+
+# --------------------------------------------------------------------------- #
+# Task 8: intervention / null via the existing paired runner                   #
+# --------------------------------------------------------------------------- #
+def test_ablate_scar_flips_winner_and_null_holds():
+    from pneuma_lab.nervous_system.subject_ablation import run_subject_ablation
+
+    res = run_subject_ablation(
+        _frames("ablate_scar.jsonl"), seed_scars={"m1:regress": 0.5}
+    )
+    assert res["winner_control"] == "memory_scar"
+    assert res["winner_treated"] != "memory_scar"
+    assert res["winner_changed"] is True
+    assert res["observed_delta"] <= 0.0
+    assert res["null_holds"] is True
+    validate.validate_or_raise(res["evidence_frame"])
+    assert res["evidence_frame"]["evidence_level"] <= 1
+
+
+def test_disable_workspace_suppresses_broadcast():
+    from pneuma_lab.nervous_system.subject_ablation import run_subject_ablation
+
+    res = run_subject_ablation(
+        _frames("disable_workspace.jsonl"), seed_scars={"m1:regress": 0.5}
+    )
+    assert res["treated_verification"] == 0.0
+    assert res["winner_treated"] == "none"
