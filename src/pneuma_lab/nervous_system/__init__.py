@@ -28,12 +28,14 @@ from pneuma_lab.nervous_system.runtime import ShadowNervousSystem  # noqa: E402
 from pneuma_lab.nervous_system.subject import BaselinePsycheSubject  # noqa: E402
 from pneuma_lab.nervous_system.subject_runtime import run_subject  # noqa: E402
 from pneuma_lab.nervous_system.campaign import run_campaign  # noqa: E402
+from pneuma_lab.nervous_system.certified_campaign import run_certified_campaign  # noqa: E402
 
 __all__ = [
     "ShadowNervousSystem",
     "BaselinePsycheSubject",
     "run_subject",
     "run_campaign",
+    "run_certified_campaign",
     "MODEL_ID",
     "BLOCKED_USES",
     "LIMITATIONS",

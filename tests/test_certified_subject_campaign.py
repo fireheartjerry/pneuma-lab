@@ -137,3 +137,83 @@ def test_campaign_schema_accepts_provenance_and_certified_overall():
     overall_props = schema["properties"]["overall"]["properties"]
     assert "certified" in overall_props
     assert "promotion_blocked_by" in overall_props
+
+
+# --------------------------------------------------------------------------- #
+# Task 4: certified promotable-path campaign                                  #
+# --------------------------------------------------------------------------- #
+def test_run_certified_campaign_provenance_and_conservatism(tmp_path):
+    from pneuma_lab.interventions import certified_subjects as cs
+    from pneuma_lab.nervous_system.certified_campaign import run_certified_campaign
+
+    cs.clear_registry()
+    summary = run_certified_campaign(work_dir=tmp_path)
+    validate.validate_campaign(summary)
+    by_id = {s["id"]: s for s in summary["slices"]}
+    assert set(by_id) == {
+        "l2_persistence",
+        "scar_ablation",
+        "workspace_disable",
+        "certainty_clamp",
+        "grounded_self_report",
+    }
+    for sid in (
+        "scar_ablation",
+        "workspace_disable",
+        "certainty_clamp",
+        "grounded_self_report",
+    ):
+        prov = by_id[sid]["provenance"]
+        assert prov["subject_factory_eligible"] is True
+        assert prov["runner_certified"] is True
+        assert prov["provenance_status"] == "runner_verified"
+        assert set(prov["arm_output_sha256"]) == {"control", "treated", "null"}
+        assert prov["input_frames_sha256"].startswith("sha256:")
+        assert prov["ordinal_invariant"] is True
+        assert by_id[sid]["scorer_diagnostic"]["internal_harness_evidence_level"] < 4
+    assert "ablate-scar" in by_id["scar_ablation"]["provenance"]["intervention_refs"]
+    persist = by_id["l2_persistence"]["provenance"]["state_persistence_refs"]
+    assert persist["scars_after_run1"] == {"m1:regress": 0.3}
+    assert persist["run1_tick0_state_hash"] != persist["run2_tick0_state_hash"]
+    assert by_id["l2_persistence"]["effect_observed"] is True
+    for s in summary["slices"]:
+        assert s["evidence_frame"]["evidence_level"] <= 1
+    assert summary["overall"]["claim"] == "no_level_claim"
+    assert summary["overall"]["certified"] is True
+    assert summary["overall"]["subject_factory_eligible"] is True
+    assert summary["overall"]["promotion_blocked_by"]
+
+
+def test_run_certified_campaign_is_deterministic(tmp_path):
+    from pneuma_lab.interventions import certified_subjects as cs
+    from pneuma_lab.nervous_system.certified_campaign import run_certified_campaign
+
+    cs.clear_registry()
+    a = run_certified_campaign(work_dir=tmp_path / "a")
+    cs.clear_registry()
+    b = run_certified_campaign(work_dir=tmp_path / "b")
+    assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+
+
+def test_certified_campaign_cli_writes_artifacts(tmp_path):
+    import subprocess
+    import sys
+
+    out = tmp_path / "camp"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pneuma_lab.nervous_system.certified_campaign",
+            "--out",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO),
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert (out / "summary.json").exists()
+    validate.validate_campaign(
+        json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    )
