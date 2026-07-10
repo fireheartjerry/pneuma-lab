@@ -1,8 +1,12 @@
 # Dataset Status Review: SWE-PolyBench
 
-**Decision: TRAINING CANDIDATE — task-only adapter pending.** Clean MIT license,
-well-shaped; not blocked. Needs a stage-1 adapter (swe_gym_lite pattern) before
-it reaches Dataset #1 parity.
+**Decision: EVAL / DIFFICULTY CANDIDATE — not a supervised RISK training
+source.** Clean MIT license, well-shaped, not blocked — but the normalized
+metadata confirms `has_outcome = 0%` and `has_trajectory = 0%`: it is a
+gold-patch benchmark with no agent attempts and no pass/fail distribution, so it
+has **no natural `RISK_PREDICTION` target**. Its role is held-out evaluation or
+a future `TASK_DIFFICULTY` proxy, not `RISK_PREDICTION` training. See
+`docs/data/dataset-suite-readiness-overview.md` for the train-vs-eval framework.
 
 ## Source
 
@@ -30,9 +34,11 @@ it reaches Dataset #1 parity.
 
 - `current_stage: planned`, `training_readiness: local-research-only`,
   `training_weight: 0.0`.
-- Next: build a **task-only stage-1 adapter** (mirror
-  `src/pneuma_lab/adapters/swe_gym_lite.py`) emitting task-only PneumaTrace
-  envelopes (world + governance + oracle, no agent-trace frames), then a
-  converter keeping oracle/patch fields out of `input`. Then split + leakage
-  check against the existing cross-dataset registry (multi-language repos, so
-  overlap with the SWE-bench family should be low but must be verified).
+- Because there is no per-task outcome label, the only training use would
+  require a **constructed** target (e.g. a `TASK_DIFFICULTY` proxy from AST
+  metrics / test counts), which is speculative. The higher-confidence role is
+  **held-out multi-language evaluation**.
+- If pursued at all: a task-only stage-1 adapter (mirror
+  `src/pneuma_lab/adapters/swe_gym_lite.py`) emitting world + governance +
+  oracle frames (no agent-trace frames), used for eval or difficulty scoring —
+  never a `RISK_PREDICTION` training target without agent attempts.
