@@ -1,0 +1,23 @@
+{
+    "authorization_schema_version": "0.1.0",
+    "authorization_id": "pneuma-brain-v0-signed-20260710",
+    "corpus_id": "pneuma-brain-v0",
+    "decision": "authorized",
+    "scope": "local_research",
+    "corpus_manifest_sha256": "sha256:fde07140019078764e56c31e7044b5ed7924aa785c0a8749e1680c715365ff47",
+    "member_lanes": [
+        "swe-gym-openhands-sampled"
+    ],
+    "members": [
+        {
+            "lane_id": "swe-gym-openhands-sampled",
+            "source_traces_sha256": "sha256:fe1121d268be107519f8f5f460644409851d906361c6cfc7917fc4db3dde31ad",
+            "split_manifest_sha256": "sha256:1e43c2bb8e150ed84231f820bd58bef812b53824f8828f3e146e6df76b584424"
+        }
+    ],
+    "authorized_code_commit": "e77bcbe8c8971ff30935592ee78edd2d25ca8c3f",
+    "reviewer": "fireheartjerry (pre-authorized autonomous overnight local-research run)",
+    "reviewed_at": "2026-07-10T06:04:16Z",
+    "release_authorization": "not_authorized",
+    "runtime_integration": "none"
+}
