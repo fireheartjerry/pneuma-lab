@@ -539,3 +539,22 @@ def test_monitor_write(tmp_path):
     assert (tmp_path / "monitor.html").read_text(encoding="utf-8").lower().count(
         "<!doctype html>"
     ) == 1
+
+
+def test_cli_monitor_flag(tmp_path):
+    from pneuma_lab.voice.__main__ import main
+
+    rc = main(
+        [
+            str(_IV_DIR / "clamp_tension.jsonl"),
+            "--paired",
+            "--monitor",
+            "--out",
+            str(tmp_path),
+        ]
+    )
+    assert rc == 0
+    assert (tmp_path / "monitor.html").exists()
+    assert (tmp_path / "stream.md").exists()
+    html = (tmp_path / "monitor.html").read_text(encoding="utf-8").lower()
+    assert "<!doctype html>" in html and "evidence level" in html

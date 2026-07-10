@@ -41,6 +41,11 @@ def main(argv: list[str] | None = None) -> int:
         default="none",
         help="voiced skin over the deterministic stream",
     )
+    parser.add_argument(
+        "--monitor",
+        action="store_true",
+        help="also write a self-contained HTML mind monitor (monitor.html)",
+    )
     args = parser.parse_args(argv)
 
     skin = voiced.ReferenceVoiceSkin() if args.skin == "reference" else None
@@ -53,8 +58,13 @@ def main(argv: list[str] | None = None) -> int:
         stream = voice_run(load_jsonl(args.fixture), subject_factory=factory, skin=skin)
     out_dir = Path(args.out) if args.out else Path("build/voice") / stream["run_id"]
     write_transcript(stream, out_dir)
+    if args.monitor:
+        from .monitor import write_monitor
+
+        write_monitor(stream, out_dir / "monitor.html")
     print(
         f"wrote {out_dir}/stream.md (level {stream['evidence_level']}, {len(stream['atoms'])} atoms)"
+        + (" + monitor.html" if args.monitor else "")
     )
     return 0
 

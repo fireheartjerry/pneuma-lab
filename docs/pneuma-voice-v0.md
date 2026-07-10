@@ -25,9 +25,10 @@ one.
   `crediting_family`, `credit_status`, and `min_level`. An atom must exist,
   receipt-bound, before any prose touches it.
 - **`RenderedThought`** (`render_deterministic.py`) is the only place prose
-  lives: `text_deterministic` (always present), `text_voiced` (Phase B,
-  currently always `None`), and `voice_status` (`"deterministic_only"` in
-  Phase A).
+  lives: `text_deterministic` (always present), `text_voiced` (`None` unless a
+  Phase B skin is attached), and `voice_status` (`"deterministic_only"` with no
+  skin; `"voiced"` or `"voiced_rejected_fell_back"` once a skin is attached —
+  see §8).
 
 ## 3. The 14-type vocabulary
 
@@ -139,7 +140,35 @@ CLI flags: `--paired` (run the paired replay and narrate the tested
 counterfactual) and `--skin {none,reference}` (attach `ReferenceVoiceSkin`;
 default `none` keeps Phase A's deterministic-only output).
 
+## Phase C — HTML mind monitor
+
+`monitor.py` renders the same stream as a self-contained, byte-deterministic
+HTML page: one inline document with no external requests (CSP-safe, safe to
+share as a static file). A sorted-key JSON island of the stream is embedded in
+the page; the runtime only reads that island to render — it does not touch
+`evals/` or the scorer, preserving the anti-gaming invariant in §6.
+
+- Plays the thought stream tick-by-tick (a "Play" control reveals ticks in
+  order; a "Show all" control reveals everything immediately).
+- Colour-codes each line's left border by `credit_status`: blue for
+  `evidenced`, green for `intervention_backed`, amber for `architecture_only`
+  (and `attempted`), grey for `absent`.
+- Receipts are collapsed by default and expand on click, listing each
+  `field_path`/`value` pair the line is grounded in.
+- The header shows the subject, mode, an evidence-level badge, and one status
+  dot per indicator family (from the sidecar's `indicator_family_status`).
+
+Produced via `monitor.write_monitor(stream, path)` (or `monitor.render_html
+(stream)` for the raw string), or from the CLI with `--monitor`, which writes
+`monitor.html` alongside `stream.md`/`stream.jsonl`/`sidecar.json`:
+
+```txt
+python -m pneuma_lab.voice fixtures/sample_run.jsonl --out build/voice/demo --monitor
+```
+
 ## 9. Future work
 
-Phase C (an HTML mind monitor) is future work per the Pneuma Voice plan/spec —
-not implemented here.
+Remaining future work: wiring `LLMVoiceSkin.generate` to a real model
+provider, a semantic-entailment check to strengthen `verify_voiced` beyond
+surface-drift bounds, and richer monitor panels (e.g. per-family timelines,
+paired control/treated side-by-side view).

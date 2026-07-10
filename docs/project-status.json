@@ -223,6 +223,7 @@
                 "src/pneuma_lab/voice/transcript.py",
                 "src/pneuma_lab/voice/voiced.py",
                 "src/pneuma_lab/voice/verify.py",
+                "src/pneuma_lab/voice/monitor.py",
                 "src/pneuma_lab/voice/__main__.py",
                 "schemas/thought-stream.schema.json",
                 "docs/pneuma-voice-v0.md",
