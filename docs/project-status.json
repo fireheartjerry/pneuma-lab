@@ -1,367 +1,368 @@
 {
-  "$schema": "../schemas/project-status.schema.json",
-  "manifest_kind": "pneuma_project_status",
-  "manifest_schema_version": "0.1.0",
-  "as_of": "2026-07-09",
-  "project": {
-    "role": "standalone_research_evaluation_harness",
-    "integration_mode": "standalone",
-    "phenomenal_consciousness_claim": "not_claimed",
-    "operational_nervous_system": false
-  },
-  "evidence": {
-    "executable_contract": "consciousness-evidence-frame/0.2.0",
-    "evaluation_scope": "internal_harness",
-    "real_subject_claim_status": "not_evaluated",
-    "internal_harness_ceiling": 4,
-    "strongest_result": {
-      "id": "reference_psyche_internal_level4_methodology",
-      "status": "implemented",
-      "scope": "internal_harness",
-      "claim": "methodology_validation_only",
-      "evidence_refs": [
-        "src/pneuma_lab/evals/evidence.py",
-        "src/pneuma_lab/interventions/runner.py",
-        "tests/test_level4_scoring.py",
-        "tests/test_paired_replay.py"
-      ],
-      "blockers": []
+    "$schema": "../schemas/project-status.schema.json",
+    "manifest_kind": "pneuma_project_status",
+    "manifest_schema_version": "0.1.0",
+    "as_of": "2026-07-09",
+    "project": {
+        "role": "standalone_research_evaluation_harness",
+        "integration_mode": "standalone",
+        "phenomenal_consciousness_claim": "not_claimed",
+        "operational_nervous_system": false
     },
-    "real_subject_level4": {
-      "status": "not_implemented",
-      "blockers": ["B-EVID-REAL-SUBJECT", "B-EVID-LONGITUDINAL"]
-    },
-    "level5": {
-      "status": "blocked",
-      "blockers": [
-        "B-EVID-REAL-SUBJECT",
-        "B-EVID-FAMILY-INTERVENTIONS",
-        "B-EVID-LONGITUDINAL",
-        "B-EVID-ADVERSARIAL",
-        "B-EVID-EXTERNAL-AUDIT"
-      ]
-    },
-    "level6": {
-      "status": "boundary_only",
-      "roadmap_milestone": false,
-      "evidence_exists": false,
-      "evidence_refs": ["docs/research/03-level6-boundary.md"],
-      "blockers": []
-    },
-    "negative_results": [
-      {
-        "id": "e0_reference_psyche_transfer",
-        "verdict": "failed_preregistered_hypotheses",
-        "evidence_refs": [
-          "build/e0/report.json",
-          "docs/research/experiments/e0-results.md"
+    "evidence": {
+        "executable_contract": "consciousness-evidence-frame/0.2.0",
+        "evaluation_scope": "internal_harness",
+        "real_subject_claim_status": "not_evaluated",
+        "internal_harness_ceiling": 4,
+        "strongest_result": {
+            "id": "reference_psyche_internal_level4_methodology",
+            "status": "implemented",
+            "scope": "internal_harness",
+            "claim": "methodology_validation_only",
+            "evidence_refs": [
+                "src/pneuma_lab/evals/evidence.py",
+                "src/pneuma_lab/interventions/runner.py",
+                "tests/test_level4_scoring.py",
+                "tests/test_paired_replay.py"
+            ],
+            "blockers": []
+        },
+        "real_subject_level4": {
+            "status": "not_implemented",
+            "blockers": ["B-EVID-REAL-SUBJECT", "B-EVID-LONGITUDINAL"]
+        },
+        "level5": {
+            "status": "blocked",
+            "blockers": [
+                "B-EVID-REAL-SUBJECT",
+                "B-EVID-FAMILY-INTERVENTIONS",
+                "B-EVID-LONGITUDINAL",
+                "B-EVID-ADVERSARIAL",
+                "B-EVID-EXTERNAL-AUDIT"
+            ]
+        },
+        "level6": {
+            "status": "boundary_only",
+            "roadmap_milestone": false,
+            "evidence_exists": false,
+            "evidence_refs": ["docs/research/03-level6-boundary.md"],
+            "blockers": []
+        },
+        "negative_results": [
+            {
+                "id": "e0_reference_psyche_transfer",
+                "verdict": "failed_preregistered_hypotheses",
+                "evidence_refs": [
+                    "build/e0/report.json",
+                    "docs/research/experiments/e0-results.md"
+                ]
+            }
         ]
-      }
-    ]
-  },
-  "systems": [
-    {
-      "id": "canonical_project_status",
-      "status": "implemented",
-      "scope": "standalone",
-      "evidence_refs": [
-        "schemas/project-status.schema.json",
-        "src/pneuma_lab/status.py",
-        "tests/test_project_status.py"
-      ],
-      "blockers": []
     },
-    {
-      "id": "schema_contracts",
-      "status": "implemented",
-      "scope": "standalone",
-      "evidence_refs": [
-        "schemas/world-frame.schema.json",
-        "tests/test_schema_loads.py"
-      ],
-      "blockers": []
-    },
-    {
-      "id": "deterministic_replay",
-      "status": "implemented",
-      "scope": "internal_harness",
-      "evidence_refs": [
-        "src/pneuma_lab/replay/harness.py",
-        "tests/test_determinism.py"
-      ],
-      "blockers": []
-    },
-    {
-      "id": "paired_interventions",
-      "status": "implemented",
-      "scope": "internal_harness",
-      "evidence_refs": [
-        "src/pneuma_lab/interventions/runner.py",
-        "tests/test_paired_replay.py"
-      ],
-      "blockers": []
-    },
-    {
-      "id": "dataset_trace_adapters",
-      "status": "implemented",
-      "scope": "offline_research",
-      "evidence_refs": [
-        "src/pneuma_lab/adapters/openhands_sampled.py",
-        "src/pneuma_lab/adapters/openhands_verifier.py",
-        "src/pneuma_lab/adapters/swe_gym_lite.py"
-      ],
-      "blockers": []
-    },
-    {
-      "id": "trace_to_replay_bridge",
-      "status": "implemented",
-      "scope": "offline_research",
-      "evidence_refs": [
-        "src/pneuma_lab/replay/bridge.py",
-        "tests/test_replay_bridge.py"
-      ],
-      "blockers": []
-    },
-    {
-      "id": "training_example_conversion",
-      "status": "implemented",
-      "scope": "offline_research",
-      "evidence_refs": [
-        "src/pneuma_lab/converters/dialogue_swe_bench_training.py",
-        "src/pneuma_lab/converters/openhands_sampled_training.py"
-      ],
-      "blockers": []
-    },
-    {
-      "id": "dataset_registry",
-      "status": "partial",
-      "scope": "offline_research",
-      "evidence_refs": ["docs/data/dataset-registry.md"],
-      "blockers": ["B-REGISTRY-NORMALIZATION"]
-    }
-  ],
-  "nine_to_five": {
-    "direct_import_policy": "forbidden",
-    "operational_nervous_system": false,
-    "required_edge_ids": [
-      "nine_to_five_snapshot_to_pneuma_trace",
-      "pneuma_trace_to_replay",
-      "replay_outputs_to_shadow_log",
-      "shadow_log_to_advisory_pressure",
-      "advisory_pressure_to_authority_gated_action",
-      "realized_outcome_to_pneuma_feedback"
+    "systems": [
+        {
+            "id": "canonical_project_status",
+            "status": "implemented",
+            "scope": "standalone",
+            "evidence_refs": [
+                "schemas/project-status.schema.json",
+                "src/pneuma_lab/status.py",
+                "tests/test_project_status.py"
+            ],
+            "blockers": []
+        },
+        {
+            "id": "schema_contracts",
+            "status": "implemented",
+            "scope": "standalone",
+            "evidence_refs": [
+                "schemas/world-frame.schema.json",
+                "tests/test_schema_loads.py"
+            ],
+            "blockers": []
+        },
+        {
+            "id": "deterministic_replay",
+            "status": "implemented",
+            "scope": "internal_harness",
+            "evidence_refs": [
+                "src/pneuma_lab/replay/harness.py",
+                "tests/test_determinism.py"
+            ],
+            "blockers": []
+        },
+        {
+            "id": "paired_interventions",
+            "status": "implemented",
+            "scope": "internal_harness",
+            "evidence_refs": [
+                "src/pneuma_lab/interventions/runner.py",
+                "tests/test_paired_replay.py"
+            ],
+            "blockers": []
+        },
+        {
+            "id": "dataset_trace_adapters",
+            "status": "implemented",
+            "scope": "offline_research",
+            "evidence_refs": [
+                "src/pneuma_lab/adapters/openhands_sampled.py",
+                "src/pneuma_lab/adapters/openhands_verifier.py",
+                "src/pneuma_lab/adapters/swe_gym_lite.py"
+            ],
+            "blockers": []
+        },
+        {
+            "id": "trace_to_replay_bridge",
+            "status": "implemented",
+            "scope": "offline_research",
+            "evidence_refs": [
+                "src/pneuma_lab/replay/bridge.py",
+                "tests/test_replay_bridge.py"
+            ],
+            "blockers": []
+        },
+        {
+            "id": "training_example_conversion",
+            "status": "implemented",
+            "scope": "offline_research",
+            "evidence_refs": [
+                "src/pneuma_lab/converters/dialogue_swe_bench_training.py",
+                "src/pneuma_lab/converters/openhands_sampled_training.py",
+                "src/pneuma_lab/adapters/open_swe_traces.py"
+            ],
+            "blockers": []
+        },
+        {
+            "id": "dataset_registry",
+            "status": "partial",
+            "scope": "offline_research",
+            "evidence_refs": ["docs/data/dataset-registry.md"],
+            "blockers": ["B-REGISTRY-NORMALIZATION"]
+        }
     ],
-    "edges": [
-      {
-        "id": "nine_to_five_snapshot_to_pneuma_trace",
-        "status": "specified",
-        "evidence_refs": ["docs/research/05-rsi-loop.md"],
-        "blockers": ["B-9TO5-EXPORTER"]
-      },
-      {
-        "id": "pneuma_trace_to_replay",
-        "status": "implemented",
-        "evidence_refs": ["src/pneuma_lab/replay/bridge.py"],
-        "blockers": []
-      },
-      {
-        "id": "replay_outputs_to_shadow_log",
-        "status": "not_implemented",
-        "evidence_refs": [],
-        "blockers": ["B-9TO5-SHADOW"]
-      },
-      {
-        "id": "shadow_log_to_advisory_pressure",
-        "status": "not_implemented",
-        "evidence_refs": [],
-        "blockers": ["B-9TO5-SHADOW"]
-      },
-      {
-        "id": "advisory_pressure_to_authority_gated_action",
-        "status": "not_implemented",
-        "evidence_refs": [],
-        "blockers": ["B-9TO5-ACTUATION"]
-      },
-      {
-        "id": "realized_outcome_to_pneuma_feedback",
-        "status": "not_implemented",
-        "evidence_refs": [],
-        "blockers": ["B-9TO5-FEEDBACK"]
-      }
-    ]
-  },
-  "jspace": {
-    "status": "not_implemented",
-    "claim_relevance": "workspace_interpretability_only",
-    "supports_consciousness_claim": false,
-    "readiness_contract": "docs/research/jspace-readiness.md",
-    "workspace_harness_substrate": {
-      "status": "implemented",
-      "evidence_refs": [
-        "fixtures/interventions/disable_workspace.jsonl",
-        "schemas/workspace-broadcast.schema.json"
-      ],
-      "blockers": []
+    "nine_to_five": {
+        "direct_import_policy": "forbidden",
+        "operational_nervous_system": false,
+        "required_edge_ids": [
+            "nine_to_five_snapshot_to_pneuma_trace",
+            "pneuma_trace_to_replay",
+            "replay_outputs_to_shadow_log",
+            "shadow_log_to_advisory_pressure",
+            "advisory_pressure_to_authority_gated_action",
+            "realized_outcome_to_pneuma_feedback"
+        ],
+        "edges": [
+            {
+                "id": "nine_to_five_snapshot_to_pneuma_trace",
+                "status": "specified",
+                "evidence_refs": ["docs/research/05-rsi-loop.md"],
+                "blockers": ["B-9TO5-EXPORTER"]
+            },
+            {
+                "id": "pneuma_trace_to_replay",
+                "status": "implemented",
+                "evidence_refs": ["src/pneuma_lab/replay/bridge.py"],
+                "blockers": []
+            },
+            {
+                "id": "replay_outputs_to_shadow_log",
+                "status": "not_implemented",
+                "evidence_refs": [],
+                "blockers": ["B-9TO5-SHADOW"]
+            },
+            {
+                "id": "shadow_log_to_advisory_pressure",
+                "status": "not_implemented",
+                "evidence_refs": [],
+                "blockers": ["B-9TO5-SHADOW"]
+            },
+            {
+                "id": "advisory_pressure_to_authority_gated_action",
+                "status": "not_implemented",
+                "evidence_refs": [],
+                "blockers": ["B-9TO5-ACTUATION"]
+            },
+            {
+                "id": "realized_outcome_to_pneuma_feedback",
+                "status": "not_implemented",
+                "evidence_refs": [],
+                "blockers": ["B-9TO5-FEEDBACK"]
+            }
+        ]
     },
-    "black_gray_box_workspace_probes": {
-      "status": "not_implemented",
-      "evidence_refs": [],
-      "blockers": ["B-JSPACE-DESIGN", "B-JSPACE-PROBE-CONTRACT"]
+    "jspace": {
+        "status": "not_implemented",
+        "claim_relevance": "workspace_interpretability_only",
+        "supports_consciousness_claim": false,
+        "readiness_contract": "docs/research/jspace-readiness.md",
+        "workspace_harness_substrate": {
+            "status": "implemented",
+            "evidence_refs": [
+                "fixtures/interventions/disable_workspace.jsonl",
+                "schemas/workspace-broadcast.schema.json"
+            ],
+            "blockers": []
+        },
+        "black_gray_box_workspace_probes": {
+            "status": "not_implemented",
+            "evidence_refs": [],
+            "blockers": ["B-JSPACE-DESIGN", "B-JSPACE-PROBE-CONTRACT"]
+        },
+        "white_box_jlens": {
+            "status": "not_implemented",
+            "evidence_refs": [],
+            "blockers": ["B-JSPACE-DESIGN", "B-JSPACE-MODEL-ACCESS"]
+        },
+        "causal_negative_controls": {
+            "status": "not_implemented",
+            "evidence_refs": [],
+            "blockers": ["B-JSPACE-PROBE-CONTRACT"]
+        }
     },
-    "white_box_jlens": {
-      "status": "not_implemented",
-      "evidence_refs": [],
-      "blockers": ["B-JSPACE-DESIGN", "B-JSPACE-MODEL-ACCESS"]
+    "training_and_rsi": {
+        "training_examples": "implemented_guarded",
+        "offline_estimators": "implemented_advisory_only",
+        "new_training_authorization": "not_authorized",
+        "trainer_preflight": {
+            "status": "implemented",
+            "integrated": true,
+            "training_authorization": "not_authorized",
+            "evidence_refs": [
+                "schemas/estimator-run-manifest.schema.json",
+                "schemas/estimator-training-authorization.schema.json",
+                "src/pneuma_lab/training/preflight.py",
+                "src/pneuma_lab/estimators/train.py",
+                "tests/test_estimator_preflight.py",
+                "docs/data/training-readiness/estimator-e1-e2-historical-record.json"
+            ],
+            "blockers": []
+        },
+        "pneuma_brain_training": "not_started",
+        "runtime_model_integration": "none",
+        "rsi_loop": "not_operational",
+        "evidence_refs": [
+            "build/estimators/e1-v0/report.md",
+            "build/estimators/e2-v0/report.md",
+            "docs/data/archive/dialogue-swe-bench/training-readiness.json",
+            "docs/data/training-readiness/openhands-sampled.json",
+            "docs/data/training-readiness/estimator-e1-e2-historical-record.json"
+        ],
+        "blockers": [
+            "B-TRAIN-AUTHORIZATION",
+            "B-TRAIN-RUNTIME",
+            "B-RSI-IMPROVEMENT-GATE",
+            "B-RSI-DEPLOYMENT"
+        ]
     },
-    "causal_negative_controls": {
-      "status": "not_implemented",
-      "evidence_refs": [],
-      "blockers": ["B-JSPACE-PROBE-CONTRACT"]
-    }
-  },
-  "training_and_rsi": {
-    "training_examples": "implemented_guarded",
-    "offline_estimators": "implemented_advisory_only",
-    "new_training_authorization": "not_authorized",
-    "trainer_preflight": {
-      "status": "implemented",
-      "integrated": true,
-      "training_authorization": "not_authorized",
-      "evidence_refs": [
-        "schemas/estimator-run-manifest.schema.json",
-        "schemas/estimator-training-authorization.schema.json",
-        "src/pneuma_lab/training/preflight.py",
-        "src/pneuma_lab/estimators/train.py",
-        "tests/test_estimator_preflight.py",
-        "docs/data/training-readiness/estimator-e1-e2-historical-record.json"
-      ],
-      "blockers": []
+    "artifact_policy": {
+        "generated_root": "build",
+        "default_tracking": "ignored",
+        "canonical_evidence_record": {
+            "path": "build/canonical/summary.json",
+            "generation_command": "python -m pneuma_lab.demo --official",
+            "required_for_claim_of_record": true,
+            "record_status": "absent"
+        },
+        "tracked_records": [
+            "build/e0/report.json",
+            "build/estimators/e1-v0/metrics.json",
+            "build/estimators/e1-v0/model.json",
+            "build/estimators/e1-v0/report.md",
+            "build/estimators/e2-v0/metrics.json",
+            "build/estimators/e2-v0/model.json",
+            "build/estimators/e2-v0/report.md"
+        ]
     },
-    "pneuma_brain_training": "not_started",
-    "runtime_model_integration": "none",
-    "rsi_loop": "not_operational",
-    "evidence_refs": [
-      "build/estimators/e1-v0/report.md",
-      "build/estimators/e2-v0/report.md",
-      "docs/data/archive/dialogue-swe-bench/training-readiness.json",
-      "docs/data/training-readiness/openhands-sampled.json",
-      "docs/data/training-readiness/estimator-e1-e2-historical-record.json"
+    "authoritative_docs": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        "README.md",
+        "docs/adapters/README.md",
+        "docs/consciousness-levels.md",
+        "docs/project-status.json",
+        "docs/research/00-program-overview.md",
+        "docs/research/10-anti-fake-progress.md",
+        "docs/research/jspace-readiness.md",
+        "docs/vision.md"
+    ],
+    "historical_snapshots": [
+        "docs/research/01-ambition-to-evidence-audit.md",
+        "docs/research/05-rsi-loop.md",
+        "docs/research/06-dataset-evidence-map.md",
+        "docs/research/08-phase4-learned-estimators.md",
+        "docs/research/09-eval-suite.md",
+        "migration/MIGRATION_REPORT.md",
+        "pneuma_consciousness_levels_and_evaluation.md"
     ],
     "blockers": [
-      "B-TRAIN-AUTHORIZATION",
-      "B-TRAIN-RUNTIME",
-      "B-RSI-IMPROVEMENT-GATE",
-      "B-RSI-DEPLOYMENT"
+        {
+            "id": "B-EVID-REAL-SUBJECT",
+            "summary": "No qualifying non-toy subject is evaluated."
+        },
+        {
+            "id": "B-EVID-FAMILY-INTERVENTIONS",
+            "summary": "All Level-5 families are not intervention-backed."
+        },
+        {
+            "id": "B-EVID-LONGITUDINAL",
+            "summary": "Cross-run persistence and longitudinal stability are absent."
+        },
+        {
+            "id": "B-EVID-ADVERSARIAL",
+            "summary": "No adversarial Level-5 battery exists."
+        },
+        {
+            "id": "B-EVID-EXTERNAL-AUDIT",
+            "summary": "No independent external-audit path exists."
+        },
+        {
+            "id": "B-9TO5-EXPORTER",
+            "summary": "No 9to5 snapshot-to-PneumaTrace exporter exists."
+        },
+        {
+            "id": "B-9TO5-SHADOW",
+            "summary": "No 9to5 shadow consumer or append-only shadow log exists."
+        },
+        {
+            "id": "B-9TO5-ACTUATION",
+            "summary": "No authority-gated host actuation mapping exists."
+        },
+        {
+            "id": "B-9TO5-FEEDBACK",
+            "summary": "No realized-outcome feedback edge exists."
+        },
+        {
+            "id": "B-JSPACE-DESIGN",
+            "summary": "No approved JSpace experiment implementation exists."
+        },
+        {
+            "id": "B-JSPACE-MODEL-ACCESS",
+            "summary": "No approved open-weight model and activation-access setup exists."
+        },
+        {
+            "id": "B-JSPACE-PROBE-CONTRACT",
+            "summary": "No implemented preregistered probe, intervention, and negative-control runner exists."
+        },
+        {
+            "id": "B-TRAIN-AUTHORIZATION",
+            "summary": "Current readiness state does not authorize new training."
+        },
+        {
+            "id": "B-TRAIN-RUNTIME",
+            "summary": "Offline estimators have no runtime integration."
+        },
+        {
+            "id": "B-RSI-IMPROVEMENT-GATE",
+            "summary": "No measured improvement-delta ledger exists."
+        },
+        {
+            "id": "B-RSI-DEPLOYMENT",
+            "summary": "No closed evaluator-to-trainer-to-deployment loop exists."
+        },
+        {
+            "id": "B-REGISTRY-NORMALIZATION",
+            "summary": "Dataset and readiness manifests lack one shared normalized contract."
+        }
     ]
-  },
-  "artifact_policy": {
-    "generated_root": "build",
-    "default_tracking": "ignored",
-    "canonical_evidence_record": {
-      "path": "build/canonical/summary.json",
-      "generation_command": "python -m pneuma_lab.demo --official",
-      "required_for_claim_of_record": true,
-      "record_status": "absent"
-    },
-    "tracked_records": [
-      "build/e0/report.json",
-      "build/estimators/e1-v0/metrics.json",
-      "build/estimators/e1-v0/model.json",
-      "build/estimators/e1-v0/report.md",
-      "build/estimators/e2-v0/metrics.json",
-      "build/estimators/e2-v0/model.json",
-      "build/estimators/e2-v0/report.md"
-    ]
-  },
-  "authoritative_docs": [
-    "AGENTS.md",
-    "CLAUDE.md",
-    "README.md",
-    "docs/adapters/README.md",
-    "docs/consciousness-levels.md",
-    "docs/project-status.json",
-    "docs/research/00-program-overview.md",
-    "docs/research/10-anti-fake-progress.md",
-    "docs/research/jspace-readiness.md",
-    "docs/vision.md"
-  ],
-  "historical_snapshots": [
-    "docs/research/01-ambition-to-evidence-audit.md",
-    "docs/research/05-rsi-loop.md",
-    "docs/research/06-dataset-evidence-map.md",
-    "docs/research/08-phase4-learned-estimators.md",
-    "docs/research/09-eval-suite.md",
-    "migration/MIGRATION_REPORT.md",
-    "pneuma_consciousness_levels_and_evaluation.md"
-  ],
-  "blockers": [
-    {
-      "id": "B-EVID-REAL-SUBJECT",
-      "summary": "No qualifying non-toy subject is evaluated."
-    },
-    {
-      "id": "B-EVID-FAMILY-INTERVENTIONS",
-      "summary": "All Level-5 families are not intervention-backed."
-    },
-    {
-      "id": "B-EVID-LONGITUDINAL",
-      "summary": "Cross-run persistence and longitudinal stability are absent."
-    },
-    {
-      "id": "B-EVID-ADVERSARIAL",
-      "summary": "No adversarial Level-5 battery exists."
-    },
-    {
-      "id": "B-EVID-EXTERNAL-AUDIT",
-      "summary": "No independent external-audit path exists."
-    },
-    {
-      "id": "B-9TO5-EXPORTER",
-      "summary": "No 9to5 snapshot-to-PneumaTrace exporter exists."
-    },
-    {
-      "id": "B-9TO5-SHADOW",
-      "summary": "No 9to5 shadow consumer or append-only shadow log exists."
-    },
-    {
-      "id": "B-9TO5-ACTUATION",
-      "summary": "No authority-gated host actuation mapping exists."
-    },
-    {
-      "id": "B-9TO5-FEEDBACK",
-      "summary": "No realized-outcome feedback edge exists."
-    },
-    {
-      "id": "B-JSPACE-DESIGN",
-      "summary": "No approved JSpace experiment implementation exists."
-    },
-    {
-      "id": "B-JSPACE-MODEL-ACCESS",
-      "summary": "No approved open-weight model and activation-access setup exists."
-    },
-    {
-      "id": "B-JSPACE-PROBE-CONTRACT",
-      "summary": "No implemented preregistered probe, intervention, and negative-control runner exists."
-    },
-    {
-      "id": "B-TRAIN-AUTHORIZATION",
-      "summary": "Current readiness state does not authorize new training."
-    },
-    {
-      "id": "B-TRAIN-RUNTIME",
-      "summary": "Offline estimators have no runtime integration."
-    },
-    {
-      "id": "B-RSI-IMPROVEMENT-GATE",
-      "summary": "No measured improvement-delta ledger exists."
-    },
-    {
-      "id": "B-RSI-DEPLOYMENT",
-      "summary": "No closed evaluator-to-trainer-to-deployment loop exists."
-    },
-    {
-      "id": "B-REGISTRY-NORMALIZATION",
-      "summary": "Dataset and readiness manifests lack one shared normalized contract."
-    }
-  ]
 }
