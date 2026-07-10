@@ -233,3 +233,27 @@ def test_render_never_emits_forbidden_phenomenology():
             "qualia",
         ):
             assert banned not in low, f"{t} leaked forbidden phrasing: {banned}"
+
+
+def test_render_fallback_for_unspecialized_type():
+    atom = _atom(
+        "instinct",
+        [{"field_path": "instinct.severity", "value": 0.7}],
+        "evidenced",
+        "valenced_learning",
+    )
+    rt = R.render(atom)  # must NOT raise KeyError
+    assert "0.70" in rt.text_deterministic
+    assert rt.voice_status == "deterministic_only"
+
+
+def test_scrub_forbidden_catches_contractions_and_possessives():
+    for phrase in (
+        "I'm conscious of this",
+        "these are my feelings",
+        "I am aware",
+        "it has qualia",
+    ):
+        clean, removed = R.scrub_forbidden(phrase)
+        assert removed, f"not scrubbed: {phrase}"
+        assert "[filtered]" in clean

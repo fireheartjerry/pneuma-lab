@@ -17,7 +17,9 @@ from .atoms import CREDITED_STATUSES, RenderedThought, ThoughtAtom, receipt_valu
 # reused by Phase B's verifier).
 _FORBIDDEN = re.compile(
     r"\b("
-    r"i feel|i suffer|i experience|i am (?:conscious|aware|sentient)|"
+    r"i feel|i suffer|i experience|"
+    r"i\s?(?:am|'m|’m)\s+(?:conscious|aware|sentient)|"
+    r"my feelings?|"
     r"sentien\w*|phenomenal\w*|qualia|conscious experience|moral patient"
     r")\b",
     re.IGNORECASE,
@@ -45,11 +47,13 @@ def _appraisal(atom: ThoughtAtom) -> str:
 
 
 def _shift(atom: ThoughtAtom) -> str:
+    # Relies on extract.py placing the primary field as atom.receipts[0].
     r = atom.receipts[0]
     return f"{r['field_path'].split('.', 1)[-1]} moves to {_num(r.get('value'))}."
 
 
 def _pressure(atom: ThoughtAtom) -> str:
+    # Relies on extract.py placing the primary field as atom.receipts[0].
     r = atom.receipts[0]
     name = r["field_path"].split(".", 1)[-1]
     return (
@@ -67,6 +71,7 @@ def _self_report(atom: ThoughtAtom) -> str:
 
 
 def _competition(atom: ThoughtAtom) -> str:
+    # salience_scores.* receipts are pre-sorted and numeric in extract.py.
     winner = receipt_value(atom, "workspace_broadcast.winning_faculty", "?")
     saliences = [
         (r["field_path"].split(".", 1)[-1], r.get("value"))
@@ -106,6 +111,17 @@ def _boundary(atom: ThoughtAtom) -> str:
     )
 
 
+def _fallback(atom: ThoughtAtom) -> str:
+    """Grounded generic line for atom types without a specialized renderer yet."""
+    parts = ", ".join(
+        f"{r['field_path'].split('.', 1)[-1]}={_num(r.get('value'), '.2f')}"
+        if isinstance(r.get("value"), (int, float))
+        else f"{r['field_path'].split('.', 1)[-1]}={r.get('value')}"
+        for r in atom.receipts
+    )
+    return f"[{atom.type}] {parts}." if parts else f"[{atom.type}] (no receipts)."
+
+
 _RENDERERS = {
     "appraisal": _appraisal,
     "shift": _shift,
@@ -121,7 +137,7 @@ _RENDERERS = {
 
 def render(atom: ThoughtAtom) -> RenderedThought:
     """Render one atom into deterministic, credit-aware, state-grounded prose."""
-    text = _RENDERERS[atom.type](atom)
+    text = _RENDERERS.get(atom.type, _fallback)(atom)
     if atom.crediting_family and atom.credit_status not in CREDITED_STATUSES:
         text += " — architecture-only, not promotable evidence."
     text, _ = scrub_forbidden(text)
