@@ -177,3 +177,44 @@ def test_frame_builders_are_deterministic():
         causal_trace_id=None,
     )
     assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+
+
+# --------------------------------------------------------------------------- #
+# Task 5: conservative evidence builder                                       #
+# --------------------------------------------------------------------------- #
+def test_shadow_evidence_does_not_overclaim():
+    from pneuma_lab.nervous_system import shadow_evidence as nse
+
+    ablation = {
+        "observed_delta": -0.8,
+        "null_delta": 0.0,
+        "direction_ok": True,
+        "null_holds": True,
+    }
+    frame = nse.shadow_evidence_frame(
+        ablation_result=ablation, run_id="r0", timestamp="2026-07-10T00:00:00Z"
+    )
+    validate.validate_or_raise(frame)
+    assert frame["evidence_level"] <= 1
+    assert frame["real_subject_claim_status"] == "not_evaluated"
+    assert frame["evaluation_scope"] == "internal_harness"
+    fam = frame["indicator_families"]["causal_intervention_robustness"]
+    assert fam["status"] != "intervention_backed"
+    assert frame["paired_replay_provenance"]["status"] == "uncertified_subject"
+    assert frame["audit_status"] == "self_reported"
+
+
+def test_shadow_evidence_level_zero_when_ablation_fails():
+    from pneuma_lab.nervous_system import shadow_evidence as nse
+
+    ablation = {
+        "observed_delta": 0.0,
+        "null_delta": 0.0,
+        "direction_ok": False,
+        "null_holds": True,
+    }
+    frame = nse.shadow_evidence_frame(
+        ablation_result=ablation, run_id="r0", timestamp="2026-07-10T00:00:00Z"
+    )
+    validate.validate_or_raise(frame)
+    assert frame["evidence_level"] == 0
