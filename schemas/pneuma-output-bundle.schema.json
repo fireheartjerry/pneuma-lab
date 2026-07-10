@@ -1,0 +1,67 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/pneuma-output-bundle.schema.json",
+    "title": "PneumaOutputBundle",
+    "description": "Container aggregating the advisory output frames the shadow nervous system emits for one slice: a RiskEstimateFrame, a bounded InstinctSignal, a ControlPressureVector CANDIDATE (never applied), a CausalTrace, and a conservative ConsciousnessEvidenceFrame. blocked_uses and limitations are always present. governance_status records whether governance suppressed emission. Container manifest, not a cognition frame.",
+    "type": "object",
+    "x-pneuma-schema-kind": "io_bundle",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "bundle_kind": {
+            "type": "string",
+            "const": "pneuma_output"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "governance_status": {
+            "type": "string",
+            "enum": ["emitted", "suppressed_by_governance"]
+        },
+        "risk_estimate": {
+            "type": ["object", "null"]
+        },
+        "instinct": {
+            "type": ["object", "null"]
+        },
+        "control_pressure": {
+            "type": ["object", "null"]
+        },
+        "causal_trace": {
+            "type": ["object", "null"]
+        },
+        "consciousness_evidence": {
+            "type": ["object", "null"]
+        },
+        "blocked_uses": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "limitations": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        }
+    },
+    "required": [
+        "schema_version",
+        "bundle_kind",
+        "run_id",
+        "timestamp",
+        "governance_status",
+        "blocked_uses",
+        "limitations"
+    ],
+    "additionalProperties": true
+}

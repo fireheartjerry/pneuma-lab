@@ -1,0 +1,89 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/risk-estimate-frame.schema.json",
+    "title": "RiskEstimateFrame",
+    "description": "Advisory-only risk estimate emitted by a wrapped offline model (PneumaBrain-v0.1) in shadow mode. This frame NEVER grants authority and NEVER contacts a verifier: recommended_use is advisory_only and authority_granted is none. It is a model signal, not integrated psyche state, and supports no consciousness claim. Output contract v0.1.",
+    "type": "object",
+    "x-pneuma-frame-kind": "output",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "frame_kind": {
+            "type": "string",
+            "const": "risk_estimate"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "model_id": {
+            "type": "string",
+            "description": "Human-facing model identity, e.g. 'PneumaBrain-v0.1'."
+        },
+        "model_version": {
+            "type": "string"
+        },
+        "prefix": {
+            "type": "string",
+            "enum": ["prefix_25", "prefix_50", "full"]
+        },
+        "failure_probability": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+        },
+        "success_probability": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+        },
+        "raw_score": {
+            "type": "number"
+        },
+        "risk_bucket": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+        },
+        "recommended_use": {
+            "type": "string",
+            "const": "advisory_only"
+        },
+        "authority_granted": {
+            "type": "string",
+            "const": "none",
+            "description": "The model is never sovereign; this is always 'none'."
+        },
+        "blocked_uses": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "features_digest": {
+            "type": ["string", "null"],
+            "description": "Digest of the observable feature row that produced this estimate (no raw trajectory)."
+        },
+        "causal_trace_id": {
+            "type": ["string", "null"]
+        }
+    },
+    "required": [
+        "schema_version",
+        "frame_kind",
+        "timestamp",
+        "run_id",
+        "model_id",
+        "prefix",
+        "failure_probability",
+        "risk_bucket",
+        "recommended_use",
+        "authority_granted"
+    ],
+    "additionalProperties": true
+}

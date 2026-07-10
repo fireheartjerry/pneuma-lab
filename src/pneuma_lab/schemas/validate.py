@@ -35,6 +35,15 @@ FRAME_KIND_TO_SCHEMA: dict[str, str] = {
     "causal_trace": "causal-trace.schema.json",
     "consciousness_evidence": "consciousness-evidence-frame.schema.json",
     "grounded_self_report": "grounded-self-report.schema.json",
+    "risk_estimate": "risk-estimate-frame.schema.json",
+}
+
+# bundle_kind (the ``const`` on each bundle schema) -> schema file. Bundles are
+# container manifests (not cognition frames): the shell is validated here and
+# each present member frame is validated by its own contract.
+BUNDLE_KIND_TO_SCHEMA: dict[str, str] = {
+    "pneuma_input": "pneuma-input-bundle.schema.json",
+    "pneuma_output": "pneuma-output-bundle.schema.json",
 }
 
 
@@ -110,11 +119,58 @@ def validate_or_raise(frame: dict) -> dict:
     return frame
 
 
+@lru_cache(maxsize=None)
+def _bundle_validator_for(bundle_kind: str) -> Draft202012Validator:
+    """Return a cached validator for the schema of ``bundle_kind``."""
+    try:
+        filename = BUNDLE_KIND_TO_SCHEMA[bundle_kind]
+    except KeyError as exc:
+        raise FrameValidationError(f"unknown bundle_kind: {bundle_kind!r}") from exc
+    return Draft202012Validator(load_schema(filename))
+
+
+# Bundle members that are full cognition frames (carry their own frame_kind) and
+# so get deep-validated against their individual contracts.
+_BUNDLE_MEMBER_KEYS = (
+    "world",
+    "agent_trace",
+    "governance",
+    "risk_estimate",
+    "instinct",
+    "control_pressure",
+    "causal_trace",
+    "consciousness_evidence",
+)
+
+
+def validate_bundle(bundle: dict) -> dict:
+    """Validate a bundle shell, then each present member frame by its own contract."""
+    if not isinstance(bundle, dict):
+        raise FrameValidationError(f"bundle is not an object: {type(bundle).__name__}")
+    kind = bundle.get("bundle_kind")
+    if not isinstance(kind, str):
+        raise FrameValidationError(f"bundle has no string bundle_kind: {kind!r}")
+    validator = _bundle_validator_for(kind)
+    messages = _non_finite_errors(bundle)
+    for err in sorted(validator.iter_errors(bundle), key=lambda e: list(e.path)):
+        loc = "/".join(str(p) for p in err.path) or "<root>"
+        messages.append(f"{loc}: {err.message}")
+    if messages:
+        raise FrameValidationError(f"invalid {kind} bundle: " + "; ".join(messages))
+    for key in _BUNDLE_MEMBER_KEYS:
+        member = bundle.get(key)
+        if isinstance(member, dict) and isinstance(member.get("frame_kind"), str):
+            validate_or_raise(member)
+    return bundle
+
+
 __all__ = [
     "FRAME_KIND_TO_SCHEMA",
+    "BUNDLE_KIND_TO_SCHEMA",
     "FrameValidationError",
     "validator_for",
     "iter_errors",
     "is_valid",
     "validate_or_raise",
+    "validate_bundle",
 ]

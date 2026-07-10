@@ -1,0 +1,49 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/pneuma-input-bundle.schema.json",
+    "title": "PneumaInputBundle",
+    "description": "Container aggregating the input frames the shadow nervous system perceives for one slice: world/task and observable agent trace, plus nullable placeholders for memory, psyche state, and workspace (not produced in v0), and governance. This is a container manifest, not a cognition frame; member frames are validated by their own contracts.",
+    "type": "object",
+    "x-pneuma-schema-kind": "io_bundle",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "bundle_kind": {
+            "type": "string",
+            "const": "pneuma_input"
+        },
+        "run_id": {
+            "type": "string"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "world": {
+            "type": ["object", "null"]
+        },
+        "agent_trace": {
+            "type": ["object", "null"]
+        },
+        "memory": {
+            "type": ["object", "null"],
+            "description": "Placeholder: not produced in v0."
+        },
+        "psyche_state": {
+            "type": ["object", "null"],
+            "description": "Placeholder: not produced in v0."
+        },
+        "workspace": {
+            "type": ["object", "null"],
+            "description": "Placeholder: not produced in v0."
+        },
+        "governance": {
+            "type": ["object", "null"]
+        }
+    },
+    "required": ["schema_version", "bundle_kind", "run_id", "timestamp"],
+    "additionalProperties": true
+}

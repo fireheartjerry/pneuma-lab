@@ -35,9 +35,17 @@ OUTPUT_SCHEMA_FILES = (
     "causal-trace.schema.json",
     "consciousness-evidence-frame.schema.json",
     "grounded-self-report.schema.json",
+    "risk-estimate-frame.schema.json",
 )
 
 ENVELOPE_SCHEMA_FILES = ("pneuma-trace.schema.json",)
+
+# Container manifests (not cognition frames): aggregate I/O frames for the
+# shadow nervous system. Validated via ``validate.validate_bundle``.
+IO_BUNDLE_SCHEMA_FILES = (
+    "pneuma-input-bundle.schema.json",
+    "pneuma-output-bundle.schema.json",
+)
 
 TRAINING_SCHEMA_FILES = (
     "pneuma-training-example.schema.json",
@@ -52,6 +60,7 @@ ALL_SCHEMA_FILES = (
     INPUT_SCHEMA_FILES
     + OUTPUT_SCHEMA_FILES
     + ENVELOPE_SCHEMA_FILES
+    + IO_BUNDLE_SCHEMA_FILES
     + TRAINING_SCHEMA_FILES
     + MANIFEST_SCHEMA_FILES
 )
@@ -78,6 +87,7 @@ __all__ = [
     "INPUT_SCHEMA_FILES",
     "OUTPUT_SCHEMA_FILES",
     "ENVELOPE_SCHEMA_FILES",
+    "IO_BUNDLE_SCHEMA_FILES",
     "TRAINING_SCHEMA_FILES",
     "MANIFEST_SCHEMA_FILES",
     "ALL_SCHEMA_FILES",
