@@ -146,8 +146,11 @@ footer{max-width:900px;margin:0 auto;padding:0 22px 60px;color:var(--dim);font-s
         box.className = "receipts";
         ln.receipts.forEach(function(r){
           var row = document.createElement("div");
-          var v = (r.value === null || r.value === undefined) ? "—" : r.value;
-          row.innerHTML = "<span>" + r.field_path + "</span> = " + v;
+          var key = document.createElement("span");
+          key.textContent = r.field_path;
+          var v = (r.value === null || r.value === undefined) ? "—" : String(r.value);
+          row.appendChild(key);
+          row.appendChild(document.createTextNode(" = " + v));
           box.appendChild(row);
         });
         tog.addEventListener("click", function(){
