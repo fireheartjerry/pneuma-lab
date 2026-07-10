@@ -136,3 +136,51 @@ def test_campaign_schema_registered_and_validates():
         },
     }
     validate.validate_campaign(summary)
+
+
+# --------------------------------------------------------------------------- #
+# Task 3: campaign slices + run_campaign                                       #
+# --------------------------------------------------------------------------- #
+def test_run_campaign_slices_and_conservatism(tmp_path):
+    from pneuma_lab.nervous_system.campaign import run_campaign
+
+    summary = run_campaign(work_dir=tmp_path)
+    validate.validate_campaign(summary)
+    by_id = {s["id"]: s for s in summary["slices"]}
+    assert set(by_id) == {
+        "l2_persistence",
+        "scar_ablation",
+        "workspace_disable",
+        "certainty_clamp",
+        "grounded_self_report",
+    }
+    assert by_id["l2_persistence"]["effect_observed"] is True
+    for sid in ("scar_ablation", "workspace_disable", "certainty_clamp"):
+        obs = by_id[sid]["observed"]
+        assert {"control", "treated", "null"} <= set(obs)
+        assert obs["null_holds"] is True
+    assert by_id["scar_ablation"]["observed"]["treated"]["winner"] != "memory_scar"
+    assert by_id["workspace_disable"]["observed"]["treated"]["verification"] == 0.0
+    gsr = by_id["grounded_self_report"]["observed"]
+    assert gsr["references_state_hash"] is True
+    assert gsr["references_winner"] is True
+    assert gsr["references_causal_trace"] is True
+    assert gsr["report_changed_under_perturbation"] is True
+    assert summary["overall"]["claim"] == "no_level_claim"
+    for s in summary["slices"]:
+        f = s["evidence_frame"]
+        assert f["evidence_level"] <= 1
+        assert f["real_subject_claim_status"] == "not_evaluated"
+        assert f["paired_replay_provenance"]["status"] == "uncertified_subject"
+        assert (
+            f["indicator_families"]["causal_intervention_robustness"]["status"]
+            != "intervention_backed"
+        )
+
+
+def test_run_campaign_is_deterministic(tmp_path):
+    from pneuma_lab.nervous_system.campaign import run_campaign
+
+    a = run_campaign(work_dir=tmp_path / "a")
+    b = run_campaign(work_dir=tmp_path / "b")
+    assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
