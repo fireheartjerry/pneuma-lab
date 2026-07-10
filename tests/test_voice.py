@@ -125,3 +125,27 @@ def test_extract_competition_credit_follows_family_status():
     )
     comp2 = next(a for a in atoms2 if a.type == "competition")
     assert comp2.credit_status == "architecture_only"
+
+
+from pneuma_lab.voice import gate as G
+
+
+def test_gate_keeps_observed_atoms_and_ranks_by_intensity():
+    result = _reference_result()
+    atoms = X.atoms_for_tick(
+        result.tick_outputs[0], None, tick=0, evidence_frame=result.evidence_frame
+    )
+    kept = G.gate(atoms, min_intensity=0.0)
+    assert len(kept) == len(atoms)
+    intensities = [a.intensity for a in kept]
+    assert intensities == sorted(intensities, reverse=True)
+
+
+def test_gate_drops_only_subepsilon_intensity():
+    result = _reference_result()
+    atoms = X.atoms_for_tick(
+        result.tick_outputs[0], None, tick=0, evidence_frame=result.evidence_frame
+    )
+    for a in atoms:
+        a.intensity = 0.0
+    assert G.gate(atoms, min_intensity=1e-6) == []
