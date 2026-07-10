@@ -97,3 +97,83 @@ def test_fixture_model_gives_high_and_low_risk():
 def test_fixture_governance_frames_valid():
     for name in ("governance_on.json", "governance_killswitch_off.json"):
         validate.validate_or_raise(json.loads((FIX / name).read_text(encoding="utf-8")))
+
+
+# --------------------------------------------------------------------------- #
+# Task 4: pure frame builders                                                 #
+# --------------------------------------------------------------------------- #
+BRAIN_DICT = {
+    "frame_type": "RiskEstimateFrame",
+    "task_type": "RISK_PREDICTION",
+    "failure_probability": 0.8,
+    "success_probability": 0.2,
+    "raw_score": 1.2,
+    "risk_bucket": "high",
+    "prefix": "full",
+    "model_version": "pneuma-brain/0.1.0",
+    "recommended_use": "advisory_only",
+    "blocked_uses": [
+        "no_runtime_authority",
+        "no_verifier_bypass",
+        "no_consciousness_claim",
+    ],
+}
+GOV = {"authority_ceilings": {"global_max": "hold"}}
+
+
+def test_frame_builders_produce_valid_linked_frames():
+    from pneuma_lab.nervous_system import frames as nsf
+
+    ts = "2026-07-10T00:00:00Z"
+    trace = nsf.causal_trace(
+        run_id="r0",
+        timestamp=ts,
+        input_ref="agent_trace:r0:full",
+        risk_ref="risk_estimate:r0:full",
+        pressure_ref="control_pressure:r0:full",
+        instinct_ref="instinct:r0:full",
+        failure_probability=0.8,
+    )
+    risk = nsf.risk_estimate_frame(
+        BRAIN_DICT,
+        run_id="r0",
+        timestamp=ts,
+        features_digest="sha256:aa",
+        causal_trace_id=trace["trace_id"],
+    )
+    instinct = nsf.instinct_signal(
+        BRAIN_DICT, run_id="r0", timestamp=ts, trace_id=trace["trace_id"]
+    )
+    pressure = nsf.control_pressure_candidate(
+        BRAIN_DICT, GOV, run_id="r0", timestamp=ts, causal_trace_id=trace["trace_id"]
+    )
+    for fr in (risk, instinct, pressure, trace):
+        validate.validate_or_raise(fr)
+    assert risk["authority_granted"] == "none"
+    assert pressure["authority_tier"] in ("cosmetic", "soft")
+    assert pressure["pressures"]["verification"] == 0.8
+    assert pressure["pressures"]["verification"] >= 0.0
+    assert set(pressure["pressures"]) == {"verification"}
+    stages = [n["stage"] for n in trace["causal_path"]]
+    assert stages == ["event", "internal_state", "pressure"]
+
+
+def test_frame_builders_are_deterministic():
+    from pneuma_lab.nervous_system import frames as nsf
+
+    ts = "2026-07-10T00:00:00Z"
+    a = nsf.risk_estimate_frame(
+        BRAIN_DICT,
+        run_id="r0",
+        timestamp=ts,
+        features_digest="sha256:aa",
+        causal_trace_id=None,
+    )
+    b = nsf.risk_estimate_frame(
+        BRAIN_DICT,
+        run_id="r0",
+        timestamp=ts,
+        features_digest="sha256:aa",
+        causal_trace_id=None,
+    )
+    assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
