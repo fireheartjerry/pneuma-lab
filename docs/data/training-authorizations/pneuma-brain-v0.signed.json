@@ -15,9 +15,9 @@
             "split_manifest_sha256": "sha256:1e43c2bb8e150ed84231f820bd58bef812b53824f8828f3e146e6df76b584424"
         }
     ],
-    "authorized_code_commit": "e77bcbe8c8971ff30935592ee78edd2d25ca8c3f",
+    "authorized_code_commit": "9b070c0d0ac25fdd41a8128b226f2bd65dcc8ab5",
     "reviewer": "fireheartjerry (pre-authorized autonomous overnight local-research run)",
-    "reviewed_at": "2026-07-10T06:04:16Z",
+    "reviewed_at": "2026-07-10T06:19:20Z",
     "release_authorization": "not_authorized",
     "runtime_integration": "none"
 }
