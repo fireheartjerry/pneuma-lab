@@ -1,0 +1,21 @@
+{
+    "authorization_schema_version": "0.1.0",
+    "authorization_id": "brain-test-auth",
+    "corpus_id": "pneuma-brain-v0",
+    "decision": "authorized",
+    "scope": "local_research",
+    "corpus_manifest_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "member_lanes": ["swe-gym-openhands-sampled"],
+    "members": [
+        {
+            "lane_id": "swe-gym-openhands-sampled",
+            "source_traces_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "split_manifest_sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+        }
+    ],
+    "authorized_code_commit": "0000000000000000000000000000000000000000",
+    "reviewer": "test",
+    "reviewed_at": "2026-07-10T00:00:00Z",
+    "release_authorization": "not_authorized",
+    "runtime_integration": "none"
+}
