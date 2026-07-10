@@ -149,3 +149,87 @@ def test_gate_drops_only_subepsilon_intensity():
     for a in atoms:
         a.intensity = 0.0
     assert G.gate(atoms, min_intensity=1e-6) == []
+
+
+from pneuma_lab.voice import render_deterministic as R
+from pneuma_lab.voice import atoms as A
+
+
+def _atom(type_, receipts, credit_status, family):
+    return A.ThoughtAtom(
+        atom_id="r:0:atom:0",
+        type=type_,
+        run_id="r",
+        tick=0,
+        timestamp="t",
+        receipts=receipts,
+        intensity=0.5,
+        crediting_family=family,
+        credit_status=credit_status,
+        min_level=A.MIN_LEVEL[type_],
+    )
+
+
+def test_render_pressure_is_state_grounded_and_hedge_free_when_credited():
+    atom = _atom(
+        "pressure",
+        [{"field_path": "control_pressure.verification", "value": 0.42}],
+        "evidenced",
+        None,
+    )
+    rt = R.render(atom)
+    assert "0.42" in rt.text_deterministic
+    assert "architecture-only" not in rt.text_deterministic
+    assert rt.voice_status == "deterministic_only"
+
+
+def test_render_competition_hedges_when_not_credited():
+    atom = _atom(
+        "competition",
+        [
+            {
+                "field_path": "workspace_broadcast.winning_faculty",
+                "value": "self_model",
+            },
+            {"field_path": "salience_scores.risk", "value": 3.23},
+        ],
+        "architecture_only",
+        "global_workspace",
+    )
+    rt = R.render(atom)
+    assert "self_model" in rt.text_deterministic
+    assert "architecture-only, not promotable evidence" in rt.text_deterministic
+
+
+def test_render_never_emits_forbidden_phenomenology():
+    for t, receipts, fam in [
+        (
+            "appraisal",
+            [{"field_path": "causal_trace.changed_dimensions.count", "value": 6.0}],
+            None,
+        ),
+        (
+            "uncertainty",
+            [{"field_path": "psyche_state.self_model.predicted_error", "value": 0.48}],
+            "higher_order_self_model",
+        ),
+        (
+            "boundary",
+            [
+                {"field_path": "consciousness_evidence.evidence_level", "value": 3.0},
+                {"field_path": "filtered_forbidden_claims.count", "value": 0.0},
+            ],
+            None,
+        ),
+    ]:
+        rt = R.render(_atom(t, receipts, "evidenced", fam))
+        low = rt.text_deterministic.lower()
+        for banned in (
+            "i feel",
+            "i suffer",
+            "sentient",
+            "phenomenal",
+            "conscious experience",
+            "qualia",
+        ):
+            assert banned not in low, f"{t} leaked forbidden phrasing: {banned}"
