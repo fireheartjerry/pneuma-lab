@@ -46,13 +46,23 @@ must handle is not a blocker here.
 
 ## Full-corpus status
 
-Full 84-shard conversion is **available but not run this pass**: the current
-single-batch `run()` holds all traces in memory (~7.5GB) and takes ~33 min. The
-practical full path is per-shard streaming (adapter -> converter per shard,
-discard traces, accumulate the small examples), tracked as the next step in
-`open-swe-traces.json` (`conversion_status.full_conversion = gated`). The
-single-shard run above is byte-deterministic and representative; the same
-adapter/converter run every shard identically.
+Full 84-shard conversion is now **practical via per-shard streaming** and tested,
+but is **left un-run to completion** this pass (its ~7.5GB output is ignored
+build, not committed, and correctness is already proven representatively).
+
+- `adapters.open_swe_traces.run_streaming` (CLI `--stream`) processes one shard
+  at a time, appending traces incrementally, so peak memory is ~one shard
+  (~90MB) instead of the whole corpus (~7.5GB). The old single-batch `run()`
+  held everything in memory (~7.5GB) — that was the impracticality.
+- A determinism test asserts streaming output is **byte-identical** to the
+  in-memory `run()` over the same shard definitions; a real 2-shard smoke
+  confirms the parquet path (100 rows -> 86 traces, 14 `-1` skips).
+- The converter already streams line-by-line over the trace JSONL, so the full
+  pipeline is memory-bounded end to end.
+
+To run it for real: `python -m pneuma_lab.adapters.open_swe_traces --stream
+--out build/adapters/open-swe-traces/full` then the converter in `--mode full`
+over that output.
 
 ## Determinism & provenance
 

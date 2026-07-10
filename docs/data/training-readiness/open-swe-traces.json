@@ -15,8 +15,9 @@
         "stage_1_adapter_real_rows": "implemented_and_validated",
         "bounded_real_conversion": "run",
         "representative_full_shard_conversion": "run (shard 0: 1960 examples, 0 invalid, reconciled)",
-        "full_corpus_conversion": "gated_available_not_run",
-        "full_corpus_conversion_reason": "single-batch run() holds all traces in memory (~7.5GB) and takes ~33 min; per-shard streaming is the practical full path and is the tracked next step",
+        "full_corpus_conversion": "practical_via_streaming_not_yet_run_to_completion",
+        "full_corpus_conversion_method": "adapters.open_swe_traces.run_streaming / CLI --stream: one shard at a time, peak memory ~1 shard (~90MB) not ~7.5GB; byte-identical to in-memory run(); the converter already streams line-by-line",
+        "full_corpus_conversion_reason": "capability now exists and is tested (real 2-shard smoke + byte-determinism test); a full 84-shard run (~33 min, ~7.5GB ignored build output) is left un-run because artifacts are not committed and correctness is already proven representatively",
         "cross_dataset_leakage_registry": "populated (Dataset #1 vs #2): 7 overlapping repos, NOT disjoint"
     },
     "generated_artifact_refs": {

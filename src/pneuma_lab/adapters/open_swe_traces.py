@@ -283,6 +283,45 @@ def _jsonl(objs: list[dict]) -> str:
     return "".join(env.canonical_json(o) + "\n" for o in objs)
 
 
+def _classify_row(
+    row: dict,
+    source_group: str,
+    source_file: str,
+    source_row: int,
+    hf_revision: str,
+) -> tuple[str, dict]:
+    """Build one trace and tag it ``skipped`` / ``invalid`` / ``valid``.
+
+    Shared by the in-memory ``run`` and the memory-bounded ``run_streaming`` so
+    both classify identically.
+    """
+    try:
+        trace = build_trace(row, source_group, source_file, source_row, hf_revision)
+    except SkipRow as exc:
+        return "skipped", {
+            "source_id": (
+                f"{row.get('instance_id', '<?>')}::{row.get('trajectory_id', '<?>')}"
+            ),
+            "reason": str(exc),
+        }
+    frame_errs = [e for f in trace["frames"] for e in validate.iter_errors(f)]
+    env_errs = env.envelope_errors(trace)
+    cons_errs = env.consistency_errors(trace)
+    if frame_errs or env_errs or cons_errs:
+        trace["validation"]["status"] = "invalid"
+        return "invalid", {
+            "trace_id": trace["trace_id"],
+            "source_id": trace["provenance"]["source_id"],
+            "errors": {
+                "envelope": env_errs,
+                "frames": frame_errs,
+                "consistency": cons_errs,
+            },
+            "trace": trace,
+        }
+    return "valid", trace
+
+
 def run(
     batches: list[tuple[str, str, list[dict]]],
     hf_revision: str,
@@ -302,38 +341,15 @@ def run(
 
     valid, invalid, skipped = [], [], []
     for source_group, source_file, source_row, row in flat:
-        try:
-            trace = build_trace(row, source_group, source_file, source_row, hf_revision)
-        except SkipRow as exc:
-            skipped.append(
-                {
-                    "source_id": (
-                        f"{row.get('instance_id', '<?>')}::"
-                        f"{row.get('trajectory_id', '<?>')}"
-                    ),
-                    "reason": str(exc),
-                }
-            )
-            continue
-        frame_errs = [e for f in trace["frames"] for e in validate.iter_errors(f)]
-        env_errs = env.envelope_errors(trace)
-        cons_errs = env.consistency_errors(trace)
-        if frame_errs or env_errs or cons_errs:
-            trace["validation"]["status"] = "invalid"
-            invalid.append(
-                {
-                    "trace_id": trace["trace_id"],
-                    "source_id": trace["provenance"]["source_id"],
-                    "errors": {
-                        "envelope": env_errs,
-                        "frames": frame_errs,
-                        "consistency": cons_errs,
-                    },
-                    "trace": trace,
-                }
-            )
+        kind, payload = _classify_row(
+            row, source_group, source_file, source_row, hf_revision
+        )
+        if kind == "skipped":
+            skipped.append(payload)
+        elif kind == "invalid":
+            invalid.append(payload)
         else:
-            valid.append(trace)
+            valid.append(payload)
 
     traces_str = _jsonl(valid)
     invalid_str = _jsonl(invalid)
@@ -398,6 +414,129 @@ OUTPUT_FILES = (
     "adapter_report.json",
 )
 
+
+def run_streaming(
+    inputs: list[tuple[str, str]],
+    hf_revision: str,
+    out_dir: str,
+    *,
+    limit_rows: int | None = None,
+    read_rows=None,
+) -> dict:
+    """Memory-bounded full-corpus conversion: one shard at a time.
+
+    Each shard's rows are built, classified, and appended to the output files,
+    then released, so peak memory is one shard (~90MB), not the whole corpus
+    (~7.5GB). Emission order is deterministic: shards in the given order, rows
+    in ``(source_group, source_file, source_row)`` order within a shard. Returns
+    the aggregate report dict (also written to ``adapter_report.json``).
+
+    ``read_rows(path) -> list[dict]`` is injectable for testing; it defaults to
+    reading real parquet.
+    """
+    reader = read_rows or (lambda p: _read_rows_with_limit(p, limit_rows))
+    os.makedirs(out_dir, exist_ok=True)
+    paths = {name: os.path.join(out_dir, name) for name in OUTPUT_FILES}
+
+    counts = {"source_rows": 0, "valid": 0, "invalid": 0, "skipped": 0}
+    total_agent_steps = resolved_true = resolved_false = 0
+    skip_reasons: dict[str, int] = {}
+    skipped_ids: list[dict] = []
+    invalid_ids: list[str] = []
+    traces_hash = hashlib.sha256()
+    index_hash = hashlib.sha256()
+    invalid_hash = hashlib.sha256()
+    source_groups: set[str] = set()
+
+    with (
+        open(paths["pneuma_traces.jsonl"], "w", encoding="utf-8", newline="") as tf,
+        open(
+            paths["pneuma_traces.invalid.jsonl"], "w", encoding="utf-8", newline=""
+        ) as xf,
+        open(paths["trace_index.jsonl"], "w", encoding="utf-8", newline="") as ixf,
+    ):
+        for source_group, path in inputs:
+            source_groups.add(source_group)
+            rows = reader(path)
+            counts["source_rows"] += len(rows)
+            for source_row, row in enumerate(rows):
+                kind, payload = _classify_row(
+                    row, source_group, path, source_row, hf_revision
+                )
+                if kind == "skipped":
+                    counts["skipped"] += 1
+                    key = payload["reason"].split("(")[0].strip().split(";")[0]
+                    skip_reasons[key] = skip_reasons.get(key, 0) + 1
+                    if len(skipped_ids) < 1000:
+                        skipped_ids.append(payload)
+                elif kind == "invalid":
+                    counts["invalid"] += 1
+                    invalid_ids.append(payload["source_id"])
+                    line = env.canonical_json(payload) + "\n"
+                    xf.write(line)
+                    invalid_hash.update(line.encode("utf-8"))
+                else:
+                    counts["valid"] += 1
+                    total_agent_steps += payload["trajectory"]["num_agent_steps"]
+                    if payload["labels"]["resolved"]:
+                        resolved_true += 1
+                    else:
+                        resolved_false += 1
+                    line = env.canonical_json(payload) + "\n"
+                    tf.write(line)
+                    traces_hash.update(line.encode("utf-8"))
+                    idx = env.canonical_json(_index_row(payload)) + "\n"
+                    ixf.write(idx)
+                    index_hash.update(idx.encode("utf-8"))
+            del rows
+
+    report = {
+        "adapter_report_schema_version": ADAPTER_REPORT_SCHEMA_VERSION,
+        "adapter": dict(ADAPTER),
+        "dataset": DATASET,
+        "dataset_family": DATASET_FAMILY,
+        "hf_repo": HF_REPO,
+        "hf_revision": hf_revision,
+        "mode": "streaming",
+        "counts": {
+            "source_rows": counts["source_rows"],
+            "traces_emitted": counts["valid"] + counts["invalid"],
+            "valid": counts["valid"],
+            "invalid": counts["invalid"],
+            "skipped": counts["skipped"],
+        },
+        "trajectory": {
+            "total_agent_steps": total_agent_steps,
+            "resolved_true": resolved_true,
+            "resolved_false": resolved_false,
+        },
+        "source_groups": sorted(source_groups),
+        "skip_reasons": dict(sorted(skip_reasons.items())),
+        "privacy": {
+            "protection": "digest-only-by-construction",
+            "raw_trajectory_text_embedded": False,
+            "raw_patch_text_embedded": False,
+            "raw_identifiers_in_frames_or_labels": False,
+            "raw_join_key_in_provenance_only": True,
+        },
+        "ordering": {
+            "emission_sort_key": "shard order, then source_row within shard",
+            "source_row_preserved": True,
+            "streaming": True,
+        },
+        "skipped_source_ids_truncated_at": 1000,
+        "skipped_source_ids": skipped_ids,
+        "invalid_source_ids": invalid_ids,
+        "traces_file_sha256": traces_hash.hexdigest(),
+        "trace_index_file_sha256": index_hash.hexdigest(),
+        "invalid_traces_file_sha256": invalid_hash.hexdigest(),
+        "warnings": [],
+    }
+    with open(paths["adapter_report.json"], "w", encoding="utf-8", newline="") as rf:
+        rf.write(env.canonical_json(report) + "\n")
+    return report
+
+
 RAW_ROOT = "C:/pneuma-data/raw/open-swe-traces/Open-SWE-Traces/data"
 DEFAULT_OUT = "C:/pneuma-data/processed/open-swe-traces/pneuma-trace"
 FIXTURE_DIR = os.path.join("fixtures", "adapters", "open_swe_traces")
@@ -450,6 +589,11 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Read at most N rows per shard (bounded smoke, still deterministic).",
+    )
+    p.add_argument(
+        "--stream",
+        action="store_true",
+        help="Memory-bounded per-shard full-corpus conversion (one shard at a time).",
     )
     p.add_argument(
         "--emit-fixture",
@@ -528,6 +672,17 @@ def main(argv=None) -> int:
         if args.input
         else default_inputs()
     )
+
+    if args.stream:
+        report = run_streaming(
+            inputs,
+            hf_revision=args.hf_revision,
+            out_dir=args.out,
+            limit_rows=args.limit_rows,
+        )
+        print(f"streamed {report['counts']['valid']} traces to {args.out}")
+        return 0
+
     batches = [
         (group, path, _read_rows_with_limit(path, args.limit_rows))
         for group, path in inputs
