@@ -47,7 +47,9 @@ def risk_estimate(model: dict, trace: dict, *, prefix: str = "full") -> dict:
     row = pf.feature_vector(trace, prefix, model["tool_vocab"])
     if len(row) != len(entry["feature_names"]):
         raise ValueError("feature width does not match the trained head")
-    raw = model_mod.predict_head(entry["head"], row)
+    # Calibration was fit in logit space; apply it there so identity params
+    # (1.0, 0.0) reproduce the model's own raw probability exactly.
+    raw = model_mod.predict_logit(entry["head"], row)
     platt = entry["platt"]
     probability = cal.apply_platt(raw, platt["a"], platt["b"])
     return {

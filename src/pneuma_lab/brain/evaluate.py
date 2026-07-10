@@ -27,6 +27,10 @@ def leave_one_repo_out(items: list[Item], fit_fn: FitFn, predict_fn: PredictFn) 
     training fold.
     """
     repos = sorted({repo for _, _, repo in items})
+    if len(repos) < 2:
+        raise ValueError(
+            f"leave_one_repo_out needs at least 2 repos to hold one out; got {len(repos)}"
+        )
     per_repo: dict[str, dict] = {}
     oof_scores: list[float] = []
     oof_labels: list[int] = []

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import math
+from operator import mul
 
 from pneuma_lab.brain import BRAIN_VERSION
 from pneuma_lab.estimators import logistic as logit
@@ -28,6 +30,16 @@ def predict_head(head: dict, row: list[float]) -> float:
     """Predicted probability for one raw (unstandardized) feature row."""
     row_std = logit.standardizeRow(row, head["means"], head["stds"])
     return logit.predictProb(row_std, head["weights"], head["bias"])
+
+
+def predict_logit(head: dict, row: list[float]) -> float:
+    """Pre-sigmoid score (logit) for one raw feature row.
+
+    AUROC is invariant to the sigmoid, so ranking metrics are identical to
+    ``predict_head``; this is the correct input domain for Platt calibration.
+    """
+    row_std = logit.standardizeRow(row, head["means"], head["stds"])
+    return head["bias"] + math.fsum(map(mul, head["weights"], row_std))
 
 
 class MultiTaskModel:
@@ -64,4 +76,4 @@ class MultiTaskModel:
         return model
 
 
-__all__ = ["fit_head", "predict_head", "MultiTaskModel"]
+__all__ = ["fit_head", "predict_head", "predict_logit", "MultiTaskModel"]

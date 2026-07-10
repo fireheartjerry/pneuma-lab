@@ -20,6 +20,7 @@ from pneuma_lab.brain import evaluate as ev
 from pneuma_lab.brain import model as model_mod
 from pneuma_lab.brain import preflight
 from pneuma_lab.brain import prefix_features as pf
+from pneuma_lab.estimators.logistic import sigmoid
 from pneuma_lab.estimators.metrics import ece
 
 # E-0 pre-registered baseline: observable-feature logistic, prefix-10 AUROC.
@@ -154,15 +155,17 @@ def run_full_training(
         def fit_fn(rows, labels, _fn=feature_names):
             return model_mod.fit_head(_fn, rows, labels)
 
-        loro = ev.leave_one_repo_out(items, fit_fn, model_mod.predict_head)
-        boot = ev.bootstrap_auroc(
-            loro["oof_scores"], loro["oof_labels"], n_resamples=n_resamples
-        )
-        platt_a, platt_b = cal.fit_platt(loro["oof_scores"], loro["oof_labels"])
-        ece_before = ece(loro["oof_scores"], loro["oof_labels"])
+        # Predict logits (pre-sigmoid): AUROC-invariant, and the correct input
+        # domain for Platt calibration (which then starts at identity).
+        loro = ev.leave_one_repo_out(items, fit_fn, model_mod.predict_logit)
+        oof_logits = loro["oof_scores"]
+        oof_labels = loro["oof_labels"]
+        boot = ev.bootstrap_auroc(oof_logits, oof_labels, n_resamples=n_resamples)
+        platt_a, platt_b = cal.fit_guarded_platt(oof_logits, oof_labels)
+        ece_before = ece([sigmoid(x) for x in oof_logits], oof_labels)
         ece_after = ece(
-            [cal.apply_platt(s, platt_a, platt_b) for s in loro["oof_scores"]],
-            loro["oof_labels"],
+            [cal.apply_platt(x, platt_a, platt_b) for x in oof_logits],
+            oof_labels,
         )
         full_head = model_mod.fit_head(
             feature_names,
@@ -236,8 +239,8 @@ def main(argv: list[str] | None = None) -> int:
         entry = metrics["prefixes"][prefix]
         boot = entry["bootstrap"]
         print(
-            f"{prefix:10s} OOF AUROC={entry['oof_auroc']:.4f} "
-            f"CI=[{boot['lo']:.4f},{boot['hi']:.4f}]"
+            f"{prefix:10s} OOF AUROC={_fmt(entry['oof_auroc'])} "
+            f"CI=[{_fmt(boot['lo'])},{_fmt(boot['hi'])}]"
         )
     return 0
 
