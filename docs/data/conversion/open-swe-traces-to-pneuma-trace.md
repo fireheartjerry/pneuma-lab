@@ -1,11 +1,24 @@
 # Open-SWE-Traces to PneumaTrace / PneumaTrainingExample Plan
 
-Status: design doc + fixture-first scaffolding only. No real parquet row has
-been read for content beyond the metadata sidecars already built during
-onboarding (`docs/data/onboarding/open-swe-traces.md`). This pass does not
-train models, run E1/E2, calibrate anything, change runtime behavior, process
-SWE-chat, implement J-space/Jacobian Lens work, mutate raw or processed data,
-write outputs to `C:/pneuma-data`, or make consciousness-level claims.
+Status: **IMPLEMENTED (stage 1 + stage 2).** The two-stage pipeline this doc
+designed now exists: `src/pneuma_lab/adapters/open_swe_traces.py` reads real
+parquet `trajectory` rows into digest-only `PneumaTrace` envelopes, and
+`src/pneuma_lab/converters/open_swe_traces_training.py` converts those into
+`PneumaTrainingExample` records. Bounded real-row conversion and a bounded
+repo-grouped split have been run into ignored `build/`. Full-corpus conversion
+is gated (available, not run). See
+`docs/data/training-readiness/open-swe-traces.md` for the readiness package.
+Sections 3.2 and 9 below describe the original fixture-first scaffolding and are
+retained as design history. This work still does not train models, run E1/E2,
+calibrate, change runtime behavior, process SWE-chat, implement J-space work,
+mutate raw/processed data, write to `C:/pneuma-data`, or make
+consciousness-level claims.
+
+> Update: `resolved` is an int32 tri-state (`-1 / 0 / 1`); `1 -> True`,
+> `0 -> False`, and `-1` (~21% of rows, unknown/unevaluated) is **skipped**,
+> never coerced. The world-frame objective is digest-only (no raw task text),
+> stricter than Dataset #1. Raw `repo`/`instance_id`/`trajectory_id` never
+> enter frames or labels; only `provenance.source_id` keeps the raw join key.
 
 ## 1. Purpose
 

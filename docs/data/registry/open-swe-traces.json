@@ -1,7 +1,7 @@
 {
     "manifest_schema_version": "0.1.0",
     "dataset_id": "open-swe-traces",
-    "dataset_status": "onboarded_metadata_only",
+    "dataset_status": "adapter_and_converter_backed",
     "registry_status": "multi_dataset_metadata_registry",
     "human_name": "Open-SWE-Traces",
     "data_root_variable": "PNEUMA_DATA_ROOT",
@@ -17,13 +17,15 @@
         "normalized_metadata_relative": "processed/open-swe-traces/normalized_metadata.jsonl"
     },
     "adapter": {
-        "name": null,
-        "module": null,
-        "version": null
+        "name": "open-swe-traces",
+        "module": "pneuma_lab.adapters.open_swe_traces",
+        "version": "0.1.0",
+        "converter_module": "pneuma_lab.converters.open_swe_traces_training",
+        "converter_version": "open-swe-traces-training/0.1.0"
     },
     "schema": {
         "artifact": "PneumaTrainingExample",
-        "readiness": "not_converted"
+        "readiness": "adapter_and_bounded_conversion"
     },
     "source": {
         "dataset": "open-swe-traces",
@@ -565,10 +567,7 @@
         ]
     },
     "privacy_status": "public benchmark-derived synthetic trajectories; metadata-only onboarding, no adapter/converter output yet",
-    "allowed_uses": [
-        "dataset onboarding validation",
-        "future adapter design"
-    ],
+    "allowed_uses": ["dataset onboarding validation", "future adapter design"],
     "blocked_uses": [
         "ML training in this pass",
         "raw trajectory/patch content extraction in this pass"

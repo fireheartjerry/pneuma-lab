@@ -93,6 +93,13 @@ DEFAULT_ALLOWED_INPUT_PATHS = (
     "input.trajectory_summary.num_agent_steps",
     "input.tool_summary.tool_call_count",
     "input.tool_summary.tool_counts.*",
+    # Observable-only trajectory-shape summary emitted by the stage-2 converter
+    # (counts, digests, lengths derived from agent_trace frames; no raw text).
+    "input.observable_summary.*",
+    "input.objective.present",
+    "input.objective.mode",
+    "input.objective.text_sha256",
+    "input.objective.text_length",
     "input.feature_refs.*",
 )
 

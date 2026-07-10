@@ -1,0 +1,129 @@
+{
+    "manifest_schema_version": "0.1.0",
+    "dataset_id": "open-swe-traces",
+    "dataset_family": "open-swe-traces",
+    "converted_corpus_kind": "PneumaTrainingExample full-trace RISK_PREDICTION examples",
+    "pipeline_parity_with_dataset_1": {
+        "stage_1_adapter": "src/pneuma_lab/adapters/open_swe_traces.py",
+        "stage_2_converter": "src/pneuma_lab/converters/open_swe_traces_training.py",
+        "split_generator": "pneuma_lab.training.splits (shared, dataset-agnostic)",
+        "leakage_checker": "pneuma_lab.governance.open_swe_traces",
+        "cross_dataset_leakage_registry": "src/pneuma_lab/training/leakage_registry.py",
+        "same_canonical_training_example_contract": true
+    },
+    "conversion_status": {
+        "stage_1_adapter_real_rows": "implemented_and_validated",
+        "bounded_real_conversion": "run",
+        "full_conversion": "gated_available_not_run",
+        "full_conversion_reason": "one full shard (2500 rows) takes ~24s and emits ~89MB of processed traces; full 84-shard conversion is ~33 min and ~7.5GB of ignored build output, deferred as impractical for this pass"
+    },
+    "generated_artifact_refs": {
+        "bounded_examples_jsonl": "build/training_examples/open-swe-traces/bounded-sample/examples.jsonl",
+        "bounded_conversion_report": "build/training_examples/open-swe-traces/bounded-sample/conversion_report.json",
+        "bounded_hash_manifest": "build/training_examples/open-swe-traces/bounded-sample/hash_manifest.json",
+        "bounded_split_manifest": "build/splits/open-swe-traces/bounded/split_manifest.json",
+        "bounded_split_report": "build/splits/open-swe-traces/bounded/split_report.json",
+        "full_examples_jsonl": "build/training_examples/open-swe-traces/full/examples.jsonl (not generated this pass)"
+    },
+    "observed_real_distribution": {
+        "source_shards_sampled": 4,
+        "one_full_shard_valid_traces": 1960,
+        "resolved_int_domain": [-1, 0, 1],
+        "resolved_minus_one_meaning": "unknown/unevaluated verifier state; skipped, never coerced to a boolean",
+        "resolved_minus_one_fraction_approx": 0.21,
+        "convertible_resolved_true_rate_approx": 0.41,
+        "onboarding_count_discrepancy": "onboarding recorded 112002 true / 95487 false = 207489 total, which bucketed the ~21% resolved==-1 rows; the adapter reports the true 1/0/-1 split per run instead"
+    },
+    "class_balance": {
+        "target_field": "target.resolved",
+        "note": "far better balanced than Dataset #1 (which is ~8% resolved); ~41% resolved-true among convertible rows",
+        "bounded_sample": {
+            "examples": 20,
+            "resolved": 8,
+            "unresolved": 12,
+            "resolved_fraction": 0.4
+        }
+    },
+    "current_model_use_tier": "train_after_adapter",
+    "current_training_weight": 0.0,
+    "approved_task_types": ["RISK_PREDICTION"],
+    "blocked_task_types": [
+        "OPERATOR_PUSHBACK",
+        "SELF_REPORT_FAITHFULNESS",
+        "WORKSPACE_SALIENCE_LATER"
+    ],
+    "future_task_types_requiring_new_labels_or_extractors": [
+        "FAILURE_SHAPE",
+        "SCAR_MOTIF",
+        "PATCH_SUCCESS",
+        "VERIFIER_VALUE"
+    ],
+    "label_policy": {
+        "kind": "constructed_label",
+        "confidence": "medium",
+        "harness_outcome_forbidden": true,
+        "reason": "resolved is a synthetic automated verifier outcome over Minimax-M2.5/Qwen3.5 trajectories, not a human or 9to5 harness result"
+    },
+    "recommended_split_policy": {
+        "primary": "repo_grouped",
+        "secondary_grouping": "task_instance_grouped_where_available",
+        "preserve_trace_ids_for_audit": true,
+        "avoid_same_repo_or_task_across_train_test": true,
+        "do_not_use_outcome_labels_for_assignment_except_stratification_reporting": true,
+        "split_manifest_status": "bounded_generated_reviewed",
+        "ratios": {
+            "train": 0.7,
+            "validation": 0.15,
+            "test": 0.15
+        }
+    },
+    "split_manifest_status": "bounded_generated_reviewed",
+    "training_authorization": "not_authorized",
+    "required_gates_before_training": [
+        "full_conversion_artifacts_reproducible",
+        "split_manifest_generated_and_reviewed_over_full_corpus",
+        "leakage_scan_passes",
+        "cross_dataset_leakage_registry_populated_and_disjoint_or_quarantined",
+        "minimax_qwen_output_tos_resolved_or_signed_off",
+        "class_balance_and_baseline_metrics_specified",
+        "training_objective_approved",
+        "model_use_tier_promoted_or_approved_manifest_override",
+        "training_outputs_restricted_to_approved_build_or_model_artifact_paths",
+        "no_runtime_integration"
+    ],
+    "blockers": [
+        "full-corpus conversion not run (bounded-real only this pass)",
+        "Minimax/Qwen model-output ToS not independently verified",
+        "cross-dataset leakage registry exists as a foundation but is not populated with real repo sets",
+        "human training authorization is not granted"
+    ],
+    "leakage_risks": [
+        "resolved_outcome_labels_leakage",
+        "task_or_repo_id_shortcut",
+        "objective_digest_or_length_shortcut",
+        "source_order_shortcut",
+        "swe_bench_family_benchmark_contamination_via_swe_rebench_v2_lineage",
+        "synthetic_verifier_outcome_is_not_absolute_truth",
+        "cross_dataset_repo_overlap_with_dataset_1"
+    ],
+    "caveats": [
+        "training readiness package does not authorize training",
+        "examples remain training_weight 0.0 and model_use_tier train_after_adapter",
+        "trajectories and resolved outcomes are synthetic/automated, not human-graded",
+        "generated build artifacts are ignored and not committed",
+        "no E1/E2 calibration runtime integration J-space SWE-chat or raw data work is authorized"
+    ],
+    "evidence_refs": [
+        "docs/data/registry/open-swe-traces.json",
+        "docs/data/candidate-reviews/open-swe-traces.md",
+        "docs/data/onboarding/open-swe-traces.md",
+        "docs/data/conversion/open-swe-traces-to-pneuma-trace.md",
+        "docs/data/training-readiness/open-swe-traces.md",
+        "docs/data/training-readiness/cross-dataset-leakage-registry.json",
+        "src/pneuma_lab/adapters/open_swe_traces.py",
+        "src/pneuma_lab/converters/open_swe_traces_training.py",
+        "src/pneuma_lab/governance/open_swe_traces.py",
+        "src/pneuma_lab/training/leakage_registry.py",
+        "fixtures/adapters/open_swe_traces/golden/adapter_report.json"
+    ]
+}

@@ -2,7 +2,7 @@
     "$schema": "../schemas/project-status.schema.json",
     "manifest_kind": "pneuma_project_status",
     "manifest_schema_version": "0.1.0",
-    "as_of": "2026-07-09",
+    "as_of": "2026-07-10",
     "project": {
         "role": "standalone_research_evaluation_harness",
         "integration_mode": "standalone",
@@ -246,6 +246,8 @@
             "build/estimators/e2-v0/report.md",
             "docs/data/archive/dialogue-swe-bench/training-readiness.json",
             "docs/data/training-readiness/openhands-sampled.json",
+            "docs/data/training-readiness/open-swe-traces.json",
+            "docs/data/training-readiness/cross-dataset-leakage-registry.json",
             "docs/data/training-readiness/estimator-e1-e2-historical-record.json"
         ],
         "blockers": [

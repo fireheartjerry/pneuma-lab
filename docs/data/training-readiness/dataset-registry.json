@@ -89,8 +89,8 @@
             "source_family": "open-swe-traces",
             "owning_adapter": "pneuma_lab.adapters.open_swe_traces",
             "active": true,
-            "current_stage": "fixture-only",
-            "training_readiness": "fixture-only",
+            "current_stage": "leakage-blocked",
+            "training_readiness": "local-research-only",
             "artifact_license": {
                 "status": "declared",
                 "value": "cc-by-4.0",
@@ -98,27 +98,26 @@
             },
             "authorization": {
                 "training_authorized": false,
-                "reason": "A fixture-first adapter and governance module exist, but no real parquet row has been converted, no stage-1 PneumaTrace adapter exists, the Minimax/Qwen output-ToS caveat is unresolved, and no cross-dataset leakage registry exists against Dataset #1's repos."
+                "reason": "The full two-stage pipeline (real parquet -> PneumaTrace adapter, PneumaTrace -> PneumaTrainingExample converter), bounded real-row conversion, and a bounded repo-grouped split now exist and pass, but full-corpus conversion has not been run, the Minimax/Qwen output-ToS caveat is unresolved, and the cross-dataset leakage registry is a foundation not yet populated with real repo sets."
             },
             "validation": {
-                "task_joins_validated": false,
-                "labels_validated": false,
-                "split_validated": false,
+                "task_joins_validated": true,
+                "labels_validated": true,
+                "split_validated": true,
                 "leakage_controls_present": true
             },
             "blockers": [
-                "no stage-1 PneumaTrace adapter over real trajectory/tool_calls rows yet",
-                "no real parquet row has been converted (fixture-first only)",
+                "full-corpus conversion not run (bounded-real only; ~33 min and ~7.5GB build output)",
                 "Minimax/Qwen output ToS not independently verified",
-                "cross-dataset leakage registry against Dataset #1 repos does not yet exist",
-                "no join/split validation over real data yet"
+                "cross-dataset leakage registry exists but is not populated with real repo sets",
+                "human training authorization is not granted"
             ],
             "advancement_criteria": [
-                "stage-1 PneumaTrace-style adapter for the trajectory/tool_calls shape, analogous to openhands_sampled.py",
-                "bounded real-row conversion gated the same way Dataset #1/Dataset #2 gate it",
-                "repo-grouped split design consistent with Dataset #1, with join validation",
-                "cross-dataset leakage check against SWE-bench-family repos already used elsewhere",
-                "explicit resolution or sign-off on the Minimax/Qwen output-ToS caveat"
+                "reproducible full-corpus conversion artifacts under build/",
+                "full-corpus repo-grouped split generated and reviewed",
+                "cross-dataset leakage registry populated and disjoint (or an explicit quarantine plan)",
+                "explicit resolution or sign-off on the Minimax/Qwen output-ToS caveat",
+                "explicit human training authorization with source/split hash reconciliation"
             ],
             "references": {
                 "docs": [
@@ -128,24 +127,48 @@
                     { "path": "docs/data/onboarding/open-swe-traces.md" },
                     {
                         "path": "docs/data/conversion/open-swe-traces-to-pneuma-trace.md"
+                    },
+                    {
+                        "path": "docs/data/training-readiness/open-swe-traces.md"
                     }
                 ],
                 "manifests": [
-                    { "path": "docs/data/registry/open-swe-traces.json" }
+                    { "path": "docs/data/registry/open-swe-traces.json" },
+                    {
+                        "path": "docs/data/training-readiness/open-swe-traces.json"
+                    },
+                    {
+                        "path": "docs/data/training-readiness/cross-dataset-leakage-registry.json"
+                    }
                 ],
                 "fixtures": [
                     {
                         "path": "fixtures/adapters/open_swe_traces/synthetic_source.json"
+                    },
+                    {
+                        "path": "fixtures/adapters/open_swe_traces/input_rows.jsonl"
+                    },
+                    {
+                        "path": "fixtures/adapters/open_swe_traces/golden/adapter_report.json"
                     }
                 ],
                 "adapters": [
                     { "path": "src/pneuma_lab/adapters/open_swe_traces.py" }
                 ],
-                "converters": [],
+                "converters": [
+                    {
+                        "path": "src/pneuma_lab/converters/open_swe_traces_training.py"
+                    }
+                ],
                 "tests": [
                     { "path": "tests/test_verify_dataset_onboarding.py" },
                     { "path": "tests/test_open_swe_traces_governance.py" },
-                    { "path": "tests/test_open_swe_traces_adapter.py" }
+                    { "path": "tests/test_open_swe_traces_adapter.py" },
+                    { "path": "tests/test_open_swe_traces_golden.py" },
+                    {
+                        "path": "tests/test_open_swe_traces_training_converter.py"
+                    },
+                    { "path": "tests/test_cross_dataset_leakage.py" }
                 ]
             }
         },

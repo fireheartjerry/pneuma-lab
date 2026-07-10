@@ -1,0 +1,45 @@
+{
+    "canonicalization": {
+        "handles_mixed_raw_and_digest_lanes": true,
+        "matches_adapter_digest": "adapters.open_swe_traces._digest",
+        "scheme": "sha256:<hex> over raw repo string"
+    },
+    "checker": "src/pneuma_lab/training/leakage_registry.py",
+    "datasets": {
+        "a": {
+            "dataset_id": "swe-gym-openhands-sampled"
+        },
+        "b": {
+            "dataset_id": "open-swe-traces"
+        }
+    },
+    "joint_training_authorization": {
+        "requires": [
+            "populated repo sets for both datasets",
+            "verified zero overlap OR an explicit split-quarantine plan",
+            "all other per-dataset blockers resolved (e.g. Minimax/Qwen ToS)"
+        ],
+        "status": "not_authorized"
+    },
+    "leakage_registry_schema_version": "0.1.0",
+    "overlap": {
+        "dataset_a_repo_count": null,
+        "dataset_b_repo_count": null,
+        "disjoint": null,
+        "joint_training_safe": false,
+        "note": "repo sets not yet collected; joint training blocked",
+        "overlap_count": null,
+        "overlapping_repo_digests": [],
+        "registry_version": "pneuma-cross-dataset-leakage/0.1.0"
+    },
+    "population_procedure": [
+        "collect Dataset #1 split_group.repo values (raw owner/repo) and Dataset #2 split_group.repo values (sha256 digests)",
+        "canonicalize both with leakage_registry.canonicalize_repo",
+        "run leakage_registry.check_overlap; require overlap_count == 0 OR an explicit split-quarantine plan",
+        "reading every real repo across both datasets is a separately gated later step (heavy; not run in this pass)"
+    ],
+    "purpose": "Foundation registry for cross-dataset repo-overlap leakage checks before any joint training run. Metadata-only and non-authorizing.",
+    "registry_version": "pneuma-cross-dataset-leakage/0.1.0",
+    "status": "foundation_unpopulated",
+    "tests": "tests/test_cross_dataset_leakage.py"
+}
