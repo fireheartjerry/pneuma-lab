@@ -176,6 +176,55 @@ def _boundary(out: PsycheOutputs, evidence_frame: dict, tick: int):
     return ("boundary", receipts, 0.2)
 
 
+def intervention_result_atoms(
+    report: dict,
+    *,
+    run_id: str,
+    tick: int,
+    timestamp: str,
+    evidence_frame: dict,
+    start_ordinal: int,
+) -> list[ThoughtAtom]:
+    """Run-level atoms for each tested counterfactual (from a paired report).
+
+    Emitted only for tests that genuinely perturbed and passed; the restore/null
+    scenario produces none. Attached to the final tick by the paired stream.
+    """
+    atoms: list[ThoughtAtom] = []
+    ordinal = start_ordinal
+    for test in report.get("tests", []) or []:
+        if (
+            not test.get("passed")
+            or abs(float(test.get("observed_delta", 0.0))) <= _EPS
+        ):
+            continue
+        receipts = [
+            _receipt("intervention.experiment_id", test.get("experiment_id")),
+            _receipt("intervention.target_signal", test.get("target_signal")),
+            _receipt("intervention.control_value", test.get("control_value")),
+            _receipt("intervention.treated_value", test.get("treated_value")),
+            _receipt("intervention.observed_delta", test.get("observed_delta")),
+            _receipt("intervention.null_delta", test.get("null_delta")),
+        ]
+        atoms.append(
+            ThoughtAtom(
+                atom_id=frame_id(run_id, tick, "atom", ordinal),
+                type="intervention_result",
+                run_id=run_id,
+                tick=tick,
+                timestamp=timestamp,
+                receipts=receipts,
+                intensity=clamp01(abs(float(test.get("observed_delta", 0.0)))),
+                crediting_family=ATOM_FAMILY["intervention_result"],
+                credit_status=credit_status_for("intervention_result", evidence_frame),
+                min_level=MIN_LEVEL["intervention_result"],
+                changed_from_prev=True,
+            )
+        )
+        ordinal += 1
+    return atoms
+
+
 def atoms_for_tick(
     out: PsycheOutputs,
     prev: PsycheOutputs | None,
@@ -236,4 +285,4 @@ def atoms_for_tick(
     return atoms
 
 
-__all__ = ["atoms_for_tick"]
+__all__ = ["atoms_for_tick", "intervention_result_atoms"]

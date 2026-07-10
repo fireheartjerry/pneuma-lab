@@ -1,8 +1,9 @@
-"""voice_run — drive a subject over a timeline and render its thought stream.
+"""voice_run / voice_run_paired — drive a subject and render its thought stream.
 
-Deterministic (Phase A) mode only: no LLM. The evidence frame produced by the
-harness is used verbatim as the authoritative level source and echoed into the
-result; the voice never re-scores and never mutates it.
+The evidence frame produced by the harness/runner is used verbatim as the level
+source and echoed into the result; the voice never re-scores and never mutates
+it. An optional VoiceSkin makes each tick read naturally, but is accepted only if
+verify_voiced passes — otherwise the deterministic text stands.
 """
 
 from __future__ import annotations
@@ -17,44 +18,62 @@ from . import gate as _gate
 from . import render_deterministic as _render
 from . import sidecar as _sidecar
 from .atoms import ThoughtAtom
+from .verify import verify_voiced
 
 
-def voice_run(
-    input_frames: list[dict],
+def _render_tick(atoms, skin):
+    rendered = [_render.render(a) for a in atoms]
+    dicts = [asdict(r) for r in rendered]
+    if skin is not None and rendered:
+        source = [r.text_deterministic for r in rendered]
+        voiced = skin.voice_tick([asdict(a) for a in atoms], dicts)
+        ok, _reasons = verify_voiced(voiced, source)
+        if ok:
+            for d in dicts:
+                d["text_voiced"] = voiced
+                d["voice_status"] = "voiced"
+        else:
+            for d in dicts:
+                d["voice_status"] = "voiced_rejected_fell_back"
+    return dicts
+
+
+def _assemble(
     *,
-    subject_factory=ReferencePsyche,
-    validate: bool = True,
-    min_intensity: float = 1e-6,
-) -> dict:
-    """Render the deterministic thought stream for one replay run."""
-    subject = subject_factory()
-    result = ReplayHarness(subject, validate=validate).run(input_frames)
-    evidence_frame = result.evidence_frame
+    result,
+    evidence_frame,
+    subject_name,
+    skin,
+    min_intensity,
+    extra_last_tick_atoms=None,
+):
     run_id = evidence_frame.get("run_id") or (
         result.tick_outputs[0].psyche_state.get("run_id")
         if result.tick_outputs
         else "run"
     )
-
     per_tick_atoms: list[list[ThoughtAtom]] = []
     all_atoms: list[dict] = []
     all_rendered: list[dict] = []
+    last = len(result.tick_outputs) - 1
     for i, out in enumerate(result.tick_outputs):
         prev = result.tick_outputs[i - 1] if i else None
         atoms = _extract.atoms_for_tick(
             out, prev, tick=i, evidence_frame=evidence_frame
         )
+        if i == last and extra_last_tick_atoms:
+            atoms = atoms + extra_last_tick_atoms
         atoms = _gate.gate(atoms, min_intensity=min_intensity)
         per_tick_atoms.append(atoms)
+        for d in _render_tick(atoms, skin):
+            all_rendered.append(d)
         for atom in atoms:
             all_atoms.append(asdict(atom))
-            all_rendered.append(asdict(_render.render(atom)))
-
-    subject_name = type(subject).__name__
+    mode = "voiced" if skin is not None else "deterministic"
     sidecar = _sidecar.build_sidecar(
         run_id=run_id,
         subject=subject_name,
-        mode="deterministic",
+        mode=mode,
         evidence_frame=evidence_frame,
         per_tick_atoms=per_tick_atoms,
     )
@@ -63,14 +82,71 @@ def voice_run(
         "schema_version": "0.1.0",
         "run_id": run_id,
         "subject": subject_name,
-        "mode": "deterministic",
+        "mode": mode,
         "evidence_level": int(evidence_frame.get("evidence_level", 0)),
         "atoms": all_atoms,
         "rendered": all_rendered,
         "sidecar": sidecar,
-        # Echoed for auditing/anti-gaming tests; NOT re-scored by the voice.
         "evidence_frame": evidence_frame,
     }
 
 
-__all__ = ["voice_run"]
+def voice_run(
+    input_frames,
+    *,
+    subject_factory=ReferencePsyche,
+    validate=True,
+    min_intensity=1e-6,
+    skin=None,
+):
+    """Deterministic (or voiced) thought stream for a passive replay run."""
+    subject = subject_factory()
+    result = ReplayHarness(subject, validate=validate).run(input_frames)
+    return _assemble(
+        result=result,
+        evidence_frame=result.evidence_frame,
+        subject_name=type(subject).__name__,
+        skin=skin,
+        min_intensity=min_intensity,
+    )
+
+
+def voice_run_paired(
+    input_frames, *, subject_factory=ReferencePsyche, min_intensity=1e-6, skin=None
+):
+    """Thought stream for a paired replay: renders the treated arm and appends
+    intervention_result atoms (the tested counterfactuals) to the final tick."""
+    from pneuma_lab.interventions.runner import PairedReplayRunner
+
+    paired = PairedReplayRunner(psyche_factory=subject_factory).run(input_frames)
+    evidence_frame = paired.evidence_frame
+    treated = paired.treated
+    run_id = evidence_frame.get("run_id") or (
+        treated.tick_outputs[0].psyche_state.get("run_id")
+        if treated.tick_outputs
+        else "run"
+    )
+    timestamp = (
+        treated.tick_outputs[-1].psyche_state.get("timestamp", "")
+        if treated.tick_outputs
+        else ""
+    )
+    extra = _extract.intervention_result_atoms(
+        paired.report,
+        run_id=run_id,
+        tick=max(0, len(treated.tick_outputs) - 1),
+        timestamp=timestamp,
+        evidence_frame=evidence_frame,
+        start_ordinal=1000,
+    )
+    return _assemble(
+        result=treated,
+        evidence_frame=evidence_frame,
+        subject_name=type(subject_factory()).__name__,
+        skin=skin,
+        min_intensity=min_intensity,
+        extra_last_tick_atoms=extra,
+    )
+
+
+__all__ = ["voice_run", "voice_run_paired"]

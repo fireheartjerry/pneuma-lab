@@ -113,6 +113,20 @@ def _boundary(atom: ThoughtAtom) -> str:
     )
 
 
+def _intervention_result(atom: ThoughtAtom) -> str:
+    exp = receipt_value(atom, "intervention.experiment_id", "an intervention")
+    delta = receipt_value(atom, "intervention.observed_delta", 0.0)
+    null_delta = receipt_value(atom, "intervention.null_delta", 0.0)
+    ctrl = receipt_value(atom, "intervention.control_value", 0.0)
+    treated = receipt_value(atom, "intervention.treated_value", 0.0)
+    return (
+        f"The counterfactual was tested ({exp}): the target signal moved "
+        f"{_num(ctrl, '.2f')} → {_num(treated, '.2f')} (delta {_num(delta, '.2f')}); "
+        f"under the null it moved {_num(null_delta, '.2f')}. This part of the state is "
+        "load-bearing, not decoration."
+    )
+
+
 def _fallback(atom: ThoughtAtom) -> str:
     """Grounded generic line for atom types without a specialized renderer yet."""
     parts = ", ".join(
@@ -133,6 +147,7 @@ _RENDERERS = {
     "memory_activation": _memory_activation,
     "uncertainty": _uncertainty,
     "counterfactual": _counterfactual,
+    "intervention_result": _intervention_result,
     "boundary": _boundary,
 }
 

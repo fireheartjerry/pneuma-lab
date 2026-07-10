@@ -449,3 +449,46 @@ def test_scrub_catches_more_phenomenology():
     ):
         clean, removed = R.scrub_forbidden(phrase)
         assert removed, f"not scrubbed: {phrase}"
+
+
+_IV_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "interventions"
+
+
+def test_paired_stream_has_intervention_result_and_is_l4_capable():
+    s = ST.voice_run_paired(load_jsonl(_IV_DIR / "clamp_tension.jsonl"))
+    kinds = {a["type"] for a in s["atoms"]}
+    assert "intervention_result" in kinds
+    ir = next(a for a in s["atoms"] if a["type"] == "intervention_result")
+    paths = {r["field_path"] for r in ir["receipts"]}
+    assert (
+        "intervention.observed_delta" in paths and "intervention.experiment_id" in paths
+    )
+
+
+def test_restore_null_has_no_intervention_result():
+    s = ST.voice_run_paired(load_jsonl(_IV_DIR / "restore_null.jsonl"))
+    assert "intervention_result" not in {a["type"] for a in s["atoms"]}
+
+
+def test_skin_cannot_inflate_the_level():
+    frames = load_jsonl(_FIXTURE)
+    off = ST.voice_run(frames)
+    on = ST.voice_run(frames, skin=VZ.ReferenceVoiceSkin())
+    import json
+
+    assert json.dumps(off["evidence_frame"], sort_keys=True) == json.dumps(
+        on["evidence_frame"], sort_keys=True
+    )
+    assert off["evidence_level"] == on["evidence_level"]
+    assert any(r["voice_status"] == "voiced" for r in on["rendered"])
+
+
+def test_voiced_falls_back_on_rejected_drift():
+    class DriftSkin:
+        def voice_tick(self, atoms, rendered):
+            return "verification pressure of 0.99999 forms"
+
+    frames = load_jsonl(_FIXTURE)
+    on = ST.voice_run(frames, skin=DriftSkin())
+    assert all("0.99999" not in (r.get("text_voiced") or "") for r in on["rendered"])
+    assert any(r["voice_status"] == "voiced_rejected_fell_back" for r in on["rendered"])
