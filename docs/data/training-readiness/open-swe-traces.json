@@ -14,8 +14,10 @@
     "conversion_status": {
         "stage_1_adapter_real_rows": "implemented_and_validated",
         "bounded_real_conversion": "run",
-        "full_conversion": "gated_available_not_run",
-        "full_conversion_reason": "one full shard (2500 rows) takes ~24s and emits ~89MB of processed traces; full 84-shard conversion is ~33 min and ~7.5GB of ignored build output, deferred as impractical for this pass"
+        "representative_full_shard_conversion": "run (shard 0: 1960 examples, 0 invalid, reconciled)",
+        "full_corpus_conversion": "gated_available_not_run",
+        "full_corpus_conversion_reason": "single-batch run() holds all traces in memory (~7.5GB) and takes ~33 min; per-shard streaming is the practical full path and is the tracked next step",
+        "cross_dataset_leakage_registry": "populated (Dataset #1 vs #2): 7 overlapping repos, NOT disjoint"
     },
     "generated_artifact_refs": {
         "bounded_examples_jsonl": "build/training_examples/open-swe-traces/bounded-sample/examples.jsonl",
@@ -118,7 +120,9 @@
         "docs/data/candidate-reviews/open-swe-traces.md",
         "docs/data/onboarding/open-swe-traces.md",
         "docs/data/conversion/open-swe-traces-to-pneuma-trace.md",
+        "docs/data/conversion/open-swe-traces-full-conversion-review.md",
         "docs/data/training-readiness/open-swe-traces.md",
+        "docs/data/training-readiness/open-swe-traces-split-review.md",
         "docs/data/training-readiness/cross-dataset-leakage-registry.json",
         "src/pneuma_lab/adapters/open_swe_traces.py",
         "src/pneuma_lab/converters/open_swe_traces_training.py",

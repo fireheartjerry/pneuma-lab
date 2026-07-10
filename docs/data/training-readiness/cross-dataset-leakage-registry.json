@@ -5,41 +5,51 @@
         "scheme": "sha256:<hex> over raw repo string"
     },
     "checker": "src/pneuma_lab/training/leakage_registry.py",
-    "datasets": {
-        "a": {
-            "dataset_id": "swe-gym-openhands-sampled"
-        },
-        "b": {
-            "dataset_id": "open-swe-traces"
-        }
-    },
+    "full_digest_lists_ref": "build/leakage/open-swe-traces-vs-openhands-sampled/registry_full.json (ignored; regenerate from raw repo columns)",
     "joint_training_authorization": {
         "requires": [
-            "populated repo sets for both datasets",
-            "verified zero overlap OR an explicit split-quarantine plan",
-            "all other per-dataset blockers resolved (e.g. Minimax/Qwen ToS)"
+            "overlapping repos quarantined to a single split across datasets OR held out",
+            "per-dataset blockers resolved (e.g. Minimax/Qwen ToS for open-swe-traces)",
+            "explicit human authorization manifest"
         ],
         "status": "not_authorized"
     },
     "leakage_registry_schema_version": "0.1.0",
-    "overlap": {
-        "dataset_a_repo_count": null,
-        "dataset_b_repo_count": null,
-        "disjoint": null,
-        "joint_training_safe": false,
-        "note": "repo sets not yet collected; joint training blocked",
-        "overlap_count": null,
-        "overlapping_repo_digests": [],
-        "registry_version": "pneuma-cross-dataset-leakage/0.1.0"
-    },
-    "population_procedure": [
-        "collect Dataset #1 split_group.repo values (raw owner/repo) and Dataset #2 split_group.repo values (sha256 digests)",
-        "canonicalize both with leakage_registry.canonicalize_repo",
-        "run leakage_registry.check_overlap; require overlap_count == 0 OR an explicit split-quarantine plan",
-        "reading every real repo across both datasets is a separately gated later step (heavy; not run in this pass)"
+    "pairs": [
+        {
+            "dataset_a": "swe-gym-openhands-sampled",
+            "dataset_a_repo_count": 11,
+            "dataset_b": "open-swe-traces",
+            "dataset_b_repo_count": 2654,
+            "derivation": "Dataset #1 repos derived from OpenHands-Sampled instance_ids; Dataset #2 repos read from the raw repo column of all 84 shards. Columns only; no trajectory/patch content read.",
+            "disjoint": false,
+            "finding": "NOT disjoint: 7 of Dataset #1 s 11 repos also appear in Dataset #2. A unified PneumaBrain-v0 run mixing these lanes must quarantine the overlapping repos to one split (or hold them out) to avoid repo-level train/test leakage.",
+            "joint_training_safe": false,
+            "overlap_count": 7,
+            "overlap_fraction_of_dataset_a": 0.6364,
+            "overlap_fraction_of_dataset_b": 0.0026,
+            "overlapping_repo_digests": [
+                "sha256:42cc858df72902d01b490ee7ba22dc04077594c809aa9c2b8b874f146f095c86",
+                "sha256:44768a5ecf8fb4e320748b3e48cfa1b8115c90e6823efeee8eb0137e2efff0d4",
+                "sha256:6e7b9e76bfeefeedf2be194ded26d0535d72133edc82562146f1e0399ca0f2d1",
+                "sha256:9c2cc36f0c46f7f0ba487d2b3c872e8ca31e06d019d2f1ec40ab54aed19150cf",
+                "sha256:a73b7405bfe53dfbb873c23c8093bd68be357da15bfb1cade770ae5b13d25456",
+                "sha256:b9435b23c296d5916c44d90c5f1b0e6ea5585f142ce71ea39122b5beab60f698",
+                "sha256:f63bc72489f6605e05ff36654f1d615e149b1d499b57cb8589488f49a19de78e"
+            ],
+            "overlapping_repos": [
+                "conan-io/conan",
+                "dask/dask",
+                "facebookresearch/hydra",
+                "getmoto/moto",
+                "iterative/dvc",
+                "modin-project/modin",
+                "pandas-dev/pandas"
+            ]
+        }
     ],
-    "purpose": "Foundation registry for cross-dataset repo-overlap leakage checks before any joint training run. Metadata-only and non-authorizing.",
+    "purpose": "Cross-dataset repo-overlap leakage checks before any joint training run. Metadata-only and non-authorizing.",
     "registry_version": "pneuma-cross-dataset-leakage/0.1.0",
-    "status": "foundation_unpopulated",
+    "status": "populated",
     "tests": "tests/test_cross_dataset_leakage.py"
 }

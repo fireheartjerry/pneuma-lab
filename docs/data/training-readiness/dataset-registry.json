@@ -129,7 +129,13 @@
                         "path": "docs/data/conversion/open-swe-traces-to-pneuma-trace.md"
                     },
                     {
+                        "path": "docs/data/conversion/open-swe-traces-full-conversion-review.md"
+                    },
+                    {
                         "path": "docs/data/training-readiness/open-swe-traces.md"
+                    },
+                    {
+                        "path": "docs/data/training-readiness/open-swe-traces-split-review.md"
                     }
                 ],
                 "manifests": [

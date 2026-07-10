@@ -65,6 +65,22 @@ def test_foundation_manifest_is_unpopulated_and_blocked() -> None:
     assert manifest["joint_training_authorization"]["status"] == "not_authorized"
 
 
+def test_committed_registry_doc_is_self_consistent() -> None:
+    import json
+    import os
+
+    path = os.path.join(
+        "docs", "data", "training-readiness", "cross-dataset-leakage-registry.json"
+    )
+    doc = json.load(open(path, encoding="utf-8"))
+    assert doc["status"] == "populated"
+    for pair in doc["pairs"]:
+        assert pair["overlap_count"] == len(pair["overlapping_repo_digests"])
+        assert pair["disjoint"] == (pair["overlap_count"] == 0)
+        assert pair["joint_training_safe"] == pair["disjoint"]
+    assert doc["joint_training_authorization"]["status"] == "not_authorized"
+
+
 def test_populated_manifest_runs_the_check() -> None:
     manifest = lr.build_registry_manifest(
         dataset_a_id="swe-gym-openhands-sampled",
