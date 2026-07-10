@@ -288,3 +288,40 @@ def test_sidecar_records_receipts_credit_and_family_status():
     first = sc["ticks"][0]
     assert first["tick"] == 0
     assert all("credit_status" in a and "receipts" in a for a in first["atoms"])
+
+
+from pneuma_lab.voice import stream as ST
+
+
+def test_voice_run_reference_is_l3_and_rich():
+    s = ST.voice_run(load_jsonl(_FIXTURE))
+    assert s["subject"] == "ReferencePsyche"
+    assert s["evidence_level"] == 3
+    kinds = {a["type"] for a in s["atoms"]}
+    assert {"appraisal", "competition", "counterfactual"} <= kinds
+    assert "intervention_result" not in kinds
+    assert len(s["atoms"]) == len(s["rendered"])
+    # The stream (minus the audit-only evidence_frame echo) is schema-valid.
+    doc = {k: v for k, v in s.items() if k != "evidence_frame"}
+    assert V.validate_thought_stream(doc) is doc
+
+
+def test_voice_run_baseline_subject_is_thinner_than_reference():
+    from pneuma_lab.nervous_system.subject import BaselinePsycheSubject
+
+    ref = ST.voice_run(load_jsonl(_FIXTURE))
+    base = ST.voice_run(load_jsonl(_FIXTURE), subject_factory=BaselinePsycheSubject)
+    assert base["subject"] == "BaselinePsycheSubject"
+    assert len(base["atoms"]) <= len(ref["atoms"])
+
+
+def test_voice_never_alters_the_evidence_frame():
+    frames = load_jsonl(_FIXTURE)
+    bare = ReplayHarness(ReferencePsyche()).run(frames).evidence_frame
+    s = ST.voice_run(frames)
+    assert s["evidence_level"] == bare["evidence_level"]
+    import json
+
+    assert json.dumps(s["evidence_frame"], sort_keys=True) == json.dumps(
+        bare, sort_keys=True
+    )
