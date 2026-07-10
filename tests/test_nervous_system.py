@@ -332,3 +332,69 @@ def test_low_risk_control_pressure_below_high():
         _model(), _load_trace(FIX / "trace_low_risk.jsonl"), _gov(), prefix="full"
     )
     assert lo["control_value"] < hi["control_value"]
+
+
+# --------------------------------------------------------------------------- #
+# Task 8: CLI                                                                  #
+# --------------------------------------------------------------------------- #
+def test_cli_writes_bundle(tmp_path):
+    out = tmp_path / "out"
+    cmd = [
+        sys.executable,
+        "-m",
+        "pneuma_lab.nervous_system",
+        "--trace",
+        str(FIX / "trace_high_risk.jsonl"),
+        "--model",
+        str(FIX / "model.json"),
+        "--governance",
+        str(FIX / "governance_on.json"),
+        "--out",
+        str(out),
+        "--prefix",
+        "full",
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO))
+    assert proc.returncode == 0, proc.stderr
+    bundle_file = out / "output_bundles.jsonl"
+    assert bundle_file.exists()
+    rows = [
+        json.loads(x)
+        for x in bundle_file.read_text(encoding="utf-8").splitlines()
+        if x.strip()
+    ]
+    assert rows and rows[0]["bundle_kind"] == "pneuma_output"
+    assert (out / "shadow_log.jsonl").exists()
+
+
+# --------------------------------------------------------------------------- #
+# Task 9: source hygiene — no 9to5 / verifier imports                         #
+# --------------------------------------------------------------------------- #
+def test_nervous_system_has_no_forbidden_imports():
+    import ast
+
+    pkg = REPO / "src" / "pneuma_lab" / "nervous_system"
+    # Real import statements only: no 9to5 module, no verifier module. The word
+    # "9to5" may legitimately appear in prose (e.g. "imports nothing from 9to5").
+    for py in pkg.glob("*.py"):
+        tree = ast.parse(py.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                names = [node.module or ""]
+            else:
+                continue
+            for name in names:
+                low = name.lower()
+                assert "9to5" not in low, f"{py.name} imports 9to5 module {name!r}"
+                assert "verifier" not in low, (
+                    f"{py.name} imports a verifier module {name!r}"
+                )
+    # No hard-coded 9to5 filesystem path or verifier-verdict access anywhere.
+    for py in pkg.glob("*.py"):
+        text = py.read_text(encoding="utf-8")
+        for needle in ("C:/9to5", "C:\\9to5", "c:/9to5", "verifier_verdict"):
+            assert needle not in text, (
+                f"{py.name} contains forbidden reference {needle!r}"
+            )
