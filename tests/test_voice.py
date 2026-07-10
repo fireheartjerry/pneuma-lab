@@ -325,3 +325,23 @@ def test_voice_never_alters_the_evidence_frame():
     assert json.dumps(s["evidence_frame"], sort_keys=True) == json.dumps(
         bare, sort_keys=True
     )
+
+
+from pneuma_lab.voice import transcript as T
+
+
+def test_transcript_is_byte_deterministic(tmp_path):
+    frames = load_jsonl(_FIXTURE)
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    T.write_transcript(ST.voice_run(frames), a)
+    T.write_transcript(ST.voice_run(frames), b)
+    for name in ("stream.md", "stream.jsonl", "sidecar.json"):
+        assert (a / name).read_bytes() == (b / name).read_bytes(), name
+
+
+def test_transcript_md_reads_as_a_thought_stream(tmp_path):
+    T.write_transcript(ST.voice_run(load_jsonl(_FIXTURE)), tmp_path)
+    md = (tmp_path / "stream.md").read_text(encoding="utf-8")
+    assert "evidence level 3" in md.lower()
+    assert "tick 0" in md.lower()
