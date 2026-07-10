@@ -91,6 +91,14 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
   multi-task trainer: observable-only features, repo-grouped split, per-task
   logistic heads, a fail-closed corpus-authorization preflight, and a
   deterministic model/metrics/report writer. Advisory-only; no runtime.
+- `src/pneuma_lab/nervous_system/` (PneumaNervousSystem-v0) is the shadow-mode,
+  advisory-only I/O shell: it wraps PneumaBrain-v0.1 risk into a `RiskEstimateFrame`,
+  a bounded verification-pressure CANDIDATE, an `InstinctSignal`, and a `CausalTrace`,
+  aggregated into `PneumaInputBundle`/`PneumaOutputBundle` containers. An
+  ablation/null test emits a conservative Level-1-compatible
+  `ConsciousnessEvidenceFrame`. It never actuates, grants authority, or contacts a
+  verifier; the kill switch suppresses control frames and writes an audit row.
+  See `docs/nervous-system-v0.md`.
 - `src/pneuma_lab/status.py` validates and reports the canonical current-state
   manifest with `python -m pneuma_lab.status --check`.
 - `fixtures/sample_run.jsonl` is a failure-motif escalation timeline used by the

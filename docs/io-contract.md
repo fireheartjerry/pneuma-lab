@@ -49,16 +49,31 @@ verifier_invariance)` then clamped to `global_max`.
 
 ## Output frames (8) — what the psyche produces
 
-| Frame                          | Schema                                     | Represents                               | Key fields                                                                                                                                                                                            |
-| ------------------------------ | ------------------------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **PsycheStateFrame**           | `psyche-state-frame.schema.json`           | Integrated internal state                | `affect_manifold` (9 axes), `prototype_mixture`, `mood`, `drives` (8×`{level,setpoint}`), `derived_signals`, `personality_ref`, `self_model`, `dissonance`, `identity_continuity_state`, `state_hash` |
-| **WorkspaceBroadcast**         | `workspace-broadcast.schema.json`          | GWT competition winner                   | `winning_faculty`, `competitors`, `salience_scores` (10 terms), `conviction`, `urgency`, `broadcast_packet`, `expected_loss_if_ignored`                                                               |
-| **InstinctSignal**             | `instinct-signal.schema.json`              | Fast scar/motif/anomaly detection        | `motif_id`, `match_type`, `confidence`, `severity`, `matched_events`, `historical_base_rate`, `false_positive_rate`, `recommended_action`, `authority_request`, `explanation_trace_id`                |
-| **ControlPressureVector**      | `control-pressure-vector.schema.json`      | Bounded pressure (NOT commands)          | `authority_tier`, `pressures` (effort, verification, planning, execution, society_debate, memory_consolidation, exploration, scope_narrowing, strategy_switching), `causal_trace_id`                  |
-| **AuthorityRequest**           | `authority-request.schema.json`            | Discrete requested authority             | `requesting_faculty`, `domain`, `requested_tier`, `conviction`, `track_record_support`, `expected_loss_if_denied`, `resolution` (granted_tier + binding_cap + all 5 caps)                             |
+| Frame                          | Schema                                     | Represents                               | Key fields                                                                                                                                                                                              |
+| ------------------------------ | ------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PsycheStateFrame**           | `psyche-state-frame.schema.json`           | Integrated internal state                | `affect_manifold` (9 axes), `prototype_mixture`, `mood`, `drives` (8×`{level,setpoint}`), `derived_signals`, `personality_ref`, `self_model`, `dissonance`, `identity_continuity_state`, `state_hash`   |
+| **WorkspaceBroadcast**         | `workspace-broadcast.schema.json`          | GWT competition winner                   | `winning_faculty`, `competitors`, `salience_scores` (10 terms), `conviction`, `urgency`, `broadcast_packet`, `expected_loss_if_ignored`                                                                 |
+| **InstinctSignal**             | `instinct-signal.schema.json`              | Fast scar/motif/anomaly detection        | `motif_id`, `match_type`, `confidence`, `severity`, `matched_events`, `historical_base_rate`, `false_positive_rate`, `recommended_action`, `authority_request`, `explanation_trace_id`                  |
+| **ControlPressureVector**      | `control-pressure-vector.schema.json`      | Bounded pressure (NOT commands)          | `authority_tier`, `pressures` (effort, verification, planning, execution, society_debate, memory_consolidation, exploration, scope_narrowing, strategy_switching), `causal_trace_id`                    |
+| **AuthorityRequest**           | `authority-request.schema.json`            | Discrete requested authority             | `requesting_faculty`, `domain`, `requested_tier`, `conviction`, `track_record_support`, `expected_loss_if_denied`, `resolution` (granted_tier + binding_cap + all 5 caps)                               |
 | **CausalTrace**                | `causal-trace.schema.json`                 | Auditable causal linkage (**Level-4**)   | `input_evidence_refs`, `previous_state_hash`, `new_state_hash`, `changed_dimensions`, `state_update_mechanism`, `causal_path`, `emitted_outputs`, `interventions_applied`, `counterfactual_predictions` |
-| **ConsciousnessEvidenceFrame** | `consciousness-evidence-frame.schema.json` | Evidence-level scoring                   | `indicator_families` (9), `evidence_level` (0–4 in v0.2), `evaluation_scope`, `real_subject_claim_status`, typed `intervention_tests.results`, `paired_replay_provenance`                           |
-| **GroundedSelfReport**         | `grounded-self-report.schema.json`         | Human-facing report, downstream of state | `report_text`, `affect_state_hash` (required), `workspace_broadcast_id`, `causal_trace_id`, `reported_measurements`, `evidence_refs`, `filtered_forbidden_claims`                                   |
+| **ConsciousnessEvidenceFrame** | `consciousness-evidence-frame.schema.json` | Evidence-level scoring                   | `indicator_families` (9), `evidence_level` (0–4 in v0.2), `evaluation_scope`, `real_subject_claim_status`, typed `intervention_tests.results`, `paired_replay_provenance`                               |
+| **GroundedSelfReport**         | `grounded-self-report.schema.json`         | Human-facing report, downstream of state | `report_text`, `affect_state_hash` (required), `workspace_broadcast_id`, `causal_trace_id`, `reported_measurements`, `evidence_refs`, `filtered_forbidden_claims`                                       |
+| **RiskEstimateFrame**          | `risk-estimate-frame.schema.json`          | Advisory model risk (shadow mode)        | `model_id`, `prefix`, `failure_probability`, `risk_bucket`, `recommended_use` (`advisory_only`), `authority_granted` (`none`), `blocked_uses`, `features_digest`, `causal_trace_id`                     |
+
+## Bundles (I/O containers)
+
+Two container manifests aggregate the frames above for the shadow nervous system
+(`x-pneuma-schema-kind: io_bundle`, validated via `validate.validate_bundle`):
+
+| Bundle                 | Schema                             | Members                                                                                                                                                   |
+| ---------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PneumaInputBundle**  | `pneuma-input-bundle.schema.json`  | `world`, `agent_trace`, `governance` + nullable placeholders `memory`, `psyche_state`, `workspace`                                                        |
+| **PneumaOutputBundle** | `pneuma-output-bundle.schema.json` | `risk_estimate`, `instinct`, `control_pressure` (candidate), `causal_trace`, `consciousness_evidence`, `blocked_uses`, `limitations`, `governance_status` |
+
+The producer is the shadow nervous system (`python -m pneuma_lab.nervous_system`);
+it wraps PneumaBrain-v0.1 risk into advisory frames without runtime authority or
+verifier contact. See [`nervous-system-v0.md`](nervous-system-v0.md).
 
 ## The authority `min` (shared by GovernanceFrame + AuthorityRequest)
 

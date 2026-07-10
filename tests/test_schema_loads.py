@@ -10,7 +10,8 @@ from pneuma_lab import INPUT_FRAMES, OUTPUT_FRAMES, __version__
 from pneuma_lab import schemas as pls
 
 EXPECTED_INPUT_COUNT = 5
-EXPECTED_OUTPUT_COUNT = 8
+EXPECTED_OUTPUT_COUNT = 9
+EXPECTED_IO_BUNDLE_COUNT = 2
 EXPECTED_TRAINING_COUNT = 4
 EXPECTED_MANIFEST_COUNT = 1
 SCHEMA_VERSION_OVERRIDES = {
@@ -26,6 +27,7 @@ def test_expected_counts() -> None:
     assert len(pls.INPUT_SCHEMA_FILES) == EXPECTED_INPUT_COUNT
     assert len(pls.OUTPUT_SCHEMA_FILES) == EXPECTED_OUTPUT_COUNT
     assert len(pls.ENVELOPE_SCHEMA_FILES) == 1
+    assert len(pls.IO_BUNDLE_SCHEMA_FILES) == EXPECTED_IO_BUNDLE_COUNT
     assert len(pls.TRAINING_SCHEMA_FILES) == EXPECTED_TRAINING_COUNT
     assert len(pls.MANIFEST_SCHEMA_FILES) == EXPECTED_MANIFEST_COUNT
     assert (
@@ -33,6 +35,7 @@ def test_expected_counts() -> None:
         == EXPECTED_INPUT_COUNT
         + EXPECTED_OUTPUT_COUNT
         + 1
+        + EXPECTED_IO_BUNDLE_COUNT
         + EXPECTED_TRAINING_COUNT
         + EXPECTED_MANIFEST_COUNT
     )

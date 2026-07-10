@@ -40,6 +40,7 @@ OUTPUT_FRAMES = (
     "causal_trace",
     "consciousness_evidence",
     "grounded_self_report",
+    "risk_estimate",
 )
 
 __all__ = [
