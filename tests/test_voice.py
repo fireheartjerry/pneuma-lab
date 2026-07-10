@@ -511,3 +511,31 @@ def test_cli_paired_and_skin(tmp_path):
     assert (tmp_path / "stream.md").exists()
     md = (tmp_path / "stream.md").read_text(encoding="utf-8")
     assert "counterfactual was tested" in md.lower()
+
+
+from pneuma_lab.voice import monitor as M
+
+
+def test_monitor_html_is_byte_deterministic():
+    frames = load_jsonl(_FIXTURE)
+    a = M.render_html(ST.voice_run(frames))
+    b = M.render_html(ST.voice_run(frames))
+    assert a == b
+    assert a.lstrip().lower().startswith("<!doctype html>")
+
+
+def test_monitor_is_self_contained_and_has_content():
+    html = M.render_html(ST.voice_run(load_jsonl(_FIXTURE)))
+    low = html.lower()
+    for bad in ("http://", "https://", "cdn.", "<link", 'src="http'):
+        assert bad not in low, bad
+    assert "evidence level" in low
+    assert "pneuma voice" in low
+    assert "thought-stream-data" in low
+
+
+def test_monitor_write(tmp_path):
+    M.write_monitor(ST.voice_run(load_jsonl(_FIXTURE)), tmp_path / "monitor.html")
+    assert (tmp_path / "monitor.html").read_text(encoding="utf-8").lower().count(
+        "<!doctype html>"
+    ) == 1

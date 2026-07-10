@@ -13,6 +13,7 @@ __all__ = [
     "atoms",
     "extract",
     "gate",
+    "monitor",
     "render_deterministic",
     "sidecar",
     "stream",
