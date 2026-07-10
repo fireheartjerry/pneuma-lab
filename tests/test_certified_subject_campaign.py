@@ -90,3 +90,35 @@ def test_runner_eligibility_tracks_certification():
     assert ev2["paired_replay_provenance"]["status"] == "runner_verified"
     # ...but the level stays honestly capped below 3 (no faked promotion)
     assert ev2["evidence_level"] < 3
+
+
+# --------------------------------------------------------------------------- #
+# Task 2: CertifiedBaselineSubjectFactory + certify helper                    #
+# --------------------------------------------------------------------------- #
+def test_certified_baseline_factory_is_byte_stable_and_earns_eligibility():
+    from pneuma_lab.interventions import certified_subjects as cs
+    from pneuma_lab.interventions.provenance import output_frames_sha256
+    from pneuma_lab.nervous_system.certified_subject import (
+        CertifiedBaselineSubjectFactory,
+        certify_baseline_subject,
+    )
+    from pneuma_lab.replay.harness import ReplayHarness
+
+    cs.clear_registry()
+    factory = CertifiedBaselineSubjectFactory(seed_scars={"m1:regress": 0.5})
+    a = output_frames_sha256(
+        ReplayHarness(factory(), validate=True).run(_frames("base.jsonl")).tick_outputs
+    )
+    b = output_frames_sha256(
+        ReplayHarness(factory(), validate=True).run(_frames("base.jsonl")).tick_outputs
+    )
+    assert a == b
+    h = ReplayHarness(factory(), validate=True)
+    assert output_frames_sha256(
+        h.run(_frames("base.jsonl")).tick_outputs
+    ) == output_frames_sha256(h.run(_frames("base.jsonl")).tick_outputs)
+    cs.clear_registry()
+    certified_factory, result = certify_baseline_subject(seed_scars={"m1:regress": 0.5})
+    assert result["passed"] is True
+    assert cs.is_certified(certified_factory) is True
+    assert "CertifiedBaselineSubjectFactory" in result["subject_factory"]
