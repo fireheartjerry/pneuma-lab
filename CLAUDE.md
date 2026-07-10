@@ -87,6 +87,10 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
   manifest positively authorizes a training run.
 - `src/pneuma_lab/estimators/` contains deterministic offline E1/E2 advisory
   estimators. They are not runtime control wiring or consciousness evidence.
+- `src/pneuma_lab/brain/` (Phase 4) is the offline, CPU-only PneumaBrain-v0.1
+  multi-task trainer: observable-only features, repo-grouped split, per-task
+  logistic heads, a fail-closed corpus-authorization preflight, and a
+  deterministic model/metrics/report writer. Advisory-only; no runtime.
 - `src/pneuma_lab/status.py` validates and reports the canonical current-state
   manifest with `python -m pneuma_lab.status --check`.
 - `fixtures/sample_run.jsonl` is a failure-motif escalation timeline used by the

@@ -156,6 +156,18 @@
                 "tests/test_pneuma_brain_corpus.py"
             ],
             "blockers": []
+        },
+        {
+            "id": "pneuma_brain_trainer",
+            "status": "implemented",
+            "scope": "offline_research",
+            "evidence_refs": [
+                "src/pneuma_lab/brain/train.py",
+                "src/pneuma_lab/brain/model.py",
+                "src/pneuma_lab/brain/preflight.py",
+                "tests/test_brain_train.py"
+            ],
+            "blockers": []
         }
     ],
     "nine_to_five": {

@@ -63,6 +63,7 @@ _CURRENT_SYSTEM_STATE = {
     "training_example_conversion": ("implemented", "offline_research"),
     "dataset_registry": ("implemented", "offline_research"),
     "pneuma_brain_v0_corpus": ("implemented", "offline_research"),
+    "pneuma_brain_trainer": ("implemented", "offline_research"),
 }
 
 _CURRENT_NEGATIVE_RESULTS = {
