@@ -90,3 +90,50 @@ def test_workspace_competes_deterministically():
         {"risk_instinct": 0.5, "memory_scar": 0.5, "uncertainty_self_model": 0.5}
     )
     assert tie["winning_faculty"] == "risk_instinct"
+
+
+# --------------------------------------------------------------------------- #
+# Task 4: subject fixtures are valid input-frame timelines                     #
+# --------------------------------------------------------------------------- #
+def test_subject_fixtures_are_valid_input_frames():
+    for name in (
+        "base.jsonl",
+        "ablate_scar.jsonl",
+        "clamp_certainty.jsonl",
+        "disable_workspace.jsonl",
+    ):
+        frames = _frames(name)
+        assert frames, name
+        for fr in frames:
+            validate.validate_or_raise(fr)
+
+
+# --------------------------------------------------------------------------- #
+# Task 5: BaselinePsycheSubject tick loop via the real ReplayHarness           #
+# --------------------------------------------------------------------------- #
+def test_subject_ticks_produce_valid_linked_frames_via_harness():
+    from pneuma_lab.nervous_system.subject import BaselinePsycheSubject
+    from pneuma_lab.replay.harness import ReplayHarness
+
+    subject = BaselinePsycheSubject(scars={"m1:regress": 0.5})
+    result = ReplayHarness(subject, validate=True).run(_frames("base.jsonl"))
+    outs = result.tick_outputs
+    assert len(outs) == 3
+    prev = None
+    for o in outs:
+        ps, ct = o.psyche_state, o.causal_trace
+        validate.validate_or_raise(ps)
+        validate.validate_or_raise(o.workspace_broadcast)
+        validate.validate_or_raise(o.control_pressure)
+        validate.validate_or_raise(ct)
+        validate.validate_or_raise(o.grounded_self_report)
+        if prev is not None:
+            assert ct["previous_state_hash"] == prev
+        prev = ct["new_state_hash"]
+        stages = [n["stage"] for n in ct["causal_path"]]
+        assert stages == ["event", "internal_state", "broadcast", "pressure"]
+        assert o.control_pressure["pressures"]["verification"] >= 0.0
+        assert o.control_pressure["authority_tier"] in ("cosmetic", "soft")
+        assert o.grounded_self_report["affect_state_hash"] == ps["state_hash"]
+    winners = [o.workspace_broadcast["winning_faculty"] for o in outs]
+    assert "memory_scar" in winners
