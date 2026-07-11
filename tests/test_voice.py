@@ -590,3 +590,89 @@ def test_config_missing_file_is_ignored(tmp_path, monkeypatch):
     monkeypatch.setenv("PNEUMA_VOICE_CONFIG", str(tmp_path / "nope.json"))
     monkeypatch.delenv("PNEUMA_VOICE_MODEL", raising=False)
     assert CFG.resolve_voice_model() == "llama3.1"
+
+
+from pneuma_lab.voice import ollama as OL
+import urllib.error
+
+
+class _FakeResp:
+    def __init__(self, body):
+        self._body = body.encode("utf-8")
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_ollama_generate_parses_response(monkeypatch):
+    monkeypatch.setattr(
+        OL.urllib.request,
+        "urlopen",
+        lambda req, timeout=None: _FakeResp('{"response":"  hello world  "}'),
+    )
+    out = OL.ollama_generate("p", model="m", host="http://localhost:11434")
+    assert out == "hello world"
+
+
+def test_ollama_generate_maps_errors(monkeypatch):
+    import pytest
+
+    def raise_url(*a, **k):
+        raise urllib.error.URLError("refused")
+
+    monkeypatch.setattr(OL.urllib.request, "urlopen", raise_url)
+    with pytest.raises(OL.OllamaUnavailable):
+        OL.ollama_generate("p", model="m", host="http://localhost:11434")
+
+    def raise_404(*a, **k):
+        raise urllib.error.HTTPError("u", 404, "nf", {}, None)
+
+    monkeypatch.setattr(OL.urllib.request, "urlopen", raise_404)
+    with pytest.raises(OL.OllamaUnavailable):
+        OL.ollama_generate("p", model="m", host="http://localhost:11434")
+
+    def raise_500(*a, **k):
+        raise urllib.error.HTTPError("u", 500, "err", {}, None)
+
+    monkeypatch.setattr(OL.urllib.request, "urlopen", raise_500)
+    with pytest.raises(OL.OllamaGenerationError):
+        OL.ollama_generate("p", model="m", host="http://localhost:11434")
+
+    monkeypatch.setattr(
+        OL.urllib.request,
+        "urlopen",
+        lambda req, timeout=None: _FakeResp('{"no_response":1}'),
+    )
+    with pytest.raises(OL.OllamaGenerationError):
+        OL.ollama_generate("p", model="m", host="http://localhost:11434")
+
+
+def test_ollama_voice_skin_uses_injected_generate():
+    calls = {}
+
+    def fake_gen(prompt, *, model, host, timeout, temperature):
+        calls["prompt"] = prompt
+        return "elaborated passage"
+
+    skin = OL.OllamaVoiceSkin(model="m", host="h", generate=fake_gen)
+    out = skin.voice_tick([], [{"text_deterministic": "Tension climbs to -0.38."}])
+    assert out == "elaborated passage"
+    assert "Tension climbs to -0.38." in calls["prompt"]
+
+
+def test_ollama_judge_factory_calls_generate():
+    seen = {}
+
+    def fake_gen(prompt, *, model, host, timeout, temperature):
+        seen["temperature"] = temperature
+        return "ENTAILED"
+
+    judge = OL.make_ollama_judge(model="m", host="h", generate=fake_gen)
+    assert judge("prompt") == "ENTAILED"
+    assert seen["temperature"] == 0.0

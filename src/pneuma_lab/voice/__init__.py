@@ -15,6 +15,7 @@ __all__ = [
     "extract",
     "gate",
     "monitor",
+    "ollama",
     "render_deterministic",
     "sidecar",
     "stream",
