@@ -790,3 +790,13 @@ def test_judge_and_skin_cannot_inflate_level():
     assert json.dumps(on["evidence_frame"], sort_keys=True) == json.dumps(
         bare, sort_keys=True
     )
+
+
+def test_cli_llm_skin_with_fake_generate(tmp_path, monkeypatch):
+    from pneuma_lab.voice import ollama as OL
+    monkeypatch.setattr(OL, "ollama_generate", lambda prompt, **k: "elaborated: " + prompt.split(chr(10))[-1])
+    from pneuma_lab.voice.__main__ import main
+    rc = main([str(_IV_DIR / "clamp_tension.jsonl"), "--paired", "--skin", "llm",
+               "--ollama-model", "testmodel", "--no-entailment", "--out", str(tmp_path)])
+    assert rc == 0
+    assert (tmp_path / "stream.md").exists()
