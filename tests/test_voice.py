@@ -676,3 +676,68 @@ def test_ollama_judge_factory_calls_generate():
     judge = OL.make_ollama_judge(model="m", host="h", generate=fake_gen)
     assert judge("prompt") == "ENTAILED"
     assert seen["temperature"] == 0.0
+
+
+def test_grounding_packet_shape():
+    atoms = [
+        {"type": "pressure", "crediting_family": None, "credit_status": "evidenced"},
+        {
+            "type": "competition",
+            "crediting_family": "global_workspace",
+            "credit_status": "architecture_only",
+        },
+        {"type": "boundary", "crediting_family": None, "credit_status": "evidenced"},
+    ]
+    rendered = [
+        {"text_deterministic": "A verification pressure of 0.42 forms."},
+        {
+            "text_deterministic": "self_model takes it — architecture-only, not promotable evidence."
+        },
+        {"text_deterministic": "This is not a consciousness claim."},
+    ]
+    pkt = VF.build_grounding_packet(atoms, rendered)
+    assert "0.42" in pkt["allowed_numbers"]
+    assert "self_model" in pkt["allowed_terms"]
+    assert "architecture-only, not promotable evidence" in pkt["required"]
+    assert "not a consciousness claim" in pkt["required"]
+    assert pkt["forbidden"] and pkt["facts"]
+
+
+def test_verify_entailment_verdicts():
+    pkt = {
+        "allowed_numbers": [],
+        "allowed_terms": [],
+        "facts": ["x"],
+        "required": [],
+        "forbidden": ["feeling"],
+    }
+    assert VF.verify_entailment("c", pkt, lambda p: "ENTAILED") == "entailed"
+    assert (
+        VF.verify_entailment("c", pkt, lambda p: "NOT_ENTAILED\nbecause...")
+        == "not_entailed"
+    )
+    assert VF.verify_entailment("c", pkt, lambda p: "NOT ENTAILED") == "not_entailed"
+    assert VF.verify_entailment("c", pkt, lambda p: "maybe, unsure") == "judge_failed"
+    assert VF.verify_entailment("c", pkt, lambda p: "") == "judge_failed"
+
+    def boom(p):
+        raise RuntimeError("timeout")
+
+    assert VF.verify_entailment("c", pkt, boom) == "judge_failed"
+
+
+def test_entailment_prompt_uses_packet_not_raw_extras():
+    pkt = {
+        "allowed_numbers": ["0.42"],
+        "allowed_terms": ["self_model"],
+        "facts": ["A verification pressure of 0.42 forms."],
+        "required": ["not a consciousness claim"],
+        "forbidden": ["feeling"],
+    }
+    captured = {}
+    VF.verify_entailment(
+        "candidate text", pkt, lambda p: captured.setdefault("p", p) or "ENTAILED"
+    )
+    p = captured["p"]
+    assert "ALLOWED" in p and "REQUIRED" in p and "FORBIDDEN" in p
+    assert "candidate text" in p
