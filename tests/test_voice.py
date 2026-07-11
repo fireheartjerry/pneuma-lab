@@ -822,3 +822,45 @@ def test_cli_llm_skin_with_fake_generate(tmp_path, monkeypatch):
     assert (tmp_path / "stream.md").exists()
     # Prove the llm skin path went through the (fake) network seam, not a real server.
     assert called["n"] > 0
+
+
+def test_monitor_payload_has_panel():
+    s = ST.voice_run_paired(load_jsonl(_IV_DIR / "clamp_tension.jsonl"))
+    payload = M.monitor_payload(s)
+    assert payload["ticks"], "no ticks"
+    for t in payload["ticks"]:
+        p = t["panel"]
+        for key in (
+            "pressure",
+            "winner",
+            "salience",
+            "dominant_affect",
+            "scar_strength",
+            "predicted_error",
+            "credit_counts",
+            "evidence_level",
+        ):
+            assert key in p, key
+
+
+def test_monitor_still_byte_deterministic_and_self_contained():
+    frames = load_jsonl(_FIXTURE)
+    a = M.render_html(ST.voice_run(frames))
+    b = M.render_html(ST.voice_run(frames))
+    assert a == b
+    low = a.lower()
+    for bad in ("http://", "https://", "cdn.", "<link", 'src="http'):
+        assert bad not in low, bad
+    assert "thought-stream-data" in low and "panel" in low
+
+
+def test_monitor_voiced_text_not_in_determinism_scope():
+    frames = load_jsonl(_FIXTURE)
+
+    class FixSkin:
+        def voice_tick(self, atoms, rendered):
+            return " ".join(r["text_deterministic"] for r in rendered)
+
+    s = ST.voice_run(frames, skin=FixSkin())
+    html = M.render_html(s)
+    assert "<!doctype html>" in html.lower()
