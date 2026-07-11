@@ -558,3 +558,35 @@ def test_cli_monitor_flag(tmp_path):
     assert (tmp_path / "stream.md").exists()
     html = (tmp_path / "monitor.html").read_text(encoding="utf-8").lower()
     assert "<!doctype html>" in html and "evidence level" in html
+
+
+from pneuma_lab.voice import config as CFG
+
+
+def test_config_resolution_order(tmp_path, monkeypatch):
+    monkeypatch.delenv("PNEUMA_VOICE_MODEL", raising=False)
+    monkeypatch.delenv("PNEUMA_JUDGE_MODEL", raising=False)
+    monkeypatch.delenv("PNEUMA_OLLAMA_HOST", raising=False)
+    monkeypatch.delenv("PNEUMA_VOICE_CONFIG", raising=False)
+    assert CFG.resolve_voice_model() == "llama3.1"
+    assert CFG.resolve_judge_model() == "llama3.1"
+    assert CFG.resolve_ollama_host() == "http://localhost:11434"
+    cfgfile = tmp_path / "voice.json"
+    cfgfile.write_text(
+        '{"voice_model":"qwen2.5","judge_model":"mistral","ollama_host":"http://h:1"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PNEUMA_VOICE_CONFIG", str(cfgfile))
+    assert CFG.resolve_voice_model() == "qwen2.5"
+    assert CFG.resolve_judge_model() == "mistral"
+    assert CFG.resolve_ollama_host() == "http://h:1"
+    monkeypatch.setenv("PNEUMA_VOICE_MODEL", "envmodel")
+    assert CFG.resolve_voice_model() == "envmodel"
+    assert CFG.resolve_judge_model() == "mistral"
+    assert CFG.resolve_voice_model("climodel") == "climodel"
+
+
+def test_config_missing_file_is_ignored(tmp_path, monkeypatch):
+    monkeypatch.setenv("PNEUMA_VOICE_CONFIG", str(tmp_path / "nope.json"))
+    monkeypatch.delenv("PNEUMA_VOICE_MODEL", raising=False)
+    assert CFG.resolve_voice_model() == "llama3.1"

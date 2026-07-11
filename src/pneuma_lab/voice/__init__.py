@@ -11,6 +11,7 @@ from __future__ import annotations
 
 __all__ = [
     "atoms",
+    "config",
     "extract",
     "gate",
     "monitor",
