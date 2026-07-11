@@ -26,9 +26,10 @@ one.
   receipt-bound, before any prose touches it.
 - **`RenderedThought`** (`render_deterministic.py`) is the only place prose
   lives: `text_deterministic` (always present), `text_voiced` (`None` unless a
-  Phase B skin is attached), and `voice_status` (`"deterministic_only"` with no
-  skin; `"voiced"` or `"voiced_rejected_fell_back"` once a skin is attached —
-  see §8).
+  skin is attached and its candidate is accepted — populated only when
+  `voice_status` is `"voiced"`; always non-canonical), and `voice_status`
+  (`"deterministic_only"` with no skin; one of seven granular values once a
+  skin is attached — see §8 and the v0.1 section below).
 
 ## 3. The 14-type vocabulary
 
@@ -123,7 +124,8 @@ it never changes what is extracted or how it is credited.
   drift.
 - **Deterministic fallback.** If `verify_voiced` rejects a candidate, the tick
   keeps `text_deterministic` and its `voice_status` becomes
-  `"voiced_rejected_fell_back"` — the stream never ships unverified prose.
+  `"rejected_syntactic"` (or one of the other non-`"voiced"` statuses — see
+  the v0.1 section below) — the stream never ships unverified prose.
 - **`intervention_result` + `voice_run_paired`** (`extract.py`, `stream.py`).
   `voice_run_paired` drives a `PairedReplayRunner`, renders the treated arm
   like `voice_run`, and appends `intervention_result` atoms — built from the
@@ -137,8 +139,9 @@ it never changes what is extracted or how it is credited.
   `rendered[*].text_voiced`/`voice_status` differ.
 
 CLI flags: `--paired` (run the paired replay and narrate the tested
-counterfactual) and `--skin {none,reference}` (attach `ReferenceVoiceSkin`;
-default `none` keeps Phase A's deterministic-only output).
+counterfactual) and `--skin {none,reference,llm}` (attach `ReferenceVoiceSkin`
+or, from v0.1, the local-Ollama `OllamaVoiceSkin` — see the v0.1 section
+below; default `none` keeps Phase A's deterministic-only output).
 
 ## Phase C — HTML mind monitor
 
@@ -166,9 +169,80 @@ Produced via `monitor.write_monitor(stream, path)` (or `monitor.render_html
 python -m pneuma_lab.voice fixtures/sample_run.jsonl --out build/voice/demo --monitor
 ```
 
+## v0.1 — local elaboration (Ollama voice + entailment judge + monitor v2)
+
+v0.1 answers §9's "future work" by wiring `LLMVoiceSkin.generate` to a real,
+local model — while keeping voiced prose optional, non-canonical, and outside
+the scorer's reach.
+
+- **The local Ollama voiced skin** (`voice/ollama.py`, `OllamaVoiceSkin`) talks
+  to a local Ollama HTTP server via stdlib `urllib` only — no SDK, no new
+  dependency. It is optional (only used with `--skin llm`), local (no
+  network egress beyond `localhost`/a configured host), and free. Like
+  `ReferenceVoiceSkin`, it produces prose that is explicitly **non-canonical**:
+  voiced text is never byte-deterministic across runs, unlike everything else
+  the harness emits.
+- **The structured grounding packet + fail-closed entailment judge.**
+  `verify.build_grounding_packet(atoms, rendered)` extracts the only facts a
+  paraphrase may assert: `allowed_numbers`, `allowed_terms`, `facts` (the
+  deterministic source sentences), `required` claims (e.g. the
+  architecture-only hedge, the "not a consciousness claim" boundary), and
+  `forbidden` ontological-claim types. `verify.verify_entailment(candidate,
+packet, judge)` sends this packet plus the candidate to a local-LLM judge and
+  returns `"entailed"`, `"not_entailed"`, or `"judge_failed"` — **fail-closed**:
+  a judge exception, a timeout, malformed output, a refusal, or any uncertain/
+  non-`ENTAILED` token all resolve to a rejection. Only a clean `ENTAILED`
+  verdict lets a candidate ship. Pass `--no-entailment` to skip the judge and
+  keep only the syntactic `verify_voiced` gate.
+- **The seven `voice_status` values.** Every non-`"voiced"` status keeps the
+  canonical `text_deterministic` untouched — only `"voiced"` carries a
+  populated `text_voiced`:
+    - `deterministic_only` — no skin attached (Phase A default).
+    - `voiced` — skin attached, candidate passed all gates; the only status with
+      `text_voiced` populated.
+    - `skin_unavailable` — the local Ollama backend was unreachable
+      (`OllamaUnavailable`).
+    - `generation_failed` — the skin raised during generation for any other
+      reason.
+    - `rejected_syntactic` — `verify_voiced` rejected the candidate (invented
+      number/identifier, forbidden claim, dropped hedge, gross length
+      expansion).
+    - `rejected_entailment` — the entailment judge returned `not_entailed`.
+    - `judge_failed` — the judge could not produce a clean verdict (exception,
+      timeout, malformed/uncertain output).
+- **Independent model resolution.** The voice model and the judge model are
+  resolved **independently** (`voice/config.py`), each through the same
+  four-tier order: CLI flag (`--ollama-model` / `--judge-model`) → environment
+  (`PNEUMA_VOICE_MODEL` / `PNEUMA_JUDGE_MODEL`, plus `PNEUMA_OLLAMA_HOST` for
+  the host) → an optional project config file (`$PNEUMA_VOICE_CONFIG` or
+  `pneuma-voice.config.json`; see `pneuma-voice.config.json.example`) →
+  fallback `"llama3.1"` (model) / `"http://localhost:11434"` (host). The
+  config file is plain JSON, stdlib-only, and silently skipped if absent or
+  malformed.
+- **Monitor v2** (`voice/monitor.py`) adds a deterministic per-tick
+  internal-state panel to the Phase C HTML monitor: verification pressure, a
+  workspace-salience race bar, the dominant affect dimension, scar strength /
+  predicted error, the tick's credit-status mix, and the run's evidence level
+  — plus a timeline scrubber for jumping directly to any tick. The panel is
+  self-contained and byte-deterministic in deterministic mode (it reads only
+  the embedded sorted-key JSON island); any voiced text shown alongside it
+  remains non-canonical.
+- **Canonical/non-canonical boundary, reaffirmed.** The evidence scorer stays
+  completely prose-blind: neither the skin nor the judge can inflate the
+  evidence level. `test_skin_cannot_inflate_the_level` (and its v0.1
+  counterpart for `--skin llm`) assert the echoed `evidence_frame` and
+  `evidence_level` are byte-identical with or without a skin/judge attached —
+  only `text_voiced`/`voice_status` differ. Nothing here asserts
+  consciousness, sentience, or autonomy, and nothing here changes the Level
+  claim.
+
+```txt
+python -m pneuma_lab.voice fixtures/interventions/clamp_tension.jsonl --paired --skin llm --monitor
+```
+
 ## 9. Future work
 
-Remaining future work: wiring `LLMVoiceSkin.generate` to a real model
-provider, a semantic-entailment check to strengthen `verify_voiced` beyond
-surface-drift bounds, and richer monitor panels (e.g. per-family timelines,
-paired control/treated side-by-side view).
+Remaining future work: a semantic-entailment check stronger than the current
+judge-over-grounding-packet design, richer monitor panels (e.g. per-family
+timelines, paired control/treated side-by-side view), and wiring alternative
+local or hosted model backends behind the same `VoiceSkin`/judge seams.

@@ -122,7 +122,12 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
   scorer never reads rendered prose. Ships a byte-deterministic transcript
   (`stream.md`/`stream.jsonl`/`sidecar.json`) and a
   `python -m pneuma_lab.voice` CLI. Phase B (verified LLM voiced skin) and
-  Phase C (HTML mind monitor) are future work. See `docs/pneuma-voice-v0.md`.
+  Phase C (HTML mind monitor) are implemented; v0.1 (`config.py`, `ollama.py`)
+  adds an optional dependency-free local Ollama elaboration layer — a voiced
+  skin plus a fail-closed entailment judge over a structured grounding packet,
+  surfaced as seven `voice_status` values — and monitor v2 (internal-state
+  panel + timeline scrubber); prose stays non-canonical and the scorer stays
+  prose-blind. See `docs/pneuma-voice-v0.md`.
 - `src/pneuma_lab/status.py` validates and reports the canonical current-state
   manifest with `python -m pneuma_lab.status --check`.
 - `fixtures/sample_run.jsonl` is a failure-motif escalation timeline used by the

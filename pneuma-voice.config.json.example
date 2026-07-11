@@ -1,0 +1,5 @@
+{
+    "voice_model": "llama3.1",
+    "judge_model": "llama3.1",
+    "ollama_host": "http://localhost:11434"
+}
