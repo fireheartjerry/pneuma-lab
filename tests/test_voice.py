@@ -491,7 +491,7 @@ def test_voiced_falls_back_on_rejected_drift():
     frames = load_jsonl(_FIXTURE)
     on = ST.voice_run(frames, skin=DriftSkin())
     assert all("0.99999" not in (r.get("text_voiced") or "") for r in on["rendered"])
-    assert any(r["voice_status"] == "voiced_rejected_fell_back" for r in on["rendered"])
+    assert any(r["voice_status"] == "rejected_syntactic" for r in on["rendered"])
 
 
 def test_cli_paired_and_skin(tmp_path):
@@ -741,3 +741,52 @@ def test_entailment_prompt_uses_packet_not_raw_extras():
     p = captured["p"]
     assert "ALLOWED" in p and "REQUIRED" in p and "FORBIDDEN" in p
     assert "candidate text" in p
+
+
+from pneuma_lab.voice import ollama as OL
+
+
+class _RaiseSkin:
+    def __init__(self, exc):
+        self._exc = exc
+
+    def voice_tick(self, atoms, rendered):
+        raise self._exc
+
+
+def test_status_skin_unavailable():
+    on = ST.voice_run(
+        load_jsonl(_FIXTURE), skin=_RaiseSkin(OL.OllamaUnavailable("down"))
+    )
+    assert all(r["voice_status"] == "skin_unavailable" for r in on["rendered"])
+    assert all(r["text_voiced"] is None for r in on["rendered"])
+
+
+def test_status_generation_failed():
+    on = ST.voice_run(load_jsonl(_FIXTURE), skin=_RaiseSkin(ValueError("boom")))
+    assert all(r["voice_status"] == "generation_failed" for r in on["rendered"])
+
+
+def test_status_rejected_entailment_and_judge_failed_and_voiced():
+    frames = load_jsonl(_FIXTURE)
+    ref = VZ.ReferenceVoiceSkin()
+    not_ent = ST.voice_run(frames, skin=ref, judge=lambda p: "NOT_ENTAILED")
+    assert any(r["voice_status"] == "rejected_entailment" for r in not_ent["rendered"])
+    jf = ST.voice_run(
+        frames, skin=ref, judge=lambda p: (_ for _ in ()).throw(RuntimeError())
+    )
+    assert any(r["voice_status"] == "judge_failed" for r in jf["rendered"])
+    ok = ST.voice_run(frames, skin=ref, judge=lambda p: "ENTAILED")
+    assert any(r["voice_status"] == "voiced" for r in ok["rendered"])
+    assert any(r["text_voiced"] for r in ok["rendered"])
+
+
+def test_judge_and_skin_cannot_inflate_level():
+    frames = load_jsonl(_FIXTURE)
+    import json
+
+    bare = ReplayHarness(ReferencePsyche()).run(frames).evidence_frame
+    on = ST.voice_run(frames, skin=VZ.ReferenceVoiceSkin(), judge=lambda p: "ENTAILED")
+    assert json.dumps(on["evidence_frame"], sort_keys=True) == json.dumps(
+        bare, sort_keys=True
+    )

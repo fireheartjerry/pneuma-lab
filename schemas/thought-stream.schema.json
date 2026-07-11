@@ -88,7 +88,11 @@
                     "enum": [
                         "deterministic_only",
                         "voiced",
-                        "voiced_rejected_fell_back"
+                        "skin_unavailable",
+                        "generation_failed",
+                        "rejected_syntactic",
+                        "rejected_entailment",
+                        "judge_failed"
                     ]
                 }
             },

@@ -18,23 +18,43 @@ from . import gate as _gate
 from . import render_deterministic as _render
 from . import sidecar as _sidecar
 from .atoms import ThoughtAtom
-from .verify import verify_voiced
+from .ollama import OllamaUnavailable
+from .verify import build_grounding_packet, verify_entailment, verify_voiced
 
 
-def _render_tick(atoms, skin):
+def _mark(dicts, status):
+    for d in dicts:
+        d["text_voiced"] = None
+        d["voice_status"] = status
+    return dicts
+
+
+def _render_tick(atoms, skin, judge=None):
     rendered = [_render.render(a) for a in atoms]
     dicts = [asdict(r) for r in rendered]
-    if skin is not None and rendered:
-        source = [r.text_deterministic for r in rendered]
-        voiced = skin.voice_tick([asdict(a) for a in atoms], dicts)
-        ok, _reasons = verify_voiced(voiced, source)
-        if ok:
-            for d in dicts:
-                d["text_voiced"] = voiced
-                d["voice_status"] = "voiced"
-        else:
-            for d in dicts:
-                d["voice_status"] = "voiced_rejected_fell_back"
+    if skin is None or not rendered:
+        return dicts
+    atom_dicts = [asdict(a) for a in atoms]
+    try:
+        candidate = skin.voice_tick(atom_dicts, dicts)
+    except OllamaUnavailable:
+        return _mark(dicts, "skin_unavailable")
+    except Exception:
+        return _mark(dicts, "generation_failed")
+    ok, _reasons = verify_voiced(candidate, [d["text_deterministic"] for d in dicts])
+    if not ok:
+        return _mark(dicts, "rejected_syntactic")
+    if judge is not None:
+        verdict = verify_entailment(
+            candidate, build_grounding_packet(atom_dicts, dicts), judge
+        )
+        if verdict == "not_entailed":
+            return _mark(dicts, "rejected_entailment")
+        if verdict != "entailed":
+            return _mark(dicts, "judge_failed")
+    for d in dicts:
+        d["text_voiced"] = candidate
+        d["voice_status"] = "voiced"
     return dicts
 
 
@@ -46,6 +66,7 @@ def _assemble(
     skin,
     min_intensity,
     extra_last_tick_atoms=None,
+    judge=None,
 ):
     run_id = evidence_frame.get("run_id") or (
         result.tick_outputs[0].psyche_state.get("run_id")
@@ -65,7 +86,7 @@ def _assemble(
             atoms = atoms + extra_last_tick_atoms
         atoms = _gate.gate(atoms, min_intensity=min_intensity)
         per_tick_atoms.append(atoms)
-        for d in _render_tick(atoms, skin):
+        for d in _render_tick(atoms, skin, judge):
             all_rendered.append(d)
         for atom in atoms:
             all_atoms.append(asdict(atom))
@@ -98,6 +119,7 @@ def voice_run(
     validate=True,
     min_intensity=1e-6,
     skin=None,
+    judge=None,
 ):
     """Deterministic (or voiced) thought stream for a passive replay run."""
     subject = subject_factory()
@@ -108,11 +130,17 @@ def voice_run(
         subject_name=type(subject).__name__,
         skin=skin,
         min_intensity=min_intensity,
+        judge=judge,
     )
 
 
 def voice_run_paired(
-    input_frames, *, subject_factory=ReferencePsyche, min_intensity=1e-6, skin=None
+    input_frames,
+    *,
+    subject_factory=ReferencePsyche,
+    min_intensity=1e-6,
+    skin=None,
+    judge=None,
 ):
     """Thought stream for a paired replay: renders the treated arm and appends
     intervention_result atoms (the tested counterfactuals) to the final tick."""
@@ -146,6 +174,7 @@ def voice_run_paired(
         skin=skin,
         min_intensity=min_intensity,
         extra_last_tick_atoms=extra,
+        judge=judge,
     )
 
 
