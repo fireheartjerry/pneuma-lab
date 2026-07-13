@@ -33,20 +33,34 @@ class OptimizerStep:
     forecast_loss: float
 
 
-def forecast_targets_from_record(record: Mapping) -> dict[str, float]:
-    targets = record.get("forecast_targets")
-    provenance = record.get("forecast_target_provenance")
-    if not isinstance(targets, Mapping) or set(targets) != set(FORECAST_TARGETS):
-        raise TrainingBatchError("all metacognitive forecast targets are required")
-    if not isinstance(provenance, Mapping) or set(provenance) != set(FORECAST_TARGETS):
-        raise TrainingBatchError("all forecast targets require provenance")
-    allowed = {"observed_outcome", "specified_intervention"}
-    invalid = sorted(
-        name for name in FORECAST_TARGETS if provenance[name] not in allowed
-    )
-    if invalid:
-        raise TrainingBatchError(f"forecast targets must be outcome-derived: {invalid}")
-    return {name: float(targets[name]) for name in FORECAST_TARGETS}
+def forecast_tensors(record: Mapping, *, device=None):
+    values = record.get("forecast_targets") or {}
+    if set(values) != set(FORECAST_TARGETS):
+        raise TrainingBatchError("all forecast target entries are required")
+    targets = {
+        name: torch.tensor(
+            [float(values[name]["value"] or 0.0)],
+            dtype=torch.float32,
+            device=device,
+        )
+        for name in FORECAST_TARGETS
+    }
+    masks = {
+        name: torch.tensor(
+            [bool(values[name]["applicable"])],
+            dtype=torch.bool,
+            device=device,
+        )
+        for name in FORECAST_TARGETS
+    }
+    for name in FORECAST_TARGETS:
+        entry = values[name]
+        if entry["applicable"] and entry["provenance"] not in {
+            "observed_outcome",
+            "specified_intervention",
+        }:
+            raise TrainingBatchError(f"forecast target is not outcome-derived: {name}")
+    return targets, masks
 
 
 class FoundationOptimizerLoop:
@@ -78,6 +92,7 @@ class FoundationOptimizerLoop:
         *,
         model_inputs: Mapping[str, Tensor],
         forecast_targets: Mapping[str, Tensor],
+        forecast_masks: Mapping[str, Tensor],
         document_count: int,
     ) -> OptimizerStep:
         if document_count != 1:
@@ -92,7 +107,11 @@ class FoundationOptimizerLoop:
             if set(junction.last_forecasts) != set(FORECAST_TARGETS):
                 raise TrainingBatchError("junction did not emit the forecast contract")
             forecast_losses.append(
-                metacognitive_loss(junction.last_forecasts, forecast_targets)
+                metacognitive_loss(
+                    junction.last_forecasts,
+                    forecast_targets,
+                    forecast_masks,
+                )
             )
         forecast_loss = torch.stack(forecast_losses).mean()
         combined = language_loss + self.forecast_loss_weight * forecast_loss

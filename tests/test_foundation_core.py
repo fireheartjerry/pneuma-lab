@@ -70,15 +70,28 @@ def test_real_4b_projection_shell_remains_under_parameter_ceiling() -> None:
     assert trainable_parameter_count(shared, junction) < 25_000_000
 
 
-def test_metacognitive_forecast_requires_every_outcome_target() -> None:
+def test_metacognitive_forecast_requires_the_full_masked_contract() -> None:
     head = MetacognitiveForecast(latent_width=256)
     latent = torch.randn(3, 256)
     predictions = head(latent)
     targets = {name: torch.zeros(3) for name in FORECAST_TARGETS}
-    loss = metacognitive_loss(predictions, targets)
+    masks = {name: torch.ones(3, dtype=torch.bool) for name in FORECAST_TARGETS}
+    loss = metacognitive_loss(predictions, targets, masks)
     assert loss.ndim == 0
     assert torch.isfinite(loss)
 
     targets.pop("intervention_response")
-    with pytest.raises(ValueError, match="missing outcome-derived targets"):
-        metacognitive_loss(predictions, targets)
+    with pytest.raises(ValueError, match="applicability masks"):
+        metacognitive_loss(predictions, targets, masks)
+
+
+def test_masked_forecast_loss_uses_only_applicable_targets() -> None:
+    predictions = {name: torch.tensor([9.0]) for name in FORECAST_TARGETS}
+    targets = {name: torch.tensor([0.0]) for name in FORECAST_TARGETS}
+    masks = {name: torch.tensor([False]) for name in FORECAST_TARGETS}
+    predictions["action_success"] = torch.tensor([2.0])
+    masks["action_success"] = torch.tensor([True])
+    assert metacognitive_loss(predictions, targets, masks).item() == 4.0
+    masks["action_success"] = torch.tensor([False])
+    with pytest.raises(ValueError, match="applicable"):
+        metacognitive_loss(predictions, targets, masks)

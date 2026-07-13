@@ -14,7 +14,7 @@ from pneuma_lab.foundation.core import (  # noqa: E402
 from pneuma_lab.foundation.optimizer import (  # noqa: E402
     FoundationOptimizerLoop,
     TrainingBatchError,
-    forecast_targets_from_record,
+    forecast_tensors,
 )
 
 
@@ -35,6 +35,10 @@ class FakeLanguageModel(torch.nn.Module):
 
 def _targets(batch: int = 2) -> dict:
     return {name: torch.zeros(batch) for name in FORECAST_TARGETS}
+
+
+def _masks(batch: int = 2) -> dict:
+    return {name: torch.ones(batch, dtype=torch.bool) for name in FORECAST_TARGETS}
 
 
 def test_optimizer_accumulates_and_steps_only_at_boundary() -> None:
@@ -58,12 +62,14 @@ def test_optimizer_accumulates_and_steps_only_at_boundary() -> None:
     first = loop.train_microbatch(
         model_inputs={"hidden": torch.randn(2, 3, 16)},
         forecast_targets=_targets(),
+        forecast_masks=_masks(),
         document_count=1,
     )
     assert first.optimizer_stepped is False
     second = loop.train_microbatch(
         model_inputs={"hidden": torch.randn(2, 3, 16)},
         forecast_targets=_targets(),
+        forecast_masks=_masks(),
         document_count=1,
     )
     assert second.optimizer_stepped is True
@@ -87,19 +93,61 @@ def test_optimizer_rejects_multi_document_packing() -> None:
         loop.train_microbatch(
             model_inputs={"hidden": torch.randn(1, 2, 16)},
             forecast_targets=_targets(batch=1),
+            forecast_masks=_masks(batch=1),
             document_count=2,
         )
     assert model.forward_calls == 0
 
 
-def test_forecast_targets_require_observed_outcome_provenance() -> None:
+def test_forecast_tensors_include_applicability_masks() -> None:
     record = {
-        "forecast_targets": {name: 0.0 for name in FORECAST_TARGETS},
-        "forecast_target_provenance": {
-            name: "observed_outcome" for name in FORECAST_TARGETS
+        "forecast_targets": {
+            name: {
+                "applicable": name == "action_success",
+                "value": 1.0 if name == "action_success" else None,
+                "provenance": (
+                    "observed_outcome" if name == "action_success" else None
+                ),
+            }
+            for name in FORECAST_TARGETS
         },
     }
-    assert set(forecast_targets_from_record(record)) == set(FORECAST_TARGETS)
-    record["forecast_target_provenance"]["intervention_response"] = "model_guess"
+
+    targets, masks = forecast_tensors(record)
+
+    assert set(targets) == set(masks) == set(FORECAST_TARGETS)
+    assert targets["action_success"].item() == 1.0
+    assert masks["action_success"].item() is True
+    assert targets["tool_cost"].item() == 0.0
+    assert masks["tool_cost"].item() is False
+
+
+def test_forecast_tensors_require_outcome_provenance_when_applicable() -> None:
+    record = {
+        "forecast_targets": {
+            name: {
+                "applicable": True,
+                "value": 0.0,
+                "provenance": "observed_outcome",
+            }
+            for name in FORECAST_TARGETS
+        },
+    }
+    record["forecast_targets"]["intervention_response"]["provenance"] = "model_guess"
     with pytest.raises(TrainingBatchError, match="outcome-derived"):
-        forecast_targets_from_record(record)
+        forecast_tensors(record)
+
+
+def test_forecast_tensors_require_every_contract_entry() -> None:
+    record = {
+        "forecast_targets": {
+            name: {
+                "applicable": False,
+                "value": None,
+                "provenance": None,
+            }
+            for name in FORECAST_TARGETS[:-1]
+        },
+    }
+    with pytest.raises(TrainingBatchError, match="all forecast target entries"):
+        forecast_tensors(record)

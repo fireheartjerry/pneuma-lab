@@ -16,7 +16,7 @@ EXPECTED_EVIDENCE_CAMPAIGN_COUNT = 1
 EXPECTED_EXPRESSIVE_VIEW_COUNT = 1
 EXPECTED_TRAINING_COUNT = 4
 EXPECTED_MANIFEST_COUNT = 1
-EXPECTED_FOUNDATION_COUNT = 4
+EXPECTED_FOUNDATION_COUNT = 5
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
 }
@@ -156,6 +156,7 @@ def test_foundation_schema_bucket_registered() -> None:
         "foundation-run-manifest.schema.json",
         "learned-subject-profile.schema.json",
         "memory-erasure-receipt.schema.json",
+        "foundation-training-record.schema.json",
     )
     assert set(pls.FOUNDATION_SCHEMA_FILES).issubset(pls.ALL_SCHEMA_FILES)
 

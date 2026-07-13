@@ -40,30 +40,28 @@ class MetacognitiveForecast(nn.Module):
 def metacognitive_loss(
     predictions: Mapping[str, Tensor],
     targets: Mapping[str, Tensor],
+    masks: Mapping[str, Tensor],
 ) -> Tensor:
-    """Supervise every forecast; missing or decorative outputs fail closed."""
+    """Average outcome-derived forecast losses over applicable targets only."""
 
     expected = set(FORECAST_TARGETS)
-    missing = sorted(expected - set(targets))
-    extra_predictions = sorted(set(predictions) - expected)
-    missing_predictions = sorted(expected - set(predictions))
-    if missing:
-        raise ValueError(f"missing outcome-derived targets: {missing}")
-    if missing_predictions or extra_predictions:
+    if set(predictions) != expected or set(targets) != expected or set(masks) != expected:
         raise ValueError(
-            "forecast outputs must exactly match the outcome-derived contract: "
-            f"missing={missing_predictions}, extra={extra_predictions}"
+            "forecasts, targets, and applicability masks must match the contract"
         )
-    losses = [
-        torch.nn.functional.mse_loss(
-            predictions[name],
-            targets[name].to(
+    losses = []
+    for name in FORECAST_TARGETS:
+        mask = masks[name].to(device=predictions[name].device, dtype=torch.bool)
+        if mask.any():
+            target = targets[name].to(
                 device=predictions[name].device,
                 dtype=predictions[name].dtype,
-            ),
-        )
-        for name in FORECAST_TARGETS
-    ]
+            )
+            losses.append(
+                torch.nn.functional.mse_loss(predictions[name][mask], target[mask])
+            )
+    if not losses:
+        raise ValueError("at least one applicable forecast target is required")
     return torch.stack(losses).mean()
 
 

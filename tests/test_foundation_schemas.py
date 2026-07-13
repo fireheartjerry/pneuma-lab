@@ -9,6 +9,7 @@ import tomllib
 from jsonschema import Draft202012Validator
 
 from pneuma_lab import schemas as pls
+from pneuma_lab.foundation.core import FORECAST_TARGETS
 from pneuma_lab.foundation.profiles import build_subject_profile
 
 
@@ -103,3 +104,27 @@ def test_foundation_extra_is_local_only_and_has_required_training_stack() -> Non
     for package in ("torch", "bitsandbytes", "accelerate", "peft", "psutil"):
         assert package in normalized
     assert "openai" not in normalized
+
+
+def test_foundation_training_record_schema_is_strict_and_zero_weight() -> None:
+    schema = pls.load_schema("foundation-training-record.schema.json")
+    assert schema["x-pneuma-schema-kind"] == "foundation-training-record"
+    assert set(schema["required"]) == {
+        "record_kind",
+        "record_schema_version",
+        "record_id",
+        "source",
+        "disposition",
+        "identity",
+        "split",
+        "rendered",
+        "tokenization",
+        "training_weight",
+        "forecast_targets",
+        "observations",
+    }
+    assert schema["properties"]["training_weight"] == {"const": 0.0}
+    forecasts = schema["properties"]["forecast_targets"]
+    assert forecasts["additionalProperties"] is False
+    assert tuple(forecasts["required"]) == FORECAST_TARGETS
+    assert set(forecasts["properties"]) == set(FORECAST_TARGETS)

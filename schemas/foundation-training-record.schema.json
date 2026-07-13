@@ -1,0 +1,329 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/foundation-training-record.schema.json",
+    "title": "Pneuma Foundation Training Record",
+    "description": "Canonical deterministic foundation record with zero committed training weight and explicitly masked outcome-derived forecasts.",
+    "type": "object",
+    "x-pneuma-schema-kind": "foundation-training-record",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "record_kind",
+        "record_schema_version",
+        "record_id",
+        "source",
+        "disposition",
+        "identity",
+        "split",
+        "rendered",
+        "tokenization",
+        "training_weight",
+        "forecast_targets",
+        "observations"
+    ],
+    "properties": {
+        "record_kind": {
+            "const": "pneuma_foundation_training_record"
+        },
+        "record_schema_version": {
+            "const": "0.1.0"
+        },
+        "record_id": {
+            "type": "string",
+            "pattern": "^ftr:[0-9a-f]{64}$"
+        },
+        "source": {
+            "type": "object",
+            "required": [
+                "dataset_family",
+                "lane_id",
+                "source_record_id",
+                "source_revision",
+                "receipt_hashes"
+            ],
+            "properties": {
+                "dataset_family": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "lane_id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "source_record_id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "source_revision": {
+                    "type": ["string", "null"]
+                },
+                "receipt_hashes": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "disposition": {
+            "type": "object",
+            "required": [
+                "terminal_role",
+                "gradient_eligibility",
+                "license_disposition",
+                "privacy_disposition",
+                "dual_use_disposition",
+                "oracle_disposition"
+            ],
+            "properties": {
+                "terminal_role": {
+                    "enum": ["train", "eval", "governance"]
+                },
+                "gradient_eligibility": {
+                    "enum": ["first_stage", "later", "never"]
+                },
+                "license_disposition": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "privacy_disposition": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "dual_use_disposition": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "oracle_disposition": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            "additionalProperties": false
+        },
+        "identity": {
+            "type": "object",
+            "required": [
+                "repo",
+                "issue_or_pr",
+                "task_id",
+                "base_commit",
+                "patch_sha256",
+                "test_patch_sha256",
+                "fuzzy_text_sha256"
+            ],
+            "properties": {
+                "repo": {
+                    "type": ["string", "null"]
+                },
+                "issue_or_pr": {
+                    "type": ["string", "null"]
+                },
+                "task_id": {
+                    "type": ["string", "null"]
+                },
+                "base_commit": {
+                    "type": ["string", "null"]
+                },
+                "patch_sha256": {
+                    "type": ["string", "null"]
+                },
+                "test_patch_sha256": {
+                    "type": ["string", "null"]
+                },
+                "fuzzy_text_sha256": {
+                    "type": ["string", "null"],
+                    "pattern": "^[0-9a-f]{64}$"
+                }
+            },
+            "additionalProperties": false
+        },
+        "split": {
+            "type": "object",
+            "required": ["split_id", "quarantine_id"],
+            "properties": {
+                "split_id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "quarantine_id": {
+                    "type": ["string", "null"]
+                }
+            },
+            "additionalProperties": false
+        },
+        "rendered": {
+            "type": "object",
+            "required": ["prompt_text", "target_text"],
+            "properties": {
+                "prompt_text": {
+                    "type": "string"
+                },
+                "target_text": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "tokenization": {
+            "type": "object",
+            "required": [
+                "tokenizer_id",
+                "tokenizer_revision",
+                "prompt_tokens",
+                "target_tokens",
+                "total_tokens"
+            ],
+            "properties": {
+                "tokenizer_id": {
+                    "const": "Qwen/Qwen3.5-2B"
+                },
+                "tokenizer_revision": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                },
+                "prompt_tokens": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "target_tokens": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "total_tokens": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            },
+            "additionalProperties": false
+        },
+        "training_weight": {
+            "const": 0.0
+        },
+        "forecast_targets": {
+            "type": "object",
+            "required": [
+                "action_success",
+                "expected_error",
+                "verifier_outcome",
+                "tool_cost",
+                "token_cost",
+                "latency_cost",
+                "retrieval_usefulness",
+                "intervention_response"
+            ],
+            "properties": {
+                "action_success": {
+                    "$ref": "#/$defs/forecast_target"
+                },
+                "expected_error": {
+                    "$ref": "#/$defs/forecast_target"
+                },
+                "verifier_outcome": {
+                    "$ref": "#/$defs/forecast_target"
+                },
+                "tool_cost": {
+                    "$ref": "#/$defs/forecast_target"
+                },
+                "token_cost": {
+                    "$ref": "#/$defs/forecast_target"
+                },
+                "latency_cost": {
+                    "$ref": "#/$defs/forecast_target"
+                },
+                "retrieval_usefulness": {
+                    "$ref": "#/$defs/forecast_target"
+                },
+                "intervention_response": {
+                    "$ref": "#/$defs/forecast_target"
+                }
+            },
+            "additionalProperties": false
+        },
+        "observations": {
+            "type": "object",
+            "required": ["language", "tools", "trajectory_length", "labels"],
+            "properties": {
+                "language": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "tools": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "trajectory_length": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "labels": {
+                    "type": "object",
+                    "required": ["resolved"],
+                    "properties": {
+                        "resolved": {
+                            "type": "boolean"
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "$defs": {
+        "forecast_target": {
+            "type": "object",
+            "required": ["applicable", "value", "provenance"],
+            "properties": {
+                "applicable": {
+                    "type": "boolean"
+                },
+                "value": {
+                    "type": ["number", "null"]
+                },
+                "provenance": {
+                    "enum": ["observed_outcome", "specified_intervention", null]
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "applicable": {
+                                "const": true
+                            }
+                        },
+                        "required": ["applicable"]
+                    },
+                    "then": {
+                        "properties": {
+                            "value": {
+                                "type": "number"
+                            },
+                            "provenance": {
+                                "enum": ["observed_outcome", "specified_intervention"]
+                            }
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "value": {
+                                "const": null
+                            },
+                            "provenance": {
+                                "const": null
+                            }
+                        }
+                    }
+                }
+            ],
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}
