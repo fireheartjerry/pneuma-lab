@@ -33,18 +33,10 @@ _OBSERVABLE_NUMERIC_PROMPT_FIELDS = (
     "observation_length_mean",
     "observation_length_max",
 )
-_FORBIDDEN_DYNAMIC_TOOL_NAMES = frozenset(
+_REVIEWED_FEATURE_REFS = frozenset(
     {
-        "labels",
-        "oracle",
-        "outcome",
-        "repo",
-        "resolved",
-        "run_id",
-        "source_path",
-        "target",
-        "task_id",
-        "trace_id",
+        "openhands-sampled-training/0.1.0",
+        "pneuma-estimators-features/0.1.0",
     }
 )
 
@@ -98,8 +90,14 @@ def _forecast_targets(example: Mapping) -> dict[str, dict]:
 
 
 def _digest_text(value: str) -> str:
-    if value.startswith("sha256:") and len(value) == 71:
-        return value.removeprefix("sha256:")
+    prefix = "sha256:"
+    if value.startswith(prefix):
+        suffix = value.removeprefix(prefix)
+        normalized = suffix.casefold()
+        if len(normalized) == 64 and all(
+            character in "0123456789abcdef" for character in normalized
+        ):
+            return normalized
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
@@ -155,43 +153,6 @@ def _is_safe_numeric_feature(value) -> bool:
     )
 
 
-def _looks_like_digest(value: str) -> bool:
-    folded = value.casefold()
-    return folded.startswith("sha256:") or (
-        len(folded) in {40, 64}
-        and all(character in "0123456789abcdef" for character in folded)
-    )
-
-
-def _is_safe_descriptor(value, *, allow_reference_slash: bool = False) -> bool:
-    if not isinstance(value, str) or not value or len(value) > 256:
-        return False
-    normalized = value.replace("\\", "/")
-    if _looks_like_digest(value) or normalized.startswith("/"):
-        return False
-    if len(normalized) >= 3 and normalized[1:3] == ":/":
-        return False
-    if not allow_reference_slash and "/" in normalized:
-        return False
-    if allow_reference_slash and any(
-        part in {"", ".", ".."} for part in normalized.split("/")
-    ):
-        return False
-    return True
-
-
-def _safe_tool_name(value) -> str | None:
-    if not _is_safe_descriptor(value):
-        return None
-    folded = value.casefold()
-    if (
-        folded in _FORBIDDEN_DYNAMIC_TOOL_NAMES
-        or folded.endswith(("_hash", "_id", "_path", "_sha256"))
-    ):
-        return None
-    return value
-
-
 def _render_trajectory_payload(value) -> dict:
     if not isinstance(value, Mapping):
         return {}
@@ -200,22 +161,9 @@ def _render_trajectory_payload(value) -> dict:
         for name in _TRAJECTORY_PROMPT_FIELDS
         if name in value and _is_safe_numeric_feature(value[name])
     }
-    provenance = value.get("timestamp_provenance")
-    if provenance is None or _is_safe_descriptor(provenance):
-        if "timestamp_provenance" in value:
-            payload["timestamp_provenance"] = provenance
+    if value.get("timestamp_provenance") == "synthetic-ordinal":
+        payload["timestamp_provenance"] = "synthetic-ordinal"
     return payload
-
-
-def _render_tool_counts(value) -> dict[str, int | float]:
-    if not isinstance(value, Mapping):
-        return {}
-    counts = {}
-    for raw_name, count in value.items():
-        name = _safe_tool_name(raw_name)
-        if name is not None and _is_safe_numeric_feature(count):
-            counts[name] = count
-    return dict(sorted(counts.items()))
 
 
 def _render_observable_summary(value) -> dict:
@@ -226,8 +174,6 @@ def _render_observable_summary(value) -> dict:
         for name in _OBSERVABLE_NUMERIC_PROMPT_FIELDS
         if name in value and _is_safe_numeric_feature(value[name])
     }
-    if "tool_counts" in value:
-        payload["tool_counts"] = _render_tool_counts(value["tool_counts"])
     return payload
 
 
@@ -237,16 +183,15 @@ def _render_feature_refs(value) -> list[str]:
     return sorted(
         item
         for item in value
-        if _is_safe_descriptor(item, allow_reference_slash=True)
+        if isinstance(item, str) and item in _REVIEWED_FEATURE_REFS
     )
 
 
 def render_prompt_payload(example: Mapping) -> dict:
     input_value = example.get("input") or {}
     objective = input_value.get("objective") or {}
-    prefix = input_value.get("prefix")
     return {
-        "prefix": prefix if _is_safe_descriptor(prefix) else None,
+        "prefix": "full" if input_value.get("prefix") == "full" else None,
         "trajectory": _render_trajectory_payload(input_value.get("trajectory")),
         "observable_summary": _render_observable_summary(
             input_value.get("observable_summary")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 
 import pytest
@@ -15,6 +16,7 @@ from pneuma_lab.foundation.records import (
     GradientEligibility,
     LaneDisposition,
     TerminalRole,
+    foundation_identity,
     render_foundation_record,
     validate_foundation_record,
 )
@@ -58,6 +60,7 @@ def _canonical_openhands_example(*, resolved: bool) -> dict:
             "trajectory": {
                 "num_agent_steps": 3,
                 "num_messages": 5,
+                "timestamp_provenance": "synthetic-ordinal",
             },
             "observable_summary": {
                 "tool_call_count": 3,
@@ -69,7 +72,10 @@ def _canonical_openhands_example(*, resolved: bool) -> dict:
                 "text_length": 97,
                 "text_sha256": "sha256:" + "f" * 64,
             },
-            "feature_refs": ["feature:z", "feature:a"],
+            "feature_refs": [
+                "pneuma-estimators-features/0.1.0",
+                "openhands-sampled-training/0.1.0",
+            ],
             "source_path": "C:/forbidden/source/path.jsonl",
             "resolved": not resolved,
         },
@@ -134,15 +140,20 @@ def test_prompt_renderer_is_an_explicit_allowlist(tokenizer) -> None:
     record = _render(tokenizer)
 
     assert json.loads(record["rendered"]["prompt_text"]) == {
-        "feature_refs": ["feature:a", "feature:z"],
+        "feature_refs": [
+            "openhands-sampled-training/0.1.0",
+            "pneuma-estimators-features/0.1.0",
+        ],
         "objective": {"present": True, "text_length": 97},
-        "observable_summary": {
-            "tool_call_count": 3,
-            "tool_counts": {"read_file": 2, "run_tests": 1},
-        },
+        "observable_summary": {"tool_call_count": 3},
         "prefix": "full",
-        "trajectory": {"num_agent_steps": 3, "num_messages": 5},
+        "trajectory": {
+            "num_agent_steps": 3,
+            "num_messages": 5,
+            "timestamp_provenance": "synthetic-ordinal",
+        },
     }
+    assert record["observations"]["tools"] == ["read_file", "run_tests"]
     prompt_text = record["rendered"]["prompt_text"]
     excluded_values = (
         example["input"]["trace_id"],
@@ -194,6 +205,85 @@ def test_prompt_renderer_excludes_nested_leakage_keys(tokenizer) -> None:
     assert "C:/nested/private/tool.json" not in prompt_text
     assert "resolved" not in prompt_text
     assert "9" * 64 not in prompt_text
+
+
+def test_prompt_renderer_rejects_identifier_path_and_target_like_values(
+    tokenizer,
+) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    example["input"]["prefix"] = "private-task-id"
+    example["input"]["trajectory"]["timestamp_provenance"] = "private-run-id"
+    example["input"]["trajectory"]["resolved"] = 1
+    example["input"]["observable_summary"]["tool_counts"] = {
+        "private-trace-id": 2,
+        "resolved": 1,
+    }
+    example["input"]["observable_summary"]["resolved"] = 1
+    example["input"]["feature_refs"] = [
+        "private/source/file.json",
+        "resolved",
+        "sha256:" + "a" * 64,
+        "pneuma-estimators-features/9.9.9",
+    ]
+
+    record = render_foundation_record(
+        example,
+        lane_disposition=_lane_disposition(),
+        split_assignment={"split_id": "train", "quarantine_id": None},
+        tokenizer=tokenizer,
+        tokenizer_revision="1" * 40,
+        source_receipt_hashes=("a" * 64, "b" * 64),
+    )
+
+    prompt = json.loads(record["rendered"]["prompt_text"])
+    assert prompt == {
+        "feature_refs": [],
+        "objective": {"present": True, "text_length": 97},
+        "observable_summary": {"tool_call_count": 3},
+        "prefix": None,
+        "trajectory": {"num_agent_steps": 3, "num_messages": 5},
+    }
+    prompt_text = record["rendered"]["prompt_text"]
+    for forbidden in (
+        "private-task-id",
+        "private-run-id",
+        "private-trace-id",
+        "private/source/file.json",
+        "resolved",
+        "sha256:",
+        "9.9.9",
+        "tool_counts",
+    ):
+        assert forbidden not in prompt_text
+
+
+@pytest.mark.parametrize("suffix", ("a" * 64, "A" * 64))
+def test_foundation_identity_normalizes_valid_prefixed_sha256(suffix: str) -> None:
+    identity = foundation_identity(
+        {"input": {"objective": {"text_sha256": "sha256:" + suffix}}},
+        prompt_text="ignored",
+    )
+    assert identity["fuzzy_text_sha256"] == suffix.lower()
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "sha256:" + "g" * 64,
+        "sha256:" + "a" * 63,
+        "sha256:" + "a" * 65,
+    ),
+)
+def test_foundation_identity_hashes_malformed_prefixed_digest_as_text(
+    value: str,
+) -> None:
+    identity = foundation_identity(
+        {"input": {"objective": {"text_sha256": value}}},
+        prompt_text="ignored",
+    )
+    assert identity["fuzzy_text_sha256"] == hashlib.sha256(
+        value.encode("utf-8")
+    ).hexdigest()
 
 
 def test_record_identity_is_outside_tokens_and_rendering_is_deterministic(
