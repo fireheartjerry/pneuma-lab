@@ -16,6 +16,7 @@ EXPECTED_EVIDENCE_CAMPAIGN_COUNT = 1
 EXPECTED_EXPRESSIVE_VIEW_COUNT = 1
 EXPECTED_TRAINING_COUNT = 4
 EXPECTED_MANIFEST_COUNT = 1
+EXPECTED_FOUNDATION_COUNT = 4
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
 }
@@ -34,6 +35,7 @@ def test_expected_counts() -> None:
     assert len(pls.EXPRESSIVE_VIEW_SCHEMA_FILES) == EXPECTED_EXPRESSIVE_VIEW_COUNT
     assert len(pls.TRAINING_SCHEMA_FILES) == EXPECTED_TRAINING_COUNT
     assert len(pls.MANIFEST_SCHEMA_FILES) == EXPECTED_MANIFEST_COUNT
+    assert len(pls.FOUNDATION_SCHEMA_FILES) == EXPECTED_FOUNDATION_COUNT
     assert (
         len(pls.ALL_SCHEMA_FILES)
         == EXPECTED_INPUT_COUNT
@@ -44,6 +46,7 @@ def test_expected_counts() -> None:
         + EXPECTED_EXPRESSIVE_VIEW_COUNT
         + EXPECTED_TRAINING_COUNT
         + EXPECTED_MANIFEST_COUNT
+        + EXPECTED_FOUNDATION_COUNT
     )
 
 
@@ -105,6 +108,7 @@ def test_public_subpackages_import() -> None:
     import pneuma_lab.adapters  # noqa: F401
     import pneuma_lab.evals  # noqa: F401
     import pneuma_lab.replay  # noqa: F401
+    import pneuma_lab.foundation  # noqa: F401
 
 
 @pytest.mark.parametrize("filename", pls.ALL_SCHEMA_FILES)
@@ -144,6 +148,16 @@ def test_manifest_schema_bucket_registered() -> None:
     schema = pls.load_schema("project-status.schema.json")
     assert schema["x-pneuma-schema-kind"] == "manifest"
     assert "project-status.schema.json" in pls.ALL_SCHEMA_FILES
+
+
+def test_foundation_schema_bucket_registered() -> None:
+    assert pls.FOUNDATION_SCHEMA_FILES == (
+        "foundation-training-authorization.schema.json",
+        "foundation-run-manifest.schema.json",
+        "learned-subject-profile.schema.json",
+        "memory-erasure-receipt.schema.json",
+    )
+    assert set(pls.FOUNDATION_SCHEMA_FILES).issubset(pls.ALL_SCHEMA_FILES)
 
 
 def test_envelope_schema_shape() -> None:

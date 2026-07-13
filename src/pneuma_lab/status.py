@@ -66,6 +66,9 @@ _CURRENT_SYSTEM_STATE = {
     "pneuma_brain_trainer": ("implemented", "offline_research"),
     "pneuma_nervous_system_shadow": ("implemented", "internal_harness"),
     "pneuma_voice_shadow": ("implemented", "internal_harness"),
+    "pneuma_local_foundation_tooling": ("implemented", "offline_research"),
+    "pneuma_local_memory_store": ("implemented", "offline_research"),
+    "pneuma_local_action_guard": ("implemented", "standalone"),
 }
 
 _CURRENT_NEGATIVE_RESULTS = {
@@ -319,6 +322,7 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
             "evaluation_scope",
             "real_subject_claim_status",
             "internal_harness_ceiling",
+            "legacy_methodology",
         ),
         "nine_to_five": (
             "direct_import_policy",
@@ -337,6 +341,7 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
         "training_and_rsi": (
             "new_training_authorization",
             "trainer_preflight",
+            "foundation_program",
             "runtime_model_integration",
             "rsi_loop",
         ),
@@ -440,6 +445,17 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
             )
     if evidence.get("internal_harness_ceiling") != 4:
         errors.append("the executable internal-harness ceiling must remain 4")
+    legacy = evidence.get("legacy_methodology") or {}
+    if legacy != {
+        "archived": True,
+        "authoritative": False,
+        "delivery_gate": False,
+        "learned_subject_import_allowed": False,
+        "archive_ref": "docs/archive/consciousness-level-methodology.md",
+    }:
+        errors.append(
+            "the Level methodology must remain archived and outside delivery gates"
+        )
     negative_result_records = evidence.get("negative_results") or []
     negative_result_ids = [record["id"] for record in negative_result_records]
     duplicate_negative_ids = sorted(
@@ -514,6 +530,19 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
         errors.extend(_record_errors(lane_record, f"JSpace lane {lane}"))
 
     training = manifest["training_and_rsi"]
+    foundation_program = training.get("foundation_program") or {}
+    if foundation_program.get("tooling_status") != "implemented_not_run":
+        errors.append("foundation tooling status must not imply a completed run")
+    if foundation_program.get("training_status") != "not_authorized":
+        errors.append("foundation training must remain not_authorized")
+    if foundation_program.get("runtime_status") != "not_promoted":
+        errors.append("foundation runtime must remain not_promoted")
+    if foundation_program.get("compatibility_reference_download_allowed") is not False:
+        errors.append("397B compatibility-reference downloads must remain forbidden")
+    if foundation_program.get("default_paid_compute_usd") != 0:
+        errors.append("foundation default paid compute must remain zero")
+    if foundation_program.get("cloud_lifetime_cap_usd") != 45:
+        errors.append("foundation cloud lifetime cap must remain $45")
     if training.get("new_training_authorization") == "not_authorized":
         if training.get("runtime_model_integration") != "none":
             errors.append(
@@ -610,7 +639,10 @@ def render_status(manifest: dict) -> str:
                 f"(manifest {manifest['manifest_schema_version']}; as of {manifest['as_of']})"
             ),
             "role: standalone research/evaluation harness",
-            "evidence: internal Level-4 methodology; real subject not evaluated",
+            (
+                "evidence: legacy internal Level-4 methodology archived; "
+                "real subject not evaluated; not a delivery gate"
+            ),
             (
                 f"9to5: {implemented_edges}/{len(edges)} integration edges implemented; "
                 "operational nervous system: no"

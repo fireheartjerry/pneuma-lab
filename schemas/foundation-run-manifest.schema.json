@@ -1,0 +1,72 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/foundation-run-manifest.schema.json",
+    "title": "Pneuma Foundation Run Manifest",
+    "description": "Local training or evaluation run state, limits, measurements, and paid-compute accounting.",
+    "type": "object",
+    "x-pneuma-schema-kind": "manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["manifest_kind", "manifest_schema_version", "run_id", "status", "model", "training", "limits", "measurements", "budget"],
+    "properties": {
+        "manifest_kind": { "const": "pneuma_foundation_run" },
+        "manifest_schema_version": { "const": "0.1.0" },
+        "run_id": { "type": "string", "minLength": 1 },
+        "status": {
+            "enum": ["planned", "running", "paused", "completed", "failed", "killed"]
+        },
+        "model": {
+            "type": "object",
+            "required": ["key", "model_id", "revision"],
+            "properties": {
+                "key": { "enum": ["2b", "4b"] },
+                "model_id": { "type": "string", "minLength": 1 },
+                "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+            },
+            "additionalProperties": false
+        },
+        "training": {
+            "type": "object",
+            "required": ["token_ceiling", "sequence_length", "microbatch_size", "gradient_accumulation", "data_loader_workers", "quantization"],
+            "properties": {
+                "token_ceiling": { "type": "integer", "minimum": 1, "maximum": 32000000 },
+                "sequence_length": { "const": 512 },
+                "microbatch_size": { "const": 1 },
+                "gradient_accumulation": { "const": 32 },
+                "data_loader_workers": { "const": 8 },
+                "quantization": { "const": "nf4_double_quant" }
+            },
+            "additionalProperties": false
+        },
+        "limits": {
+            "type": "object",
+            "required": ["max_vram_gb", "max_ram_gb", "max_gpu_temp_c"],
+            "properties": {
+                "max_vram_gb": { "const": 7.5 },
+                "max_ram_gb": { "const": 24.0 },
+                "max_gpu_temp_c": { "const": 85.0 }
+            },
+            "additionalProperties": false
+        },
+        "measurements": {
+            "type": "object",
+            "required": ["tokens_seen", "wall_time_seconds", "tokens_per_second", "power_watts_mean"],
+            "properties": {
+                "tokens_seen": { "type": "integer", "minimum": 0 },
+                "wall_time_seconds": { "type": "number", "minimum": 0 },
+                "tokens_per_second": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+                "power_watts_mean": { "type": ["number", "null"], "minimum": 0 }
+            },
+            "additionalProperties": false
+        },
+        "budget": {
+            "type": "object",
+            "required": ["paid_compute_usd", "cloud_jobs_used"],
+            "properties": {
+                "paid_compute_usd": { "type": "number", "minimum": 0, "maximum": 45 },
+                "cloud_jobs_used": { "type": "integer", "minimum": 0, "maximum": 1 }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

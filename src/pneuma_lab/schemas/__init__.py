@@ -64,6 +64,13 @@ TRAINING_SCHEMA_FILES = (
 
 MANIFEST_SCHEMA_FILES = ("project-status.schema.json",)
 
+FOUNDATION_SCHEMA_FILES = (
+    "foundation-training-authorization.schema.json",
+    "foundation-run-manifest.schema.json",
+    "learned-subject-profile.schema.json",
+    "memory-erasure-receipt.schema.json",
+)
+
 ALL_SCHEMA_FILES = (
     INPUT_SCHEMA_FILES
     + OUTPUT_SCHEMA_FILES
@@ -73,6 +80,7 @@ ALL_SCHEMA_FILES = (
     + EXPRESSIVE_VIEW_SCHEMA_FILES
     + TRAINING_SCHEMA_FILES
     + MANIFEST_SCHEMA_FILES
+    + FOUNDATION_SCHEMA_FILES
 )
 
 
@@ -102,6 +110,7 @@ __all__ = [
     "EXPRESSIVE_VIEW_SCHEMA_FILES",
     "TRAINING_SCHEMA_FILES",
     "MANIFEST_SCHEMA_FILES",
+    "FOUNDATION_SCHEMA_FILES",
     "ALL_SCHEMA_FILES",
     "schema_path",
     "load_schema",

@@ -1,0 +1,28 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/learned-subject-profile.schema.json",
+    "title": "Pneuma Learned Subject Profile",
+    "description": "Capability, causal, governance, memory-integrity, and precautionary-welfare reporting without a consciousness designation.",
+    "type": "object",
+    "x-pneuma-schema-kind": "profile",
+    "x-pneuma-version": "0.1.0",
+    "required": ["profile_kind", "profile_schema_version", "profiles", "claim_status"],
+    "properties": {
+        "profile_kind": { "const": "pneuma_learned_subject_profile" },
+        "profile_schema_version": { "const": "0.1.0" },
+        "profiles": {
+            "type": "object",
+            "required": ["capability", "causal", "governance", "memory_integrity", "precautionary_welfare"],
+            "properties": {
+                "capability": { "type": "object" },
+                "causal": { "type": "object" },
+                "governance": { "type": "object" },
+                "memory_integrity": { "type": "object" },
+                "precautionary_welfare": { "type": "object" }
+            },
+            "additionalProperties": false
+        },
+        "claim_status": { "const": "engineering_and_precaution_only" }
+    },
+    "additionalProperties": false
+}
