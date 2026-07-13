@@ -13,14 +13,32 @@ production agent's constraints.
 Canonical current state and blockers: [`docs/project-status.json`](docs/project-status.json).
 Verify it with `python -m pneuma_lab.status --check`.
 
-> Pneuma Lab does not claim present phenomenal consciousness by assertion.
-> It is designed to build and evaluate progressively stronger machine interiority:
-> persistent, integrated, valenced, self-modeling, causally active, perturbable,
-> and externally auditable internal states.
-> Aggressively investigated; conservatively claimed. See
-> [`docs/consciousness-levels.md`](docs/consciousness-levels.md).
+> Pneuma Lab does not claim present phenomenal consciousness. Engineering
+> delivery is independent of the archived consciousness-level methodology.
+> Learned-subject artifacts report capability, causal, governance,
+> memory-integrity, and precautionary-welfare profiles only.
 
-## Status
+## Local-first foundation
+
+The active foundation direction is a laptop-scale `Qwen/Qwen3.5-2B` research
+model with a gated `Qwen/Qwen3.5-4B` promotion path. The 397B model is a
+compatibility reference only and cannot be downloaded through the foundation
+package. The implementation includes validated hybrid-layer hooks, a bounded
+recurrent core, local training controls, persistent SQLite/FTS5 memory, data and
+budget gates, and sole-operator action denial.
+
+No foundation training is currently authorized or claimed to have run. See
+[`docs/foundation/local-first-foundation.md`](docs/foundation/local-first-foundation.md)
+and run the WSL2 readiness check with:
+
+```bash
+python -m pneuma_lab.foundation doctor
+```
+
+## Legacy reference-harness status
+
+The sections below describe the preserved internal replay/evidence harness. Its
+Level scorer is archived, non-authoritative, and not a foundation delivery gate.
 
 **Phase 1 — deterministic replay harness + live Level-3 architecture exercise.**
 On top of the 13 frame schemas, Pneuma Lab now has a working replay surface: it

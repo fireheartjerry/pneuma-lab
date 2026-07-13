@@ -10,11 +10,14 @@
 2. **Contracts next** -- `schemas/` defines frames, envelopes, training records,
     and machine-readable status.
 3. **Evidence by replay** -- replay and paired interventions are implemented for
-    the internal reference harness; adapters and estimators are offline surfaces.
+    the archived internal reference harness; they are not delivery gates.
 4. **Integration is absent** -- Pneuma is not wired into 9to5 and is not an
     operational nervous system.
-5. **Claims last** -- internal Level-4 methodology does not evaluate a real
-    subject or establish phenomenal consciousness.
+5. **Foundation is local and unrun** -- `pneuma_lab.foundation` implements the
+    guarded 2B-to-4B tooling, but training remains unauthorized and no model is
+    promoted.
+6. **Claims last** -- learned-subject delivery does not import the legacy scorer
+    or establish phenomenal consciousness.
 
 ## Commands
 
@@ -22,6 +25,7 @@
 |---|---|
 | Check current project status | `python -m pneuma_lab.status --check` |
 | Install dev extras | `pip install -e ".[dev]"` |
+| Check WSL2 foundation readiness | `python -m pneuma_lab.foundation doctor` |
 | Run the full suite | `python -m pytest tests/ -q` |
 | Run schema tests only | `python -m pytest tests/test_schema_loads.py -q` |
 | Check whitespace | `git diff --check` |
@@ -39,9 +43,9 @@
     exported data only, and keep Pneuma independent from 9to5 imports.
 - **Add replay behavior:** implement under `src/pneuma_lab/replay/` with fixtures
     that make input frames, output frames, and causal traces inspectable.
-- **Add evals:** place scoring and perturbation suites under
-    `src/pneuma_lab/evals/`, then tie claims back to
-    `docs/consciousness-levels.md`.
+- **Add foundation behavior:** implement under `src/pneuma_lab/foundation/`,
+    keep `C:\pneuma-data` read-only, write generated artifacts only under
+    ignored `build/`, and do not import the legacy scorer.
 
 ## Tree Guide
 
@@ -69,6 +73,7 @@
 | `pneuma_lab.converters` | Guarded training-example conversion | implemented |
 | `pneuma_lab.training` | Split/readiness governance + estimator-run preflight | implemented, no positive authorization |
 | `pneuma_lab.estimators` | Offline advisory E1/E2 estimators | implemented, no runtime wiring |
+| `pneuma_lab.foundation` | Local Qwen pins, recurrent core, training/runtime gates, memory, authority | implemented tooling, not trained or promoted |
 
 ## Boundaries
 
@@ -78,4 +83,7 @@
     promote something into the live package.
 - JSpace/J-lens work is a documented research contract only; no implementation,
     model access, or result exists.
+- Qwen3.5-397B is a compatibility reference only; never download or serve it.
+- Foundation training needs a positive, hash-bound authorization; the committed
+    foundation authorization is intentionally pending.
 - Use 4-space indentation everywhere.

@@ -1,0 +1,126 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/foundation-training-authorization.schema.json",
+    "title": "Pneuma Foundation Training Authorization",
+    "description": "Fail-closed authorization for one bounded local Qwen3.5 foundation stage.",
+    "type": "object",
+    "x-pneuma-schema-kind": "manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "manifest_kind",
+        "manifest_schema_version",
+        "authorization_status",
+        "model",
+        "shard",
+        "dataset_policy",
+        "local_gates",
+        "source_data_policy",
+        "output_root",
+        "operator_approval",
+        "budget"
+    ],
+    "properties": {
+        "manifest_kind": { "const": "pneuma_foundation_training_authorization" },
+        "manifest_schema_version": { "const": "0.1.0" },
+        "authorization_status": {
+            "enum": ["not_authorized", "authorized"]
+        },
+        "model": {
+            "type": "object",
+            "required": ["key", "model_id", "revision", "token_ceiling"],
+            "properties": {
+                "key": { "enum": ["2b", "4b"] },
+                "model_id": {
+                    "enum": ["Qwen/Qwen3.5-2B", "Qwen/Qwen3.5-4B"]
+                },
+                "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+                "token_ceiling": {
+                    "enum": [100000, 500000, 1000000, 2000000, 8000000, 16000000, 32000000]
+                }
+            },
+            "additionalProperties": false
+        },
+        "shard": {
+            "oneOf": [
+                { "type": "null" },
+                {
+                    "type": "object",
+                    "required": ["path", "sha256", "manifest_path", "manifest_sha256"],
+                    "properties": {
+                        "path": { "type": "string", "pattern": "^build/" },
+                        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                        "manifest_path": { "type": "string", "pattern": "^build/" },
+                        "manifest_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+                    },
+                    "additionalProperties": false
+                }
+            ]
+        },
+        "dataset_policy": {
+            "type": "object",
+            "required": ["governed_groups", "positive_weight_groups", "repo_issue_disjoint", "diversity_inventory_present"],
+            "properties": {
+                "governed_groups": {
+                    "type": "array",
+                    "minItems": 10,
+                    "uniqueItems": true,
+                    "items": { "type": "string", "minLength": 1 }
+                },
+                "positive_weight_groups": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "type": "string", "minLength": 1 }
+                },
+                "repo_issue_disjoint": { "type": "boolean" },
+                "diversity_inventory_present": { "type": "boolean" }
+            },
+            "additionalProperties": false
+        },
+        "local_gates": {
+            "type": "object",
+            "required": ["previous_stage_passed", "falsification_gate_passed", "resource_smoke_passed"],
+            "properties": {
+                "previous_stage_passed": { "type": "boolean" },
+                "falsification_gate_passed": { "type": "boolean" },
+                "resource_smoke_passed": { "type": "boolean" }
+            },
+            "additionalProperties": false
+        },
+        "source_data_policy": {
+            "type": "object",
+            "required": ["root", "write_allowed"],
+            "properties": {
+                "root": { "type": "string", "minLength": 1 },
+                "write_allowed": { "const": false }
+            },
+            "additionalProperties": false
+        },
+        "output_root": { "type": "string", "pattern": "^build/" },
+        "operator_approval": {
+            "oneOf": [
+                { "type": "null" },
+                {
+                    "type": "object",
+                    "required": ["operator_id", "approved_at", "scope_digest"],
+                    "properties": {
+                        "operator_id": { "type": "string", "minLength": 1 },
+                        "approved_at": { "type": "string", "format": "date-time" },
+                        "scope_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+                    },
+                    "additionalProperties": false
+                }
+            ]
+        },
+        "budget": {
+            "type": "object",
+            "required": ["paid_compute_usd", "cloud_jobs_used", "cloud_lifetime_cap_usd"],
+            "properties": {
+                "paid_compute_usd": { "type": "number", "minimum": 0, "maximum": 45 },
+                "cloud_jobs_used": { "type": "integer", "minimum": 0, "maximum": 1 },
+                "cloud_lifetime_cap_usd": { "const": 45 }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

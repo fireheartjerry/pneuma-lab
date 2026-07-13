@@ -1,0 +1,45 @@
+{
+    "manifest_kind": "pneuma_foundation_training_authorization",
+    "manifest_schema_version": "0.1.0",
+    "authorization_status": "not_authorized",
+    "model": {
+        "key": "2b",
+        "model_id": "Qwen/Qwen3.5-2B",
+        "revision": "15852e8c16360a2fea060d615a32b45270f8a8fc",
+        "token_ceiling": 100000
+    },
+    "shard": null,
+    "dataset_policy": {
+        "governed_groups": [
+            "multi-swe-bench",
+            "open-swe-traces",
+            "sec-bench-pro",
+            "swe-bench",
+            "swe-bench-pro",
+            "swe-chat",
+            "swe-evo",
+            "swe-gym",
+            "swe-mera",
+            "swe-polybench"
+        ],
+        "positive_weight_groups": [],
+        "repo_issue_disjoint": false,
+        "diversity_inventory_present": false
+    },
+    "local_gates": {
+        "previous_stage_passed": false,
+        "falsification_gate_passed": false,
+        "resource_smoke_passed": false
+    },
+    "source_data_policy": {
+        "root": "C:\\pneuma-data",
+        "write_allowed": false
+    },
+    "output_root": "build/foundation/",
+    "operator_approval": null,
+    "budget": {
+        "paid_compute_usd": 0,
+        "cloud_jobs_used": 0,
+        "cloud_lifetime_cap_usd": 45
+    }
+}

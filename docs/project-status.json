@@ -2,7 +2,7 @@
     "$schema": "../schemas/project-status.schema.json",
     "manifest_kind": "pneuma_project_status",
     "manifest_schema_version": "0.1.0",
-    "as_of": "2026-07-10",
+    "as_of": "2026-07-13",
     "project": {
         "role": "standalone_research_evaluation_harness",
         "integration_mode": "standalone",
@@ -14,6 +14,13 @@
         "evaluation_scope": "internal_harness",
         "real_subject_claim_status": "not_evaluated",
         "internal_harness_ceiling": 4,
+        "legacy_methodology": {
+            "archived": true,
+            "authoritative": false,
+            "delivery_gate": false,
+            "learned_subject_import_allowed": false,
+            "archive_ref": "docs/archive/consciousness-level-methodology.md"
+        },
         "strongest_result": {
             "id": "reference_psyche_internal_level4_methodology",
             "status": "implemented",
@@ -233,6 +240,51 @@
                 "tests/test_voice.py"
             ],
             "blockers": []
+        },
+        {
+            "id": "pneuma_local_foundation_tooling",
+            "status": "implemented",
+            "scope": "offline_research",
+            "evidence_refs": [
+                "src/pneuma_lab/foundation/specs.py",
+                "src/pneuma_lab/foundation/core.py",
+                "src/pneuma_lab/foundation/integration.py",
+                "src/pneuma_lab/foundation/optimizer.py",
+                "src/pneuma_lab/foundation/authorization.py",
+                "src/pneuma_lab/foundation/checkpoints.py",
+                "src/pneuma_lab/foundation/data.py",
+                "src/pneuma_lab/foundation/falsification.py",
+                "tests/test_foundation_specs.py",
+                "tests/test_foundation_core.py",
+                "tests/test_foundation_integration.py",
+                "tests/test_foundation_optimizer.py",
+                "tests/test_foundation_authorization.py",
+                "tests/test_foundation_checkpoint.py",
+                "tests/test_foundation_data.py",
+                "docs/foundation/local-first-foundation.md"
+            ],
+            "blockers": []
+        },
+        {
+            "id": "pneuma_local_memory_store",
+            "status": "implemented",
+            "scope": "offline_research",
+            "evidence_refs": [
+                "src/pneuma_lab/foundation/memory.py",
+                "schemas/memory-erasure-receipt.schema.json",
+                "tests/test_foundation_memory.py"
+            ],
+            "blockers": []
+        },
+        {
+            "id": "pneuma_local_action_guard",
+            "status": "implemented",
+            "scope": "standalone",
+            "evidence_refs": [
+                "src/pneuma_lab/foundation/action_policy.py",
+                "tests/test_foundation_action_policy.py"
+            ],
+            "blockers": []
         }
     ],
     "nine_to_five": {
@@ -332,6 +384,23 @@
             ],
             "blockers": []
         },
+        "foundation_program": {
+            "tooling_status": "implemented_not_run",
+            "training_status": "not_authorized",
+            "runtime_status": "not_promoted",
+            "research_model": {
+                "model_id": "Qwen/Qwen3.5-2B",
+                "revision": "15852e8c16360a2fea060d615a32b45270f8a8fc"
+            },
+            "promotion_model": {
+                "model_id": "Qwen/Qwen3.5-4B",
+                "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+            },
+            "compatibility_reference_download_allowed": false,
+            "default_paid_compute_usd": 0,
+            "cloud_lifetime_cap_usd": 45,
+            "authorization_ref": "docs/data/training-authorizations/pneuma-foundation-v0.pending.json"
+        },
         "pneuma_brain_training": "v0_1_trained_local_research",
         "runtime_model_integration": "none",
         "rsi_loop": "not_operational",
@@ -342,7 +411,9 @@
             "docs/data/training-readiness/openhands-sampled.json",
             "docs/data/training-readiness/open-swe-traces.json",
             "docs/data/training-readiness/cross-dataset-leakage-registry.json",
-            "docs/data/training-readiness/estimator-e1-e2-historical-record.json"
+            "docs/data/training-readiness/estimator-e1-e2-historical-record.json",
+            "docs/data/training-authorizations/pneuma-foundation-v0.pending.json",
+            "docs/foundation/local-first-foundation.md"
         ],
         "blockers": [
             "B-TRAIN-AUTHORIZATION",
@@ -375,8 +446,8 @@
         "CLAUDE.md",
         "README.md",
         "docs/adapters/README.md",
-        "docs/consciousness-levels.md",
         "docs/data/dataset-suite-readiness-overview.md",
+        "docs/foundation/local-first-foundation.md",
         "docs/project-status.json",
         "docs/research/00-program-overview.md",
         "docs/research/10-anti-fake-progress.md",
@@ -389,6 +460,8 @@
         "docs/research/06-dataset-evidence-map.md",
         "docs/research/08-phase4-learned-estimators.md",
         "docs/research/09-eval-suite.md",
+        "docs/archive/consciousness-level-methodology.md",
+        "docs/consciousness-levels.md",
         "migration/MIGRATION_REPORT.md",
         "pneuma_consciousness_levels_and_evaluation.md"
     ],

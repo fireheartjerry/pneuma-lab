@@ -1,4 +1,8 @@
-"""ConsciousnessEvidenceScorer — honest, conservative Level 0-4 scoring.
+"""Legacy internal-harness Level 0-4 methodology scorer.
+
+Archived and non-authoritative: this module remains for deterministic replay
+compatibility. It is not imported by ``pneuma_lab.foundation``, is not an
+engineering promotion gate, and cannot designate a learned subject.
 
 This scorer reads a whole replay's output frames and decides an ``evidence_level``
 using the ladder in ``docs/consciousness-levels.md``. It is built to *under*-claim:

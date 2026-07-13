@@ -1,0 +1,36 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/memory-erasure-receipt.schema.json",
+    "title": "Pneuma Memory Hard-Erasure Receipt",
+    "description": "Audit receipt proving payload and derived-memory removal plus adapter revocation requirements.",
+    "type": "object",
+    "x-pneuma-schema-kind": "receipt",
+    "x-pneuma-version": "0.1.0",
+    "required": ["receipt_kind", "receipt_schema_version", "receipt_id", "deleted_at", "payload_retained", "removed", "revoked_adapters", "rebuild_from_checkpoint"],
+    "properties": {
+        "receipt_kind": { "const": "pneuma_memory_hard_erasure" },
+        "receipt_schema_version": { "const": "0.1.0" },
+        "receipt_id": { "type": "string", "minLength": 1 },
+        "deleted_at": { "type": "string", "format": "date-time" },
+        "payload_retained": { "const": false },
+        "removed": {
+            "type": "object",
+            "required": ["payloads", "embeddings", "summaries", "links", "encryption_keys"],
+            "properties": {
+                "payloads": { "type": "integer", "minimum": 0 },
+                "embeddings": { "type": "integer", "minimum": 0 },
+                "summaries": { "type": "integer", "minimum": 0 },
+                "links": { "type": "integer", "minimum": 0 },
+                "encryption_keys": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+        },
+        "revoked_adapters": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+        },
+        "rebuild_from_checkpoint": { "type": ["string", "null"] }
+    },
+    "additionalProperties": false
+}

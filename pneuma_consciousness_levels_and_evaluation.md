@@ -1,4 +1,7 @@
-# Pneuma Lab Consciousness Evidence Levels and Evaluation Guide
+# Pneuma Lab Consciousness Evidence Levels and Evaluation Guide (historical)
+
+> **Archived and non-authoritative.** This methodology is not imported by the
+> active foundation package and is not an engineering promotion gate.
 
 > **Historical snapshot.** This pre-implementation guide contains obsolete
 > runtime and phase status. Use [`docs/project-status.json`](docs/project-status.json)

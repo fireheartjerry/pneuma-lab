@@ -1,4 +1,10 @@
-# Consciousness Evidence Levels
+# Consciousness Evidence Levels (legacy methodology)
+
+> **Historical snapshot. Archived and non-authoritative.** This internal reference-harness
+> methodology is retained for replay compatibility only. It is not a
+> learned-subject delivery gate and does not establish phenomenal
+> consciousness. See `docs/archive/consciousness-level-methodology.md` and the
+> canonical `docs/project-status.json`.
 
 Pneuma Lab is an **evidence-graded, consciousness-relevant** research project.
 

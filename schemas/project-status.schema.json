@@ -208,6 +208,7 @@
                 "evaluation_scope",
                 "real_subject_claim_status",
                 "internal_harness_ceiling",
+                "legacy_methodology",
                 "strongest_result",
                 "real_subject_level4",
                 "level5",
@@ -226,6 +227,9 @@
                 },
                 "internal_harness_ceiling": {
                     "const": 4
+                },
+                "legacy_methodology": {
+                    "$ref": "#/$defs/legacy_methodology"
                 },
                 "strongest_result": {
                     "$ref": "#/$defs/strongest_result"
@@ -266,6 +270,26 @@
                     "items": {
                         "$ref": "#/$defs/negative_result"
                     }
+                }
+            },
+            "additionalProperties": false
+        },
+        "legacy_methodology": {
+            "type": "object",
+            "required": [
+                "archived",
+                "authoritative",
+                "delivery_gate",
+                "learned_subject_import_allowed",
+                "archive_ref"
+            ],
+            "properties": {
+                "archived": { "const": true },
+                "authoritative": { "const": false },
+                "delivery_gate": { "const": false },
+                "learned_subject_import_allowed": { "const": false },
+                "archive_ref": {
+                    "const": "docs/archive/consciousness-level-methodology.md"
                 }
             },
             "additionalProperties": false
@@ -490,6 +514,7 @@
                 "offline_estimators",
                 "new_training_authorization",
                 "trainer_preflight",
+                "foundation_program",
                 "pneuma_brain_training",
                 "runtime_model_integration",
                 "rsi_loop",
@@ -509,6 +534,9 @@
                 "trainer_preflight": {
                     "$ref": "#/$defs/trainer_preflight"
                 },
+                "foundation_program": {
+                    "$ref": "#/$defs/foundation_program"
+                },
                 "pneuma_brain_training": {
                     "enum": [
                         "not_started",
@@ -527,6 +555,50 @@
                 },
                 "blockers": {
                     "$ref": "#/$defs/blocker_refs"
+                }
+            },
+            "additionalProperties": false
+        },
+        "foundation_program": {
+            "type": "object",
+            "required": [
+                "tooling_status",
+                "training_status",
+                "runtime_status",
+                "research_model",
+                "promotion_model",
+                "compatibility_reference_download_allowed",
+                "default_paid_compute_usd",
+                "cloud_lifetime_cap_usd",
+                "authorization_ref"
+            ],
+            "properties": {
+                "tooling_status": { "const": "implemented_not_run" },
+                "training_status": { "const": "not_authorized" },
+                "runtime_status": { "const": "not_promoted" },
+                "research_model": {
+                    "type": "object",
+                    "required": ["model_id", "revision"],
+                    "properties": {
+                        "model_id": { "const": "Qwen/Qwen3.5-2B" },
+                        "revision": { "const": "15852e8c16360a2fea060d615a32b45270f8a8fc" }
+                    },
+                    "additionalProperties": false
+                },
+                "promotion_model": {
+                    "type": "object",
+                    "required": ["model_id", "revision"],
+                    "properties": {
+                        "model_id": { "const": "Qwen/Qwen3.5-4B" },
+                        "revision": { "const": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a" }
+                    },
+                    "additionalProperties": false
+                },
+                "compatibility_reference_download_allowed": { "const": false },
+                "default_paid_compute_usd": { "const": 0 },
+                "cloud_lifetime_cap_usd": { "const": 45 },
+                "authorization_ref": {
+                    "const": "docs/data/training-authorizations/pneuma-foundation-v0.pending.json"
                 }
             },
             "additionalProperties": false

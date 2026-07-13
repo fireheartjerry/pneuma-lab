@@ -8,7 +8,9 @@ This repo is intentionally smaller and cleaner than 9to5. Read
 `docs/project-status.json` first for current implementation and blocker state;
 the JSON schemas remain the observable contract surface. Replay, paired
 interventions, dataset adapters, conversion guardrails, and offline estimators
-exist, but live 9to5 integration and JSpace/J-lens experiments do not.
+exist. The local-first 2B-to-4B foundation tooling also exists, but its training
+authorization is pending and no foundation model is trained or promoted. Live
+9to5 integration and JSpace/J-lens experiments do not exist.
 
 ## Vocabulary
 
@@ -21,8 +23,8 @@ exist, but live 9to5 integration and JSpace/J-lens experiments do not.
   intervention context.
 - **Output frame**: psyche state, workspace broadcast, instinct, pressure,
   authority request, causal trace, evidence frame, or grounded self-report.
-- **Evidence ladder**: the conservative 0-5 consciousness-evidence scale in
-  `docs/consciousness-levels.md`.
+- **Legacy evidence ladder**: archived internal-harness methodology in
+  `docs/consciousness-levels.md`; non-authoritative and not a delivery gate.
 
 ## Read When Relevant
 
@@ -31,7 +33,8 @@ exist, but live 9to5 integration and JSpace/J-lens experiments do not.
 - Research program (evidence-graded; start at the overview): `docs/research/00-program-overview.md`
 - Architecture intent: `docs/vision.md`
 - Frame contract map: `docs/io-contract.md`
-- Evidence ladder: `docs/consciousness-levels.md`
+- Local-first foundation: `docs/foundation/local-first-foundation.md`
+- Legacy evidence ladder: `docs/consciousness-levels.md`
 - Canonical L3-vs-L4 evidence demo: `docs/level4-evidence-demo.md`
 - 9to5 source crosswalk: `docs/source-map.md`
 - Migration account: `migration/MIGRATION_REPORT.md`
@@ -40,7 +43,7 @@ exist, but live 9to5 integration and JSpace/J-lens experiments do not.
 
 ## Tree Guide
 
-- `schemas/` contains the 13 Draft 2020-12 JSON Schema contracts. Keep these
+- `schemas/` contains the Draft 2020-12 JSON Schema contracts. Keep these
   valid, versioned, and externally consumable.
 - `src/pneuma_lab/schemas/` contains loading helpers (`__init__.py`) and frame
   validation (`validate.py`).
@@ -130,6 +133,11 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
   prose-blind. See `docs/pneuma-voice-v0.md`.
 - `src/pneuma_lab/status.py` validates and reports the canonical current-state
   manifest with `python -m pneuma_lab.status --check`.
+- `src/pneuma_lab/foundation/` contains the pinned Qwen3.5 architecture
+  contracts, bounded recurrent junction, falsification/curriculum/resource
+  gates, immutable shard tooling, checkpoint/resume, SQLite/FTS5 memory, local
+  action scopes, and offline runtime loader. It never imports the legacy scorer;
+  its committed authorization is `not_authorized`.
 - `fixtures/sample_run.jsonl` is a failure-motif escalation timeline used by the
   replay tests and CLI. `fixtures/interventions/` holds the canonical Level-4
   scenarios (ablate scar graph, clamp tension, boost curiosity, remove identity

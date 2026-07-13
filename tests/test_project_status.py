@@ -45,7 +45,8 @@ def test_status_report_is_deterministic_and_conservative() -> None:
     first = status.render_status(manifest)
     second = status.render_status(manifest)
     assert first == second
-    assert "internal Level-4 methodology; real subject not evaluated" in first
+    assert "legacy internal Level-4 methodology archived" in first
+    assert "not a delivery gate" in first
     assert "operational nervous system: no" in first
     assert "probes/J-lens: absent" in first
     assert "new training authorized: no" in first
@@ -324,3 +325,20 @@ def test_cli_corrupted_manifest_fails_without_output_artifacts(
 
     assert before == after == ["broken-status.json"]
     assert "FAIL: project status" in capsys.readouterr().err
+
+
+def test_project_status_tracks_local_foundation_tooling_without_training_claim() -> None:
+    manifest = status.load_manifest()
+    systems = {item["id"]: item for item in manifest["systems"]}
+    for system_id in (
+        "pneuma_local_foundation_tooling",
+        "pneuma_local_memory_store",
+        "pneuma_local_action_guard",
+    ):
+        assert systems[system_id]["status"] == "implemented"
+    program = manifest["training_and_rsi"]["foundation_program"]
+    assert program["tooling_status"] == "implemented_not_run"
+    assert program["training_status"] == "not_authorized"
+    assert program["runtime_status"] == "not_promoted"
+    assert program["default_paid_compute_usd"] == 0
+    assert program["cloud_lifetime_cap_usd"] == 45
