@@ -6,10 +6,12 @@ import json
 import os
 import re
 import stat as stat_module
-from collections.abc import Mapping
-from dataclasses import asdict
+import sys
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from pneuma_lab.foundation.data import (
     ACTIVE_DATASET_GROUPS,
@@ -26,6 +28,14 @@ from pneuma_lab.foundation.source_presence import (
 
 class SuitePolicyError(ValueError):
     """Raised when suite policy cannot safely authorize the requested access."""
+
+
+@dataclass(frozen=True)
+class _TrustedPayload:
+    path: Path
+    resolved_path: Path
+    device: int
+    inode: int
 
 
 _EXPECTED_FAMILY_MATRIX = (
@@ -177,7 +187,10 @@ def _lexical_data_relative_parts(path: object) -> tuple[str, ...] | None:
         return None
     if processed_index > 0 and not is_absolute:
         return None
-    return raw_parts[processed_index:]
+    relative_parts = raw_parts[processed_index:]
+    if any("\x00" in part or ":" in part for part in relative_parts):
+        return None
+    return relative_parts
 
 
 def _validate_candidate_lane(registry: Mapping) -> None:
@@ -206,7 +219,7 @@ def _trusted_existing_file(
     path: object,
     allowed_relative_root: tuple[str, ...],
     exact: bool,
-) -> None:
+) -> _TrustedPayload:
     try:
         root = Path(os.fspath(data_root))
         candidate = Path(os.fspath(path))
@@ -263,7 +276,7 @@ def _trusted_existing_file(
         resolved_root = root.resolve(strict=True)
         resolved_allowed = allowed_path.resolve(strict=True)
         resolved_candidate = candidate.resolve(strict=True)
-    except (OSError, RuntimeError) as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         raise SuitePolicyError(f"trusted data root resolution failed: {exc}") from exc
     if (
         not _is_within(resolved_allowed, resolved_root)
@@ -272,6 +285,12 @@ def _trusted_existing_file(
         or (not exact and not _is_within(resolved_candidate, resolved_allowed))
     ):
         raise SuitePolicyError("payload resolves outside the trusted data root lane")
+    return _TrustedPayload(
+        path=candidate,
+        resolved_path=resolved_candidate,
+        device=metadata.st_dev,
+        inode=metadata.st_ino,
+    )
 
 
 def validate_suite_policy(policy: Mapping, registry: Mapping) -> tuple[str, ...]:
@@ -290,7 +309,7 @@ def validate_suite_policy(policy: Mapping, registry: Mapping) -> tuple[str, ...]
     return ACTIVE_DATASET_GROUPS
 
 
-def assert_payload_read_allowed(
+def _authorize_payload_path(
     policy: Mapping,
     *,
     stage: str,
@@ -298,8 +317,7 @@ def assert_payload_read_allowed(
     lane_id: str | None,
     data_root: Path,
     path: Path,
-) -> None:
-    """Fail before opening unless the path is explicitly allowed for the stage."""
+) -> _TrustedPayload:
 
     family_map = _validated_family_map(policy)
     if not isinstance(stage, str) or not stage:
@@ -333,7 +351,7 @@ def assert_payload_read_allowed(
     if not (approved_lane or identity_metadata):
         raise SuitePolicyError(f"{family} is metadata-only for stage {stage}")
     if approved_lane:
-        _trusted_existing_file(
+        return _trusted_existing_file(
             data_root=data_root,
             path=path,
             allowed_relative_root=(
@@ -343,13 +361,181 @@ def assert_payload_read_allowed(
             ),
             exact=False,
         )
-    else:
-        _trusted_existing_file(
-            data_root=data_root,
-            path=path,
-            allowed_relative_root=tuple(str(identity_path).split("/")),
-            exact=True,
-        )
+    return _trusted_existing_file(
+        data_root=data_root,
+        path=path,
+        allowed_relative_root=tuple(str(identity_path).split("/")),
+        exact=True,
+    )
+
+
+def assert_payload_read_allowed(
+    policy: Mapping,
+    *,
+    stage: str,
+    family: str,
+    lane_id: str | None,
+    data_root: Path,
+    path: Path,
+) -> None:
+    """Preflight a path without opening it; consumers must use the secure opener."""
+
+    _authorize_payload_path(
+        policy,
+        stage=stage,
+        family=family,
+        lane_id=lane_id,
+        data_root=data_root,
+        path=path,
+    )
+
+
+def _windows_final_path_from_fd(fd: int) -> Path:
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    handle = msvcrt.get_osfhandle(fd)
+    if handle == -1:
+        raise OSError("opened payload descriptor has no Windows handle")
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_final_path = kernel32.GetFinalPathNameByHandleW
+    get_final_path.argtypes = (
+        wintypes.HANDLE,
+        wintypes.LPWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+    )
+    get_final_path.restype = wintypes.DWORD
+
+    buffer_size = 512
+    while True:
+        buffer = ctypes.create_unicode_buffer(buffer_size)
+        length = get_final_path(handle, buffer, buffer_size, 0)
+        if length == 0:
+            raise ctypes.WinError(ctypes.get_last_error())
+        if length < buffer_size:
+            value = buffer.value
+            break
+        buffer_size = length + 1
+
+    extended_prefix = "\\\\?\\"
+    if value.startswith(f"{extended_prefix}UNC\\"):
+        value = f"\\\\{value[len(extended_prefix) + 4:]}"
+    elif value.startswith(extended_prefix):
+        value = value[len(extended_prefix):]
+        if not re.match(r"^[A-Za-z]:\\", value):
+            raise OSError("opened payload returned an unsupported Windows namespace")
+    final_path = Path(value)
+    if not final_path.is_absolute():
+        raise OSError("opened payload final Windows path is not absolute")
+    return final_path
+
+
+def _final_path_from_fd(fd: int) -> Path:
+    if os.name == "nt":
+        return _windows_final_path_from_fd(fd)
+    if sys.platform.startswith("linux"):
+        final_path = Path(os.readlink(f"/proc/self/fd/{fd}"))
+        if not final_path.is_absolute():
+            raise OSError("opened payload final Linux path is not absolute")
+        return final_path
+    raise SuitePolicyError(
+        "opened payload final path cannot be proven on this platform"
+    )
+
+
+def _path_identity(path: Path) -> str:
+    try:
+        raw_path = os.fspath(path)
+        if not isinstance(raw_path, str) or not Path(raw_path).is_absolute():
+            raise ValueError("path is not absolute")
+        return os.path.normcase(os.path.normpath(raw_path))
+    except (OSError, TypeError, ValueError) as exc:
+        raise SuitePolicyError(
+            f"opened payload final path cannot be normalized: {exc}"
+        ) from exc
+
+
+def _open_verified_stream(target: _TrustedPayload) -> BinaryIO:
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    fd: int | None = None
+    try:
+        fd = os.open(target.path, flags)
+        metadata = os.fstat(fd)
+        if not stat_module.S_ISREG(metadata.st_mode):
+            raise SuitePolicyError(
+                "opened payload descriptor must identify a regular file"
+            )
+        if (metadata.st_dev, metadata.st_ino) != (target.device, target.inode):
+            raise SuitePolicyError(
+                "opened payload descriptor differs from the authorized file"
+            )
+        final_path = _final_path_from_fd(fd)
+        if _path_identity(final_path) != _path_identity(target.resolved_path):
+            raise SuitePolicyError(
+                "opened payload final path differs from the authorized file"
+            )
+        stream = os.fdopen(fd, "rb", closefd=True)
+        fd = None
+        return stream
+    except BaseException as exc:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError as close_exc:
+                raise SuitePolicyError(
+                    "opened payload descriptor could not be closed after failure"
+                ) from close_exc
+        if isinstance(exc, SuitePolicyError):
+            raise
+        if isinstance(exc, (OSError, RuntimeError, TypeError, ValueError)):
+            raise SuitePolicyError(
+                f"opened payload verification failed: {exc}"
+            ) from exc
+        raise
+
+
+@contextmanager
+def open_authorized_payload(
+    policy: Mapping,
+    *,
+    stage: str,
+    family: str,
+    lane_id: str | None,
+    data_root: Path,
+    path: Path,
+) -> Iterator[BinaryIO]:
+    """Yield the same read-only binary stream whose open handle was authorized.
+
+    Authorization inspects metadata only. Callers may read the yielded stream,
+    but must never reopen ``path`` after this context manager has approved it.
+    """
+
+    target = _authorize_payload_path(
+        policy,
+        stage=stage,
+        family=family,
+        lane_id=lane_id,
+        data_root=data_root,
+        path=path,
+    )
+    stream = _open_verified_stream(target)
+    try:
+        yield stream
+    finally:
+        try:
+            stream.close()
+        except OSError as exc:
+            raise SuitePolicyError(
+                f"opened payload stream could not be closed: {exc}"
+            ) from exc
 
 
 def build_suite_completeness_report(policy: Mapping, data_root: Path) -> dict:
@@ -387,5 +573,6 @@ __all__ = [
     "assert_payload_read_allowed",
     "build_suite_completeness_report",
     "load_suite_policy",
+    "open_authorized_payload",
     "validate_suite_policy",
 ]

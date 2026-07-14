@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -84,6 +86,19 @@ def _wrong_value(field: str) -> str:
     }[field]
 
 
+def _different_valid_value(field: str, current: str) -> str:
+    values = {
+        "terminal_role": ("train", "eval", "governance"),
+        "gradient_eligibility": ("first_stage", "later", "never"),
+        "payload_access_100k": (
+            "metadata_only",
+            "identity_metadata_only",
+            "approved_processed_lane_only",
+        ),
+    }[field]
+    return next(value for value in values if value != current)
+
+
 def _suite_fixture() -> dict:
     return load_suite_policy(POLICY)
 
@@ -97,6 +112,24 @@ def _write_fixture(data_root: Path, relative_path: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"metadata-only test fixture")
     return path
+
+
+def _make_real_directory_link(link: Path, target: Path) -> None:
+    if os.name == "nt":
+        result = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            pytest.skip(f"directory junctions unavailable: {result.stderr.strip()}")
+        return
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
 
 
 def test_suite_has_exactly_ten_coherent_family_roles() -> None:
@@ -198,6 +231,30 @@ def test_suite_requires_exact_family_policy_matrix(
         item[field] = _wrong_value(field)
     with pytest.raises(SuitePolicyError, match="exact policy matrix"):
         validate_suite_policy(policy, registry)
+
+
+@pytest.mark.parametrize(
+    ("family", "field"),
+    [
+        (family, field)
+        for family in EXPECTED_FAMILY_MATRIX
+        for field in (
+            "terminal_role",
+            "gradient_eligibility",
+            "payload_access_100k",
+        )
+    ],
+)
+def test_suite_rejects_every_valid_to_valid_matrix_mutation(
+    family: str,
+    field: str,
+) -> None:
+    policy = _suite_fixture()
+    item = next(entry for entry in policy["families"] if entry["family"] == family)
+    item[field] = _different_valid_value(field, item[field])
+
+    with pytest.raises(SuitePolicyError, match="exact policy matrix"):
+        validate_suite_policy(policy, _registry_fixture())
 
 
 def test_suite_requires_documented_family_order() -> None:
@@ -630,6 +687,232 @@ def test_payload_guard_rejects_real_nested_symlink_when_supported(
             data_root=tmp_path,
             path=link / "records.jsonl",
         )
+
+
+def test_payload_guard_rejects_alternate_stream_syntax(tmp_path: Path) -> None:
+    base = _write_fixture(
+        tmp_path,
+        "processed/swe-gym/openhands-sampled/records.jsonl",
+    )
+    alternate = Path(f"{base}:alternate")
+    try:
+        alternate.write_bytes(b"alternate stream or colon-named file")
+    except OSError as exc:
+        pytest.skip(f"alternate-stream fixture unavailable: {exc}")
+
+    with pytest.raises(SuitePolicyError):
+        assert_payload_read_allowed(
+            _suite_fixture(),
+            stage="100k",
+            family="swe-gym",
+            lane_id="swe-gym-openhands-sampled",
+            data_root=tmp_path,
+            path=alternate,
+        )
+
+
+def test_open_authorized_payload_yields_and_closes_the_verified_stream(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    payload = _write_fixture(
+        tmp_path,
+        "processed/swe-gym/openhands-sampled/records.jsonl",
+    )
+    real_open = os.open
+    opened_fds: list[int] = []
+
+    def tracked_open(path, flags, mode=0o777, *, dir_fd=None):
+        tracked_open.flags = flags
+        kwargs = {} if dir_fd is None else {"dir_fd": dir_fd}
+        fd = real_open(path, flags, mode, **kwargs)
+        opened_fds.append(fd)
+        return fd
+
+    tracked_open.flags = 0
+
+    monkeypatch.setattr(foundation_suite.os, "open", tracked_open)
+    with foundation_suite.open_authorized_payload(
+        _suite_fixture(),
+        stage="100k",
+        family="swe-gym",
+        lane_id="swe-gym-openhands-sampled",
+        data_root=tmp_path,
+        path=payload,
+    ) as stream:
+        assert stream.tell() == 0
+        assert stream.read() == b"metadata-only test fixture"
+        assert stream.closed is False
+
+    assert stream.closed is True
+    assert len(opened_fds) == 1
+    expected_flags = (
+        getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    assert tracked_open.flags & expected_flags == expected_flags
+
+
+def test_open_authorized_payload_denial_never_opens_a_descriptor(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    def unexpected_open(*_args, **_kwargs):
+        pytest.fail("denied payload must not be opened")
+
+    monkeypatch.setattr(foundation_suite.os, "open", unexpected_open)
+    with pytest.raises(SuitePolicyError, match="metadata-only"):
+        with foundation_suite.open_authorized_payload(
+            _suite_fixture(),
+            stage="100k",
+            family="sec-bench-pro",
+            lane_id=None,
+            data_root=tmp_path,
+            path=tmp_path / "processed/sec-bench-pro/records.jsonl",
+        ):
+            pytest.fail("denied payload must not be yielded")
+
+
+def test_open_authorized_payload_rejects_injected_outside_handle_path(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    payload = _write_fixture(
+        tmp_path,
+        "processed/swe-gym/openhands-sampled/records.jsonl",
+    )
+    outside = _write_fixture(tmp_path / "outside", "records.jsonl")
+    real_open = os.open
+    opened_fds: list[int] = []
+
+    def tracked_open(path, flags, mode=0o777, *, dir_fd=None):
+        kwargs = {} if dir_fd is None else {"dir_fd": dir_fd}
+        fd = real_open(path, flags, mode, **kwargs)
+        opened_fds.append(fd)
+        return fd
+
+    monkeypatch.setattr(foundation_suite.os, "open", tracked_open)
+    monkeypatch.setattr(
+        foundation_suite,
+        "_final_path_from_fd",
+        lambda _fd: outside.resolve(strict=True),
+        raising=False,
+    )
+
+    yielded = False
+    with pytest.raises(SuitePolicyError, match="opened payload"):
+        with foundation_suite.open_authorized_payload(
+            _suite_fixture(),
+            stage="100k",
+            family="swe-gym",
+            lane_id="swe-gym-openhands-sampled",
+            data_root=tmp_path,
+            path=payload,
+        ):
+            yielded = True
+
+    assert yielded is False
+    assert len(opened_fds) == 1
+    with pytest.raises(OSError):
+        os.fstat(opened_fds[0])
+
+
+def test_open_authorized_payload_rejects_directory_link_swap_before_open(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    payload = _write_fixture(
+        tmp_path,
+        "processed/swe-gym/openhands-sampled/nested/records.jsonl",
+    )
+    nested = payload.parent
+    saved_nested = nested.with_name("nested-before-race")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / payload.name).write_bytes(b"outside bytes must never be yielded")
+    staged_link = nested.with_name("nested-race-link")
+    _make_real_directory_link(staged_link, outside)
+
+    assert_payload_read_allowed(
+        _suite_fixture(),
+        stage="100k",
+        family="swe-gym",
+        lane_id="swe-gym-openhands-sampled",
+        data_root=tmp_path,
+        path=payload,
+    )
+
+    real_open = os.open
+    attack_ran = False
+
+    def raced_open(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal attack_ran
+        if not attack_ran:
+            nested.rename(saved_nested)
+            staged_link.rename(nested)
+            attack_ran = True
+        kwargs = {} if dir_fd is None else {"dir_fd": dir_fd}
+        return real_open(path, flags, mode, **kwargs)
+
+    monkeypatch.setattr(foundation_suite.os, "open", raced_open)
+    yielded = False
+    with pytest.raises(SuitePolicyError, match="opened payload"):
+        with foundation_suite.open_authorized_payload(
+            _suite_fixture(),
+            stage="100k",
+            family="swe-gym",
+            lane_id="swe-gym-openhands-sampled",
+            data_root=tmp_path,
+            path=payload,
+        ) as stream:
+            yielded = True
+            assert stream.read() != b"outside bytes must never be yielded"
+
+    assert attack_ran is True
+    assert yielded is False
+
+
+def test_open_authorized_payload_rejects_final_file_replacement_before_open(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    payload = _write_fixture(
+        tmp_path,
+        "processed/swe-gym/openhands-sampled/records.jsonl",
+    )
+    replacement = _write_fixture(
+        tmp_path,
+        "processed/swe-gym/openhands-sampled/replacement.tmp",
+    )
+    replacement.write_bytes(b"replacement bytes must never be yielded")
+    real_open = os.open
+    attack_ran = False
+
+    def raced_open(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal attack_ran
+        if not attack_ran:
+            os.replace(replacement, payload)
+            attack_ran = True
+        kwargs = {} if dir_fd is None else {"dir_fd": dir_fd}
+        return real_open(path, flags, mode, **kwargs)
+
+    monkeypatch.setattr(foundation_suite.os, "open", raced_open)
+    yielded = False
+    with pytest.raises(SuitePolicyError, match="opened payload"):
+        with foundation_suite.open_authorized_payload(
+            _suite_fixture(),
+            stage="100k",
+            family="swe-gym",
+            lane_id="swe-gym-openhands-sampled",
+            data_root=tmp_path,
+            path=payload,
+        ) as stream:
+            yielded = True
+            assert stream.read() != b"replacement bytes must never be yielded"
+
+    assert attack_ran is True
+    assert yielded is False
 
 
 def test_completeness_report_is_schema_valid_and_lists_all_families(
