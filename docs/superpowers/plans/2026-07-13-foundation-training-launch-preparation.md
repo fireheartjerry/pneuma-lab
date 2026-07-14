@@ -414,16 +414,23 @@ def test_blocked_presence_probe_never_opens_payload(tmp_path, monkeypatch) -> No
     assert report.file_count == 1
 
 
-def test_payload_guard_denies_governance_lanes_before_open(tmp_path) -> None:
+def test_payload_opener_denies_governance_lanes_before_open(tmp_path, monkeypatch) -> None:
     policy = _suite_fixture()
+
+    def unexpected_open(*_args, **_kwargs):
+        pytest.fail("denied payload must not be opened")
+
+    monkeypatch.setattr(os, "open", unexpected_open)
     with pytest.raises(SuitePolicyError, match="metadata-only"):
-        assert_payload_read_allowed(
+        with open_authorized_payload(
             policy,
             stage="100k",
             family="sec-bench-pro",
             lane_id=None,
+            data_root=tmp_path,
             path=tmp_path / "processed/sec-bench-pro/records.jsonl",
-        )
+        ):
+            pytest.fail("denied payload must not be yielded")
 ```
 
 - [ ] **Step 2: Run tests and confirm missing suite modules fail**
@@ -436,7 +443,7 @@ python -m pytest tests/test_foundation_suite.py tests/test_foundation_source_pre
 
 Expected: collection fails for the two missing modules and policy file.
 
-- [ ] **Step 3: Add the reviewed role overlay and fail-closed APIs**
+- [ ] **Step 3: Add the reviewed role overlay and fail-closed verified-stream API**
 
 The committed suite policy must encode this exact matrix:
 
@@ -505,24 +512,32 @@ def probe_family_presence(data_root: Path, family: str) -> FamilyPresence:
     return FamilyPresence(family, root.exists(), count, byte_count, newest)
 
 
-def assert_payload_read_allowed(policy, *, stage, family, lane_id, path):
-    item = next(entry for entry in policy["families"] if entry["family"] == family)
-    access = item[f"payload_access_{stage}"]
-    approved_lane = (
-        access == "approved_processed_lane_only"
-        and family == "swe-gym"
-        and lane_id == "swe-gym-openhands-sampled"
-        and "processed/swe-gym/openhands-sampled" in Path(path).as_posix().casefold()
+@contextmanager
+def open_authorized_payload(
+    policy,
+    *,
+    stage,
+    family,
+    lane_id,
+    data_root,
+    path,
+):
+    target = _validate_payload_request(
+        policy,
+        stage=stage,
+        family=family,
+        lane_id=lane_id,
+        data_root=data_root,
+        path=path,
     )
-    identity_metadata = (
-        access == "identity_metadata_only"
-        and Path(path).as_posix().casefold().endswith(
-            str(item["identity_metadata_relative_path"]).casefold()
-        )
-    )
-    if not (approved_lane or identity_metadata):
-        raise SuitePolicyError(f"{family} is metadata-only for stage {stage}")
+    stream = _open_verified_stream(target)
+    try:
+        yield stream
+    finally:
+        stream.close()
 ```
+
+`open_authorized_payload()` is the sole public payload-access contract. Its private validation must bind the request to the trusted `data_root`, reject links/reparse points and ambiguous paths, open read-only with the available no-follow and non-inheritable flags, require a regular-file descriptor, and prove the opened descriptor's device/inode and final physical path before yielding it. Consumers must parse or read only the yielded binary stream and must never reopen `path`.
 
 The suite-report schema must require all ten entries, presence counts, `inspection="filesystem_metadata_only"`, `payload_opened=false`, and the first-stage exact lane list. Register it in `FOUNDATION_SCHEMA_FILES`.
 
@@ -718,20 +733,28 @@ def load_required_eval_identities(paths, *, required_families):
     )
 
 
-def build_eval_identity_index(*, source_path, output_path, family, lane_id, suite_policy):
-    assert_payload_read_allowed(
+def build_eval_identity_index(
+    *,
+    source_path,
+    output_path,
+    family,
+    lane_id,
+    suite_policy,
+    data_root,
+):
+    identities = []
+    with open_authorized_payload(
         suite_policy,
         stage="100k",
         family=family,
         lane_id=lane_id,
+        data_root=data_root,
         path=source_path,
-    )
-    identities = []
-    with Path(source_path).open(encoding="utf-8") as handle:
-        for line in handle:
-            if not line.strip():
+    ) as stream:
+        for raw_line in stream:
+            if not raw_line.strip():
                 continue
-            value = json.loads(line)
+            value = json.loads(raw_line)
             task_id = str(value["source_id"])
             suffix = task_id.rsplit("-", 1)[-1]
             identities.append(IdentityRecord(
@@ -780,8 +803,10 @@ git commit -m "feat: enforce foundation identity disjointness"
 **Files:**
 - Create: `docs/data/license-receipts/swe-gym-openhands-sampled.local-research.json`
 - Create: `src/pneuma_lab/foundation/preparation.py`
+- Modify: `src/pneuma_lab/converters/openhands_sampled_training.py`
 - Create: `tests/test_foundation_preparation.py`
 - Modify: `tests/test_foundation_data.py`
+- Modify: `tests/test_openhands_sampled_training_converter.py`
 
 - [ ] **Step 1: Write failing deterministic-preparation tests**
 
@@ -898,7 +923,7 @@ def select_complete_records(records, *, token_ceiling):
     return selected
 ```
 
-`prepare_stage()` must, in order: validate the registry and suite; collect metadata-only presence for all ten; call `assert_payload_read_allowed()` before opening the processed OpenHands traces and adapter report; verify or run `run_full_conversion()` into `build/training_examples/openhands-sampled/full/`; hash the conversion report, conversion hash manifest, and committed license receipt and pass those digests as `source_receipt_hashes`; render records; join repo-grouped splits; select complete train records; build required eval identity indexes; produce a zero-finding contamination receipt; write the content-addressed shard; and write source before/after, suite, split, contamination, diversity, and selection receipts. A temporary or partial output is replaced atomically only after its content hash is known. Task 5 adds candidate generation after all preparation receipts are stable.
+`prepare_stage()` must, in order: validate the registry and suite; collect metadata-only presence for all ten; consume the processed OpenHands traces and adapter report only inside separate `with open_authorized_payload(...) as stream` contexts; verify or run a stream-aware conversion entry point into `build/training_examples/openhands-sampled/full/`; hash the conversion report, conversion hash manifest, and committed license receipt and pass those digests as `source_receipt_hashes`; render records; join repo-grouped splits; select complete train records; build required eval identity indexes; produce a zero-finding contamination receipt; write the content-addressed shard; and write source before/after, suite, split, contamination, diversity, and selection receipts. The stream-aware converter must accept trace records from the yielded verified binary stream and an adapter-report mapping parsed from its yielded verified binary stream; Task 3 and Task 4 must never pass either protected pathname to `Path.open()`, `read_text()`, `read_bytes()`, built-in `open()`, or the current path-opening `run_full_conversion()` implementation. Keep each verified stream open for the complete parse/read operation. A temporary or partial output is replaced atomically only after its content hash is known. Task 5 adds candidate generation after all preparation receipts are stable.
 
 The license receipt must state:
 

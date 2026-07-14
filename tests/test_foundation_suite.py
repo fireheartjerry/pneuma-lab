@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -17,7 +18,6 @@ from pneuma_lab.foundation import suite as foundation_suite
 from pneuma_lab.foundation.data import ACTIVE_DATASET_GROUPS
 from pneuma_lab.foundation.suite import (
     SuitePolicyError,
-    assert_payload_read_allowed,
     build_suite_completeness_report,
     load_suite_policy,
     validate_suite_policy,
@@ -27,6 +27,10 @@ from pneuma_lab.foundation.suite import (
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "docs/data/training-readiness/pneuma-foundation-v0-suite.json"
 REGISTRY = ROOT / "docs/data/training-readiness/dataset-registry.json"
+AUTHORITATIVE_PLAN = (
+    ROOT
+    / "docs/superpowers/plans/2026-07-13-foundation-training-launch-preparation.md"
+)
 
 EXPECTED_FAMILY_MATRIX = {
     "multi-swe-bench": ("train", "later", "metadata_only", None),
@@ -130,6 +134,132 @@ def _make_real_directory_link(link: Path, target: Path) -> None:
         link.symlink_to(target, target_is_directory=True)
     except (NotImplementedError, OSError) as exc:
         pytest.skip(f"directory symlinks unavailable: {exc}")
+
+
+EXPECTED_PUBLIC_SUITE_API = (
+    "SuitePolicyError",
+    "build_suite_completeness_report",
+    "load_suite_policy",
+    "open_authorized_payload",
+    "validate_suite_policy",
+)
+
+
+def _assert_exact_public_suite_api() -> None:
+    assert tuple(foundation_suite.__all__) == EXPECTED_PUBLIC_SUITE_API
+    module_defined_public_callables = {
+        name
+        for name, value in vars(foundation_suite).items()
+        if not name.startswith("_")
+        and callable(value)
+        and getattr(value, "__module__", None) == foundation_suite.__name__
+    }
+    assert module_defined_public_callables == set(EXPECTED_PUBLIC_SUITE_API)
+
+
+def _plan_task_section(plan: str, task_number: int) -> str:
+    marker = f"### Task {task_number}:"
+    assert marker in plan
+    section = plan.split(marker, 1)[1]
+    next_marker = f"### Task {task_number + 1}:"
+    return section.split(next_marker, 1)[0]
+
+
+def _assert_secure_stream_plan(plan: str) -> None:
+    assert "assert_payload_read_allowed" not in plan
+
+    task_3 = _plan_task_section(plan, 3)
+    assert "def build_eval_identity_index(" in task_3
+    build_identity_block = task_3.split(
+        "def build_eval_identity_index(",
+        1,
+    )[1].split("```", 1)[0]
+    assert "with open_authorized_payload(" in build_identity_block
+    assert "as stream:" in build_identity_block
+    assert "for raw_line in stream:" in build_identity_block
+    assert "json.loads(raw_line)" in build_identity_block
+    source_path_reopen = re.compile(
+        r"(?:Path\(\s*source_path\s*\)|\bsource_path)\s*\.\s*"
+        r"(?:open|read_text|read_bytes)\s*\(|\bopen\s*\(\s*source_path\b"
+    )
+    assert source_path_reopen.search(build_identity_block) is None
+
+    task_4 = _plan_task_section(plan, 4)
+    prepare_paragraph = task_4.split(
+        "`prepare_stage()` must, in order:",
+        1,
+    )[1].split("\n\n", 1)[0]
+    for required in (
+        "separate `with open_authorized_payload(...) as stream` contexts",
+        "stream-aware converter",
+        "verified binary stream",
+        "adapter-report mapping parsed from its yielded verified binary stream",
+        "must never pass either protected pathname",
+        "current path-opening `run_full_conversion()` implementation",
+    ):
+        assert required in prepare_paragraph
+    path_reopening_conversion = re.compile(
+        r"(?<!`)run_full_conversion\s*\(\s*(?!\))"
+    )
+    assert path_reopening_conversion.search(task_4) is None
+
+
+def test_verified_stream_is_the_only_public_payload_access_api() -> None:
+    _assert_exact_public_suite_api()
+
+
+def test_public_api_drift_guard_rejects_check_only_alias(monkeypatch) -> None:
+    monkeypatch.setattr(
+        foundation_suite,
+        "validate_data_access",
+        foundation_suite._validate_payload_request,
+        raising=False,
+    )
+    with pytest.raises(AssertionError):
+        _assert_exact_public_suite_api()
+
+
+def test_plan_and_package_forbid_check_then_reopen_payload_access() -> None:
+    plan = AUTHORITATIVE_PLAN.read_text(encoding="utf-8")
+    package_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "src/pneuma_lab/foundation").glob("*.py"))
+    )
+
+    assert "assert_payload_read_allowed" not in package_text
+    _assert_secure_stream_plan(plan)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["task_3_reopen", "task_4_path_converter", "task_4_path_mapping"],
+)
+def test_plan_drift_guard_rejects_insecure_stream_mutations(mutation: str) -> None:
+    plan = AUTHORITATIVE_PLAN.read_text(encoding="utf-8")
+    if mutation == "task_3_reopen":
+        drifted = plan.replace(
+            "for raw_line in stream:",
+            'for raw_line in Path(source_path).open("rb"):',
+            1,
+        )
+    elif mutation == "task_4_path_converter":
+        drifted = plan.replace(
+            "consume the processed OpenHands traces and adapter report only inside "
+            "separate `with open_authorized_payload(...) as stream` contexts; "
+            "verify or run a stream-aware conversion entry point",
+            "call run_full_conversion(input_path=trace_path, "
+            "adapter_report_path=adapter_report_path)",
+            1,
+        )
+    else:
+        drifted = plan.replace(
+            "and an adapter-report mapping parsed from its yielded verified binary stream",
+            "and an adapter-report pathname",
+            1,
+        )
+    assert drifted != plan
+    with pytest.raises(AssertionError):
+        _assert_secure_stream_plan(drifted)
 
 
 def test_suite_has_exactly_ten_coherent_family_roles() -> None:
@@ -348,20 +478,21 @@ def test_load_suite_policy_rejects_invalid_json_and_non_object(
         load_suite_policy(non_object)
 
 
-def test_payload_guard_denies_governance_lanes_before_open(tmp_path: Path) -> None:
+def test_payload_opener_denies_governance_lanes_before_open(tmp_path: Path) -> None:
     policy = _suite_fixture()
     with pytest.raises(SuitePolicyError, match="metadata-only"):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             policy,
             stage="100k",
             family="sec-bench-pro",
             lane_id=None,
             data_root=tmp_path,
             path=tmp_path / "processed/sec-bench-pro/records.jsonl",
-        )
+        ):
+            pytest.fail("denied payload must not be yielded")
 
 
-def test_payload_guard_allows_only_the_approved_first_stage_lane(
+def test_payload_opener_allows_only_the_approved_first_stage_lane(
     tmp_path: Path,
 ) -> None:
     policy = _suite_fixture()
@@ -369,23 +500,25 @@ def test_payload_guard_allows_only_the_approved_first_stage_lane(
         tmp_path,
         "processed/swe-gym/openhands-sampled/records.jsonl",
     )
-    assert_payload_read_allowed(
+    with foundation_suite.open_authorized_payload(
         policy,
         stage="100k",
         family="swe-gym",
         lane_id="swe-gym-openhands-sampled",
         data_root=tmp_path,
         path=approved,
-    )
+    ) as stream:
+        assert stream.read() == b"metadata-only test fixture"
     with pytest.raises(SuitePolicyError, match="metadata-only"):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             policy,
             stage="100k",
             family="swe-gym",
             lane_id="swe-gym-openhands-verifier",
             data_root=tmp_path,
             path=approved,
-        )
+        ):
+            pytest.fail("denied payload must not be yielded")
 
 
 @pytest.mark.parametrize(
@@ -402,40 +535,42 @@ def test_payload_guard_allows_only_the_approved_first_stage_lane(
         "processed/swe-gym/not-openhands-sampled/records.jsonl",
     ],
 )
-def test_payload_guard_rejects_ambiguous_approved_lane_paths(
+def test_payload_opener_rejects_ambiguous_approved_lane_paths(
     tmp_path: Path,
     path: str,
 ) -> None:
     candidate = f"{tmp_path.as_posix()}/{path}"
     with pytest.raises(SuitePolicyError, match="metadata-only"):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage="100k",
             family="swe-gym",
             lane_id="swe-gym-openhands-sampled",
             data_root=tmp_path,
             path=candidate,
-        )
+        ):
+            pytest.fail("ambiguous path must not be yielded")
 
 
-def test_payload_guard_accepts_exact_trusted_approved_lane_path(
+def test_payload_opener_accepts_exact_trusted_approved_lane_path(
     tmp_path: Path,
 ) -> None:
     payload = _write_fixture(
         tmp_path,
         "processed/swe-gym/openhands-sampled/records.jsonl",
     )
-    assert_payload_read_allowed(
+    with foundation_suite.open_authorized_payload(
         _suite_fixture(),
         stage="100k",
         family="swe-gym",
         lane_id="swe-gym-openhands-sampled",
         data_root=tmp_path,
         path=payload,
-    )
+    ) as stream:
+        assert stream.read() == b"metadata-only test fixture"
 
 
-def test_payload_guard_allows_only_declared_identity_metadata(
+def test_payload_opener_allows_only_declared_identity_metadata(
     tmp_path: Path,
 ) -> None:
     policy = _suite_fixture()
@@ -443,23 +578,25 @@ def test_payload_guard_allows_only_declared_identity_metadata(
         tmp_path,
         "processed/swe-bench/normalized_metadata.jsonl",
     )
-    assert_payload_read_allowed(
+    with foundation_suite.open_authorized_payload(
         policy,
         stage="100k",
         family="swe-bench",
         lane_id=None,
         data_root=tmp_path,
         path=metadata,
-    )
+    ) as stream:
+        assert stream.read() == b"metadata-only test fixture"
     with pytest.raises(SuitePolicyError, match="metadata-only"):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             policy,
             stage="100k",
             family="swe-bench",
             lane_id=None,
             data_root=tmp_path,
             path=tmp_path / "processed/swe-bench/records.jsonl",
-        )
+        ):
+            pytest.fail("undeclared metadata must not be yielded")
 
 
 @pytest.mark.parametrize(
@@ -477,88 +614,93 @@ def test_payload_guard_allows_only_declared_identity_metadata(
         "processed/swe-bench/normalized_metadata.jsonl/descendant",
     ],
 )
-def test_payload_guard_rejects_ambiguous_identity_paths(
+def test_payload_opener_rejects_ambiguous_identity_paths(
     tmp_path: Path,
     path: str,
 ) -> None:
     candidate = f"{tmp_path.as_posix()}/{path}"
     with pytest.raises(SuitePolicyError, match="metadata-only"):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage="100k",
             family="swe-bench",
             lane_id=None,
             data_root=tmp_path,
             path=candidate,
-        )
+        ):
+            pytest.fail("ambiguous path must not be yielded")
 
 
-def test_payload_guard_accepts_exact_trusted_identity_path(tmp_path: Path) -> None:
+def test_payload_opener_accepts_exact_trusted_identity_path(tmp_path: Path) -> None:
     metadata = _write_fixture(
         tmp_path,
         "processed/swe-bench/normalized_metadata.jsonl",
     )
-    assert_payload_read_allowed(
+    with foundation_suite.open_authorized_payload(
         _suite_fixture(),
         stage="100k",
         family="swe-bench",
         lane_id=None,
         data_root=tmp_path,
         path=metadata,
-    )
+    ) as stream:
+        assert stream.read() == b"metadata-only test fixture"
 
 
 @pytest.mark.parametrize(
     ("stage", "family"),
     [("1m", "swe-gym"), ("100k", "unknown-family")],
 )
-def test_payload_guard_unknown_stage_or_family_fails_closed(
+def test_payload_opener_unknown_stage_or_family_fails_closed(
     tmp_path: Path,
     stage: str,
     family: str,
 ) -> None:
     with pytest.raises(SuitePolicyError):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage=stage,
             family=family,
             lane_id=None,
             data_root=tmp_path,
             path=tmp_path / "payload.jsonl",
-        )
+        ):
+            pytest.fail("invalid request must not be yielded")
 
 
 @pytest.mark.parametrize("path", [None, object(), ""])
-def test_payload_guard_rejects_missing_or_non_path_values(
+def test_payload_opener_rejects_missing_or_non_path_values(
     tmp_path: Path,
     path: object,
 ) -> None:
     with pytest.raises(SuitePolicyError):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage="100k",
             family="swe-gym",
             lane_id="swe-gym-openhands-sampled",
             data_root=tmp_path,
             path=path,
-        )
+        ):
+            pytest.fail("invalid path must not be yielded")
 
 
-def test_payload_guard_rejects_malformed_family_without_builtin_error(
+def test_payload_opener_rejects_malformed_family_without_builtin_error(
     tmp_path: Path,
 ) -> None:
     with pytest.raises(SuitePolicyError):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage="100k",
             family=[],
             lane_id="swe-gym-openhands-sampled",
             data_root=tmp_path,
             path="processed/swe-gym/openhands-sampled/records.jsonl",
-        )
+        ):
+            pytest.fail("malformed request must not be yielded")
 
 
-def test_payload_guard_rejects_existing_path_outside_trusted_root(
+def test_payload_opener_rejects_existing_path_outside_trusted_root(
     tmp_path: Path,
 ) -> None:
     trusted = tmp_path / "trusted"
@@ -568,21 +710,22 @@ def test_payload_guard_rejects_existing_path_outside_trusted_root(
         "processed/swe-gym/openhands-sampled/records.jsonl",
     )
     with pytest.raises(SuitePolicyError, match="trusted data root"):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage="100k",
             family="swe-gym",
             lane_id="swe-gym-openhands-sampled",
             data_root=trusted,
             path=untrusted,
-        )
+        ):
+            pytest.fail("outside path must not be yielded")
 
 
-def test_payload_guard_rejects_explicit_untrusted_windows_root(
+def test_payload_opener_rejects_explicit_untrusted_windows_root(
     tmp_path: Path,
 ) -> None:
     with pytest.raises(SuitePolicyError):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage="100k",
             family="swe-gym",
@@ -591,24 +734,26 @@ def test_payload_guard_rejects_explicit_untrusted_windows_root(
             path=Path(
                 r"C:\untrusted-root\processed\swe-gym\openhands-sampled\rows.jsonl"
             ),
-        )
+        ):
+            pytest.fail("outside path must not be yielded")
 
 
-def test_payload_guard_rejects_nonexistent_trusted_lane_path(
+def test_payload_opener_rejects_nonexistent_trusted_lane_path(
     tmp_path: Path,
 ) -> None:
     with pytest.raises(SuitePolicyError, match="exist"):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage="100k",
             family="swe-gym",
             lane_id="swe-gym-openhands-sampled",
             data_root=tmp_path,
             path=tmp_path / "processed/swe-gym/openhands-sampled/missing.jsonl",
-        )
+        ):
+            pytest.fail("missing path must not be yielded")
 
 
-def test_payload_guard_rejects_simulated_nested_reparse(
+def test_payload_opener_rejects_simulated_nested_reparse(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -624,17 +769,18 @@ def test_payload_guard_rejects_simulated_nested_reparse(
         raising=False,
     )
     with pytest.raises(SuitePolicyError, match="trusted data root"):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage="100k",
             family="swe-gym",
             lane_id="swe-gym-openhands-sampled",
             data_root=tmp_path,
             path=payload,
-        )
+        ):
+            pytest.fail("reparse path must not be yielded")
 
 
-def test_payload_guard_rejects_nested_resolution_escape(
+def test_payload_opener_rejects_nested_resolution_escape(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -655,17 +801,18 @@ def test_payload_guard_rejects_nested_resolution_escape(
 
     monkeypatch.setattr(Path, "resolve", relocated_resolve)
     with pytest.raises(SuitePolicyError, match="trusted data root"):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage="100k",
             family="swe-gym",
             lane_id="swe-gym-openhands-sampled",
             data_root=tmp_path,
             path=payload,
-        )
+        ):
+            pytest.fail("escaped path must not be yielded")
 
 
-def test_payload_guard_rejects_real_nested_symlink_when_supported(
+def test_payload_opener_rejects_real_nested_symlink_when_supported(
     tmp_path: Path,
 ) -> None:
     lane = tmp_path / "processed/swe-gym/openhands-sampled"
@@ -679,17 +826,18 @@ def test_payload_guard_rejects_real_nested_symlink_when_supported(
     except (NotImplementedError, OSError) as exc:
         pytest.skip(f"directory symlinks unavailable: {exc}")
     with pytest.raises(SuitePolicyError, match="trusted data root"):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage="100k",
             family="swe-gym",
             lane_id="swe-gym-openhands-sampled",
             data_root=tmp_path,
             path=link / "records.jsonl",
-        )
+        ):
+            pytest.fail("symlink path must not be yielded")
 
 
-def test_payload_guard_rejects_alternate_stream_syntax(tmp_path: Path) -> None:
+def test_payload_opener_rejects_alternate_stream_syntax(tmp_path: Path) -> None:
     base = _write_fixture(
         tmp_path,
         "processed/swe-gym/openhands-sampled/records.jsonl",
@@ -701,14 +849,15 @@ def test_payload_guard_rejects_alternate_stream_syntax(tmp_path: Path) -> None:
         pytest.skip(f"alternate-stream fixture unavailable: {exc}")
 
     with pytest.raises(SuitePolicyError):
-        assert_payload_read_allowed(
+        with foundation_suite.open_authorized_payload(
             _suite_fixture(),
             stage="100k",
             family="swe-gym",
             lane_id="swe-gym-openhands-sampled",
             data_root=tmp_path,
             path=alternate,
-        )
+        ):
+            pytest.fail("alternate stream must not be yielded")
 
 
 def test_open_authorized_payload_yields_and_closes_the_verified_stream(
@@ -833,15 +982,6 @@ def test_open_authorized_payload_rejects_directory_link_swap_before_open(
     (outside / payload.name).write_bytes(b"outside bytes must never be yielded")
     staged_link = nested.with_name("nested-race-link")
     _make_real_directory_link(staged_link, outside)
-
-    assert_payload_read_allowed(
-        _suite_fixture(),
-        stage="100k",
-        family="swe-gym",
-        lane_id="swe-gym-openhands-sampled",
-        data_root=tmp_path,
-        path=payload,
-    )
 
     real_open = os.open
     attack_ran = False

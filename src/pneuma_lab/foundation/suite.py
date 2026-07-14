@@ -309,7 +309,7 @@ def validate_suite_policy(policy: Mapping, registry: Mapping) -> tuple[str, ...]
     return ACTIVE_DATASET_GROUPS
 
 
-def _authorize_payload_path(
+def _validate_payload_request(
     policy: Mapping,
     *,
     stage: str,
@@ -318,7 +318,6 @@ def _authorize_payload_path(
     data_root: Path,
     path: Path,
 ) -> _TrustedPayload:
-
     family_map = _validated_family_map(policy)
     if not isinstance(stage, str) or not stage:
         raise SuitePolicyError("stage must be a non-empty string")
@@ -366,27 +365,6 @@ def _authorize_payload_path(
         path=path,
         allowed_relative_root=tuple(str(identity_path).split("/")),
         exact=True,
-    )
-
-
-def assert_payload_read_allowed(
-    policy: Mapping,
-    *,
-    stage: str,
-    family: str,
-    lane_id: str | None,
-    data_root: Path,
-    path: Path,
-) -> None:
-    """Preflight a path without opening it; consumers must use the secure opener."""
-
-    _authorize_payload_path(
-        policy,
-        stage=stage,
-        family=family,
-        lane_id=lane_id,
-        data_root=data_root,
-        path=path,
     )
 
 
@@ -518,7 +496,7 @@ def open_authorized_payload(
     but must never reopen ``path`` after this context manager has approved it.
     """
 
-    target = _authorize_payload_path(
+    target = _validate_payload_request(
         policy,
         stage=stage,
         family=family,
@@ -570,7 +548,6 @@ def build_suite_completeness_report(policy: Mapping, data_root: Path) -> dict:
 
 __all__ = [
     "SuitePolicyError",
-    "assert_payload_read_allowed",
     "build_suite_completeness_report",
     "load_suite_policy",
     "open_authorized_payload",
