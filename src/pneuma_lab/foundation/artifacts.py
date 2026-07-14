@@ -81,6 +81,23 @@ def _require_single_mount_identity(
         )
 
 
+def _reject_protected_identity_alias(
+    bound_identities: Iterable[tuple[int, int, int]],
+    protected_identities: Iterable[tuple[int, int, int]],
+) -> None:
+    protected_objects = {
+        (device, inode)
+        for device, inode, _ in protected_identities
+    }
+    if any(
+        (device, inode) in protected_objects
+        for device, inode, _ in bound_identities
+    ):
+        raise ArtifactPublicationError(
+            "artifact publication ancestry aliases a protected root"
+        )
+
+
 def sha256_file(path: Path) -> str:
     """Hash one repository/build artifact without loading it into memory."""
 
@@ -255,6 +272,40 @@ def _windows_handle_attributes(handle) -> tuple[int, int]:
     return int(info.FileAttributes), int(info.ReparseTag)
 
 
+def _windows_handle_identity(handle) -> tuple[int, int, int]:
+    import ctypes
+    from ctypes import wintypes
+
+    class ByHandleFileInformation(ctypes.Structure):
+        _fields_ = (
+            ("FileAttributes", wintypes.DWORD),
+            ("CreationTime", wintypes.FILETIME),
+            ("LastAccessTime", wintypes.FILETIME),
+            ("LastWriteTime", wintypes.FILETIME),
+            ("VolumeSerialNumber", wintypes.DWORD),
+            ("FileSizeHigh", wintypes.DWORD),
+            ("FileSizeLow", wintypes.DWORD),
+            ("NumberOfLinks", wintypes.DWORD),
+            ("FileIndexHigh", wintypes.DWORD),
+            ("FileIndexLow", wintypes.DWORD),
+        )
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_information = kernel32.GetFileInformationByHandle
+    get_information.argtypes = (
+        wintypes.HANDLE,
+        ctypes.POINTER(ByHandleFileInformation),
+    )
+    get_information.restype = wintypes.BOOL
+    information = ByHandleFileInformation()
+    if not get_information(handle, ctypes.byref(information)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    file_index = (
+        int(information.FileIndexHigh) << 32
+    ) | int(information.FileIndexLow)
+    return int(information.VolumeSerialNumber), file_index, 0
+
+
 def _open_windows_handle(path: Path, *, directory: bool):
     ctypes, _, create_file, close_handle, _, _ = _windows_api()
     file_list_directory = 0x0001
@@ -334,7 +385,10 @@ class BoundArtifactPublication:
                 "artifact output directory must remain under its allowed root"
             )
         for forbidden_root in self.forbidden_roots:
-            if _is_within(self.directory, forbidden_root):
+            if (
+                _is_within(self.directory, forbidden_root)
+                or _is_within(forbidden_root, self.directory)
+            ):
                 raise ArtifactPublicationError(
                     "artifact output directory overlaps a forbidden root"
                 )
@@ -342,6 +396,7 @@ class BoundArtifactPublication:
         self._posix_identities: dict[int, tuple[int, int, int]] = {}
         self._anchor_mount_id: int | None = None
         self._published: list[_PublishedArtifact] = []
+        self._committed = False
 
     @property
     def _directory_binding(self) -> int:
@@ -475,11 +530,126 @@ class BoundArtifactPublication:
                     "bound artifact output ancestry changed during publication"
                 )
 
+    def _bound_directory_identities(self) -> tuple[tuple[int, int, int], ...]:
+        if os.name == "nt":
+            return tuple(
+                _windows_handle_identity(binding)
+                for _, binding in self._bound
+            )
+        return tuple(
+            self._posix_identities[binding]
+            for _, binding in self._bound
+        )
+
+    def _protected_root_identities(self) -> tuple[tuple[int, int, int], ...]:
+        identities: list[tuple[int, int, int]] = []
+        for protected_root in self.forbidden_roots:
+            try:
+                protected_root.lstat()
+            except FileNotFoundError:
+                continue
+            if os.name == "nt":
+                handle = _open_windows_handle(protected_root, directory=True)
+                try:
+                    identities.append(_windows_handle_identity(handle))
+                finally:
+                    _, _, _, close_handle, _, _ = _windows_api()
+                    close_handle(handle)
+                continue
+            descriptor = os.open(
+                protected_root,
+                os.O_RDONLY
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0),
+            )
+            try:
+                if _path_identity(
+                    _linux_final_path_from_fd(descriptor)
+                ) != _path_identity(protected_root):
+                    raise ArtifactPublicationError(
+                        "protected root resolves through an alias"
+                    )
+                metadata = os.fstat(descriptor)
+                identities.append(
+                    (
+                        metadata.st_dev,
+                        metadata.st_ino,
+                        _linux_mount_id_from_fd(descriptor),
+                    )
+                )
+            finally:
+                os.close(descriptor)
+        return tuple(identities)
+
+    def _reject_protected_aliases(self) -> None:
+        _reject_protected_identity_alias(
+            self._bound_directory_identities(),
+            self._protected_root_identities(),
+        )
+
+    @contextmanager
+    def _fresh_posix_ancestry(self) -> Iterator[int]:
+        """Rebind the lexical repo ancestry and yield its verified output fd."""
+
+        flags = (
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        descriptors: list[int] = []
+        identities: list[tuple[int, int, int]] = []
+        try:
+            for index, (expected, binding) in enumerate(self._bound):
+                if index == 0:
+                    descriptor = os.open(expected, flags)
+                else:
+                    descriptor = os.open(
+                        expected.name,
+                        flags,
+                        dir_fd=descriptors[-1],
+                    )
+                descriptors.append(descriptor)
+                metadata = os.fstat(descriptor)
+                identity = (
+                    metadata.st_dev,
+                    metadata.st_ino,
+                    _linux_mount_id_from_fd(descriptor),
+                )
+                identities.append(identity)
+                if identity != self._posix_identities[binding]:
+                    raise ArtifactPublicationError(
+                        "artifact output no longer resolves to its bound mount and inode"
+                    )
+                if _path_identity(
+                    _linux_final_path_from_fd(descriptor)
+                ) != _path_identity(expected):
+                    raise ArtifactPublicationError(
+                        "artifact output no longer resolves to its authorized path"
+                    )
+                if (
+                    _is_within(expected, self.anchor_root)
+                    and identity[2] != self._anchor_mount_id
+                ):
+                    raise ArtifactPublicationError(
+                        "artifact output no longer resolves on the repository mount"
+                    )
+            _reject_protected_identity_alias(
+                identities,
+                self._protected_root_identities(),
+            )
+            yield descriptors[-1]
+        finally:
+            for descriptor in reversed(descriptors):
+                os.close(descriptor)
+
     def _verify_authorized_location(self) -> None:
         """Re-resolve every lexical component to the same held directory chain."""
 
         self._verify_ancestry()
         if os.name == "nt":
+            self._reject_protected_aliases()
             for expected, _ in self._bound:
                 fresh_handle = _open_windows_handle(expected, directory=True)
                 try:
@@ -494,34 +664,8 @@ class BoundArtifactPublication:
                     close_handle(fresh_handle)
             return
 
-        flags = (
-            os.O_RDONLY
-            | getattr(os, "O_CLOEXEC", 0)
-            | getattr(os, "O_DIRECTORY", 0)
-            | getattr(os, "O_NOFOLLOW", 0)
-        )
-        for expected, binding in self._bound:
-            fresh_descriptor = os.open(expected, flags)
-            try:
-                metadata = os.fstat(fresh_descriptor)
-                fresh_identity = (
-                    metadata.st_dev,
-                    metadata.st_ino,
-                    _linux_mount_id_from_fd(fresh_descriptor),
-                )
-                if fresh_identity != self._posix_identities[binding]:
-                    raise ArtifactPublicationError(
-                        "artifact output no longer resolves to its bound mount and inode"
-                    )
-                if (
-                    _is_within(expected, self.anchor_root)
-                    and fresh_identity[2] != self._anchor_mount_id
-                ):
-                    raise ArtifactPublicationError(
-                        "artifact output no longer resolves on the repository mount"
-                    )
-            finally:
-                os.close(fresh_descriptor)
+        with self._fresh_posix_ancestry():
+            pass
 
     def _final_directory_path(self) -> Path:
         binding = self._directory_binding
@@ -714,12 +858,13 @@ class BoundArtifactPublication:
         if os.name == "nt":
             os.replace(self.directory / temporary_name, self.directory / name)
             return
-        os.replace(
-            temporary_name,
-            name,
-            src_dir_fd=self._directory_binding,
-            dst_dir_fd=self._directory_binding,
-        )
+        with self._fresh_posix_ancestry() as fresh_directory:
+            os.replace(
+                temporary_name,
+                name,
+                src_dir_fd=fresh_directory,
+                dst_dir_fd=fresh_directory,
+            )
 
     def _unlink(self, name: str, *, rollback: bool = False) -> None:
         try:
@@ -840,16 +985,10 @@ class BoundArtifactPublication:
             ) from exc
         self._published.clear()
 
-    def commit(self) -> None:
-        """Finalize outputs in an operator-controlled repository build tree.
+    def _before_final_verify(self) -> None:
+        """Internal deterministic race-injection point used only by tests."""
 
-        POSIX directory descriptors cannot prevent a privileged peer from renaming
-        or mutating entries. The repository build tree is therefore an
-        operator-controlled boundary. Verification below is deliberately the last
-        operation before rollback state is released, minimizing the unavoidable
-        scheduler window rather than claiming a cross-process POSIX rename lock.
-        """
-
+    def _final_verify(self) -> None:
         self._verify_authorized_location()
         for record in self._published:
             if not record.published:
@@ -865,15 +1004,44 @@ class BoundArtifactPublication:
                     "published artifact content changed before commit"
                 )
         self._verify_authorized_location()
-        committed = tuple(self._published)
-        self._published.clear()
+
+    def _postcommit_cleanup(
+        self,
+        committed: tuple[_PublishedArtifact, ...],
+    ) -> None:
+        """Best-effort cleanup after the verified commit point; never invalidates it."""
+
         for record in committed:
             if record.backup_created:
                 assert record.backup_name is not None
-                self._unlink(record.backup_name)
+                try:
+                    self._unlink(record.backup_name)
+                except OSError:
+                    continue
                 record.backup_created = False
         if os.name != "nt":
-            _fsync_descriptor(self._directory_binding)
+            try:
+                _fsync_descriptor(self._directory_binding)
+            except OSError:
+                pass
+
+    def commit(self) -> None:
+        """Finalize outputs in an operator-controlled repository build tree.
+
+        POSIX directory descriptors cannot prevent a same-UID or privileged peer
+        from mutating the namespace after the kernel's final verification and
+        commit instant. The repository build tree is therefore an
+        operator-controlled boundary. Final verification is the last fallible
+        precommit operation; this narrows the scheduler window without claiming
+        impossible cross-process POSIX rename prevention.
+        """
+
+        committed = tuple(self._published)
+        self._before_final_verify()
+        self._final_verify()
+        self._committed = True
+        self._published.clear()
+        self._postcommit_cleanup(committed)
 
     def close(self) -> None:
         if os.name == "nt":
@@ -914,7 +1082,8 @@ def bind_artifact_publication(
             try:
                 publication.commit()
             except BaseException:
-                publication.rollback()
+                if not publication._committed:
+                    publication.rollback()
                 raise
     except ArtifactPublicationError:
         raise

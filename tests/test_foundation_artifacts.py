@@ -32,6 +32,18 @@ def test_linux_mount_id_parser_and_transition_guard() -> None:
         artifacts._require_single_mount_identity(417, (417, 901, 417))
 
 
+def test_protected_identity_alias_guard_uses_device_and_inode() -> None:
+    artifacts._reject_protected_identity_alias(
+        ((11, 21, 31), (11, 22, 31)),
+        ((12, 21, 31),),
+    )
+    with pytest.raises(ArtifactPublicationError, match="protected|alias"):
+        artifacts._reject_protected_identity_alias(
+            ((11, 21, 901),),
+            ((11, 21, 417),),
+        )
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux mount IDs")
 def test_bind_mount_output_is_rejected_before_publication(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
@@ -60,6 +72,54 @@ def test_bind_mount_output_is_rejected_before_publication(tmp_path: Path) -> Non
     finally:
         unmounted = subprocess.run(
             ["umount", str(output)],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        if unmounted.returncode != 0:
+            pytest.fail(f"test bind mount could not be unmounted: {unmounted.stderr}")
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux bind mount")
+def test_bind_mounted_protected_root_cannot_be_repository_anchor(
+    tmp_path: Path,
+) -> None:
+    protected = tmp_path / "pneuma-data"
+    output_relative = Path("build/out")
+    (protected / output_relative).mkdir(parents=True)
+    sentinel = protected / "sentinel.txt"
+    sentinel.write_text("immutable", encoding="utf-8")
+    before = tuple(sorted(path.relative_to(protected) for path in protected.rglob("*")))
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    mounted = subprocess.run(
+        ["mount", "--bind", str(protected), str(repo_root)],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if mounted.returncode != 0:
+        pytest.skip(f"bind mounts unavailable: {mounted.stderr.strip()}")
+    try:
+        with pytest.raises(ArtifactPublicationError, match="protected|alias"):
+            with bind_artifact_publication(
+                repo_root / output_relative,
+                anchor_root=repo_root,
+                allowed_root=repo_root / "build",
+                forbidden_roots=(protected,),
+            ) as publication:
+                publication.write_bytes(
+                    repo_root / output_relative / "escaped.bin",
+                    b"blocked",
+                )
+        after = tuple(
+            sorted(path.relative_to(protected) for path in protected.rglob("*"))
+        )
+        assert after == before
+        assert sentinel.read_text(encoding="utf-8") == "immutable"
+    finally:
+        unmounted = subprocess.run(
+            ["umount", str(repo_root)],
             capture_output=True,
             check=False,
             text=True,
@@ -111,8 +171,12 @@ def test_rename_into_forbidden_root_before_replace_rolls_back(
     forbidden.mkdir()
     moved = forbidden / "moved-output"
     target = output / "artifact.bin"
+    protected_write_observed = False
 
-    with pytest.raises(ArtifactPublicationError, match="ancestry|output"):
+    with pytest.raises(
+        ArtifactPublicationError,
+        match="ancestry|output|publication",
+    ):
         with bind_artifact_publication(
             output,
             anchor_root=repo_root,
@@ -122,12 +186,17 @@ def test_rename_into_forbidden_root_before_replace_rolls_back(
             real_replace = publication._replace
 
             def rename_then_replace(temporary_name: str, name: str) -> None:
+                nonlocal protected_write_observed
                 output.rename(moved)
-                real_replace(temporary_name, name)
+                try:
+                    real_replace(temporary_name, name)
+                finally:
+                    protected_write_observed = (moved / name).exists()
 
             monkeypatch.setattr(publication, "_replace", rename_then_replace)
             publication.write_bytes(target, b"payload")
     assert tuple(moved.iterdir()) == ()
+    assert protected_write_observed is False
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="POSIX rename race")
@@ -142,16 +211,14 @@ def test_commit_rejects_output_renamed_after_last_write(
     forbidden.mkdir()
     moved = forbidden / "moved-output"
     target = output / "artifact.bin"
-    real_commit = artifacts.BoundArtifactPublication.commit
-
-    def rename_then_commit(publication) -> None:
+    def move_before_final_verify(_publication) -> None:
         output.rename(moved)
-        real_commit(publication)
 
     monkeypatch.setattr(
         artifacts.BoundArtifactPublication,
-        "commit",
-        rename_then_commit,
+        "_before_final_verify",
+        move_before_final_verify,
+        raising=False,
     )
     with pytest.raises(ArtifactPublicationError, match="ancestry|output"):
         with bind_artifact_publication(
@@ -164,10 +231,23 @@ def test_commit_rejects_output_renamed_after_last_write(
     assert tuple(moved.iterdir()) == ()
 
 
-def test_commit_rejects_published_content_mutation(tmp_path: Path) -> None:
+def test_commit_rejects_published_content_mutation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     output = tmp_path / "repo/build/out"
     output.mkdir(parents=True)
     target = output / "artifact.bin"
+
+    def mutate_before_final_verify(_publication) -> None:
+        target.write_bytes(b"tampered")
+
+    monkeypatch.setattr(
+        artifacts.BoundArtifactPublication,
+        "_before_final_verify",
+        mutate_before_final_verify,
+        raising=False,
+    )
     with pytest.raises(ArtifactPublicationError, match="content|digest|size"):
         with bind_artifact_publication(
             output,
@@ -175,8 +255,72 @@ def test_commit_rejects_published_content_mutation(tmp_path: Path) -> None:
             allowed_root=tmp_path / "repo/build",
         ) as publication:
             publication.write_bytes(target, b"expected")
-            target.write_bytes(b"tampered")
     assert not target.exists()
+
+
+def test_postcommit_backup_cleanup_failure_leaves_recoverable_state(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    output = tmp_path / "repo/build/out"
+    output.mkdir(parents=True)
+    target = output / "artifact.bin"
+    sibling = output / "artifact-hardlink.bin"
+    target.write_bytes(b"preserved")
+    os.link(target, sibling)
+
+    with bind_artifact_publication(
+        output,
+        anchor_root=tmp_path / "repo",
+        allowed_root=tmp_path / "repo/build",
+    ) as publication:
+        real_unlink = publication._unlink
+
+        def fail_backup_cleanup(name: str, **kwargs) -> None:
+            if name.endswith(".publication-backup"):
+                raise OSError("injected backup cleanup failure")
+            real_unlink(name, **kwargs)
+
+        monkeypatch.setattr(publication, "_unlink", fail_backup_cleanup)
+        publication.write_bytes(target, b"committed")
+
+    assert target.read_bytes() == b"committed"
+    assert sibling.read_bytes() == b"preserved"
+    backups = tuple(
+        path for path in output.iterdir()
+        if path.name.endswith(".publication-backup")
+    )
+    assert len(backups) == 1
+    assert os.path.samefile(backups[0], sibling)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="POSIX dir fsync")
+def test_postcommit_directory_fsync_failure_does_not_invalidate_commit(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "repo/build/out/artifact.bin"
+    calls = 0
+    real_fsync = artifacts._fsync_descriptor
+
+    def fail_cleanup_fsync(descriptor: int) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("injected postcommit fsync failure")
+        real_fsync(descriptor)
+
+    monkeypatch.setattr(artifacts, "_fsync_descriptor", fail_cleanup_fsync)
+    write_atomic_bytes(target, b"committed")
+    assert calls == 2
+    assert target.read_bytes() == b"committed"
+
+
+def test_concurrency_boundary_is_documented_honestly() -> None:
+    documentation = artifacts.BoundArtifactPublication.commit.__doc__ or ""
+    assert "same-UID" in documentation
+    assert "commit instant" in documentation
+    assert "cannot prevent" in documentation
 
 
 def test_rollback_restores_same_inode_hardlink_and_mode(tmp_path: Path) -> None:
