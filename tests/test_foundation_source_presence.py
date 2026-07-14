@@ -7,7 +7,10 @@ from pathlib import Path
 import pytest
 
 from pneuma_lab.foundation import source_presence
-from pneuma_lab.foundation.source_presence import probe_family_presence
+from pneuma_lab.foundation.source_presence import (
+    SourcePresenceError,
+    probe_family_presence,
+)
 
 
 def test_blocked_presence_probe_never_opens_payload(tmp_path, monkeypatch) -> None:
@@ -146,4 +149,105 @@ def test_presence_probe_rejects_family_root_symlink_when_supported(
         pytest.skip(f"directory symlinks unavailable: {exc}")
 
     with pytest.raises(ValueError, match="trust boundary"):
+        probe_family_presence(tmp_path, "swe-chat")
+
+
+def test_presence_probe_rejects_existing_non_directory_root(
+    tmp_path: Path,
+) -> None:
+    processed = tmp_path / "processed"
+    processed.mkdir()
+    (processed / "swe-chat").write_bytes(b"not a directory")
+    with pytest.raises(SourcePresenceError, match="directory"):
+        probe_family_presence(tmp_path, "swe-chat")
+
+
+def test_presence_probe_wraps_lstat_permission_error(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    processed = tmp_path / "processed"
+    family = processed / "swe-chat"
+    family.mkdir(parents=True)
+    real_lstat = Path.lstat
+
+    def denied_lstat(path: Path, *args, **kwargs):
+        if path == processed:
+            raise PermissionError("lstat denied")
+        return real_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "lstat", denied_lstat)
+    with pytest.raises(SourcePresenceError, match="lstat denied"):
+        probe_family_presence(tmp_path, "swe-chat")
+
+
+def test_presence_probe_uses_raising_walk_onerror(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    family = tmp_path / "processed" / "swe-chat"
+    family.mkdir(parents=True)
+
+    def denied_walk(*args, onerror=None, **kwargs):
+        if onerror is not None:
+            onerror(PermissionError("scandir denied"))
+        return ()
+
+    monkeypatch.setattr(source_presence.os, "walk", denied_walk)
+    with pytest.raises(SourcePresenceError, match="scandir denied"):
+        probe_family_presence(tmp_path, "swe-chat")
+
+
+def test_presence_probe_wraps_nested_resolve_error(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    nested = tmp_path / "processed" / "swe-chat" / "nested"
+    nested.mkdir(parents=True)
+    real_resolve = Path.resolve
+
+    def denied_resolve(path: Path, *args, **kwargs):
+        if path == nested:
+            raise OSError("resolve denied")
+        return real_resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", denied_resolve)
+    with pytest.raises(SourcePresenceError, match="resolve denied"):
+        probe_family_presence(tmp_path, "swe-chat")
+
+
+def test_presence_probe_wraps_file_stat_error(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    payload = tmp_path / "processed" / "swe-chat" / "present.bin"
+    payload.parent.mkdir(parents=True)
+    payload.write_bytes(b"metadata")
+    real_stat = Path.stat
+
+    def denied_stat(path: Path, *args, **kwargs):
+        if path == payload:
+            raise OSError("stat denied")
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", denied_stat)
+    with pytest.raises(SourcePresenceError, match="stat denied"):
+        probe_family_presence(tmp_path, "swe-chat")
+
+
+def test_presence_probe_never_returns_partial_walk_success(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    family = tmp_path / "processed" / "swe-chat"
+    family.mkdir(parents=True)
+    (family / "first.bin").write_bytes(b"first")
+
+    def partial_walk(*args, onerror=None, **kwargs):
+        yield str(family), [], ["first.bin"]
+        if onerror is not None:
+            onerror(PermissionError("partial walk denied"))
+
+    monkeypatch.setattr(source_presence.os, "walk", partial_walk)
+    with pytest.raises(SourcePresenceError, match="partial walk denied"):
         probe_family_presence(tmp_path, "swe-chat")

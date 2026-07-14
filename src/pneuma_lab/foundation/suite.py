@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat as stat_module
 from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
@@ -15,7 +16,12 @@ from pneuma_lab.foundation.data import (
     DataAuthorizationError,
     governed_dataset_groups,
 )
-from pneuma_lab.foundation.source_presence import probe_family_presence
+from pneuma_lab.foundation.source_presence import (
+    SourcePresenceError,
+    _is_link_or_reparse,
+    _is_within,
+    probe_family_presence,
+)
 
 
 class SuitePolicyError(ValueError):
@@ -58,6 +64,13 @@ _EXPECTED_FAMILY_MATRIX = (
         "processed/swe-polybench/normalized_metadata.jsonl",
     ),
 )
+_EXPECTED_POLICY_KEYS = {
+    "manifest_kind",
+    "manifest_schema_version",
+    "first_stage",
+    "families",
+}
+_CANDIDATE_LANE_ID = "swe-gym-openhands-sampled"
 
 
 def load_suite_policy(path: Path) -> dict[str, Any]:
@@ -84,6 +97,14 @@ def _policy_entries(policy: Mapping) -> tuple[Mapping, ...]:
 
 
 def _validated_family_map(policy: Mapping) -> dict[str, Mapping]:
+    if not isinstance(policy, Mapping):
+        raise SuitePolicyError("suite policy must be a mapping")
+    if set(policy) != _EXPECTED_POLICY_KEYS:
+        raise SuitePolicyError("suite policy manifest has missing or extra fields")
+    if policy.get("manifest_kind") != "pneuma_foundation_dataset_suite":
+        raise SuitePolicyError("suite policy manifest_kind is invalid")
+    if policy.get("manifest_schema_version") != "0.1.0":
+        raise SuitePolicyError("suite policy manifest_schema_version is invalid")
     entries = _policy_entries(policy)
     families: list[str] = []
     for item in entries:
@@ -159,12 +180,107 @@ def _lexical_data_relative_parts(path: object) -> tuple[str, ...] | None:
     return raw_parts[processed_index:]
 
 
+def _validate_candidate_lane(registry: Mapping) -> None:
+    lanes = registry.get("lanes")
+    if not isinstance(lanes, list):
+        raise SuitePolicyError("candidate lane requires a registry lanes list")
+    matches = []
+    for lane in lanes:
+        if not isinstance(lane, Mapping):
+            raise SuitePolicyError("candidate lane registry entries must be objects")
+        lane_id = lane.get("lane_id")
+        source_family = lane.get("source_family")
+        if lane_id == _CANDIDATE_LANE_ID:
+            matches.append(lane)
+        elif not isinstance(lane_id, str) or not isinstance(source_family, str):
+            raise SuitePolicyError("candidate lane registry structure is contradictory")
+    if len(matches) != 1 or matches[0].get("source_family") != "swe-gym":
+        raise SuitePolicyError(
+            "candidate lane must appear exactly once under the swe-gym family"
+        )
+
+
+def _trusted_existing_file(
+    *,
+    data_root: object,
+    path: object,
+    allowed_relative_root: tuple[str, ...],
+    exact: bool,
+) -> None:
+    try:
+        root = Path(os.fspath(data_root))
+        candidate = Path(os.fspath(path))
+    except (TypeError, ValueError) as exc:
+        raise SuitePolicyError("trusted data root and payload path must be path-like") from exc
+    if not root.is_absolute() or not candidate.is_absolute():
+        raise SuitePolicyError("payload path must be absolute under the trusted data root")
+    try:
+        relative = candidate.relative_to(root)
+    except ValueError as exc:
+        raise SuitePolicyError("payload path is outside the trusted data root") from exc
+    relative_parts = tuple(relative.parts)
+    if exact:
+        lexical_allowed = relative_parts == allowed_relative_root
+    else:
+        lexical_allowed = relative_parts[: len(allowed_relative_root)] == (
+            allowed_relative_root
+        )
+    if not lexical_allowed:
+        raise SuitePolicyError("payload path is outside the trusted data root lane")
+
+    current = root
+    components = [root]
+    for part in relative_parts:
+        current = current / part
+        components.append(current)
+    for index, component in enumerate(components):
+        try:
+            if _is_link_or_reparse(component):
+                raise SuitePolicyError(
+                    "trusted data root path contains a link or reparse point"
+                )
+            metadata = component.lstat()
+        except FileNotFoundError as exc:
+            raise SuitePolicyError(
+                f"trusted data root payload path must exist: {component}"
+            ) from exc
+        except SourcePresenceError as exc:
+            raise SuitePolicyError(f"trusted data root metadata failed: {exc}") from exc
+        except OSError as exc:
+            raise SuitePolicyError(f"trusted data root metadata failed: {exc}") from exc
+        expected_directory = index < len(components) - 1
+        if expected_directory and not stat_module.S_ISDIR(metadata.st_mode):
+            raise SuitePolicyError(
+                f"trusted data root ancestor must be a directory: {component}"
+            )
+        if not expected_directory and not stat_module.S_ISREG(metadata.st_mode):
+            raise SuitePolicyError(
+                f"trusted data root payload must be a regular file: {component}"
+            )
+
+    allowed_path = root.joinpath(*allowed_relative_root)
+    try:
+        resolved_root = root.resolve(strict=True)
+        resolved_allowed = allowed_path.resolve(strict=True)
+        resolved_candidate = candidate.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise SuitePolicyError(f"trusted data root resolution failed: {exc}") from exc
+    if (
+        not _is_within(resolved_allowed, resolved_root)
+        or not _is_within(resolved_candidate, resolved_root)
+        or (exact and resolved_candidate != resolved_allowed)
+        or (not exact and not _is_within(resolved_candidate, resolved_allowed))
+    ):
+        raise SuitePolicyError("payload resolves outside the trusted data root lane")
+
+
 def validate_suite_policy(policy: Mapping, registry: Mapping) -> tuple[str, ...]:
     """Require exact all-family coverage coherent with the readiness registry."""
 
     family_map = _validated_family_map(policy)
     if not isinstance(registry, Mapping):
         raise SuitePolicyError("dataset registry must be a mapping")
+    _validate_candidate_lane(registry)
     try:
         governed = governed_dataset_groups(registry)
     except (DataAuthorizationError, AttributeError, TypeError, ValueError) as exc:
@@ -180,6 +296,7 @@ def assert_payload_read_allowed(
     stage: str,
     family: str,
     lane_id: str | None,
+    data_root: Path,
     path: Path,
 ) -> None:
     """Fail before opening unless the path is explicitly allowed for the stage."""
@@ -215,24 +332,40 @@ def assert_payload_read_allowed(
     )
     if not (approved_lane or identity_metadata):
         raise SuitePolicyError(f"{family} is metadata-only for stage {stage}")
+    if approved_lane:
+        _trusted_existing_file(
+            data_root=data_root,
+            path=path,
+            allowed_relative_root=(
+                "processed",
+                "swe-gym",
+                "openhands-sampled",
+            ),
+            exact=False,
+        )
+    else:
+        _trusted_existing_file(
+            data_root=data_root,
+            path=path,
+            allowed_relative_root=tuple(str(identity_path).split("/")),
+            exact=True,
+        )
 
 
 def build_suite_completeness_report(policy: Mapping, data_root: Path) -> dict:
     """Build a schema-ready report without reading any dataset payload."""
 
-    family_map = _validated_family_map(policy)
+    _validated_family_map(policy)
     first_stage = policy["first_stage"]
     families = []
-    for family in ACTIVE_DATASET_GROUPS:
-        item = family_map[family]
+    for family, role, gradient, access, identity_path in _EXPECTED_FAMILY_MATRIX:
         report_item = {
             "family": family,
-            "terminal_role": item.get("terminal_role"),
-            "gradient_eligibility": item.get("gradient_eligibility"),
-            "payload_access_100k": item.get("payload_access_100k"),
+            "terminal_role": role,
+            "gradient_eligibility": gradient,
+            "payload_access_100k": access,
             **asdict(probe_family_presence(data_root, family)),
         }
-        identity_path = item.get("identity_metadata_relative_path")
         if identity_path is not None:
             report_item["identity_metadata_relative_path"] = identity_path
         families.append(report_item)

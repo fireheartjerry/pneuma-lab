@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://pneuma-lab.local/schemas/foundation-suite-report.schema.json",
     "title": "Pneuma Foundation Dataset Suite Report",
-    "description": "Filesystem-metadata-only completeness report for all ten governed foundation dataset families.",
+    "description": "Filesystem-metadata-only completeness report for the exact ordered foundation dataset policy matrix.",
     "type": "object",
     "x-pneuma-schema-kind": "foundation-suite-report",
     "x-pneuma-version": "0.1.0",
@@ -41,41 +41,40 @@
             "type": "array",
             "minItems": 10,
             "maxItems": 10,
-            "items": {
-                "$ref": "#/$defs/family_presence"
-            },
-            "allOf": [
+            "prefixItems": [
                 {
-                    "$ref": "#/$defs/contains_multi_swe_bench"
+                    "$ref": "#/$defs/multi_swe_bench"
                 },
                 {
-                    "$ref": "#/$defs/contains_open_swe_traces"
+                    "$ref": "#/$defs/open_swe_traces"
                 },
                 {
-                    "$ref": "#/$defs/contains_sec_bench_pro"
+                    "$ref": "#/$defs/sec_bench_pro"
                 },
                 {
-                    "$ref": "#/$defs/contains_swe_bench"
+                    "$ref": "#/$defs/swe_bench"
                 },
                 {
-                    "$ref": "#/$defs/contains_swe_bench_pro"
+                    "$ref": "#/$defs/swe_bench_pro"
                 },
                 {
-                    "$ref": "#/$defs/contains_swe_chat"
+                    "$ref": "#/$defs/swe_chat"
                 },
                 {
-                    "$ref": "#/$defs/contains_swe_evo"
+                    "$ref": "#/$defs/swe_evo"
                 },
                 {
-                    "$ref": "#/$defs/contains_swe_gym"
+                    "$ref": "#/$defs/swe_gym"
                 },
                 {
-                    "$ref": "#/$defs/contains_swe_mera"
+                    "$ref": "#/$defs/swe_mera"
                 },
                 {
-                    "$ref": "#/$defs/contains_swe_polybench"
+                    "$ref": "#/$defs/swe_polybench"
                 }
-            ]
+            ],
+            "items": false,
+            "unevaluatedItems": false
         }
     },
     "$defs": {
@@ -95,43 +94,16 @@
             ],
             "properties": {
                 "family": {
-                    "enum": [
-                        "multi-swe-bench",
-                        "open-swe-traces",
-                        "sec-bench-pro",
-                        "swe-bench",
-                        "swe-bench-pro",
-                        "swe-chat",
-                        "swe-evo",
-                        "swe-gym",
-                        "swe-mera",
-                        "swe-polybench"
-                    ]
+                    "type": "string"
                 },
                 "terminal_role": {
-                    "enum": [
-                        "train",
-                        "eval",
-                        "governance"
-                    ]
+                    "type": "string"
                 },
                 "gradient_eligibility": {
-                    "enum": [
-                        "first_stage",
-                        "later",
-                        "never"
-                    ]
+                    "type": "string"
                 },
                 "payload_access_100k": {
-                    "enum": [
-                        "metadata_only",
-                        "identity_metadata_only",
-                        "approved_processed_lane_only"
-                    ]
-                },
-                "identity_metadata_relative_path": {
-                    "type": "string",
-                    "minLength": 1
+                    "type": "string"
                 },
                 "exists": {
                     "type": "boolean"
@@ -157,174 +129,265 @@
                 "payload_opened": {
                     "const": false
                 }
-            },
+            }
+        },
+        "multi_swe_bench": {
             "allOf": [
                 {
-                    "if": {
-                        "properties": {
-                            "payload_access_100k": {
-                                "const": "identity_metadata_only"
-                            }
+                    "$ref": "#/$defs/family_presence"
+                },
+                {
+                    "properties": {
+                        "family": {
+                            "const": "multi-swe-bench"
                         },
-                        "required": [
-                            "payload_access_100k"
-                        ]
-                    },
-                    "then": {
-                        "required": [
-                            "identity_metadata_relative_path"
-                        ]
-                    },
-                    "else": {
-                        "not": {
-                            "required": [
-                                "identity_metadata_relative_path"
-                            ]
+                        "terminal_role": {
+                            "const": "train"
+                        },
+                        "gradient_eligibility": {
+                            "const": "later"
+                        },
+                        "payload_access_100k": {
+                            "const": "metadata_only"
                         }
                     }
                 }
             ],
-            "additionalProperties": false
+            "unevaluatedProperties": false
         },
-        "contains_multi_swe_bench": {
-            "contains": {
-                "properties": {
-                    "family": {
-                        "const": "multi-swe-bench"
-                    }
+        "open_swe_traces": {
+            "allOf": [
+                {
+                    "$ref": "#/$defs/family_presence"
                 },
-                "required": [
-                    "family"
-                ]
-            },
-            "minContains": 1,
-            "maxContains": 1
+                {
+                    "properties": {
+                        "family": {
+                            "const": "open-swe-traces"
+                        },
+                        "terminal_role": {
+                            "const": "train"
+                        },
+                        "gradient_eligibility": {
+                            "const": "later"
+                        },
+                        "payload_access_100k": {
+                            "const": "metadata_only"
+                        }
+                    }
+                }
+            ],
+            "unevaluatedProperties": false
         },
-        "contains_open_swe_traces": {
-            "contains": {
-                "properties": {
-                    "family": {
-                        "const": "open-swe-traces"
-                    }
+        "sec_bench_pro": {
+            "allOf": [
+                {
+                    "$ref": "#/$defs/family_presence"
                 },
-                "required": [
-                    "family"
-                ]
-            },
-            "minContains": 1,
-            "maxContains": 1
+                {
+                    "properties": {
+                        "family": {
+                            "const": "sec-bench-pro"
+                        },
+                        "terminal_role": {
+                            "const": "governance"
+                        },
+                        "gradient_eligibility": {
+                            "const": "never"
+                        },
+                        "payload_access_100k": {
+                            "const": "metadata_only"
+                        }
+                    }
+                }
+            ],
+            "unevaluatedProperties": false
         },
-        "contains_sec_bench_pro": {
-            "contains": {
-                "properties": {
-                    "family": {
-                        "const": "sec-bench-pro"
-                    }
+        "swe_bench": {
+            "allOf": [
+                {
+                    "$ref": "#/$defs/family_presence"
                 },
-                "required": [
-                    "family"
-                ]
-            },
-            "minContains": 1,
-            "maxContains": 1
+                {
+                    "required": [
+                        "identity_metadata_relative_path"
+                    ],
+                    "properties": {
+                        "family": {
+                            "const": "swe-bench"
+                        },
+                        "terminal_role": {
+                            "const": "eval"
+                        },
+                        "gradient_eligibility": {
+                            "const": "never"
+                        },
+                        "payload_access_100k": {
+                            "const": "identity_metadata_only"
+                        },
+                        "identity_metadata_relative_path": {
+                            "const": "processed/swe-bench/normalized_metadata.jsonl"
+                        }
+                    }
+                }
+            ],
+            "unevaluatedProperties": false
         },
-        "contains_swe_bench": {
-            "contains": {
-                "properties": {
-                    "family": {
-                        "const": "swe-bench"
-                    }
+        "swe_bench_pro": {
+            "allOf": [
+                {
+                    "$ref": "#/$defs/family_presence"
                 },
-                "required": [
-                    "family"
-                ]
-            },
-            "minContains": 1,
-            "maxContains": 1
+                {
+                    "properties": {
+                        "family": {
+                            "const": "swe-bench-pro"
+                        },
+                        "terminal_role": {
+                            "const": "eval"
+                        },
+                        "gradient_eligibility": {
+                            "const": "never"
+                        },
+                        "payload_access_100k": {
+                            "const": "metadata_only"
+                        }
+                    }
+                }
+            ],
+            "unevaluatedProperties": false
         },
-        "contains_swe_bench_pro": {
-            "contains": {
-                "properties": {
-                    "family": {
-                        "const": "swe-bench-pro"
-                    }
+        "swe_chat": {
+            "allOf": [
+                {
+                    "$ref": "#/$defs/family_presence"
                 },
-                "required": [
-                    "family"
-                ]
-            },
-            "minContains": 1,
-            "maxContains": 1
+                {
+                    "properties": {
+                        "family": {
+                            "const": "swe-chat"
+                        },
+                        "terminal_role": {
+                            "const": "governance"
+                        },
+                        "gradient_eligibility": {
+                            "const": "never"
+                        },
+                        "payload_access_100k": {
+                            "const": "metadata_only"
+                        }
+                    }
+                }
+            ],
+            "unevaluatedProperties": false
         },
-        "contains_swe_chat": {
-            "contains": {
-                "properties": {
-                    "family": {
-                        "const": "swe-chat"
-                    }
+        "swe_evo": {
+            "allOf": [
+                {
+                    "$ref": "#/$defs/family_presence"
                 },
-                "required": [
-                    "family"
-                ]
-            },
-            "minContains": 1,
-            "maxContains": 1
+                {
+                    "properties": {
+                        "family": {
+                            "const": "swe-evo"
+                        },
+                        "terminal_role": {
+                            "const": "train"
+                        },
+                        "gradient_eligibility": {
+                            "const": "later"
+                        },
+                        "payload_access_100k": {
+                            "const": "metadata_only"
+                        }
+                    }
+                }
+            ],
+            "unevaluatedProperties": false
         },
-        "contains_swe_evo": {
-            "contains": {
-                "properties": {
-                    "family": {
-                        "const": "swe-evo"
-                    }
+        "swe_gym": {
+            "allOf": [
+                {
+                    "$ref": "#/$defs/family_presence"
                 },
-                "required": [
-                    "family"
-                ]
-            },
-            "minContains": 1,
-            "maxContains": 1
+                {
+                    "properties": {
+                        "family": {
+                            "const": "swe-gym"
+                        },
+                        "terminal_role": {
+                            "const": "train"
+                        },
+                        "gradient_eligibility": {
+                            "const": "first_stage"
+                        },
+                        "payload_access_100k": {
+                            "const": "approved_processed_lane_only"
+                        }
+                    }
+                }
+            ],
+            "unevaluatedProperties": false
         },
-        "contains_swe_gym": {
-            "contains": {
-                "properties": {
-                    "family": {
-                        "const": "swe-gym"
-                    }
+        "swe_mera": {
+            "allOf": [
+                {
+                    "$ref": "#/$defs/family_presence"
                 },
-                "required": [
-                    "family"
-                ]
-            },
-            "minContains": 1,
-            "maxContains": 1
+                {
+                    "required": [
+                        "identity_metadata_relative_path"
+                    ],
+                    "properties": {
+                        "family": {
+                            "const": "swe-mera"
+                        },
+                        "terminal_role": {
+                            "const": "eval"
+                        },
+                        "gradient_eligibility": {
+                            "const": "never"
+                        },
+                        "payload_access_100k": {
+                            "const": "identity_metadata_only"
+                        },
+                        "identity_metadata_relative_path": {
+                            "const": "processed/swe-mera/normalized_metadata.jsonl"
+                        }
+                    }
+                }
+            ],
+            "unevaluatedProperties": false
         },
-        "contains_swe_mera": {
-            "contains": {
-                "properties": {
-                    "family": {
-                        "const": "swe-mera"
-                    }
+        "swe_polybench": {
+            "allOf": [
+                {
+                    "$ref": "#/$defs/family_presence"
                 },
-                "required": [
-                    "family"
-                ]
-            },
-            "minContains": 1,
-            "maxContains": 1
-        },
-        "contains_swe_polybench": {
-            "contains": {
-                "properties": {
-                    "family": {
-                        "const": "swe-polybench"
+                {
+                    "required": [
+                        "identity_metadata_relative_path"
+                    ],
+                    "properties": {
+                        "family": {
+                            "const": "swe-polybench"
+                        },
+                        "terminal_role": {
+                            "const": "eval"
+                        },
+                        "gradient_eligibility": {
+                            "const": "later"
+                        },
+                        "payload_access_100k": {
+                            "const": "identity_metadata_only"
+                        },
+                        "identity_metadata_relative_path": {
+                            "const": "processed/swe-polybench/normalized_metadata.jsonl"
+                        }
                     }
-                },
-                "required": [
-                    "family"
-                ]
-            },
-            "minContains": 1,
-            "maxContains": 1
+                }
+            ],
+            "unevaluatedProperties": false
         }
     },
     "additionalProperties": false
