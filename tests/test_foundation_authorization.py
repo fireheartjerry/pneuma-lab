@@ -11,9 +11,11 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+from types import MappingProxyType
 
 import pytest
 
+from pneuma_lab.converters import openhands_sampled_training as openhands_converter
 from pneuma_lab.foundation.authorization import (
     APPROVAL_PHRASE_PREFIX,
     FoundationAuthorizationError,
@@ -31,11 +33,23 @@ from pneuma_lab.foundation.data import (
     build_diversity_inventory,
 )
 from pneuma_lab.foundation.preparation import PreparationResult
+from pneuma_lab.foundation.records import (
+    GradientEligibility,
+    LaneDisposition,
+    TerminalRole,
+    render_foundation_record,
+)
 from pneuma_lab.foundation.specs import MODEL_SPECS
 
 
 ROOT = Path(__file__).resolve().parents[1]
 APPROVED_AT = "2026-07-14T12:00:00Z"
+
+
+class ByteTokenizer:
+    def encode(self, text: str, *, add_special_tokens: bool) -> list[int]:
+        assert add_special_tokens is False
+        return list(text.encode("utf-8"))
 
 
 def _git(repo: Path, *arguments: str) -> str:
@@ -95,52 +109,56 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
     tokenizer_snapshot_sha256 = "2" * 64
     conversion_root = output / "conversion"
     conversion_root.mkdir(parents=True)
-    conversion_example = {
-        "example_id": "source-1",
-        "split_group": {"repo": "org/repo"},
-    }
-    examples_payload = _canonical_json_bytes(conversion_example)
+    trace_path = (
+        ROOT / "fixtures/adapters/openhands_sampled/golden/pneuma_traces.jsonl"
+    )
+    adapter_report_path = trace_path.parent / "adapter_report.json"
+    traces = [
+        json.loads(line)
+        for line in trace_path.read_text(encoding="utf-8").splitlines()
+    ]
+    adapter_report = json.loads(adapter_report_path.read_text(encoding="utf-8"))
+    conversion_examples = openhands_converter.convert_traces(
+        traces,
+        adapter_report_ref="verified-stream:adapter_report.json",
+        manifest_ref="full/hash_manifest.json",
+    )
+    openhands_converter.validate_training_examples(conversion_examples)
+    examples_payload = b"".join(
+        _canonical_json_bytes(example) for example in conversion_examples
+    )
     invalid_payload = b""
-    conversion_report = {
-        "conversion_report_schema_version": "0.1.0",
-        "mode": "full",
-        "dataset_id": "swe-gym-openhands-sampled",
-        "dataset_family": "swe-gym",
-        "output": {
-            "examples_emitted": 1,
-            "invalid_examples": 0,
-            "quarantined_examples": 0,
-            "schema_validation_passed": True,
-            "hashes": {
-                "examples_jsonl_sha256": hashlib.sha256(
-                    examples_payload
-                ).hexdigest(),
-                "invalid_examples_jsonl_sha256": hashlib.sha256(
-                    invalid_payload
-                ).hexdigest(),
-            },
-        },
-        "count_reconciliation": {"reconciled": True},
-        "training_authorization": {"training_weight": 0.0},
-    }
-    conversion_report_payload = _canonical_json_bytes(conversion_report)
-    hash_manifest = {
-        "hash_manifest_schema_version": "0.1.0",
-        "mode": "full",
-        "dataset_id": "swe-gym-openhands-sampled",
-        "hashes": {
-            "examples_jsonl_sha256": hashlib.sha256(
-                examples_payload
-            ).hexdigest(),
+    conversion_report = openhands_converter.build_conversion_report(
+        mode=openhands_converter.FULL_MODE,
+        input_path="verified-stream:pneuma_traces.jsonl",
+        adapter_report_path="verified-stream:adapter_report.json",
+        adapter_report=adapter_report,
+        limit=None,
+        traces_read=len(traces),
+        agent_steps=sum(
+            int(trace["trajectory"]["num_agent_steps"]) for trace in traces
+        ),
+        examples=conversion_examples,
+        invalid_records=[],
+        output_hashes={
+            "examples_jsonl_sha256": hashlib.sha256(examples_payload).hexdigest(),
             "invalid_examples_jsonl_sha256": hashlib.sha256(
                 invalid_payload
             ).hexdigest(),
-            "conversion_report_json_sha256": hashlib.sha256(
-                conversion_report_payload
-            ).hexdigest(),
-            "hash_manifest_json_sha256": None,
         },
-    }
+    )
+    conversion_report["converter"]["git_sha"] = commit
+    assert conversion_report["count_reconciliation"]["reconciled"] is True
+    conversion_report_payload = _canonical_json_bytes(conversion_report)
+    hash_manifest = openhands_converter.build_hash_manifest(
+        mode=openhands_converter.FULL_MODE,
+        examples_text=examples_payload.decode("utf-8"),
+        invalid_text="",
+        report_text=conversion_report_payload.decode("utf-8"),
+        limit=None,
+        input_path="verified-stream:pneuma_traces.jsonl",
+        adapter_report_path="verified-stream:adapter_report.json",
+    )
     hash_manifest["hashes"]["hash_manifest_json_sha256"] = hashlib.sha256(
         _canonical_json_bytes(hash_manifest)
     ).hexdigest()
@@ -188,9 +206,23 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
             )
         )
     )
-    record = _valid_record()
-    record["source"]["receipt_hashes"] = list(source_receipt_hashes)
-    record["tokenization"]["tokenizer_revision"] = spec.revision
+    lane_disposition = LaneDisposition(
+        terminal_role=TerminalRole.TRAIN,
+        gradient_eligibility=GradientEligibility.FIRST_STAGE,
+        license_disposition="local_research_candidate_no_redistribution",
+        privacy_disposition="redaction_verified",
+        dual_use_disposition="not_flagged",
+        oracle_disposition="target_only",
+    )
+    selected_example = conversion_examples[0]
+    record = render_foundation_record(
+        selected_example,
+        lane_disposition=lane_disposition,
+        split_assignment={"split_id": "train", "quarantine_id": None},
+        tokenizer=ByteTokenizer(),
+        tokenizer_revision=spec.revision,
+        source_receipt_hashes=source_receipt_hashes,
+    )
     shard_payload = (
         json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
     ).encode("utf-8")
@@ -264,6 +296,32 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
         }
         for family, (path, payload) in eval_files.items()
     }
+    source_payloads = {
+        "processed/swe-gym/openhands-sampled/pneuma_traces.jsonl": (
+            trace_path.read_bytes()
+        ),
+        "processed/swe-gym/openhands-sampled/adapter_report.json": (
+            adapter_report_path.read_bytes()
+        ),
+        **{
+            f"processed/{family}/normalized_metadata.jsonl": payload
+            for family, (_path, payload) in eval_files.items()
+        },
+    }
+    source_snapshots = [
+        {
+            "relative_path": relative_path,
+            "size": len(payload),
+            "mtime_ns": index,
+            "device": 1,
+            "inode": index,
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        }
+        for index, (relative_path, payload) in enumerate(
+            sorted(source_payloads.items()),
+            start=1,
+        )
+    ]
     receipts = {
         "suite_report.json": {
             "manifest_kind": "pneuma_foundation_suite_report",
@@ -298,18 +356,8 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
         "source_integrity_receipt.json": {
             "manifest_kind": "pneuma_foundation_source_integrity_receipt",
             "manifest_schema_version": "0.1.0",
-            "before": [
-                {
-                    "relative_path": "processed/swe-gym/trace.jsonl",
-                    "sha256": "a" * 64,
-                }
-            ],
-            "after": [
-                {
-                    "relative_path": "processed/swe-gym/trace.jsonl",
-                    "sha256": "a" * 64,
-                }
-            ],
+            "before": source_snapshots,
+            "after": copy.deepcopy(source_snapshots),
             "all_ten_before": all_ten,
             "all_ten_after": all_ten,
             "tokenizer_snapshot": tokenizer_snapshot,
@@ -320,15 +368,16 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
             "manifest_schema_version": "0.1.0",
             "assignments": [
                 {
-                    "record_source_id": record["source"]["source_record_id"],
-                    "repo": "org/repo",
+                    "record_source_id": example["example_id"],
+                    "repo": example["split_group"]["repo"],
                     "split_id": "train",
-                    "canonical_repo": "org/repo",
+                    "canonical_repo": example["split_group"]["repo"].casefold(),
                     "quarantine_id": None,
                 }
+                for example in conversion_examples
             ],
             "canonical_repository_sets": {
-                "train": ["org/repo"],
+                "train": ["demo/alpha", "demo/beta"],
                 "validation": [],
                 "held_out": [],
             },
@@ -368,11 +417,11 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
             "stage": "100k",
             "seed": 20260713,
             "token_ceiling": 100_000,
-            "candidate_record_count": 1,
+            "candidate_record_count": len(conversion_examples),
             "selected_record_count": 1,
             "selected_record_ids": [record["record_id"]],
-            "selected_token_count": 2,
-            "tokenizer_recount_total": 2,
+            "selected_token_count": record["tokenization"]["total_tokens"],
+            "tokenizer_recount_total": record["tokenization"]["total_tokens"],
             "resolved_count": 1,
             "unresolved_count": 0,
             "persisted_training_weight": 0.0,
@@ -477,6 +526,142 @@ def _refresh_preparation_receipt_digest(
     manifest["receipt_sha256"][receipt_path.name] = hashlib.sha256(
         receipt_path.read_bytes()
     ).hexdigest()
+    _write_json(preparation.preparation_manifest_path, manifest)
+
+
+def _refresh_derived_preparation(
+    preparation: PreparationResult,
+    *,
+    repair_hash_manifest: bool = True,
+    recompute_record_ids: bool = True,
+) -> None:
+    if repair_hash_manifest:
+        hash_manifest = _strict_json(preparation.conversion_hash_manifest_path)
+        hash_manifest["hashes"].update(
+            examples_jsonl_sha256=hashlib.sha256(
+                preparation.conversion_examples_path.read_bytes()
+            ).hexdigest(),
+            invalid_examples_jsonl_sha256=hashlib.sha256(
+                preparation.conversion_invalid_examples_path.read_bytes()
+            ).hexdigest(),
+            conversion_report_json_sha256=hashlib.sha256(
+                preparation.conversion_report_path.read_bytes()
+            ).hexdigest(),
+            hash_manifest_json_sha256=None,
+        )
+        hash_manifest["hashes"]["hash_manifest_json_sha256"] = hashlib.sha256(
+            _canonical_json_bytes(hash_manifest)
+        ).hexdigest()
+        preparation.conversion_hash_manifest_path.write_bytes(
+            _canonical_json_bytes(hash_manifest)
+        )
+
+    manifest = _strict_json(preparation.preparation_manifest_path)
+    source_receipt_hashes = sorted(
+        {
+            hashlib.sha256(preparation.license_receipt_path.read_bytes()).hexdigest(),
+            manifest["tokenizer_snapshot"]["receipt_sha256"],
+            manifest["tokenizer_snapshot"]["snapshot_sha256"],
+            hashlib.sha256(preparation.conversion_report_path.read_bytes()).hexdigest(),
+            hashlib.sha256(
+                preparation.conversion_hash_manifest_path.read_bytes()
+            ).hexdigest(),
+        }
+    )
+    records = [
+        json.loads(line)
+        for line in preparation.shard_path.read_text(encoding="utf-8").splitlines()
+    ]
+    for record in records:
+        record["source"]["receipt_hashes"] = source_receipt_hashes
+        if recompute_record_ids:
+            record["record_id"] = "ftr:" + hashlib.sha256(
+                json.dumps(record["source"], sort_keys=True).encode("utf-8")
+            ).hexdigest()
+    shard_payload = b"".join(_canonical_json_bytes(record) for record in records)
+    shard_sha256 = hashlib.sha256(shard_payload).hexdigest()
+    shard_root = preparation.preparation_manifest_path.parent / "shards"
+    new_shard = shard_root / f"{shard_sha256}.jsonl"
+    new_shard.write_bytes(shard_payload)
+    old_shard_manifest = _strict_json(preparation.shard_manifest_path)
+    old_shard_manifest.update(
+        sha256=shard_sha256,
+        example_count=len(records),
+        inventory=build_diversity_inventory(records),
+    )
+    new_shard_manifest = shard_root / f"{shard_sha256}.manifest.json"
+    _write_json(new_shard_manifest, old_shard_manifest)
+    object.__setattr__(preparation, "shard_path", new_shard)
+    object.__setattr__(
+        preparation,
+        "shard_manifest_path",
+        new_shard_manifest,
+    )
+
+    selection = _strict_json(preparation.selection_receipt_path)
+    selection.update(
+        selected_record_count=len(records),
+        selected_record_ids=[record["record_id"] for record in records],
+        selected_token_count=sum(
+            record["tokenization"]["total_tokens"] for record in records
+        ),
+        tokenizer_recount_total=sum(
+            record["tokenization"]["total_tokens"] for record in records
+        ),
+        resolved_count=sum(
+            record["observations"]["labels"]["resolved"] is True
+            for record in records
+        ),
+        unresolved_count=sum(
+            record["observations"]["labels"]["resolved"] is False
+            for record in records
+        ),
+    )
+    _write_json(preparation.selection_receipt_path, selection)
+    diversity = {
+        "manifest_kind": "pneuma_foundation_diversity_receipt",
+        "manifest_schema_version": "0.1.0",
+        **build_diversity_inventory(records),
+    }
+    _write_json(preparation.diversity_receipt_path, diversity)
+
+    conversion_paths = {
+        "examples": preparation.conversion_examples_path,
+        "invalid_examples": preparation.conversion_invalid_examples_path,
+        "conversion_report": preparation.conversion_report_path,
+        "hash_manifest": preparation.conversion_hash_manifest_path,
+    }
+    manifest["source_receipt_hashes"] = source_receipt_hashes
+    manifest["generated_artifact_sha256"]["conversion"] = {
+        name: {
+            "path": path.relative_to(
+                preparation.preparation_manifest_path.parents[4]
+            ).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "size": path.stat().st_size,
+        }
+        for name, path in conversion_paths.items()
+    }
+    manifest["shard"].update(
+        artifact=new_shard.name,
+        sha256=shard_sha256,
+        example_count=len(records),
+        manifest_artifact=new_shard_manifest.name,
+    )
+    receipt_paths = {
+        "suite_report.json": preparation.suite_report_path,
+        "license_receipt.json": preparation.license_receipt_path,
+        "source_presence_receipt.json": preparation.source_presence_receipt_path,
+        "source_integrity_receipt.json": preparation.source_integrity_receipt_path,
+        "split_receipt.json": preparation.split_receipt_path,
+        "contamination_receipt.json": preparation.contamination_receipt_path,
+        "diversity_receipt.json": preparation.diversity_receipt_path,
+        "selection_receipt.json": preparation.selection_receipt_path,
+    }
+    manifest["receipt_sha256"] = {
+        name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for name, path in receipt_paths.items()
+    }
     _write_json(preparation.preparation_manifest_path, manifest)
 
 
@@ -859,7 +1044,10 @@ def test_candidate_recomputes_contamination_from_bound_eval_bytes(
     repo, preparation, commit = _authorization_fixture(tmp_path)
     eval_path = preparation.eval_identity_paths["swe-bench"]
     row = json.loads(eval_path.read_text(encoding="utf-8"))
-    row["repo"] = "org/repo"
+    selected = json.loads(
+        preparation.shard_path.read_text(encoding="utf-8").splitlines()[0]
+    )
+    row["repo"] = selected["identity"]["repo"]
     eval_path.write_bytes(_canonical_json_bytes(row))
     manifest = _strict_json(preparation.preparation_manifest_path)
     binding = manifest["generated_artifact_sha256"]["eval_identities"][
@@ -880,6 +1068,237 @@ def test_candidate_recomputes_contamination_from_bound_eval_bytes(
         )
 
 
+def test_candidate_rejects_rehashed_empty_report_source_hashes(
+    tmp_path: Path,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    report = _strict_json(preparation.conversion_report_path)
+    report["source_hashes"] = {}
+    preparation.conversion_report_path.write_bytes(
+        _canonical_json_bytes(report)
+    )
+    _refresh_derived_preparation(preparation)
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="source|conversion|coher|report",
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+        )
+
+
+@pytest.mark.parametrize("missing", ("input", "target", "dataset_family", "dataset_id"))
+def test_candidate_rejects_rehashed_incomplete_conversion_example(
+    tmp_path: Path,
+    missing: str,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    examples = [
+        json.loads(line)
+        for line in preparation.conversion_examples_path.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    examples[0].pop(missing)
+    preparation.conversion_examples_path.write_bytes(
+        b"".join(_canonical_json_bytes(example) for example in examples)
+    )
+    report = _strict_json(preparation.conversion_report_path)
+    report["output"]["hashes"]["examples_jsonl_sha256"] = hashlib.sha256(
+        preparation.conversion_examples_path.read_bytes()
+    ).hexdigest()
+    preparation.conversion_report_path.write_bytes(_canonical_json_bytes(report))
+    _refresh_derived_preparation(preparation)
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="schema|conversion|example|coher|join",
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+        )
+
+
+@pytest.mark.parametrize(
+    "case",
+    ("source_hash", "reconciliation", "output_count", "output_hash"),
+)
+def test_candidate_rejects_rehashed_conversion_report_contradictions(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    report = _strict_json(preparation.conversion_report_path)
+    if case == "source_hash":
+        report["source_hashes"]["traces_file_sha256"] = "0" * 64
+    elif case == "reconciliation":
+        report["count_reconciliation"]["reconciled"] = False
+    elif case == "output_count":
+        report["output"]["examples_emitted"] += 1
+    else:
+        report["output"]["hashes"]["examples_jsonl_sha256"] = "0" * 64
+    preparation.conversion_report_path.write_bytes(_canonical_json_bytes(report))
+    _refresh_derived_preparation(preparation)
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="source|conversion|report|hash|reconcil|coher",
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+        )
+
+
+def test_candidate_rejects_rehashed_hash_manifest_contradiction(
+    tmp_path: Path,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    hash_manifest = _strict_json(preparation.conversion_hash_manifest_path)
+    hash_manifest["hashes"]["examples_jsonl_sha256"] = "0" * 64
+    hash_manifest["hashes"]["hash_manifest_json_sha256"] = None
+    hash_manifest["hashes"]["hash_manifest_json_sha256"] = hashlib.sha256(
+        _canonical_json_bytes(hash_manifest)
+    ).hexdigest()
+    preparation.conversion_hash_manifest_path.write_bytes(
+        _canonical_json_bytes(hash_manifest)
+    )
+    _refresh_derived_preparation(
+        preparation,
+        repair_hash_manifest=False,
+    )
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="manifest|hash|conversion|coher",
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+        )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        b'{"error":"quarantined"}\n',
+        b'{"error":}\n',
+    ),
+)
+def test_candidate_strictly_rejects_nonempty_invalid_examples(
+    tmp_path: Path,
+    payload: bytes,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    preparation.conversion_invalid_examples_path.write_bytes(payload)
+    manifest = _strict_json(preparation.preparation_manifest_path)
+    binding = manifest["generated_artifact_sha256"]["conversion"][
+        "invalid_examples"
+    ]
+    binding["sha256"] = hashlib.sha256(payload).hexdigest()
+    binding["size"] = len(payload)
+    _write_json(preparation.preparation_manifest_path, manifest)
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="invalid|JSON|empty|coher",
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+        )
+
+
+@pytest.mark.parametrize("case", ("missing_eval", "empty", "trace_digest"))
+def test_candidate_rejects_rehashed_incomplete_source_integrity(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    receipt = _strict_json(preparation.source_integrity_receipt_path)
+    if case == "missing_eval":
+        receipt["before"] = receipt["before"][:-1]
+    elif case == "empty":
+        receipt["before"] = []
+    else:
+        for snapshot in receipt["before"]:
+            if snapshot["relative_path"].endswith("pneuma_traces.jsonl"):
+                snapshot["sha256"] = "0" * 64
+    receipt["after"] = copy.deepcopy(receipt["before"])
+    _write_json(preparation.source_integrity_receipt_path, receipt)
+    _refresh_preparation_receipt_digest(
+        preparation,
+        preparation.source_integrity_receipt_path,
+    )
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="source|integrity|input|coher|digest",
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+        )
+
+
+@pytest.mark.parametrize(
+    ("case", "recompute_record_ids"),
+    (
+        ("prompt", True),
+        ("target", True),
+        ("labels", True),
+        ("forecast", True),
+        ("identity", True),
+        ("record_id", False),
+    ),
+)
+def test_candidate_rejects_rehashed_underived_rendered_record(
+    tmp_path: Path,
+    case: str,
+    recompute_record_ids: bool,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    record = json.loads(
+        preparation.shard_path.read_text(encoding="utf-8").splitlines()[0]
+    )
+    if case == "prompt":
+        record["rendered"]["prompt_text"] += " changed"
+    elif case == "target":
+        record["rendered"]["target_text"] += " changed"
+    elif case == "labels":
+        record["observations"]["labels"]["resolved"] = False
+    elif case == "forecast":
+        record["forecast_targets"]["action_success"]["value"] = 0.0
+    elif case == "identity":
+        record["identity"]["task_id"] = "changed-task"
+    else:
+        record["record_id"] = "ftr:" + "0" * 64
+    preparation.shard_path.write_bytes(_canonical_json_bytes(record))
+    _refresh_derived_preparation(
+        preparation,
+        recompute_record_ids=recompute_record_ids,
+    )
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="deriv|record|render|coher",
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+        )
+
+
 def test_exact_final_handshake_verifies_and_applies_one_lane(tmp_path: Path) -> None:
     repo, preparation, _commit, final_path = _build_and_finalize(tmp_path)
     verified = verify_foundation_authorization(final_path, repo_root=repo)
@@ -888,14 +1307,36 @@ def test_exact_final_handshake_verifies_and_applies_one_lane(tmp_path: Path) -> 
     assert dict(verified.authorized_lane_weights) == {
         "swe-gym-openhands-sampled": 1.0
     }
+    assert isinstance(verified.authorized_lane_weights, MappingProxyType)
+    assert isinstance(verified.authorized_record_membership, MappingProxyType)
     record = json.loads(
         preparation.shard_path.read_text(encoding="utf-8").splitlines()[0]
     )
     before = copy.deepcopy(record)
     effective = apply_verified_authorization(record, verified)
-    assert effective.record is record
+    assert effective.record is not record
     assert effective.effective_weight == 1.0
     assert record == before
+    bound_target = effective.record["rendered"]["target_text"]
+    bound_membership = dict(verified.authorized_record_membership)
+    record["rendered"]["target_text"] = "caller changed target"
+    record["source"]["lane_id"] = "caller-changed-lane"
+    record["forecast_targets"]["action_success"]["value"] = 0.0
+    record["observations"]["tools"].append("caller-tool")
+    assert effective.record["rendered"]["target_text"] == bound_target
+    assert effective.record["source"]["lane_id"] == "swe-gym-openhands-sampled"
+    assert effective.record["forecast_targets"]["action_success"]["value"] == 1.0
+    assert isinstance(effective.record["observations"]["tools"], tuple)
+    assert dict(verified.authorized_record_membership) == bound_membership
+    assert effective.effective_weight == 1.0
+    with pytest.raises(TypeError):
+        effective.record["rendered"]["target_text"] = "direct change"
+    with pytest.raises(TypeError):
+        effective.record["source"]["lane_id"] = "direct change"
+    with pytest.raises(TypeError):
+        effective.record["forecast_targets"]["action_success"]["value"] = 0.0
+    with pytest.raises(AttributeError):
+        effective.record["observations"]["tools"].append("direct change")
 
 
 def test_apply_requires_exact_verified_shard_membership(tmp_path: Path) -> None:
@@ -1133,6 +1574,48 @@ def test_verify_rejects_artifact_tamper_and_dirty_or_different_commit(
     (repo / "tracked.txt").write_text("dirty\n", encoding="utf-8")
     with pytest.raises(FoundationAuthorizationError, match="clean|commit"):
         verify_foundation_authorization(final_path, repo_root=repo)
+
+
+def test_verify_rejects_oversized_declared_evidence_before_read(
+    tmp_path: Path,
+) -> None:
+    repo, _preparation, _commit, final_path = _build_and_finalize(tmp_path)
+    manifest = _strict_json(final_path)
+    manifest["scope"]["evidence_artifacts"]["eval_identities"]["swe-bench"][
+        "size"
+    ] = 10_000_000
+    manifest["scope_digest"] = authorization_scope_digest(manifest["scope"])
+    manifest["operator_approval"]["scope_digest"] = manifest["scope_digest"]
+    phrase = APPROVAL_PHRASE_PREFIX + " " + manifest["scope_digest"]
+    manifest["operator_approval"]["approval_phrase_sha256"] = hashlib.sha256(
+        phrase.encode("utf-8")
+    ).hexdigest()
+    _write_json(final_path, manifest)
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="ceiling|oversized|size limit",
+    ):
+        verify_foundation_authorization(final_path, repo_root=repo)
+
+
+def test_candidate_rejects_oversized_actual_evidence_before_full_read(
+    tmp_path: Path,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    oversized = preparation.eval_identity_paths["swe-bench"]
+    with oversized.open("r+b") as stream:
+        stream.truncate(10_000_000)
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="ceiling|oversized|size limit",
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+        )
 
 
 def test_verify_rejects_rehashed_but_incoherent_receipt_set(tmp_path: Path) -> None:

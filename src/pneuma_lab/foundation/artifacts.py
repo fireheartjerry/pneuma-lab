@@ -62,6 +62,12 @@ class BoundArtifactReadHandle:
     def signature(self) -> tuple[int, int, int, int, int, int]:
         return self._signature
 
+    @property
+    def size(self) -> int:
+        """Return the descriptor-bound size without reading its payload."""
+
+        return self._signature[2]
+
     def _stream(self, *, capture: bool) -> tuple[bytes | None, str, int]:
         if _bound_read_signature(os.fstat(self._descriptor)) != self._signature:
             raise ArtifactPublicationError("held artifact metadata changed")

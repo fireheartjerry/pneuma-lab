@@ -8,6 +8,8 @@ from enum import Enum
 import hashlib
 import json
 import math
+from types import MappingProxyType
+from typing import Any
 
 from jsonschema import Draft202012Validator
 
@@ -84,6 +86,45 @@ class EffectiveTrainingRecord:
             raise FoundationRecordError(
                 "effective_weight must be a finite positive float"
             )
+        detached = _canonical_json_copy(self.record)
+        object.__setattr__(self, "record", _freeze_json_value(detached))
+
+
+def _json_native_copy(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _json_native_copy(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_native_copy(item) for item in value]
+    return value
+
+
+def _canonical_json_copy(value: Mapping) -> dict:
+    try:
+        payload = json.dumps(
+            _json_native_copy(value),
+            allow_nan=False,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        detached = json.loads(payload)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise FoundationRecordError(
+            f"effective record must be canonical JSON: {exc}"
+        ) from exc
+    if not isinstance(detached, dict):
+        raise FoundationRecordError("effective record must be a JSON object")
+    return detached
+
+
+def _freeze_json_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType(
+            {key: _freeze_json_value(item) for key, item in value.items()}
+        )
+    if isinstance(value, list):
+        return tuple(_freeze_json_value(item) for item in value)
+    return value
 
 
 def _validated_resolved_target(example: Mapping) -> bool:
@@ -364,6 +405,128 @@ def render_foundation_record(
     return payload
 
 
+def validate_derived_foundation_record(
+    record: Mapping,
+    *,
+    example: Mapping,
+    split_assignment: Mapping,
+    lane_disposition: LaneDisposition,
+    source_receipt_hashes: tuple[str, ...],
+    tokenizer_id: str,
+    tokenizer_revision: str,
+) -> None:
+    """Prove one record is the deterministic rendering of one source example."""
+
+    validate_foundation_record(record)
+    if not isinstance(example, Mapping):
+        raise FoundationRecordError("conversion example must be a mapping")
+    if not isinstance(example.get("input"), Mapping):
+        raise FoundationRecordError("conversion example input must be a mapping")
+    resolved = _validated_resolved_target(example)
+    dataset_family = _required_nonempty_string(
+        example.get("dataset_family"),
+        field="dataset_family",
+    )
+    dataset_id = _required_nonempty_string(
+        example.get("dataset_id"),
+        field="dataset_id",
+    )
+    example_id = _required_nonempty_string(
+        example.get("example_id"),
+        field="example_id",
+    )
+    source_revision = _validated_source_revision(example.get("source_revision"))
+    if not isinstance(split_assignment, Mapping):
+        raise FoundationRecordError("split_assignment must be a mapping")
+    split_id = _required_nonempty_string(
+        split_assignment.get("split_id"),
+        field="split_id",
+    )
+    if not isinstance(lane_disposition, LaneDisposition):
+        raise FoundationRecordError("lane_disposition must be a LaneDisposition")
+    tokenizer_revision = _validated_tokenizer_revision(tokenizer_revision)
+    if not isinstance(tokenizer_id, str) or not tokenizer_id:
+        raise FoundationRecordError("tokenizer_id must be a nonempty string")
+
+    prompt_text = json.dumps(
+        render_prompt_payload(example),
+        allow_nan=False,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    try:
+        target_text = json.dumps(
+            dict(example["target"]),
+            allow_nan=False,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
+        raise FoundationRecordError(
+            f"target must be canonical JSON: {exc}"
+        ) from exc
+    receipt_hashes = sorted(source_receipt_hashes)
+    source = {
+        "dataset_family": dataset_family,
+        "lane_id": dataset_id,
+        "source_record_id": example_id,
+        "source_revision": source_revision,
+        "receipt_hashes": receipt_hashes,
+    }
+    tokenization = record.get("tokenization")
+    if not isinstance(tokenization, Mapping):
+        raise FoundationRecordError("record tokenization is missing")
+    prompt_tokens = tokenization.get("prompt_tokens")
+    target_tokens = tokenization.get("target_tokens")
+    total_tokens = tokenization.get("total_tokens")
+    if (
+        type(prompt_tokens) is not int
+        or prompt_tokens <= 0
+        or type(target_tokens) is not int
+        or target_tokens <= 0
+        or type(total_tokens) is not int
+        or total_tokens != prompt_tokens + target_tokens
+    ):
+        raise FoundationRecordError(
+            "record token counts must be positive and sum exactly"
+        )
+    expected = {
+        "record_kind": "pneuma_foundation_training_record",
+        "record_schema_version": "0.1.0",
+        "record_id": "ftr:"
+        + hashlib.sha256(
+            json.dumps(source, sort_keys=True).encode("utf-8")
+        ).hexdigest(),
+        "source": source,
+        "disposition": asdict(lane_disposition),
+        "identity": foundation_identity(example, prompt_text=prompt_text),
+        "split": {
+            "split_id": split_id,
+            "quarantine_id": split_assignment.get("quarantine_id"),
+        },
+        "rendered": {
+            "prompt_text": prompt_text,
+            "target_text": target_text,
+        },
+        "tokenization": {
+            "tokenizer_id": tokenizer_id,
+            "tokenizer_revision": tokenizer_revision,
+            "prompt_tokens": prompt_tokens,
+            "target_tokens": target_tokens,
+            "total_tokens": total_tokens,
+        },
+        "training_weight": 0.0,
+        "forecast_targets": _forecast_targets(resolved),
+        "observations": foundation_observations(example, resolved=resolved),
+    }
+    if dict(record) != expected:
+        raise FoundationRecordError(
+            "foundation record differs from its deterministic conversion derivation"
+        )
+
+
 __all__ = [
     "EffectiveTrainingRecord",
     "FoundationRecordError",
@@ -374,5 +537,6 @@ __all__ = [
     "foundation_observations",
     "render_foundation_record",
     "render_prompt_payload",
+    "validate_derived_foundation_record",
     "validate_foundation_record",
 ]

@@ -21,6 +21,7 @@ from pneuma_lab.foundation.records import (
     foundation_identity,
     render_foundation_record,
     render_prompt_payload,
+    validate_derived_foundation_record,
     validate_foundation_record,
 )
 from pneuma_lab.schemas import load_schema
@@ -376,11 +377,91 @@ def test_record_identity_is_outside_tokens_and_rendering_is_deterministic(
 def test_effective_training_record_requires_positive_in_memory_weight(tokenizer) -> None:
     record = _render(tokenizer)
     effective = EffectiveTrainingRecord(record=record, effective_weight=1.0)
-    assert effective.record is record
+    assert effective.record is not record
+    assert effective.record["rendered"]["target_text"] == record["rendered"][
+        "target_text"
+    ]
+    assert tuple(effective.record["observations"]["tools"]) == tuple(
+        record["observations"]["tools"]
+    )
     assert effective.effective_weight == 1.0
+    record["rendered"]["target_text"] = "caller mutation"
+    assert effective.record["rendered"]["target_text"] == '{"resolved":true}'
+    with pytest.raises(TypeError):
+        effective.record["rendered"]["target_text"] = "direct mutation"
+    with pytest.raises((AttributeError, TypeError)):
+        effective.record["observations"]["tools"].append("mutation")
     for invalid in (0.0, -1.0, float("nan"), float("inf"), True):
         with pytest.raises(FoundationRecordError, match="effective_weight"):
             EffectiveTrainingRecord(record=record, effective_weight=invalid)
+
+
+def test_derived_record_validator_accepts_exact_converter_derivation(tokenizer) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    record = _render_example(tokenizer, example)
+
+    validate_derived_foundation_record(
+        record,
+        example=example,
+        split_assignment={"split_id": "train", "quarantine_id": None},
+        lane_disposition=_lane_disposition(),
+        source_receipt_hashes=("a" * 64, "b" * 64),
+        tokenizer_id="Qwen/Qwen3.5-2B",
+        tokenizer_revision="1" * 40,
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        lambda value: value["rendered"].update(prompt_text="changed"),
+        lambda value: value["rendered"].update(target_text='{"resolved":false}'),
+        lambda value: value["observations"]["labels"].update(resolved=False),
+        lambda value: value["forecast_targets"]["action_success"].update(value=0.0),
+        lambda value: value["identity"].update(repo="changed/repo"),
+        lambda value: value.update(record_id="ftr:" + "0" * 64),
+        lambda value: value["source"].update(source_record_id="changed-source"),
+    ),
+)
+def test_derived_record_validator_rejects_changed_derived_fields(
+    tokenizer,
+    mutation,
+) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    record = _render_example(tokenizer, example)
+    mutation(record)
+
+    with pytest.raises(FoundationRecordError, match="deriv|record|source|render|identity"):
+        validate_derived_foundation_record(
+            record,
+            example=example,
+            split_assignment={"split_id": "train", "quarantine_id": None},
+            lane_disposition=_lane_disposition(),
+            source_receipt_hashes=("a" * 64, "b" * 64),
+            tokenizer_id="Qwen/Qwen3.5-2B",
+            tokenizer_revision="1" * 40,
+        )
+
+
+@pytest.mark.parametrize("missing", ("input", "target", "dataset_family", "dataset_id"))
+def test_derived_record_validator_rejects_incomplete_conversion_example(
+    tokenizer,
+    missing: str,
+) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    record = _render_example(tokenizer, example)
+    example.pop(missing)
+
+    with pytest.raises(FoundationRecordError):
+        validate_derived_foundation_record(
+            record,
+            example=example,
+            split_assignment={"split_id": "train", "quarantine_id": None},
+            lane_disposition=_lane_disposition(),
+            source_receipt_hashes=("a" * 64, "b" * 64),
+            tokenizer_id="Qwen/Qwen3.5-2B",
+            tokenizer_revision="1" * 40,
+        )
 
 
 def test_record_validation_rejects_extra_properties(tokenizer) -> None:
