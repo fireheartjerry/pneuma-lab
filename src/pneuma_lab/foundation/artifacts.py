@@ -44,6 +44,71 @@ class BoundArtifactRead:
     size: int
 
 
+class BoundArtifactReadHandle:
+    """One no-follow artifact descriptor held across a read transaction."""
+
+    def __init__(self, publication, name: str, descriptor: int) -> None:
+        self._publication = publication
+        self._name = name
+        self._descriptor = descriptor
+        metadata = os.fstat(descriptor)
+        if getattr(metadata, "st_nlink", 1) != 1:
+            raise ArtifactPublicationError(
+                "held artifact target must not be a hard-link alias"
+            )
+        self._signature = _bound_read_signature(metadata)
+
+    @property
+    def signature(self) -> tuple[int, int, int, int, int, int]:
+        return self._signature
+
+    def _stream(self, *, capture: bool) -> tuple[bytes | None, str, int]:
+        if _bound_read_signature(os.fstat(self._descriptor)) != self._signature:
+            raise ArtifactPublicationError("held artifact metadata changed")
+        os.lseek(self._descriptor, 0, os.SEEK_SET)
+        chunks = [] if capture else None
+        digest = hashlib.sha256()
+        size = 0
+        while chunk := os.read(self._descriptor, _HASH_CHUNK_BYTES):
+            if chunks is not None:
+                chunks.append(chunk)
+            digest.update(chunk)
+            size += len(chunk)
+        if _bound_read_signature(os.fstat(self._descriptor)) != self._signature:
+            raise ArtifactPublicationError("held artifact changed while streaming")
+        payload = b"".join(chunks) if chunks is not None else None
+        return payload, digest.hexdigest(), size
+
+    def read_bytes(self) -> BoundArtifactRead:
+        payload, digest, size = self._stream(capture=True)
+        assert payload is not None
+        return BoundArtifactRead(payload=payload, sha256=digest, size=size)
+
+    def revalidate(self, expected: BoundArtifactRead) -> None:
+        """Rehash the same descriptor and prove its name still identifies it."""
+
+        self._publication._verify_authorized_location()
+        metadata = self._publication._target_metadata(self._name)
+        if (
+            not stat_module.S_ISREG(metadata.st_mode)
+            or _bound_read_signature(metadata) != self._signature
+        ):
+            raise ArtifactPublicationError(
+                "held artifact pathname changed before acceptance"
+            )
+        _payload, digest, size = self._stream(capture=False)
+        if digest != expected.sha256 or size != expected.size:
+            raise ArtifactPublicationError(
+                "held artifact digest changed before acceptance"
+            )
+        metadata = self._publication._target_metadata(self._name)
+        if _bound_read_signature(metadata) != self._signature:
+            raise ArtifactPublicationError(
+                "held artifact pathname changed during acceptance"
+            )
+        self._publication._verify_authorized_location()
+
+
 def _bound_read_signature(
     metadata: os.stat_result,
 ) -> tuple[int, int, int, int, int, int]:
@@ -936,6 +1001,27 @@ class BoundArtifactPublication:
             raise
         return descriptor
 
+    def _target_metadata(self, name: str) -> os.stat_result:
+        if os.name == "nt":
+            return (self.directory / name).lstat()
+        return os.stat(
+            name,
+            dir_fd=self._directory_binding,
+            follow_symlinks=False,
+        )
+
+    @contextmanager
+    def hold_read(self, path: Path) -> Iterator[BoundArtifactReadHandle]:
+        """Hold one target descriptor until its caller finishes verification."""
+
+        name = self._target_name(path)
+        self._verify_authorized_location()
+        descriptor = self._open_target_descriptor(name)
+        try:
+            yield BoundArtifactReadHandle(self, name, descriptor)
+        finally:
+            os.close(descriptor)
+
     def _bound_digest_size(self, name: str) -> tuple[str, int]:
         descriptor = self._open_target_descriptor(name)
         digest = hashlib.sha256()
@@ -1535,6 +1621,7 @@ def write_atomic_jsonl(
 __all__ = [
     "ArtifactPublicationError",
     "BoundArtifactRead",
+    "BoundArtifactReadHandle",
     "BoundArtifactPublication",
     "bind_artifact_publication",
     "read_bound_artifact_set",

@@ -219,6 +219,10 @@ def _after_all_ten_before_snapshot() -> None:
     """Internal deterministic mutation-injection point used only by tests."""
 
 
+def _after_initial_tokenizer_snapshot_verification(_binding) -> None:
+    """Internal deterministic tokenizer-race injection point used by tests."""
+
+
 def _metadata_entry(path: Path, *, family_root: Path) -> dict:
     try:
         if _is_link_or_reparse(path):
@@ -903,7 +907,14 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         "2b",
         snapshot_path=request.tokenizer_snapshot,
     )
+    _after_initial_tokenizer_snapshot_verification(verified_tokenizer_snapshot)
     tokenizer = _load_tokenizer(verified_tokenizer_snapshot.snapshot_path)
+    loaded_tokenizer_snapshot = verify_pinned_snapshot(
+        "2b",
+        snapshot_path=request.tokenizer_snapshot,
+    )
+    if loaded_tokenizer_snapshot != verified_tokenizer_snapshot:
+        raise ValueError("tokenizer snapshot binding changed during local load")
 
     source_before = []
     traces, trace_snapshot = _read_authorized_value(
@@ -1037,6 +1048,12 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         "persisted_training_weight": 0.0,
     }
     split_receipt = _build_split_receipt(assignments)
+    final_tokenizer_snapshot = verify_pinned_snapshot(
+        "2b",
+        snapshot_path=request.tokenizer_snapshot,
+    )
+    if final_tokenizer_snapshot != verified_tokenizer_snapshot:
+        raise ValueError("tokenizer snapshot binding changed during tokenization")
 
     def source_after_snapshot() -> list[dict]:
         source_specs = [

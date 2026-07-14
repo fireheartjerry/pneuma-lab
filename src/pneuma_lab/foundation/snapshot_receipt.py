@@ -13,7 +13,6 @@ from typing import Mapping
 from pneuma_lab.foundation.artifacts import (
     ArtifactPublicationError,
     bind_artifact_publication,
-    read_bound_artifact_set,
 )
 from pneuma_lab.foundation.specs import (
     MODEL_SPECS,
@@ -53,6 +52,17 @@ class SnapshotFile:
 
 
 @dataclass(frozen=True)
+class SnapshotInventoryEntry:
+    path: str
+    device: int
+    inode: int
+    size: int
+    mtime_ns: int
+    ctime_ns: int
+    link_count: int
+
+
+@dataclass(frozen=True)
 class VerifiedPinnedSnapshot:
     model_key: str
     model_id: str
@@ -62,6 +72,7 @@ class VerifiedPinnedSnapshot:
     receipt_sha256: str
     snapshot_sha256: str
     files: tuple[SnapshotFile, ...]
+    inventory: tuple[SnapshotInventoryEntry, ...]
 
 
 def _strict_json(payload: bytes, *, label: str) -> dict:
@@ -272,6 +283,18 @@ def _canonical_json_bytes(value: Mapping) -> bytes:
     ).encode("utf-8")
 
 
+def _after_receipt_read_before_inventory(_root: Path) -> None:
+    """Internal deterministic receipt-race injection point for tests."""
+
+
+def _during_snapshot_member_hash(_root: Path, _relative_path: str) -> None:
+    """Internal deterministic receipt-race injection point for tests."""
+
+
+def _before_snapshot_final_check(_root: Path) -> None:
+    """Internal deterministic receipt-race injection point for tests."""
+
+
 def verify_pinned_snapshot(
     model_key: str,
     *,
@@ -282,90 +305,122 @@ def verify_pinned_snapshot(
     root = _validate_snapshot_root(snapshot_path)
     receipt_path = root / _RECEIPT_NAME
     try:
-        receipt_reads = read_bound_artifact_set(
-            (receipt_path,),
-            directory=root,
+        with bind_artifact_publication(
+            root,
             anchor_root=root,
             allowed_root=root,
-        )
-    except (ArtifactPublicationError, OSError) as exc:
-        raise SnapshotReceiptError("snapshot receipt cannot be read safely") from exc
-    if receipt_reads is None:
-        raise SnapshotReceiptError("snapshot receipt is missing")
-    receipt_read = receipt_reads[receipt_path]
-    receipt = _strict_json(receipt_read.payload, label="snapshot receipt")
-    files = _canonical_receipt(receipt, model_key=model_key)
-    before = _inventory(root)
-    expected_paths = {item.path for item in files} | {_RECEIPT_NAME}
-    if set(before) != expected_paths:
-        raise SnapshotReceiptError(
-            "snapshot has missing or extra files relative to its receipt"
-        )
-
-    config_payload = None
-    try:
-        for item in files:
-            path = root.joinpath(*PurePosixPath(item.path).parts)
-            with bind_artifact_publication(
-                path.parent,
-                anchor_root=root,
-                allowed_root=root,
-            ) as publication:
-                if item.path == "config.json":
-                    reads = publication.read_bytes_set((path,))
-                    assert reads is not None
-                    read = reads[path]
-                    digest, size = read.sha256, read.size
-                    config_payload = read.payload
-                else:
-                    digest, size = publication.digest_size(path)
-            if size != item.size or digest != item.sha256:
-                raise SnapshotReceiptError(
-                    f"snapshot file digest or size differs from receipt: {item.path}"
+        ) as receipt_publication:
+            with receipt_publication.hold_read(receipt_path) as held_receipt:
+                receipt_read = held_receipt.read_bytes()
+                receipt = _strict_json(
+                    receipt_read.payload,
+                    label="snapshot receipt",
                 )
+                files = _canonical_receipt(receipt, model_key=model_key)
+                _after_receipt_read_before_inventory(root)
+                before = _inventory(root)
+                expected_paths = {item.path for item in files} | {_RECEIPT_NAME}
+                if set(before) != expected_paths:
+                    raise SnapshotReceiptError(
+                        "snapshot has missing or extra files relative to its receipt"
+                    )
+                if before[_RECEIPT_NAME] != held_receipt.signature:
+                    raise SnapshotReceiptError(
+                        "snapshot receipt pathname changed before inventory"
+                    )
+
+                config_payload = None
+                for item in files:
+                    path = root.joinpath(*PurePosixPath(item.path).parts)
+                    with bind_artifact_publication(
+                        path.parent,
+                        anchor_root=root,
+                        allowed_root=root,
+                    ) as publication:
+                        if item.path == "config.json":
+                            reads = publication.read_bytes_set((path,))
+                            assert reads is not None
+                            read = reads[path]
+                            digest, size = read.sha256, read.size
+                            config_payload = read.payload
+                        else:
+                            digest, size = publication.digest_size(path)
+                    if size != item.size or digest != item.sha256:
+                        raise SnapshotReceiptError(
+                            "snapshot file digest or size differs from receipt: "
+                            f"{item.path}"
+                        )
+                    _during_snapshot_member_hash(root, item.path)
+
+                assert config_payload is not None
+                config = _strict_json(
+                    config_payload,
+                    label="pinned config.json",
+                )
+                spec = MODEL_SPECS[model_key]
+                try:
+                    validate_pinned_config(
+                        spec,
+                        config,
+                        source_revision=spec.revision,
+                    )
+                except PinnedConfigMismatch as exc:
+                    raise SnapshotReceiptError(
+                        f"pinned config validation failed: {exc}"
+                    ) from exc
+                snapshot_payload = {
+                    "model_id": spec.model_id,
+                    "revision": spec.revision,
+                    "files": [
+                        {
+                            "path": item.path,
+                            "size": item.size,
+                            "sha256": item.sha256,
+                        }
+                        for item in files
+                    ],
+                }
+                result = VerifiedPinnedSnapshot(
+                    model_key=model_key,
+                    model_id=spec.model_id,
+                    revision=spec.revision,
+                    snapshot_path=root,
+                    receipt_path=receipt_path,
+                    receipt_sha256=receipt_read.sha256,
+                    snapshot_sha256=hashlib.sha256(
+                        _canonical_json_bytes(snapshot_payload)
+                    ).hexdigest(),
+                    files=files,
+                    inventory=tuple(
+                        SnapshotInventoryEntry(path, *signature)
+                        for path, signature in sorted(before.items())
+                    ),
+                )
+                _before_snapshot_final_check(root)
+                after = _inventory(root)
+                if before != after:
+                    raise SnapshotReceiptError(
+                        "snapshot file metadata changed during verification"
+                    )
+                held_receipt.revalidate(receipt_read)
+                return result
     except SnapshotReceiptError:
         raise
-    except (ArtifactPublicationError, OSError) as exc:
-        raise SnapshotReceiptError("snapshot file cannot be hashed safely") from exc
-
-    after = _inventory(root)
-    if before != after:
-        raise SnapshotReceiptError("snapshot file metadata changed during verification")
-    assert config_payload is not None
-    config = _strict_json(config_payload, label="pinned config.json")
-    spec = MODEL_SPECS[model_key]
-    try:
-        validate_pinned_config(
-            spec,
-            config,
-            source_revision=spec.revision,
-        )
-    except PinnedConfigMismatch as exc:
-        raise SnapshotReceiptError(f"pinned config validation failed: {exc}") from exc
-    snapshot_payload = {
-        "model_id": spec.model_id,
-        "revision": spec.revision,
-        "files": [
-            {"path": item.path, "size": item.size, "sha256": item.sha256}
-            for item in files
-        ],
-    }
-    return VerifiedPinnedSnapshot(
-        model_key=model_key,
-        model_id=spec.model_id,
-        revision=spec.revision,
-        snapshot_path=root,
-        receipt_path=receipt_path,
-        receipt_sha256=receipt_read.sha256,
-        snapshot_sha256=hashlib.sha256(
-            _canonical_json_bytes(snapshot_payload)
-        ).hexdigest(),
-        files=files,
-    )
+    except ArtifactPublicationError as exc:
+        if isinstance(exc.__cause__, SnapshotReceiptError):
+            raise exc.__cause__
+        raise SnapshotReceiptError(
+            "snapshot transaction cannot be verified safely"
+        ) from exc
+    except OSError as exc:
+        raise SnapshotReceiptError(
+            "snapshot transaction cannot be verified safely"
+        ) from exc
 
 
 __all__ = [
     "SnapshotFile",
+    "SnapshotInventoryEntry",
     "SnapshotReceiptError",
     "VerifiedPinnedSnapshot",
     "verify_pinned_snapshot",

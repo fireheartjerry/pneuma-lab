@@ -659,6 +659,121 @@ def test_local_tokenizer_loader_enforces_offline_flags(tmp_path, monkeypatch) ->
     }
 
 
+def test_prepare_stage_verifies_identical_snapshot_binding_three_times(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from pneuma_lab.foundation import preparation
+
+    request = _prepare_fixture(tmp_path)
+    original = preparation.verify_pinned_snapshot
+    bindings = []
+
+    def track_verification(*args, **kwargs):
+        binding = original(*args, **kwargs)
+        bindings.append(binding)
+        return binding
+
+    monkeypatch.setattr(preparation, "verify_pinned_snapshot", track_verification)
+    monkeypatch.setattr(preparation, "_load_tokenizer", lambda path: ByteTokenizer())
+
+    preparation.prepare_stage(request)
+
+    assert len(bindings) == 3
+    assert bindings[0] == bindings[1] == bindings[2]
+
+
+@pytest.mark.parametrize("target_name", ("config.json", "pneuma-snapshot-receipt.json"))
+def test_prepare_stage_rejects_mutation_between_verify_and_tokenizer_load(
+    tmp_path,
+    monkeypatch,
+    target_name: str,
+) -> None:
+    from pneuma_lab.foundation import preparation
+
+    request = _prepare_fixture(tmp_path)
+    mutated = False
+
+    def mutate_after_verify(_binding) -> None:
+        nonlocal mutated
+        mutated = True
+        target = request.tokenizer_snapshot / target_name
+        target.write_bytes(b"X" * target.stat().st_size)
+
+    monkeypatch.setattr(
+        preparation,
+        "_after_initial_tokenizer_snapshot_verification",
+        mutate_after_verify,
+        raising=False,
+    )
+    monkeypatch.setattr(preparation, "_load_tokenizer", lambda path: ByteTokenizer())
+
+    with pytest.raises(ValueError, match="snapshot|receipt|binding|digest|config"):
+        preparation.prepare_stage(request)
+    assert mutated is True
+    assert not request.output_root.exists()
+    assert not (request.repo_root / "build/training_examples").exists()
+
+
+def test_prepare_stage_rejects_loader_mutation_after_local_read(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from pneuma_lab.foundation import preparation
+
+    request = _prepare_fixture(tmp_path)
+    mutated = False
+
+    def mutating_loader(snapshot: Path):
+        nonlocal mutated
+        tokenizer_path = snapshot / "tokenizer.json"
+        tokenizer_path.read_bytes()
+        tokenizer_path.write_bytes(b"Y" * tokenizer_path.stat().st_size)
+        mutated = True
+        return ByteTokenizer()
+
+    monkeypatch.setattr(preparation, "_load_tokenizer", mutating_loader)
+
+    with pytest.raises(ValueError, match="snapshot|binding|digest|tokenizer"):
+        preparation.prepare_stage(request)
+    assert mutated is True
+    assert not request.output_root.exists()
+    assert not (request.repo_root / "build/training_examples").exists()
+
+
+@pytest.mark.parametrize("target_name", ("tokenizer.json", "pneuma-snapshot-receipt.json"))
+def test_prepare_stage_rejects_snapshot_mutation_during_encode(
+    tmp_path,
+    monkeypatch,
+    target_name: str,
+) -> None:
+    from pneuma_lab.foundation import preparation
+
+    request = _prepare_fixture(tmp_path)
+    mutated = False
+
+    class MutatingTokenizer(ByteTokenizer):
+        def encode(self, text: str, *, add_special_tokens: bool) -> list[int]:
+            nonlocal mutated
+            if not mutated:
+                target = request.tokenizer_snapshot / target_name
+                target.write_bytes(b"Z" * target.stat().st_size)
+                mutated = True
+            return super().encode(text, add_special_tokens=add_special_tokens)
+
+    monkeypatch.setattr(
+        preparation,
+        "_load_tokenizer",
+        lambda path: MutatingTokenizer(),
+    )
+
+    with pytest.raises(ValueError, match="snapshot|receipt|binding|digest|tokenizer"):
+        preparation.prepare_stage(request)
+    assert mutated is True
+    assert not request.output_root.exists()
+    assert not (request.repo_root / "build/training_examples").exists()
+
+
 def test_prepare_stage_uses_verified_streams_and_recovers_partial_outputs(
     tmp_path,
     monkeypatch,

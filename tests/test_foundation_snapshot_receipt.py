@@ -14,6 +14,7 @@ from pneuma_lab.foundation.snapshot_receipt import (
     SnapshotReceiptError,
     verify_pinned_snapshot,
 )
+from pneuma_lab.foundation import snapshot_receipt
 from pneuma_lab.foundation.specs import MODEL_SPECS
 
 
@@ -255,3 +256,75 @@ def test_verify_pinned_snapshot_rejects_link_or_reparse_ancestry(
 
     with pytest.raises(SnapshotReceiptError, match="link|reparse|junction|ancestry"):
         verify_pinned_snapshot("2b", snapshot_path=alias_parent / root.name)
+
+
+@pytest.mark.parametrize(
+    "phase",
+    ("before_inventory", "during_member_hash", "before_final_check"),
+)
+@pytest.mark.parametrize("mutation", ("replace", "in_place"))
+def test_verify_pinned_snapshot_holds_receipt_through_entire_transaction(
+    tmp_path: Path,
+    monkeypatch,
+    phase: str,
+    mutation: str,
+) -> None:
+    root = _snapshot(tmp_path)
+    receipt_path = root / "pneuma-snapshot-receipt.json"
+    original = receipt_path.read_bytes()
+    attempted = False
+
+    def mutate() -> None:
+        nonlocal attempted
+        if attempted:
+            return
+        attempted = True
+        if mutation == "in_place":
+            with receipt_path.open("r+b") as stream:
+                stream.write(b"X" * len(original))
+                stream.flush()
+                os.fsync(stream.fileno())
+            return
+        saved = tmp_path / "saved-receipt.json"
+        replacement = tmp_path / "replacement-receipt.json"
+        replacement.write_bytes(original)
+        receipt_path.rename(saved)
+        replacement.rename(receipt_path)
+
+    def before_inventory(_root: Path) -> None:
+        if phase == "before_inventory":
+            mutate()
+
+    def during_member_hash(_root: Path, _relative_path: str) -> None:
+        if phase == "during_member_hash":
+            mutate()
+
+    def before_final_check(_root: Path) -> None:
+        if phase == "before_final_check":
+            mutate()
+
+    monkeypatch.setattr(
+        snapshot_receipt,
+        "_after_receipt_read_before_inventory",
+        before_inventory,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        snapshot_receipt,
+        "_during_snapshot_member_hash",
+        during_member_hash,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        snapshot_receipt,
+        "_before_snapshot_final_check",
+        before_final_check,
+        raising=False,
+    )
+
+    with pytest.raises(
+        (SnapshotReceiptError, OSError),
+        match="receipt|snapshot|changed|access|process|used",
+    ):
+        verify_pinned_snapshot("2b", snapshot_path=root)
+    assert attempted is True
