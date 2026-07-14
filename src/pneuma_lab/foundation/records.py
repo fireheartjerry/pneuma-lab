@@ -39,6 +39,7 @@ _REVIEWED_FEATURE_REFS = frozenset(
         "pneuma-estimators-features/0.1.0",
     }
 )
+_MISSING = object()
 
 
 class FoundationRecordError(ValueError):
@@ -73,8 +74,40 @@ class EffectiveTrainingRecord:
     effective_weight: float
 
 
-def _forecast_targets(example: Mapping) -> dict[str, dict]:
-    resolved = bool((example.get("target") or {}).get("resolved"))
+def _validated_resolved_target(example: Mapping) -> bool:
+    target = example.get("target")
+    if not isinstance(target, Mapping):
+        raise FoundationRecordError("target must be a mapping")
+    if "resolved" not in target or type(target["resolved"]) is not bool:
+        raise FoundationRecordError("target.resolved must be a bool")
+    return target["resolved"]
+
+
+def _required_nonempty_string(value, *, field: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise FoundationRecordError(f"{field} must be a nonempty string")
+    return value
+
+
+def _validated_tokenizer_revision(value) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 40
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise FoundationRecordError(
+            "tokenizer_revision must be a lowercase 40-character hex string"
+        )
+    return value
+
+
+def _validated_source_revision(value):
+    if value is not None and not isinstance(value, str):
+        raise FoundationRecordError("source_revision must be a string or null")
+    return value
+
+
+def _forecast_targets(resolved: bool) -> dict[str, dict]:
     values = {
         "action_success": resolved,
         "expected_error": not resolved,
@@ -118,25 +151,40 @@ def foundation_identity(example: Mapping, *, prompt_text: str) -> dict:
     }
 
 
-def foundation_observations(example: Mapping) -> dict:
+def foundation_observations(example: Mapping, *, resolved=_MISSING) -> dict:
+    if resolved is _MISSING:
+        resolved = _validated_resolved_target(example)
+    elif type(resolved) is not bool:
+        raise FoundationRecordError("target.resolved must be a bool")
     input_value = example.get("input") or {}
     summary = input_value.get("observable_summary") or {}
     trajectory = input_value.get("trajectory") or {}
-    target = example.get("target") or {}
     return {
         "language": str(input_value.get("language") or "unknown"),
         "tools": sorted(str(name) for name in (summary.get("tool_counts") or {})),
         "trajectory_length": int(trajectory.get("num_agent_steps") or 0),
-        "labels": {"resolved": bool(target.get("resolved"))},
+        "labels": {"resolved": resolved},
     }
 
 
 def validate_foundation_record(record: Mapping) -> None:
+    try:
+        payload = dict(record)
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise FoundationRecordError(
+            f"foundation record must be canonical JSON: {exc}"
+        ) from exc
     validator = Draft202012Validator(
         load_schema("foundation-training-record.schema.json")
     )
     errors = sorted(
-        validator.iter_errors(dict(record)),
+        validator.iter_errors(payload),
         key=lambda error: list(error.path),
     )
     if errors:
@@ -187,19 +235,33 @@ def _render_feature_refs(value) -> list[str]:
     )
 
 
+def _render_objective_payload(value) -> dict:
+    if value is _MISSING:
+        return {"present": False, "text_length": 0}
+    if not isinstance(value, Mapping):
+        raise FoundationRecordError("objective must be a mapping")
+    present = value.get("present", False)
+    text_length = value.get("text_length", 0)
+    if type(present) is not bool:
+        raise FoundationRecordError("objective.present must be a bool")
+    if type(text_length) is not int or text_length < 0:
+        raise FoundationRecordError(
+            "objective.text_length must be a nonnegative integer"
+        )
+    return {"present": present, "text_length": text_length}
+
+
 def render_prompt_payload(example: Mapping) -> dict:
     input_value = example.get("input") or {}
-    objective = input_value.get("objective") or {}
     return {
         "prefix": "full" if input_value.get("prefix") == "full" else None,
         "trajectory": _render_trajectory_payload(input_value.get("trajectory")),
         "observable_summary": _render_observable_summary(
             input_value.get("observable_summary")
         ),
-        "objective": {
-            "present": bool(objective.get("present")),
-            "text_length": int(objective.get("text_length") or 0),
-        },
+        "objective": _render_objective_payload(
+            input_value.get("objective", _MISSING)
+        ),
         "feature_refs": _render_feature_refs(input_value.get("feature_refs")),
     }
 
@@ -213,19 +275,50 @@ def render_foundation_record(
     tokenizer_revision: str,
     source_receipt_hashes: tuple[str, ...],
 ) -> dict:
+    resolved = _validated_resolved_target(example)
+    dataset_family = _required_nonempty_string(
+        example.get("dataset_family"),
+        field="dataset_family",
+    )
+    dataset_id = _required_nonempty_string(
+        example.get("dataset_id"),
+        field="dataset_id",
+    )
+    example_id = _required_nonempty_string(
+        example.get("example_id"),
+        field="example_id",
+    )
+    if not isinstance(split_assignment, Mapping):
+        raise FoundationRecordError("split_assignment must be a mapping")
+    split_id = _required_nonempty_string(
+        split_assignment.get("split_id"),
+        field="split_id",
+    )
+    source_revision = _validated_source_revision(example.get("source_revision"))
+    tokenizer_revision = _validated_tokenizer_revision(tokenizer_revision)
     prompt_text = json.dumps(
         render_prompt_payload(example),
         sort_keys=True,
         separators=(",", ":"),
     )
-    target_text = json.dumps(example["target"], sort_keys=True, separators=(",", ":"))
+    try:
+        target_text = json.dumps(
+            dict(example["target"]),
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise FoundationRecordError(
+            f"target must be canonical JSON: {exc}"
+        ) from exc
     prompt_tokens = len(tokenizer.encode(prompt_text, add_special_tokens=False))
     target_tokens = len(tokenizer.encode(target_text, add_special_tokens=False))
     source = {
-        "dataset_family": str(example["dataset_family"]),
-        "lane_id": str(example["dataset_id"]),
-        "source_record_id": str(example["example_id"]),
-        "source_revision": example.get("source_revision"),
+        "dataset_family": dataset_family,
+        "lane_id": dataset_id,
+        "source_record_id": example_id,
+        "source_revision": source_revision,
         "receipt_hashes": sorted(source_receipt_hashes),
     }
     identity = foundation_identity(example, prompt_text=prompt_text)
@@ -240,7 +333,7 @@ def render_foundation_record(
         "disposition": asdict(lane_disposition),
         "identity": identity,
         "split": {
-            "split_id": str(split_assignment["split_id"]),
+            "split_id": split_id,
             "quarantine_id": split_assignment.get("quarantine_id"),
         },
         "rendered": {"prompt_text": prompt_text, "target_text": target_text},
@@ -252,8 +345,8 @@ def render_foundation_record(
             "total_tokens": prompt_tokens + target_tokens,
         },
         "training_weight": 0.0,
-        "forecast_targets": _forecast_targets(example),
-        "observations": foundation_observations(example),
+        "forecast_targets": _forecast_targets(resolved),
+        "observations": foundation_observations(example, resolved=resolved),
     }
     validate_foundation_record(payload)
     return payload

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 torch = pytest.importorskip("torch")
@@ -39,6 +41,21 @@ def _targets(batch: int = 2) -> dict:
 
 def _masks(batch: int = 2) -> dict:
     return {name: torch.ones(batch, dtype=torch.bool) for name in FORECAST_TARGETS}
+
+
+def _forecast_record() -> dict:
+    return {
+        "forecast_targets": {
+            name: {
+                "applicable": name == "action_success",
+                "value": 1.0 if name == "action_success" else None,
+                "provenance": (
+                    "observed_outcome" if name == "action_success" else None
+                ),
+            }
+            for name in FORECAST_TARGETS
+        },
+    }
 
 
 def test_optimizer_accumulates_and_steps_only_at_boundary() -> None:
@@ -100,18 +117,7 @@ def test_optimizer_rejects_multi_document_packing() -> None:
 
 
 def test_forecast_tensors_include_applicability_masks() -> None:
-    record = {
-        "forecast_targets": {
-            name: {
-                "applicable": name == "action_success",
-                "value": 1.0 if name == "action_success" else None,
-                "provenance": (
-                    "observed_outcome" if name == "action_success" else None
-                ),
-            }
-            for name in FORECAST_TARGETS
-        },
-    }
+    record = _forecast_record()
 
     targets, masks = forecast_tensors(record)
 
@@ -138,6 +144,61 @@ def test_forecast_tensors_require_outcome_provenance_when_applicable() -> None:
         forecast_tensors(record)
 
 
+@pytest.mark.parametrize("provenance", ([], {}))
+def test_forecast_tensors_reject_malformed_applicable_provenance(provenance) -> None:
+    record = _forecast_record()
+    record["forecast_targets"]["action_success"]["provenance"] = provenance
+
+    with pytest.raises(TrainingBatchError, match="outcome-derived"):
+        forecast_tensors(record)
+
+
+@pytest.mark.parametrize("value", (None, 1, "true"))
+def test_forecast_tensors_require_boolean_applicability(value) -> None:
+    record = _forecast_record()
+    record["forecast_targets"]["action_success"]["applicable"] = value
+
+    with pytest.raises(TrainingBatchError, match="applicable.*bool"):
+        forecast_tensors(record)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (None, True, "1", math.nan, math.inf, -math.inf),
+)
+def test_forecast_tensors_require_finite_numeric_applicable_values(value) -> None:
+    record = _forecast_record()
+    record["forecast_targets"]["action_success"]["value"] = value
+
+    with pytest.raises(TrainingBatchError, match="finite numeric value"):
+        forecast_tensors(record)
+
+
+@pytest.mark.parametrize("mutation", ("missing", "extra"))
+def test_forecast_tensors_require_exact_entry_fields(mutation) -> None:
+    record = _forecast_record()
+    entry = record["forecast_targets"]["tool_cost"]
+    if mutation == "missing":
+        entry.pop("provenance")
+    else:
+        entry["extra"] = "forbidden"
+
+    with pytest.raises(TrainingBatchError, match="exact fields"):
+        forecast_tensors(record)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (("value", 0.0), ("provenance", "observed_outcome")),
+)
+def test_forecast_tensors_require_null_masked_fields(field, value) -> None:
+    record = _forecast_record()
+    record["forecast_targets"]["tool_cost"][field] = value
+
+    with pytest.raises(TrainingBatchError, match="masked.*null"):
+        forecast_tensors(record)
+
+
 def test_forecast_tensors_require_every_contract_entry() -> None:
     record = {
         "forecast_targets": {
@@ -149,5 +210,17 @@ def test_forecast_tensors_require_every_contract_entry() -> None:
             for name in FORECAST_TARGETS[:-1]
         },
     }
+    with pytest.raises(TrainingBatchError, match="all forecast target entries"):
+        forecast_tensors(record)
+
+
+def test_forecast_tensors_reject_extra_contract_entry() -> None:
+    record = _forecast_record()
+    record["forecast_targets"]["extra"] = {
+        "applicable": False,
+        "value": None,
+        "provenance": None,
+    }
+
     with pytest.raises(TrainingBatchError, match="all forecast target entries"):
         forecast_tensors(record)

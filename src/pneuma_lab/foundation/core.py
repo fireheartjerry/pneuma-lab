@@ -51,14 +51,34 @@ def metacognitive_loss(
         )
     losses = []
     for name in FORECAST_TARGETS:
-        mask = masks[name].to(device=predictions[name].device, dtype=torch.bool)
-        if mask.any():
-            target = targets[name].to(
-                device=predictions[name].device,
-                dtype=predictions[name].dtype,
+        prediction = predictions[name]
+        target = targets[name]
+        mask = masks[name]
+        if mask.dtype != torch.bool:
+            raise ValueError(f"forecast mask must have dtype torch.bool: {name}")
+        if prediction.shape != target.shape or prediction.shape != mask.shape:
+            raise ValueError(
+                f"forecast prediction, target, and mask shapes must match: {name}"
             )
+        mask = mask.to(device=prediction.device)
+        if mask.any():
+            target = target.to(
+                device=prediction.device,
+                dtype=prediction.dtype,
+            )
+            applicable_prediction = prediction[mask]
+            applicable_target = target[mask]
+            if not torch.isfinite(applicable_prediction).all() or not torch.isfinite(
+                applicable_target
+            ).all():
+                raise ValueError(
+                    f"applicable forecast prediction and target must be finite: {name}"
+                )
             losses.append(
-                torch.nn.functional.mse_loss(predictions[name][mask], target[mask])
+                torch.nn.functional.mse_loss(
+                    applicable_prediction,
+                    applicable_target,
+                )
             )
     if not losses:
         raise ValueError("at least one applicable forecast target is required")

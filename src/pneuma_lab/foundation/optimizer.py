@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping
+import math
 
 try:
     import torch
@@ -33,13 +34,67 @@ class OptimizerStep:
     forecast_loss: float
 
 
+def _normalized_forecast_value(value, *, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TrainingBatchError(
+            f"forecast target requires finite numeric value: {name}"
+        )
+    try:
+        normalized = float(value)
+    except (OverflowError, ValueError) as exc:
+        raise TrainingBatchError(
+            f"forecast target requires finite numeric value: {name}"
+        ) from exc
+    if (
+        not math.isfinite(normalized)
+        or abs(normalized) > torch.finfo(torch.float32).max
+    ):
+        raise TrainingBatchError(
+            f"forecast target requires finite numeric value: {name}"
+        )
+    return normalized
+
+
 def forecast_tensors(record: Mapping, *, device=None):
-    values = record.get("forecast_targets") or {}
-    if set(values) != set(FORECAST_TARGETS):
+    values = record.get("forecast_targets")
+    if not isinstance(values, Mapping) or set(values) != set(FORECAST_TARGETS):
         raise TrainingBatchError("all forecast target entries are required")
+    normalized_values = {}
+    applicability = {}
+    expected_fields = {"applicable", "value", "provenance"}
+    for name in FORECAST_TARGETS:
+        entry = values[name]
+        if not isinstance(entry, Mapping) or set(entry) != expected_fields:
+            raise TrainingBatchError(
+                f"forecast target entries require exact fields: {name}"
+            )
+        applicable = entry["applicable"]
+        if type(applicable) is not bool:
+            raise TrainingBatchError(
+                f"forecast target applicable must be bool: {name}"
+            )
+        value = entry["value"]
+        provenance = entry["provenance"]
+        if applicable:
+            normalized = _normalized_forecast_value(value, name=name)
+            if not isinstance(provenance, str) or provenance not in {
+                "observed_outcome",
+                "specified_intervention",
+            }:
+                raise TrainingBatchError(
+                    f"forecast target is not outcome-derived: {name}"
+                )
+            normalized_values[name] = normalized
+        else:
+            if value is not None or provenance is not None:
+                raise TrainingBatchError(
+                    f"masked forecast target fields must be null: {name}"
+                )
+            normalized_values[name] = 0.0
+        applicability[name] = applicable
     targets = {
         name: torch.tensor(
-            [float(values[name]["value"] or 0.0)],
+            [normalized_values[name]],
             dtype=torch.float32,
             device=device,
         )
@@ -47,19 +102,12 @@ def forecast_tensors(record: Mapping, *, device=None):
     }
     masks = {
         name: torch.tensor(
-            [bool(values[name]["applicable"])],
+            [applicability[name]],
             dtype=torch.bool,
             device=device,
         )
         for name in FORECAST_TARGETS
     }
-    for name in FORECAST_TARGETS:
-        entry = values[name]
-        if entry["applicable"] and entry["provenance"] not in {
-            "observed_outcome",
-            "specified_intervention",
-        }:
-            raise TrainingBatchError(f"forecast target is not outcome-derived: {name}")
     return targets, masks
 
 

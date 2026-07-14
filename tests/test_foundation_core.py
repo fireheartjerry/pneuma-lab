@@ -95,3 +95,54 @@ def test_masked_forecast_loss_uses_only_applicable_targets() -> None:
     masks["action_success"] = torch.tensor([False])
     with pytest.raises(ValueError, match="applicable"):
         metacognitive_loss(predictions, targets, masks)
+
+
+def test_metacognitive_loss_rejects_non_boolean_masks() -> None:
+    predictions = {name: torch.tensor([0.0]) for name in FORECAST_TARGETS}
+    targets = {name: torch.tensor([0.0]) for name in FORECAST_TARGETS}
+    masks = {name: torch.tensor([1.0]) for name in FORECAST_TARGETS}
+
+    with pytest.raises(ValueError, match="mask.*torch.bool"):
+        metacognitive_loss(predictions, targets, masks)
+
+
+@pytest.mark.parametrize("component", ("prediction", "target", "mask"))
+def test_metacognitive_loss_rejects_shape_mismatch(component) -> None:
+    predictions = {name: torch.tensor([0.0]) for name in FORECAST_TARGETS}
+    targets = {name: torch.tensor([0.0]) for name in FORECAST_TARGETS}
+    masks = {
+        name: torch.tensor([name == "action_success"])
+        for name in FORECAST_TARGETS
+    }
+    values = {
+        "prediction": predictions,
+        "target": targets,
+        "mask": masks,
+    }
+    values[component]["action_success"] = (
+        torch.tensor([True, False])
+        if component == "mask"
+        else torch.tensor([0.0, 0.0])
+    )
+
+    with pytest.raises(ValueError, match="shapes must match"):
+        metacognitive_loss(predictions, targets, masks)
+
+
+@pytest.mark.parametrize("component", ("prediction", "target"))
+@pytest.mark.parametrize("value", (float("nan"), float("inf"), -float("inf")))
+def test_metacognitive_loss_rejects_non_finite_applicable_values(
+    component,
+    value,
+) -> None:
+    predictions = {name: torch.tensor([0.0]) for name in FORECAST_TARGETS}
+    targets = {name: torch.tensor([0.0]) for name in FORECAST_TARGETS}
+    masks = {
+        name: torch.tensor([name == "action_success"])
+        for name in FORECAST_TARGETS
+    }
+    values = {"prediction": predictions, "target": targets}
+    values[component]["action_success"] = torch.tensor([value])
+
+    with pytest.raises(ValueError, match="finite"):
+        metacognitive_loss(predictions, targets, masks)

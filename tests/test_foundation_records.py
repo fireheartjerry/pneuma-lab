@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
+from types import MappingProxyType
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -18,6 +20,7 @@ from pneuma_lab.foundation.records import (
     TerminalRole,
     foundation_identity,
     render_foundation_record,
+    render_prompt_payload,
     validate_foundation_record,
 )
 from pneuma_lab.schemas import load_schema
@@ -94,14 +97,31 @@ def _lane_disposition() -> LaneDisposition:
     )
 
 
-def _render(tokenizer: DeterministicTokenizer, *, resolved: bool = True) -> dict:
+def _render_example(
+    tokenizer: DeterministicTokenizer,
+    example: dict,
+    *,
+    split_assignment: dict | None = None,
+    tokenizer_revision: object = "1" * 40,
+) -> dict:
     return render_foundation_record(
-        _canonical_openhands_example(resolved=resolved),
+        example,
         lane_disposition=_lane_disposition(),
-        split_assignment={"split_id": "train", "quarantine_id": None},
+        split_assignment=(
+            split_assignment
+            if split_assignment is not None
+            else {"split_id": "train", "quarantine_id": None}
+        ),
         tokenizer=tokenizer,
-        tokenizer_revision="1" * 40,
+        tokenizer_revision=tokenizer_revision,
         source_receipt_hashes=("a" * 64, "b" * 64),
+    )
+
+
+def _render(tokenizer: DeterministicTokenizer, *, resolved: bool = True) -> dict:
+    return _render_example(
+        tokenizer,
+        _canonical_openhands_example(resolved=resolved),
     )
 
 
@@ -166,6 +186,37 @@ def test_prompt_renderer_is_an_explicit_allowlist(tokenizer) -> None:
     )
     assert all(value not in prompt_text for value in excluded_values)
     assert "resolved" not in prompt_text
+
+
+def test_prompt_renderer_defaults_missing_objective_metadata() -> None:
+    example = _canonical_openhands_example(resolved=True)
+    example["input"].pop("objective")
+
+    assert render_prompt_payload(example)["objective"] == {
+        "present": False,
+        "text_length": 0,
+    }
+
+
+@pytest.mark.parametrize("value", ("true", 1))
+def test_prompt_renderer_rejects_non_boolean_objective_presence(value) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    example["input"]["objective"]["present"] = value
+
+    with pytest.raises(FoundationRecordError, match="objective.present"):
+        render_prompt_payload(example)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (True, "97", 97.0, -1, math.nan, math.inf),
+)
+def test_prompt_renderer_rejects_invalid_objective_text_length(value) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    example["input"]["objective"]["text_length"] = value
+
+    with pytest.raises(FoundationRecordError, match="objective.text_length"):
+        render_prompt_payload(example)
 
 
 def test_prompt_renderer_excludes_nested_leakage_keys(tokenizer) -> None:
@@ -336,11 +387,127 @@ def test_record_validation_rejects_extra_properties(tokenizer) -> None:
         validate_foundation_record(record)
 
 
+@pytest.mark.parametrize(
+    "target",
+    (
+        None,
+        "resolved",
+        [True],
+        {},
+        {"resolved": None},
+        {"resolved": "true"},
+        {"resolved": 1},
+        {"resolved": [True]},
+    ),
+)
+def test_record_rendering_rejects_missing_or_malformed_resolved_target(
+    tokenizer,
+    target,
+) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    example["target"] = target
+
+    with pytest.raises(FoundationRecordError, match="target(?:.resolved)?"):
+        _render_example(tokenizer, example)
+
+
+def test_record_rendering_rejects_missing_target(tokenizer) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    example.pop("target")
+
+    with pytest.raises(FoundationRecordError, match="target"):
+        _render_example(tokenizer, example)
+
+
+def test_record_rendering_accepts_a_json_native_target_mapping(tokenizer) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    example["target"] = MappingProxyType({"resolved": True})
+
+    record = _render_example(tokenizer, example)
+
+    assert record["rendered"]["target_text"] == '{"resolved":true}'
+
+
+@pytest.mark.parametrize("value", (math.nan, math.inf, -math.inf))
+def test_record_rendering_rejects_non_finite_target_values(tokenizer, value) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    example["target"]["score"] = value
+
+    with pytest.raises(FoundationRecordError, match="target.*canonical JSON"):
+        _render_example(tokenizer, example)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    tuple(
+        (field, value)
+        for field in ("dataset_family", "dataset_id", "example_id")
+        for value in (None, 1, "")
+    ),
+)
+def test_record_rendering_rejects_invalid_source_provenance_ids(
+    tokenizer,
+    field,
+    value,
+) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    example[field] = value
+
+    with pytest.raises(FoundationRecordError, match=field):
+        _render_example(tokenizer, example)
+
+
+@pytest.mark.parametrize("value", (None, 1, ""))
+def test_record_rendering_rejects_invalid_split_id(tokenizer, value) -> None:
+    with pytest.raises(FoundationRecordError, match="split_id"):
+        _render_example(
+            tokenizer,
+            _canonical_openhands_example(resolved=True),
+            split_assignment={"split_id": value, "quarantine_id": None},
+        )
+
+
+@pytest.mark.parametrize("value", (None, 1, "A" * 40, "1" * 39))
+def test_record_rendering_enforces_tokenizer_revision_schema(tokenizer, value) -> None:
+    with pytest.raises(FoundationRecordError, match="tokenizer_revision"):
+        _render_example(
+            tokenizer,
+            _canonical_openhands_example(resolved=True),
+            tokenizer_revision=value,
+        )
+
+
+def test_record_rendering_rejects_non_string_source_revision(tokenizer) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    example["source_revision"] = 1
+
+    with pytest.raises(FoundationRecordError, match="source_revision"):
+        _render_example(tokenizer, example)
+
+
+def test_record_validation_rejects_non_json_native_values(tokenizer) -> None:
+    record = _render(tokenizer)
+    record["observations"]["tools"] = {"read_file"}
+
+    with pytest.raises(FoundationRecordError, match="canonical JSON"):
+        validate_foundation_record(record)
+
+
+@pytest.mark.parametrize("value", (math.nan, math.inf, -math.inf))
+def test_record_validation_rejects_non_finite_values(tokenizer, value) -> None:
+    record = _render(tokenizer)
+    record["forecast_targets"]["action_success"]["value"] = value
+
+    with pytest.raises(FoundationRecordError, match="canonical JSON"):
+        validate_foundation_record(record)
+
+
 def test_forecast_contract_enumerates_all_targets(tokenizer) -> None:
     record = _render(tokenizer, resolved=False)
     assert tuple(record["forecast_targets"]) == FORECAST_TARGETS
     assert record["forecast_targets"]["action_success"]["value"] == 0.0
     assert record["forecast_targets"]["expected_error"]["value"] == 1.0
+    assert record["observations"]["labels"]["resolved"] is False
     for name in FORECAST_TARGETS[2:]:
         assert record["forecast_targets"][name] == {
             "applicable": False,
