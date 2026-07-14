@@ -1,0 +1,331 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/foundation-suite-report.schema.json",
+    "title": "Pneuma Foundation Dataset Suite Report",
+    "description": "Filesystem-metadata-only completeness report for all ten governed foundation dataset families.",
+    "type": "object",
+    "x-pneuma-schema-kind": "foundation-suite-report",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "manifest_kind",
+        "manifest_schema_version",
+        "first_stage",
+        "families"
+    ],
+    "properties": {
+        "manifest_kind": {
+            "const": "pneuma_foundation_suite_report"
+        },
+        "manifest_schema_version": {
+            "const": "0.1.0"
+        },
+        "first_stage": {
+            "type": "object",
+            "required": [
+                "stage",
+                "authorized_lane_candidates"
+            ],
+            "properties": {
+                "stage": {
+                    "const": "100k"
+                },
+                "authorized_lane_candidates": {
+                    "const": [
+                        "swe-gym-openhands-sampled"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "families": {
+            "type": "array",
+            "minItems": 10,
+            "maxItems": 10,
+            "items": {
+                "$ref": "#/$defs/family_presence"
+            },
+            "allOf": [
+                {
+                    "$ref": "#/$defs/contains_multi_swe_bench"
+                },
+                {
+                    "$ref": "#/$defs/contains_open_swe_traces"
+                },
+                {
+                    "$ref": "#/$defs/contains_sec_bench_pro"
+                },
+                {
+                    "$ref": "#/$defs/contains_swe_bench"
+                },
+                {
+                    "$ref": "#/$defs/contains_swe_bench_pro"
+                },
+                {
+                    "$ref": "#/$defs/contains_swe_chat"
+                },
+                {
+                    "$ref": "#/$defs/contains_swe_evo"
+                },
+                {
+                    "$ref": "#/$defs/contains_swe_gym"
+                },
+                {
+                    "$ref": "#/$defs/contains_swe_mera"
+                },
+                {
+                    "$ref": "#/$defs/contains_swe_polybench"
+                }
+            ]
+        }
+    },
+    "$defs": {
+        "family_presence": {
+            "type": "object",
+            "required": [
+                "family",
+                "terminal_role",
+                "gradient_eligibility",
+                "payload_access_100k",
+                "exists",
+                "file_count",
+                "byte_count",
+                "newest_mtime_ns",
+                "inspection",
+                "payload_opened"
+            ],
+            "properties": {
+                "family": {
+                    "enum": [
+                        "multi-swe-bench",
+                        "open-swe-traces",
+                        "sec-bench-pro",
+                        "swe-bench",
+                        "swe-bench-pro",
+                        "swe-chat",
+                        "swe-evo",
+                        "swe-gym",
+                        "swe-mera",
+                        "swe-polybench"
+                    ]
+                },
+                "terminal_role": {
+                    "enum": [
+                        "train",
+                        "eval",
+                        "governance"
+                    ]
+                },
+                "gradient_eligibility": {
+                    "enum": [
+                        "first_stage",
+                        "later",
+                        "never"
+                    ]
+                },
+                "payload_access_100k": {
+                    "enum": [
+                        "metadata_only",
+                        "identity_metadata_only",
+                        "approved_processed_lane_only"
+                    ]
+                },
+                "identity_metadata_relative_path": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "exists": {
+                    "type": "boolean"
+                },
+                "file_count": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "byte_count": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "newest_mtime_ns": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "minimum": 0
+                },
+                "inspection": {
+                    "const": "filesystem_metadata_only"
+                },
+                "payload_opened": {
+                    "const": false
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "payload_access_100k": {
+                                "const": "identity_metadata_only"
+                            }
+                        },
+                        "required": [
+                            "payload_access_100k"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "identity_metadata_relative_path"
+                        ]
+                    },
+                    "else": {
+                        "not": {
+                            "required": [
+                                "identity_metadata_relative_path"
+                            ]
+                        }
+                    }
+                }
+            ],
+            "additionalProperties": false
+        },
+        "contains_multi_swe_bench": {
+            "contains": {
+                "properties": {
+                    "family": {
+                        "const": "multi-swe-bench"
+                    }
+                },
+                "required": [
+                    "family"
+                ]
+            },
+            "minContains": 1,
+            "maxContains": 1
+        },
+        "contains_open_swe_traces": {
+            "contains": {
+                "properties": {
+                    "family": {
+                        "const": "open-swe-traces"
+                    }
+                },
+                "required": [
+                    "family"
+                ]
+            },
+            "minContains": 1,
+            "maxContains": 1
+        },
+        "contains_sec_bench_pro": {
+            "contains": {
+                "properties": {
+                    "family": {
+                        "const": "sec-bench-pro"
+                    }
+                },
+                "required": [
+                    "family"
+                ]
+            },
+            "minContains": 1,
+            "maxContains": 1
+        },
+        "contains_swe_bench": {
+            "contains": {
+                "properties": {
+                    "family": {
+                        "const": "swe-bench"
+                    }
+                },
+                "required": [
+                    "family"
+                ]
+            },
+            "minContains": 1,
+            "maxContains": 1
+        },
+        "contains_swe_bench_pro": {
+            "contains": {
+                "properties": {
+                    "family": {
+                        "const": "swe-bench-pro"
+                    }
+                },
+                "required": [
+                    "family"
+                ]
+            },
+            "minContains": 1,
+            "maxContains": 1
+        },
+        "contains_swe_chat": {
+            "contains": {
+                "properties": {
+                    "family": {
+                        "const": "swe-chat"
+                    }
+                },
+                "required": [
+                    "family"
+                ]
+            },
+            "minContains": 1,
+            "maxContains": 1
+        },
+        "contains_swe_evo": {
+            "contains": {
+                "properties": {
+                    "family": {
+                        "const": "swe-evo"
+                    }
+                },
+                "required": [
+                    "family"
+                ]
+            },
+            "minContains": 1,
+            "maxContains": 1
+        },
+        "contains_swe_gym": {
+            "contains": {
+                "properties": {
+                    "family": {
+                        "const": "swe-gym"
+                    }
+                },
+                "required": [
+                    "family"
+                ]
+            },
+            "minContains": 1,
+            "maxContains": 1
+        },
+        "contains_swe_mera": {
+            "contains": {
+                "properties": {
+                    "family": {
+                        "const": "swe-mera"
+                    }
+                },
+                "required": [
+                    "family"
+                ]
+            },
+            "minContains": 1,
+            "maxContains": 1
+        },
+        "contains_swe_polybench": {
+            "contains": {
+                "properties": {
+                    "family": {
+                        "const": "swe-polybench"
+                    }
+                },
+                "required": [
+                    "family"
+                ]
+            },
+            "minContains": 1,
+            "maxContains": 1
+        }
+    },
+    "additionalProperties": false
+}

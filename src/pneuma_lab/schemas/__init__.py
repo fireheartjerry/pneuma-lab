@@ -70,6 +70,7 @@ FOUNDATION_SCHEMA_FILES = (
     "learned-subject-profile.schema.json",
     "memory-erasure-receipt.schema.json",
     "foundation-training-record.schema.json",
+    "foundation-suite-report.schema.json",
 )
 
 ALL_SCHEMA_FILES = (
