@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from pneuma_lab.foundation import source_presence
 from pneuma_lab.foundation.source_presence import probe_family_presence
 
 
@@ -79,3 +80,70 @@ def test_presence_probe_skips_symlink_that_escapes_family_root(
     assert report.file_count == 0
     assert report.byte_count == 0
     assert report.newest_mtime_ns is None
+
+
+@pytest.mark.parametrize("ancestor_name", ["data_root", "processed", "family"])
+def test_presence_probe_rejects_simulated_reparse_ancestor(
+    tmp_path: Path,
+    monkeypatch,
+    ancestor_name: str,
+) -> None:
+    processed = tmp_path / "processed"
+    family = processed / "swe-chat"
+    family.mkdir(parents=True)
+    (family / "present.bin").write_bytes(b"metadata")
+    ancestors = {
+        "data_root": tmp_path,
+        "processed": processed,
+        "family": family,
+    }
+    monkeypatch.setattr(
+        source_presence,
+        "_is_link_or_reparse",
+        lambda path: path == ancestors[ancestor_name],
+        raising=False,
+    )
+
+    with pytest.raises(ValueError, match="trust boundary"):
+        probe_family_presence(tmp_path, "swe-chat")
+
+
+def test_presence_probe_rejects_relocated_processed_ancestor(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    processed = tmp_path / "processed"
+    family = processed / "swe-chat"
+    family.mkdir(parents=True)
+    (family / "present.bin").write_bytes(b"metadata")
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    real_resolve = Path.resolve
+
+    def relocated_resolve(path: Path, *args, **kwargs) -> Path:
+        if path == processed:
+            return outside
+        if path == family:
+            return outside / "swe-chat"
+        return real_resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", relocated_resolve)
+
+    with pytest.raises(ValueError, match="trust boundary"):
+        probe_family_presence(tmp_path, "swe-chat")
+
+
+def test_presence_probe_rejects_family_root_symlink_when_supported(
+    tmp_path: Path,
+) -> None:
+    processed = tmp_path / "processed"
+    processed.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    family = processed / "swe-chat"
+    try:
+        family.symlink_to(outside, target_is_directory=True)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="trust boundary"):
+        probe_family_presence(tmp_path, "swe-chat")

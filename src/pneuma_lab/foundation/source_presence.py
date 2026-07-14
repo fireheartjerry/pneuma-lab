@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import stat as stat_module
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,8 +21,57 @@ class FamilyPresence:
     payload_opened: bool = False
 
 
+class SourcePresenceError(ValueError):
+    """Raised when a presence probe cannot establish a safe trust boundary."""
+
+
 def _is_within(path: Path, root: Path) -> bool:
     return path == root or root in path.parents
+
+
+def _is_link_or_reparse(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    if callable(is_junction) and is_junction():
+        return True
+    try:
+        metadata = path.lstat()
+    except OSError:
+        return False
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    reparse_flag = getattr(
+        stat_module,
+        "FILE_ATTRIBUTE_REPARSE_POINT",
+        0x400,
+    )
+    return bool(attributes & reparse_flag)
+
+
+def _establish_trust_boundary(data_root: Path, family_root: Path) -> Path:
+    processed_root = data_root / "processed"
+    for component in (data_root, processed_root, family_root):
+        if _is_link_or_reparse(component):
+            raise SourcePresenceError(
+                f"filesystem trust boundary contains a link or reparse point: {component}"
+            )
+    try:
+        resolved_data_root = data_root.resolve(strict=False)
+        resolved_processed_root = processed_root.resolve(strict=False)
+        resolved_family_root = family_root.resolve(strict=False)
+    except OSError as exc:
+        raise SourcePresenceError(
+            f"filesystem trust boundary cannot be resolved: {exc}"
+        ) from exc
+    if (
+        not _is_within(resolved_processed_root, resolved_data_root)
+        or not _is_within(resolved_family_root, resolved_processed_root)
+        or not _is_within(resolved_family_root, resolved_data_root)
+    ):
+        raise SourcePresenceError(
+            "filesystem trust boundary resolves outside the supplied data root"
+        )
+    return resolved_family_root
 
 
 def probe_family_presence(data_root: Path, family: str) -> FamilyPresence:
@@ -29,24 +79,34 @@ def probe_family_presence(data_root: Path, family: str) -> FamilyPresence:
 
     if family not in ACTIVE_DATASET_GROUPS:
         raise ValueError(f"unknown active dataset family: {family!r}")
-    root = Path(data_root) / "processed" / family
+    try:
+        data_root = Path(data_root)
+    except TypeError as exc:
+        raise SourcePresenceError("data root must be path-compatible") from exc
+    root = data_root / "processed" / family
+    resolved_root = _establish_trust_boundary(data_root, root)
     exists = root.exists()
     count = 0
     byte_count = 0
     newest = None
-    if exists and not root.is_symlink():
-        resolved_root = root.resolve()
+    if exists:
         for directory, subdirs, files in os.walk(root, followlinks=False):
             directory_path = Path(directory)
             subdirs[:] = [
                 name
                 for name in subdirs
-                if not (directory_path / name).is_symlink()
-                and _is_within((directory_path / name).resolve(), resolved_root)
+                if not _is_link_or_reparse(directory_path / name)
+                and _is_within(
+                    (directory_path / name).resolve(strict=False),
+                    resolved_root,
+                )
             ]
             for name in files:
                 path = directory_path / name
-                if path.is_symlink() or not _is_within(path.resolve(), resolved_root):
+                if _is_link_or_reparse(path) or not _is_within(
+                    path.resolve(strict=False),
+                    resolved_root,
+                ):
                     continue
                 stat = path.stat()
                 count += 1
@@ -59,4 +119,4 @@ def probe_family_presence(data_root: Path, family: str) -> FamilyPresence:
     return FamilyPresence(family, exists, count, byte_count, newest)
 
 
-__all__ = ["FamilyPresence", "probe_family_presence"]
+__all__ = ["FamilyPresence", "SourcePresenceError", "probe_family_presence"]

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
@@ -18,6 +20,44 @@ from pneuma_lab.foundation.source_presence import probe_family_presence
 
 class SuitePolicyError(ValueError):
     """Raised when suite policy cannot safely authorize the requested access."""
+
+
+_EXPECTED_FAMILY_MATRIX = (
+    ("multi-swe-bench", "train", "later", "metadata_only", None),
+    ("open-swe-traces", "train", "later", "metadata_only", None),
+    ("sec-bench-pro", "governance", "never", "metadata_only", None),
+    (
+        "swe-bench",
+        "eval",
+        "never",
+        "identity_metadata_only",
+        "processed/swe-bench/normalized_metadata.jsonl",
+    ),
+    ("swe-bench-pro", "eval", "never", "metadata_only", None),
+    ("swe-chat", "governance", "never", "metadata_only", None),
+    ("swe-evo", "train", "later", "metadata_only", None),
+    (
+        "swe-gym",
+        "train",
+        "first_stage",
+        "approved_processed_lane_only",
+        None,
+    ),
+    (
+        "swe-mera",
+        "eval",
+        "never",
+        "identity_metadata_only",
+        "processed/swe-mera/normalized_metadata.jsonl",
+    ),
+    (
+        "swe-polybench",
+        "eval",
+        "later",
+        "identity_metadata_only",
+        "processed/swe-polybench/normalized_metadata.jsonl",
+    ),
+)
 
 
 def load_suite_policy(path: Path) -> dict[str, Any]:
@@ -36,7 +76,7 @@ def _policy_entries(policy: Mapping) -> tuple[Mapping, ...]:
     if not isinstance(policy, Mapping):
         raise SuitePolicyError("suite policy must be a mapping")
     entries = policy.get("families")
-    if not isinstance(entries, (list, tuple)):
+    if not isinstance(entries, list):
         raise SuitePolicyError("suite policy families must be a list")
     if not all(isinstance(item, Mapping) for item in entries):
         raise SuitePolicyError("suite policy family entries must be objects")
@@ -53,17 +93,70 @@ def _validated_family_map(policy: Mapping) -> dict[str, Mapping]:
         families.append(family)
     if len(families) != 10 or set(families) != set(ACTIVE_DATASET_GROUPS):
         raise SuitePolicyError("suite policy must contain each active family exactly once")
+    if tuple(families) != ACTIVE_DATASET_GROUPS:
+        raise SuitePolicyError("suite policy families must use documented order")
+
+    for item, expected in zip(entries, _EXPECTED_FAMILY_MATRIX, strict=True):
+        family, role, gradient, access, identity_path = expected
+        expected_item = {
+            "family": family,
+            "terminal_role": role,
+            "gradient_eligibility": gradient,
+            "payload_access_100k": access,
+        }
+        if identity_path is not None:
+            expected_item["identity_metadata_relative_path"] = identity_path
+        if dict(item) != expected_item or not all(
+            isinstance(value, str) for value in item.values()
+        ):
+            raise SuitePolicyError(
+                f"{family} must match the exact policy matrix"
+            )
 
     first_stage = policy.get("first_stage")
-    if not isinstance(first_stage, Mapping) or first_stage.get("stage") != "100k":
+    if not isinstance(first_stage, Mapping):
+        raise SuitePolicyError("suite policy first stage must be an object")
+    if set(first_stage) != {"stage", "authorized_lane_candidates"}:
+        raise SuitePolicyError(
+            "suite policy first-stage authorized lane candidates or stage are missing"
+        )
+    if not isinstance(first_stage.get("stage"), str) or (
+        first_stage.get("stage") != "100k"
+    ):
         raise SuitePolicyError("suite policy first stage must be 100k")
     candidates = first_stage.get("authorized_lane_candidates")
-    if candidates != ["swe-gym-openhands-sampled"]:
+    if not isinstance(candidates, list) or not all(
+        isinstance(candidate, str) for candidate in candidates
+    ) or candidates != ["swe-gym-openhands-sampled"]:
         raise SuitePolicyError(
             "suite first-stage authorized lane candidates may nominate only "
             "the OpenHands Sampled lane"
         )
-    return {str(item["family"]): item for item in entries}
+    return dict(zip(families, entries, strict=True))
+
+
+def _lexical_data_relative_parts(path: object) -> tuple[str, ...] | None:
+    try:
+        raw_path = os.fspath(path)
+    except TypeError:
+        return None
+    if not isinstance(raw_path, str) or not raw_path:
+        return None
+    raw_parts = tuple(
+        part for part in re.split(r"[\\/]", raw_path) if part
+    )
+    if not raw_parts or any(part in {".", ".."} for part in raw_parts):
+        return None
+    if raw_parts.count("processed") != 1:
+        return None
+    processed_index = raw_parts.index("processed")
+    try:
+        is_absolute = Path(raw_path).is_absolute()
+    except (OSError, TypeError, ValueError):
+        return None
+    if processed_index > 0 and not is_absolute:
+        return None
+    return raw_parts[processed_index:]
 
 
 def validate_suite_policy(policy: Mapping, registry: Mapping) -> tuple[str, ...]:
@@ -94,6 +187,8 @@ def assert_payload_read_allowed(
     family_map = _validated_family_map(policy)
     if not isinstance(stage, str) or not stage:
         raise SuitePolicyError("stage must be a non-empty string")
+    if not isinstance(family, str) or not family:
+        raise SuitePolicyError("family must be a non-empty string")
     item = family_map.get(family)
     if item is None:
         raise SuitePolicyError(f"unknown suite family: {family!r}")
@@ -101,23 +196,22 @@ def assert_payload_read_allowed(
     access = item.get(access_key)
     if not isinstance(access, str):
         raise SuitePolicyError(f"unknown or unsupported suite stage: {stage!r}")
-    try:
-        normalized_path = Path(path).as_posix().casefold()
-    except (TypeError, ValueError) as exc:
-        raise SuitePolicyError("payload path must be path-like") from exc
+    relative_parts = _lexical_data_relative_parts(path)
 
-    approved_root = "processed/swe-gym/openhands-sampled"
+    approved_root = ("processed", "swe-gym", "openhands-sampled")
     approved_lane = (
         access == "approved_processed_lane_only"
         and family == "swe-gym"
         and lane_id == "swe-gym-openhands-sampled"
-        and f"{approved_root}/" in normalized_path
+        and relative_parts is not None
+        and relative_parts[:3] == approved_root
     )
     identity_path = item.get("identity_metadata_relative_path")
     identity_metadata = (
         access == "identity_metadata_only"
         and isinstance(identity_path, str)
-        and normalized_path.endswith(identity_path.casefold())
+        and relative_parts is not None
+        and relative_parts == tuple(identity_path.split("/"))
     )
     if not (approved_lane or identity_metadata):
         raise SuitePolicyError(f"{family} is metadata-only for stage {stage}")
