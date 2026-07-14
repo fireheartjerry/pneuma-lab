@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
+import stat as stat_module
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -204,12 +206,87 @@ def _is_within(path: Path, parent: Path) -> bool:
 def _validate_output_path(
     *, repo_root: Path, output_root: Path, data_root: Path
 ) -> None:
-    output = output_root.resolve()
-    data = data_root.resolve()
-    build = (repo_root.resolve() / "build").resolve()
-    if _is_within(output, data):
+    repo = Path(repo_root)
+    output = Path(output_root)
+    data = Path(data_root)
+    if ".." in repo.parts or ".." in output.parts:
+        raise DataAuthorizationError(
+            "training shards must remain lexically under repo build storage"
+        )
+    if not repo.is_absolute():
+        repo = Path.cwd() / repo
+    if not output.is_absolute():
+        output = Path.cwd() / output
+    if not data.is_absolute():
+        data = Path.cwd() / data
+    try:
+        resolved_data = data.resolve(strict=False)
+        resolved_output_for_data = output.resolve(strict=False)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise DataAuthorizationError(
+            "training shard storage paths cannot be resolved"
+        ) from exc
+    if _is_within(resolved_output_for_data, resolved_data):
         raise DataAuthorizationError("output may never be written under pneuma-data")
-    if not _is_within(output, build):
+    build = repo / "build"
+    try:
+        relative_output = output.relative_to(build)
+    except ValueError as exc:
+        raise DataAuthorizationError(
+            "training shards must remain lexically under repo build storage"
+        ) from exc
+
+    components = [repo, build]
+    current = build
+    for part in relative_output.parts:
+        current /= part
+        components.append(current)
+    for component in components:
+        try:
+            metadata = component.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise DataAuthorizationError(
+                f"build storage metadata cannot be inspected: {component}"
+            ) from exc
+        is_junction = getattr(component, "is_junction", None)
+        try:
+            junction = bool(callable(is_junction) and is_junction())
+        except OSError as exc:
+            raise DataAuthorizationError(
+                f"build storage junction cannot be inspected: {component}"
+            ) from exc
+        reparse_flag = getattr(
+            stat_module,
+            "FILE_ATTRIBUTE_REPARSE_POINT",
+            0x400,
+        )
+        if (
+            stat_module.S_ISLNK(metadata.st_mode)
+            or junction
+            or bool(getattr(metadata, "st_file_attributes", 0) & reparse_flag)
+        ):
+            raise DataAuthorizationError(
+                f"build storage contains a link, junction, or reparse point: {component}"
+            )
+        if not stat_module.S_ISDIR(metadata.st_mode):
+            raise DataAuthorizationError(
+                f"build storage component must be a directory: {component}"
+            )
+
+    try:
+        resolved_repo = repo.resolve(strict=False)
+        resolved_build = build.resolve(strict=False)
+        resolved_output = output.resolve(strict=False)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise DataAuthorizationError(
+            "training shard storage paths cannot be resolved"
+        ) from exc
+    if (
+        not _is_within(resolved_build, resolved_repo)
+        or not _is_within(resolved_output, resolved_build)
+    ):
         raise DataAuthorizationError(
             "training shards must remain under repo build storage"
         )

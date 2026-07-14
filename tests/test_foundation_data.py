@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import os
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -21,6 +23,24 @@ from pneuma_lab.foundation.data import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _make_directory_alias(link: Path, target: Path) -> None:
+    if os.name == "nt":
+        result = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            pytest.skip(f"directory junctions unavailable: {result.stderr.strip()}")
+        return
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
 
 
 def _example(example_id: str = "ex-1", **overrides) -> dict:
@@ -259,6 +279,72 @@ def test_content_addressed_shard_never_writes_to_data_root(tmp_path: Path) -> No
     assert result.shard_path.name == f"{result.sha256}.jsonl"
     assert result.manifest_path.is_file()
     assert sentinel.read_text(encoding="utf-8") == "immutable"
+
+
+def test_shard_rejects_build_alias_escaping_repo_before_write(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    _make_directory_alias(repo_root / "build", outside)
+
+    with pytest.raises(DataAuthorizationError, match="link|reparse|junction"):
+        build_content_addressed_shard(
+            (_example(),),
+            repo_root=repo_root,
+            output_root=repo_root / "build/foundation/shards",
+            data_root=tmp_path / "pneuma-data",
+        )
+    assert tuple(outside.iterdir()) == ()
+
+
+def test_shard_rejects_nested_build_alias_before_write(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    build_root = repo_root / "build"
+    alias_target = build_root / "physical-target"
+    alias_target.mkdir(parents=True)
+    _make_directory_alias(build_root / "foundation", alias_target)
+
+    with pytest.raises(DataAuthorizationError, match="link|reparse|junction"):
+        build_content_addressed_shard(
+            (_example(),),
+            repo_root=repo_root,
+            output_root=repo_root / "build/foundation/shards",
+            data_root=tmp_path / "pneuma-data",
+        )
+    assert tuple(alias_target.iterdir()) == ()
+
+
+def test_shard_rejects_aliased_repo_root_before_write(tmp_path: Path) -> None:
+    physical_repo = tmp_path / "physical-repo"
+    physical_repo.mkdir()
+    repo_alias = tmp_path / "repo-alias"
+    _make_directory_alias(repo_alias, physical_repo)
+
+    with pytest.raises(DataAuthorizationError, match="link|reparse|junction"):
+        build_content_addressed_shard(
+            (_example(),),
+            repo_root=repo_alias,
+            output_root=repo_alias / "build/foundation/shards",
+            data_root=tmp_path / "pneuma-data",
+        )
+    assert not (physical_repo / "build").exists()
+
+
+def test_shard_requires_output_lexically_below_repo_build(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    detour = repo_root / "detour"
+    detour.mkdir(parents=True)
+    output_root = detour / "../build/foundation/shards"
+
+    with pytest.raises(DataAuthorizationError, match="build storage"):
+        build_content_addressed_shard(
+            (_example(),),
+            repo_root=repo_root,
+            output_root=output_root,
+            data_root=tmp_path / "pneuma-data",
+        )
+    assert not (repo_root / "build").exists()
 
 
 def test_shard_rejects_blocked_positive_weight_and_unsafe_output(
