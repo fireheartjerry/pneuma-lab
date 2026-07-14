@@ -35,6 +35,15 @@ class ArtifactPublicationError(OSError):
     """Raised when output ancestry cannot remain bound and verified."""
 
 
+@dataclass(frozen=True)
+class BoundArtifactRead:
+    """Immutable bytes and digest derived from one held artifact handle."""
+
+    payload: bytes
+    sha256: str
+    size: int
+
+
 @dataclass
 class _PublishedArtifact:
     name: str
@@ -952,6 +961,103 @@ class BoundArtifactPublication:
             os.close(descriptor)
         return digest.hexdigest(), size
 
+    def _before_bound_read_verify(self) -> None:
+        """Internal deterministic race-injection point used only by tests."""
+
+    def read_bytes_set(
+        self,
+        paths: Iterable[Path],
+        *,
+        allow_missing: bool = False,
+    ) -> dict[Path, BoundArtifactRead] | None:
+        """Read direct-child artifacts as one handle-bound coherent set."""
+
+        requested = tuple(Path(path) for path in paths)
+        names = tuple(self._target_name(path) for path in requested)
+        if not requested:
+            raise ArtifactPublicationError(
+                "artifact read set must contain at least one target"
+            )
+        if len(names) != len(set(names)):
+            raise ArtifactPublicationError(
+                "artifact read set contains duplicate targets"
+            )
+        if type(allow_missing) is not bool:
+            raise ArtifactPublicationError("allow_missing must be a bool")
+        self._verify_authorized_location()
+        descriptors: list[int] = []
+        reads: list[BoundArtifactRead] = []
+        identities: list[tuple[int, int]] = []
+        try:
+            try:
+                for name in names:
+                    descriptors.append(self._open_target_descriptor(name))
+            except FileNotFoundError:
+                if allow_missing:
+                    self._verify_authorized_location()
+                    return None
+                raise
+
+            for descriptor in descriptors:
+                before = os.fstat(descriptor)
+                if getattr(before, "st_nlink", 1) != 1:
+                    raise ArtifactPublicationError(
+                        "artifact read target must not be a hard-link alias"
+                    )
+                chunks = []
+                digest = hashlib.sha256()
+                size = 0
+                while chunk := os.read(descriptor, _HASH_CHUNK_BYTES):
+                    chunks.append(chunk)
+                    digest.update(chunk)
+                    size += len(chunk)
+                after = os.fstat(descriptor)
+                if (
+                    (before.st_dev, before.st_ino, before.st_size)
+                    != (after.st_dev, after.st_ino, after.st_size)
+                    or getattr(before, "st_mtime_ns", None)
+                    != getattr(after, "st_mtime_ns", None)
+                    or getattr(before, "st_ctime_ns", None)
+                    != getattr(after, "st_ctime_ns", None)
+                    or getattr(after, "st_nlink", 1) != 1
+                ):
+                    raise ArtifactPublicationError(
+                        "artifact content changed while its read handle was held"
+                    )
+                if size != after.st_size:
+                    raise ArtifactPublicationError(
+                        "artifact content size differs from its held-handle metadata"
+                    )
+                identities.append((after.st_dev, after.st_ino))
+                reads.append(
+                    BoundArtifactRead(
+                        payload=b"".join(chunks),
+                        sha256=digest.hexdigest(),
+                        size=size,
+                    )
+                )
+
+            self._before_bound_read_verify()
+            self._verify_authorized_location()
+            for name, identity in zip(names, identities, strict=True):
+                fresh_descriptor = self._open_target_descriptor(name)
+                try:
+                    metadata = os.fstat(fresh_descriptor)
+                    if (
+                        (metadata.st_dev, metadata.st_ino) != identity
+                        or getattr(metadata, "st_nlink", 1) != 1
+                    ):
+                        raise ArtifactPublicationError(
+                            "artifact read target changed before set acceptance"
+                        )
+                finally:
+                    os.close(fresh_descriptor)
+            self._verify_authorized_location()
+            return dict(zip(requested, reads, strict=True))
+        finally:
+            for descriptor in reversed(descriptors):
+                os.close(descriptor)
+
     def _entry_exists(self, name: str) -> bool:
         try:
             if os.name == "nt":
@@ -1284,6 +1390,26 @@ def bind_artifact_publication(
         publication.close()
 
 
+def read_bound_artifact_set(
+    paths: Iterable[Path],
+    *,
+    directory: Path,
+    anchor_root: Path,
+    allowed_root: Path,
+    forbidden_roots: Iterable[Path] = (),
+    allow_missing: bool = False,
+) -> dict[Path, BoundArtifactRead] | None:
+    """Read a coherent physical set through one held, verified ancestry."""
+
+    with bind_artifact_publication(
+        directory,
+        anchor_root=anchor_root,
+        allowed_root=allowed_root,
+        forbidden_roots=forbidden_roots,
+    ) as publication:
+        return publication.read_bytes_set(paths, allow_missing=allow_missing)
+
+
 def write_atomic_bytes(
     path: Path,
     payload: bytes,
@@ -1355,8 +1481,10 @@ def write_atomic_jsonl(
 
 __all__ = [
     "ArtifactPublicationError",
+    "BoundArtifactRead",
     "BoundArtifactPublication",
     "bind_artifact_publication",
+    "read_bound_artifact_set",
     "sha256_file",
     "write_atomic_bytes",
     "write_atomic_json",

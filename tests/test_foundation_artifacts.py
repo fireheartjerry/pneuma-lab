@@ -89,6 +89,98 @@ def test_underlying_location_guard_allows_sibling_and_rejects_descendants() -> N
     )
 
 
+def test_bound_artifact_set_reads_one_coherent_physical_set(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    output_root = repo_root / "build/conversion"
+    output_root.mkdir(parents=True)
+    first = output_root / "conversion_report.json"
+    second = output_root / "hash_manifest.json"
+    first.write_bytes(b"report")
+    second.write_bytes(b"manifest")
+
+    reads = artifacts.read_bound_artifact_set(
+        (first, second),
+        directory=output_root,
+        anchor_root=repo_root,
+        allowed_root=repo_root / "build",
+        forbidden_roots=(tmp_path / "pneuma-data",),
+    )
+
+    assert reads == {
+        first: artifacts.BoundArtifactRead(
+            payload=b"report",
+            sha256=hashlib.sha256(b"report").hexdigest(),
+            size=6,
+        ),
+        second: artifacts.BoundArtifactRead(
+            payload=b"manifest",
+            sha256=hashlib.sha256(b"manifest").hexdigest(),
+            size=8,
+        ),
+    }
+
+
+def test_bound_artifact_set_rejects_hard_link_alias(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    output_root = repo_root / "build/conversion"
+    output_root.mkdir(parents=True)
+    original = output_root / "conversion_report.json"
+    alias = output_root / "hash_manifest.json"
+    original.write_bytes(b"shared")
+    try:
+        os.link(original, alias)
+    except OSError as exc:
+        pytest.skip(f"hard links unavailable: {exc}")
+
+    with pytest.raises(ArtifactPublicationError, match="hard.link alias"):
+        artifacts.read_bound_artifact_set(
+            (original, alias),
+            directory=output_root,
+            anchor_root=repo_root,
+            allowed_root=repo_root / "build",
+        )
+
+
+def test_bound_artifact_set_rejects_target_swap_before_acceptance(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    output_root = repo_root / "build/conversion"
+    output_root.mkdir(parents=True)
+    first = output_root / "conversion_report.json"
+    second = output_root / "hash_manifest.json"
+    first.write_bytes(b"report")
+    second.write_bytes(b"manifest")
+    replacement = output_root / "replacement.json"
+    replacement.write_bytes(b"replacement")
+    saved = output_root / "saved.json"
+    swapped = False
+
+    def swap_target(publication) -> None:
+        nonlocal swapped
+        if swapped:
+            return
+        swapped = True
+        first.rename(saved)
+        replacement.rename(first)
+
+    monkeypatch.setattr(
+        artifacts.BoundArtifactPublication,
+        "_before_bound_read_verify",
+        swap_target,
+        raising=False,
+    )
+
+    with pytest.raises((ArtifactPublicationError, OSError), match="changed|target|access"):
+        artifacts.read_bound_artifact_set(
+            (first, second),
+            directory=output_root,
+            anchor_root=repo_root,
+            allowed_root=repo_root / "build",
+        )
+
+
 @pytest.mark.parametrize(
     "mountinfo",
     (

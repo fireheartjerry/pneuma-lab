@@ -506,6 +506,91 @@ def test_prepare_stage_rejects_duplicate_registry_json_before_writes(
     assert not request.output_root.exists()
 
 
+def test_prepare_stage_detects_metadata_only_blocked_family_mutation(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from pneuma_lab.foundation import preparation
+
+    request = _prepare_fixture(tmp_path)
+    mutated = False
+
+    def mutate_blocked_family() -> None:
+        nonlocal mutated
+        if mutated:
+            return
+        mutated = True
+        path = request.data_root / "processed/sec-bench-pro/late.marker"
+        path.write_text("mutation", encoding="utf-8")
+
+    monkeypatch.setattr(preparation, "_load_tokenizer", lambda path: ByteTokenizer())
+    monkeypatch.setattr(
+        preparation,
+        "_after_all_ten_before_snapshot",
+        mutate_blocked_family,
+        raising=False,
+    )
+
+    with pytest.raises(ValueError, match="all.ten|metadata|source|changed"):
+        preparation.prepare_stage(request)
+    assert mutated is True
+    assert not request.output_root.exists()
+    assert not (request.repo_root / "build/training_examples").exists()
+
+
+def test_prepare_stage_reuse_rejects_conversion_swap_without_path_reopen(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from pneuma_lab.foundation import artifacts
+    from pneuma_lab.foundation import preparation
+
+    request = _prepare_fixture(tmp_path)
+    monkeypatch.setattr(preparation, "_load_tokenizer", lambda path: ByteTokenizer())
+    result = preparation.prepare_stage(request)
+    for path in _result_files(result):
+        if path.parent == request.output_root and path.exists():
+            path.unlink()
+    conversion_root = request.repo_root / "build/training_examples/openhands-sampled/full"
+    target = conversion_root / "conversion_report.json"
+    saved = conversion_root / "conversion_report.saved"
+    outside = tmp_path / "outside-report.json"
+    outside.write_bytes(b"must-not-be-read")
+    outside_identity = (outside.stat().st_dev, outside.stat().st_ino)
+    original_os_read = artifacts.os.read
+    outside_reads = 0
+    swapped = False
+
+    def track_reads(descriptor: int, size: int) -> bytes:
+        nonlocal outside_reads
+        metadata = os.fstat(descriptor)
+        if (metadata.st_dev, metadata.st_ino) == outside_identity:
+            outside_reads += 1
+        return original_os_read(descriptor, size)
+
+    def swap_conversion(publication) -> None:
+        nonlocal swapped
+        if swapped or publication.directory != conversion_root:
+            return
+        swapped = True
+        target.rename(saved)
+        outside.rename(target)
+
+    monkeypatch.setattr(artifacts.os, "read", track_reads)
+    monkeypatch.setattr(
+        artifacts.BoundArtifactPublication,
+        "_before_bound_read_verify",
+        swap_conversion,
+        raising=False,
+    )
+
+    with pytest.raises((ValueError, OSError), match="artifact|changed|target|access"):
+        preparation.prepare_stage(request)
+    assert swapped is True
+    assert outside_reads == 0
+    assert not result.preparation_manifest_path.exists()
+
+
 def test_preparation_module_has_no_training_execution_dependencies() -> None:
     source = (
         ROOT / "src/pneuma_lab/foundation/preparation.py"

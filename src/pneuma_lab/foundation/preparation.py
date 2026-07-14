@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,7 @@ from pneuma_lab.converters import openhands_sampled_training as openhands_conver
 from pneuma_lab.foundation.artifacts import (
     ArtifactPublicationError,
     bind_artifact_publication,
+    read_bound_artifact_set,
     write_atomic_bytes,
     write_atomic_json,
 )
@@ -34,7 +36,6 @@ from pneuma_lab.foundation.eval_identities import (
     _metadata_rows,
     build_eval_identity_index,
     identity_from_foundation_record,
-    load_required_eval_identities,
 )
 from pneuma_lab.foundation.records import (
     FoundationRecordError,
@@ -45,6 +46,7 @@ from pneuma_lab.foundation.records import (
     validate_foundation_record,
 )
 from pneuma_lab.foundation.specs import MODEL_SPECS
+from pneuma_lab.foundation.source_presence import _is_link_or_reparse
 from pneuma_lab.foundation.suite import (
     build_suite_completeness_report,
     evaluation_identity_scope,
@@ -194,6 +196,150 @@ def _load_tokenizer(snapshot: Path):
         local_files_only=True,
         trust_remote_code=False,
     )
+
+
+def _after_all_ten_before_snapshot() -> None:
+    """Internal deterministic mutation-injection point used only by tests."""
+
+
+def _metadata_entry(path: Path, *, family_root: Path) -> dict:
+    try:
+        if _is_link_or_reparse(path):
+            raise ValueError("all-ten metadata tree contains a link or reparse point")
+        metadata = path.lstat()
+        resolved = path.resolve(strict=True)
+        resolved_root = family_root.resolve(strict=True)
+        resolved.relative_to(resolved_root)
+    except ValueError:
+        raise
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("all-ten metadata tree cannot be inspected safely") from exc
+    if stat_module.S_ISDIR(metadata.st_mode):
+        kind = "directory"
+    elif stat_module.S_ISREG(metadata.st_mode):
+        kind = "file"
+    else:
+        raise ValueError("all-ten metadata tree contains a non-file entry")
+    relative = path.relative_to(family_root)
+    return {
+        "relative_path": "." if not relative.parts else relative.as_posix(),
+        "kind": kind,
+        "device": metadata.st_dev,
+        "inode": metadata.st_ino,
+        "size": metadata.st_size,
+        "mtime_ns": metadata.st_mtime_ns,
+        "ctime_ns": metadata.st_ctime_ns,
+        "link_count": getattr(metadata, "st_nlink", 1),
+    }
+
+
+def _family_metadata_snapshot(data_root: Path, family: str) -> dict:
+    family_root = Path(data_root) / "processed" / family
+    try:
+        root_metadata = family_root.lstat()
+    except (OSError, TypeError, ValueError) as exc:
+        raise ValueError(f"governed family metadata is unavailable: {family}") from exc
+    if not stat_module.S_ISDIR(root_metadata.st_mode):
+        raise ValueError(f"governed family root must be a directory: {family}")
+    entries = [_metadata_entry(family_root, family_root=family_root)]
+
+    def walk_error(exc: OSError) -> None:
+        raise ValueError(
+            f"governed family metadata walk failed: {family}"
+        ) from exc
+
+    for directory, subdirectories, files in os.walk(
+        family_root,
+        followlinks=False,
+        onerror=walk_error,
+    ):
+        directory_path = Path(directory)
+        subdirectories.sort()
+        files.sort()
+        for name in subdirectories:
+            entries.append(
+                _metadata_entry(
+                    directory_path / name,
+                    family_root=family_root,
+                )
+            )
+        for name in files:
+            entries.append(
+                _metadata_entry(
+                    directory_path / name,
+                    family_root=family_root,
+                )
+            )
+    entries.sort(key=lambda item: (item["relative_path"], item["kind"]))
+    files = [entry for entry in entries if entry["kind"] == "file"]
+    metadata_sha256 = hashlib.sha256(
+        _canonical_json_bytes({"family": family, "entries": entries})
+    ).hexdigest()
+    return {
+        "family": family,
+        "root_relative_path": f"processed/{family}",
+        "exists": True,
+        "entry_count": len(entries),
+        "file_count": len(files),
+        "byte_count": sum(entry["size"] for entry in files),
+        "newest_mtime_ns": max(
+            (entry["mtime_ns"] for entry in entries),
+            default=None,
+        ),
+        "metadata_sha256": metadata_sha256,
+    }
+
+
+def _all_ten_metadata_snapshot(registry: Mapping, data_root: Path) -> dict:
+    families = tuple(
+        _family_metadata_snapshot(data_root, family)
+        for family in ACTIVE_DATASET_GROUPS
+    )
+    family_hashes = {
+        item["family"]: item["metadata_sha256"] for item in families
+    }
+    lanes = registry.get("lanes")
+    if not isinstance(lanes, list) or not lanes:
+        raise ValueError("canonical registry lanes are unavailable")
+    lane_bindings = []
+    seen_lanes: set[str] = set()
+    for lane in lanes:
+        if not isinstance(lane, Mapping):
+            raise ValueError("canonical registry lane must be a mapping")
+        lane_id = lane.get("lane_id")
+        family = lane.get("source_family")
+        if (
+            not isinstance(lane_id, str)
+            or not lane_id
+            or lane_id in seen_lanes
+            or not isinstance(family, str)
+            or not family
+        ):
+            raise ValueError("canonical registry lane metadata binding is invalid")
+        seen_lanes.add(lane_id)
+        if family not in family_hashes:
+            continue
+        lane_bindings.append(
+            {
+                "lane_id": lane_id,
+                "source_family": family,
+                "family_metadata_sha256": family_hashes[family],
+            }
+        )
+    governed_families = {binding["source_family"] for binding in lane_bindings}
+    complete = (
+        len(families) == len(ACTIVE_DATASET_GROUPS)
+        and all(item["exists"] for item in families)
+        and governed_families == set(ACTIVE_DATASET_GROUPS)
+    )
+    return {
+        "snapshot_kind": "pneuma_all_ten_metadata_snapshot",
+        "snapshot_schema_version": "0.1.0",
+        "inspection": "filesystem_metadata_only_no_payload_reads",
+        "families": list(families),
+        "lanes": lane_bindings,
+        "complete": complete,
+    }
 
 
 def _validate_tokenizer_snapshot(path: Path) -> Path:
@@ -390,33 +536,42 @@ def _conversion_bundle(traces: tuple[dict, ...], adapter_report: Mapping) -> dic
     }
 
 
-def _regular_generated_bytes(path: Path) -> bytes | None:
+def _conversion_is_complete(
+    output_root: Path,
+    bundle: Mapping,
+    *,
+    repo_root: Path,
+    data_root: Path,
+) -> bool:
     try:
-        metadata = path.lstat()
+        output_root.lstat()
     except FileNotFoundError:
-        return None
+        return False
     except OSError as exc:
-        raise ValueError("generated conversion artifact cannot be inspected") from exc
-    if stat_module.S_ISLNK(metadata.st_mode) or not stat_module.S_ISREG(
-        metadata.st_mode
-    ):
-        raise ValueError("generated conversion artifact must be a physical regular file")
-    try:
-        return path.read_bytes()
-    except OSError as exc:
-        raise ValueError("generated conversion artifact cannot be read") from exc
-
-
-def _conversion_is_complete(output_root: Path, bundle: Mapping) -> bool:
-    for name in (
+        raise ValueError("generated conversion root cannot be inspected") from exc
+    names = (
         "examples.jsonl",
         "invalid_examples.jsonl",
         "conversion_report.json",
         "hash_manifest.json",
-    ):
-        if _regular_generated_bytes(output_root / name) != bundle[name]:
-            return False
-    return True
+    )
+    paths = tuple(output_root / name for name in names)
+    payloads = read_bound_artifact_set(
+        paths,
+        directory=output_root,
+        anchor_root=repo_root,
+        allowed_root=repo_root / "build",
+        forbidden_roots=(data_root,),
+        allow_missing=True,
+    )
+    if payloads is None:
+        return False
+    return all(
+        payloads[path].payload == bundle[name]
+        and payloads[path].size == len(bundle[name])
+        and payloads[path].sha256 == hashlib.sha256(bundle[name]).hexdigest()
+        for name, path in zip(names, paths, strict=True)
+    )
 
 
 def _split_assignments(examples: Iterable[Mapping]) -> tuple[dict, ...]:
@@ -678,9 +833,15 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         not isinstance(families, list)
         or [item.get("family") for item in families]
         != list(ACTIVE_DATASET_GROUPS)
-        or not all(item.get("exists") is True for item in families)
     ):
-        raise ValueError("all ten governed dataset families must be present")
+        raise ValueError("all ten governed dataset families must be represented")
+    all_ten_before = _all_ten_metadata_snapshot(registry, data_root)
+    all_ten_present = all_ten_before["complete"] is True
+    if not all_ten_present:
+        raise ValueError("all ten governed dataset families and lanes must be present")
+    _after_all_ten_before_snapshot()
+    if all_ten_before != _all_ten_metadata_snapshot(registry, data_root):
+        raise ValueError("all-ten governed source metadata changed after snapshot")
     license_receipt, license_bytes = _load_strict_json(
         repo_root / _LICENSE_RELATIVE_PATH,
         label="committed OpenHands license receipt",
@@ -827,14 +988,6 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         "assignments": list(assignments),
         "repository_grouped": True,
     }
-    source_presence_receipt = {
-        "manifest_kind": "pneuma_foundation_source_presence_receipt",
-        "manifest_schema_version": "0.1.0",
-        "inspection": "filesystem_metadata_only",
-        "all_ten_present": True,
-        "families": families,
-    }
-
     def source_after_snapshot() -> list[dict]:
         source_specs = [
             (
@@ -879,9 +1032,18 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
             raise ValueError(
                 "protected source metadata or hashes changed during dry-run planning"
             )
+        if all_ten_before != _all_ten_metadata_snapshot(registry, data_root):
+            raise ValueError(
+                "all-ten governed source metadata changed during dry-run planning"
+            )
         return planned_result
 
-    if not _conversion_is_complete(conversion_root, bundle):
+    if not _conversion_is_complete(
+        conversion_root,
+        bundle,
+        repo_root=repo_root,
+        data_root=data_root,
+    ):
         openhands_converter.run_verified_stream_conversion(
             traces,
             adapter_report,
@@ -889,7 +1051,12 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
             data_root=data_root,
             output_root=conversion_root,
         )
-    if not _conversion_is_complete(conversion_root, bundle):
+    if not _conversion_is_complete(
+        conversion_root,
+        bundle,
+        repo_root=repo_root,
+        data_root=data_root,
+    ):
         raise ValueError("published conversion is not byte-identical to the plan")
 
     eval_index_paths = {}
@@ -905,10 +1072,21 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
             allowed_fields=EVAL_METADATA_FIELDS,
         )
         eval_index_paths[family] = output_path
-    operational_eval_identities = load_required_eval_identities(
-        eval_index_paths,
-        suite_policy=suite_policy,
+    eval_index_payloads = read_bound_artifact_set(
+        tuple(eval_index_paths.values()),
+        directory=output_root / "eval-identities",
+        anchor_root=repo_root,
+        allowed_root=repo_root / "build",
+        forbidden_roots=(data_root,),
     )
+    if eval_index_payloads is None:
+        raise ValueError("operational evaluation identity indexes are incomplete")
+    operational_eval_identities = []
+    for family in required_families:
+        rows = _metadata_rows(
+            io.BytesIO(eval_index_payloads[eval_index_paths[family]].payload)
+        )
+        operational_eval_identities.extend(_identities_from_rows(family, rows))
     operational_contamination = build_contamination_receipt(
         (identity_from_foundation_record(record) for record in selected),
         operational_eval_identities,
@@ -938,11 +1116,33 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
     source_after = source_after_snapshot()
     if source_before != source_after:
         raise ValueError("protected source metadata or hashes changed during preparation")
+    all_ten_after = _all_ten_metadata_snapshot(registry, data_root)
+    if all_ten_before != all_ten_after:
+        raise ValueError("all-ten governed source metadata changed during preparation")
+    all_ten_present = (
+        all_ten_before["complete"] is True
+        and all_ten_after["complete"] is True
+        and all_ten_before == all_ten_after
+    )
+    if not all_ten_present:
+        raise ValueError("all-ten governed source metadata is incomplete")
+    source_presence_receipt = {
+        "manifest_kind": "pneuma_foundation_source_presence_receipt",
+        "manifest_schema_version": "0.1.0",
+        "inspection": "filesystem_metadata_only_no_payload_reads",
+        "all_ten_present": all_ten_present,
+        "families": all_ten_after["families"],
+        "lanes": all_ten_after["lanes"],
+        "before": all_ten_before,
+        "after": all_ten_after,
+    }
     source_integrity_receipt = {
         "manifest_kind": "pneuma_foundation_source_integrity_receipt",
         "manifest_schema_version": "0.1.0",
         "before": source_before,
         "after": source_after,
+        "all_ten_before": all_ten_before,
+        "all_ten_after": all_ten_after,
         "unchanged": True,
     }
     receipt_payloads = {
@@ -983,7 +1183,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
             "manifest_artifact": result.shard_manifest_path.name,
         },
         "gates": {
-            "all_ten_present": True,
+            "all_ten_present": all_ten_present,
             "eval_coverage_complete": True,
             "contamination_findings": 0,
             "source_unchanged": True,
