@@ -291,6 +291,14 @@ def _during_snapshot_member_hash(_root: Path, _relative_path: str) -> None:
     """Internal deterministic receipt-race injection point for tests."""
 
 
+def _after_snapshot_member_hash(
+    _root: Path,
+    _relative_path: str,
+    _pass_number: int,
+) -> None:
+    """Internal deterministic member-pass observation point for tests."""
+
+
 def _before_snapshot_final_check(_root: Path) -> None:
     """Internal deterministic receipt-race injection point for tests."""
 
@@ -330,6 +338,7 @@ def verify_pinned_snapshot(
                     )
 
                 config_payload = None
+                first_observed = {}
                 for item in files:
                     path = root.joinpath(*PurePosixPath(item.path).parts)
                     with bind_artifact_publication(
@@ -338,9 +347,8 @@ def verify_pinned_snapshot(
                         allowed_root=root,
                     ) as publication:
                         if item.path == "config.json":
-                            reads = publication.read_bytes_set((path,))
-                            assert reads is not None
-                            read = reads[path]
+                            with publication.hold_read(path) as held_config:
+                                read = held_config.read_bytes()
                             digest, size = read.sha256, read.size
                             config_payload = read.payload
                         else:
@@ -350,6 +358,8 @@ def verify_pinned_snapshot(
                             "snapshot file digest or size differs from receipt: "
                             f"{item.path}"
                         )
+                    first_observed[item.path] = (digest, size)
+                    _after_snapshot_member_hash(root, item.path, 1)
                     _during_snapshot_member_hash(root, item.path)
 
                 assert config_payload is not None
@@ -368,6 +378,25 @@ def verify_pinned_snapshot(
                     raise SnapshotReceiptError(
                         f"pinned config validation failed: {exc}"
                     ) from exc
+
+                for item in files:
+                    path = root.joinpath(*PurePosixPath(item.path).parts)
+                    with bind_artifact_publication(
+                        path.parent,
+                        anchor_root=root,
+                        allowed_root=root,
+                    ) as publication:
+                        digest, size = publication.digest_size(path)
+                    if (
+                        (digest, size) != (item.sha256, item.size)
+                        or (digest, size) != first_observed[item.path]
+                    ):
+                        raise SnapshotReceiptError(
+                            "snapshot member changed between content passes: "
+                            f"{item.path}"
+                        )
+                    _after_snapshot_member_hash(root, item.path, 2)
+
                 snapshot_payload = {
                     "model_id": spec.model_id,
                     "revision": spec.revision,
@@ -402,6 +431,8 @@ def verify_pinned_snapshot(
                     raise SnapshotReceiptError(
                         "snapshot file metadata changed during verification"
                     )
+                # Acceptance is the completed second content pass plus this
+                # exact final inventory and held-receipt revalidation boundary.
                 held_receipt.revalidate(receipt_read)
                 return result
     except SnapshotReceiptError:

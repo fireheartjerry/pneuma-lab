@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 import hashlib
 import json
 import os
@@ -328,3 +329,92 @@ def test_verify_pinned_snapshot_holds_receipt_through_entire_transaction(
     ):
         verify_pinned_snapshot("2b", snapshot_path=root)
     assert attempted is True
+
+
+def _add_weight_artifact(root: Path) -> None:
+    path = root / "model-00001-of-00001.safetensors"
+    payload = b"weight-fixture" * 32
+    path.write_bytes(payload)
+    receipt = _receipt(root)
+    receipt["files"].append(
+        {
+            "path": path.name,
+            "size": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    )
+    receipt["files"].sort(key=lambda item: item["path"])
+    _replace_receipt(root, receipt)
+
+
+@pytest.mark.parametrize(
+    "target_name",
+    (
+        "config.json",
+        "tokenizer.json",
+        "model-00001-of-00001.safetensors",
+    ),
+)
+def test_verify_pinned_snapshot_rehashes_member_after_same_size_mutation(
+    tmp_path: Path,
+    monkeypatch,
+    target_name: str,
+) -> None:
+    root = _snapshot(tmp_path)
+    _add_weight_artifact(root)
+    target = root / target_name
+    mutated = False
+
+    def mutate_after_first_hash(_root: Path, relative_path: str) -> None:
+        nonlocal mutated
+        if mutated or relative_path != target_name:
+            return
+        mutated = True
+        metadata = target.stat()
+        with target.open("r+b") as stream:
+            stream.write(b"W" * metadata.st_size)
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            os.utime(target, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+        except OSError:
+            pass
+
+    monkeypatch.setattr(
+        snapshot_receipt,
+        "_during_snapshot_member_hash",
+        mutate_after_first_hash,
+    )
+
+    with pytest.raises(SnapshotReceiptError, match="snapshot|file|digest|changed"):
+        verify_pinned_snapshot("2b", snapshot_path=root)
+    assert mutated is True
+
+
+def test_verify_pinned_snapshot_hashes_every_member_twice(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    root = _snapshot(tmp_path)
+    _add_weight_artifact(root)
+    counts = Counter()
+
+    def count_hash(_root: Path, relative_path: str, pass_number: int) -> None:
+        counts[(relative_path, pass_number)] += 1
+
+    monkeypatch.setattr(
+        snapshot_receipt,
+        "_after_snapshot_member_hash",
+        count_hash,
+        raising=False,
+    )
+
+    verified = verify_pinned_snapshot("2b", snapshot_path=root)
+
+    expected = {item.path for item in verified.files}
+    assert {path for path, _pass_number in counts} == expected
+    assert counts == Counter(
+        (path, pass_number)
+        for path in expected
+        for pass_number in (1, 2)
+    )
