@@ -34,6 +34,24 @@ def open_authorized_payload(*args, **kwargs):
     return opener(*args, **kwargs)
 
 
+def _evaluation_identity_scope(
+    policy: Mapping,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Load the exact scope lazily to avoid the suite/data import cycle."""
+
+    from pneuma_lab.foundation.suite import (
+        SuitePolicyError,
+        evaluation_identity_scope,
+    )
+
+    try:
+        return evaluation_identity_scope(policy)
+    except SuitePolicyError as exc:
+        raise ContaminationIndexError(
+            f"suite evaluation identity policy is invalid: {exc}"
+        ) from exc
+
+
 class IdentityRecordError(ValueError):
     """Raised when a canonical foundation identity cannot be established."""
 
@@ -137,11 +155,23 @@ def _metadata_row(
             value[name] = member
         return value
 
+    def reject_constant(constant: str):
+        raise ValueError(f"nonstandard JSON constant: {constant}")
+
     try:
-        value = json.loads(raw_line, object_pairs_hook=reject_duplicate_members)
+        value = json.loads(
+            raw_line,
+            object_pairs_hook=reject_duplicate_members,
+            parse_constant=reject_constant,
+        )
     except ContaminationIndexError:
         raise
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except (
+        json.JSONDecodeError,
+        RecursionError,
+        UnicodeError,
+        ValueError,
+    ) as exc:
         raise ContaminationIndexError(
             f"evaluation identity index line {line_number} must be valid JSON"
         ) from exc
@@ -158,7 +188,7 @@ def _metadata_row(
             f"evaluation identity index line {line_number} has missing or unknown fields"
         )
     source_id = value.get("source_id")
-    if not isinstance(source_id, str) or not source_id:
+    if not isinstance(source_id, str) or not source_id.split():
         raise ContaminationIndexError(
             f"evaluation identity index line {line_number} source_id is invalid"
         )
@@ -167,6 +197,10 @@ def _metadata_row(
         if field_value is not None and not isinstance(field_value, str):
             raise ContaminationIndexError(
                 f"evaluation identity index line {line_number} {field} is invalid"
+            )
+        if isinstance(field_value, str) and not field_value.split():
+            raise ContaminationIndexError(
+                f"evaluation identity index line {line_number} {field} is blank"
             )
     return {field: value[field] for field in EVAL_METADATA_FIELDS}
 
@@ -227,7 +261,7 @@ def iter_eval_metadata_identities(
             f"evaluation identity index for {family} cannot be read: {exc}"
         ) from exc
     for row in rows:
-        yield IdentityRecord(
+        identity = IdentityRecord(
             family=family,
             lane_id=family,
             repo=row["repo"],
@@ -238,31 +272,27 @@ def iter_eval_metadata_identities(
             test_patch_sha256=None,
             fuzzy_text_sha256=None,
         )
+        if not any(
+            isinstance(getattr(identity, field), str)
+            and bool(getattr(identity, field).split())
+            for field in IDENTITY_FIELDS
+        ):
+            raise ContaminationIndexError(
+                f"evaluation identity index for {family} has no usable identity"
+            )
+        yield identity
 
 
 def load_required_eval_identities(
     indexes: Mapping[str, Path],
     *,
-    required_families: Iterable[str],
+    suite_policy: Mapping,
 ) -> tuple[IdentityRecord, ...]:
-    """Load exactly the declared evaluation indexes in declared family order."""
+    """Load every policy-required evaluation index in policy order."""
 
     if not isinstance(indexes, Mapping):
         raise ContaminationIndexError("evaluation identity indexes must be a mapping")
-    try:
-        required = tuple(required_families)
-    except TypeError as exc:
-        raise ContaminationIndexError(
-            "required evaluation families must be iterable"
-        ) from exc
-    if (
-        not required
-        or len(set(required)) != len(required)
-        or not all(isinstance(family, str) and family for family in required)
-    ):
-        raise ContaminationIndexError(
-            "required evaluation families must be unique nonempty strings"
-        )
+    required, _blocked = _evaluation_identity_scope(suite_policy)
     provided = set(indexes)
     missing = [family for family in required if family not in provided]
     extra = sorted(provided - set(required), key=str)

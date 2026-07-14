@@ -16,6 +16,10 @@ from pneuma_lab.foundation.eval_identities import (
     IdentityRecordError,
     identity_from_foundation_record,
 )
+from pneuma_lab.foundation.identity_normalization import (
+    normalize_identity_digest,
+    normalize_identity_text,
+)
 from pneuma_lab.foundation.records import (
     FoundationRecordError,
     validate_foundation_record,
@@ -81,28 +85,14 @@ def governed_dataset_groups(registry: Mapping) -> dict[str, DatasetRole]:
 
 
 def _normalized_text(value: object) -> str:
-    if value is None:
-        return ""
-    if not isinstance(value, str):
+    try:
+        return normalize_identity_text(value) or ""
+    except TypeError:
         raise DataAuthorizationError("identity values must be strings or null")
-    return " ".join(value.casefold().split())
 
 
 def _digest(value: str | None) -> str | None:
-    if value is None:
-        return None
-    if value.startswith("sha256:"):
-        suffix = value.removeprefix("sha256:").casefold()
-        if len(suffix) == 64 and all(
-            character in "0123456789abcdef" for character in suffix
-        ):
-            return suffix
-    normalized = value.casefold()
-    if len(normalized) == 64 and all(
-        character in "0123456789abcdef" for character in normalized
-    ):
-        return normalized
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+    return normalize_identity_digest(value)
 
 
 def dedup_fingerprint(example: Mapping) -> str:
@@ -169,10 +159,10 @@ def build_diversity_inventory(examples: Iterable[Mapping]) -> dict:
         targets = example["forecast_targets"]
         dataset_families[source["dataset_family"]] += 1
         lanes[source["lane_id"]] += 1
-        repo = identity["repo"] or "unknown"
+        repo = normalize_identity_text(identity["repo"]) or "unknown"
         issue = (
-            identity["issue_or_pr"]
-            or identity["task_id"]
+            normalize_identity_text(identity["issue_or_pr"])
+            or normalize_identity_text(identity["task_id"])
             or "unknown"
         )
         repos.add(repo)

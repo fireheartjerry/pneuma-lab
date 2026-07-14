@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
@@ -10,7 +11,7 @@ import subprocess
 
 import pytest
 
-from pneuma_lab.foundation import eval_identities
+from pneuma_lab.foundation import contamination, eval_identities
 from pneuma_lab.foundation.contamination import build_contamination_receipt
 from pneuma_lab.foundation.eval_identities import (
     EVAL_METADATA_FIELDS,
@@ -23,6 +24,15 @@ from pneuma_lab.foundation.eval_identities import (
     iter_eval_metadata_identities,
     load_required_eval_identities,
 )
+from pneuma_lab.foundation.suite import load_suite_policy
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SUITE_POLICY = ROOT / "docs/data/training-readiness/pneuma-foundation-v0-suite.json"
+
+
+def _suite_policy() -> dict:
+    return load_suite_policy(SUITE_POLICY)
 
 
 def _identity(**overrides) -> IdentityRecord:
@@ -39,6 +49,30 @@ def _identity(**overrides) -> IdentityRecord:
     }
     values.update(overrides)
     return IdentityRecord(**values)
+
+
+def _evaluation_identity(family: str, **overrides) -> IdentityRecord:
+    values = {
+        "family": family,
+        "lane_id": family,
+        "repo": f"eval/{family}",
+        "issue_or_pr": "900",
+        "task_id": f"{family}-900",
+        "base_commit": f"{family}-commit",
+        "patch_sha256": f"{family}-patch",
+        "test_patch_sha256": f"{family}-test-patch",
+        "fuzzy_text_sha256": f"{family}-text",
+    }
+    values.update(overrides)
+    return IdentityRecord(**values)
+
+
+def _complete_evaluation(*identities: IdentityRecord) -> tuple[IdentityRecord, ...]:
+    by_family = {identity.family: identity for identity in identities}
+    return tuple(
+        by_family.get(family, _evaluation_identity(family))
+        for family in ("swe-bench", "swe-mera", "swe-polybench")
+    )
 
 
 def _make_directory_alias(link: Path, target: Path) -> None:
@@ -132,11 +166,21 @@ def test_contamination_receipt_detects_every_identity_dimension() -> None:
             "w",
         )
     ]
-    receipt = build_contamination_receipt(training, evaluation)
+    receipt = build_contamination_receipt(
+        training,
+        _complete_evaluation(*evaluation),
+        suite_policy=_suite_policy(),
+    )
     assert receipt["finding_count"] == 1
     assert receipt["findings"][0]["dimensions"] == ["repository"]
 
-    receipt = build_contamination_receipt([_identity()], [_identity(family="eval")])
+    receipt = build_contamination_receipt(
+        [_identity()],
+        _complete_evaluation(
+            _identity(family="swe-bench", lane_id="swe-bench")
+        ),
+        suite_policy=_suite_policy(),
+    )
     assert receipt["findings"][0]["dimensions"] == [
         "repository",
         "repo_issue_or_pr",
@@ -152,9 +196,10 @@ def test_contamination_receipt_detects_every_identity_dimension() -> None:
 def test_contamination_accepts_proven_disjoint_sets() -> None:
     receipt = build_contamination_receipt(
         [_identity(repo="org/a", issue_or_pr="1")],
-        [
+        _complete_evaluation(
             _identity(
-                family="eval",
+                family="swe-bench",
+                lane_id="swe-bench",
                 repo="org/b",
                 issue_or_pr="2",
                 task_id="task-2",
@@ -163,11 +208,133 @@ def test_contamination_accepts_proven_disjoint_sets() -> None:
                 test_patch_sha256="x",
                 fuzzy_text_sha256="w",
             )
-        ],
+        ),
+        suite_policy=_suite_policy(),
     )
     assert receipt["finding_count"] == 0
     assert receipt["findings"] == []
     assert receipt["repo_issue_disjoint"] is True
+
+
+@pytest.mark.parametrize(
+    ("training_digest", "evaluation_digest"),
+    (
+        ("SHA256:" + "A" * 64, "sha256:" + "a" * 64),
+        (
+            "  SHA256:" + "G" * 64 + "  ",
+            "sha256:"
+            + hashlib.sha256(("sha256:" + "g" * 64).encode("utf-8")).hexdigest(),
+        ),
+    ),
+)
+def test_contamination_uses_shared_digest_canonicalization(
+    training_digest: str,
+    evaluation_digest: str,
+) -> None:
+    receipt = build_contamination_receipt(
+        [
+            _identity(
+                repo="train/only",
+                issue_or_pr="1",
+                task_id="training-task",
+                base_commit="training-commit",
+                patch_sha256=training_digest,
+                test_patch_sha256="training-test-patch",
+                fuzzy_text_sha256="training-text",
+            )
+        ],
+        _complete_evaluation(
+            _evaluation_identity(
+                "swe-bench",
+                patch_sha256=evaluation_digest,
+            )
+        ),
+        suite_policy=_suite_policy(),
+    )
+    assert receipt["finding_count"] == 1
+    assert receipt["findings"][0]["dimensions"] == ["patch"]
+
+
+def test_contamination_receipt_records_complete_policy_coverage() -> None:
+    evaluation = _complete_evaluation()
+    receipt = build_contamination_receipt(
+        [_identity(repo="train/repo")],
+        evaluation,
+        suite_policy=_suite_policy(),
+    )
+    assert receipt["required_evaluation_families"] == [
+        "swe-bench",
+        "swe-mera",
+        "swe-polybench",
+    ]
+    assert receipt["evaluation_family_counts"] == {
+        "swe-bench": 1,
+        "swe-mera": 1,
+        "swe-polybench": 1,
+    }
+    assert receipt["blocked_evaluation_family_status"] == {
+        "swe-bench-pro": "blocked_unavailable",
+    }
+    assert receipt["evaluation_coverage_complete"] is True
+    assert receipt["repo_issue_disjoint"] is True
+
+
+def test_contamination_normalizes_each_identity_exactly_once(monkeypatch) -> None:
+    original = getattr(contamination, "_normalize_identity", lambda identity: None)
+    calls = []
+
+    def counted(identity: IdentityRecord):
+        calls.append(identity)
+        return original(identity)
+
+    monkeypatch.setattr(contamination, "_normalize_identity", counted, raising=False)
+    training = tuple(
+        _identity(
+            lane_id=f"training-{index}",
+            repo=f"train/repo-{index}",
+            issue_or_pr=str(index),
+            task_id=f"training-task-{index}",
+        )
+        for index in range(5)
+    )
+    evaluation = _complete_evaluation(
+        _evaluation_identity(
+            "swe-bench",
+            repo="train/repo-3",
+            issue_or_pr="3",
+        )
+    )
+    receipt = build_contamination_receipt(
+        training,
+        evaluation,
+        suite_policy=_suite_policy(),
+    )
+    assert len(calls) == len(training) + len(evaluation)
+    assert receipt["finding_count"] == 1
+    assert receipt["findings"][0]["dimensions"] == [
+        "repository",
+        "repo_issue_or_pr",
+    ]
+
+
+@pytest.mark.parametrize(
+    "evaluation",
+    (
+        (),
+        (_evaluation_identity("swe-bench"),),
+        _complete_evaluation() + (_evaluation_identity("unexpected-eval"),),
+        _complete_evaluation() + (_evaluation_identity("swe-bench-pro"),),
+    ),
+)
+def test_contamination_receipt_rejects_incomplete_or_extra_policy_coverage(
+    evaluation: tuple[IdentityRecord, ...],
+) -> None:
+    with pytest.raises(ContaminationIndexError, match="evaluation famil"):
+        build_contamination_receipt(
+            [_identity()],
+            evaluation,
+            suite_policy=_suite_policy(),
+        )
 
 
 def test_eval_identity_index_parsing_is_strict_and_derives_numeric_issue(
@@ -209,6 +376,74 @@ def test_eval_identity_index_parsing_is_strict_and_derives_numeric_issue(
             tuple(iter_eval_metadata_identities(path, "swe-bench", EVAL_METADATA_FIELDS))
 
 
+@pytest.mark.parametrize(
+    "raw_line",
+    (
+        b'{"source_id":"   ","repo":null,"base_commit":null}\n',
+        b'{"source_id":"task-1","repo":"   ","base_commit":null}\n',
+        b'{"source_id":"task-1","repo":null,"base_commit":"   "}\n',
+        b'{"source_id":[],"repo":null,"base_commit":null}\n',
+        b'{"source_id":"task-1","repo":{},"base_commit":null}\n',
+    ),
+)
+def test_eval_identity_index_rejects_semantically_empty_or_malformed_rows(
+    tmp_path: Path,
+    raw_line: bytes,
+) -> None:
+    path = tmp_path / "swe-bench.jsonl"
+    path.write_bytes(raw_line)
+    with pytest.raises(ContaminationIndexError):
+        tuple(iter_eval_metadata_identities(path, "swe-bench", EVAL_METADATA_FIELDS))
+
+
+@pytest.mark.parametrize("constant", (b"NaN", b"Infinity", b"-Infinity"))
+def test_eval_identity_decoder_rejects_constants_in_discarded_fields(
+    constant: bytes,
+) -> None:
+    raw_line = (
+        b'{"source_id":"task-1","repo":"org/repo","base_commit":null,'
+        b'"discarded":'
+        + constant
+        + b"}"
+    )
+    with pytest.raises(ContaminationIndexError, match="valid JSON"):
+        eval_identities._metadata_row(
+            raw_line,
+            line_number=1,
+            allow_unretained_fields=True,
+        )
+
+
+def test_eval_identity_decoder_wraps_recursion_and_unicode_failures() -> None:
+    deeply_nested = (
+        b'{"source_id":"task-1","repo":"org/repo","base_commit":null,'
+        b'"discarded":'
+        + b"[" * 2000
+        + b"0"
+        + b"]" * 2000
+        + b"}"
+    )
+    for raw_line in (deeply_nested, b'{"source_id":"\xff"}'):
+        with pytest.raises(ContaminationIndexError, match="valid JSON"):
+            eval_identities._metadata_row(
+                raw_line,
+                line_number=1,
+                allow_unretained_fields=True,
+            )
+
+
+def test_eval_identity_decoder_rejects_nested_duplicate_members() -> None:
+    with pytest.raises(ContaminationIndexError, match="duplicate"):
+        eval_identities._metadata_row(
+            (
+                b'{"source_id":"task-1","repo":"org/repo",'
+                b'"base_commit":null,"discarded":{"key":1,"key":2}}'
+            ),
+            line_number=1,
+            allow_unretained_fields=True,
+        )
+
+
 def test_eval_identity_index_rejects_empty_and_allowlist_order_is_irrelevant(
     tmp_path: Path,
 ) -> None:
@@ -235,7 +470,7 @@ def test_required_missing_eval_identity_index_fails(tmp_path: Path) -> None:
     with pytest.raises(ContaminationIndexError, match="swe-mera"):
         load_required_eval_identities(
             {"swe-bench": tmp_path / "swe-bench.jsonl"},
-            required_families=("swe-bench", "swe-mera", "swe-polybench"),
+            suite_policy=_suite_policy(),
         )
 
 
@@ -253,13 +488,58 @@ def test_required_eval_identity_indexes_are_deterministic(tmp_path: Path) -> Non
         paths[family] = path
     identities = load_required_eval_identities(
         dict(reversed(tuple(paths.items()))),
-        required_families=("swe-bench", "swe-mera", "swe-polybench"),
+        suite_policy=_suite_policy(),
     )
     assert tuple(identity.family for identity in identities) == (
         "swe-bench",
         "swe-mera",
         "swe-polybench",
     )
+
+
+@pytest.mark.parametrize("extra_family", ("unexpected-eval", "swe-bench-pro"))
+def test_required_eval_identity_indexes_reject_extra_or_blocked_family(
+    tmp_path: Path,
+    extra_family: str,
+) -> None:
+    paths = {}
+    for family in (
+        "swe-bench",
+        "swe-mera",
+        "swe-polybench",
+        extra_family,
+    ):
+        path = tmp_path / f"{family}.jsonl"
+        path.write_text(
+            json.dumps(
+                {"source_id": f"{family}-1", "repo": family, "base_commit": None}
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        paths[family] = path
+    with pytest.raises(ContaminationIndexError, match="unexpected"):
+        load_required_eval_identities(paths, suite_policy=_suite_policy())
+
+
+def test_required_eval_identity_indexes_reject_zero_row_required_family(
+    tmp_path: Path,
+) -> None:
+    paths = {}
+    for family in ("swe-bench", "swe-mera", "swe-polybench"):
+        path = tmp_path / f"{family}.jsonl"
+        path.write_text(
+            ""
+            if family == "swe-mera"
+            else json.dumps(
+                {"source_id": f"{family}-1", "repo": family, "base_commit": None}
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        paths[family] = path
+    with pytest.raises(ContaminationIndexError, match="at least one record"):
+        load_required_eval_identities(paths, suite_policy=_suite_policy())
 
 
 def test_required_eval_identity_indexes_reject_file_aliases(
@@ -288,7 +568,7 @@ def test_required_eval_identity_indexes_reject_file_aliases(
                 "swe-mera": mera,
                 "swe-polybench": polybench,
             },
-            required_families=("swe-bench", "swe-mera", "swe-polybench"),
+            suite_policy=_suite_policy(),
         )
 
 

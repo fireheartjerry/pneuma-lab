@@ -6,13 +6,28 @@ import hashlib
 from dataclasses import dataclass
 from typing import Iterable, Mapping
 
-from pneuma_lab.foundation.eval_identities import IdentityRecord
+from pneuma_lab.foundation.eval_identities import (
+    ContaminationIndexError,
+    IdentityRecord,
+)
+from pneuma_lab.foundation.identity_normalization import (
+    normalize_identity_digest,
+    normalize_identity_text,
+)
 
 
 @dataclass(frozen=True)
 class ContaminationFinding:
     dimension: str
     value: str
+
+
+@dataclass(frozen=True)
+class _NormalizedIdentity:
+    family: str
+    lane_id: str
+    values: tuple[tuple[str, str | None], ...]
+    sort_key: tuple[str, ...]
 
 
 def _norm(value: object) -> str:
@@ -62,69 +77,52 @@ def contamination_findings(
 
 
 def _identity_value(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = " ".join(value.casefold().split())
-    if not normalized:
-        return None
-    if normalized.startswith("sha256:"):
-        suffix = normalized.removeprefix("sha256:")
-        if len(suffix) == 64 and all(
-            character in "0123456789abcdef" for character in suffix
-        ):
-            return suffix
-    return normalized
+    return normalize_identity_text(value)
 
 
-def _overlap_dimensions(
-    training: IdentityRecord,
-    evaluation: IdentityRecord,
-) -> list[str]:
-    training_repo = _identity_value(training.repo)
-    evaluation_repo = _identity_value(evaluation.repo)
-    training_issue = _identity_value(training.issue_or_pr)
-    evaluation_issue = _identity_value(evaluation.issue_or_pr)
-    dimensions = []
-    if training_repo is not None and training_repo == evaluation_repo:
-        dimensions.append("repository")
-        if (
-            training_issue is not None
-            and training_issue == evaluation_issue
-        ):
-            dimensions.append("repo_issue_or_pr")
-    for field, dimension in (
-        ("task_id", "task"),
-        ("base_commit", "base_commit"),
-        ("patch_sha256", "patch"),
-        ("test_patch_sha256", "test_patch"),
-        ("fuzzy_text_sha256", "fuzzy_text"),
-    ):
-        training_value = _identity_value(getattr(training, field))
-        evaluation_value = _identity_value(getattr(evaluation, field))
-        if training_value is not None and training_value == evaluation_value:
-            dimensions.append(dimension)
-    return dimensions
-
-
-def _identity_sort_key(identity: IdentityRecord) -> tuple[str, ...]:
-    return (
-        identity.family,
-        identity.lane_id,
-        *(_identity_value(getattr(identity, field)) or "" for field in (
-            "repo",
-            "issue_or_pr",
-            "task_id",
-            "base_commit",
-            "patch_sha256",
-            "test_patch_sha256",
-            "fuzzy_text_sha256",
-        )),
+def _normalize_identity(identity: IdentityRecord) -> _NormalizedIdentity:
+    repo = _identity_value(identity.repo)
+    issue = _identity_value(identity.issue_or_pr)
+    task = _identity_value(identity.task_id)
+    base_commit = _identity_value(identity.base_commit)
+    patch = normalize_identity_digest(identity.patch_sha256)
+    test_patch = normalize_identity_digest(identity.test_patch_sha256)
+    fuzzy_text = normalize_identity_digest(identity.fuzzy_text_sha256)
+    values = (
+        ("repository", repo),
+        (
+            "repo_issue_or_pr",
+            f"{repo}#{issue}" if repo is not None and issue is not None else None,
+        ),
+        ("task", task),
+        ("base_commit", base_commit),
+        ("patch", patch),
+        ("test_patch", test_patch),
+        ("fuzzy_text", fuzzy_text),
+    )
+    return _NormalizedIdentity(
+        family=identity.family,
+        lane_id=identity.lane_id,
+        values=values,
+        sort_key=(
+            identity.family,
+            identity.lane_id,
+            repo or "",
+            issue or "",
+            task or "",
+            base_commit or "",
+            patch or "",
+            test_patch or "",
+            fuzzy_text or "",
+        ),
     )
 
 
 def build_contamination_receipt(
     training: Iterable[IdentityRecord],
     evaluation: Iterable[IdentityRecord],
+    *,
+    suite_policy: Mapping,
 ) -> dict:
     """Compare every canonical training/evaluation identity pair."""
 
@@ -134,29 +132,92 @@ def build_contamination_receipt(
         raise TypeError("training identities must be IdentityRecord values")
     if not all(isinstance(value, IdentityRecord) for value in evaluation_values):
         raise TypeError("evaluation identities must be IdentityRecord values")
-    findings = []
-    for training_identity in sorted(training_values, key=_identity_sort_key):
-        for evaluation_identity in sorted(
-            evaluation_values,
-            key=_identity_sort_key,
-        ):
-            dimensions = _overlap_dimensions(
-                training_identity,
-                evaluation_identity,
-            )
-            if dimensions:
-                findings.append(
-                    {
-                        "training_lane": training_identity.lane_id,
-                        "evaluation_lane": evaluation_identity.lane_id,
-                        "dimensions": dimensions,
-                    }
+    from pneuma_lab.foundation.suite import (
+        SuitePolicyError,
+        evaluation_identity_scope,
+    )
+
+    try:
+        required_families, blocked_families = evaluation_identity_scope(
+            suite_policy
+        )
+    except SuitePolicyError as exc:
+        raise ContaminationIndexError(
+            f"suite evaluation identity policy is invalid: {exc}"
+        ) from exc
+    family_counts = {
+        family: sum(
+            identity.family == family for identity in evaluation_values
+        )
+        for family in required_families
+    }
+    evaluation_families = {identity.family for identity in evaluation_values}
+    if evaluation_families != set(required_families) or not all(
+        family_counts.values()
+    ):
+        raise ContaminationIndexError(
+            "evaluation families must contain at least one identity for every "
+            "required family and no extra or blocked families"
+        )
+    normalized_training = tuple(
+        _normalize_identity(identity) for identity in training_values
+    )
+    normalized_evaluation = tuple(
+        _normalize_identity(identity) for identity in evaluation_values
+    )
+    evaluation_index: dict[str, dict[str, set[int]]] = {}
+    for index, identity in enumerate(normalized_evaluation):
+        for dimension, value in identity.values:
+            if value is not None:
+                evaluation_index.setdefault(dimension, {}).setdefault(
+                    value,
+                    set(),
+                ).add(index)
+
+    sortable_findings = []
+    for training_identity in normalized_training:
+        candidate_indices: set[int] = set()
+        for dimension, value in training_identity.values:
+            if value is not None:
+                candidate_indices.update(
+                    evaluation_index.get(dimension, {}).get(value, ())
                 )
+        for index in candidate_indices:
+            evaluation_identity = normalized_evaluation[index]
+            evaluation_dimensions = dict(evaluation_identity.values)
+            dimensions = [
+                dimension
+                for dimension, value in training_identity.values
+                if value is not None and value == evaluation_dimensions[dimension]
+            ]
+            if dimensions:
+                sortable_findings.append(
+                    (
+                        training_identity.sort_key,
+                        evaluation_identity.sort_key,
+                        {
+                            "training_lane": training_identity.lane_id,
+                            "evaluation_lane": evaluation_identity.lane_id,
+                            "dimensions": dimensions,
+                        },
+                    )
+                )
+    sortable_findings.sort(key=lambda item: (item[0], item[1]))
+    findings = [
+        finding
+        for _training_key, _evaluation_key, finding in sortable_findings
+    ]
     return {
         "manifest_kind": "pneuma_foundation_contamination_receipt",
         "manifest_schema_version": "0.1.0",
         "training_identity_count": len(training_values),
         "evaluation_identity_count": len(evaluation_values),
+        "required_evaluation_families": list(required_families),
+        "evaluation_family_counts": family_counts,
+        "blocked_evaluation_family_status": {
+            family: "blocked_unavailable" for family in blocked_families
+        },
+        "evaluation_coverage_complete": True,
         "finding_count": len(findings),
         "findings": findings,
         "repo_issue_disjoint": not findings,

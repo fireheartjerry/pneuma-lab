@@ -141,6 +141,18 @@ def test_suite_policy_pins_exact_evaluation_identity_block() -> None:
         validate_suite_policy(reordered, _registry_fixture())
 
 
+def test_evaluation_identity_scope_comes_from_exact_suite_policy() -> None:
+    assert foundation_suite.evaluation_identity_scope(_suite_fixture()) == (
+        ("swe-bench", "swe-mera", "swe-polybench"),
+        ("swe-bench-pro",),
+    )
+
+    partial = _suite_fixture()
+    partial["evaluation_identity"]["required_families"] = ["swe-bench"]
+    with pytest.raises(SuitePolicyError, match="evaluation identity"):
+        foundation_suite.evaluation_identity_scope(partial)
+
+
 def _registry_fixture() -> dict:
     return json.loads(REGISTRY.read_text(encoding="utf-8"))
 
@@ -173,6 +185,7 @@ def _make_real_directory_link(link: Path, target: Path) -> None:
 EXPECTED_PUBLIC_SUITE_API = (
     "SuitePolicyError",
     "build_suite_completeness_report",
+    "evaluation_identity_scope",
     "load_suite_policy",
     "open_authorized_payload",
     "validate_suite_policy",
@@ -510,6 +523,49 @@ def test_load_suite_policy_rejects_invalid_json_and_non_object(
     non_object.write_text("[]", encoding="utf-8")
     with pytest.raises(SuitePolicyError, match="JSON object"):
         load_suite_policy(non_object)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        b'{"manifest_kind":"x","manifest_kind":"x"}',
+        (
+            b'{"evaluation_identity":{"required_families":[],'
+            b'"required_families":[]}}'
+        ),
+    ),
+)
+def test_load_suite_policy_rejects_duplicate_members_at_every_depth(
+    tmp_path: Path,
+    payload: bytes,
+) -> None:
+    path = tmp_path / "duplicate.json"
+    path.write_bytes(payload)
+    with pytest.raises(SuitePolicyError, match="duplicate"):
+        load_suite_policy(path)
+
+
+@pytest.mark.parametrize("constant", (b"NaN", b"Infinity", b"-Infinity"))
+def test_load_suite_policy_rejects_nonstandard_constants(
+    tmp_path: Path,
+    constant: bytes,
+) -> None:
+    path = tmp_path / "constant.json"
+    path.write_bytes(b'{"value":' + constant + b"}")
+    with pytest.raises(SuitePolicyError, match="valid JSON"):
+        load_suite_policy(path)
+
+
+def test_load_suite_policy_wraps_recursion_and_unicode_failures(
+    tmp_path: Path,
+) -> None:
+    recursive = tmp_path / "recursive.json"
+    recursive.write_bytes(b"[" * 2000 + b"0" + b"]" * 2000)
+    malformed_utf8 = tmp_path / "malformed-utf8.json"
+    malformed_utf8.write_bytes(b'{"value":"\xff"}')
+    for path in (recursive, malformed_utf8):
+        with pytest.raises(SuitePolicyError, match="valid JSON"):
+            load_suite_policy(path)
 
 
 def test_payload_opener_denies_governance_lanes_before_open(tmp_path: Path) -> None:

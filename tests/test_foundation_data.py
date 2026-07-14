@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import importlib
+import json
 from pathlib import Path
 
 import pytest
@@ -154,6 +155,30 @@ def test_dedup_fingerprint_preserves_valid_prefixed_digest() -> None:
     assert dedup_fingerprint(prefixed) == dedup_fingerprint(bare)
 
 
+def test_identity_digest_canonicalization_is_shared_and_case_insensitive() -> None:
+    normalization = importlib.import_module(
+        "pneuma_lab.foundation.identity_normalization"
+    )
+    lowercase = "sha256:" + "a" * 64
+    uppercase = "SHA256:" + "A" * 64
+    assert normalization.normalize_identity_digest(lowercase) == lowercase
+    assert normalization.normalize_identity_digest(uppercase) == lowercase
+    assert dedup_fingerprint(
+        _example(patch_sha256=lowercase)
+    ) == dedup_fingerprint(_example(patch_sha256=uppercase))
+
+
+def test_dedup_fingerprint_hashes_normalized_malformed_digest_text() -> None:
+    malformed = "  SHA256:" + "G" * 64 + "  "
+    normalized_raw = "sha256:" + "g" * 64
+    canonical_digest = "sha256:" + hashlib.sha256(
+        normalized_raw.encode("utf-8")
+    ).hexdigest()
+    assert dedup_fingerprint(
+        _example(patch_sha256=malformed)
+    ) == dedup_fingerprint(_example(patch_sha256=canonical_digest))
+
+
 def test_dedup_fingerprint_hashes_malformed_prefixed_digest_as_raw_text() -> None:
     malformed = "sha256:" + "g" * 64
     malformed_record = _example(patch_sha256=malformed)
@@ -200,6 +225,21 @@ def test_inventory_reports_required_diversity_dimensions() -> None:
         "action_success": 2,
         "expected_error": 2,
     }
+
+
+def test_inventory_canonicalizes_repo_and_issue_case_and_whitespace() -> None:
+    inventory = build_diversity_inventory(
+        (
+            _example(repo="Org/Repo", issue_or_pr="Issue  123"),
+            _example(
+                "ex-2",
+                repo="  org/repo  ",
+                issue_or_pr=" issue 123 ",
+            ),
+        )
+    )
+    assert inventory["repository_count"] == 1
+    assert inventory["issue_count"] == 1
 
 
 def test_content_addressed_shard_never_writes_to_data_root(tmp_path: Path) -> None:

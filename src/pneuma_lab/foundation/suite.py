@@ -98,13 +98,52 @@ _CANDIDATE_LANE_ID = "swe-gym-openhands-sampled"
 def load_suite_policy(path: Path) -> dict[str, Any]:
     """Load a suite policy as a JSON object with domain-specific failures."""
 
+    def reject_duplicate_members(pairs):
+        value = {}
+        for name, member in pairs:
+            if name in value:
+                raise SuitePolicyError(
+                    f"suite policy has duplicate JSON member: {name}"
+                )
+            value[name] = member
+        return value
+
+    def reject_constant(constant: str):
+        raise ValueError(f"nonstandard JSON constant: {constant}")
+
     try:
-        value = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        value = json.loads(
+            Path(path).read_bytes().decode("utf-8"),
+            object_pairs_hook=reject_duplicate_members,
+            parse_constant=reject_constant,
+        )
+    except SuitePolicyError:
+        raise
+    except (
+        OSError,
+        TypeError,
+        UnicodeError,
+        json.JSONDecodeError,
+        RecursionError,
+        ValueError,
+    ) as exc:
         raise SuitePolicyError(f"suite policy must be valid JSON: {exc}") from exc
     if not isinstance(value, dict):
         raise SuitePolicyError("suite policy must be a JSON object")
     return value
+
+
+def evaluation_identity_scope(
+    policy: Mapping,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return the exact required and blocked evaluation families."""
+
+    _validated_family_map(policy)
+    evaluation_identity = policy["evaluation_identity"]
+    return (
+        tuple(evaluation_identity["required_families"]),
+        tuple(evaluation_identity["blocked_unavailable_families"]),
+    )
 
 
 def _policy_entries(policy: Mapping) -> tuple[Mapping, ...]:
@@ -574,6 +613,7 @@ def build_suite_completeness_report(policy: Mapping, data_root: Path) -> dict:
 __all__ = [
     "SuitePolicyError",
     "build_suite_completeness_report",
+    "evaluation_identity_scope",
     "load_suite_policy",
     "open_authorized_payload",
     "validate_suite_policy",
