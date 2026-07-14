@@ -9,7 +9,9 @@ import errno
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import posixpath
+import re
 import secrets
 import stat as stat_module
 import sys
@@ -41,6 +43,149 @@ class _PublishedArtifact:
     backup_name: str | None = None
     backup_created: bool = False
     published: bool = False
+
+
+@dataclass(frozen=True)
+class _LinuxMountInfo:
+    mount_id: int
+    parent_id: int
+    device: str
+    root: PurePosixPath
+    mountpoint: PurePosixPath
+
+
+def _unescape_linux_mount_field(field: str) -> str:
+    result: list[str] = []
+    index = 0
+    while index < len(field):
+        character = field[index]
+        if character != "\\":
+            result.append(character)
+            index += 1
+            continue
+        octal = field[index + 1:index + 4]
+        if len(octal) != 3 or any(value not in "01234567" for value in octal):
+            raise ArtifactPublicationError(
+                "Linux mount provenance contains an invalid escape"
+            )
+        decoded = chr(int(octal, 8))
+        if decoded == "\x00":
+            raise ArtifactPublicationError(
+                "Linux mount provenance contains a null path byte"
+            )
+        result.append(decoded)
+        index += 4
+    return "".join(result)
+
+
+def _normalized_mount_path(field: str) -> PurePosixPath:
+    value = _unescape_linux_mount_field(field)
+    normalized = posixpath.normpath(value)
+    if not normalized.startswith("/"):
+        raise ArtifactPublicationError(
+            "Linux mount provenance path must be absolute"
+        )
+    return PurePosixPath(normalized)
+
+
+def _parse_linux_mountinfo(value: str) -> dict[int, _LinuxMountInfo]:
+    mounts: dict[int, _LinuxMountInfo] = {}
+    try:
+        for line in value.splitlines():
+            fields = line.split()
+            separator = fields.index("-")
+            if separator < 6 or len(fields) < separator + 4:
+                raise ValueError("mountinfo field count")
+            mount_id = int(fields[0])
+            parent_id = int(fields[1])
+            device = fields[2]
+            if not re.fullmatch(r"\d+:\d+", device):
+                raise ValueError("mountinfo device")
+            if mount_id in mounts:
+                raise ValueError("duplicate mount ID")
+            mounts[mount_id] = _LinuxMountInfo(
+                mount_id=mount_id,
+                parent_id=parent_id,
+                device=device,
+                root=_normalized_mount_path(fields[3]),
+                mountpoint=_normalized_mount_path(fields[4]),
+            )
+    except (IndexError, TypeError, ValueError) as exc:
+        raise ArtifactPublicationError(
+            "Linux mount provenance cannot be parsed consistently"
+        ) from exc
+    if not mounts:
+        raise ArtifactPublicationError("Linux mount provenance is empty")
+    return mounts
+
+
+def _read_linux_mountinfo() -> dict[int, _LinuxMountInfo]:
+    try:
+        with open("/proc/self/mountinfo", encoding="utf-8") as stream:
+            return _parse_linux_mountinfo(stream.read())
+    except OSError as exc:
+        raise ArtifactPublicationError(
+            "Linux mount provenance cannot be inspected"
+        ) from exc
+
+
+def _underlying_location_for_mount(
+    mount: _LinuxMountInfo,
+    path: PurePosixPath,
+) -> tuple[str, PurePosixPath]:
+    normalized_path = PurePosixPath(posixpath.normpath(path.as_posix()))
+    try:
+        relative = normalized_path.relative_to(mount.mountpoint)
+    except ValueError as exc:
+        raise ArtifactPublicationError(
+            "Linux fd path is inconsistent with its mountpoint"
+        ) from exc
+    underlying = PurePosixPath(
+        posixpath.normpath(
+            posixpath.join(mount.root.as_posix(), relative.as_posix())
+        )
+    )
+    if not underlying.is_absolute():
+        raise ArtifactPublicationError(
+            "Linux underlying mount location is not absolute"
+        )
+    return mount.device, underlying
+
+
+def _linux_underlying_location(
+    descriptor: int,
+    path: Path,
+    mounts: Mapping[int, _LinuxMountInfo],
+) -> tuple[str, PurePosixPath]:
+    mount_id = _linux_mount_id_from_fd(descriptor)
+    try:
+        mount = mounts[mount_id]
+    except KeyError as exc:
+        raise ArtifactPublicationError(
+            "Linux fd mount identity is absent from mount provenance"
+        ) from exc
+    return _underlying_location_for_mount(
+        mount,
+        PurePosixPath(path.as_posix()),
+    )
+
+
+def _reject_protected_underlying_alias(
+    bound_locations: Iterable[tuple[str, PurePosixPath]],
+    protected_locations: Iterable[tuple[str, PurePosixPath]],
+) -> None:
+    protected = tuple(protected_locations)
+    for device, location in bound_locations:
+        for protected_device, protected_location in protected:
+            if device != protected_device:
+                continue
+            try:
+                location.relative_to(protected_location)
+            except ValueError:
+                continue
+            raise ArtifactPublicationError(
+                "artifact publication underlying location aliases a protected root"
+            )
 
 
 def _parse_linux_mount_id(fdinfo: str) -> int:
@@ -588,6 +733,41 @@ class BoundArtifactPublication:
             self._protected_root_identities(),
         )
 
+    def _protected_root_underlying_locations(
+        self,
+        mounts: Mapping[int, _LinuxMountInfo],
+    ) -> tuple[tuple[str, PurePosixPath], ...]:
+        locations: list[tuple[str, PurePosixPath]] = []
+        flags = (
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        for protected_root in self.forbidden_roots:
+            try:
+                protected_root.lstat()
+            except FileNotFoundError:
+                continue
+            descriptor = os.open(protected_root, flags)
+            try:
+                if _path_identity(
+                    _linux_final_path_from_fd(descriptor)
+                ) != _path_identity(protected_root):
+                    raise ArtifactPublicationError(
+                        "protected root resolves through an alias"
+                    )
+                locations.append(
+                    _linux_underlying_location(
+                        descriptor,
+                        protected_root,
+                        mounts,
+                    )
+                )
+            finally:
+                os.close(descriptor)
+        return tuple(locations)
+
     @contextmanager
     def _fresh_posix_ancestry(self) -> Iterator[int]:
         """Rebind the lexical repo ancestry and yield its verified output fd."""
@@ -600,6 +780,8 @@ class BoundArtifactPublication:
         )
         descriptors: list[int] = []
         identities: list[tuple[int, int, int]] = []
+        locations: list[tuple[str, PurePosixPath]] = []
+        mounts = _read_linux_mountinfo()
         try:
             for index, (expected, binding) in enumerate(self._bound):
                 if index == 0:
@@ -618,6 +800,9 @@ class BoundArtifactPublication:
                     _linux_mount_id_from_fd(descriptor),
                 )
                 identities.append(identity)
+                locations.append(
+                    _linux_underlying_location(descriptor, expected, mounts)
+                )
                 if identity != self._posix_identities[binding]:
                     raise ArtifactPublicationError(
                         "artifact output no longer resolves to its bound mount and inode"
@@ -638,6 +823,10 @@ class BoundArtifactPublication:
             _reject_protected_identity_alias(
                 identities,
                 self._protected_root_identities(),
+            )
+            _reject_protected_underlying_alias(
+                locations,
+                self._protected_root_underlying_locations(mounts),
             )
             yield descriptors[-1]
         finally:

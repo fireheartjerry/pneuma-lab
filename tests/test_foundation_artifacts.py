@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import stat
 import subprocess
 import sys
@@ -42,6 +42,65 @@ def test_protected_identity_alias_guard_uses_device_and_inode() -> None:
             ((11, 21, 901),),
             ((11, 21, 417),),
         )
+
+
+def test_linux_mountinfo_parser_unescapes_nested_mount_roots() -> None:
+    mounts = artifacts._parse_linux_mountinfo(
+        "41 25 8:1 /protected\\040data/subtree "
+        "/repo\\040root rw,nosuid shared:7 - ext4 /dev/sda1 rw\n"
+        "52 41 8:1 /protected\\040data/subtree/nested "
+        "/repo\\040root/nested rw - ext4 /dev/sda1 rw\n"
+    )
+    assert mounts[41].device == "8:1"
+    assert mounts[41].root == PurePosixPath("/protected data/subtree")
+    assert mounts[41].mountpoint == PurePosixPath("/repo root")
+    assert artifacts._underlying_location_for_mount(
+        mounts[41],
+        PurePosixPath("/repo root/build/out"),
+    ) == ("8:1", PurePosixPath("/protected data/subtree/build/out"))
+    assert artifacts._underlying_location_for_mount(
+        mounts[52],
+        PurePosixPath("/repo root/nested/output"),
+    ) == (
+        "8:1",
+        PurePosixPath("/protected data/subtree/nested/output"),
+    )
+
+
+def test_underlying_location_guard_allows_sibling_and_rejects_descendants() -> None:
+    protected = (("8:1", PurePosixPath("/srv/pneuma-data")),)
+    artifacts._reject_protected_underlying_alias(
+        (("8:1", PurePosixPath("/srv/repo")),),
+        protected,
+    )
+    with pytest.raises(ArtifactPublicationError, match="protected|alias"):
+        artifacts._reject_protected_underlying_alias(
+            (("8:1", PurePosixPath("/srv/pneuma-data")),),
+            protected,
+        )
+    with pytest.raises(ArtifactPublicationError, match="protected|alias"):
+        artifacts._reject_protected_underlying_alias(
+            (("8:1", PurePosixPath("/srv/pneuma-data/subtree/repo")),),
+            protected,
+        )
+    artifacts._reject_protected_underlying_alias(
+        (("9:1", PurePosixPath("/srv/pneuma-data/subtree")),),
+        protected,
+    )
+
+
+@pytest.mark.parametrize(
+    "mountinfo",
+    (
+        "",
+        "41 25 bad-device / /repo rw - ext4 /dev/sda rw\n",
+        "41 25 8:1 relative /repo rw - ext4 /dev/sda rw\n",
+        "41 25 8:1 / /repo\\12x rw - ext4 /dev/sda rw\n",
+    ),
+)
+def test_linux_mountinfo_parser_fails_closed(mountinfo: str) -> None:
+    with pytest.raises(ArtifactPublicationError, match="mount"):
+        artifacts._parse_linux_mountinfo(mountinfo)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux mount IDs")
@@ -94,6 +153,55 @@ def test_bind_mounted_protected_root_cannot_be_repository_anchor(
     repo_root.mkdir()
     mounted = subprocess.run(
         ["mount", "--bind", str(protected), str(repo_root)],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if mounted.returncode != 0:
+        pytest.skip(f"bind mounts unavailable: {mounted.stderr.strip()}")
+    try:
+        with pytest.raises(ArtifactPublicationError, match="protected|alias"):
+            with bind_artifact_publication(
+                repo_root / output_relative,
+                anchor_root=repo_root,
+                allowed_root=repo_root / "build",
+                forbidden_roots=(protected,),
+            ) as publication:
+                publication.write_bytes(
+                    repo_root / output_relative / "escaped.bin",
+                    b"blocked",
+                )
+        after = tuple(
+            sorted(path.relative_to(protected) for path in protected.rglob("*"))
+        )
+        assert after == before
+        assert sentinel.read_text(encoding="utf-8") == "immutable"
+    finally:
+        unmounted = subprocess.run(
+            ["umount", str(repo_root)],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        if unmounted.returncode != 0:
+            pytest.fail(f"test bind mount could not be unmounted: {unmounted.stderr}")
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux bind mount")
+def test_bind_mounted_protected_descendant_cannot_be_repository_anchor(
+    tmp_path: Path,
+) -> None:
+    protected = tmp_path / "pneuma-data"
+    protected_subtree = protected / "nested/subtree"
+    output_relative = Path("build/out")
+    (protected_subtree / output_relative).mkdir(parents=True)
+    sentinel = protected / "sentinel.txt"
+    sentinel.write_text("immutable", encoding="utf-8")
+    before = tuple(sorted(path.relative_to(protected) for path in protected.rglob("*")))
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    mounted = subprocess.run(
+        ["mount", "--bind", str(protected_subtree), str(repo_root)],
         capture_output=True,
         check=False,
         text=True,
