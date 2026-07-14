@@ -13,6 +13,11 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     doctor = subparsers.add_parser("doctor", help="check WSL2 local readiness")
     doctor.add_argument("--json", action="store_true", dest="as_json")
+    doctor.add_argument(
+        "--profile",
+        choices=("local", "cloud"),
+        default="local",
+    )
     duration = subparsers.add_parser(
         "duration", help="estimate hours from measured tps"
     )
@@ -27,7 +32,7 @@ def main(argv: list[str] | None = None) -> int:
         hours = duration_hours(args.tokens, args.tps)
         print(f"{args.tokens} tokens at {args.tps:g} tokens/s: {hours:.2f} hours")
         return 0
-    report = doctor_report(live_probe())
+    report = doctor_report(live_probe(), profile=args.profile)
     if args.as_json:
         print(json.dumps(report, indent=4, sort_keys=True))
     else:
