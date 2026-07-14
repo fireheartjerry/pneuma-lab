@@ -340,6 +340,23 @@ def test_contamination_receipt_rejects_training_without_usable_identity() -> Non
         )
 
 
+def test_contamination_receipt_rejects_issue_only_identities() -> None:
+    issue_only = {
+        field: ("shared-issue" if field == "issue_or_pr" else None)
+        for field in IDENTITY_FIELDS
+    }
+    evaluation = tuple(
+        _evaluation_identity(family, **issue_only)
+        for family in ("swe-bench", "swe-mera", "swe-polybench")
+    )
+    with pytest.raises(ContaminationIndexError, match="usable|issue"):
+        build_contamination_receipt(
+            [_unchecked_identity(**issue_only)],
+            evaluation,
+            suite_policy=_suite_policy(),
+        )
+
+
 def test_contamination_receipt_rejects_required_rows_without_usable_identity() -> None:
     evaluation = tuple(
         _evaluation_identity(
@@ -1095,6 +1112,65 @@ def test_eval_identity_index_rolls_back_if_ancestry_changes_before_receipt(
     assert tuple(path.name for path in data_root.iterdir()) == before
     assert not saved_parent.exists() or tuple(saved_parent.iterdir()) == ()
     assert sentinel.read_text(encoding="utf-8") == "immutable"
+
+
+def test_eval_identity_index_rejects_content_mutation_before_receipt(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    data_root = tmp_path / "pneuma-data"
+    data_root.mkdir()
+    source = data_root / "processed/swe-bench/normalized_metadata.jsonl"
+    repo_root = tmp_path / "repo"
+    output = repo_root / "build/identities/swe-bench.jsonl"
+    source_bytes = b'{"source_id":"o__r-7","repo":"o/r","base_commit":"abc"}\n'
+
+    class VerifiedStream:
+        def __enter__(self):
+            self.stream = io.BytesIO(source_bytes)
+            return self.stream
+
+        def __exit__(self, *_args):
+            self.stream.close()
+
+    monkeypatch.setattr(
+        eval_identities,
+        "open_authorized_payload",
+        lambda *_args, **_kwargs: VerifiedStream(),
+    )
+    real_write = eval_identities.write_atomic_jsonl
+
+    def write_then_mutate(path: Path, rows, **kwargs) -> None:
+        real_write(path, rows, **kwargs)
+        path.write_bytes(b'{"tampered":true}\n')
+
+    monkeypatch.setattr(
+        eval_identities,
+        "write_atomic_jsonl",
+        write_then_mutate,
+    )
+    receipt = None
+    with pytest.raises(ContaminationIndexError, match="publication|content"):
+        receipt = build_eval_identity_index(
+            {
+                "families": [
+                    {
+                        "family": "swe-bench",
+                        "identity_metadata_relative_path": (
+                            "processed/swe-bench/normalized_metadata.jsonl"
+                        ),
+                    }
+                ]
+            },
+            family="swe-bench",
+            repo_root=repo_root,
+            data_root=data_root,
+            source_path=source,
+            output_path=output,
+            allowed_fields=EVAL_METADATA_FIELDS,
+        )
+    assert receipt is None
+    assert not output.exists()
 
 
 @pytest.mark.parametrize("alias_level", ("repo", "build", "output_parent"))

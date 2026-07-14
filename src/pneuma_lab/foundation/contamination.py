@@ -102,18 +102,7 @@ def _normalize_identity(identity: IdentityRecord) -> _NormalizedIdentity:
     return _NormalizedIdentity(
         lane_id=identity.lane_id,
         values=values,
-        has_usable_identity=any(
-            value is not None
-            for value in (
-                repo,
-                issue,
-                task,
-                base_commit,
-                patch,
-                test_patch,
-                fuzzy_text,
-            )
-        ),
+        has_usable_identity=any(value is not None for _, value in values),
     )
 
 

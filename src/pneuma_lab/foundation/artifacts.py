@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
+from dataclasses import dataclass
 import errno
 import hashlib
 import json
@@ -30,6 +31,54 @@ _UNSUPPORTED_FSYNC_ERRNOS = frozenset(
 
 class ArtifactPublicationError(OSError):
     """Raised when output ancestry cannot remain bound and verified."""
+
+
+@dataclass
+class _PublishedArtifact:
+    name: str
+    expected_sha256: str
+    expected_size: int
+    backup_name: str | None = None
+    backup_created: bool = False
+    published: bool = False
+
+
+def _parse_linux_mount_id(fdinfo: str) -> int:
+    for line in fdinfo.splitlines():
+        key, separator, value = line.partition(":")
+        if key == "mnt_id" and separator:
+            try:
+                return int(value.strip())
+            except ValueError as exc:
+                raise ArtifactPublicationError(
+                    "artifact publication mount identity is malformed"
+                ) from exc
+    raise ArtifactPublicationError(
+        "artifact publication mount identity is unavailable"
+    )
+
+
+def _linux_mount_id_from_fd(descriptor: int) -> int:
+    try:
+        with open(
+            f"/proc/self/fdinfo/{descriptor}",
+            encoding="utf-8",
+        ) as stream:
+            return _parse_linux_mount_id(stream.read())
+    except OSError as exc:
+        raise ArtifactPublicationError(
+            "artifact publication mount identity cannot be inspected"
+        ) from exc
+
+
+def _require_single_mount_identity(
+    anchor_mount_id: int,
+    ancestry_mount_ids: Iterable[int],
+) -> None:
+    if any(mount_id != anchor_mount_id for mount_id in ancestry_mount_ids):
+        raise ArtifactPublicationError(
+            "artifact publication ancestry crosses a mount boundary"
+        )
 
 
 def sha256_file(path: Path) -> str:
@@ -290,7 +339,9 @@ class BoundArtifactPublication:
                     "artifact output directory overlaps a forbidden root"
                 )
         self._bound: list[tuple[Path, int]] = []
-        self._published: list[tuple[str, bytes | None]] = []
+        self._posix_identities: dict[int, tuple[int, int, int]] = {}
+        self._anchor_mount_id: int | None = None
+        self._published: list[_PublishedArtifact] = []
 
     @property
     def _directory_binding(self) -> int:
@@ -299,7 +350,7 @@ class BoundArtifactPublication:
         return self._bound[-1][1]
 
     def bind(self) -> None:
-        base = _nearest_existing_directory(self.directory)
+        base = _nearest_existing_directory(self.anchor_root)
         try:
             relative = self.directory.relative_to(base)
         except ValueError as exc:
@@ -315,7 +366,21 @@ class BoundArtifactPublication:
             self._bind_windows(components)
         else:
             self._bind_posix(components)
-        self._verify_ancestry()
+            anchor_binding = next(
+                binding
+                for expected, binding in self._bound
+                if _path_identity(expected) == _path_identity(self.anchor_root)
+            )
+            self._anchor_mount_id = self._posix_identities[anchor_binding][2]
+            _require_single_mount_identity(
+                self._anchor_mount_id,
+                (
+                    self._posix_identities[binding][2]
+                    for expected, binding in self._bound
+                    if _is_within(expected, self.anchor_root)
+                ),
+            )
+        self._verify_authorized_location()
         final_directory = self._final_directory_path()
         for forbidden_root in self.forbidden_roots:
             try:
@@ -358,6 +423,13 @@ class BoundArtifactPublication:
                     pass
                 descriptor = os.open(component.name, flags, dir_fd=descriptor)
             self._bound.append((component, descriptor))
+            metadata = os.fstat(descriptor)
+            mount_id = _linux_mount_id_from_fd(descriptor)
+            self._posix_identities[descriptor] = (
+                metadata.st_dev,
+                metadata.st_ino,
+                mount_id,
+            )
 
     def _verify_ancestry(self) -> None:
         if not self._bound:
@@ -381,10 +453,75 @@ class BoundArtifactPublication:
                         "bound artifact ancestry cannot be proven on this platform"
                     )
                 final_path = _linux_final_path_from_fd(binding)
+                expected_identity = self._posix_identities.get(binding)
+                current_identity = (
+                    metadata.st_dev,
+                    metadata.st_ino,
+                    _linux_mount_id_from_fd(binding),
+                )
+                if current_identity != expected_identity:
+                    raise ArtifactPublicationError(
+                        "bound artifact ancestry changed mount or inode identity"
+                    )
+                if (
+                    _is_within(expected, self.anchor_root)
+                    and current_identity[2] != self._anchor_mount_id
+                ):
+                    raise ArtifactPublicationError(
+                        "bound artifact ancestry changed mount identity"
+                    )
             if _path_identity(final_path) != _path_identity(expected):
                 raise ArtifactPublicationError(
                     "bound artifact output ancestry changed during publication"
                 )
+
+    def _verify_authorized_location(self) -> None:
+        """Re-resolve every lexical component to the same held directory chain."""
+
+        self._verify_ancestry()
+        if os.name == "nt":
+            for expected, _ in self._bound:
+                fresh_handle = _open_windows_handle(expected, directory=True)
+                try:
+                    if _path_identity(
+                        _windows_handle_final_path(fresh_handle)
+                    ) != _path_identity(expected):
+                        raise ArtifactPublicationError(
+                            "artifact output no longer resolves to its authorized path"
+                        )
+                finally:
+                    _, _, _, close_handle, _, _ = _windows_api()
+                    close_handle(fresh_handle)
+            return
+
+        flags = (
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        for expected, binding in self._bound:
+            fresh_descriptor = os.open(expected, flags)
+            try:
+                metadata = os.fstat(fresh_descriptor)
+                fresh_identity = (
+                    metadata.st_dev,
+                    metadata.st_ino,
+                    _linux_mount_id_from_fd(fresh_descriptor),
+                )
+                if fresh_identity != self._posix_identities[binding]:
+                    raise ArtifactPublicationError(
+                        "artifact output no longer resolves to its bound mount and inode"
+                    )
+                if (
+                    _is_within(expected, self.anchor_root)
+                    and fresh_identity[2] != self._anchor_mount_id
+                ):
+                    raise ArtifactPublicationError(
+                        "artifact output no longer resolves on the repository mount"
+                    )
+            finally:
+                os.close(fresh_descriptor)
 
     def _final_directory_path(self) -> Path:
         binding = self._directory_binding
@@ -424,37 +561,123 @@ class BoundArtifactPublication:
             | getattr(os, "O_NONBLOCK", 0)
         )
         descriptor = os.open(name, flags, dir_fd=self._directory_binding)
-        metadata = os.fstat(descriptor)
-        if not stat_module.S_ISREG(metadata.st_mode):
+        try:
+            metadata = os.fstat(descriptor)
+            if not stat_module.S_ISREG(metadata.st_mode):
+                raise ArtifactPublicationError(
+                    "artifact publication target must be a regular file"
+                )
+            expected_final = self.directory / name
+            if _path_identity(
+                _linux_final_path_from_fd(descriptor)
+            ) != _path_identity(expected_final):
+                raise ArtifactPublicationError(
+                    "artifact publication target final path changed"
+                )
+        except BaseException:
             os.close(descriptor)
-            raise ArtifactPublicationError(
-                "artifact publication target must be a regular file"
-            )
-        expected_final = self.directory / name
-        if _path_identity(_linux_final_path_from_fd(descriptor)) != _path_identity(
-            expected_final
-        ):
-            os.close(descriptor)
-            raise ArtifactPublicationError(
-                "artifact publication target final path changed"
-            )
+            raise
         return descriptor
 
-    def _read_bound_bytes(self, name: str) -> bytes:
+    def _bound_digest_size(self, name: str) -> tuple[str, int]:
         descriptor = self._open_target_descriptor(name)
-        chunks: list[bytes] = []
+        digest = hashlib.sha256()
+        size = 0
         try:
+            before = os.fstat(descriptor)
             while chunk := os.read(descriptor, _HASH_CHUNK_BYTES):
-                chunks.append(chunk)
+                digest.update(chunk)
+                size += len(chunk)
+            after = os.fstat(descriptor)
+            if (
+                (before.st_dev, before.st_ino, before.st_size)
+                != (after.st_dev, after.st_ino, after.st_size)
+                or getattr(before, "st_mtime_ns", None)
+                != getattr(after, "st_mtime_ns", None)
+                or getattr(before, "st_ctime_ns", None)
+                != getattr(after, "st_ctime_ns", None)
+            ):
+                raise ArtifactPublicationError(
+                    "artifact content changed while it was being verified"
+                )
+            if os.name == "nt":
+                path_metadata = (self.directory / name).lstat()
+            else:
+                path_metadata = os.stat(
+                    name,
+                    dir_fd=self._directory_binding,
+                    follow_symlinks=False,
+                )
+            if (path_metadata.st_dev, path_metadata.st_ino) != (
+                after.st_dev,
+                after.st_ino,
+            ):
+                raise ArtifactPublicationError(
+                    "artifact target changed while it was being verified"
+                )
         finally:
             os.close(descriptor)
-        return b"".join(chunks)
+        return digest.hexdigest(), size
 
-    def _prior_bytes(self, name: str) -> bytes | None:
+    def _entry_exists(self, name: str) -> bool:
         try:
-            return self._read_bound_bytes(name)
+            if os.name == "nt":
+                (self.directory / name).lstat()
+            else:
+                os.stat(
+                    name,
+                    dir_fd=self._directory_binding,
+                    follow_symlinks=False,
+                )
         except FileNotFoundError:
-            return None
+            return False
+        return True
+
+    def _rename(self, source: str, target: str) -> None:
+        if os.name == "nt":
+            os.rename(self.directory / source, self.directory / target)
+            return
+        os.rename(
+            source,
+            target,
+            src_dir_fd=self._directory_binding,
+            dst_dir_fd=self._directory_binding,
+        )
+
+    def _backup_existing_target(self, record: _PublishedArtifact) -> None:
+        try:
+            descriptor = self._open_target_descriptor(record.name)
+        except FileNotFoundError:
+            return
+        try:
+            metadata = os.fstat(descriptor)
+            identity = (metadata.st_dev, metadata.st_ino)
+        finally:
+            os.close(descriptor)
+        for _ in range(128):
+            backup_name = (
+                f".{record.name}.{secrets.token_hex(16)}.publication-backup"
+            )
+            if not self._entry_exists(backup_name):
+                break
+        else:
+            raise ArtifactPublicationError(
+                "artifact publication could not allocate a unique backup"
+            )
+        self._rename(record.name, backup_name)
+        record.backup_name = backup_name
+        record.backup_created = True
+        backup_descriptor = self._open_target_descriptor(backup_name)
+        try:
+            backup_metadata = os.fstat(backup_descriptor)
+            if (backup_metadata.st_dev, backup_metadata.st_ino) != identity:
+                raise ArtifactPublicationError(
+                    "artifact publication backup changed file identity"
+                )
+        finally:
+            os.close(backup_descriptor)
+        if os.name != "nt":
+            _fsync_descriptor(self._directory_binding)
 
     def _temporary(self, name: str) -> tuple[int, str]:
         if os.name == "nt":
@@ -514,63 +737,15 @@ class BoundArtifactPublication:
                     "artifact rollback requires a verified ancestry rebind"
                 )
 
-    def _restore_posix_bytes(self, name: str, payload: bytes) -> None:
-        directory = Path(f"/proc/self/fd/{self._directory_binding}")
-        temporary_name = f".{name}.{secrets.token_hex(16)}.rollback.tmp"
-        temporary = directory / temporary_name
-        descriptor = os.open(
-            temporary,
-            os.O_WRONLY
-            | os.O_CREAT
-            | os.O_EXCL
-            | getattr(os, "O_CLOEXEC", 0)
-            | getattr(os, "O_NOFOLLOW", 0),
-            0o600,
-        )
-        try:
-            stream = os.fdopen(descriptor, "wb", closefd=True)
-            descriptor = -1
-            with stream:
-                stream.write(payload)
-                stream.flush()
-                _fsync_data(stream)
-            os.replace(temporary, directory / name)
-            temporary_name = ""
-            _fsync_descriptor(self._directory_binding)
-            restored = directory / name
-            restored_descriptor = os.open(
-                restored,
-                os.O_RDONLY
-                | getattr(os, "O_CLOEXEC", 0)
-                | getattr(os, "O_NOFOLLOW", 0),
-            )
-            try:
-                metadata = os.fstat(restored_descriptor)
-                if not stat_module.S_ISREG(metadata.st_mode):
-                    raise ArtifactPublicationError(
-                        "artifact rollback target is not a regular file"
-                    )
-                chunks: list[bytes] = []
-                while chunk := os.read(restored_descriptor, _HASH_CHUNK_BYTES):
-                    chunks.append(chunk)
-            finally:
-                os.close(restored_descriptor)
-            if b"".join(chunks) != payload:
-                raise ArtifactPublicationError(
-                    "artifact rollback differs from its prior payload"
-                )
-        finally:
-            if descriptor >= 0:
-                os.close(descriptor)
-            if temporary_name:
-                try:
-                    temporary.unlink()
-                except FileNotFoundError:
-                    pass
-
-    def _publish_bytes(self, name: str, payload: bytes, *, track: bool) -> None:
+    def _publish_bytes(self, name: str, payload: bytes) -> None:
         self._verify_ancestry()
-        prior = self._prior_bytes(name) if track else None
+        record = _PublishedArtifact(
+            name=name,
+            expected_sha256=hashlib.sha256(payload).hexdigest(),
+            expected_size=len(payload),
+        )
+        self._published.append(record)
+        self._backup_existing_target(record)
         descriptor, temporary_name = self._temporary(name)
         try:
             stream = os.fdopen(descriptor, "wb", closefd=True)
@@ -582,14 +757,17 @@ class BoundArtifactPublication:
             self._verify_ancestry()
             self._replace(temporary_name, name)
             temporary_name = ""
-            if track:
-                self._published.append((name, prior))
+            record.published = True
             if os.name != "nt":
                 _fsync_descriptor(self._directory_binding)
             self._verify_ancestry()
-            if self._read_bound_bytes(name) != payload:
+            digest, size = self._bound_digest_size(name)
+            if (
+                digest != record.expected_sha256
+                or size != record.expected_size
+            ):
                 raise ArtifactPublicationError(
-                    "published artifact differs from its verified payload"
+                    "published artifact content differs from its expected digest or size"
                 )
         finally:
             if descriptor >= 0:
@@ -603,41 +781,41 @@ class BoundArtifactPublication:
         if not isinstance(payload, bytes):
             raise TypeError("atomic artifact payload must be bytes")
         name = self._target_name(path)
-        if any(published_name == name for published_name, _ in self._published):
+        if any(record.name == name for record in self._published):
             raise ArtifactPublicationError(
                 "artifact target was already published in this transaction"
             )
-        self._publish_bytes(name, payload, track=True)
+        self._publish_bytes(name, payload)
 
     def sha256(self, path: Path) -> str:
         """Hash a published target through the still-bound output ancestry."""
 
         name = self._target_name(path)
         self._verify_ancestry()
-        descriptor = self._open_target_descriptor(name)
-        digest = hashlib.sha256()
-        try:
-            while chunk := os.read(descriptor, _HASH_CHUNK_BYTES):
-                digest.update(chunk)
-        finally:
-            os.close(descriptor)
+        digest, _ = self._bound_digest_size(name)
         self._verify_ancestry()
-        return digest.hexdigest()
+        return digest
+
+    def _rollback_record(self, record: _PublishedArtifact) -> None:
+        if record.published:
+            self._unlink(record.name, rollback=True)
+            record.published = False
+        if record.backup_created:
+            assert record.backup_name is not None
+            self._rename(record.backup_name, record.name)
+            record.backup_created = False
+        if os.name != "nt":
+            _fsync_descriptor(self._directory_binding)
 
     def rollback(self) -> None:
-        pending: list[tuple[str, bytes | None]] = []
-        for name, prior in reversed(self._published):
+        pending: list[_PublishedArtifact] = []
+        for record in reversed(self._published):
             try:
-                self._unlink(name, rollback=True)
-                if prior is not None:
-                    if os.name == "nt":
-                        self._publish_bytes(name, prior, track=False)
-                    else:
-                        self._restore_posix_bytes(name, prior)
+                self._rollback_record(record)
             except OSError:
-                pending.append((name, prior))
-        self._published.clear()
+                pending.append(record)
         if not pending:
+            self._published.clear()
             return
         rebound_directory = self._final_directory_path()
         self.close()
@@ -648,17 +826,54 @@ class BoundArtifactPublication:
                 allowed_root=self.allowed_root,
                 forbidden_roots=self.forbidden_roots,
             ) as rebound:
-                for name, prior in pending:
-                    rebound._unlink(name)
-                    if prior is not None:
-                        rebound.write_bytes(rebound_directory / name, prior)
+                for record in pending:
+                    if record.published:
+                        rebound._unlink(record.name)
+                        record.published = False
+                    if record.backup_created:
+                        assert record.backup_name is not None
+                        rebound._rename(record.backup_name, record.name)
+                        record.backup_created = False
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             raise ArtifactPublicationError(
                 "artifact publication rollback failed after ancestry changed"
             ) from exc
+        self._published.clear()
 
     def commit(self) -> None:
+        """Finalize outputs in an operator-controlled repository build tree.
+
+        POSIX directory descriptors cannot prevent a privileged peer from renaming
+        or mutating entries. The repository build tree is therefore an
+        operator-controlled boundary. Verification below is deliberately the last
+        operation before rollback state is released, minimizing the unavoidable
+        scheduler window rather than claiming a cross-process POSIX rename lock.
+        """
+
+        self._verify_authorized_location()
+        for record in self._published:
+            if not record.published:
+                raise ArtifactPublicationError(
+                    "artifact publication did not publish every tracked target"
+                )
+            digest, size = self._bound_digest_size(record.name)
+            if (
+                digest != record.expected_sha256
+                or size != record.expected_size
+            ):
+                raise ArtifactPublicationError(
+                    "published artifact content changed before commit"
+                )
+        self._verify_authorized_location()
+        committed = tuple(self._published)
         self._published.clear()
+        for record in committed:
+            if record.backup_created:
+                assert record.backup_name is not None
+                self._unlink(record.backup_name)
+                record.backup_created = False
+        if os.name != "nt":
+            _fsync_descriptor(self._directory_binding)
 
     def close(self) -> None:
         if os.name == "nt":
@@ -669,6 +884,7 @@ class BoundArtifactPublication:
             for _, descriptor in reversed(self._bound):
                 os.close(descriptor)
         self._bound.clear()
+        self._posix_identities.clear()
 
 
 @contextmanager
@@ -695,7 +911,11 @@ def bind_artifact_publication(
             publication.rollback()
             raise
         else:
-            publication.commit()
+            try:
+                publication.commit()
+            except BaseException:
+                publication.rollback()
+                raise
     except ArtifactPublicationError:
         raise
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
