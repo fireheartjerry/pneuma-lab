@@ -48,6 +48,18 @@ runtime.
 `C:\pneuma-data` is immutable input. All derived shards, checkpoints, reports,
 SQLite files, and weights belong under ignored `build/foundation/` storage.
 
+Authorization independently reloads the tokenizer from the exact Task 7 cache
+path `build/<cache-root>/models/2b/<pinned-revision>` with network access off.
+It verifies the snapshot receipt before loading, after loading, and after
+recounting every shard prompt and target with special tokens disabled. The
+scope digest binds the cache path, receipt digest, and full snapshot digest.
+
+Authorization evidence is also memory bounded. Aggregate held evidence is
+limited by stage and capped at 2 GiB; strict JSON/JSONL parsing is budgeted for
+approximately 8x transient amplification so verification remains within the
+24 GiB local process envelope. Candidate and final authorization manifests are
+each capped at 8 MiB before parsing.
+
 ## WSL2 environment
 
 The official Qwen3.5 model card currently requires Transformers from its main

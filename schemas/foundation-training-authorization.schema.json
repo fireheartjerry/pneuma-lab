@@ -99,6 +99,7 @@
             "type": "object",
             "required": [
                 "model",
+                "tokenizer_snapshot",
                 "stage",
                 "token_ceiling",
                 "local_profile",
@@ -121,6 +122,27 @@
                         "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
                         "tokenizer_id": {"enum": ["Qwen/Qwen3.5-2B", "Qwen/Qwen3.5-4B"]},
                         "tokenizer_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+                    },
+                    "additionalProperties": false
+                },
+                "tokenizer_snapshot": {
+                    "type": "object",
+                    "required": [
+                        "path",
+                        "model_id",
+                        "revision",
+                        "receipt_sha256",
+                        "snapshot_sha256"
+                    ],
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "pattern": "^build/(?:[A-Za-z0-9._-]+/)+models/2b/[0-9a-f]{40}$"
+                        },
+                        "model_id": {"const": "Qwen/Qwen3.5-2B"},
+                        "revision": {"const": "15852e8c16360a2fea060d615a32b45270f8a8fc"},
+                        "receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                        "snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
                     },
                     "additionalProperties": false
                 },

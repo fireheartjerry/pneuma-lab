@@ -70,24 +70,44 @@ class LaneDisposition:
     oracle_disposition: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class EffectiveTrainingRecord:
     record: Mapping
     effective_weight: float
 
-    def __post_init__(self) -> None:
-        if not isinstance(self.record, Mapping):
-            raise FoundationRecordError("effective record must be a mapping")
-        if (
-            type(self.effective_weight) is not float
-            or not math.isfinite(self.effective_weight)
-            or self.effective_weight <= 0.0
-        ):
-            raise FoundationRecordError(
-                "effective_weight must be a finite positive float"
-            )
-        detached = _canonical_json_copy(self.record)
-        object.__setattr__(self, "record", _freeze_json_value(detached))
+    def __init__(self, *args, **kwargs) -> None:
+        del args, kwargs
+        raise FoundationRecordError(
+            "effective training records require verified authorization"
+        )
+
+    def __reduce_ex__(self, protocol):
+        del protocol
+        raise TypeError("effective training records cannot be pickled")
+
+
+def _make_effective_training_record(
+    record: Mapping,
+    *,
+    effective_weight: float,
+) -> EffectiveTrainingRecord:
+    """Construct the sealed capability after authorization verifies membership."""
+
+    if not isinstance(record, Mapping):
+        raise FoundationRecordError("effective record must be a mapping")
+    if (
+        type(effective_weight) is not float
+        or not math.isfinite(effective_weight)
+        or effective_weight <= 0.0
+    ):
+        raise FoundationRecordError(
+            "effective_weight must be a finite positive float"
+        )
+    detached = _canonical_json_copy(record)
+    effective = object.__new__(EffectiveTrainingRecord)
+    object.__setattr__(effective, "record", _freeze_json_value(detached))
+    object.__setattr__(effective, "effective_weight", effective_weight)
+    return effective
 
 
 def _json_native_copy(value: Any) -> Any:
@@ -414,6 +434,8 @@ def validate_derived_foundation_record(
     source_receipt_hashes: tuple[str, ...],
     tokenizer_id: str,
     tokenizer_revision: str,
+    prompt_tokens: int,
+    target_tokens: int,
 ) -> None:
     """Prove one record is the deterministic rendering of one source example."""
 
@@ -475,23 +497,16 @@ def validate_derived_foundation_record(
         "source_revision": source_revision,
         "receipt_hashes": receipt_hashes,
     }
-    tokenization = record.get("tokenization")
-    if not isinstance(tokenization, Mapping):
-        raise FoundationRecordError("record tokenization is missing")
-    prompt_tokens = tokenization.get("prompt_tokens")
-    target_tokens = tokenization.get("target_tokens")
-    total_tokens = tokenization.get("total_tokens")
     if (
         type(prompt_tokens) is not int
         or prompt_tokens <= 0
         or type(target_tokens) is not int
         or target_tokens <= 0
-        or type(total_tokens) is not int
-        or total_tokens != prompt_tokens + target_tokens
     ):
         raise FoundationRecordError(
-            "record token counts must be positive and sum exactly"
+            "independently derived token counts must be positive integers"
         )
+    total_tokens = prompt_tokens + target_tokens
     expected = {
         "record_kind": "pneuma_foundation_training_record",
         "record_schema_version": "0.1.0",

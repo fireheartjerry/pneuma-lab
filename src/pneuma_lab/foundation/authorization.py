@@ -48,8 +48,14 @@ from pneuma_lab.foundation.records import (
     GradientEligibility,
     LaneDisposition,
     TerminalRole,
+    _make_effective_training_record,
     validate_derived_foundation_record,
     validate_foundation_record,
+)
+from pneuma_lab.foundation.snapshot_receipt import (
+    SnapshotReceiptError,
+    VerifiedPinnedSnapshot,
+    verify_pinned_snapshot,
 )
 from pneuma_lab.foundation.specs import MODEL_SPECS
 from pneuma_lab.schemas import load_schema
@@ -192,9 +198,12 @@ def _artifact_size_limits(
             for family in eval_families
         }
     )
+    # Strict JSON/JSONL materialization can transiently amplify held bytes by
+    # roughly 8x. Keep the aggregate under 2 GiB so parsing remains bounded
+    # beneath the 24 GiB local process envelope even at the largest stage.
     total_limit = min(
-        8 * _GIB,
-        max(128 * _MIB, token_ceiling * 256),
+        2 * _GIB,
+        max(128 * _MIB, token_ceiling * 64),
     )
     return limits, total_limit
 
@@ -427,6 +436,138 @@ def _path_from_binding(binding: Mapping, *, repo_root: Path) -> Path:
     if _repo_relative(path, repo_root=repo_root) != relative:
         raise FoundationAuthorizationError("artifact binding path is not canonical")
     return path
+
+
+def _task7_tokenizer_snapshot_path(path: Path, *, repo_root: Path) -> Path:
+    """Validate the exact local Task 7 cache layout without resolving aliases."""
+
+    root = _absolute_lexical(repo_root)
+    candidate = _absolute_lexical(path)
+    try:
+        relative = candidate.relative_to(root)
+    except ValueError as exc:
+        raise FoundationAuthorizationError(
+            "tokenizer snapshot must be under repository build/"
+        ) from exc
+    revision = MODEL_SPECS["2b"].revision
+    if (
+        len(relative.parts) < 5
+        or relative.parts[0] != "build"
+        or tuple(relative.parts[-3:]) != ("models", "2b", revision)
+    ):
+        raise FoundationAuthorizationError(
+            "tokenizer snapshot path must match "
+            f"build/<cache_root>/models/2b/{revision}"
+        )
+    return candidate
+
+
+def _verify_authorization_snapshot(
+    path: Path,
+    *,
+    repo_root: Path,
+) -> VerifiedPinnedSnapshot:
+    exact = _task7_tokenizer_snapshot_path(path, repo_root=repo_root)
+    try:
+        return verify_pinned_snapshot("2b", snapshot_path=exact)
+    except SnapshotReceiptError as exc:
+        raise FoundationAuthorizationError(
+            f"pinned tokenizer snapshot verification failed: {exc}"
+        ) from exc
+
+
+def _snapshot_scope(
+    verified: VerifiedPinnedSnapshot,
+    *,
+    repo_root: Path,
+) -> dict:
+    return {
+        "path": _repo_relative(verified.snapshot_path, repo_root=repo_root),
+        "model_id": verified.model_id,
+        "revision": verified.revision,
+        "receipt_sha256": verified.receipt_sha256,
+        "snapshot_sha256": verified.snapshot_sha256,
+    }
+
+
+def _scope_snapshot_path(scope: Mapping, *, repo_root: Path) -> Path:
+    binding = scope.get("tokenizer_snapshot")
+    if not isinstance(binding, Mapping):
+        raise FoundationAuthorizationError(
+            "authorization tokenizer snapshot binding is missing"
+        )
+    path = _path_from_binding(binding, repo_root=repo_root)
+    return _task7_tokenizer_snapshot_path(path, repo_root=repo_root)
+
+
+def _assert_snapshot_binding(
+    binding: Mapping,
+    verified: VerifiedPinnedSnapshot,
+    *,
+    repo_root: Path,
+) -> None:
+    expected = _snapshot_scope(verified, repo_root=repo_root)
+    if dict(binding) != expected:
+        raise FoundationAuthorizationError(
+            "authorization tokenizer snapshot binding changed"
+        )
+
+
+def _load_authorization_tokenizer(snapshot: Path):
+    """Load tokenizer metadata only, with network access forced off."""
+
+    previous = {
+        name: os.environ.get(name)
+        for name in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE")
+    }
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    try:
+        try:
+            from transformers import AutoTokenizer
+        except ImportError as exc:
+            raise FoundationAuthorizationError(
+                "transformers is required to recount with the pinned tokenizer"
+            ) from exc
+        return AutoTokenizer.from_pretrained(
+            str(snapshot),
+            local_files_only=True,
+            trust_remote_code=False,
+        )
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
+def _load_and_reverify_tokenizer(
+    verified: VerifiedPinnedSnapshot,
+    *,
+    repo_root: Path,
+    tokenizer_loader,
+):
+    loader = tokenizer_loader or _load_authorization_tokenizer
+    try:
+        tokenizer = loader(verified.snapshot_path)
+    except FoundationAuthorizationError:
+        raise
+    except Exception as exc:
+        raise FoundationAuthorizationError(
+            f"pinned tokenizer load failed: {exc}"
+        ) from exc
+    after_load = _verify_authorization_snapshot(
+        verified.snapshot_path,
+        repo_root=repo_root,
+    )
+    if after_load != verified:
+        raise FoundationAuthorizationError(
+            "pinned tokenizer snapshot changed during local load"
+        )
+    if not callable(getattr(tokenizer, "encode", None)):
+        raise FoundationAuthorizationError("loaded tokenizer has no encode method")
+    return tokenizer
 
 
 @contextmanager
@@ -705,6 +846,8 @@ def _validate_exact_preparation_paths(
 def _validate_preparation_coherence_unchecked(
     scope: Mapping,
     bound_payloads: Mapping[str, BoundArtifactRead],
+    *,
+    tokenizer,
 ) -> dict[str, str]:
     """Prove all held preparation artifacts describe one exact local run."""
 
@@ -775,19 +918,33 @@ def _validate_preparation_coherence_unchecked(
     ):
         raise _coherence_error("preparation scope fields are not exact")
 
-    tokenizer = preparation.get("tokenizer_snapshot")
-    if not isinstance(tokenizer, Mapping) or tokenizer.get("model_id") != spec.model_id:
+    prepared_tokenizer = preparation.get("tokenizer_snapshot")
+    scoped_tokenizer = scope.get("tokenizer_snapshot")
+    if (
+        not isinstance(prepared_tokenizer, Mapping)
+        or prepared_tokenizer.get("model_id") != spec.model_id
+    ):
         raise _coherence_error("preparation tokenizer model differs from scope")
-    if tokenizer.get("revision") != spec.revision:
+    if prepared_tokenizer.get("revision") != spec.revision:
         raise _coherence_error("preparation tokenizer revision differs from scope")
     tokenizer_receipt_digest = _require_digest(
-        tokenizer.get("receipt_sha256"),
+        prepared_tokenizer.get("receipt_sha256"),
         label="tokenizer receipt",
     )
     tokenizer_snapshot_digest = _require_digest(
-        tokenizer.get("snapshot_sha256"),
+        prepared_tokenizer.get("snapshot_sha256"),
         label="tokenizer snapshot",
     )
+    if (
+        not isinstance(scoped_tokenizer, Mapping)
+        or scoped_tokenizer.get("model_id") != spec.model_id
+        or scoped_tokenizer.get("revision") != spec.revision
+        or scoped_tokenizer.get("receipt_sha256") != tokenizer_receipt_digest
+        or scoped_tokenizer.get("snapshot_sha256") != tokenizer_snapshot_digest
+    ):
+        raise _coherence_error(
+            "scope tokenizer snapshot differs from preparation"
+        )
 
     receipt_digests = preparation.get("receipt_sha256")
     expected_receipt_names = set(_RECEIPT_FILENAMES.values())
@@ -844,6 +1001,8 @@ def _validate_preparation_coherence_unchecked(
     record_ids = []
     source_record_ids = []
     record_membership = {}
+    recount_by_source_id = {}
+    recount_total = 0
     for record in records:
         try:
             validate_foundation_record(record)
@@ -888,8 +1047,34 @@ def _validate_preparation_coherence_unchecked(
         source_record_id = source.get("source_record_id")
         if not isinstance(source_record_id, str) or not source_record_id:
             raise _coherence_error("shard source record ID is missing")
+        try:
+            prompt_tokens = len(
+                tokenizer.encode(
+                    rendered["prompt_text"],
+                    add_special_tokens=False,
+                )
+            )
+            target_tokens = len(
+                tokenizer.encode(
+                    rendered["target_text"],
+                    add_special_tokens=False,
+                )
+            )
+        except Exception as exc:
+            raise _coherence_error(
+                f"pinned tokenizer recount failed: {exc}"
+            ) from exc
+        if prompt_tokens <= 0 or target_tokens <= 0:
+            raise _coherence_error(
+                "pinned tokenizer recount produced an empty record component"
+            )
         record_ids.append(record_id)
         source_record_ids.append(source_record_id)
+        recount_by_source_id[source_record_id] = (
+            prompt_tokens,
+            target_tokens,
+        )
+        recount_total += prompt_tokens + target_tokens
         record_membership[record_id] = _canonical_record_digest(record)
     if len(record_ids) != len(set(record_ids)):
         raise _coherence_error("shard record IDs are not unique")
@@ -917,6 +1102,7 @@ def _validate_preparation_coherence_unchecked(
         != "read_only_external_corpus"
         or shard_manifest.get("token_ceiling") != token_ceiling
         or expected_inventory["token_count"] > token_ceiling
+        or recount_total > token_ceiling
     ):
         raise _coherence_error("shard bytes, manifest, and preparation differ")
 
@@ -989,7 +1175,7 @@ def _validate_preparation_coherence_unchecked(
         != source_integrity.get("all_ten_after")
         or not isinstance(source_integrity.get("all_ten_before"), Mapping)
         or source_integrity["all_ten_before"].get("complete") is not True
-        or source_integrity.get("tokenizer_snapshot") != tokenizer
+        or source_integrity.get("tokenizer_snapshot") != prepared_tokenizer
     ):
         raise _coherence_error("source integrity receipt contradicts source gate")
 
@@ -1432,7 +1618,6 @@ def _validate_preparation_coherence_unchecked(
         raise _coherence_error("diversity receipt differs from shard inventory")
 
     selection = parsed["selection_receipt"]
-    total_tokens = sum(record["tokenization"]["total_tokens"] for record in records)
     resolved_count = sum(
         record["observations"]["labels"]["resolved"] is True
         for record in records
@@ -1447,8 +1632,8 @@ def _validate_preparation_coherence_unchecked(
         or type(selection.get("candidate_record_count")) is not int
         or selection["candidate_record_count"] < len(records)
         or selection.get("selected_record_ids") != record_ids
-        or selection.get("selected_token_count") != total_tokens
-        or selection.get("tokenizer_recount_total") != total_tokens
+        or selection.get("selected_token_count") != recount_total
+        or selection.get("tokenizer_recount_total") != recount_total
         or selection.get("resolved_count") != resolved_count
         or selection.get("unresolved_count") != len(records) - resolved_count
         or not _is_exact_positive_zero(
@@ -1551,6 +1736,7 @@ def _validate_preparation_coherence_unchecked(
         ):
             raise _coherence_error("shard record does not join to its train split")
         try:
+            prompt_tokens, target_tokens = recount_by_source_id[source_id]
             validate_derived_foundation_record(
                 record,
                 example=examples_by_id[source_id],
@@ -1559,6 +1745,8 @@ def _validate_preparation_coherence_unchecked(
                 source_receipt_hashes=tuple(source_receipt_hashes),
                 tokenizer_id=spec.model_id,
                 tokenizer_revision=spec.revision,
+                prompt_tokens=prompt_tokens,
+                target_tokens=target_tokens,
             )
         except FoundationRecordError as exc:
             raise _coherence_error(
@@ -1571,11 +1759,17 @@ def _validate_preparation_coherence_unchecked(
 def _validate_preparation_coherence(
     scope: Mapping,
     bound_payloads: Mapping[str, BoundArtifactRead],
+    *,
+    tokenizer,
 ) -> dict[str, str]:
     """Fail closed around the shared held-byte semantic validator."""
 
     try:
-        return _validate_preparation_coherence_unchecked(scope, bound_payloads)
+        return _validate_preparation_coherence_unchecked(
+            scope,
+            bound_payloads,
+            tokenizer=tokenizer,
+        )
     except FoundationAuthorizationError:
         raise
     except (
@@ -1594,6 +1788,8 @@ def build_authorization_candidate(
     repo_root: Path,
     code_commit: str,
     model_key: str = "2b",
+    _tokenizer=None,
+    _tokenizer_loader=None,
 ) -> Path:
     """Build a nonauthorizing exact-scope candidate after preparation stabilizes."""
 
@@ -1602,6 +1798,39 @@ def build_authorization_candidate(
     if model_key not in ("2b", "4b"):
         raise FoundationAuthorizationError("only pinned 2b or 4b models may be authorized")
     spec = MODEL_SPECS[model_key]
+    snapshot_path = getattr(preparation, "tokenizer_snapshot_path", None)
+    if not isinstance(snapshot_path, Path):
+        raise FoundationAuthorizationError(
+            "preparation tokenizer snapshot path is missing"
+        )
+    verified_snapshot = _verify_authorization_snapshot(
+        snapshot_path,
+        repo_root=root,
+    )
+    if _tokenizer is not None and _tokenizer_loader is not None:
+        raise FoundationAuthorizationError(
+            "provide either an already loaded tokenizer or a tokenizer loader"
+        )
+    if _tokenizer is None:
+        tokenizer = _load_and_reverify_tokenizer(
+            verified_snapshot,
+            repo_root=root,
+            tokenizer_loader=_tokenizer_loader,
+        )
+    else:
+        tokenizer = _tokenizer
+        if not callable(getattr(tokenizer, "encode", None)):
+            raise FoundationAuthorizationError(
+                "provided tokenizer has no encode method"
+            )
+        after_ready = _verify_authorization_snapshot(
+            verified_snapshot.snapshot_path,
+            repo_root=root,
+        )
+        if after_ready != verified_snapshot:
+            raise FoundationAuthorizationError(
+                "pinned tokenizer snapshot changed before recount"
+            )
     artifact_paths = _artifact_paths_from_preparation(preparation)
     evidence_paths = _evidence_paths_from_preparation(preparation)
     all_paths = {**artifact_paths, **evidence_paths}
@@ -1713,6 +1942,10 @@ def build_authorization_candidate(
                 "tokenizer_id": spec.model_id,
                 "tokenizer_revision": spec.revision,
             },
+            "tokenizer_snapshot": _snapshot_scope(
+                verified_snapshot,
+                repo_root=root,
+            ),
             "stage": stage,
             "token_ceiling": token_ceiling,
             "local_profile": copy.deepcopy(_LOCAL_PROFILE),
@@ -1728,7 +1961,16 @@ def build_authorization_candidate(
         _validate_preparation_coherence(
             scope,
             {name: item.read for name, item in held.items()},
+            tokenizer=tokenizer,
         )
+        after_recount = _verify_authorization_snapshot(
+            verified_snapshot.snapshot_path,
+            repo_root=root,
+        )
+        if after_recount != verified_snapshot:
+            raise FoundationAuthorizationError(
+                "pinned tokenizer snapshot changed during authorization recount"
+            )
         digest = authorization_scope_digest(scope)
         candidate = {
             "manifest_kind": "pneuma_foundation_training_authorization",
@@ -1818,7 +2060,12 @@ def finalize_authorization(
 
     repo_root = _repo_from_authorization_path(candidate_path)
     candidate_path = _absolute_lexical(candidate_path)
-    with _hold_artifacts({"candidate": candidate_path}, repo_root=repo_root) as held:
+    with _hold_artifacts(
+        {"candidate": candidate_path},
+        repo_root=repo_root,
+        max_sizes={"candidate": _AUTHORIZATION_MANIFEST_SIZE_CEILING},
+        max_total_size=_AUTHORIZATION_MANIFEST_SIZE_CEILING,
+    ) as held:
         candidate = _strict_json_bytes(
             held["candidate"].read.payload,
             label="authorization candidate",
@@ -1911,6 +2158,32 @@ def _assert_exact_scope(scope: Mapping, *, repo_root: Path) -> None:
         "tokenizer_revision": spec.revision,
     }:
         raise FoundationAuthorizationError("authorization does not match the model/tokenizer pin")
+    tokenizer_snapshot = scope.get("tokenizer_snapshot")
+    if (
+        not isinstance(tokenizer_snapshot, Mapping)
+        or set(tokenizer_snapshot)
+        != {
+            "path",
+            "model_id",
+            "revision",
+            "receipt_sha256",
+            "snapshot_sha256",
+        }
+        or tokenizer_snapshot.get("model_id") != MODEL_SPECS["2b"].model_id
+        or tokenizer_snapshot.get("revision") != MODEL_SPECS["2b"].revision
+    ):
+        raise FoundationAuthorizationError(
+            "authorization tokenizer snapshot binding is not exact"
+        )
+    _require_digest(
+        tokenizer_snapshot.get("receipt_sha256"),
+        label="authorization tokenizer receipt",
+    )
+    _require_digest(
+        tokenizer_snapshot.get("snapshot_sha256"),
+        label="authorization tokenizer snapshot",
+    )
+    _scope_snapshot_path(scope, repo_root=repo_root)
     stage = scope.get("stage")
     if stage not in _STAGE_TOKEN_CEILINGS:
         raise FoundationAuthorizationError("authorization stage is unknown")
@@ -1944,6 +2217,7 @@ def verify_foundation_authorization(
     *,
     repo_root: Path,
     registry_path: Path | None = None,
+    _tokenizer_loader=None,
 ) -> VerifiedFoundationAuthorization:
     """Verify one exact final authorization and every held artifact before use."""
 
@@ -2004,6 +2278,21 @@ def verify_foundation_authorization(
                 raise FoundationAuthorizationError("operator approval is invalid")
             _validated_utc_timestamp(approval["approved_at"])
             _assert_exact_scope(scope, repo_root=root)
+            snapshot_path = _scope_snapshot_path(scope, repo_root=root)
+            verified_snapshot = _verify_authorization_snapshot(
+                snapshot_path,
+                repo_root=root,
+            )
+            _assert_snapshot_binding(
+                scope["tokenizer_snapshot"],
+                verified_snapshot,
+                repo_root=root,
+            )
+            tokenizer = _load_and_reverify_tokenizer(
+                verified_snapshot,
+                repo_root=root,
+                tokenizer_loader=_tokenizer_loader,
+            )
             bindings = scope["artifacts"]
             if set(bindings) != set(_ARTIFACT_FIELDS):
                 raise FoundationAuthorizationError("authorization artifact set is incomplete")
@@ -2054,7 +2343,16 @@ def verify_foundation_authorization(
                         name: item.read
                         for name, item in artifact_held.items()
                     },
+                    tokenizer=tokenizer,
                 )
+                after_recount = _verify_authorization_snapshot(
+                    verified_snapshot.snapshot_path,
+                    repo_root=root,
+                )
+                if after_recount != verified_snapshot:
+                    raise FoundationAuthorizationError(
+                        "pinned tokenizer snapshot changed during final recount"
+                    )
                 _revalidate_held(artifact_held)
                 _revalidate_held(authorization_held)
                 frozen_manifest = _deep_freeze(copy.deepcopy(manifest))
@@ -2149,7 +2447,15 @@ def apply_verified_authorization(
     effective_weight = authorization.authorized_lane_weights[lane]
     if type(effective_weight) is not float or effective_weight <= 0 or not math.isfinite(effective_weight):
         raise FoundationAuthorizationError("authorized effective weight is invalid")
-    return EffectiveTrainingRecord(record=record, effective_weight=effective_weight)
+    try:
+        return _make_effective_training_record(
+            record,
+            effective_weight=effective_weight,
+        )
+    except FoundationRecordError as exc:
+        raise FoundationAuthorizationError(
+            f"effective training record could not be sealed: {exc}"
+        ) from exc
 
 
 __all__ = [

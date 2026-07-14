@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import copy
+from dataclasses import replace
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
+import pickle
 import shutil
 import subprocess
 from types import MappingProxyType
@@ -23,10 +25,10 @@ from pneuma_lab.foundation.authorization import (
     apply_verified_authorization,
     artifact_binding,
     authorization_scope_digest,
-    build_authorization_candidate,
+    build_authorization_candidate as _build_authorization_candidate,
     finalize_authorization,
     required_approval_phrase,
-    verify_foundation_authorization,
+    verify_foundation_authorization as _verify_foundation_authorization,
 )
 from pneuma_lab.foundation.data import (
     ACTIVE_DATASET_GROUPS,
@@ -34,12 +36,14 @@ from pneuma_lab.foundation.data import (
 )
 from pneuma_lab.foundation.preparation import PreparationResult
 from pneuma_lab.foundation.records import (
+    EffectiveTrainingRecord,
     GradientEligibility,
     LaneDisposition,
     TerminalRole,
     render_foundation_record,
 )
 from pneuma_lab.foundation.specs import MODEL_SPECS
+from pneuma_lab.foundation.snapshot_receipt import verify_pinned_snapshot
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +54,50 @@ class ByteTokenizer:
     def encode(self, text: str, *, add_special_tokens: bool) -> list[int]:
         assert add_special_tokens is False
         return list(text.encode("utf-8"))
+
+
+def build_authorization_candidate(*args, **kwargs):
+    kwargs.setdefault("_tokenizer", ByteTokenizer())
+    return _build_authorization_candidate(*args, **kwargs)
+
+
+def verify_foundation_authorization(*args, **kwargs):
+    kwargs.setdefault("_tokenizer_loader", lambda _path: ByteTokenizer())
+    return _verify_foundation_authorization(*args, **kwargs)
+
+
+def _write_pinned_tokenizer_snapshot(snapshot: Path):
+    spec = MODEL_SPECS["2b"]
+    snapshot.mkdir(parents=True)
+    files = {
+        "config.json": json.dumps(
+            {
+                "hidden_size": spec.hidden_size,
+                "layer_types": list(spec.expected_layer_types),
+                "num_hidden_layers": spec.layer_count,
+            },
+            sort_keys=True,
+        ).encode("utf-8"),
+        "tokenizer.json": b'{"fixture":"byte-tokenizer"}\n',
+    }
+    for name, payload in files.items():
+        (snapshot / name).write_bytes(payload)
+    receipt = {
+        "receipt_kind": "pneuma_pinned_model_snapshot",
+        "receipt_schema_version": "0.1.0",
+        "model_id": spec.model_id,
+        "revision": spec.revision,
+        "files": [
+            {
+                "path": name,
+                "size": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+            for name, payload in sorted(files.items())
+        ],
+    }
+    _write_json(snapshot / "pneuma-snapshot-receipt.json", receipt)
+    return verify_pinned_snapshot("2b", snapshot_path=snapshot)
 
 
 def _git(repo: Path, *arguments: str) -> str:
@@ -105,8 +153,12 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
 
     output = repo / "build/foundation/preparation/100k"
     spec = MODEL_SPECS["2b"]
-    tokenizer_receipt_sha256 = "1" * 64
-    tokenizer_snapshot_sha256 = "2" * 64
+    tokenizer_snapshot_path = (
+        repo / "build/model-cache/models/2b" / spec.revision
+    )
+    verified_snapshot = _write_pinned_tokenizer_snapshot(tokenizer_snapshot_path)
+    tokenizer_receipt_sha256 = verified_snapshot.receipt_sha256
+    tokenizer_snapshot_sha256 = verified_snapshot.snapshot_sha256
     conversion_root = output / "conversion"
     conversion_root.mkdir(parents=True)
     trace_path = (
@@ -469,6 +521,7 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
     )
     candidate = repo / "build/foundation/authorizations/candidates/100k.json"
     preparation = PreparationResult(
+        tokenizer_snapshot_path=tokenizer_snapshot_path,
         preparation_manifest_path=output / "preparation_manifest.json",
         suite_report_path=output / "suite_report.json",
         license_receipt_path=output / "license_receipt.json",
@@ -808,6 +861,17 @@ def test_candidate_is_exact_non_authorizing_and_cannot_verify(tmp_path: Path) ->
     assert candidate["scope"]["authorized_lane_weights"] == {
         "swe-gym-openhands-sampled": 1.0
     }
+    assert candidate["scope"]["tokenizer_snapshot"] == {
+        "path": preparation.tokenizer_snapshot_path.relative_to(repo).as_posix(),
+        "model_id": MODEL_SPECS["2b"].model_id,
+        "revision": MODEL_SPECS["2b"].revision,
+        "receipt_sha256": verify_pinned_snapshot(
+            "2b", snapshot_path=preparation.tokenizer_snapshot_path
+        ).receipt_sha256,
+        "snapshot_sha256": verify_pinned_snapshot(
+            "2b", snapshot_path=preparation.tokenizer_snapshot_path
+        ).snapshot_sha256,
+    }
     assert set(candidate["scope"]["evidence_artifacts"]["conversion"]) == {
         "examples",
         "invalid_examples",
@@ -1019,7 +1083,10 @@ def test_candidate_rejects_internally_coherent_sibling_preparation_root(
     shutil.copytree(original_root, sibling_root)
     sibling = copy.copy(preparation)
     for field in preparation.__dataclass_fields__:
-        if field == "authorization_candidate_path":
+        if field in {
+            "authorization_candidate_path",
+            "tokenizer_snapshot_path",
+        }:
             continue
         value = getattr(preparation, field)
         if isinstance(value, Mapping):
@@ -1299,6 +1366,114 @@ def test_candidate_rejects_rehashed_underived_rendered_record(
         )
 
 
+def test_candidate_independently_recounts_every_shard_record(tmp_path: Path) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    record = json.loads(
+        preparation.shard_path.read_text(encoding="utf-8").splitlines()[0]
+    )
+    assert record["tokenization"]["prompt_tokens"] > 1
+    record["tokenization"].update(
+        prompt_tokens=1,
+        target_tokens=1,
+        total_tokens=2,
+    )
+    preparation.shard_path.write_bytes(_canonical_json_bytes(record))
+    _refresh_derived_preparation(preparation)
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="token|recount|deriv|coher",
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+        )
+
+
+def test_candidate_rejects_snapshot_outside_task7_cache_contract(
+    tmp_path: Path,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    outside = repo / "build/model-cache/copied-snapshot"
+    shutil.copytree(preparation.tokenizer_snapshot_path, outside)
+    escaped = replace(preparation, tokenizer_snapshot_path=outside)
+
+    with pytest.raises(FoundationAuthorizationError, match="snapshot|models/2b|path"):
+        build_authorization_candidate(
+            escaped,
+            repo_root=repo,
+            code_commit=commit,
+        )
+
+
+def test_candidate_rejects_snapshot_mutation_during_tokenizer_load(
+    tmp_path: Path,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+
+    def mutate_during_load(snapshot: Path):
+        tokenizer_json = snapshot / "tokenizer.json"
+        tokenizer_json.write_bytes(b'{"fixture":"mutated-tokenizer"}\n')
+        return ByteTokenizer()
+
+    with pytest.raises(FoundationAuthorizationError, match="snapshot|digest|receipt"):
+        _build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+            _tokenizer_loader=mutate_during_load,
+        )
+
+
+def test_candidate_standalone_path_uses_offline_tokenizer_loader(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from pneuma_lab.foundation import authorization
+
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    loaded = []
+
+    def load(snapshot: Path):
+        loaded.append(snapshot)
+        return ByteTokenizer()
+
+    monkeypatch.setattr(authorization, "_load_authorization_tokenizer", load)
+    candidate = _build_authorization_candidate(
+        preparation,
+        repo_root=repo,
+        code_commit=commit,
+    )
+
+    assert candidate.is_file()
+    assert loaded == [preparation.tokenizer_snapshot_path]
+
+
+def test_candidate_rejects_snapshot_mutation_during_recount(
+    tmp_path: Path,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+
+    class MutatingTokenizer(ByteTokenizer):
+        mutated = False
+
+        def encode(self, text: str, *, add_special_tokens: bool) -> list[int]:
+            if not self.mutated:
+                self.mutated = True
+                tokenizer_json = preparation.tokenizer_snapshot_path / "tokenizer.json"
+                tokenizer_json.write_bytes(b'{"fixture":"mutated-recount"}\n')
+            return super().encode(text, add_special_tokens=add_special_tokens)
+
+    with pytest.raises(FoundationAuthorizationError, match="snapshot|digest|receipt"):
+        _build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+            _tokenizer=MutatingTokenizer(),
+        )
+
+
 def test_exact_final_handshake_verifies_and_applies_one_lane(tmp_path: Path) -> None:
     repo, preparation, _commit, final_path = _build_and_finalize(tmp_path)
     verified = verify_foundation_authorization(final_path, repo_root=repo)
@@ -1337,6 +1512,12 @@ def test_exact_final_handshake_verifies_and_applies_one_lane(tmp_path: Path) -> 
         effective.record["forecast_targets"]["action_success"]["value"] = 0.0
     with pytest.raises(AttributeError):
         effective.record["observations"]["tools"].append("direct change")
+    with pytest.raises((FoundationAuthorizationError, TypeError, ValueError), match="authoriz"):
+        EffectiveTrainingRecord(record=before, effective_weight=1.0)
+    with pytest.raises((FoundationAuthorizationError, TypeError, ValueError)):
+        replace(effective, effective_weight=2.0)
+    with pytest.raises(TypeError, match="pickle"):
+        pickle.dumps(effective)
 
 
 def test_apply_requires_exact_verified_shard_membership(tmp_path: Path) -> None:
@@ -1449,6 +1630,49 @@ def test_finalize_rejects_duplicate_and_nonfinite_candidate_json(tmp_path: Path)
             operator_id="operator",
             approved_at=APPROVED_AT,
             output_path=repo / "build/foundation/authorizations/final/100k.json",
+        )
+
+
+def test_finalize_rejects_oversized_candidate_before_parsing(tmp_path: Path) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    candidate_path = build_authorization_candidate(
+        preparation,
+        repo_root=repo,
+        code_commit=commit,
+    )
+    candidate_path.write_bytes(b"{" + b" " * (9 * 1024 * 1024))
+
+    with pytest.raises(FoundationAuthorizationError, match="size ceiling"):
+        finalize_authorization(
+            candidate_path,
+            supplied_scope_digest="0" * 64,
+            supplied_approval_phrase="wrong",
+            operator_id="operator",
+            approved_at=APPROVED_AT,
+            output_path=repo / "build/foundation/authorizations/final/100k.json",
+        )
+
+
+def test_final_verification_rejects_snapshot_mutation_during_recount(
+    tmp_path: Path,
+) -> None:
+    repo, preparation, _commit, final_path = _build_and_finalize(tmp_path)
+
+    class MutatingTokenizer(ByteTokenizer):
+        mutated = False
+
+        def encode(self, text: str, *, add_special_tokens: bool) -> list[int]:
+            if not self.mutated:
+                self.mutated = True
+                tokenizer_json = preparation.tokenizer_snapshot_path / "tokenizer.json"
+                tokenizer_json.write_bytes(b'{"fixture":"mutated-final"}\n')
+            return super().encode(text, add_special_tokens=add_special_tokens)
+
+    with pytest.raises(FoundationAuthorizationError, match="snapshot|digest|receipt"):
+        _verify_foundation_authorization(
+            final_path,
+            repo_root=repo,
+            _tokenizer_loader=lambda _path: MutatingTokenizer(),
         )
 
 
@@ -1651,6 +1875,20 @@ def test_verify_rejects_rehashed_4b_scope_over_2b_preparation(
     _resign_final_scope(final_path, repo)
 
     with pytest.raises(FoundationAuthorizationError, match="2b|4b|model|tokenizer|coher"):
+        verify_foundation_authorization(final_path, repo_root=repo)
+
+
+def test_verify_rejects_rehashed_wrong_snapshot_binding(tmp_path: Path) -> None:
+    repo, _preparation, _commit, final_path = _build_and_finalize(tmp_path)
+    manifest = _strict_json(final_path)
+    manifest["scope"]["tokenizer_snapshot"]["snapshot_sha256"] = "0" * 64
+    _write_json(final_path, manifest)
+    _resign_final_scope(final_path, repo)
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="snapshot|binding|digest",
+    ):
         verify_foundation_authorization(final_path, repo_root=repo)
 
 

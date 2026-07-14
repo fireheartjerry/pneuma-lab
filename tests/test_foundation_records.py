@@ -374,26 +374,11 @@ def test_record_identity_is_outside_tokens_and_rendering_is_deterministic(
     )
 
 
-def test_effective_training_record_requires_positive_in_memory_weight(tokenizer) -> None:
+def test_effective_training_record_cannot_be_constructed_publicly(tokenizer) -> None:
     record = _render(tokenizer)
-    effective = EffectiveTrainingRecord(record=record, effective_weight=1.0)
-    assert effective.record is not record
-    assert effective.record["rendered"]["target_text"] == record["rendered"][
-        "target_text"
-    ]
-    assert tuple(effective.record["observations"]["tools"]) == tuple(
-        record["observations"]["tools"]
-    )
-    assert effective.effective_weight == 1.0
-    record["rendered"]["target_text"] = "caller mutation"
-    assert effective.record["rendered"]["target_text"] == '{"resolved":true}'
-    with pytest.raises(TypeError):
-        effective.record["rendered"]["target_text"] = "direct mutation"
-    with pytest.raises((AttributeError, TypeError)):
-        effective.record["observations"]["tools"].append("mutation")
-    for invalid in (0.0, -1.0, float("nan"), float("inf"), True):
-        with pytest.raises(FoundationRecordError, match="effective_weight"):
-            EffectiveTrainingRecord(record=record, effective_weight=invalid)
+    for weight in (1.0, 0.0, -1.0, float("nan"), float("inf"), True):
+        with pytest.raises((FoundationRecordError, TypeError), match="authoriz"):
+            EffectiveTrainingRecord(record=record, effective_weight=weight)
 
 
 def test_derived_record_validator_accepts_exact_converter_derivation(tokenizer) -> None:
@@ -408,6 +393,8 @@ def test_derived_record_validator_accepts_exact_converter_derivation(tokenizer) 
         source_receipt_hashes=("a" * 64, "b" * 64),
         tokenizer_id="Qwen/Qwen3.5-2B",
         tokenizer_revision="1" * 40,
+        prompt_tokens=record["tokenization"]["prompt_tokens"],
+        target_tokens=record["tokenization"]["target_tokens"],
     )
 
 
@@ -440,6 +427,8 @@ def test_derived_record_validator_rejects_changed_derived_fields(
             source_receipt_hashes=("a" * 64, "b" * 64),
             tokenizer_id="Qwen/Qwen3.5-2B",
             tokenizer_revision="1" * 40,
+            prompt_tokens=record["tokenization"]["prompt_tokens"],
+            target_tokens=record["tokenization"]["target_tokens"],
         )
 
 
@@ -461,6 +450,26 @@ def test_derived_record_validator_rejects_incomplete_conversion_example(
             source_receipt_hashes=("a" * 64, "b" * 64),
             tokenizer_id="Qwen/Qwen3.5-2B",
             tokenizer_revision="1" * 40,
+            prompt_tokens=record["tokenization"]["prompt_tokens"],
+            target_tokens=record["tokenization"]["target_tokens"],
+        )
+
+
+def test_derived_record_validator_rejects_unverified_token_counts(tokenizer) -> None:
+    example = _canonical_openhands_example(resolved=True)
+    record = _render_example(tokenizer, example)
+
+    with pytest.raises(FoundationRecordError, match="derivation"):
+        validate_derived_foundation_record(
+            record,
+            example=example,
+            split_assignment={"split_id": "train", "quarantine_id": None},
+            lane_disposition=_lane_disposition(),
+            source_receipt_hashes=("a" * 64, "b" * 64),
+            tokenizer_id="Qwen/Qwen3.5-2B",
+            tokenizer_revision="1" * 40,
+            prompt_tokens=1,
+            target_tokens=1,
         )
 
 

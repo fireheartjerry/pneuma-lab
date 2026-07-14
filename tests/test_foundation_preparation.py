@@ -93,6 +93,7 @@ def test_preparation_public_contract_exists() -> None:
     assert request.seed == 20260713
     assert request.dry_run is False
     assert set(PreparationResult.__dataclass_fields__) == {
+        "tokenizer_snapshot_path",
         "preparation_manifest_path",
         "suite_report_path",
         "license_receipt_path",
@@ -313,7 +314,11 @@ def _prepare_fixture(tmp_path: Path):
             + "\n",
             encoding="utf-8",
         )
-    tokenizer_snapshot = repo_root / "build/model-cache/2b/snapshot"
+    tokenizer_snapshot = (
+        repo_root
+        / "build/model-cache/models/2b"
+        / MODEL_SPECS["2b"].revision
+    )
     _write_pinned_tokenizer_snapshot(tokenizer_snapshot)
     request = PreparationRequest(
         stage="100k",
@@ -347,6 +352,8 @@ def _prepare_fixture(tmp_path: Path):
 def _result_files(result) -> tuple[Path, ...]:
     paths = []
     for field in result.__dataclass_fields__:
+        if field == "tokenizer_snapshot_path":
+            continue
         value = getattr(result, field)
         if field == "eval_identity_paths":
             paths.extend(Path(path) for path in value.values())
@@ -882,13 +889,23 @@ def test_prepare_stage_builds_candidate_only_after_every_receipt_is_stable(
     monkeypatch.setattr(preparation, "_load_tokenizer", lambda path: ByteTokenizer())
     calls = []
 
-    def observe_candidate(prepared, *, repo_root, code_commit, model_key="2b"):
+    def observe_candidate(
+        prepared,
+        *,
+        repo_root,
+        code_commit,
+        model_key="2b",
+        _tokenizer=None,
+    ):
         assert repo_root == request.repo_root
         assert model_key == "2b"
+        assert isinstance(_tokenizer, ByteTokenizer)
         assert len(code_commit) == 40
         for field in prepared.__dataclass_fields__:
             value = getattr(prepared, field)
-            if field != "authorization_candidate_path":
+            if field == "tokenizer_snapshot_path":
+                assert Path(value).is_dir()
+            elif field != "authorization_candidate_path":
                 paths = value.values() if isinstance(value, dict) else (value,)
                 assert all(Path(path).is_file() for path in paths), field
         calls.append(prepared.authorization_candidate_path)

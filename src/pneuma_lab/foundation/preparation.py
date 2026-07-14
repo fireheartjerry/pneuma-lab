@@ -116,6 +116,7 @@ class PreparationRequest:
 
 @dataclass(frozen=True)
 class PreparationResult:
+    tokenizer_snapshot_path: Path
     preparation_manifest_path: Path
     suite_report_path: Path
     license_receipt_path: Path
@@ -738,12 +739,14 @@ def _result_paths(
     repo_root: Path,
     stage: str,
     output_root: Path,
+    tokenizer_snapshot_path: Path,
     shard_path: Path,
     shard_manifest_path: Path,
     eval_families: Iterable[str],
 ) -> PreparationResult:
     conversion_root = output_root / "conversion"
     return PreparationResult(
+        tokenizer_snapshot_path=tokenizer_snapshot_path,
         preparation_manifest_path=output_root / "preparation_manifest.json",
         suite_report_path=output_root / "suite_report.json",
         license_receipt_path=output_root / "license_receipt.json",
@@ -775,6 +778,33 @@ def _result_paths(
 
 def deterministic_split(repo: str) -> str:
     return _split_from_canonical_repo(_canonical_repo_key(repo))
+
+
+def _task7_tokenizer_snapshot_path(repo_root: Path, snapshot: Path) -> Path:
+    """Require <cache_root>/models/2b/<revision> physically beneath build/."""
+
+    candidate = Path(snapshot)
+    if not candidate.is_absolute() or ".." in candidate.parts:
+        raise ValueError("tokenizer snapshot path must be absolute without traversal")
+    root = Path(os.path.abspath(repo_root))
+    candidate = Path(os.path.abspath(candidate))
+    try:
+        relative = candidate.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(
+            "tokenizer snapshot must be under repository build/"
+        ) from exc
+    expected_suffix = ("models", "2b", MODEL_SPECS["2b"].revision)
+    if (
+        len(relative.parts) < 5
+        or relative.parts[0] != "build"
+        or tuple(relative.parts[-3:]) != expected_suffix
+    ):
+        raise ValueError(
+            "tokenizer snapshot must match build/<cache_root>/models/2b/"
+            f"{MODEL_SPECS['2b'].revision}"
+        )
+    return candidate
 
 
 def _validated_selection_record(record, *, index: int) -> dict:
@@ -884,6 +914,10 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         raise ValueError(
             "preparation output root must be the exact repository stage root"
         )
+    tokenizer_snapshot_path = _task7_tokenizer_snapshot_path(
+        repo_root,
+        request.tokenizer_snapshot,
+    )
     try:
         _validate_output_path(
             repo_root=repo_root,
@@ -937,13 +971,13 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         raise ValueError("committed OpenHands license receipt posture is invalid")
     verified_tokenizer_snapshot = verify_pinned_snapshot(
         "2b",
-        snapshot_path=request.tokenizer_snapshot,
+        snapshot_path=tokenizer_snapshot_path,
     )
     _after_initial_tokenizer_snapshot_verification(verified_tokenizer_snapshot)
     tokenizer = _load_tokenizer(verified_tokenizer_snapshot.snapshot_path)
     loaded_tokenizer_snapshot = verify_pinned_snapshot(
         "2b",
-        snapshot_path=request.tokenizer_snapshot,
+        snapshot_path=tokenizer_snapshot_path,
     )
     if loaded_tokenizer_snapshot != verified_tokenizer_snapshot:
         raise ValueError("tokenizer snapshot binding changed during local load")
@@ -1082,7 +1116,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
     split_receipt = _build_split_receipt(assignments)
     final_tokenizer_snapshot = verify_pinned_snapshot(
         "2b",
-        snapshot_path=request.tokenizer_snapshot,
+        snapshot_path=tokenizer_snapshot_path,
     )
     if final_tokenizer_snapshot != verified_tokenizer_snapshot:
         raise ValueError("tokenizer snapshot binding changed during tokenization")
@@ -1125,6 +1159,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         repo_root,
         request.stage,
         output_root,
+        verified_tokenizer_snapshot.snapshot_path,
         planned_shard_path,
         planned_shard_manifest_path,
         required_families,
@@ -1224,6 +1259,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         repo_root,
         request.stage,
         output_root,
+        verified_tokenizer_snapshot.snapshot_path,
         shard_result.shard_path,
         shard_result.manifest_path,
         required_families,
@@ -1413,6 +1449,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         result,
         repo_root=repo_root,
         code_commit=code_commit,
+        _tokenizer=tokenizer,
     )
     if candidate_path != result.authorization_candidate_path:
         raise ValueError("authorization candidate path differs from preparation plan")
