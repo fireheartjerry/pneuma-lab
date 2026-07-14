@@ -127,6 +127,7 @@ class PreparationResult:
     contamination_receipt_path: Path
     diversity_receipt_path: Path
     selection_receipt_path: Path
+    authorization_candidate_path: Path
 
 
 class _DigestingBinaryStream:
@@ -729,6 +730,8 @@ def _planned_shard_paths(
 
 
 def _result_paths(
+    repo_root: Path,
+    stage: str,
     output_root: Path,
     shard_path: Path,
     shard_manifest_path: Path,
@@ -745,6 +748,11 @@ def _result_paths(
         contamination_receipt_path=output_root / "contamination_receipt.json",
         diversity_receipt_path=output_root / "diversity_receipt.json",
         selection_receipt_path=output_root / "selection_receipt.json",
+        authorization_candidate_path=(
+            repo_root
+            / "build/foundation/authorizations/candidates"
+            / f"{stage}.json"
+        ),
     )
 
 
@@ -1090,6 +1098,8 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         output_root,
     )
     planned_result = _result_paths(
+        repo_root,
+        request.stage,
         output_root,
         planned_shard_path,
         planned_shard_manifest_path,
@@ -1170,6 +1180,8 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         data_root=data_root,
     )
     result = _result_paths(
+        repo_root,
+        request.stage,
         output_root,
         shard_result.shard_path,
         shard_result.manifest_path,
@@ -1239,6 +1251,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         "manifest_kind": "pneuma_foundation_preparation_manifest",
         "manifest_schema_version": "0.1.0",
         "stage": request.stage,
+        "token_ceiling": STAGE_TOKEN_CEILINGS[request.stage],
         "seed": request.seed,
         "dry_run": False,
         "dataset_suite": "all_ten_governed_groups",
@@ -1339,6 +1352,19 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
             )
     except ArtifactPublicationError as exc:
         raise ValueError(f"preparation receipt publication failed: {exc}") from exc
+    from pneuma_lab.foundation.authorization import (
+        build_authorization_candidate,
+        current_clean_code_commit,
+    )
+
+    code_commit = current_clean_code_commit(repo_root)
+    candidate_path = build_authorization_candidate(
+        result,
+        repo_root=repo_root,
+        code_commit=code_commit,
+    )
+    if candidate_path != result.authorization_candidate_path:
+        raise ValueError("authorization candidate path differs from preparation plan")
     return result
 
 

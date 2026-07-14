@@ -25,8 +25,32 @@ def test_pending_foundation_authorization_is_schema_valid_and_non_authorizing() 
     value = json.loads(path.read_text(encoding="utf-8"))
     _assert_valid(value, "foundation-training-authorization.schema.json")
     assert value["authorization_status"] == "not_authorized"
-    assert value["dataset_policy"]["positive_weight_groups"] == []
-    assert value["source_data_policy"]["write_allowed"] is False
+    assert value["manifest_schema_version"] == "0.2.0"
+    assert value["scope"] is None
+    assert value["scope_digest"] is None
+    assert value["operator_approval"] is None
+
+
+def test_foundation_authorization_schema_requires_exact_nested_scope() -> None:
+    schema = pls.load_schema("foundation-training-authorization.schema.json")
+    assert schema["x-pneuma-version"] == "0.2.0"
+    assert schema["additionalProperties"] is False
+    scope = schema["$defs"]["scope"]
+    assert scope["additionalProperties"] is False
+    assert set(scope["properties"]["artifacts"]["required"]) == {
+        "preparation_manifest",
+        "suite_report",
+        "license_receipt",
+        "source_presence_receipt",
+        "source_integrity_receipt",
+        "shard",
+        "shard_manifest",
+        "split_receipt",
+        "contamination_receipt",
+        "diversity_receipt",
+        "selection_receipt",
+    }
+    assert scope["properties"]["authorized_lane_weights"]["additionalProperties"] is False
 
 
 def test_learned_subject_profile_validates_without_level_fields() -> None:

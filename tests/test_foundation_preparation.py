@@ -104,6 +104,7 @@ def test_preparation_public_contract_exists() -> None:
         "contamination_receipt_path",
         "diversity_receipt_path",
         "selection_receipt_path",
+        "authorization_candidate_path",
     }
     assert callable(deterministic_split)
     assert callable(select_complete_records)
@@ -316,6 +317,25 @@ def _prepare_fixture(tmp_path: Path):
         tokenizer_snapshot=tokenizer_snapshot,
         output_root=repo_root / "build/foundation/preparation/100k",
     )
+    _copy_committed(ROOT / ".gitignore", repo_root / ".gitignore")
+    subprocess.run(["git", "init"], cwd=repo_root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "tests@pneuma.invalid"],
+        cwd=repo_root,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Pneuma Tests"],
+        cwd=repo_root,
+        check=True,
+    )
+    subprocess.run(["git", "add", "."], cwd=repo_root, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "fixture"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+    )
     return request
 
 
@@ -442,6 +462,7 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
     manifest = json.loads(
         first.preparation_manifest_path.read_text(encoding="utf-8")
     )
+    assert manifest["token_ceiling"] == 100_000
     assert set(manifest["generated_artifact_sha256"]["conversion"]) == {
         "conversion_report.json",
         "examples.jsonl",
@@ -804,18 +825,57 @@ def test_prepare_stage_uses_verified_streams_and_recovers_partial_outputs(
 
 
 def test_prepare_stage_dry_run_validates_without_writing(tmp_path, monkeypatch) -> None:
-    from pneuma_lab.foundation import preparation
+    from pneuma_lab.foundation import authorization, preparation
 
     request = _prepare_fixture(tmp_path)
     request = preparation.PreparationRequest(
         **{**request.__dict__, "dry_run": True}
     )
     monkeypatch.setattr(preparation, "_load_tokenizer", lambda path: ByteTokenizer())
+
+    def reject_candidate(*args, **kwargs):
+        raise AssertionError("dry-run must not build an authorization candidate")
+
+    monkeypatch.setattr(
+        authorization,
+        "build_authorization_candidate",
+        reject_candidate,
+    )
     result = preparation.prepare_stage(request)
 
     assert not request.output_root.exists()
     assert not (request.repo_root / "build/training_examples").exists()
     assert all(not path.exists() for path in _result_files(result))
+
+
+def test_prepare_stage_builds_candidate_only_after_every_receipt_is_stable(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from pneuma_lab.foundation import authorization, preparation
+
+    request = _prepare_fixture(tmp_path)
+    monkeypatch.setattr(preparation, "_load_tokenizer", lambda path: ByteTokenizer())
+    calls = []
+
+    def observe_candidate(prepared, *, repo_root, code_commit, model_key="2b"):
+        assert repo_root == request.repo_root
+        assert model_key == "2b"
+        assert len(code_commit) == 40
+        for field in prepared.__dataclass_fields__:
+            path = Path(getattr(prepared, field))
+            if field != "authorization_candidate_path":
+                assert path.is_file(), field
+        calls.append(prepared.authorization_candidate_path)
+        prepared.authorization_candidate_path.parent.mkdir(parents=True)
+        prepared.authorization_candidate_path.write_text("candidate", encoding="utf-8")
+        return prepared.authorization_candidate_path
+
+    monkeypatch.setattr(authorization, "build_authorization_candidate", observe_candidate)
+    result = preparation.prepare_stage(request)
+
+    assert calls == [result.authorization_candidate_path]
+    assert result.authorization_candidate_path.read_text(encoding="utf-8") == "candidate"
 
 
 def test_prepare_stage_denies_invalid_suite_before_any_output(tmp_path, monkeypatch) -> None:

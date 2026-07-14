@@ -373,11 +373,14 @@ def test_record_identity_is_outside_tokens_and_rendering_is_deterministic(
     )
 
 
-def test_effective_training_record_keeps_zero_weight_explicit(tokenizer) -> None:
+def test_effective_training_record_requires_positive_in_memory_weight(tokenizer) -> None:
     record = _render(tokenizer)
-    effective = EffectiveTrainingRecord(record=record, effective_weight=0.0)
+    effective = EffectiveTrainingRecord(record=record, effective_weight=1.0)
     assert effective.record is record
-    assert effective.effective_weight == 0.0
+    assert effective.effective_weight == 1.0
+    for invalid in (0.0, -1.0, float("nan"), float("inf"), True):
+        with pytest.raises(FoundationRecordError, match="effective_weight"):
+            EffectiveTrainingRecord(record=record, effective_weight=invalid)
 
 
 def test_record_validation_rejects_extra_properties(tokenizer) -> None:

@@ -2,122 +2,245 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://pneuma-lab.local/schemas/foundation-training-authorization.schema.json",
     "title": "Pneuma Foundation Training Authorization",
-    "description": "Fail-closed authorization for one bounded local Qwen3.5 foundation stage.",
+    "description": "Two-step, exact-scope authorization for one bounded local Qwen3.5 foundation stage.",
     "type": "object",
     "x-pneuma-schema-kind": "manifest",
-    "x-pneuma-version": "0.1.0",
+    "x-pneuma-version": "0.2.0",
     "required": [
         "manifest_kind",
         "manifest_schema_version",
         "authorization_status",
-        "model",
-        "shard",
-        "dataset_policy",
-        "local_gates",
-        "source_data_policy",
-        "output_root",
-        "operator_approval",
-        "budget"
+        "scope",
+        "scope_digest",
+        "operator_approval"
     ],
     "properties": {
-        "manifest_kind": { "const": "pneuma_foundation_training_authorization" },
-        "manifest_schema_version": { "const": "0.1.0" },
+        "manifest_kind": {
+            "const": "pneuma_foundation_training_authorization"
+        },
+        "manifest_schema_version": {
+            "const": "0.2.0"
+        },
         "authorization_status": {
-            "enum": ["not_authorized", "authorized"]
+            "enum": ["not_authorized", "candidate", "authorized"]
         },
-        "model": {
-            "type": "object",
-            "required": ["key", "model_id", "revision", "token_ceiling"],
-            "properties": {
-                "key": { "enum": ["2b", "4b"] },
-                "model_id": {
-                    "enum": ["Qwen/Qwen3.5-2B", "Qwen/Qwen3.5-4B"]
-                },
-                "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-                "token_ceiling": {
-                    "enum": [100000, 500000, 1000000, 2000000, 8000000, 16000000, 32000000]
-                }
-            },
-            "additionalProperties": false
-        },
-        "shard": {
+        "scope": {
             "oneOf": [
-                { "type": "null" },
-                {
-                    "type": "object",
-                    "required": ["path", "sha256", "manifest_path", "manifest_sha256"],
-                    "properties": {
-                        "path": { "type": "string", "pattern": "^build/" },
-                        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-                        "manifest_path": { "type": "string", "pattern": "^build/" },
-                        "manifest_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
-                    },
-                    "additionalProperties": false
-                }
+                {"type": "null"},
+                {"$ref": "#/$defs/scope"}
             ]
         },
-        "dataset_policy": {
-            "type": "object",
-            "required": ["governed_groups", "positive_weight_groups", "repo_issue_disjoint", "diversity_inventory_present"],
-            "properties": {
-                "governed_groups": {
-                    "type": "array",
-                    "minItems": 10,
-                    "uniqueItems": true,
-                    "items": { "type": "string", "minLength": 1 }
-                },
-                "positive_weight_groups": {
-                    "type": "array",
-                    "uniqueItems": true,
-                    "items": { "type": "string", "minLength": 1 }
-                },
-                "repo_issue_disjoint": { "type": "boolean" },
-                "diversity_inventory_present": { "type": "boolean" }
-            },
-            "additionalProperties": false
+        "scope_digest": {
+            "oneOf": [
+                {"type": "null"},
+                {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            ]
         },
-        "local_gates": {
-            "type": "object",
-            "required": ["previous_stage_passed", "falsification_gate_passed", "resource_smoke_passed"],
-            "properties": {
-                "previous_stage_passed": { "type": "boolean" },
-                "falsification_gate_passed": { "type": "boolean" },
-                "resource_smoke_passed": { "type": "boolean" }
-            },
-            "additionalProperties": false
-        },
-        "source_data_policy": {
-            "type": "object",
-            "required": ["root", "write_allowed"],
-            "properties": {
-                "root": { "type": "string", "minLength": 1 },
-                "write_allowed": { "const": false }
-            },
-            "additionalProperties": false
-        },
-        "output_root": { "type": "string", "pattern": "^build/" },
         "operator_approval": {
             "oneOf": [
-                { "type": "null" },
-                {
+                {"type": "null"},
+                {"$ref": "#/$defs/operator_approval"}
+            ]
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {"authorization_status": {"const": "not_authorized"}},
+                "required": ["authorization_status"]
+            },
+            "then": {
+                "properties": {
+                    "scope": {"const": null},
+                    "scope_digest": {"const": null},
+                    "operator_approval": {"const": null}
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {"authorization_status": {"const": "candidate"}},
+                "required": ["authorization_status"]
+            },
+            "then": {
+                "properties": {
+                    "scope": {"$ref": "#/$defs/scope"},
+                    "scope_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "operator_approval": {"const": null}
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {"authorization_status": {"const": "authorized"}},
+                "required": ["authorization_status"]
+            },
+            "then": {
+                "properties": {
+                    "scope": {"$ref": "#/$defs/scope"},
+                    "scope_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "operator_approval": {"$ref": "#/$defs/operator_approval"}
+                }
+            }
+        }
+    ],
+    "$defs": {
+        "artifact_binding": {
+            "type": "object",
+            "required": ["path", "sha256", "size"],
+            "properties": {
+                "path": {"type": "string", "pattern": "^build/[A-Za-z0-9._/-]+$"},
+                "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "size": {"type": "integer", "minimum": 1}
+            },
+            "additionalProperties": false
+        },
+        "scope": {
+            "type": "object",
+            "required": [
+                "model",
+                "stage",
+                "token_ceiling",
+                "local_profile",
+                "learning_rates",
+                "code_commit",
+                "artifacts",
+                "authorized_lane_weights",
+                "source_data_policy",
+                "output_root",
+                "budget"
+            ],
+            "properties": {
+                "model": {
                     "type": "object",
-                    "required": ["operator_id", "approved_at", "scope_digest"],
+                    "required": ["key", "model_id", "revision", "tokenizer_id", "tokenizer_revision"],
                     "properties": {
-                        "operator_id": { "type": "string", "minLength": 1 },
-                        "approved_at": { "type": "string", "format": "date-time" },
-                        "scope_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+                        "key": {"enum": ["2b", "4b"]},
+                        "model_id": {"enum": ["Qwen/Qwen3.5-2B", "Qwen/Qwen3.5-4B"]},
+                        "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+                        "tokenizer_id": {"enum": ["Qwen/Qwen3.5-2B", "Qwen/Qwen3.5-4B"]},
+                        "tokenizer_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+                    },
+                    "additionalProperties": false
+                },
+                "stage": {"enum": ["100k", "500k", "1m", "2m", "8m", "16m", "32m"]},
+                "token_ceiling": {"enum": [100000, 500000, 1000000, 2000000, 8000000, 16000000, 32000000]},
+                "local_profile": {
+                    "type": "object",
+                    "required": [
+                        "profile",
+                        "quantization",
+                        "core_dtype",
+                        "projection_dtype",
+                        "gradient_checkpointing",
+                        "sequence_length",
+                        "microbatch_size",
+                        "gradient_accumulation",
+                        "data_loader_workers",
+                        "max_ram_gb",
+                        "max_vram_gb"
+                    ],
+                    "properties": {
+                        "profile": {"const": "wsl2_local_nf4"},
+                        "quantization": {"const": "nf4_double_quant"},
+                        "core_dtype": {"const": "bf16"},
+                        "projection_dtype": {"const": "bf16"},
+                        "gradient_checkpointing": {"const": true},
+                        "sequence_length": {"const": 512},
+                        "microbatch_size": {"const": 1},
+                        "gradient_accumulation": {"const": 32},
+                        "data_loader_workers": {"const": 8},
+                        "max_ram_gb": {"const": 24.0},
+                        "max_vram_gb": {"const": 7.5}
+                    },
+                    "additionalProperties": false
+                },
+                "learning_rates": {
+                    "const": [0.00005, 0.0001, 0.0002]
+                },
+                "code_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+                "artifacts": {
+                    "type": "object",
+                    "required": [
+                        "preparation_manifest",
+                        "suite_report",
+                        "license_receipt",
+                        "source_presence_receipt",
+                        "source_integrity_receipt",
+                        "shard",
+                        "shard_manifest",
+                        "split_receipt",
+                        "contamination_receipt",
+                        "diversity_receipt",
+                        "selection_receipt"
+                    ],
+                    "properties": {
+                        "preparation_manifest": {"$ref": "#/$defs/artifact_binding"},
+                        "suite_report": {"$ref": "#/$defs/artifact_binding"},
+                        "license_receipt": {"$ref": "#/$defs/artifact_binding"},
+                        "source_presence_receipt": {"$ref": "#/$defs/artifact_binding"},
+                        "source_integrity_receipt": {"$ref": "#/$defs/artifact_binding"},
+                        "shard": {"$ref": "#/$defs/artifact_binding"},
+                        "shard_manifest": {"$ref": "#/$defs/artifact_binding"},
+                        "split_receipt": {"$ref": "#/$defs/artifact_binding"},
+                        "contamination_receipt": {"$ref": "#/$defs/artifact_binding"},
+                        "diversity_receipt": {"$ref": "#/$defs/artifact_binding"},
+                        "selection_receipt": {"$ref": "#/$defs/artifact_binding"}
+                    },
+                    "additionalProperties": false
+                },
+                "authorized_lane_weights": {
+                    "type": "object",
+                    "required": ["swe-gym-openhands-sampled"],
+                    "properties": {
+                        "swe-gym-openhands-sampled": {"const": 1.0}
+                    },
+                    "additionalProperties": false
+                },
+                "source_data_policy": {
+                    "type": "object",
+                    "required": ["root", "write_allowed", "private_cloud_transfer"],
+                    "properties": {
+                        "root": {"const": "C:\\pneuma-data"},
+                        "write_allowed": {"const": false},
+                        "private_cloud_transfer": {"const": false}
+                    },
+                    "additionalProperties": false
+                },
+                "output_root": {"const": "build/foundation/runs/"},
+                "budget": {
+                    "type": "object",
+                    "required": [
+                        "paid_compute_usd",
+                        "paid_compute_ceiling_usd",
+                        "cloud_jobs_used",
+                        "cloud_jobs_ceiling",
+                        "cloud_lifetime_cap_usd"
+                    ],
+                    "properties": {
+                        "paid_compute_usd": {"const": 0},
+                        "paid_compute_ceiling_usd": {"const": 0},
+                        "cloud_jobs_used": {"const": 0},
+                        "cloud_jobs_ceiling": {"const": 0},
+                        "cloud_lifetime_cap_usd": {"const": 45}
                     },
                     "additionalProperties": false
                 }
-            ]
+            },
+            "additionalProperties": false
         },
-        "budget": {
+        "operator_approval": {
             "type": "object",
-            "required": ["paid_compute_usd", "cloud_jobs_used", "cloud_lifetime_cap_usd"],
+            "required": ["operator_id", "approved_at", "scope_digest", "approval_phrase_sha256"],
             "properties": {
-                "paid_compute_usd": { "type": "number", "minimum": 0, "maximum": 45 },
-                "cloud_jobs_used": { "type": "integer", "minimum": 0, "maximum": 1 },
-                "cloud_lifetime_cap_usd": { "const": 45 }
+                "operator_id": {"type": "string", "minLength": 1, "pattern": "^\\S(?:.*\\S)?$"},
+                "approved_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+                },
+                "scope_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "approval_phrase_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
             },
             "additionalProperties": false
         }

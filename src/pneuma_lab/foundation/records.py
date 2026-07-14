@@ -73,6 +73,18 @@ class EffectiveTrainingRecord:
     record: Mapping
     effective_weight: float
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.record, Mapping):
+            raise FoundationRecordError("effective record must be a mapping")
+        if (
+            type(self.effective_weight) is not float
+            or not math.isfinite(self.effective_weight)
+            or self.effective_weight <= 0.0
+        ):
+            raise FoundationRecordError(
+                "effective_weight must be a finite positive float"
+            )
+
 
 def _validated_resolved_target(example: Mapping) -> bool:
     target = example.get("target")
