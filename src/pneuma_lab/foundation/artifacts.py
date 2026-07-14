@@ -942,6 +942,10 @@ class BoundArtifactPublication:
         size = 0
         try:
             before = os.fstat(descriptor)
+            if getattr(before, "st_nlink", 1) != 1:
+                raise ArtifactPublicationError(
+                    "artifact digest target must not be a hard-link alias"
+                )
             while chunk := os.read(descriptor, _HASH_CHUNK_BYTES):
                 digest.update(chunk)
                 size += len(chunk)
@@ -953,6 +957,7 @@ class BoundArtifactPublication:
                 != getattr(after, "st_mtime_ns", None)
                 or getattr(before, "st_ctime_ns", None)
                 != getattr(after, "st_ctime_ns", None)
+                or getattr(after, "st_nlink", 1) != 1
             ):
                 raise ArtifactPublicationError(
                     "artifact content changed while it was being verified"
@@ -968,7 +973,7 @@ class BoundArtifactPublication:
             if (path_metadata.st_dev, path_metadata.st_ino) != (
                 after.st_dev,
                 after.st_ino,
-            ):
+            ) or getattr(path_metadata, "st_nlink", 1) != 1:
                 raise ArtifactPublicationError(
                     "artifact target changed while it was being verified"
                 )
@@ -1272,11 +1277,17 @@ class BoundArtifactPublication:
     def sha256(self, path: Path) -> str:
         """Hash a published target through the still-bound output ancestry."""
 
+        digest, _ = self.digest_size(path)
+        return digest
+
+    def digest_size(self, path: Path) -> tuple[str, int]:
+        """Stream one target's digest and size through one held file handle."""
+
         name = self._target_name(path)
         self._verify_ancestry()
-        digest, _ = self._bound_digest_size(name)
+        digest, size = self._bound_digest_size(name)
         self._verify_ancestry()
-        return digest
+        return digest, size
 
     def _rollback_record(self, record: _PublishedArtifact) -> None:
         if record.published:

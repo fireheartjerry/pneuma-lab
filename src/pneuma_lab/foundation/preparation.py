@@ -37,6 +37,7 @@ from pneuma_lab.foundation.eval_identities import (
     build_eval_identity_index,
     identity_from_foundation_record,
 )
+from pneuma_lab.foundation.identity_normalization import normalize_identity_text
 from pneuma_lab.foundation.records import (
     FoundationRecordError,
     GradientEligibility,
@@ -46,6 +47,7 @@ from pneuma_lab.foundation.records import (
     validate_foundation_record,
 )
 from pneuma_lab.foundation.specs import MODEL_SPECS
+from pneuma_lab.foundation.snapshot_receipt import verify_pinned_snapshot
 from pneuma_lab.foundation.source_presence import _is_link_or_reparse
 from pneuma_lab.foundation.suite import (
     build_suite_completeness_report,
@@ -187,15 +189,30 @@ def _load_strict_json(path: Path, *, label: str) -> tuple[dict, bytes]:
 
 
 def _load_tokenizer(snapshot: Path):
+    previous = {
+        name: os.environ.get(name)
+        for name in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE")
+    }
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
     try:
-        from transformers import AutoTokenizer
-    except ImportError as exc:
-        raise ValueError("transformers is required to load the pinned tokenizer") from exc
-    return AutoTokenizer.from_pretrained(
-        str(snapshot),
-        local_files_only=True,
-        trust_remote_code=False,
-    )
+        try:
+            from transformers import AutoTokenizer
+        except ImportError as exc:
+            raise ValueError(
+                "transformers is required to load the pinned tokenizer"
+            ) from exc
+        return AutoTokenizer.from_pretrained(
+            str(snapshot),
+            local_files_only=True,
+            trust_remote_code=False,
+        )
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 def _after_all_ten_before_snapshot() -> None:
@@ -340,24 +357,6 @@ def _all_ten_metadata_snapshot(registry: Mapping, data_root: Path) -> dict:
         "lanes": lane_bindings,
         "complete": complete,
     }
-
-
-def _validate_tokenizer_snapshot(path: Path) -> Path:
-    snapshot = Path(path)
-    try:
-        metadata = snapshot.lstat()
-    except (OSError, TypeError, ValueError) as exc:
-        raise ValueError("tokenizer snapshot must exist locally") from exc
-    if not stat_module.S_ISDIR(metadata.st_mode) or snapshot.is_symlink():
-        raise ValueError("tokenizer snapshot must be a physical directory")
-    for member in snapshot.rglob("*"):
-        try:
-            member_metadata = member.lstat()
-        except OSError as exc:
-            raise ValueError("tokenizer snapshot metadata cannot be inspected") from exc
-        if stat_module.S_ISLNK(member_metadata.st_mode):
-            raise ValueError("tokenizer snapshot must not contain symbolic links")
-    return snapshot
 
 
 def _stream_snapshot(stream, relative_path: Path, digest: str) -> dict:
@@ -574,6 +573,30 @@ def _conversion_is_complete(
     )
 
 
+def _canonical_repo_key(repo: object) -> str:
+    try:
+        canonical = normalize_identity_text(repo)
+    except TypeError as exc:
+        raise ValueError("converted example repository identity is invalid") from exc
+    if canonical is None:
+        raise ValueError("converted example repository identity is unusable")
+    if any(ord(character) < 32 or ord(character) == 127 for character in canonical):
+        raise ValueError("converted example repository identity is unusable")
+    return canonical
+
+
+def _split_from_canonical_repo(canonical_repo: str) -> str:
+    bucket = int(
+        hashlib.sha256(canonical_repo.encode("utf-8")).hexdigest()[:8],
+        16,
+    ) % 100
+    if bucket < 80:
+        return "train"
+    if bucket < 90:
+        return "validation"
+    return "held_out"
+
+
 def _split_assignments(examples: Iterable[Mapping]) -> tuple[dict, ...]:
     assignments = []
     repository_splits: dict[str, str] = {}
@@ -584,8 +607,8 @@ def _split_assignments(examples: Iterable[Mapping]) -> tuple[dict, ...]:
         repo = split_group.get("repo")
         if not isinstance(repo, str) or not repo.strip():
             raise ValueError("converted example repository must be a nonempty string")
-        split_id = deterministic_split(repo)
-        canonical_repo = repo.casefold()
+        canonical_repo = _canonical_repo_key(repo)
+        split_id = _split_from_canonical_repo(canonical_repo)
         previous = repository_splits.setdefault(canonical_repo, split_id)
         if previous != split_id:
             raise ValueError("one repository cannot be assigned to multiple splits")
@@ -593,11 +616,49 @@ def _split_assignments(examples: Iterable[Mapping]) -> tuple[dict, ...]:
             {
                 "record_source_id": example.get("example_id"),
                 "repo": repo,
+                "canonical_repo": canonical_repo,
                 "split_id": split_id,
                 "quarantine_id": None,
             }
         )
     return tuple(assignments)
+
+
+def _build_split_receipt(assignments: Iterable[Mapping]) -> dict:
+    canonical_sets = {
+        "train": set(),
+        "validation": set(),
+        "held_out": set(),
+    }
+    assignment_list = []
+    for assignment in assignments:
+        if not isinstance(assignment, Mapping):
+            raise ValueError("split assignment must be a mapping")
+        split_id = assignment.get("split_id")
+        canonical_repo = assignment.get("canonical_repo")
+        if split_id not in canonical_sets or not isinstance(canonical_repo, str):
+            raise ValueError("split assignment has no canonical repository key")
+        canonical_sets[split_id].add(canonical_repo)
+        assignment_list.append(dict(assignment))
+    split_names = tuple(canonical_sets)
+    disjoint = all(
+        canonical_sets[left].isdisjoint(canonical_sets[right])
+        for index, left in enumerate(split_names)
+        for right in split_names[index + 1 :]
+    )
+    if not disjoint:
+        raise ValueError("one canonical repository occurs in multiple splits")
+    return {
+        "manifest_kind": "pneuma_foundation_repo_grouped_split_receipt",
+        "manifest_schema_version": "0.1.0",
+        "algorithm": "sha256(normalize_identity_text(repo))[:8] mod 100",
+        "thresholds": {"train": 80, "validation": 90, "held_out": 100},
+        "assignments": assignment_list,
+        "canonical_repository_sets": {
+            name: sorted(values) for name, values in canonical_sets.items()
+        },
+        "repository_grouped": disjoint,
+    }
 
 
 def _render_records(
@@ -684,17 +745,7 @@ def _result_paths(
 
 
 def deterministic_split(repo: str) -> str:
-    if not isinstance(repo, str) or not repo.strip():
-        raise ValueError("repository must be a nonempty string")
-    bucket = int(
-        hashlib.sha256(repo.casefold().encode("utf-8")).hexdigest()[:8],
-        16,
-    ) % 100
-    if bucket < 80:
-        return "train"
-    if bucket < 90:
-        return "validation"
-    return "held_out"
+    return _split_from_canonical_repo(_canonical_repo_key(repo))
 
 
 def _validated_selection_record(record, *, index: int) -> dict:
@@ -848,8 +899,11 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
     )
     if license_receipt != _LICENSE_RECEIPT:
         raise ValueError("committed OpenHands license receipt posture is invalid")
-    tokenizer_snapshot = _validate_tokenizer_snapshot(request.tokenizer_snapshot)
-    tokenizer = _load_tokenizer(tokenizer_snapshot)
+    verified_tokenizer_snapshot = verify_pinned_snapshot(
+        "2b",
+        snapshot_path=request.tokenizer_snapshot,
+    )
+    tokenizer = _load_tokenizer(verified_tokenizer_snapshot.snapshot_path)
 
     source_before = []
     traces, trace_snapshot = _read_authorized_value(
@@ -909,6 +963,8 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
                 hashlib.sha256(bundle["conversion_report.json"]).hexdigest(),
                 hashlib.sha256(bundle["hash_manifest.json"]).hexdigest(),
                 hashlib.sha256(license_bytes).hexdigest(),
+                verified_tokenizer_snapshot.receipt_sha256,
+                verified_tokenizer_snapshot.snapshot_sha256,
             )
         )
     )
@@ -980,14 +1036,8 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         ),
         "persisted_training_weight": 0.0,
     }
-    split_receipt = {
-        "manifest_kind": "pneuma_foundation_repo_grouped_split_receipt",
-        "manifest_schema_version": "0.1.0",
-        "algorithm": "sha256(repo.casefold())[:8] mod 100",
-        "thresholds": {"train": 80, "validation": 90, "held_out": 100},
-        "assignments": list(assignments),
-        "repository_grouped": True,
-    }
+    split_receipt = _build_split_receipt(assignments)
+
     def source_after_snapshot() -> list[dict]:
         source_specs = [
             (
@@ -1064,6 +1114,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         output_path = output_root / "eval-identities" / f"{family}.jsonl"
         build_eval_identity_index(
             suite_policy,
+            stage=request.stage,
             family=family,
             repo_root=repo_root,
             data_root=data_root,
@@ -1143,6 +1194,12 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         "after": source_after,
         "all_ten_before": all_ten_before,
         "all_ten_after": all_ten_after,
+        "tokenizer_snapshot": {
+            "model_id": verified_tokenizer_snapshot.model_id,
+            "revision": verified_tokenizer_snapshot.revision,
+            "receipt_sha256": verified_tokenizer_snapshot.receipt_sha256,
+            "snapshot_sha256": verified_tokenizer_snapshot.snapshot_sha256,
+        },
         "unchanged": True,
     }
     receipt_payloads = {
@@ -1172,6 +1229,27 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         "training_authorized": False,
         "persisted_training_weight": 0.0,
         "source_receipt_hashes": list(receipt_hashes),
+        "tokenizer_snapshot": {
+            "model_id": verified_tokenizer_snapshot.model_id,
+            "revision": verified_tokenizer_snapshot.revision,
+            "receipt_sha256": verified_tokenizer_snapshot.receipt_sha256,
+            "snapshot_sha256": verified_tokenizer_snapshot.snapshot_sha256,
+        },
+        "generated_artifact_sha256": {
+            "conversion": {
+                name: hashlib.sha256(bundle[name]).hexdigest()
+                for name in (
+                    "examples.jsonl",
+                    "invalid_examples.jsonl",
+                    "conversion_report.json",
+                    "hash_manifest.json",
+                )
+            },
+            "eval_identities": {
+                family: eval_index_payloads[eval_index_paths[family]].sha256
+                for family in required_families
+            },
+        },
         "receipt_sha256": {
             name: hashlib.sha256(payload).hexdigest()
             for name, payload in sorted(receipt_payloads.items())

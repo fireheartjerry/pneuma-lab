@@ -461,6 +461,7 @@ def _validate_generated_output_path(
 def build_eval_identity_index(
     policy: Mapping,
     *,
+    stage: str = "100k",
     family: str,
     repo_root: Path,
     data_root: Path,
@@ -482,7 +483,7 @@ def build_eval_identity_index(
     try:
         with open_authorized_payload(
             policy,
-            stage="100k",
+            stage=stage,
             family=family,
             lane_id=None,
             data_root=data_root,

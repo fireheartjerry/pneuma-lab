@@ -20,6 +20,7 @@ from pneuma_lab.foundation.records import (
     render_foundation_record,
 )
 from pneuma_lab.foundation.data import ACTIVE_DATASET_GROUPS
+from pneuma_lab.foundation.specs import MODEL_SPECS
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -214,6 +215,42 @@ def _copy_committed(source: Path, destination: Path) -> None:
     destination.write_bytes(source.read_bytes())
 
 
+def _write_pinned_tokenizer_snapshot(snapshot: Path) -> None:
+    spec = MODEL_SPECS["2b"]
+    snapshot.mkdir(parents=True)
+    files = {
+        "config.json": json.dumps(
+            {
+                "hidden_size": spec.hidden_size,
+                "layer_types": list(spec.expected_layer_types),
+                "num_hidden_layers": spec.layer_count,
+            },
+            sort_keys=True,
+        ).encode("utf-8"),
+        "tokenizer.json": b'{"fixture":"byte-tokenizer"}\n',
+    }
+    for name, payload in files.items():
+        (snapshot / name).write_bytes(payload)
+    receipt = {
+        "receipt_kind": "pneuma_pinned_model_snapshot",
+        "receipt_schema_version": "0.1.0",
+        "model_id": spec.model_id,
+        "revision": spec.revision,
+        "files": [
+            {
+                "path": name,
+                "size": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+            for name, payload in sorted(files.items())
+        ],
+    }
+    (snapshot / "pneuma-snapshot-receipt.json").write_text(
+        json.dumps(receipt, indent=4, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _prepare_fixture(tmp_path: Path):
     from pneuma_lab.foundation.preparation import PreparationRequest
 
@@ -271,8 +308,7 @@ def _prepare_fixture(tmp_path: Path):
             encoding="utf-8",
         )
     tokenizer_snapshot = repo_root / "build/model-cache/2b/snapshot"
-    tokenizer_snapshot.mkdir(parents=True)
-    (tokenizer_snapshot / "tokenizer.fixture").write_text("byte", encoding="utf-8")
+    _write_pinned_tokenizer_snapshot(tokenizer_snapshot)
     request = PreparationRequest(
         stage="100k",
         repo_root=repo_root,
@@ -362,14 +398,27 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
     assert contamination["repo_issue_disjoint"] is True
 
     conversion_root = request.repo_root / "build/training_examples/openhands-sampled/full"
+    from pneuma_lab.foundation.snapshot_receipt import verify_pinned_snapshot
+
+    verified_snapshot = verify_pinned_snapshot(
+        "2b",
+        snapshot_path=request.tokenizer_snapshot,
+    )
     expected_receipts = sorted(
-        hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in (
-            conversion_root / "conversion_report.json",
-            conversion_root / "hash_manifest.json",
-            request.repo_root
-            / "docs/data/license-receipts/swe-gym-openhands-sampled.local-research.json",
-        )
+        [
+            *(
+                hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in (
+                    conversion_root / "conversion_report.json",
+                    conversion_root / "hash_manifest.json",
+                    request.repo_root
+                    / "docs/data/license-receipts/"
+                    "swe-gym-openhands-sampled.local-research.json",
+                )
+            ),
+            verified_snapshot.receipt_sha256,
+            verified_snapshot.snapshot_sha256,
+        ]
     )
     assert all(record["source"]["receipt_hashes"] == expected_receipts for record in records)
     source_integrity = json.loads(
@@ -377,6 +426,237 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
     )
     assert source_integrity["unchanged"] is True
     assert source_integrity["before"] == source_integrity["after"]
+
+    split = json.loads(first.split_receipt_path.read_text(encoding="utf-8"))
+    canonical_sets = {
+        name: set(values)
+        for name, values in split["canonical_repository_sets"].items()
+    }
+    assert split["repository_grouped"] is True
+    assert all(
+        canonical_sets[left].isdisjoint(canonical_sets[right])
+        for left in canonical_sets
+        for right in canonical_sets
+        if left < right
+    )
+    manifest = json.loads(
+        first.preparation_manifest_path.read_text(encoding="utf-8")
+    )
+    assert set(manifest["generated_artifact_sha256"]["conversion"]) == {
+        "conversion_report.json",
+        "examples.jsonl",
+        "hash_manifest.json",
+        "invalid_examples.jsonl",
+    }
+    assert set(manifest["generated_artifact_sha256"]["eval_identities"]) == {
+        "swe-bench",
+        "swe-mera",
+        "swe-polybench",
+    }
+    assert manifest["tokenizer_snapshot"]["model_id"] == MODEL_SPECS["2b"].model_id
+    assert manifest["tokenizer_snapshot"]["revision"] == MODEL_SPECS["2b"].revision
+    assert manifest["source_receipt_hashes"] == expected_receipts
+    assert source_integrity["tokenizer_snapshot"] == manifest["tokenizer_snapshot"]
+
+
+def test_split_assignments_use_one_canonical_repo_identity() -> None:
+    from pneuma_lab.foundation import preparation
+
+    repos = (
+        "org/repo-1",
+        " ORG/REPO-1 ",
+        "Org/Repo-1",
+        "org /repo-1",
+        "ORG  /repo-1",
+        "org\t /repo-1",
+    )
+    examples = tuple(
+        {
+            "example_id": f"example-{index}",
+            "split_group": {"repo": repo},
+        }
+        for index, repo in enumerate(repos)
+    )
+
+    assignments = preparation._split_assignments(examples)
+    receipt = preparation._build_split_receipt(assignments)
+
+    assert [item["canonical_repo"] for item in assignments[:3]] == [
+        "org/repo-1"
+    ] * 3
+    assert [item["canonical_repo"] for item in assignments[3:]] == [
+        "org /repo-1"
+    ] * 3
+    assert len({item["split_id"] for item in assignments[:3]}) == 1
+    assert len({item["split_id"] for item in assignments[3:]}) == 1
+    canonical_sets = {
+        name: set(values)
+        for name, values in receipt["canonical_repository_sets"].items()
+    }
+    assert receipt["repository_grouped"] is True
+    assert all(
+        canonical_sets[left].isdisjoint(canonical_sets[right])
+        for left in canonical_sets
+        for right in canonical_sets
+        if left < right
+    )
+
+
+@pytest.mark.parametrize("repo", (None, "", " \t\n", "\x00"))
+def test_split_assignments_reject_unusable_repo(repo) -> None:
+    from pneuma_lab.foundation import preparation
+
+    with pytest.raises((TypeError, ValueError), match="repo|repository|identity"):
+        preparation._split_assignments(
+            ({"example_id": "bad", "split_group": {"repo": repo}},)
+        )
+
+
+def test_split_receipt_rejects_canonical_repo_crossing_splits() -> None:
+    from pneuma_lab.foundation import preparation
+
+    assignments = (
+        {
+            "record_source_id": "one",
+            "repo": "Org/Repo",
+            "canonical_repo": "org/repo",
+            "split_id": "train",
+            "quarantine_id": None,
+        },
+        {
+            "record_source_id": "two",
+            "repo": " org/repo ",
+            "canonical_repo": "org/repo",
+            "split_id": "held_out",
+            "quarantine_id": None,
+        },
+    )
+
+    with pytest.raises(ValueError, match="canonical repository|multiple splits"):
+        preparation._build_split_receipt(assignments)
+
+
+def test_prepare_stage_passes_request_stage_to_eval_index_builder(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from pneuma_lab.foundation import preparation
+
+    request = _prepare_fixture(tmp_path)
+    observed = []
+    original = preparation.build_eval_identity_index
+
+    def capture_stage(*args, **kwargs):
+        observed.append(kwargs["stage"])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(preparation, "_load_tokenizer", lambda path: ByteTokenizer())
+    monkeypatch.setattr(preparation, "build_eval_identity_index", capture_stage)
+
+    preparation.prepare_stage(request)
+
+    assert observed == [request.stage] * 3
+
+
+def test_prepare_stage_rejects_unreceipted_tokenizer_before_output(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from pneuma_lab.foundation import preparation
+
+    request = _prepare_fixture(tmp_path)
+    (request.tokenizer_snapshot / "pneuma-snapshot-receipt.json").unlink()
+    loader_called = False
+
+    def loader(path):
+        nonlocal loader_called
+        loader_called = True
+        return ByteTokenizer()
+
+    monkeypatch.setattr(preparation, "_load_tokenizer", loader)
+
+    with pytest.raises(ValueError, match="receipt|snapshot"):
+        preparation.prepare_stage(request)
+    assert loader_called is False
+    assert not request.output_root.exists()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("wrong_model", "wrong_revision", "tampered", "extra", "missing", "unsafe"),
+)
+def test_prepare_stage_rejects_mislabelled_or_tampered_tokenizer_before_output(
+    tmp_path,
+    monkeypatch,
+    mutation: str,
+) -> None:
+    from pneuma_lab.foundation import preparation
+
+    request = _prepare_fixture(tmp_path)
+    receipt_path = request.tokenizer_snapshot / "pneuma-snapshot-receipt.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if mutation == "wrong_model":
+        receipt["model_id"] = "Qwen/not-the-pinned-model"
+    elif mutation == "wrong_revision":
+        receipt["revision"] = "0" * 40
+    elif mutation == "tampered":
+        (request.tokenizer_snapshot / "tokenizer.json").write_bytes(b"tampered")
+    elif mutation == "extra":
+        (request.tokenizer_snapshot / "extra.json").write_text("{}", encoding="utf-8")
+    elif mutation == "missing":
+        (request.tokenizer_snapshot / "tokenizer.json").unlink()
+    else:
+        receipt["files"][0]["path"] = "../config.json"
+    receipt_path.write_text(
+        json.dumps(receipt, indent=4, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    loader_called = False
+
+    def loader(path):
+        nonlocal loader_called
+        loader_called = True
+        return ByteTokenizer()
+
+    monkeypatch.setattr(preparation, "_load_tokenizer", loader)
+
+    with pytest.raises(ValueError, match="snapshot|receipt|model|revision|file|path"):
+        preparation.prepare_stage(request)
+    assert loader_called is False
+    assert not request.output_root.exists()
+    assert not (request.repo_root / "build/training_examples").exists()
+
+
+def test_local_tokenizer_loader_enforces_offline_flags(tmp_path, monkeypatch) -> None:
+    from pneuma_lab.foundation import preparation
+
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    observed = {}
+
+    class FakeAutoTokenizer:
+        @staticmethod
+        def from_pretrained(path, **kwargs):
+            observed.update(kwargs)
+            observed["path"] = Path(path)
+            observed["HF_HUB_OFFLINE"] = os.environ.get("HF_HUB_OFFLINE")
+            observed["TRANSFORMERS_OFFLINE"] = os.environ.get(
+                "TRANSFORMERS_OFFLINE"
+            )
+            return ByteTokenizer()
+
+    fake_transformers = type("FakeTransformers", (), {"AutoTokenizer": FakeAutoTokenizer})
+    monkeypatch.setitem(__import__("sys").modules, "transformers", fake_transformers)
+
+    preparation._load_tokenizer(snapshot)
+
+    assert observed == {
+        "path": snapshot,
+        "local_files_only": True,
+        "trust_remote_code": False,
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1",
+    }
 
 
 def test_prepare_stage_uses_verified_streams_and_recovers_partial_outputs(
