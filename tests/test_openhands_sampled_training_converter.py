@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import io
 import json
 from pathlib import Path
 
@@ -644,3 +645,87 @@ def test_forbidden_paths_fail_before_access(tmp_path) -> None:
             invalid_output_path=tmp_path / "build" / "invalid_examples.jsonl",
             confirm_full_conversion=True,
         )
+
+
+def test_verified_stream_parsers_reject_duplicate_members_and_nonfinite() -> None:
+    with pytest.raises(ValueError, match="duplicate"):
+        converter.parse_verified_adapter_report_stream(
+            io.BytesIO(b'{"counts":{},"counts":{}}')
+        )
+    with pytest.raises(ValueError, match="constant|finite|JSON"):
+        converter.parse_verified_trace_stream(
+            io.BytesIO(b'{"trace_id":"x","score":NaN}\n')
+        )
+
+
+def test_stream_conversion_publishes_without_reopening_sources(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    traces = converter.parse_verified_trace_stream(
+        io.BytesIO(FIXTURE.read_bytes())
+    )
+    adapter_report = converter.parse_verified_adapter_report_stream(
+        io.BytesIO(
+            (FIXTURE.parent / "adapter_report.json").read_bytes()
+        )
+    )
+    repo_root = tmp_path / "repo"
+    data_root = tmp_path / "pneuma-data"
+    output_root = repo_root / "build/training_examples/openhands-sampled/full"
+    data_root.mkdir()
+
+    def forbidden_legacy(*args, **kwargs):
+        raise AssertionError("legacy path-opening conversion must not run")
+
+    monkeypatch.setattr(converter, "run_full_conversion", forbidden_legacy)
+    result = converter.run_verified_stream_conversion(
+        traces,
+        adapter_report,
+        repo_root=repo_root,
+        data_root=data_root,
+        output_root=output_root,
+    )
+
+    assert len(result["examples"]) == 3
+    assert result["invalid_records"] == []
+    assert Path(result["paths"]["examples"]).is_file()
+    assert Path(result["paths"]["report"]).is_file()
+    assert Path(result["paths"]["hash_manifest"]).is_file()
+    assert Path(result["paths"]["invalid_examples"]).read_bytes() == b""
+
+
+def test_verified_stream_conversion_rejects_malformed_nested_trace_before_write(
+    tmp_path,
+) -> None:
+    trace = _fixture_traces()[0]
+    trace["frames"][2]["tool_calls"] = {"not": "a list"}
+    output_root = tmp_path / "repo/build/training_examples/openhands-sampled/full"
+
+    with pytest.raises(ValueError, match="tool_calls"):
+        converter.run_verified_stream_conversion(
+            [trace],
+            json.loads((FIXTURE.parent / "adapter_report.json").read_text()),
+            repo_root=tmp_path / "repo",
+            data_root=tmp_path / "pneuma-data",
+            output_root=output_root,
+        )
+    assert not output_root.exists()
+
+
+def test_verified_stream_conversion_rejects_invalid_nested_tool_shape(
+    tmp_path,
+) -> None:
+    traces = _fixture_traces()
+    traces[0]["frames"][2]["tool_calls"][0]["tool"] = ["not", "a", "name"]
+    output_root = tmp_path / "repo/build/training_examples/openhands-sampled/full"
+
+    with pytest.raises(ValueError, match="tool|schema|valid"):
+        converter.run_verified_stream_conversion(
+            traces,
+            json.loads((FIXTURE.parent / "adapter_report.json").read_text()),
+            repo_root=tmp_path / "repo",
+            data_root=tmp_path / "pneuma-data",
+            output_root=output_root,
+        )
+    assert not output_root.exists()

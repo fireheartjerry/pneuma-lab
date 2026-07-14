@@ -21,6 +21,7 @@ from pneuma_lab.foundation.data import (
     deduplicate_examples,
     governed_dataset_groups,
 )
+from pneuma_lab.foundation.preparation import select_complete_records
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -502,3 +503,34 @@ def test_shard_rejects_non_mapping_before_dict_coercion(tmp_path: Path) -> None:
             data_root=tmp_path / "pneuma-data",
         )
     assert not output_root.exists()
+
+
+def test_selected_smoke_records_remain_exact_zero_weight_in_shard(
+    tmp_path: Path,
+) -> None:
+    resolved = _example("resolved", repo="org/resolved", resolved=True)
+    unresolved = _example(
+        "unresolved",
+        repo="org/unresolved",
+        issue_or_pr="456",
+        task_id="task-456",
+        resolved=False,
+    )
+    selected = select_complete_records(
+        (unresolved, resolved),
+        token_ceiling=12,
+    )
+    result = build_content_addressed_shard(
+        selected,
+        repo_root=tmp_path / "repo",
+        output_root=tmp_path / "repo/build/foundation/shards",
+        data_root=tmp_path / "pneuma-data",
+    )
+    persisted = [
+        json.loads(line)
+        for line in result.shard_path.read_text(encoding="utf-8").splitlines()
+    ]
+
+    assert len(persisted) == 2
+    assert all(record["training_weight"] == 0.0 for record in persisted)
+    assert sum(record["tokenization"]["total_tokens"] for record in persisted) == 12

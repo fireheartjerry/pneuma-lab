@@ -1,0 +1,16 @@
+{
+    "receipt_kind": "dataset_license_posture",
+    "receipt_schema_version": "0.1.0",
+    "dataset_id": "swe-gym-openhands-sampled",
+    "artifact_card_license_declared": false,
+    "upstream_code_license": "Apache-2.0",
+    "mirror_directory_license_observed": "MIT",
+    "decision": "local_research_candidate_no_redistribution",
+    "cloud_redistribution_allowed": false,
+    "requires_exact_operator_authorization": true,
+    "sources": [
+        "https://huggingface.co/datasets/SWE-Gym/OpenHands-Sampled-Trajectories",
+        "https://github.com/SWE-Gym/SWE-Gym",
+        "https://huggingface.co/datasets/neulab/agent-data-collection/blob/main/swe-gym_openhands_sampled_trajectories/LICENSE"
+    ]
+}
