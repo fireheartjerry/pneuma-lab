@@ -11,6 +11,7 @@ import subprocess
 
 import pytest
 
+from pneuma_lab.foundation import data as foundation_data
 from pneuma_lab.foundation.data import (
     ACTIVE_DATASET_GROUPS,
     DataAuthorizationError,
@@ -329,6 +330,87 @@ def test_shard_rejects_aliased_repo_root_before_write(tmp_path: Path) -> None:
             data_root=tmp_path / "pneuma-data",
         )
     assert not (physical_repo / "build").exists()
+
+
+@pytest.mark.parametrize("initially_missing", (False, True))
+def test_shard_binds_output_ancestry_during_publication(
+    tmp_path: Path,
+    monkeypatch,
+    initially_missing: bool,
+) -> None:
+    repo_root = tmp_path / "repo"
+    output_root = repo_root / "build/foundation/shards"
+    output_root.parent.mkdir(parents=True)
+    if not initially_missing:
+        output_root.mkdir()
+    saved_output = output_root.with_name("shards-before-race")
+    data_root = tmp_path / "pneuma-data"
+    data_root.mkdir()
+    sentinel = data_root / "sentinel.txt"
+    sentinel.write_text("immutable", encoding="utf-8")
+    before = tuple(path.name for path in data_root.iterdir())
+    real_write = foundation_data.write_atomic_bytes
+
+    def swap_output_ancestry(path: Path, payload: bytes, **kwargs) -> None:
+        if output_root.exists():
+            if initially_missing:
+                output_root.rmdir()
+            else:
+                output_root.rename(saved_output)
+        _make_directory_alias(output_root, data_root)
+        real_write(path, payload, **kwargs)
+
+    monkeypatch.setattr(
+        foundation_data,
+        "write_atomic_bytes",
+        swap_output_ancestry,
+    )
+    result = None
+    with pytest.raises(DataAuthorizationError, match="publication|output"):
+        result = build_content_addressed_shard(
+            (_example(),),
+            repo_root=repo_root,
+            output_root=output_root,
+            data_root=data_root,
+        )
+    assert result is None
+    assert tuple(path.name for path in data_root.iterdir()) == before
+    assert sentinel.read_text(encoding="utf-8") == "immutable"
+
+
+def test_shard_rolls_back_if_ancestry_changes_between_artifacts(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    output_root = repo_root / "build/foundation/shards"
+    output_root.mkdir(parents=True)
+    saved_output = output_root.with_name("shards-before-race")
+    data_root = tmp_path / "pneuma-data"
+    data_root.mkdir()
+    sentinel = data_root / "sentinel.txt"
+    sentinel.write_text("immutable", encoding="utf-8")
+    before = tuple(path.name for path in data_root.iterdir())
+    real_write = foundation_data.write_atomic_json
+
+    def swap_after_shard(path: Path, value, **kwargs) -> None:
+        output_root.rename(saved_output)
+        _make_directory_alias(output_root, data_root)
+        real_write(path, value, **kwargs)
+
+    monkeypatch.setattr(foundation_data, "write_atomic_json", swap_after_shard)
+    result = None
+    with pytest.raises(DataAuthorizationError, match="publication|output"):
+        result = build_content_addressed_shard(
+            (_example(),),
+            repo_root=repo_root,
+            output_root=output_root,
+            data_root=data_root,
+        )
+    assert result is None
+    assert tuple(path.name for path in data_root.iterdir()) == before
+    assert not saved_output.exists() or tuple(saved_output.iterdir()) == ()
+    assert sentinel.read_text(encoding="utf-8") == "immutable"
 
 
 def test_shard_requires_output_lexically_below_repo_build(tmp_path: Path) -> None:

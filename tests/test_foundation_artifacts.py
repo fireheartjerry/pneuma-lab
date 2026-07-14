@@ -115,7 +115,7 @@ def test_atomic_bytes_cleans_temp_after_replace_failure(
     path = tmp_path / "artifact.bin"
     path.write_bytes(b"preserved")
 
-    def fail_replace(_source, _target) -> None:
+    def fail_replace(_source, _target, **_kwargs) -> None:
         raise OSError("injected replace failure")
 
     monkeypatch.setattr(artifacts.os, "replace", fail_replace)

@@ -11,7 +11,11 @@ import re
 import stat as stat_module
 from typing import BinaryIO
 
-from pneuma_lab.foundation.artifacts import sha256_file, write_atomic_jsonl
+from pneuma_lab.foundation.artifacts import (
+    ArtifactPublicationError,
+    bind_artifact_publication,
+    write_atomic_jsonl,
+)
 
 
 IDENTITY_FIELDS = (
@@ -497,14 +501,30 @@ def build_eval_identity_index(
             ),
         )
     )
-    write_atomic_jsonl(output_path, rows)
+    try:
+        with bind_artifact_publication(
+            output_path.parent,
+            anchor_root=Path(repo_root),
+            allowed_root=Path(repo_root) / "build",
+            forbidden_roots=(Path(data_root),),
+        ) as publication:
+            write_atomic_jsonl(
+                output_path,
+                rows,
+                publication=publication,
+            )
+            output_sha256 = publication.sha256(output_path)
+    except ArtifactPublicationError as exc:
+        raise ContaminationIndexError(
+            f"evaluation identity index output publication failed: {exc}"
+        ) from exc
     return {
         "manifest_kind": "pneuma_eval_identity_index_receipt",
         "manifest_schema_version": "0.1.0",
         "family": family,
         "source_relative_path": relative_source,
         "output_artifact": Path(output_path).name,
-        "output_sha256": sha256_file(output_path),
+        "output_sha256": output_sha256,
         "identity_count": len(rows),
         "retained_fields": list(EVAL_METADATA_FIELDS),
     }

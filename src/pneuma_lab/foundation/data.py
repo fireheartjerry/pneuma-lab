@@ -13,7 +13,12 @@ from pathlib import Path
 from statistics import fmean
 from typing import Iterable, Mapping
 
-from pneuma_lab.foundation.artifacts import write_atomic_bytes, write_atomic_json
+from pneuma_lab.foundation.artifacts import (
+    ArtifactPublicationError,
+    bind_artifact_publication,
+    write_atomic_bytes,
+    write_atomic_json,
+)
 from pneuma_lab.foundation.eval_identities import (
     IdentityRecordError,
     identity_from_foundation_record,
@@ -356,8 +361,27 @@ def build_content_addressed_shard(
         "inventory": build_diversity_inventory(unique),
         "source_policy": "read_only_external_corpus",
     }
-    write_atomic_bytes(shard_path, payload)
-    write_atomic_json(manifest_path, manifest)
+    try:
+        with bind_artifact_publication(
+            output_root,
+            anchor_root=repo_root,
+            allowed_root=repo_root / "build",
+            forbidden_roots=(data_root,),
+        ) as publication:
+            write_atomic_bytes(
+                shard_path,
+                payload,
+                publication=publication,
+            )
+            write_atomic_json(
+                manifest_path,
+                manifest,
+                publication=publication,
+            )
+    except ArtifactPublicationError as exc:
+        raise DataAuthorizationError(
+            f"training shard output publication failed: {exc}"
+        ) from exc
     return ShardResult(
         shard_path=shard_path,
         manifest_path=manifest_path,

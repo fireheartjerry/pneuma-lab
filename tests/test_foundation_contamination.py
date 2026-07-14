@@ -956,6 +956,147 @@ def test_eval_identity_index_rejects_output_via_data_root_alias(
     assert not output.exists()
 
 
+@pytest.mark.parametrize("initially_missing", (False, True))
+def test_eval_identity_index_binds_output_ancestry_during_publication(
+    tmp_path: Path,
+    monkeypatch,
+    initially_missing: bool,
+) -> None:
+    data_root = tmp_path / "pneuma-data"
+    data_root.mkdir()
+    sentinel = data_root / "sentinel.txt"
+    sentinel.write_text("immutable", encoding="utf-8")
+    source = data_root / "processed/swe-bench/normalized_metadata.jsonl"
+    repo_root = tmp_path / "repo"
+    output = repo_root / "build/identities/swe-bench.jsonl"
+    output.parent.parent.mkdir(parents=True)
+    if not initially_missing:
+        output.parent.mkdir()
+    saved_parent = output.parent.with_name("identities-before-race")
+    source_bytes = b'{"source_id":"o__r-7","repo":"o/r","base_commit":"abc"}\n'
+    before = tuple(path.name for path in data_root.iterdir())
+
+    class VerifiedStream:
+        def __enter__(self):
+            self.stream = io.BytesIO(source_bytes)
+            return self.stream
+
+        def __exit__(self, *_args):
+            self.stream.close()
+
+    monkeypatch.setattr(
+        eval_identities,
+        "open_authorized_payload",
+        lambda *_args, **_kwargs: VerifiedStream(),
+    )
+    real_write = eval_identities.write_atomic_jsonl
+
+    def swap_output_ancestry(path: Path, rows, **kwargs) -> None:
+        if output.parent.exists():
+            if initially_missing:
+                output.parent.rmdir()
+            else:
+                output.parent.rename(saved_parent)
+        _make_directory_alias(output.parent, data_root)
+        real_write(path, rows, **kwargs)
+
+    monkeypatch.setattr(
+        eval_identities,
+        "write_atomic_jsonl",
+        swap_output_ancestry,
+    )
+    receipt = None
+    with pytest.raises(ContaminationIndexError, match="publication|output"):
+        receipt = build_eval_identity_index(
+            {
+                "families": [
+                    {
+                        "family": "swe-bench",
+                        "identity_metadata_relative_path": (
+                            "processed/swe-bench/normalized_metadata.jsonl"
+                        ),
+                    }
+                ]
+            },
+            family="swe-bench",
+            repo_root=repo_root,
+            data_root=data_root,
+            source_path=source,
+            output_path=output,
+            allowed_fields=EVAL_METADATA_FIELDS,
+        )
+    assert receipt is None
+    assert tuple(path.name for path in data_root.iterdir()) == before
+    assert sentinel.read_text(encoding="utf-8") == "immutable"
+
+
+def test_eval_identity_index_rolls_back_if_ancestry_changes_before_receipt(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    data_root = tmp_path / "pneuma-data"
+    data_root.mkdir()
+    sentinel = data_root / "sentinel.txt"
+    sentinel.write_text("immutable", encoding="utf-8")
+    source = data_root / "processed/swe-bench/normalized_metadata.jsonl"
+    repo_root = tmp_path / "repo"
+    output = repo_root / "build/identities/swe-bench.jsonl"
+    output.parent.mkdir(parents=True)
+    saved_parent = output.parent.with_name("identities-before-race")
+    source_bytes = b'{"source_id":"o__r-7","repo":"o/r","base_commit":"abc"}\n'
+    before = tuple(path.name for path in data_root.iterdir())
+
+    class VerifiedStream:
+        def __enter__(self):
+            self.stream = io.BytesIO(source_bytes)
+            return self.stream
+
+        def __exit__(self, *_args):
+            self.stream.close()
+
+    monkeypatch.setattr(
+        eval_identities,
+        "open_authorized_payload",
+        lambda *_args, **_kwargs: VerifiedStream(),
+    )
+    real_write = eval_identities.write_atomic_jsonl
+
+    def write_then_swap(path: Path, rows, **kwargs) -> None:
+        real_write(path, rows, **kwargs)
+        output.parent.rename(saved_parent)
+        _make_directory_alias(output.parent, data_root)
+
+    monkeypatch.setattr(
+        eval_identities,
+        "write_atomic_jsonl",
+        write_then_swap,
+    )
+    receipt = None
+    with pytest.raises(ContaminationIndexError, match="publication|output"):
+        receipt = build_eval_identity_index(
+            {
+                "families": [
+                    {
+                        "family": "swe-bench",
+                        "identity_metadata_relative_path": (
+                            "processed/swe-bench/normalized_metadata.jsonl"
+                        ),
+                    }
+                ]
+            },
+            family="swe-bench",
+            repo_root=repo_root,
+            data_root=data_root,
+            source_path=source,
+            output_path=output,
+            allowed_fields=EVAL_METADATA_FIELDS,
+        )
+    assert receipt is None
+    assert tuple(path.name for path in data_root.iterdir()) == before
+    assert not saved_parent.exists() or tuple(saved_parent.iterdir()) == ()
+    assert sentinel.read_text(encoding="utf-8") == "immutable"
+
+
 @pytest.mark.parametrize("alias_level", ("repo", "build", "output_parent"))
 def test_eval_identity_index_rejects_output_path_reparse_ancestors(
     tmp_path: Path,
