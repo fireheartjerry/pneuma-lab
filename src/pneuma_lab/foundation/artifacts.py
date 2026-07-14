@@ -44,6 +44,21 @@ class BoundArtifactRead:
     size: int
 
 
+def _bound_read_signature(
+    metadata: os.stat_result,
+) -> tuple[int, int, int, int, int, int]:
+    """Return the full stable metadata signature required for bound reads."""
+
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+        getattr(metadata, "st_nlink", 1),
+    )
+
+
 @dataclass
 class _PublishedArtifact:
     name: str
@@ -987,7 +1002,7 @@ class BoundArtifactPublication:
         self._verify_authorized_location()
         descriptors: list[int] = []
         reads: list[BoundArtifactRead] = []
-        identities: list[tuple[int, int]] = []
+        signatures: list[tuple[int, int, int, int, int, int]] = []
         try:
             try:
                 for name in names:
@@ -1028,7 +1043,7 @@ class BoundArtifactPublication:
                     raise ArtifactPublicationError(
                         "artifact content size differs from its held-handle metadata"
                     )
-                identities.append((after.st_dev, after.st_ino))
+                signatures.append(_bound_read_signature(after))
                 reads.append(
                     BoundArtifactRead(
                         payload=b"".join(chunks),
@@ -1038,20 +1053,47 @@ class BoundArtifactPublication:
                 )
 
             self._before_bound_read_verify()
+            for descriptor, signature, read in zip(
+                descriptors,
+                signatures,
+                reads,
+                strict=True,
+            ):
+                if _bound_read_signature(os.fstat(descriptor)) != signature:
+                    raise ArtifactPublicationError(
+                        "artifact metadata changed before bound-read acceptance"
+                    )
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                digest = hashlib.sha256()
+                size = 0
+                while chunk := os.read(descriptor, _HASH_CHUNK_BYTES):
+                    digest.update(chunk)
+                    size += len(chunk)
+                if _bound_read_signature(os.fstat(descriptor)) != signature:
+                    raise ArtifactPublicationError(
+                        "artifact metadata changed during bound-read revalidation"
+                    )
+                if size != read.size or digest.hexdigest() != read.sha256:
+                    raise ArtifactPublicationError(
+                        "artifact digest changed before bound-read acceptance"
+                    )
             self._verify_authorized_location()
-            for name, identity in zip(names, identities, strict=True):
-                fresh_descriptor = self._open_target_descriptor(name)
-                try:
-                    metadata = os.fstat(fresh_descriptor)
-                    if (
-                        (metadata.st_dev, metadata.st_ino) != identity
-                        or getattr(metadata, "st_nlink", 1) != 1
-                    ):
-                        raise ArtifactPublicationError(
-                            "artifact read target changed before set acceptance"
-                        )
-                finally:
-                    os.close(fresh_descriptor)
+            for name, signature in zip(names, signatures, strict=True):
+                if os.name == "nt":
+                    metadata = (self.directory / name).lstat()
+                else:
+                    metadata = os.stat(
+                        name,
+                        dir_fd=self._directory_binding,
+                        follow_symlinks=False,
+                    )
+                if (
+                    not stat_module.S_ISREG(metadata.st_mode)
+                    or _bound_read_signature(metadata) != signature
+                ):
+                    raise ArtifactPublicationError(
+                        "artifact read target changed before set acceptance"
+                    )
             self._verify_authorized_location()
             return dict(zip(requested, reads, strict=True))
         finally:

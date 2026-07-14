@@ -591,6 +591,76 @@ def test_prepare_stage_reuse_rejects_conversion_swap_without_path_reopen(
     assert not result.preparation_manifest_path.exists()
 
 
+@pytest.mark.parametrize(
+    "artifact_kind",
+    ("conversion_report", "hash_manifest", "eval_index"),
+)
+def test_prepare_stage_rejects_in_place_generated_set_mutation_without_receipt(
+    tmp_path,
+    monkeypatch,
+    artifact_kind: str,
+) -> None:
+    from pneuma_lab.foundation import artifacts
+    from pneuma_lab.foundation import preparation
+
+    request = _prepare_fixture(tmp_path)
+    monkeypatch.setattr(preparation, "_load_tokenizer", lambda path: ByteTokenizer())
+    result = preparation.prepare_stage(request)
+    for path in _result_files(result):
+        if path.parent == request.output_root and path.exists():
+            path.unlink()
+    conversion_root = request.repo_root / "build/training_examples/openhands-sampled/full"
+    eval_root = request.output_root / "eval-identities"
+    targets = {
+        "conversion_report": conversion_root / "conversion_report.json",
+        "hash_manifest": conversion_root / "hash_manifest.json",
+        "eval_index": eval_root / "swe-bench.jsonl",
+    }
+    target = targets[artifact_kind]
+    conversion_reads = 0
+    mutated = False
+
+    def mutate_in_place(publication) -> None:
+        nonlocal conversion_reads, mutated
+        if publication.directory == conversion_root:
+            conversion_reads += 1
+        should_mutate = (
+            artifact_kind in {"conversion_report", "hash_manifest"}
+            and publication.directory == conversion_root
+            and conversion_reads == 2
+        ) or (
+            artifact_kind == "eval_index"
+            and publication.directory == eval_root
+        )
+        if mutated or not should_mutate:
+            return
+        mutated = True
+        metadata = target.stat()
+        with target.open("r+b") as stream:
+            stream.write(b"X" * metadata.st_size)
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            os.utime(target, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+        except OSError:
+            pass
+
+    monkeypatch.setattr(
+        artifacts.BoundArtifactPublication,
+        "_before_bound_read_verify",
+        mutate_in_place,
+        raising=False,
+    )
+
+    with pytest.raises(
+        (artifacts.ArtifactPublicationError, ValueError),
+        match="changed|digest|metadata",
+    ):
+        preparation.prepare_stage(request)
+    assert mutated is True
+    assert not result.preparation_manifest_path.exists()
+
+
 def test_preparation_module_has_no_training_execution_dependencies() -> None:
     source = (
         ROOT / "src/pneuma_lab/foundation/preparation.py"

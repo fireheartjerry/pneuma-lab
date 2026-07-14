@@ -120,6 +120,42 @@ def test_bound_artifact_set_reads_one_coherent_physical_set(tmp_path: Path) -> N
     }
 
 
+def test_bound_artifact_set_does_not_reopen_payload_paths(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    output_root = repo_root / "build/conversion"
+    output_root.mkdir(parents=True)
+    paths = (
+        output_root / "conversion_report.json",
+        output_root / "hash_manifest.json",
+    )
+    for path in paths:
+        path.write_bytes(path.name.encode("utf-8"))
+    original_open = artifacts.BoundArtifactPublication._open_target_descriptor
+    opened = []
+
+    def track_open(publication, name: str) -> int:
+        opened.append(name)
+        return original_open(publication, name)
+
+    monkeypatch.setattr(
+        artifacts.BoundArtifactPublication,
+        "_open_target_descriptor",
+        track_open,
+    )
+
+    artifacts.read_bound_artifact_set(
+        paths,
+        directory=output_root,
+        anchor_root=repo_root,
+        allowed_root=repo_root / "build",
+    )
+
+    assert opened == [path.name for path in paths]
+
+
 def test_bound_artifact_set_rejects_hard_link_alias(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
     output_root = repo_root / "build/conversion"
@@ -179,6 +215,70 @@ def test_bound_artifact_set_rejects_target_swap_before_acceptance(
             anchor_root=repo_root,
             allowed_root=repo_root / "build",
         )
+
+
+@pytest.mark.parametrize(
+    "target_name",
+    (
+        "conversion_report.json",
+        "hash_manifest.json",
+        "swe-bench.jsonl",
+    ),
+)
+def test_bound_artifact_set_rejects_same_size_in_place_mutation(
+    tmp_path: Path,
+    monkeypatch,
+    target_name: str,
+) -> None:
+    repo_root = tmp_path / "repo"
+    output_root = repo_root / "build/coherent-set"
+    output_root.mkdir(parents=True)
+    paths = tuple(
+        output_root / name
+        for name in (
+            "conversion_report.json",
+            "hash_manifest.json",
+            "swe-bench.jsonl",
+        )
+    )
+    for index, path in enumerate(paths):
+        path.write_bytes(bytes([65 + index]) * 32)
+    target = output_root / target_name
+    original_metadata = target.stat()
+    mutated = False
+
+    def mutate_in_place(publication) -> None:
+        nonlocal mutated
+        if mutated:
+            return
+        mutated = True
+        with target.open("r+b") as stream:
+            stream.write(b"Z" * original_metadata.st_size)
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            os.utime(
+                target,
+                ns=(original_metadata.st_atime_ns, original_metadata.st_mtime_ns),
+            )
+        except OSError:
+            pass
+
+    monkeypatch.setattr(
+        artifacts.BoundArtifactPublication,
+        "_before_bound_read_verify",
+        mutate_in_place,
+        raising=False,
+    )
+
+    with pytest.raises(ArtifactPublicationError, match="changed|digest|metadata"):
+        artifacts.read_bound_artifact_set(
+            paths,
+            directory=output_root,
+            anchor_root=repo_root,
+            allowed_root=repo_root / "build",
+        )
+    assert mutated is True
 
 
 @pytest.mark.parametrize(
