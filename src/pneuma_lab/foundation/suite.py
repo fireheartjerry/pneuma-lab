@@ -78,7 +78,19 @@ _EXPECTED_POLICY_KEYS = {
     "manifest_kind",
     "manifest_schema_version",
     "first_stage",
+    "evaluation_identity",
     "families",
+}
+_EXPECTED_POLICY_ORDER = (
+    "manifest_kind",
+    "manifest_schema_version",
+    "first_stage",
+    "evaluation_identity",
+    "families",
+)
+_EXPECTED_EVALUATION_IDENTITY = {
+    "required_families": ["swe-bench", "swe-mera", "swe-polybench"],
+    "blocked_unavailable_families": ["swe-bench-pro"],
 }
 _CANDIDATE_LANE_ID = "swe-gym-openhands-sampled"
 
@@ -109,12 +121,25 @@ def _policy_entries(policy: Mapping) -> tuple[Mapping, ...]:
 def _validated_family_map(policy: Mapping) -> dict[str, Mapping]:
     if not isinstance(policy, Mapping):
         raise SuitePolicyError("suite policy must be a mapping")
-    if set(policy) != _EXPECTED_POLICY_KEYS:
+    if (
+        set(policy) != _EXPECTED_POLICY_KEYS
+        or tuple(policy) != _EXPECTED_POLICY_ORDER
+    ):
         raise SuitePolicyError("suite policy manifest has missing or extra fields")
     if policy.get("manifest_kind") != "pneuma_foundation_dataset_suite":
         raise SuitePolicyError("suite policy manifest_kind is invalid")
     if policy.get("manifest_schema_version") != "0.1.0":
         raise SuitePolicyError("suite policy manifest_schema_version is invalid")
+    evaluation_identity = policy.get("evaluation_identity")
+    if (
+        not isinstance(evaluation_identity, Mapping)
+        or tuple(evaluation_identity) != tuple(_EXPECTED_EVALUATION_IDENTITY)
+        or dict(evaluation_identity) != _EXPECTED_EVALUATION_IDENTITY
+    ):
+        raise SuitePolicyError(
+            "suite policy evaluation identity must match the exact required and "
+            "blocked/unavailable family lists"
+        )
     entries = _policy_entries(policy)
     families: list[str] = []
     for item in entries:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from pneuma_lab.foundation.data import (
     DataAuthorizationError,
     build_content_addressed_shard,
     build_diversity_inventory,
+    dedup_fingerprint,
     deduplicate_examples,
     governed_dataset_groups,
 )
@@ -22,23 +24,88 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _example(example_id: str = "ex-1", **overrides) -> dict:
     value = {
-        "example_id": example_id,
-        "dataset_group": "open-swe-traces",
-        "training_authorization": "authorized",
-        "training_weight": 1.0,
-        "repo": "org/repo",
-        "issue_or_pr": "123",
-        "task_id": "task-123",
-        "base_commit": "abc",
-        "patch": "diff --git a/x b/x",
-        "test_patch": "test x",
-        "text": "Use the tool and verify the result",
-        "language": "python",
-        "tools": ["shell", "pytest"],
-        "trajectory_length": 8,
-        "label": "resolved",
+        "record_kind": "pneuma_foundation_training_record",
+        "record_schema_version": "0.1.0",
+        "record_id": "ftr:" + hashlib.sha256(example_id.encode()).hexdigest(),
+        "source": {
+            "dataset_family": "open-swe-traces",
+            "lane_id": "open-swe-traces",
+            "source_record_id": example_id,
+            "source_revision": None,
+            "receipt_hashes": [],
+        },
+        "disposition": {
+            "terminal_role": "train",
+            "gradient_eligibility": "later",
+            "license_disposition": "reviewed",
+            "privacy_disposition": "reviewed",
+            "dual_use_disposition": "not_flagged",
+            "oracle_disposition": "target_only",
+        },
+        "identity": {
+            "repo": "org/repo",
+            "issue_or_pr": "123",
+            "task_id": "task-123",
+            "base_commit": "abc",
+            "patch_sha256": "sha256:" + "a" * 64,
+            "test_patch_sha256": "b" * 64,
+            "fuzzy_text_sha256": "c" * 64,
+        },
+        "split": {"split_id": "train", "quarantine_id": None},
+        "rendered": {"prompt_text": "prompt", "target_text": "target"},
+        "tokenization": {
+            "tokenizer_id": "Qwen/Qwen3.5-2B",
+            "tokenizer_revision": "d" * 40,
+            "prompt_tokens": 4,
+            "target_tokens": 2,
+            "total_tokens": 6,
+        },
+        "training_weight": 0.0,
+        "forecast_targets": {
+            "action_success": {
+                "applicable": True,
+                "value": 1.0,
+                "provenance": "observed_outcome",
+            },
+            "expected_error": {
+                "applicable": True,
+                "value": 0.0,
+                "provenance": "observed_outcome",
+            },
+            **{
+                name: {"applicable": False, "value": None, "provenance": None}
+                for name in (
+                    "verifier_outcome",
+                    "tool_cost",
+                    "token_cost",
+                    "latency_cost",
+                    "retrieval_usefulness",
+                    "intervention_response",
+                )
+            },
+        },
+        "observations": {
+            "language": "python",
+            "tools": ["shell", "pytest"],
+            "trajectory_length": 8,
+            "labels": {"resolved": True},
+        },
     }
-    value.update(overrides)
+    for key, override in overrides.items():
+        if key in value["identity"]:
+            value["identity"][key] = override
+        elif key in value["observations"]:
+            value["observations"][key] = override
+        elif key == "resolved":
+            value["observations"]["labels"]["resolved"] = override
+        elif key == "total_tokens":
+            value["tokenization"]["total_tokens"] = override
+        elif key == "dataset_family":
+            value["source"]["dataset_family"] = override
+        elif key == "training_weight":
+            value["training_weight"] = override
+        else:
+            value[key] = override
     return value
 
 
@@ -70,12 +137,37 @@ def test_deduplication_uses_repo_issue_commit_patch_test_and_fuzzy_text() -> Non
     original = _example()
     fuzzy_duplicate = _example(
         "ex-2",
-        text="  use   THE tool and VERIFY the result ",
+        patch_sha256="a" * 64,
     )
     distinct = _example("ex-3", issue_or_pr="124", task_id="task-124")
     unique, duplicate_ids = deduplicate_examples((original, fuzzy_duplicate, distinct))
-    assert [item["example_id"] for item in unique] == ["ex-1", "ex-3"]
+    assert [item["source"]["source_record_id"] for item in unique] == [
+        "ex-1",
+        "ex-3",
+    ]
     assert duplicate_ids == ("ex-2",)
+
+
+def test_dedup_fingerprint_preserves_valid_prefixed_digest() -> None:
+    prefixed = _example(patch_sha256="sha256:" + "a" * 64)
+    bare = _example(patch_sha256="a" * 64)
+    assert dedup_fingerprint(prefixed) == dedup_fingerprint(bare)
+
+
+def test_dedup_fingerprint_hashes_malformed_prefixed_digest_as_raw_text() -> None:
+    malformed = "sha256:" + "g" * 64
+    malformed_record = _example(patch_sha256=malformed)
+    equivalent_digest = _example(
+        patch_sha256=hashlib.sha256(malformed.encode("utf-8")).hexdigest()
+    )
+    assert dedup_fingerprint(malformed_record) == dedup_fingerprint(
+        equivalent_digest
+    )
+
+
+def test_dedup_fingerprint_requires_persisted_zero_weight() -> None:
+    with pytest.raises(DataAuthorizationError, match="zero-weight"):
+        dedup_fingerprint(_example(training_weight=None))
 
 
 def test_inventory_reports_required_diversity_dimensions() -> None:
@@ -90,18 +182,24 @@ def test_inventory_reports_required_diversity_dimensions() -> None:
                 language="rust",
                 tools=["shell"],
                 trajectory_length=3,
-                label="unresolved",
+                resolved=False,
+                total_tokens=9,
             ),
         )
     )
     assert inventory["example_count"] == 2
-    assert inventory["token_count"] > 0
+    assert inventory["token_count"] == 15
     assert inventory["repository_count"] == 2
     assert inventory["issue_count"] == 2
     assert inventory["languages"] == {"python": 1, "rust": 1}
     assert inventory["tools"] == {"pytest": 1, "shell": 2}
     assert inventory["trajectory_length"]["max"] == 8
     assert inventory["labels"] == {"resolved": 1, "unresolved": 1}
+    assert inventory["dataset_families"] == {"open-swe-traces": 2}
+    assert inventory["forecast_targets"] == {
+        "action_success": 2,
+        "expected_error": 2,
+    }
 
 
 def test_content_addressed_shard_never_writes_to_data_root(tmp_path: Path) -> None:
@@ -133,8 +231,7 @@ def test_shard_rejects_blocked_positive_weight_and_unsafe_output(
         build_content_addressed_shard(
             (
                 _example(
-                    dataset_group="sec-bench-pro",
-                    training_authorization="blocked",
+                    dataset_family="sec-bench-pro",
                     training_weight=1.0,
                 ),
             ),
@@ -151,18 +248,49 @@ def test_shard_rejects_blocked_positive_weight_and_unsafe_output(
         )
 
 
-def test_security_records_cannot_request_exploit_execution(tmp_path: Path) -> None:
-    with pytest.raises(DataAuthorizationError, match="functioning exploit"):
+def test_shard_requires_exact_persisted_zero_weight_and_record_shape(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(DataAuthorizationError, match="zero-weight"):
         build_content_addressed_shard(
-            (
-                _example(
-                    dataset_group="sec-bench-pro",
-                    training_authorization="blocked",
-                    training_weight=0.0,
-                    functioning_exploit=True,
-                ),
-            ),
+            (_example(training_weight=None),),
             repo_root=tmp_path / "repo",
             output_root=tmp_path / "repo" / "build" / "shards",
             data_root=tmp_path / "pneuma-data",
         )
+    malformed = _example()
+    malformed["observations"]["unknown"] = True
+    with pytest.raises(DataAuthorizationError, match="Additional properties"):
+        build_content_addressed_shard(
+            (malformed,),
+            repo_root=tmp_path / "repo",
+            output_root=tmp_path / "repo" / "build" / "shards",
+            data_root=tmp_path / "pneuma-data",
+        )
+
+
+@pytest.mark.parametrize("training_weight", (0, -0.0, False, float("nan")))
+def test_shard_requires_positive_zero_float_training_weight(
+    tmp_path: Path,
+    training_weight,
+) -> None:
+    with pytest.raises(DataAuthorizationError, match="zero-weight"):
+        build_content_addressed_shard(
+            (_example(training_weight=training_weight),),
+            repo_root=tmp_path / "repo",
+            output_root=tmp_path / "repo" / "build" / "shards",
+            data_root=tmp_path / "pneuma-data",
+        )
+
+
+def test_shard_rejects_non_mapping_before_dict_coercion(tmp_path: Path) -> None:
+    record_as_pairs = list(_example().items())
+    output_root = tmp_path / "repo" / "build" / "shards"
+    with pytest.raises(DataAuthorizationError, match="mapping"):
+        build_content_addressed_shard(
+            (record_as_pairs,),
+            repo_root=tmp_path / "repo",
+            output_root=output_root,
+            data_root=tmp_path / "pneuma-data",
+        )
+    assert not output_root.exists()

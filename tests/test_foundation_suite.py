@@ -60,6 +60,11 @@ EXPECTED_FAMILY_MATRIX = {
     ),
 }
 
+EXPECTED_EVALUATION_IDENTITY = {
+    "required_families": ["swe-bench", "swe-mera", "swe-polybench"],
+    "blocked_unavailable_families": ["swe-bench-pro"],
+}
+
 
 def _matrix_mutations() -> tuple[tuple[str, str, str], ...]:
     cases = []
@@ -105,6 +110,35 @@ def _different_valid_value(field: str, current: str) -> str:
 
 def _suite_fixture() -> dict:
     return load_suite_policy(POLICY)
+
+
+def test_suite_policy_pins_exact_evaluation_identity_block() -> None:
+    policy = _suite_fixture()
+    assert policy["evaluation_identity"] == EXPECTED_EVALUATION_IDENTITY
+    validate_suite_policy(policy, _registry_fixture())
+
+    for mutation in (
+        {"required_families": ["swe-bench"]},
+        {"blocked_unavailable_families": []},
+        {"unexpected": True},
+    ):
+        changed = copy.deepcopy(policy)
+        changed["evaluation_identity"].update(mutation)
+        with pytest.raises(SuitePolicyError, match="evaluation identity"):
+            validate_suite_policy(changed, _registry_fixture())
+
+    missing = copy.deepcopy(policy)
+    missing.pop("evaluation_identity")
+    with pytest.raises(SuitePolicyError):
+        validate_suite_policy(missing, _registry_fixture())
+
+    reordered = copy.deepcopy(policy)
+    families = reordered.pop("families")
+    evaluation_identity = reordered.pop("evaluation_identity")
+    reordered["families"] = families
+    reordered["evaluation_identity"] = evaluation_identity
+    with pytest.raises(SuitePolicyError):
+        validate_suite_policy(reordered, _registry_fixture())
 
 
 def _registry_fixture() -> dict:

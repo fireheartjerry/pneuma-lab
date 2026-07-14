@@ -4,13 +4,22 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import re
+import math
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import fmean
 from typing import Iterable, Mapping
+
+from pneuma_lab.foundation.artifacts import write_atomic_bytes, write_atomic_json
+from pneuma_lab.foundation.eval_identities import (
+    IdentityRecordError,
+    identity_from_foundation_record,
+)
+from pneuma_lab.foundation.records import (
+    FoundationRecordError,
+    validate_foundation_record,
+)
 
 
 ACTIVE_DATASET_GROUPS = (
@@ -72,22 +81,44 @@ def governed_dataset_groups(registry: Mapping) -> dict[str, DatasetRole]:
 
 
 def _normalized_text(value: object) -> str:
-    return " ".join(str(value or "").casefold().split())
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise DataAuthorizationError("identity values must be strings or null")
+    return " ".join(value.casefold().split())
 
 
-def _digest(value: object) -> str:
-    return hashlib.sha256(str(value or "").encode("utf-8")).hexdigest()
+def _digest(value: str | None) -> str | None:
+    if value is None:
+        return None
+    if value.startswith("sha256:"):
+        suffix = value.removeprefix("sha256:").casefold()
+        if len(suffix) == 64 and all(
+            character in "0123456789abcdef" for character in suffix
+        ):
+            return suffix
+    normalized = value.casefold()
+    if len(normalized) == 64 and all(
+        character in "0123456789abcdef" for character in normalized
+    ):
+        return normalized
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def dedup_fingerprint(example: Mapping) -> str:
+    _validate_example(example)
+    try:
+        identity = identity_from_foundation_record(example)
+    except IdentityRecordError as exc:
+        raise DataAuthorizationError(f"invalid foundation identity: {exc}") from exc
     canonical = {
-        "repo": _normalized_text(example.get("repo")),
-        "issue_or_pr": _normalized_text(example.get("issue_or_pr")),
-        "task_id": _normalized_text(example.get("task_id")),
-        "base_commit": _normalized_text(example.get("base_commit")),
-        "patch_sha256": _digest(example.get("patch")),
-        "test_patch_sha256": _digest(example.get("test_patch")),
-        "fuzzy_text_sha256": _digest(_normalized_text(example.get("text"))),
+        "repo": _normalized_text(identity.repo),
+        "issue_or_pr": _normalized_text(identity.issue_or_pr),
+        "task_id": _normalized_text(identity.task_id),
+        "base_commit": _normalized_text(identity.base_commit),
+        "patch_sha256": _digest(identity.patch_sha256),
+        "test_patch_sha256": _digest(identity.test_patch_sha256),
+        "fuzzy_text_sha256": _digest(identity.fuzzy_text_sha256),
     }
     payload = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -102,7 +133,15 @@ def deduplicate_examples(
     for example in examples:
         fingerprint = dedup_fingerprint(example)
         if fingerprint in seen:
-            duplicate_ids.append(str(example.get("example_id", "<missing>")))
+            source = example.get("source")
+            source_id = (
+                source.get("source_record_id")
+                if isinstance(source, Mapping)
+                else None
+            )
+            duplicate_ids.append(
+                source_id if isinstance(source_id, str) else "<missing>"
+            )
             continue
         seen.add(fingerprint)
         unique.append(dict(example))
@@ -111,29 +150,51 @@ def deduplicate_examples(
 
 def build_diversity_inventory(examples: Iterable[Mapping]) -> dict:
     values = tuple(examples)
+    dataset_families: Counter[str] = Counter()
+    lanes: Counter[str] = Counter()
     languages: Counter[str] = Counter()
     tools: Counter[str] = Counter()
     labels: Counter[str] = Counter()
+    forecast_targets: Counter[str] = Counter()
     repos: set[str] = set()
     issues: set[tuple[str, str]] = set()
     lengths: list[int] = []
     token_count = 0
     for example in values:
-        repo = str(example.get("repo") or "unknown")
-        issue = str(example.get("issue_or_pr") or example.get("task_id") or "unknown")
+        _validate_example(example)
+        source = example["source"]
+        identity = example["identity"]
+        tokenization = example["tokenization"]
+        observations = example["observations"]
+        targets = example["forecast_targets"]
+        dataset_families[source["dataset_family"]] += 1
+        lanes[source["lane_id"]] += 1
+        repo = identity["repo"] or "unknown"
+        issue = (
+            identity["issue_or_pr"]
+            or identity["task_id"]
+            or "unknown"
+        )
         repos.add(repo)
         issues.add((repo, issue))
-        languages[str(example.get("language") or "unknown")] += 1
-        for tool in example.get("tools") or ():
-            tools[str(tool)] += 1
-        labels[str(example.get("label") or "unknown")] += 1
-        lengths.append(int(example.get("trajectory_length") or 0))
-        token_count += len(re.findall(r"\S+", str(example.get("text") or "")))
+        languages[observations["language"]] += 1
+        for tool in observations["tools"]:
+            tools[tool] += 1
+        labels[
+            "resolved" if observations["labels"]["resolved"] else "unresolved"
+        ] += 1
+        lengths.append(observations["trajectory_length"])
+        token_count += tokenization["total_tokens"]
+        for name, target in targets.items():
+            if target["applicable"]:
+                forecast_targets[name] += 1
     return {
         "example_count": len(values),
         "token_count": token_count,
         "repository_count": len(repos),
         "issue_count": len(issues),
+        "dataset_families": dict(sorted(dataset_families.items())),
+        "lanes": dict(sorted(lanes.items())),
         "languages": dict(sorted(languages.items())),
         "tools": dict(sorted(tools.items())),
         "trajectory_length": {
@@ -142,6 +203,7 @@ def build_diversity_inventory(examples: Iterable[Mapping]) -> dict:
             "mean": fmean(lengths) if lengths else 0.0,
         },
         "labels": dict(sorted(labels.items())),
+        "forecast_targets": dict(sorted(forecast_targets.items())),
     }
 
 
@@ -164,28 +226,27 @@ def _validate_output_path(
 
 
 def _validate_example(example: Mapping) -> None:
-    group = str(example.get("dataset_group") or "")
-    if group not in ACTIVE_DATASET_GROUPS:
-        raise DataAuthorizationError(f"unknown active dataset group: {group!r}")
-    weight = float(example.get("training_weight") or 0.0)
-    authorization = str(example.get("training_authorization") or "blocked")
-    if authorization != "authorized" and weight > 0.0:
-        raise DataAuthorizationError(
-            f"blocked/eval/privacy dataset {group} must remain zero-weight"
-        )
-    if group == "sec-bench-pro" and (
-        example.get("functioning_exploit") or example.get("execution_requested")
+    if not isinstance(example, Mapping):
+        raise DataAuthorizationError("foundation record must be a mapping")
+    training_weight = example.get("training_weight")
+    if (
+        type(training_weight) is not float
+        or training_weight != 0.0
+        or math.copysign(1.0, training_weight) < 0.0
     ):
         raise DataAuthorizationError(
-            "security governance forbids functioning exploit generation or execution"
+            "persisted foundation records must remain exact zero-weight"
         )
-
-
-def _write_atomic(path: Path, payload: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".tmp")
-    temporary.write_bytes(payload)
-    os.replace(temporary, path)
+    source = example.get("source")
+    if not isinstance(source, Mapping):
+        raise DataAuthorizationError("foundation record source must be a mapping")
+    group = source.get("dataset_family")
+    if group not in ACTIVE_DATASET_GROUPS:
+        raise DataAuthorizationError(f"unknown active dataset group: {group!r}")
+    try:
+        validate_foundation_record(example)
+    except FoundationRecordError as exc:
+        raise DataAuthorizationError(str(exc)) from exc
 
 
 def build_content_addressed_shard(
@@ -205,9 +266,11 @@ def build_content_addressed_shard(
         output_root=output_root,
         data_root=data_root,
     )
-    values = tuple(dict(example) for example in examples)
-    for example in values:
+    values = []
+    for example in examples:
         _validate_example(example)
+        values.append(dict(example))
+    values = tuple(values)
     unique, duplicate_ids = deduplicate_examples(values)
     lines = [
         json.dumps(example, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -226,11 +289,8 @@ def build_content_addressed_shard(
         "inventory": build_diversity_inventory(unique),
         "source_policy": "read_only_external_corpus",
     }
-    _write_atomic(shard_path, payload)
-    _write_atomic(
-        manifest_path,
-        (json.dumps(manifest, indent=4, sort_keys=True) + "\n").encode("utf-8"),
-    )
+    write_atomic_bytes(shard_path, payload)
+    write_atomic_json(manifest_path, manifest)
     return ShardResult(
         shard_path=shard_path,
         manifest_path=manifest_path,

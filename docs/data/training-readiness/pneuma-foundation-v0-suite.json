@@ -7,6 +7,16 @@
             "swe-gym-openhands-sampled"
         ]
     },
+    "evaluation_identity": {
+        "required_families": [
+            "swe-bench",
+            "swe-mera",
+            "swe-polybench"
+        ],
+        "blocked_unavailable_families": [
+            "swe-bench-pro"
+        ]
+    },
     "families": [
         {
             "family": "multi-swe-bench",
