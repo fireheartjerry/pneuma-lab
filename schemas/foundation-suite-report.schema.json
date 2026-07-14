@@ -10,6 +10,7 @@
         "manifest_kind",
         "manifest_schema_version",
         "first_stage",
+        "evaluation_identity",
         "families"
     ],
     "properties": {
@@ -32,6 +33,28 @@
                 "authorized_lane_candidates": {
                     "const": [
                         "swe-gym-openhands-sampled"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "evaluation_identity": {
+            "type": "object",
+            "required": [
+                "required_families",
+                "blocked_unavailable_families"
+            ],
+            "properties": {
+                "required_families": {
+                    "const": [
+                        "swe-bench",
+                        "swe-mera",
+                        "swe-polybench"
+                    ]
+                },
+                "blocked_unavailable_families": {
+                    "const": [
+                        "swe-bench-pro"
                     ]
                 }
             },

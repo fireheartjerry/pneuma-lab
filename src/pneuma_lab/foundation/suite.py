@@ -606,6 +606,14 @@ def build_suite_completeness_report(policy: Mapping, data_root: Path) -> dict:
                 first_stage["authorized_lane_candidates"]
             ),
         },
+        "evaluation_identity": {
+            "required_families": list(
+                policy["evaluation_identity"]["required_families"]
+            ),
+            "blocked_unavailable_families": list(
+                policy["evaluation_identity"]["blocked_unavailable_families"]
+            ),
+        },
         "families": families,
     }
 

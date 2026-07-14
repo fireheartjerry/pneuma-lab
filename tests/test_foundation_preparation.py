@@ -104,6 +104,11 @@ def test_preparation_public_contract_exists() -> None:
         "contamination_receipt_path",
         "diversity_receipt_path",
         "selection_receipt_path",
+        "conversion_examples_path",
+        "conversion_invalid_examples_path",
+        "conversion_report_path",
+        "conversion_hash_manifest_path",
+        "eval_identity_paths",
         "authorization_candidate_path",
     }
     assert callable(deterministic_split)
@@ -340,7 +345,14 @@ def _prepare_fixture(tmp_path: Path):
 
 
 def _result_files(result) -> tuple[Path, ...]:
-    return tuple(Path(getattr(result, field)) for field in result.__dataclass_fields__)
+    paths = []
+    for field in result.__dataclass_fields__:
+        value = getattr(result, field)
+        if field == "eval_identity_paths":
+            paths.extend(Path(path) for path in value.values())
+        else:
+            paths.append(Path(value))
+    return tuple(paths)
 
 
 def _make_directory_alias(link: Path, target: Path) -> None:
@@ -417,7 +429,7 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
     assert contamination["finding_count"] == 0
     assert contamination["repo_issue_disjoint"] is True
 
-    conversion_root = request.repo_root / "build/training_examples/openhands-sampled/full"
+    conversion_root = request.output_root / "conversion"
     from pneuma_lab.foundation.snapshot_receipt import verify_pinned_snapshot
 
     verified_snapshot = verify_pinned_snapshot(
@@ -468,16 +480,24 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
     )
     assert shard_manifest["token_ceiling"] == 100_000
     assert set(manifest["generated_artifact_sha256"]["conversion"]) == {
-        "conversion_report.json",
-        "examples.jsonl",
-        "hash_manifest.json",
-        "invalid_examples.jsonl",
+        "conversion_report",
+        "examples",
+        "hash_manifest",
+        "invalid_examples",
     }
     assert set(manifest["generated_artifact_sha256"]["eval_identities"]) == {
         "swe-bench",
         "swe-mera",
         "swe-polybench",
     }
+    for group in manifest["generated_artifact_sha256"].values():
+        for binding in group.values():
+            artifact = request.repo_root / binding["path"]
+            assert artifact.is_relative_to(request.output_root)
+            assert binding["sha256"] == hashlib.sha256(
+                artifact.read_bytes()
+            ).hexdigest()
+            assert binding["size"] == artifact.stat().st_size
     assert manifest["tokenizer_snapshot"]["model_id"] == MODEL_SPECS["2b"].model_id
     assert manifest["tokenizer_snapshot"]["revision"] == MODEL_SPECS["2b"].revision
     assert manifest["source_receipt_hashes"] == expected_receipts
@@ -818,7 +838,7 @@ def test_prepare_stage_uses_verified_streams_and_recovers_partial_outputs(
 
     monkeypatch.setattr(Path, "open", reject_protected_path_open)
     result = preparation.prepare_stage(request)
-    conversion_root = request.repo_root / "build/training_examples/openhands-sampled/full"
+    conversion_root = request.output_root / "conversion"
     (conversion_root / "conversion_report.json").write_bytes(b"partial")
     (conversion_root / "orphan.tmp").write_bytes(b"partial")
 
@@ -867,9 +887,10 @@ def test_prepare_stage_builds_candidate_only_after_every_receipt_is_stable(
         assert model_key == "2b"
         assert len(code_commit) == 40
         for field in prepared.__dataclass_fields__:
-            path = Path(getattr(prepared, field))
+            value = getattr(prepared, field)
             if field != "authorization_candidate_path":
-                assert path.is_file(), field
+                paths = value.values() if isinstance(value, dict) else (value,)
+                assert all(Path(path).is_file() for path in paths), field
         calls.append(prepared.authorization_candidate_path)
         prepared.authorization_candidate_path.parent.mkdir(parents=True)
         prepared.authorization_candidate_path.write_text("candidate", encoding="utf-8")
@@ -936,6 +957,21 @@ def test_prepare_stage_rejects_output_alias_before_source_reads(
         preparation.prepare_stage(request)
     assert tuple(outside.iterdir()) == ()
     assert not (request.repo_root / "build/training_examples").exists()
+
+
+def test_prepare_stage_rejects_coherent_sibling_output_root(tmp_path) -> None:
+    from pneuma_lab.foundation import preparation
+
+    request = _prepare_fixture(tmp_path)
+    sibling = copy.copy(request)
+    object.__setattr__(
+        sibling,
+        "output_root",
+        request.repo_root / "build/foundation/sibling-preparation/100k",
+    )
+    with pytest.raises(ValueError, match="exact repository stage root"):
+        preparation.prepare_stage(sibling)
+    assert not sibling.output_root.exists()
 
 
 def test_prepare_stage_rejects_duplicate_registry_json_before_writes(
@@ -1010,7 +1046,7 @@ def test_prepare_stage_reuse_rejects_conversion_swap_without_path_reopen(
     for path in _result_files(result):
         if path.parent == request.output_root and path.exists():
             path.unlink()
-    conversion_root = request.repo_root / "build/training_examples/openhands-sampled/full"
+    conversion_root = request.output_root / "conversion"
     target = conversion_root / "conversion_report.json"
     saved = conversion_root / "conversion_report.saved"
     outside = tmp_path / "outside-report.json"
@@ -1068,7 +1104,7 @@ def test_prepare_stage_rejects_in_place_generated_set_mutation_without_receipt(
     for path in _result_files(result):
         if path.parent == request.output_root and path.exists():
             path.unlink()
-    conversion_root = request.repo_root / "build/training_examples/openhands-sampled/full"
+    conversion_root = request.output_root / "conversion"
     eval_root = request.output_root / "eval-identities"
     targets = {
         "conversion_report": conversion_root / "conversion_report.json",

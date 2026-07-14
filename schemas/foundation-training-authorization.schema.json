@@ -91,7 +91,7 @@
             "properties": {
                 "path": {"type": "string", "pattern": "^build/[A-Za-z0-9._/-]+$"},
                 "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-                "size": {"type": "integer", "minimum": 1}
+                "size": {"type": "integer", "minimum": 0}
             },
             "additionalProperties": false
         },
@@ -105,6 +105,7 @@
                 "learning_rates",
                 "code_commit",
                 "artifacts",
+                "evidence_artifacts",
                 "authorized_lane_weights",
                 "source_data_policy",
                 "output_root",
@@ -186,6 +187,39 @@
                         "contamination_receipt": {"$ref": "#/$defs/artifact_binding"},
                         "diversity_receipt": {"$ref": "#/$defs/artifact_binding"},
                         "selection_receipt": {"$ref": "#/$defs/artifact_binding"}
+                    },
+                    "additionalProperties": false
+                },
+                "evidence_artifacts": {
+                    "type": "object",
+                    "required": ["conversion", "eval_identities"],
+                    "properties": {
+                        "conversion": {
+                            "type": "object",
+                            "required": [
+                                "examples",
+                                "invalid_examples",
+                                "conversion_report",
+                                "hash_manifest"
+                            ],
+                            "properties": {
+                                "examples": {"$ref": "#/$defs/artifact_binding"},
+                                "invalid_examples": {"$ref": "#/$defs/artifact_binding"},
+                                "conversion_report": {"$ref": "#/$defs/artifact_binding"},
+                                "hash_manifest": {"$ref": "#/$defs/artifact_binding"}
+                            },
+                            "additionalProperties": false
+                        },
+                        "eval_identities": {
+                            "type": "object",
+                            "minProperties": 1,
+                            "patternProperties": {
+                                "^[a-z0-9][a-z0-9-]*$": {
+                                    "$ref": "#/$defs/artifact_binding"
+                                }
+                            },
+                            "additionalProperties": false
+                        }
                     },
                     "additionalProperties": false
                 },

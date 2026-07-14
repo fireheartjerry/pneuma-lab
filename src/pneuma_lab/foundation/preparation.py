@@ -127,6 +127,11 @@ class PreparationResult:
     contamination_receipt_path: Path
     diversity_receipt_path: Path
     selection_receipt_path: Path
+    conversion_examples_path: Path
+    conversion_invalid_examples_path: Path
+    conversion_report_path: Path
+    conversion_hash_manifest_path: Path
+    eval_identity_paths: Mapping[str, Path]
     authorization_candidate_path: Path
 
 
@@ -735,7 +740,9 @@ def _result_paths(
     output_root: Path,
     shard_path: Path,
     shard_manifest_path: Path,
+    eval_families: Iterable[str],
 ) -> PreparationResult:
+    conversion_root = output_root / "conversion"
     return PreparationResult(
         preparation_manifest_path=output_root / "preparation_manifest.json",
         suite_report_path=output_root / "suite_report.json",
@@ -748,6 +755,16 @@ def _result_paths(
         contamination_receipt_path=output_root / "contamination_receipt.json",
         diversity_receipt_path=output_root / "diversity_receipt.json",
         selection_receipt_path=output_root / "selection_receipt.json",
+        conversion_examples_path=conversion_root / "examples.jsonl",
+        conversion_invalid_examples_path=(
+            conversion_root / "invalid_examples.jsonl"
+        ),
+        conversion_report_path=conversion_root / "conversion_report.json",
+        conversion_hash_manifest_path=conversion_root / "hash_manifest.json",
+        eval_identity_paths={
+            family: output_root / "eval-identities" / f"{family}.jsonl"
+            for family in eval_families
+        },
         authorization_candidate_path=(
             repo_root
             / "build/foundation/authorizations/candidates"
@@ -858,15 +875,22 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
     ):
         if not path.is_absolute():
             raise ValueError(f"{label} must be absolute")
+    expected_output_root = (
+        repo_root / "build/foundation/preparation" / request.stage
+    )
+    if Path(os.path.abspath(output_root)) != Path(
+        os.path.abspath(expected_output_root)
+    ):
+        raise ValueError(
+            "preparation output root must be the exact repository stage root"
+        )
     try:
         _validate_output_path(
             repo_root=repo_root,
             output_root=output_root,
             data_root=data_root,
         )
-        conversion_root = (
-            repo_root / "build/training_examples/openhands-sampled/full"
-        )
+        conversion_root = output_root / "conversion"
         _validate_output_path(
             repo_root=repo_root,
             output_root=conversion_root,
@@ -1103,6 +1127,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         output_root,
         planned_shard_path,
         planned_shard_manifest_path,
+        required_families,
     )
     if request.dry_run:
         if source_before != source_after_snapshot():
@@ -1135,10 +1160,25 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         data_root=data_root,
     ):
         raise ValueError("published conversion is not byte-identical to the plan")
+    conversion_paths = {
+        "examples": planned_result.conversion_examples_path,
+        "invalid_examples": planned_result.conversion_invalid_examples_path,
+        "conversion_report": planned_result.conversion_report_path,
+        "hash_manifest": planned_result.conversion_hash_manifest_path,
+    }
+    conversion_payloads = read_bound_artifact_set(
+        tuple(conversion_paths.values()),
+        directory=conversion_root,
+        anchor_root=repo_root,
+        allowed_root=repo_root / "build",
+        forbidden_roots=(data_root,),
+    )
+    if conversion_payloads is None:
+        raise ValueError("operational conversion evidence is incomplete")
 
     eval_index_paths = {}
     for family in required_families:
-        output_path = output_root / "eval-identities" / f"{family}.jsonl"
+        output_path = planned_result.eval_identity_paths[family]
         build_eval_identity_index(
             suite_policy,
             stage=request.stage,
@@ -1186,6 +1226,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         output_root,
         shard_result.shard_path,
         shard_result.manifest_path,
+        required_families,
     )
     if (
         result.shard_path != planned_result.shard_path
@@ -1268,16 +1309,25 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         },
         "generated_artifact_sha256": {
             "conversion": {
-                name: hashlib.sha256(bundle[name]).hexdigest()
-                for name in (
-                    "examples.jsonl",
-                    "invalid_examples.jsonl",
-                    "conversion_report.json",
-                    "hash_manifest.json",
-                )
+                name: {
+                    "path": path.relative_to(repo_root).as_posix(),
+                    "sha256": conversion_payloads[path].sha256,
+                    "size": conversion_payloads[path].size,
+                }
+                for name, path in conversion_paths.items()
             },
             "eval_identities": {
-                family: eval_index_payloads[eval_index_paths[family]].sha256
+                family: {
+                    "path": eval_index_paths[family]
+                    .relative_to(repo_root)
+                    .as_posix(),
+                    "sha256": eval_index_payloads[
+                        eval_index_paths[family]
+                    ].sha256,
+                    "size": eval_index_payloads[
+                        eval_index_paths[family]
+                    ].size,
+                }
                 for family in required_families
             },
         },

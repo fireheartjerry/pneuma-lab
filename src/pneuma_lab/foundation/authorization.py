@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import hmac
+import io
 import json
 import math
 import os
@@ -29,10 +30,17 @@ from pneuma_lab.foundation.artifacts import (
     bind_artifact_publication,
     write_atomic_json,
 )
+from pneuma_lab.foundation.contamination import build_contamination_receipt
 from pneuma_lab.foundation.data import (
     ACTIVE_DATASET_GROUPS,
     build_diversity_inventory,
 )
+from pneuma_lab.foundation.eval_identities import (
+    IdentityRecord,
+    _metadata_rows,
+    identity_from_foundation_record,
+)
+from pneuma_lab.foundation.identity_normalization import normalize_identity_text
 from pneuma_lab.foundation.records import (
     EffectiveTrainingRecord,
     FoundationRecordError,
@@ -69,6 +77,16 @@ _ARTIFACT_FIELDS = {
     "diversity_receipt": "diversity_receipt_path",
     "selection_receipt": "selection_receipt_path",
 }
+_CONVERSION_ARTIFACT_FIELDS = {
+    "examples": "conversion_examples_path",
+    "invalid_examples": "conversion_invalid_examples_path",
+    "conversion_report": "conversion_report_path",
+    "hash_manifest": "conversion_hash_manifest_path",
+}
+_CONVERSION_PAYLOAD_NAMES = {
+    name: f"conversion:{name}" for name in _CONVERSION_ARTIFACT_FIELDS
+}
+_EVAL_PAYLOAD_PREFIX = "eval_identity:"
 _RECEIPT_FILENAMES = {
     "suite_report": "suite_report.json",
     "license_receipt": "license_receipt.json",
@@ -125,6 +143,7 @@ class VerifiedFoundationAuthorization:
     shard_manifest_path: Path
     output_root: Path
     authorized_lane_weights: Mapping
+    authorized_record_membership: Mapping
     scope_digest: str
     manifest: Mapping
 
@@ -261,6 +280,18 @@ def authorization_scope_digest(scope: Mapping) -> str:
     payload = json.dumps(
         canonical,
         allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _canonical_record_digest(record: Mapping) -> str:
+    canonical = _validated_json_value(record, path="foundation_record")
+    payload = json.dumps(
+        canonical,
+        allow_nan=False,
+        ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
@@ -438,8 +469,73 @@ def _artifact_paths_from_preparation(preparation: Any) -> dict[str, Path]:
         raise FoundationAuthorizationError("preparation result is incomplete") from exc
 
 
-def _validate_exact_preparation_paths(paths: Mapping[str, Path]) -> None:
-    preparation_root = _absolute_lexical(paths["preparation_manifest"].parent)
+def _evidence_paths_from_preparation(preparation: Any) -> dict[str, Path]:
+    try:
+        paths = {
+            _CONVERSION_PAYLOAD_NAMES[name]: Path(getattr(preparation, field))
+            for name, field in _CONVERSION_ARTIFACT_FIELDS.items()
+        }
+        eval_paths = preparation.eval_identity_paths
+        if not isinstance(eval_paths, Mapping) or not eval_paths:
+            raise TypeError("evaluation identity paths are incomplete")
+        for family, path in eval_paths.items():
+            if (
+                not isinstance(family, str)
+                or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", family)
+            ):
+                raise TypeError("evaluation identity family is invalid")
+            paths[f"{_EVAL_PAYLOAD_PREFIX}{family}"] = Path(path)
+        return paths
+    except (AttributeError, TypeError) as exc:
+        raise FoundationAuthorizationError(
+            "preparation evidence result is incomplete"
+        ) from exc
+
+
+def _flatten_scope_bindings(scope: Mapping) -> dict[str, Mapping]:
+    evidence = scope.get("evidence_artifacts")
+    if not isinstance(evidence, Mapping) or set(evidence) != {
+        "conversion",
+        "eval_identities",
+    }:
+        raise _coherence_error("scope evidence artifact groups are incomplete")
+    conversion = evidence.get("conversion")
+    eval_identities = evidence.get("eval_identities")
+    if (
+        not isinstance(conversion, Mapping)
+        or set(conversion) != set(_CONVERSION_ARTIFACT_FIELDS)
+        or not isinstance(eval_identities, Mapping)
+        or not eval_identities
+    ):
+        raise _coherence_error("scope evidence artifact bindings are incomplete")
+    flattened = {
+        _CONVERSION_PAYLOAD_NAMES[name]: binding
+        for name, binding in conversion.items()
+    }
+    for family, binding in eval_identities.items():
+        if (
+            not isinstance(family, str)
+            or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", family)
+        ):
+            raise _coherence_error("scope evaluation identity family is invalid")
+        flattened[f"{_EVAL_PAYLOAD_PREFIX}{family}"] = binding
+    return flattened
+
+
+def _validate_exact_preparation_paths(
+    paths: Mapping[str, Path],
+    evidence_paths: Mapping[str, Path],
+    *,
+    repo_root: Path,
+    stage: str,
+) -> None:
+    preparation_root = _absolute_lexical(
+        Path(repo_root) / "build/foundation/preparation" / stage
+    )
+    if _absolute_lexical(paths["preparation_manifest"].parent) != preparation_root:
+        raise FoundationAuthorizationError(
+            "preparation root is not the exact repository stage root"
+        )
     expected_direct = {
         "preparation_manifest": "preparation_manifest.json",
         "suite_report": "suite_report.json",
@@ -464,7 +560,38 @@ def _validate_exact_preparation_paths(paths: Mapping[str, Path]) -> None:
         raise FoundationAuthorizationError(
             "preparation shard paths are not exact"
         )
-    normalized = tuple(_absolute_lexical(path) for path in paths.values())
+    for name in _CONVERSION_ARTIFACT_FIELDS:
+        key = _CONVERSION_PAYLOAD_NAMES[name]
+        expected = preparation_root / "conversion" / {
+            "examples": "examples.jsonl",
+            "invalid_examples": "invalid_examples.jsonl",
+            "conversion_report": "conversion_report.json",
+            "hash_manifest": "hash_manifest.json",
+        }[name]
+        if _absolute_lexical(evidence_paths[key]) != expected:
+            raise FoundationAuthorizationError(
+                f"preparation conversion {name} path is not exact"
+            )
+    eval_keys = {
+        key.removeprefix(_EVAL_PAYLOAD_PREFIX)
+        for key in evidence_paths
+        if key.startswith(_EVAL_PAYLOAD_PREFIX)
+    }
+    if not eval_keys:
+        raise FoundationAuthorizationError(
+            "preparation evaluation identity paths are incomplete"
+        )
+    for family in eval_keys:
+        key = f"{_EVAL_PAYLOAD_PREFIX}{family}"
+        expected = preparation_root / "eval-identities" / f"{family}.jsonl"
+        if _absolute_lexical(evidence_paths[key]) != expected:
+            raise FoundationAuthorizationError(
+                f"preparation evaluation identity {family} path is not exact"
+            )
+    normalized = tuple(
+        _absolute_lexical(path)
+        for path in (*paths.values(), *evidence_paths.values())
+    )
     if len(normalized) != len(set(normalized)):
         raise FoundationAuthorizationError(
             "preparation artifact paths must be distinct"
@@ -474,16 +601,19 @@ def _validate_exact_preparation_paths(paths: Mapping[str, Path]) -> None:
 def _validate_preparation_coherence_unchecked(
     scope: Mapping,
     bound_payloads: Mapping[str, BoundArtifactRead],
-) -> None:
+) -> dict[str, str]:
     """Prove all held preparation artifacts describe one exact local run."""
 
-    if set(bound_payloads) != set(_ARTIFACT_FIELDS):
+    evidence_bindings = _flatten_scope_bindings(scope)
+    expected_payloads = set(_ARTIFACT_FIELDS) | set(evidence_bindings)
+    if set(bound_payloads) != expected_payloads:
         raise _coherence_error("bound artifact set is incomplete")
     bindings = scope.get("artifacts")
-    if not isinstance(bindings, Mapping) or set(bindings) != set(bound_payloads):
+    if not isinstance(bindings, Mapping) or set(bindings) != set(_ARTIFACT_FIELDS):
         raise _coherence_error("scope artifact bindings are incomplete")
+    flattened_bindings = {**bindings, **evidence_bindings}
     for name, read in bound_payloads.items():
-        binding = bindings[name]
+        binding = flattened_bindings[name]
         if (
             not isinstance(binding, Mapping)
             or binding.get("sha256") != read.sha256
@@ -494,7 +624,7 @@ def _validate_preparation_coherence_unchecked(
     parsed = {
         name: _strict_json_bytes(read.payload, label=name.replace("_", " "))
         for name, read in bound_payloads.items()
-        if name != "shard"
+        if name in _ARTIFACT_FIELDS and name != "shard"
     }
     records = _strict_jsonl_records(
         bound_payloads["shard"].payload,
@@ -568,28 +698,26 @@ def _validate_preparation_coherence_unchecked(
             raise _coherence_error(f"{filename} digest differs from held bytes")
 
     generated = preparation.get("generated_artifact_sha256")
-    if not isinstance(generated, Mapping) or set(generated) != {
-        "conversion",
-        "eval_identities",
-    }:
+    if (
+        not isinstance(generated, Mapping)
+        or set(generated) != {"conversion", "eval_identities"}
+        or generated != scope.get("evidence_artifacts")
+    ):
         raise _coherence_error("generated artifact digest groups are incomplete")
     conversion = generated["conversion"]
-    if not isinstance(conversion, Mapping) or set(conversion) != {
-        "examples.jsonl",
-        "invalid_examples.jsonl",
-        "conversion_report.json",
-        "hash_manifest.json",
-    }:
+    if (
+        not isinstance(conversion, Mapping)
+        or set(conversion) != set(_CONVERSION_ARTIFACT_FIELDS)
+    ):
         raise _coherence_error("generated conversion digest map is incomplete")
-    for name, digest in conversion.items():
-        _require_digest(digest, label=f"generated conversion {name}")
     eval_digests = generated["eval_identities"]
     if not isinstance(eval_digests, Mapping) or not eval_digests:
         raise _coherence_error("generated evaluation identity digests are empty")
-    for family, digest in eval_digests.items():
+    for family, binding in eval_digests.items():
         if not isinstance(family, str) or not family:
             raise _coherence_error("generated evaluation family is invalid")
-        _require_digest(digest, label=f"generated evaluation identity {family}")
+        if not isinstance(binding, Mapping):
+            raise _coherence_error("generated evaluation binding is invalid")
 
     source_receipt_hashes = preparation.get("source_receipt_hashes")
     if (
@@ -603,13 +731,15 @@ def _validate_preparation_coherence_unchecked(
         bound_payloads["license_receipt"].sha256,
         tokenizer_receipt_digest,
         tokenizer_snapshot_digest,
-        conversion["conversion_report.json"],
-        conversion["hash_manifest.json"],
+        conversion["conversion_report"]["sha256"],
+        conversion["hash_manifest"]["sha256"],
     }
     if not required_source_digests.issubset(source_receipt_hashes):
         raise _coherence_error("generated and tokenizer sources lack receipts")
 
     record_ids = []
+    source_record_ids = []
+    record_membership = {}
     for record in records:
         try:
             validate_foundation_record(record)
@@ -650,9 +780,17 @@ def _validate_preparation_coherence_unchecked(
             )
         ):
             raise _coherence_error("shard record is outside the exact gradient lane")
-        record_ids.append(record["record_id"])
+        record_id = record["record_id"]
+        source_record_id = source.get("source_record_id")
+        if not isinstance(source_record_id, str) or not source_record_id:
+            raise _coherence_error("shard source record ID is missing")
+        record_ids.append(record_id)
+        source_record_ids.append(source_record_id)
+        record_membership[record_id] = _canonical_record_digest(record)
     if len(record_ids) != len(set(record_ids)):
         raise _coherence_error("shard record IDs are not unique")
+    if len(source_record_ids) != len(set(source_record_ids)):
+        raise _coherence_error("shard source record IDs are not unique")
 
     shard_digest = bound_payloads["shard"].sha256
     shard_entry = preparation.get("shard")
@@ -741,6 +879,8 @@ def _validate_preparation_coherence_unchecked(
         or source_integrity.get("manifest_schema_version") != "0.1.0"
         or source_integrity.get("unchanged") is not True
         or source_integrity.get("before") != source_integrity.get("after")
+        or not isinstance(source_integrity.get("before"), list)
+        or not source_integrity["before"]
         or source_integrity.get("all_ten_before")
         != source_integrity.get("all_ten_after")
         or not isinstance(source_integrity.get("all_ten_before"), Mapping)
@@ -749,10 +889,188 @@ def _validate_preparation_coherence_unchecked(
     ):
         raise _coherence_error("source integrity receipt contradicts source gate")
 
-    contamination = parsed["contamination_receipt"]
-    required_eval_families = contamination.get("required_evaluation_families")
+    examples = _strict_jsonl_records(
+        bound_payloads[_CONVERSION_PAYLOAD_NAMES["examples"]].payload,
+        label="conversion examples",
+    )
+    invalid_payload = bound_payloads[
+        _CONVERSION_PAYLOAD_NAMES["invalid_examples"]
+    ].payload
+    if invalid_payload != b"":
+        raise _coherence_error("conversion invalid examples are not empty")
+    conversion_report = _strict_json_bytes(
+        bound_payloads[_CONVERSION_PAYLOAD_NAMES["conversion_report"]].payload,
+        label="conversion report",
+    )
+    hash_manifest = _strict_json_bytes(
+        bound_payloads[_CONVERSION_PAYLOAD_NAMES["hash_manifest"]].payload,
+        label="conversion hash manifest",
+    )
+    example_ids = []
+    examples_by_id = {}
+    for example in examples:
+        example_id = example.get("example_id")
+        split_group = example.get("split_group")
+        repo = split_group.get("repo") if isinstance(split_group, Mapping) else None
+        if (
+            not isinstance(example_id, str)
+            or not example_id
+            or not isinstance(repo, str)
+            or not repo.strip()
+        ):
+            raise _coherence_error("conversion example identity is incomplete")
+        example_ids.append(example_id)
+        examples_by_id[example_id] = example
+    if len(example_ids) != len(set(example_ids)):
+        raise _coherence_error("conversion example IDs are not unique")
+
+    report_output = conversion_report.get("output")
+    report_hashes = (
+        report_output.get("hashes") if isinstance(report_output, Mapping) else None
+    )
+    examples_read = bound_payloads[_CONVERSION_PAYLOAD_NAMES["examples"]]
+    invalid_read = bound_payloads[_CONVERSION_PAYLOAD_NAMES["invalid_examples"]]
     if (
-        contamination.get("manifest_kind")
+        conversion_report.get("conversion_report_schema_version") != "0.1.0"
+        or conversion_report.get("mode") != "full"
+        or conversion_report.get("dataset_id") != "swe-gym-openhands-sampled"
+        or conversion_report.get("dataset_family") != "swe-gym"
+        or not isinstance(report_output, Mapping)
+        or report_output.get("examples_emitted") != len(examples)
+        or report_output.get("invalid_examples") != 0
+        or report_output.get("quarantined_examples") != 0
+        or report_output.get("schema_validation_passed") is not True
+        or report_hashes
+        != {
+            "examples_jsonl_sha256": examples_read.sha256,
+            "invalid_examples_jsonl_sha256": invalid_read.sha256,
+        }
+        or not isinstance(conversion_report.get("count_reconciliation"), Mapping)
+        or conversion_report["count_reconciliation"].get("reconciled") is not True
+        or not isinstance(conversion_report.get("training_authorization"), Mapping)
+        or not _is_exact_positive_zero(
+            conversion_report["training_authorization"].get("training_weight")
+        )
+    ):
+        raise _coherence_error("conversion report contradicts held conversion bytes")
+
+    manifest_hashes = hash_manifest.get("hashes")
+    report_read = bound_payloads[
+        _CONVERSION_PAYLOAD_NAMES["conversion_report"]
+    ]
+    if (
+        hash_manifest.get("hash_manifest_schema_version") != "0.1.0"
+        or hash_manifest.get("mode") != "full"
+        or hash_manifest.get("dataset_id") != "swe-gym-openhands-sampled"
+        or not isinstance(manifest_hashes, Mapping)
+        or manifest_hashes.get("examples_jsonl_sha256") != examples_read.sha256
+        or manifest_hashes.get("invalid_examples_jsonl_sha256")
+        != invalid_read.sha256
+        or manifest_hashes.get("conversion_report_json_sha256")
+        != report_read.sha256
+    ):
+        raise _coherence_error("conversion hash manifest differs from held bytes")
+    self_digest = _require_digest(
+        manifest_hashes.get("hash_manifest_json_sha256"),
+        label="conversion hash manifest self digest",
+    )
+    self_hash_value = copy.deepcopy(hash_manifest)
+    self_hash_value["hashes"]["hash_manifest_json_sha256"] = None
+    self_hash_payload = (
+        json.dumps(
+            self_hash_value,
+            allow_nan=False,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+    if not hmac.compare_digest(
+        self_digest,
+        hashlib.sha256(self_hash_payload).hexdigest(),
+    ):
+        raise _coherence_error("conversion hash manifest self digest is invalid")
+
+    suite_evaluation = suite.get("evaluation_identity")
+    if not isinstance(suite_evaluation, Mapping):
+        raise _coherence_error("suite evaluation identity policy is missing")
+    required_eval_families = suite_evaluation.get("required_families")
+    blocked_eval_families = suite_evaluation.get(
+        "blocked_unavailable_families"
+    )
+    if (
+        required_eval_families != ["swe-bench", "swe-mera", "swe-polybench"]
+        or blocked_eval_families != ["swe-bench-pro"]
+        or set(eval_digests) != set(required_eval_families)
+    ):
+        raise _coherence_error("suite and bound evaluation families differ")
+    eval_identities = []
+    for family in required_eval_families:
+        rows = _metadata_rows(
+            io.BytesIO(
+                bound_payloads[f"{_EVAL_PAYLOAD_PREFIX}{family}"].payload
+            )
+        )
+        eval_identities.extend(
+            IdentityRecord(
+                family=family,
+                lane_id=family,
+                repo=row["repo"],
+                issue_or_pr=(
+                    match.group(1)
+                    if (
+                        match := re.search(
+                            r"(?:^|[-_#/])([0-9]+)$",
+                            row["source_id"],
+                        )
+                    )
+                    else None
+                ),
+                task_id=row["source_id"],
+                base_commit=row["base_commit"],
+                patch_sha256=None,
+                test_patch_sha256=None,
+                fuzzy_text_sha256=None,
+            )
+            for row in rows
+        )
+    policy_families = []
+    for item in suite_families:
+        policy_item = {
+            name: item[name]
+            for name in (
+                "family",
+                "terminal_role",
+                "gradient_eligibility",
+                "payload_access_100k",
+            )
+        }
+        if "identity_metadata_relative_path" in item:
+            policy_item["identity_metadata_relative_path"] = item[
+                "identity_metadata_relative_path"
+            ]
+        policy_families.append(policy_item)
+    suite_policy = {
+        "manifest_kind": "pneuma_foundation_dataset_suite",
+        "manifest_schema_version": "0.1.0",
+        "first_stage": copy.deepcopy(suite_first_stage),
+        "evaluation_identity": {
+            "required_families": list(required_eval_families),
+            "blocked_unavailable_families": list(blocked_eval_families),
+        },
+        "families": policy_families,
+    }
+
+    contamination = parsed["contamination_receipt"]
+    recomputed_contamination = build_contamination_receipt(
+        (identity_from_foundation_record(record) for record in records),
+        eval_identities,
+        suite_policy=suite_policy,
+    )
+    if (
+        contamination != recomputed_contamination
+        or contamination.get("manifest_kind")
         != "pneuma_foundation_contamination_receipt"
         or contamination.get("manifest_schema_version") != "0.1.0"
         or contamination.get("training_identity_count") != len(records)
@@ -760,8 +1078,8 @@ def _validate_preparation_coherence_unchecked(
         or contamination.get("finding_count") != 0
         or contamination.get("findings") != []
         or contamination.get("repo_issue_disjoint") is not True
-        or not isinstance(required_eval_families, list)
-        or set(required_eval_families) != set(eval_digests)
+        or contamination.get("required_evaluation_families")
+        != required_eval_families
     ):
         raise _coherence_error("contamination receipt contradicts disjointness gates")
 
@@ -827,16 +1145,89 @@ def _validate_preparation_coherence_unchecked(
         for right in tuple(normalized_sets)[index + 1 :]
     ):
         raise _coherence_error("split receipt repository sets overlap")
+    assignments = split["assignments"]
+    expected_assignment_fields = {
+        "record_source_id",
+        "repo",
+        "canonical_repo",
+        "split_id",
+        "quarantine_id",
+    }
+    assignment_by_source = {}
+    expected_sets = {"train": set(), "validation": set(), "held_out": set()}
+    for assignment in assignments:
+        if (
+            not isinstance(assignment, Mapping)
+            or set(assignment) != expected_assignment_fields
+        ):
+            raise _coherence_error("split assignment fields are not exact")
+        source_id = assignment.get("record_source_id")
+        repo = assignment.get("repo")
+        canonical_repo = assignment.get("canonical_repo")
+        split_id = assignment.get("split_id")
+        if (
+            not isinstance(source_id, str)
+            or source_id not in examples_by_id
+            or source_id in assignment_by_source
+            or not isinstance(repo, str)
+            or not isinstance(canonical_repo, str)
+            or split_id not in expected_sets
+            or assignment.get("quarantine_id") is not None
+        ):
+            raise _coherence_error("split assignment identity is invalid")
+        try:
+            normalized_repo = normalize_identity_text(repo)
+        except TypeError as exc:
+            raise _coherence_error("split repository cannot be normalized") from exc
+        if normalized_repo is None or normalized_repo != canonical_repo:
+            raise _coherence_error("split canonical repository is not reproducible")
+        bucket = int(
+            hashlib.sha256(canonical_repo.encode("utf-8")).hexdigest()[:8],
+            16,
+        ) % 100
+        expected_split = (
+            "train" if bucket < 80 else "validation" if bucket < 90 else "held_out"
+        )
+        example_repo = examples_by_id[source_id]["split_group"]["repo"]
+        if (
+            split_id != expected_split
+            or normalize_identity_text(example_repo) != canonical_repo
+        ):
+            raise _coherence_error("split assignment differs from conversion example")
+        assignment_by_source[source_id] = assignment
+        expected_sets[split_id].add(canonical_repo)
+    if set(assignment_by_source) != set(example_ids):
+        raise _coherence_error(
+            "conversion examples do not join exactly to split assignments"
+        )
+    if {
+        name: sorted(values) for name, values in expected_sets.items()
+    } != dict(canonical_sets):
+        raise _coherence_error("split repository sets are not reproducible")
+    for record in records:
+        source_id = record["source"]["source_record_id"]
+        assignment = assignment_by_source.get(source_id)
+        identity = record.get("identity")
+        if (
+            assignment is None
+            or assignment["split_id"] != "train"
+            or not isinstance(identity, Mapping)
+            or normalize_identity_text(identity.get("repo"))
+            != assignment["canonical_repo"]
+        ):
+            raise _coherence_error("shard record does not join to its train split")
+
+    return record_membership
 
 
 def _validate_preparation_coherence(
     scope: Mapping,
     bound_payloads: Mapping[str, BoundArtifactRead],
-) -> None:
+) -> dict[str, str]:
     """Fail closed around the shared held-byte semantic validator."""
 
     try:
-        _validate_preparation_coherence_unchecked(scope, bound_payloads)
+        return _validate_preparation_coherence_unchecked(scope, bound_payloads)
     except FoundationAuthorizationError:
         raise
     except (
@@ -864,8 +1255,9 @@ def build_authorization_candidate(
         raise FoundationAuthorizationError("only pinned 2b or 4b models may be authorized")
     spec = MODEL_SPECS[model_key]
     artifact_paths = _artifact_paths_from_preparation(preparation)
-    _validate_exact_preparation_paths(artifact_paths)
-    with _hold_artifacts(artifact_paths, repo_root=root) as held:
+    evidence_paths = _evidence_paths_from_preparation(preparation)
+    all_paths = {**artifact_paths, **evidence_paths}
+    with _hold_artifacts(all_paths, repo_root=root) as held:
         preparation_manifest = _strict_json_bytes(
             held["preparation_manifest"].read.payload,
             label="preparation manifest",
@@ -877,6 +1269,12 @@ def build_authorization_candidate(
         stage = preparation_manifest.get("stage")
         if stage not in _STAGE_TOKEN_CEILINGS:
             raise FoundationAuthorizationError("preparation stage is not authorized")
+        _validate_exact_preparation_paths(
+            artifact_paths,
+            evidence_paths,
+            repo_root=root,
+            stage=stage,
+        )
         token_ceiling = _STAGE_TOKEN_CEILINGS[stage]
         if (
             preparation_manifest.get("training_authorized") is not False
@@ -908,6 +1306,29 @@ def build_authorization_candidate(
                 "size": item.read.size,
             }
             for name, item in held.items()
+            if name in _ARTIFACT_FIELDS
+        }
+        evidence_bindings = {
+            "conversion": {
+                name: {
+                    "path": _repo_relative(
+                        held[_CONVERSION_PAYLOAD_NAMES[name]].path,
+                        repo_root=root,
+                    ),
+                    "sha256": held[_CONVERSION_PAYLOAD_NAMES[name]].read.sha256,
+                    "size": held[_CONVERSION_PAYLOAD_NAMES[name]].read.size,
+                }
+                for name in _CONVERSION_ARTIFACT_FIELDS
+            },
+            "eval_identities": {
+                name.removeprefix(_EVAL_PAYLOAD_PREFIX): {
+                    "path": _repo_relative(item.path, repo_root=root),
+                    "sha256": item.read.sha256,
+                    "size": item.read.size,
+                }
+                for name, item in held.items()
+                if name.startswith(_EVAL_PAYLOAD_PREFIX)
+            },
         }
         scope = {
             "model": {
@@ -923,6 +1344,7 @@ def build_authorization_candidate(
             "learning_rates": [0.00005, 0.0001, 0.0002],
             "code_commit": code_commit,
             "artifacts": bindings,
+            "evidence_artifacts": evidence_bindings,
             "authorized_lane_weights": copy.deepcopy(_AUTHORIZED_LANE_WEIGHTS),
             "source_data_policy": copy.deepcopy(_SOURCE_POLICY),
             "output_root": _OUTPUT_ROOT,
@@ -1207,10 +1629,24 @@ def verify_foundation_authorization(
                 name: _path_from_binding(binding, repo_root=root)
                 for name, binding in bindings.items()
             }
-            _validate_exact_preparation_paths(paths)
-            with _hold_artifacts(paths, repo_root=root) as artifact_held:
+            evidence_bindings = _flatten_scope_bindings(scope)
+            evidence_paths = {
+                name: _path_from_binding(binding, repo_root=root)
+                for name, binding in evidence_bindings.items()
+            }
+            _validate_exact_preparation_paths(
+                paths,
+                evidence_paths,
+                repo_root=root,
+                stage=stage,
+            )
+            all_bindings = {**bindings, **evidence_bindings}
+            with _hold_artifacts(
+                {**paths, **evidence_paths},
+                repo_root=root,
+            ) as artifact_held:
                 for name, item in artifact_held.items():
-                    binding = bindings[name]
+                    binding = all_bindings[name]
                     if (
                         not hmac.compare_digest(item.read.sha256, binding["sha256"])
                         or item.read.size != binding["size"]
@@ -1218,7 +1654,7 @@ def verify_foundation_authorization(
                         raise FoundationAuthorizationError(
                             f"authorized artifact digest or size changed: {name}"
                         )
-                _validate_preparation_coherence(
+                record_membership = _validate_preparation_coherence(
                     scope,
                     {
                         name: item.read
@@ -1236,6 +1672,9 @@ def verify_foundation_authorization(
                     output_root=root / Path(scope["output_root"]),
                     authorized_lane_weights=_deep_freeze(
                         copy.deepcopy(scope["authorized_lane_weights"])
+                    ),
+                    authorized_record_membership=_deep_freeze(
+                        record_membership
                     ),
                     scope_digest=digest,
                     manifest=frozen_manifest,
@@ -1300,6 +1739,18 @@ def apply_verified_authorization(
     if not applicable:
         raise FoundationAuthorizationError(
             "foundation record needs an applicable outcome-derived forecast"
+        )
+    record_id = record.get("record_id")
+    expected_record_digest = authorization.authorized_record_membership.get(
+        record_id
+    )
+    actual_record_digest = _canonical_record_digest(record)
+    if (
+        not isinstance(expected_record_digest, str)
+        or not hmac.compare_digest(expected_record_digest, actual_record_digest)
+    ):
+        raise FoundationAuthorizationError(
+            "foundation record is not an exact member of the authorized shard"
         )
     effective_weight = authorization.authorized_lane_weights[lane]
     if type(effective_weight) is not float or effective_weight <= 0 or not math.isfinite(effective_weight):

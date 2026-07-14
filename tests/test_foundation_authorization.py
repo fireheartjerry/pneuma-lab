@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import copy
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 import pytest
@@ -62,6 +64,19 @@ def _pretty_json_bytes(value: object) -> bytes:
     ).encode("utf-8")
 
 
+def _canonical_json_bytes(value: object) -> bytes:
+    return (
+        json.dumps(
+            value,
+            allow_nan=False,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
 def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str]:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -78,11 +93,81 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
     spec = MODEL_SPECS["2b"]
     tokenizer_receipt_sha256 = "1" * 64
     tokenizer_snapshot_sha256 = "2" * 64
+    conversion_root = output / "conversion"
+    conversion_root.mkdir(parents=True)
+    conversion_example = {
+        "example_id": "source-1",
+        "split_group": {"repo": "org/repo"},
+    }
+    examples_payload = _canonical_json_bytes(conversion_example)
+    invalid_payload = b""
+    conversion_report = {
+        "conversion_report_schema_version": "0.1.0",
+        "mode": "full",
+        "dataset_id": "swe-gym-openhands-sampled",
+        "dataset_family": "swe-gym",
+        "output": {
+            "examples_emitted": 1,
+            "invalid_examples": 0,
+            "quarantined_examples": 0,
+            "schema_validation_passed": True,
+            "hashes": {
+                "examples_jsonl_sha256": hashlib.sha256(
+                    examples_payload
+                ).hexdigest(),
+                "invalid_examples_jsonl_sha256": hashlib.sha256(
+                    invalid_payload
+                ).hexdigest(),
+            },
+        },
+        "count_reconciliation": {"reconciled": True},
+        "training_authorization": {"training_weight": 0.0},
+    }
+    conversion_report_payload = _canonical_json_bytes(conversion_report)
+    hash_manifest = {
+        "hash_manifest_schema_version": "0.1.0",
+        "mode": "full",
+        "dataset_id": "swe-gym-openhands-sampled",
+        "hashes": {
+            "examples_jsonl_sha256": hashlib.sha256(
+                examples_payload
+            ).hexdigest(),
+            "invalid_examples_jsonl_sha256": hashlib.sha256(
+                invalid_payload
+            ).hexdigest(),
+            "conversion_report_json_sha256": hashlib.sha256(
+                conversion_report_payload
+            ).hexdigest(),
+            "hash_manifest_json_sha256": None,
+        },
+    }
+    hash_manifest["hashes"]["hash_manifest_json_sha256"] = hashlib.sha256(
+        _canonical_json_bytes(hash_manifest)
+    ).hexdigest()
+    conversion_files = {
+        "examples": (conversion_root / "examples.jsonl", examples_payload),
+        "invalid_examples": (
+            conversion_root / "invalid_examples.jsonl",
+            invalid_payload,
+        ),
+        "conversion_report": (
+            conversion_root / "conversion_report.json",
+            conversion_report_payload,
+        ),
+        "hash_manifest": (
+            conversion_root / "hash_manifest.json",
+            _canonical_json_bytes(hash_manifest),
+        ),
+    }
+    for path, payload in conversion_files.values():
+        path.write_bytes(payload)
     generated_conversion = {
-        "examples.jsonl": "3" * 64,
-        "invalid_examples.jsonl": "4" * 64,
-        "conversion_report.json": "5" * 64,
-        "hash_manifest.json": "6" * 64,
+        name: {
+            "path": path.relative_to(repo).as_posix(),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "size": len(payload),
+        }
+        for name, (path, payload) in conversion_files.items()
     }
     license_receipt = {
         "receipt_kind": "dataset_license_posture",
@@ -98,8 +183,8 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
                 hashlib.sha256(_pretty_json_bytes(license_receipt)).hexdigest(),
                 tokenizer_receipt_sha256,
                 tokenizer_snapshot_sha256,
-                generated_conversion["conversion_report.json"],
-                generated_conversion["hash_manifest.json"],
+                generated_conversion["conversion_report"]["sha256"],
+                generated_conversion["hash_manifest"]["sha256"],
             )
         )
     )
@@ -139,6 +224,46 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
         "receipt_sha256": tokenizer_receipt_sha256,
         "snapshot_sha256": tokenizer_snapshot_sha256,
     }
+    suite_policy = json.loads(
+        (
+            ROOT
+            / "docs/data/training-readiness/"
+            "pneuma-foundation-v0-suite.json"
+        ).read_text(encoding="utf-8")
+    )
+    eval_root = output / "eval-identities"
+    eval_root.mkdir(parents=True)
+    eval_rows = {
+        "swe-bench": {
+            "source_id": "eval-bench-101",
+            "repo": "eval/bench",
+            "base_commit": "1" * 40,
+        },
+        "swe-mera": {
+            "source_id": "eval-mera-102",
+            "repo": "eval/mera",
+            "base_commit": "2" * 40,
+        },
+        "swe-polybench": {
+            "source_id": "eval-poly-103",
+            "repo": "eval/poly",
+            "base_commit": "3" * 40,
+        },
+    }
+    eval_files = {}
+    for family, row in eval_rows.items():
+        path = eval_root / f"{family}.jsonl"
+        payload = _canonical_json_bytes(row)
+        path.write_bytes(payload)
+        eval_files[family] = (path, payload)
+    generated_eval = {
+        family: {
+            "path": path.relative_to(repo).as_posix(),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "size": len(payload),
+        }
+        for family, (path, payload) in eval_files.items()
+    }
     receipts = {
         "suite_report.json": {
             "manifest_kind": "pneuma_foundation_suite_report",
@@ -149,9 +274,15 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
                     "swe-gym-openhands-sampled"
                 ],
             },
+            "evaluation_identity": copy.deepcopy(
+                suite_policy["evaluation_identity"]
+            ),
             "families": [
-                {"family": family, "exists": True}
-                for family in ACTIVE_DATASET_GROUPS
+                {
+                    **copy.deepcopy(item),
+                    "exists": True,
+                }
+                for item in suite_policy["families"]
             ],
         },
         "license_receipt.json": license_receipt,
@@ -167,8 +298,18 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
         "source_integrity_receipt.json": {
             "manifest_kind": "pneuma_foundation_source_integrity_receipt",
             "manifest_schema_version": "0.1.0",
-            "before": [],
-            "after": [],
+            "before": [
+                {
+                    "relative_path": "processed/swe-gym/trace.jsonl",
+                    "sha256": "a" * 64,
+                }
+            ],
+            "after": [
+                {
+                    "relative_path": "processed/swe-gym/trace.jsonl",
+                    "sha256": "a" * 64,
+                }
+            ],
             "all_ten_before": all_ten,
             "all_ten_after": all_ten,
             "tokenizer_snapshot": tokenizer_snapshot,
@@ -179,9 +320,11 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
             "manifest_schema_version": "0.1.0",
             "assignments": [
                 {
-                    "record_id": record["record_id"],
+                    "record_source_id": record["source"]["source_record_id"],
+                    "repo": "org/repo",
                     "split_id": "train",
                     "canonical_repo": "org/repo",
+                    "quarantine_id": None,
                 }
             ],
             "canonical_repository_sets": {
@@ -201,6 +344,14 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
                 "swe-mera",
                 "swe-polybench",
             ],
+            "evaluation_family_counts": {
+                "swe-bench": 1,
+                "swe-mera": 1,
+                "swe-polybench": 1,
+            },
+            "blocked_evaluation_family_status": {
+                "swe-bench-pro": "blocked_unavailable",
+            },
             "evaluation_coverage_complete": True,
             "finding_count": 0,
             "findings": [],
@@ -246,11 +397,7 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
             "tokenizer_snapshot": tokenizer_snapshot,
             "generated_artifact_sha256": {
                 "conversion": generated_conversion,
-                "eval_identities": {
-                    "swe-bench": "7" * 64,
-                    "swe-mera": "8" * 64,
-                    "swe-polybench": "9" * 64,
-                },
+                "eval_identities": generated_eval,
             },
             "receipt_sha256": {
                 name: hashlib.sha256(_pretty_json_bytes(value)).hexdigest()
@@ -284,6 +431,15 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
         contamination_receipt_path=output / "contamination_receipt.json",
         diversity_receipt_path=output / "diversity_receipt.json",
         selection_receipt_path=output / "selection_receipt.json",
+        conversion_examples_path=conversion_files["examples"][0],
+        conversion_invalid_examples_path=conversion_files[
+            "invalid_examples"
+        ][0],
+        conversion_report_path=conversion_files["conversion_report"][0],
+        conversion_hash_manifest_path=conversion_files["hash_manifest"][0],
+        eval_identity_paths={
+            family: value[0] for family, value in eval_files.items()
+        },
         authorization_candidate_path=candidate,
     )
     return repo, preparation, commit
@@ -326,7 +482,10 @@ def _refresh_preparation_receipt_digest(
 
 def _resign_final_scope(final_path: Path, repo: Path) -> None:
     manifest = _strict_json(final_path)
-    for binding in manifest["scope"]["artifacts"].values():
+    bindings = [*manifest["scope"]["artifacts"].values()]
+    for group in manifest["scope"]["evidence_artifacts"].values():
+        bindings.extend(group.values())
+    for binding in bindings:
         artifact = repo / binding["path"]
         binding["sha256"] = hashlib.sha256(artifact.read_bytes()).hexdigest()
         binding["size"] = artifact.stat().st_size
@@ -415,6 +574,7 @@ def test_exact_authorization_public_contract_exists() -> None:
         "shard_manifest_path",
         "output_root",
         "authorized_lane_weights",
+        "authorized_record_membership",
         "scope_digest",
         "manifest",
     }
@@ -463,6 +623,22 @@ def test_candidate_is_exact_non_authorizing_and_cannot_verify(tmp_path: Path) ->
     assert candidate["scope"]["authorized_lane_weights"] == {
         "swe-gym-openhands-sampled": 1.0
     }
+    assert set(candidate["scope"]["evidence_artifacts"]["conversion"]) == {
+        "examples",
+        "invalid_examples",
+        "conversion_report",
+        "hash_manifest",
+    }
+    assert set(candidate["scope"]["evidence_artifacts"]["eval_identities"]) == {
+        "swe-bench",
+        "swe-mera",
+        "swe-polybench",
+    }
+    assert all(
+        binding["path"].startswith("build/foundation/preparation/100k/")
+        for group in candidate["scope"]["evidence_artifacts"].values()
+        for binding in group.values()
+    )
     assert candidate["scope"]["source_data_policy"] == {
         "root": "C:\\pneuma-data",
         "write_allowed": False,
@@ -649,20 +825,117 @@ def test_candidate_requires_exact_distinct_preparation_artifact_paths(
         )
 
 
+def test_candidate_rejects_internally_coherent_sibling_preparation_root(
+    tmp_path: Path,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    original_root = preparation.preparation_manifest_path.parent
+    sibling_root = repo / "build/foundation/sibling-preparation/100k"
+    shutil.copytree(original_root, sibling_root)
+    sibling = copy.copy(preparation)
+    for field in preparation.__dataclass_fields__:
+        if field == "authorization_candidate_path":
+            continue
+        value = getattr(preparation, field)
+        if isinstance(value, Mapping):
+            replaced = {
+                family: sibling_root / path.relative_to(original_root)
+                for family, path in value.items()
+            }
+        else:
+            replaced = sibling_root / Path(value).relative_to(original_root)
+        object.__setattr__(sibling, field, replaced)
+    with pytest.raises(FoundationAuthorizationError, match="exact|stage root"):
+        build_authorization_candidate(
+            sibling,
+            repo_root=repo,
+            code_commit=commit,
+        )
+
+
+def test_candidate_recomputes_contamination_from_bound_eval_bytes(
+    tmp_path: Path,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    eval_path = preparation.eval_identity_paths["swe-bench"]
+    row = json.loads(eval_path.read_text(encoding="utf-8"))
+    row["repo"] = "org/repo"
+    eval_path.write_bytes(_canonical_json_bytes(row))
+    manifest = _strict_json(preparation.preparation_manifest_path)
+    binding = manifest["generated_artifact_sha256"]["eval_identities"][
+        "swe-bench"
+    ]
+    binding["sha256"] = hashlib.sha256(eval_path.read_bytes()).hexdigest()
+    binding["size"] = eval_path.stat().st_size
+    _write_json(preparation.preparation_manifest_path, manifest)
+
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="coher|contamination|disjoint|finding",
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+        )
+
+
 def test_exact_final_handshake_verifies_and_applies_one_lane(tmp_path: Path) -> None:
-    repo, _preparation, _commit, final_path = _build_and_finalize(tmp_path)
+    repo, preparation, _commit, final_path = _build_and_finalize(tmp_path)
     verified = verify_foundation_authorization(final_path, repo_root=repo)
     assert verified.model_key == "2b"
     assert verified.token_ceiling == 100_000
     assert dict(verified.authorized_lane_weights) == {
         "swe-gym-openhands-sampled": 1.0
     }
-    record = _valid_record()
+    record = json.loads(
+        preparation.shard_path.read_text(encoding="utf-8").splitlines()[0]
+    )
     before = copy.deepcopy(record)
     effective = apply_verified_authorization(record, verified)
     assert effective.record is record
     assert effective.effective_weight == 1.0
     assert record == before
+
+
+def test_apply_requires_exact_verified_shard_membership(tmp_path: Path) -> None:
+    repo, preparation, _commit, final_path = _build_and_finalize(tmp_path)
+    verified = verify_foundation_authorization(final_path, repo_root=repo)
+    authorized = json.loads(
+        preparation.shard_path.read_text(encoding="utf-8").splitlines()[0]
+    )
+    assert set(verified.authorized_record_membership) == {
+        authorized["record_id"]
+    }
+    assert apply_verified_authorization(authorized, verified).effective_weight == 1.0
+
+    never_in_shard = copy.deepcopy(authorized)
+    never_in_shard["record_id"] = "ftr:" + "9" * 64
+    never_in_shard["source"]["source_record_id"] = "unrelated-source"
+    with pytest.raises(FoundationAuthorizationError, match="membership|shard|record"):
+        apply_verified_authorization(never_in_shard, verified)
+
+    modified = copy.deepcopy(authorized)
+    modified["rendered"]["target_text"] += " one-byte-mutation"
+    with pytest.raises(FoundationAuthorizationError, match="membership|shard|record|digest"):
+        apply_verified_authorization(modified, verified)
+
+
+def test_apply_rejects_record_from_post_verify_swapped_shard(tmp_path: Path) -> None:
+    repo, preparation, _commit, final_path = _build_and_finalize(tmp_path)
+    verified = verify_foundation_authorization(final_path, repo_root=repo)
+    swapped = json.loads(
+        preparation.shard_path.read_text(encoding="utf-8").splitlines()[0]
+    )
+    swapped["record_id"] = "ftr:" + "8" * 64
+    swapped["source"]["source_record_id"] = "post-verify-swap"
+    preparation.shard_path.write_text(
+        json.dumps(swapped, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(FoundationAuthorizationError, match="membership|shard|record"):
+        apply_verified_authorization(swapped, verified)
 
 
 @pytest.mark.parametrize(
@@ -844,10 +1117,13 @@ def test_verify_rejects_artifact_tamper_and_dirty_or_different_commit(
 ) -> None:
     repo, _preparation, _commit, final_path = _build_and_finalize(tmp_path)
     manifest = _strict_json(final_path)
-    for binding in manifest["scope"]["artifacts"].values():
+    bindings = [*manifest["scope"]["artifacts"].values()]
+    for group in manifest["scope"]["evidence_artifacts"].values():
+        bindings.extend(group.values())
+    for binding in bindings:
         path = repo / binding["path"]
         original = path.read_bytes()
-        path.write_bytes(b"X" * len(original))
+        path.write_bytes(b"X" * max(1, len(original)))
         with pytest.raises(
             FoundationAuthorizationError,
             match="artifact|digest|changed|JSON|binding",
