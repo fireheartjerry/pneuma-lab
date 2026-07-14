@@ -327,6 +327,7 @@ def build_content_addressed_shard(
     repo_root: Path,
     output_root: Path,
     data_root: Path,
+    token_ceiling: int | None = None,
 ) -> ShardResult:
     """Build one deterministic shard without ever mutating the corpus root."""
 
@@ -352,15 +353,26 @@ def build_content_addressed_shard(
     digest = hashlib.sha256(payload).hexdigest()
     shard_path = output_root / f"{digest}.jsonl"
     manifest_path = output_root / f"{digest}.manifest.json"
+    inventory = build_diversity_inventory(unique)
+    if token_ceiling is not None and (
+        type(token_ceiling) is not int
+        or token_ceiling <= 0
+        or inventory["token_count"] > token_ceiling
+    ):
+        raise DataAuthorizationError(
+            "shard token ceiling must be a positive bound on inventory tokens"
+        )
     manifest = {
         "manifest_kind": "pneuma_foundation_shard",
         "schema_version": "0.1.0",
         "sha256": digest,
         "example_count": len(unique),
         "duplicate_example_ids": list(duplicate_ids),
-        "inventory": build_diversity_inventory(unique),
+        "inventory": inventory,
         "source_policy": "read_only_external_corpus",
     }
+    if token_ceiling is not None:
+        manifest["token_ceiling"] = token_ceiling
     try:
         with bind_artifact_publication(
             output_root,

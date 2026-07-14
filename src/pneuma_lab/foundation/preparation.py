@@ -1178,6 +1178,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         repo_root=repo_root,
         output_root=output_root / "shards",
         data_root=data_root,
+        token_ceiling=STAGE_TOKEN_CEILINGS[request.stage],
     )
     result = _result_paths(
         repo_root,

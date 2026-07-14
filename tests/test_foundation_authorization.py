@@ -24,7 +24,12 @@ from pneuma_lab.foundation.authorization import (
     required_approval_phrase,
     verify_foundation_authorization,
 )
+from pneuma_lab.foundation.data import (
+    ACTIVE_DATASET_GROUPS,
+    build_diversity_inventory,
+)
 from pneuma_lab.foundation.preparation import PreparationResult
+from pneuma_lab.foundation.specs import MODEL_SPECS
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,10 +53,13 @@ def _strict_json(path: Path) -> dict:
 
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(value, indent=4, sort_keys=True, allow_nan=False) + "\n",
-        encoding="utf-8",
-    )
+    path.write_bytes(_pretty_json_bytes(value))
+
+
+def _pretty_json_bytes(value: object) -> bytes:
+    return (
+        json.dumps(value, indent=4, sort_keys=True, allow_nan=False) + "\n"
+    ).encode("utf-8")
 
 
 def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str]:
@@ -67,38 +75,159 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
     commit = _git(repo, "rev-parse", "HEAD")
 
     output = repo / "build/foundation/preparation/100k"
-    shard = output / "shards/records.jsonl"
+    spec = MODEL_SPECS["2b"]
+    tokenizer_receipt_sha256 = "1" * 64
+    tokenizer_snapshot_sha256 = "2" * 64
+    generated_conversion = {
+        "examples.jsonl": "3" * 64,
+        "invalid_examples.jsonl": "4" * 64,
+        "conversion_report.json": "5" * 64,
+        "hash_manifest.json": "6" * 64,
+    }
+    license_receipt = {
+        "receipt_kind": "dataset_license_posture",
+        "receipt_schema_version": "0.1.0",
+        "dataset_id": "swe-gym-openhands-sampled",
+        "decision": "local_research_candidate_no_redistribution",
+        "cloud_redistribution_allowed": False,
+        "requires_exact_operator_authorization": True,
+    }
+    source_receipt_hashes = tuple(
+        sorted(
+            (
+                hashlib.sha256(_pretty_json_bytes(license_receipt)).hexdigest(),
+                tokenizer_receipt_sha256,
+                tokenizer_snapshot_sha256,
+                generated_conversion["conversion_report.json"],
+                generated_conversion["hash_manifest.json"],
+            )
+        )
+    )
+    record = _valid_record()
+    record["source"]["receipt_hashes"] = list(source_receipt_hashes)
+    record["tokenization"]["tokenizer_revision"] = spec.revision
+    shard_payload = (
+        json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    shard_sha256 = hashlib.sha256(shard_payload).hexdigest()
+    shard = output / f"shards/{shard_sha256}.jsonl"
     shard.parent.mkdir(parents=True)
-    shard.write_text('{"record_id":"ftr:' + "a" * 64 + '"}\n', encoding="utf-8")
-    shard_manifest = output / "shards/records.manifest.json"
+    shard.write_bytes(shard_payload)
+    inventory = build_diversity_inventory((record,))
+    shard_manifest = output / f"shards/{shard_sha256}.manifest.json"
     _write_json(
         shard_manifest,
         {
-            "inventory": {
-                "token_count": 1,
-                "repository_count": 1,
-                "issue_count": 1,
-                "languages": {"python": 1},
-                "tools": {"pytest": 1},
-                "trajectory_length": {"min": 1, "max": 1, "mean": 1},
-                "labels": {"resolved": 1},
-            }
+            "manifest_kind": "pneuma_foundation_shard",
+            "schema_version": "0.1.0",
+            "sha256": shard_sha256,
+            "example_count": 1,
+            "duplicate_example_ids": [],
+            "inventory": inventory,
+            "source_policy": "read_only_external_corpus",
+            "token_ceiling": 100_000,
         },
     )
-    names = (
-        "suite_report.json",
-        "license_receipt.json",
-        "source_presence_receipt.json",
-        "source_integrity_receipt.json",
-        "split_receipt.json",
-        "contamination_receipt.json",
-        "diversity_receipt.json",
-        "selection_receipt.json",
-    )
-    for name in names:
-        value = {"fixture": name}
-        if name == "selection_receipt.json":
-            value.update(stage="100k", token_ceiling=100_000)
+    all_ten = {
+        "complete": True,
+        "families": list(ACTIVE_DATASET_GROUPS),
+        "lanes": ["swe-gym-openhands-sampled"],
+    }
+    tokenizer_snapshot = {
+        "model_id": spec.model_id,
+        "revision": spec.revision,
+        "receipt_sha256": tokenizer_receipt_sha256,
+        "snapshot_sha256": tokenizer_snapshot_sha256,
+    }
+    receipts = {
+        "suite_report.json": {
+            "manifest_kind": "pneuma_foundation_suite_report",
+            "manifest_schema_version": "0.1.0",
+            "first_stage": {
+                "stage": "100k",
+                "authorized_lane_candidates": [
+                    "swe-gym-openhands-sampled"
+                ],
+            },
+            "families": [
+                {"family": family, "exists": True}
+                for family in ACTIVE_DATASET_GROUPS
+            ],
+        },
+        "license_receipt.json": license_receipt,
+        "source_presence_receipt.json": {
+            "manifest_kind": "pneuma_foundation_source_presence_receipt",
+            "manifest_schema_version": "0.1.0",
+            "all_ten_present": True,
+            "before": all_ten,
+            "after": all_ten,
+            "families": list(ACTIVE_DATASET_GROUPS),
+            "lanes": ["swe-gym-openhands-sampled"],
+        },
+        "source_integrity_receipt.json": {
+            "manifest_kind": "pneuma_foundation_source_integrity_receipt",
+            "manifest_schema_version": "0.1.0",
+            "before": [],
+            "after": [],
+            "all_ten_before": all_ten,
+            "all_ten_after": all_ten,
+            "tokenizer_snapshot": tokenizer_snapshot,
+            "unchanged": True,
+        },
+        "split_receipt.json": {
+            "manifest_kind": "pneuma_foundation_repo_grouped_split_receipt",
+            "manifest_schema_version": "0.1.0",
+            "assignments": [
+                {
+                    "record_id": record["record_id"],
+                    "split_id": "train",
+                    "canonical_repo": "org/repo",
+                }
+            ],
+            "canonical_repository_sets": {
+                "train": ["org/repo"],
+                "validation": [],
+                "held_out": [],
+            },
+            "repository_grouped": True,
+        },
+        "contamination_receipt.json": {
+            "manifest_kind": "pneuma_foundation_contamination_receipt",
+            "manifest_schema_version": "0.1.0",
+            "training_identity_count": 1,
+            "evaluation_identity_count": 3,
+            "required_evaluation_families": [
+                "swe-bench",
+                "swe-mera",
+                "swe-polybench",
+            ],
+            "evaluation_coverage_complete": True,
+            "finding_count": 0,
+            "findings": [],
+            "repo_issue_disjoint": True,
+        },
+        "diversity_receipt.json": {
+            "manifest_kind": "pneuma_foundation_diversity_receipt",
+            "manifest_schema_version": "0.1.0",
+            **inventory,
+        },
+        "selection_receipt.json": {
+            "manifest_kind": "pneuma_foundation_selection_receipt",
+            "manifest_schema_version": "0.1.0",
+            "stage": "100k",
+            "seed": 20260713,
+            "token_ceiling": 100_000,
+            "candidate_record_count": 1,
+            "selected_record_count": 1,
+            "selected_record_ids": [record["record_id"]],
+            "selected_token_count": 2,
+            "tokenizer_recount_total": 2,
+            "resolved_count": 1,
+            "unresolved_count": 0,
+            "persisted_training_weight": 0.0,
+        },
+    }
+    for name, value in receipts.items():
         _write_json(output / name, value)
     _write_json(
         output / "preparation_manifest.json",
@@ -107,12 +236,38 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
             "manifest_schema_version": "0.1.0",
             "stage": "100k",
             "token_ceiling": 100_000,
+            "seed": 20260713,
             "dry_run": False,
+            "dataset_suite": "all_ten_governed_groups",
+            "gradient_lane": "swe-gym-openhands-sampled",
             "training_authorized": False,
             "persisted_training_weight": 0.0,
+            "source_receipt_hashes": list(source_receipt_hashes),
+            "tokenizer_snapshot": tokenizer_snapshot,
+            "generated_artifact_sha256": {
+                "conversion": generated_conversion,
+                "eval_identities": {
+                    "swe-bench": "7" * 64,
+                    "swe-mera": "8" * 64,
+                    "swe-polybench": "9" * 64,
+                },
+            },
+            "receipt_sha256": {
+                name: hashlib.sha256(_pretty_json_bytes(value)).hexdigest()
+                for name, value in sorted(receipts.items())
+            },
             "shard": {
                 "artifact": shard.name,
+                "sha256": shard_sha256,
+                "example_count": 1,
                 "manifest_artifact": shard_manifest.name,
+            },
+            "gates": {
+                "all_ten_present": True,
+                "eval_coverage_complete": True,
+                "contamination_findings": 0,
+                "source_unchanged": True,
+                "tokenizer_recount_matches": True,
             },
         },
     )
@@ -156,6 +311,32 @@ def _build_and_finalize(
     )
     assert finalized == final_path
     return repo, preparation, commit, final_path
+
+
+def _refresh_preparation_receipt_digest(
+    preparation: PreparationResult,
+    receipt_path: Path,
+) -> None:
+    manifest = _strict_json(preparation.preparation_manifest_path)
+    manifest["receipt_sha256"][receipt_path.name] = hashlib.sha256(
+        receipt_path.read_bytes()
+    ).hexdigest()
+    _write_json(preparation.preparation_manifest_path, manifest)
+
+
+def _resign_final_scope(final_path: Path, repo: Path) -> None:
+    manifest = _strict_json(final_path)
+    for binding in manifest["scope"]["artifacts"].values():
+        artifact = repo / binding["path"]
+        binding["sha256"] = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        binding["size"] = artifact.stat().st_size
+    manifest["scope_digest"] = authorization_scope_digest(manifest["scope"])
+    manifest["operator_approval"]["scope_digest"] = manifest["scope_digest"]
+    phrase = APPROVAL_PHRASE_PREFIX + " " + manifest["scope_digest"]
+    manifest["operator_approval"]["approval_phrase_sha256"] = hashlib.sha256(
+        phrase.encode("utf-8")
+    ).hexdigest()
+    _write_json(final_path, manifest)
 
 
 def _valid_record() -> dict:
@@ -296,6 +477,124 @@ def test_candidate_is_exact_non_authorizing_and_cannot_verify(tmp_path: Path) ->
     }
     with pytest.raises(FoundationAuthorizationError, match="candidate|not authorized"):
         verify_foundation_authorization(path, repo_root=repo)
+
+
+def test_candidate_rejects_4b_scope_over_2b_preparation(tmp_path: Path) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="2b|4b|model|tokenizer|coher",
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+            model_key="4b",
+        )
+    assert not preparation.authorization_candidate_path.exists()
+
+
+@pytest.mark.parametrize(
+    "contradiction",
+    (
+        "prep_ceiling",
+        "prep_gradient_lane",
+        "prep_training_authorized",
+        "prep_negative_zero_weight",
+        "prep_gate_false",
+        "prep_shard_sha",
+        "prep_receipt_sha",
+        "shard_manifest_sha",
+        "shard_manifest_count",
+        "contamination_gate",
+        "suite_presence",
+        "source_presence",
+        "source_unchanged",
+        "selection_count",
+        "diversity_inventory",
+        "split_grouping",
+        "license_cloud",
+    ),
+)
+def test_candidate_rejects_cross_artifact_contradictions(
+    tmp_path: Path,
+    contradiction: str,
+) -> None:
+    repo, preparation, commit = _authorization_fixture(tmp_path)
+    prep = _strict_json(preparation.preparation_manifest_path)
+    if contradiction == "prep_ceiling":
+        prep["token_ceiling"] = 500_000
+        _write_json(preparation.preparation_manifest_path, prep)
+    elif contradiction == "prep_gradient_lane":
+        prep["gradient_lane"] = "swe-gym-openhands-verifier"
+        _write_json(preparation.preparation_manifest_path, prep)
+    elif contradiction == "prep_training_authorized":
+        prep["training_authorized"] = True
+        _write_json(preparation.preparation_manifest_path, prep)
+    elif contradiction == "prep_negative_zero_weight":
+        prep["persisted_training_weight"] = -0.0
+        _write_json(preparation.preparation_manifest_path, prep)
+    elif contradiction == "prep_gate_false":
+        prep["gates"]["contamination_findings"] = 1
+        _write_json(preparation.preparation_manifest_path, prep)
+    elif contradiction == "prep_shard_sha":
+        prep["shard"]["sha256"] = "0" * 64
+        _write_json(preparation.preparation_manifest_path, prep)
+    elif contradiction == "prep_receipt_sha":
+        prep["receipt_sha256"]["suite_report.json"] = "0" * 64
+        _write_json(preparation.preparation_manifest_path, prep)
+    elif contradiction in {"shard_manifest_sha", "shard_manifest_count"}:
+        manifest = _strict_json(preparation.shard_manifest_path)
+        if contradiction == "shard_manifest_sha":
+            manifest["sha256"] = "0" * 64
+        else:
+            manifest["example_count"] = 2
+        _write_json(preparation.shard_manifest_path, manifest)
+    else:
+        paths = {
+            "contamination_gate": preparation.contamination_receipt_path,
+            "suite_presence": preparation.suite_report_path,
+            "source_presence": preparation.source_presence_receipt_path,
+            "source_unchanged": preparation.source_integrity_receipt_path,
+            "selection_count": preparation.selection_receipt_path,
+            "diversity_inventory": preparation.diversity_receipt_path,
+            "split_grouping": preparation.split_receipt_path,
+            "license_cloud": preparation.license_receipt_path,
+        }
+        receipt_path = paths[contradiction]
+        receipt = _strict_json(receipt_path)
+        if contradiction == "contamination_gate":
+            receipt.update(finding_count=1, repo_issue_disjoint=False)
+            receipt["findings"] = [{"fixture": "contradiction"}]
+        elif contradiction == "suite_presence":
+            receipt["families"][0]["exists"] = False
+        elif contradiction == "source_presence":
+            receipt["all_ten_present"] = False
+        elif contradiction == "source_unchanged":
+            receipt["unchanged"] = False
+        elif contradiction == "selection_count":
+            receipt["selected_record_count"] = 2
+        elif contradiction == "diversity_inventory":
+            receipt["token_count"] += 1
+        elif contradiction == "split_grouping":
+            receipt["repository_grouped"] = False
+        elif contradiction == "license_cloud":
+            receipt["cloud_redistribution_allowed"] = True
+        _write_json(receipt_path, receipt)
+        _refresh_preparation_receipt_digest(preparation, receipt_path)
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match=(
+            "coher|shard|receipt|gate|suite|source|selection|diversity|"
+            "split|license|preparation|weight|token|lane|model"
+        ),
+    ):
+        build_authorization_candidate(
+            preparation,
+            repo_root=repo,
+            code_commit=commit,
+        )
+    assert not preparation.authorization_candidate_path.exists()
 
 
 def test_artifact_binding_uses_canonical_repo_relative_path(tmp_path: Path) -> None:
@@ -560,6 +859,42 @@ def test_verify_rejects_artifact_tamper_and_dirty_or_different_commit(
         verify_foundation_authorization(final_path, repo_root=repo)
 
 
+def test_verify_rejects_rehashed_but_incoherent_receipt_set(tmp_path: Path) -> None:
+    repo, preparation, _commit, final_path = _build_and_finalize(tmp_path)
+    contamination = _strict_json(preparation.contamination_receipt_path)
+    contamination.update(finding_count=1, repo_issue_disjoint=False)
+    contamination["findings"] = [{"fixture": "contradiction"}]
+    _write_json(preparation.contamination_receipt_path, contamination)
+    _refresh_preparation_receipt_digest(
+        preparation,
+        preparation.contamination_receipt_path,
+    )
+    _resign_final_scope(final_path, repo)
+
+    with pytest.raises(FoundationAuthorizationError, match="coher|contamination|gate"):
+        verify_foundation_authorization(final_path, repo_root=repo)
+
+
+def test_verify_rejects_rehashed_4b_scope_over_2b_preparation(
+    tmp_path: Path,
+) -> None:
+    repo, _preparation, _commit, final_path = _build_and_finalize(tmp_path)
+    manifest = _strict_json(final_path)
+    spec = MODEL_SPECS["4b"]
+    manifest["scope"]["model"] = {
+        "key": spec.key,
+        "model_id": spec.model_id,
+        "revision": spec.revision,
+        "tokenizer_id": spec.model_id,
+        "tokenizer_revision": spec.revision,
+    }
+    _write_json(final_path, manifest)
+    _resign_final_scope(final_path, repo)
+
+    with pytest.raises(FoundationAuthorizationError, match="2b|4b|model|tokenizer|coher"):
+        verify_foundation_authorization(final_path, repo_root=repo)
+
+
 def test_verify_rejects_bound_artifact_hardlink_alias(tmp_path: Path) -> None:
     repo, preparation, _commit, final_path = _build_and_finalize(tmp_path)
     alias = preparation.shard_path.with_name("shard-alias.jsonl")
@@ -711,7 +1046,10 @@ def test_authorization_module_does_not_import_preparation_or_legacy_scorer() -> 
     source = (ROOT / "src/pneuma_lab/foundation/authorization.py").read_text(
         encoding="utf-8"
     )
-    assert "foundation.preparation" not in source
     assert "legacy" not in source.casefold()
     assert "evals" not in source
     assert source.count("hmac.compare_digest") >= 6
+    assert "from typing import TYPE_CHECKING" in source
+    assert "if TYPE_CHECKING:" in source
+    assert "from pneuma_lab.foundation.preparation import PreparationResult" in source
+    assert "preparation: PreparationResult" in source

@@ -17,6 +17,7 @@ import re
 import subprocess
 from types import MappingProxyType
 from typing import Any, Iterator
+from typing import TYPE_CHECKING
 import unicodedata
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -28,6 +29,10 @@ from pneuma_lab.foundation.artifacts import (
     bind_artifact_publication,
     write_atomic_json,
 )
+from pneuma_lab.foundation.data import (
+    ACTIVE_DATASET_GROUPS,
+    build_diversity_inventory,
+)
 from pneuma_lab.foundation.records import (
     EffectiveTrainingRecord,
     FoundationRecordError,
@@ -35,6 +40,9 @@ from pneuma_lab.foundation.records import (
 )
 from pneuma_lab.foundation.specs import MODEL_SPECS
 from pneuma_lab.schemas import load_schema
+
+if TYPE_CHECKING:
+    from pneuma_lab.foundation.preparation import PreparationResult
 
 
 APPROVAL_PHRASE_PREFIX = "I APPROVE THIS EXACT PNEUMA FOUNDATION SCOPE"
@@ -60,6 +68,16 @@ _ARTIFACT_FIELDS = {
     "contamination_receipt": "contamination_receipt_path",
     "diversity_receipt": "diversity_receipt_path",
     "selection_receipt": "selection_receipt_path",
+}
+_RECEIPT_FILENAMES = {
+    "suite_report": "suite_report.json",
+    "license_receipt": "license_receipt.json",
+    "source_presence_receipt": "source_presence_receipt.json",
+    "source_integrity_receipt": "source_integrity_receipt.json",
+    "split_receipt": "split_receipt.json",
+    "contamination_receipt": "contamination_receipt.json",
+    "diversity_receipt": "diversity_receipt.json",
+    "selection_receipt": "selection_receipt.json",
 }
 _LOCAL_PROFILE = {
     "profile": "wsl2_local_nf4",
@@ -89,6 +107,7 @@ _SOURCE_POLICY = {
 _OUTPUT_ROOT = "build/foundation/runs/"
 _PROTECTED_DATA_ROOT = Path(r"C:\pneuma-data")
 _COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+_DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _UTC_PATTERN = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$"
 )
@@ -190,6 +209,49 @@ def _strict_json_bytes(payload: bytes, *, label: str) -> dict:
     if not isinstance(value, dict):
         raise FoundationAuthorizationError(f"expected JSON object: {label}")
     return value
+
+
+def _strict_jsonl_records(payload: bytes, *, label: str) -> tuple[dict, ...]:
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise FoundationAuthorizationError(
+            f"cannot decode strict JSONL {label}: {exc}"
+        ) from exc
+    if not text or not text.endswith("\n"):
+        raise FoundationAuthorizationError(
+            f"{label} must be nonempty newline-terminated JSONL"
+        )
+    records = []
+    for index, line in enumerate(text.splitlines(), start=1):
+        if not line:
+            raise FoundationAuthorizationError(
+                f"{label} contains a blank line at {index}"
+            )
+        records.append(
+            _strict_json_bytes(line.encode("utf-8"), label=f"{label} line {index}")
+        )
+    return tuple(records)
+
+
+def _is_exact_positive_zero(value: Any) -> bool:
+    return (
+        type(value) is float
+        and value == 0.0
+        and math.copysign(1.0, value) > 0
+    )
+
+
+def _require_digest(value: Any, *, label: str) -> str:
+    if not isinstance(value, str) or not _DIGEST_PATTERN.fullmatch(value):
+        raise FoundationAuthorizationError(f"{label} must be a SHA-256 digest")
+    return value
+
+
+def _coherence_error(detail: str) -> FoundationAuthorizationError:
+    return FoundationAuthorizationError(
+        f"foundation authorization artifact coherence failed: {detail}"
+    )
 
 
 def authorization_scope_digest(scope: Mapping) -> str:
@@ -409,8 +471,386 @@ def _validate_exact_preparation_paths(paths: Mapping[str, Path]) -> None:
         )
 
 
+def _validate_preparation_coherence_unchecked(
+    scope: Mapping,
+    bound_payloads: Mapping[str, BoundArtifactRead],
+) -> None:
+    """Prove all held preparation artifacts describe one exact local run."""
+
+    if set(bound_payloads) != set(_ARTIFACT_FIELDS):
+        raise _coherence_error("bound artifact set is incomplete")
+    bindings = scope.get("artifacts")
+    if not isinstance(bindings, Mapping) or set(bindings) != set(bound_payloads):
+        raise _coherence_error("scope artifact bindings are incomplete")
+    for name, read in bound_payloads.items():
+        binding = bindings[name]
+        if (
+            not isinstance(binding, Mapping)
+            or binding.get("sha256") != read.sha256
+            or binding.get("size") != read.size
+        ):
+            raise _coherence_error(f"scope binding differs from held {name}")
+
+    parsed = {
+        name: _strict_json_bytes(read.payload, label=name.replace("_", " "))
+        for name, read in bound_payloads.items()
+        if name != "shard"
+    }
+    records = _strict_jsonl_records(
+        bound_payloads["shard"].payload,
+        label="foundation shard",
+    )
+    preparation = parsed["preparation_manifest"]
+    model = scope.get("model")
+    if not isinstance(model, Mapping) or model.get("key") not in MODEL_SPECS:
+        raise _coherence_error("scope model key is not pinned")
+    spec = MODEL_SPECS[model["key"]]
+    if spec.key != "2b":
+        raise _coherence_error(
+            "the first local preparation authorizes only the exact 2b model"
+        )
+    expected_model = {
+        "key": spec.key,
+        "model_id": spec.model_id,
+        "revision": spec.revision,
+        "tokenizer_id": spec.model_id,
+        "tokenizer_revision": spec.revision,
+    }
+    if dict(model) != expected_model:
+        raise _coherence_error("scope model and tokenizer pin changed")
+    stage = scope.get("stage")
+    if stage not in _STAGE_TOKEN_CEILINGS:
+        raise _coherence_error("scope stage is unknown")
+    token_ceiling = _STAGE_TOKEN_CEILINGS[stage]
+    if scope.get("token_ceiling") != token_ceiling:
+        raise _coherence_error("scope stage and token ceiling differ")
+    if (
+        preparation.get("manifest_kind")
+        != "pneuma_foundation_preparation_manifest"
+        or preparation.get("manifest_schema_version") != "0.1.0"
+        or preparation.get("stage") != stage
+        or preparation.get("token_ceiling") != token_ceiling
+        or preparation.get("dry_run") is not False
+        or preparation.get("dataset_suite") != "all_ten_governed_groups"
+        or preparation.get("gradient_lane")
+        != "swe-gym-openhands-sampled"
+        or preparation.get("training_authorized") is not False
+        or not _is_exact_positive_zero(
+            preparation.get("persisted_training_weight")
+        )
+    ):
+        raise _coherence_error("preparation scope fields are not exact")
+
+    tokenizer = preparation.get("tokenizer_snapshot")
+    if not isinstance(tokenizer, Mapping) or tokenizer.get("model_id") != spec.model_id:
+        raise _coherence_error("preparation tokenizer model differs from scope")
+    if tokenizer.get("revision") != spec.revision:
+        raise _coherence_error("preparation tokenizer revision differs from scope")
+    tokenizer_receipt_digest = _require_digest(
+        tokenizer.get("receipt_sha256"),
+        label="tokenizer receipt",
+    )
+    tokenizer_snapshot_digest = _require_digest(
+        tokenizer.get("snapshot_sha256"),
+        label="tokenizer snapshot",
+    )
+
+    receipt_digests = preparation.get("receipt_sha256")
+    expected_receipt_names = set(_RECEIPT_FILENAMES.values())
+    if not isinstance(receipt_digests, Mapping) or set(receipt_digests) != expected_receipt_names:
+        raise _coherence_error("preparation receipt digest map is not exact")
+    for binding_name, filename in _RECEIPT_FILENAMES.items():
+        expected = _require_digest(
+            receipt_digests[filename],
+            label=f"{filename} receipt binding",
+        )
+        if not hmac.compare_digest(expected, bound_payloads[binding_name].sha256):
+            raise _coherence_error(f"{filename} digest differs from held bytes")
+
+    generated = preparation.get("generated_artifact_sha256")
+    if not isinstance(generated, Mapping) or set(generated) != {
+        "conversion",
+        "eval_identities",
+    }:
+        raise _coherence_error("generated artifact digest groups are incomplete")
+    conversion = generated["conversion"]
+    if not isinstance(conversion, Mapping) or set(conversion) != {
+        "examples.jsonl",
+        "invalid_examples.jsonl",
+        "conversion_report.json",
+        "hash_manifest.json",
+    }:
+        raise _coherence_error("generated conversion digest map is incomplete")
+    for name, digest in conversion.items():
+        _require_digest(digest, label=f"generated conversion {name}")
+    eval_digests = generated["eval_identities"]
+    if not isinstance(eval_digests, Mapping) or not eval_digests:
+        raise _coherence_error("generated evaluation identity digests are empty")
+    for family, digest in eval_digests.items():
+        if not isinstance(family, str) or not family:
+            raise _coherence_error("generated evaluation family is invalid")
+        _require_digest(digest, label=f"generated evaluation identity {family}")
+
+    source_receipt_hashes = preparation.get("source_receipt_hashes")
+    if (
+        not isinstance(source_receipt_hashes, list)
+        or source_receipt_hashes != sorted(set(source_receipt_hashes))
+    ):
+        raise _coherence_error("preparation source receipt hashes are not canonical")
+    for digest in source_receipt_hashes:
+        _require_digest(digest, label="preparation source receipt")
+    required_source_digests = {
+        bound_payloads["license_receipt"].sha256,
+        tokenizer_receipt_digest,
+        tokenizer_snapshot_digest,
+        conversion["conversion_report.json"],
+        conversion["hash_manifest.json"],
+    }
+    if not required_source_digests.issubset(source_receipt_hashes):
+        raise _coherence_error("generated and tokenizer sources lack receipts")
+
+    record_ids = []
+    for record in records:
+        try:
+            validate_foundation_record(record)
+        except FoundationRecordError as exc:
+            raise _coherence_error(f"shard record is invalid: {exc}") from exc
+        source = record.get("source")
+        disposition = record.get("disposition")
+        split = record.get("split")
+        rendered = record.get("rendered")
+        forecasts = record.get("forecast_targets")
+        tokenization = record.get("tokenization")
+        if (
+            not _is_exact_positive_zero(record.get("training_weight"))
+            or not isinstance(source, Mapping)
+            or source.get("dataset_family") != "swe-gym"
+            or source.get("lane_id") != "swe-gym-openhands-sampled"
+            or source.get("receipt_hashes") != source_receipt_hashes
+            or not isinstance(disposition, Mapping)
+            or disposition.get("terminal_role") != "train"
+            or disposition.get("gradient_eligibility") != "first_stage"
+            or not isinstance(split, Mapping)
+            or split.get("split_id") != "train"
+            or not isinstance(rendered, Mapping)
+            or not isinstance(rendered.get("target_text"), str)
+            or not rendered["target_text"].strip()
+            or not isinstance(tokenization, Mapping)
+            or tokenization.get("tokenizer_id") != spec.model_id
+            or tokenization.get("tokenizer_revision") != spec.revision
+            or tokenization.get("total_tokens")
+            != tokenization.get("prompt_tokens", -1)
+            + tokenization.get("target_tokens", -1)
+            or not isinstance(forecasts, Mapping)
+            or not any(
+                isinstance(target, Mapping)
+                and target.get("applicable") is True
+                and target.get("provenance") == "observed_outcome"
+                for target in forecasts.values()
+            )
+        ):
+            raise _coherence_error("shard record is outside the exact gradient lane")
+        record_ids.append(record["record_id"])
+    if len(record_ids) != len(set(record_ids)):
+        raise _coherence_error("shard record IDs are not unique")
+
+    shard_digest = bound_payloads["shard"].sha256
+    shard_entry = preparation.get("shard")
+    shard_manifest = parsed["shard_manifest"]
+    expected_inventory = build_diversity_inventory(records)
+    if (
+        not isinstance(shard_entry, Mapping)
+        or shard_entry.get("artifact") != f"{shard_digest}.jsonl"
+        or shard_entry.get("sha256") != shard_digest
+        or shard_entry.get("example_count") != len(records)
+        or shard_entry.get("manifest_artifact")
+        != f"{shard_digest}.manifest.json"
+        or shard_manifest.get("manifest_kind") != "pneuma_foundation_shard"
+        or shard_manifest.get("schema_version") != "0.1.0"
+        or shard_manifest.get("sha256") != shard_digest
+        or shard_manifest.get("example_count") != len(records)
+        or shard_manifest.get("duplicate_example_ids") != []
+        or shard_manifest.get("inventory") != expected_inventory
+        or shard_manifest.get("source_policy")
+        != "read_only_external_corpus"
+        or shard_manifest.get("token_ceiling") != token_ceiling
+        or expected_inventory["token_count"] > token_ceiling
+    ):
+        raise _coherence_error("shard bytes, manifest, and preparation differ")
+
+    gates = preparation.get("gates")
+    if gates != {
+        "all_ten_present": True,
+        "eval_coverage_complete": True,
+        "contamination_findings": 0,
+        "source_unchanged": True,
+        "tokenizer_recount_matches": True,
+    }:
+        raise _coherence_error("preparation gates are not exact")
+
+    suite = parsed["suite_report"]
+    suite_families = suite.get("families")
+    suite_first_stage = suite.get("first_stage")
+    if (
+        suite.get("manifest_kind") != "pneuma_foundation_suite_report"
+        or suite.get("manifest_schema_version") != "0.1.0"
+        or not isinstance(suite_first_stage, Mapping)
+        or suite_first_stage.get("stage") != stage
+        or suite_first_stage.get("authorized_lane_candidates")
+        != ["swe-gym-openhands-sampled"]
+        or not isinstance(suite_families, list)
+        or [item.get("family") for item in suite_families]
+        != list(ACTIVE_DATASET_GROUPS)
+        or any(item.get("exists") is not True for item in suite_families)
+    ):
+        raise _coherence_error("suite receipt does not prove all-ten presence")
+
+    license_receipt = parsed["license_receipt"]
+    if (
+        license_receipt.get("receipt_kind") != "dataset_license_posture"
+        or license_receipt.get("receipt_schema_version") != "0.1.0"
+        or license_receipt.get("dataset_id") != "swe-gym-openhands-sampled"
+        or license_receipt.get("decision")
+        != "local_research_candidate_no_redistribution"
+        or license_receipt.get("cloud_redistribution_allowed") is not False
+        or license_receipt.get("requires_exact_operator_authorization")
+        is not True
+    ):
+        raise _coherence_error("license receipt does not permit exact local research")
+
+    source_presence = parsed["source_presence_receipt"]
+    if (
+        source_presence.get("manifest_kind")
+        != "pneuma_foundation_source_presence_receipt"
+        or source_presence.get("manifest_schema_version") != "0.1.0"
+        or source_presence.get("all_ten_present") is not True
+        or source_presence.get("before") != source_presence.get("after")
+        or not isinstance(source_presence.get("before"), Mapping)
+        or source_presence["before"].get("complete") is not True
+        or source_presence.get("families")
+        != source_presence["after"].get("families")
+        or source_presence.get("lanes")
+        != source_presence["after"].get("lanes")
+    ):
+        raise _coherence_error("source presence receipt contradicts all-ten gate")
+
+    source_integrity = parsed["source_integrity_receipt"]
+    if (
+        source_integrity.get("manifest_kind")
+        != "pneuma_foundation_source_integrity_receipt"
+        or source_integrity.get("manifest_schema_version") != "0.1.0"
+        or source_integrity.get("unchanged") is not True
+        or source_integrity.get("before") != source_integrity.get("after")
+        or source_integrity.get("all_ten_before")
+        != source_integrity.get("all_ten_after")
+        or not isinstance(source_integrity.get("all_ten_before"), Mapping)
+        or source_integrity["all_ten_before"].get("complete") is not True
+        or source_integrity.get("tokenizer_snapshot") != tokenizer
+    ):
+        raise _coherence_error("source integrity receipt contradicts source gate")
+
+    contamination = parsed["contamination_receipt"]
+    required_eval_families = contamination.get("required_evaluation_families")
+    if (
+        contamination.get("manifest_kind")
+        != "pneuma_foundation_contamination_receipt"
+        or contamination.get("manifest_schema_version") != "0.1.0"
+        or contamination.get("training_identity_count") != len(records)
+        or contamination.get("evaluation_coverage_complete") is not True
+        or contamination.get("finding_count") != 0
+        or contamination.get("findings") != []
+        or contamination.get("repo_issue_disjoint") is not True
+        or not isinstance(required_eval_families, list)
+        or set(required_eval_families) != set(eval_digests)
+    ):
+        raise _coherence_error("contamination receipt contradicts disjointness gates")
+
+    diversity = parsed["diversity_receipt"]
+    if (
+        diversity.get("manifest_kind")
+        != "pneuma_foundation_diversity_receipt"
+        or diversity.get("manifest_schema_version") != "0.1.0"
+        or {
+            key: value
+            for key, value in diversity.items()
+            if key not in {"manifest_kind", "manifest_schema_version"}
+        }
+        != expected_inventory
+    ):
+        raise _coherence_error("diversity receipt differs from shard inventory")
+
+    selection = parsed["selection_receipt"]
+    total_tokens = sum(record["tokenization"]["total_tokens"] for record in records)
+    resolved_count = sum(
+        record["observations"]["labels"]["resolved"] is True
+        for record in records
+    )
+    if (
+        selection.get("manifest_kind")
+        != "pneuma_foundation_selection_receipt"
+        or selection.get("manifest_schema_version") != "0.1.0"
+        or selection.get("stage") != stage
+        or selection.get("token_ceiling") != token_ceiling
+        or selection.get("selected_record_count") != len(records)
+        or type(selection.get("candidate_record_count")) is not int
+        or selection["candidate_record_count"] < len(records)
+        or selection.get("selected_record_ids") != record_ids
+        or selection.get("selected_token_count") != total_tokens
+        or selection.get("tokenizer_recount_total") != total_tokens
+        or selection.get("resolved_count") != resolved_count
+        or selection.get("unresolved_count") != len(records) - resolved_count
+        or not _is_exact_positive_zero(
+            selection.get("persisted_training_weight")
+        )
+    ):
+        raise _coherence_error("selection receipt differs from shard records")
+
+    split = parsed["split_receipt"]
+    canonical_sets = split.get("canonical_repository_sets")
+    if (
+        split.get("manifest_kind")
+        != "pneuma_foundation_repo_grouped_split_receipt"
+        or split.get("manifest_schema_version") != "0.1.0"
+        or split.get("repository_grouped") is not True
+        or not isinstance(split.get("assignments"), list)
+        or not isinstance(canonical_sets, Mapping)
+        or set(canonical_sets) != {"train", "validation", "held_out"}
+    ):
+        raise _coherence_error("split receipt is incomplete")
+    normalized_sets = {
+        name: set(values) if isinstance(values, list) else None
+        for name, values in canonical_sets.items()
+    }
+    if any(values is None for values in normalized_sets.values()) or any(
+        normalized_sets[left] & normalized_sets[right]
+        for index, left in enumerate(normalized_sets)
+        for right in tuple(normalized_sets)[index + 1 :]
+    ):
+        raise _coherence_error("split receipt repository sets overlap")
+
+
+def _validate_preparation_coherence(
+    scope: Mapping,
+    bound_payloads: Mapping[str, BoundArtifactRead],
+) -> None:
+    """Fail closed around the shared held-byte semantic validator."""
+
+    try:
+        _validate_preparation_coherence_unchecked(scope, bound_payloads)
+    except FoundationAuthorizationError:
+        raise
+    except (
+        AttributeError,
+        KeyError,
+        OverflowError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise _coherence_error(f"malformed cross-artifact value: {exc}") from exc
+
+
 def build_authorization_candidate(
-    preparation: Any,
+    preparation: PreparationResult,
     *,
     repo_root: Path,
     code_commit: str,
@@ -488,6 +928,10 @@ def build_authorization_candidate(
             "output_root": _OUTPUT_ROOT,
             "budget": copy.deepcopy(_BUDGET),
         }
+        _validate_preparation_coherence(
+            scope,
+            {name: item.read for name, item in held.items()},
+        )
         digest = authorization_scope_digest(scope)
         candidate = {
             "manifest_kind": "pneuma_foundation_training_authorization",
@@ -774,29 +1218,13 @@ def verify_foundation_authorization(
                         raise FoundationAuthorizationError(
                             f"authorized artifact digest or size changed: {name}"
                         )
-                preparation_manifest = _strict_json_bytes(
-                    artifact_held["preparation_manifest"].read.payload,
-                    label="bound preparation manifest",
+                _validate_preparation_coherence(
+                    scope,
+                    {
+                        name: item.read
+                        for name, item in artifact_held.items()
+                    },
                 )
-                selection_receipt = _strict_json_bytes(
-                    artifact_held["selection_receipt"].read.payload,
-                    label="bound selection receipt",
-                )
-                shard_entry = preparation_manifest.get("shard")
-                if (
-                    preparation_manifest.get("stage") != stage
-                    or preparation_manifest.get("token_ceiling")
-                    != scope["token_ceiling"]
-                    or preparation_manifest.get("training_authorized") is not False
-                    or preparation_manifest.get("persisted_training_weight") != 0.0
-                    or not isinstance(shard_entry, Mapping)
-                    or shard_entry.get("artifact") != paths["shard"].name
-                    or shard_entry.get("manifest_artifact")
-                    != paths["shard_manifest"].name
-                    or selection_receipt.get("stage") != stage
-                    or selection_receipt.get("token_ceiling") != scope["token_ceiling"]
-                ):
-                    raise FoundationAuthorizationError("bound preparation scope changed")
                 _revalidate_held(artifact_held)
                 _revalidate_held(authorization_held)
                 frozen_manifest = _deep_freeze(copy.deepcopy(manifest))

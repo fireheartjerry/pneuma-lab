@@ -463,6 +463,10 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
         first.preparation_manifest_path.read_text(encoding="utf-8")
     )
     assert manifest["token_ceiling"] == 100_000
+    shard_manifest = json.loads(
+        first.shard_manifest_path.read_text(encoding="utf-8")
+    )
+    assert shard_manifest["token_ceiling"] == 100_000
     assert set(manifest["generated_artifact_sha256"]["conversion"]) == {
         "conversion_report.json",
         "examples.jsonl",
