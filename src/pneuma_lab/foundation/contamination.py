@@ -24,10 +24,9 @@ class ContaminationFinding:
 
 @dataclass(frozen=True)
 class _NormalizedIdentity:
-    family: str
     lane_id: str
     values: tuple[tuple[str, str | None], ...]
-    sort_key: tuple[str, ...]
+    has_usable_identity: bool
 
 
 def _norm(value: object) -> str:
@@ -101,21 +100,52 @@ def _normalize_identity(identity: IdentityRecord) -> _NormalizedIdentity:
         ("fuzzy_text", fuzzy_text),
     )
     return _NormalizedIdentity(
-        family=identity.family,
         lane_id=identity.lane_id,
         values=values,
-        sort_key=(
-            identity.family,
-            identity.lane_id,
-            repo or "",
-            issue or "",
-            task or "",
-            base_commit or "",
-            patch or "",
-            test_patch or "",
-            fuzzy_text or "",
+        has_usable_identity=any(
+            value is not None
+            for value in (
+                repo,
+                issue,
+                task,
+                base_commit,
+                patch,
+                test_patch,
+                fuzzy_text,
+            )
         ),
     )
+
+
+def _validated_normalized_identities(
+    identities: tuple[IdentityRecord, ...],
+    *,
+    role: str,
+) -> tuple[_NormalizedIdentity, ...]:
+    if not identities:
+        raise ContaminationIndexError(
+            f"{role} identities must contain at least one record"
+        )
+    result = []
+    for index, identity in enumerate(identities):
+        for field in ("family", "lane_id"):
+            value = getattr(identity, field)
+            if not isinstance(value, str) or normalize_identity_text(value) is None:
+                raise ContaminationIndexError(
+                    f"{role} identity {index} {field} must be a nonempty string"
+                )
+        try:
+            normalized = _normalize_identity(identity)
+        except (TypeError, ValueError) as exc:
+            raise ContaminationIndexError(
+                f"{role} identity {index} has malformed identity values"
+            ) from exc
+        if not normalized.has_usable_identity:
+            raise ContaminationIndexError(
+                f"{role} identity {index} must contain a usable identity dimension"
+            )
+        result.append(normalized)
+    return tuple(result)
 
 
 def build_contamination_receipt(
@@ -132,6 +162,14 @@ def build_contamination_receipt(
         raise TypeError("training identities must be IdentityRecord values")
     if not all(isinstance(value, IdentityRecord) for value in evaluation_values):
         raise TypeError("evaluation identities must be IdentityRecord values")
+    normalized_training = _validated_normalized_identities(
+        training_values,
+        role="training",
+    )
+    normalized_evaluation = _validated_normalized_identities(
+        evaluation_values,
+        role="evaluation",
+    )
     from pneuma_lab.foundation.suite import (
         SuitePolicyError,
         evaluation_identity_scope,
@@ -152,36 +190,46 @@ def build_contamination_receipt(
         for family in required_families
     }
     evaluation_families = {identity.family for identity in evaluation_values}
-    if evaluation_families != set(required_families) or not all(
-        family_counts.values()
-    ):
+    blocked_family_status = {
+        family: (
+            "blocked_unavailable"
+            if family not in evaluation_families
+            else "unexpectedly_present"
+        )
+        for family in blocked_families
+    }
+    evaluation_coverage_complete = (
+        evaluation_families == set(required_families)
+        and all(count > 0 for count in family_counts.values())
+        and all(
+            status == "blocked_unavailable"
+            for status in blocked_family_status.values()
+        )
+    )
+    if not evaluation_coverage_complete:
         raise ContaminationIndexError(
             "evaluation families must contain at least one identity for every "
             "required family and no extra or blocked families"
         )
-    normalized_training = tuple(
-        _normalize_identity(identity) for identity in training_values
-    )
-    normalized_evaluation = tuple(
-        _normalize_identity(identity) for identity in evaluation_values
-    )
-    evaluation_index: dict[str, dict[str, set[int]]] = {}
+    evaluation_index: dict[str, dict[str, list[int]]] = {}
     for index, identity in enumerate(normalized_evaluation):
         for dimension, value in identity.values:
             if value is not None:
                 evaluation_index.setdefault(dimension, {}).setdefault(
                     value,
-                    set(),
-                ).add(index)
+                    [],
+                ).append(index)
 
-    sortable_findings = []
+    findings = []
     for training_identity in normalized_training:
-        candidate_indices: set[int] = set()
+        candidate_indices = []
+        seen_candidate_indices: set[int] = set()
         for dimension, value in training_identity.values:
             if value is not None:
-                candidate_indices.update(
-                    evaluation_index.get(dimension, {}).get(value, ())
-                )
+                for index in evaluation_index.get(dimension, {}).get(value, ()):
+                    if index not in seen_candidate_indices:
+                        seen_candidate_indices.add(index)
+                        candidate_indices.append(index)
         for index in candidate_indices:
             evaluation_identity = normalized_evaluation[index]
             evaluation_dimensions = dict(evaluation_identity.values)
@@ -191,22 +239,13 @@ def build_contamination_receipt(
                 if value is not None and value == evaluation_dimensions[dimension]
             ]
             if dimensions:
-                sortable_findings.append(
-                    (
-                        training_identity.sort_key,
-                        evaluation_identity.sort_key,
-                        {
-                            "training_lane": training_identity.lane_id,
-                            "evaluation_lane": evaluation_identity.lane_id,
-                            "dimensions": dimensions,
-                        },
-                    )
+                findings.append(
+                    {
+                        "training_lane": training_identity.lane_id,
+                        "evaluation_lane": evaluation_identity.lane_id,
+                        "dimensions": dimensions,
+                    }
                 )
-    sortable_findings.sort(key=lambda item: (item[0], item[1]))
-    findings = [
-        finding
-        for _training_key, _evaluation_key, finding in sortable_findings
-    ]
     return {
         "manifest_kind": "pneuma_foundation_contamination_receipt",
         "manifest_schema_version": "0.1.0",
@@ -214,11 +253,9 @@ def build_contamination_receipt(
         "evaluation_identity_count": len(evaluation_values),
         "required_evaluation_families": list(required_families),
         "evaluation_family_counts": family_counts,
-        "blocked_evaluation_family_status": {
-            family: "blocked_unavailable" for family in blocked_families
-        },
-        "evaluation_coverage_complete": True,
+        "blocked_evaluation_family_status": blocked_family_status,
+        "evaluation_coverage_complete": evaluation_coverage_complete,
         "finding_count": len(findings),
         "findings": findings,
-        "repo_issue_disjoint": not findings,
+        "repo_issue_disjoint": evaluation_coverage_complete and not findings,
     }

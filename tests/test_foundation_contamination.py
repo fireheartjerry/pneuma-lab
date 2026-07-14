@@ -51,6 +51,13 @@ def _identity(**overrides) -> IdentityRecord:
     return IdentityRecord(**values)
 
 
+def _unchecked_identity(**overrides) -> IdentityRecord:
+    identity = _identity()
+    for field, value in overrides.items():
+        object.__setattr__(identity, field, value)
+    return identity
+
+
 def _evaluation_identity(family: str, **overrides) -> IdentityRecord:
     values = {
         "family": family,
@@ -279,6 +286,90 @@ def test_contamination_receipt_records_complete_policy_coverage() -> None:
     assert receipt["repo_issue_disjoint"] is True
 
 
+def test_contamination_receipt_rejects_empty_training() -> None:
+    with pytest.raises(ContaminationIndexError, match="training.*at least one"):
+        build_contamination_receipt(
+            (),
+            _complete_evaluation(),
+            suite_policy=_suite_policy(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("side", "field", "value"),
+    (
+        ("training", "family", ""),
+        ("training", "family", None),
+        ("training", "lane_id", "   "),
+        ("training", "lane_id", 7),
+        ("evaluation", "family", "   "),
+        ("evaluation", "family", []),
+        ("evaluation", "lane_id", ""),
+        ("evaluation", "lane_id", None),
+    ),
+)
+def test_contamination_receipt_rejects_invalid_family_or_lane(
+    side: str,
+    field: str,
+    value: object,
+) -> None:
+    training = [_identity()]
+    evaluation = list(_complete_evaluation())
+    if side == "training":
+        training[0] = _unchecked_identity(**{field: value})
+    else:
+        object.__setattr__(evaluation[0], field, value)
+    with pytest.raises(ContaminationIndexError, match=f"{side} identity"):
+        build_contamination_receipt(
+            training,
+            evaluation,
+            suite_policy=_suite_policy(),
+        )
+
+
+def test_contamination_receipt_rejects_training_without_usable_identity() -> None:
+    unusable = {
+        field: None if index % 2 == 0 else "   "
+        for index, field in enumerate(IDENTITY_FIELDS)
+    }
+    with pytest.raises(ContaminationIndexError, match="training identity.*usable"):
+        build_contamination_receipt(
+            [_unchecked_identity(**unusable)],
+            _complete_evaluation(),
+            suite_policy=_suite_policy(),
+        )
+
+
+def test_contamination_receipt_rejects_required_rows_without_usable_identity() -> None:
+    evaluation = tuple(
+        _evaluation_identity(
+            family,
+            **{field: None for field in IDENTITY_FIELDS},
+        )
+        for family in ("swe-bench", "swe-mera", "swe-polybench")
+    )
+    with pytest.raises(ContaminationIndexError, match="evaluation identity.*usable"):
+        build_contamination_receipt(
+            [_identity()],
+            evaluation,
+            suite_policy=_suite_policy(),
+        )
+
+
+def test_contamination_receipt_rejects_zero_row_required_family() -> None:
+    evaluation = tuple(
+        identity
+        for identity in _complete_evaluation()
+        if identity.family != "swe-mera"
+    )
+    with pytest.raises(ContaminationIndexError, match="evaluation famil"):
+        build_contamination_receipt(
+            [_identity()],
+            evaluation,
+            suite_policy=_suite_policy(),
+        )
+
+
 def test_contamination_normalizes_each_identity_exactly_once(monkeypatch) -> None:
     original = getattr(contamination, "_normalize_identity", lambda identity: None)
     calls = []
@@ -317,10 +408,83 @@ def test_contamination_normalizes_each_identity_exactly_once(monkeypatch) -> Non
     ]
 
 
+def test_contamination_preserves_fixed_candidate_discovery_order() -> None:
+    evaluation = (
+        _evaluation_identity(
+            "swe-bench",
+            lane_id="task-match",
+            task_id="shared-task",
+        ),
+        _evaluation_identity(
+            "swe-mera",
+            lane_id="repo-match",
+            repo="shared/repo",
+        ),
+        _evaluation_identity("swe-polybench"),
+    )
+    receipt = build_contamination_receipt(
+        [
+            _identity(
+                repo="shared/repo",
+                issue_or_pr="training-only-issue",
+                task_id="shared-task",
+                base_commit="training-only-commit",
+                patch_sha256="training-only-patch",
+                test_patch_sha256="training-only-test-patch",
+                fuzzy_text_sha256="training-only-text",
+            )
+        ],
+        evaluation,
+        suite_policy=_suite_policy(),
+    )
+    assert [finding["evaluation_lane"] for finding in receipt["findings"]] == [
+        "repo-match",
+        "task-match",
+    ]
+
+
+def test_contamination_does_not_compare_order_keys_and_is_deterministic() -> None:
+    class OrderCountingString(str):
+        comparison_count = 0
+
+        def __lt__(self, other) -> bool:
+            type(self).comparison_count += 1
+            return super().__lt__(other)
+
+    training = (
+        _identity(
+            lane_id=OrderCountingString("z-input-first"),
+            repo="shared/repo",
+        ),
+        _identity(
+            lane_id=OrderCountingString("a-input-second"),
+            repo="shared/repo",
+        ),
+    )
+    evaluation = _complete_evaluation(
+        _evaluation_identity("swe-bench", repo="shared/repo")
+    )
+    first = build_contamination_receipt(
+        training,
+        evaluation,
+        suite_policy=_suite_policy(),
+    )
+    second = build_contamination_receipt(
+        training,
+        evaluation,
+        suite_policy=_suite_policy(),
+    )
+    assert first == second
+    assert OrderCountingString.comparison_count == 0
+    assert [finding["training_lane"] for finding in first["findings"]] == [
+        "z-input-first",
+        "a-input-second",
+    ]
+
+
 @pytest.mark.parametrize(
     "evaluation",
     (
-        (),
         (_evaluation_identity("swe-bench"),),
         _complete_evaluation() + (_evaluation_identity("unexpected-eval"),),
         _complete_evaluation() + (_evaluation_identity("swe-bench-pro"),),
@@ -333,6 +497,15 @@ def test_contamination_receipt_rejects_incomplete_or_extra_policy_coverage(
         build_contamination_receipt(
             [_identity()],
             evaluation,
+            suite_policy=_suite_policy(),
+        )
+
+
+def test_contamination_receipt_rejects_empty_evaluation() -> None:
+    with pytest.raises(ContaminationIndexError, match="evaluation.*at least one"):
+        build_contamination_receipt(
+            [_identity()],
+            (),
             suite_policy=_suite_policy(),
         )
 
