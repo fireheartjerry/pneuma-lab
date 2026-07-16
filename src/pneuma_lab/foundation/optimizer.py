@@ -55,6 +55,24 @@ def _normalized_forecast_value(value, *, name: str) -> float:
     return normalized
 
 
+def _validated_effective_weight(value) -> Tensor:
+    """Reject unauthorized weights before any base forward happens."""
+
+    if (
+        not isinstance(value, Tensor)
+        or value.numel() != 1
+        or not torch.is_floating_point(value)
+    ):
+        raise TrainingBatchError(
+            "effective_weight must be a single-element floating-point tensor"
+        )
+    scale = value.detach().reshape(())
+    weight = float(scale)
+    if not math.isfinite(weight) or weight <= 0.0:
+        raise TrainingBatchError("effective_weight must be a finite positive value")
+    return scale
+
+
 def forecast_tensors(record: Mapping, *, device=None):
     values = record.get("forecast_targets")
     if not isinstance(values, Mapping) or set(values) != set(FORECAST_TARGETS):
@@ -70,9 +88,7 @@ def forecast_tensors(record: Mapping, *, device=None):
             )
         applicable = entry["applicable"]
         if type(applicable) is not bool:
-            raise TrainingBatchError(
-                f"forecast target applicable must be bool: {name}"
-            )
+            raise TrainingBatchError(f"forecast target applicable must be bool: {name}")
         value = entry["value"]
         provenance = entry["provenance"]
         if applicable:
@@ -141,12 +157,14 @@ class FoundationOptimizerLoop:
         model_inputs: Mapping[str, Tensor],
         forecast_targets: Mapping[str, Tensor],
         forecast_masks: Mapping[str, Tensor],
+        effective_weight: Tensor,
         document_count: int,
     ) -> OptimizerStep:
         if document_count != 1:
             raise TrainingBatchError(
                 "packed documents are forbidden because DeltaNet state must reset"
             )
+        weight = _validated_effective_weight(effective_weight)
         self.shared_core.reset_state()
         output = self.model(**dict(model_inputs), use_cache=False)
         language_loss = output.loss
@@ -162,7 +180,9 @@ class FoundationOptimizerLoop:
                 )
             )
         forecast_loss = torch.stack(forecast_losses).mean()
-        combined = language_loss + self.forecast_loss_weight * forecast_loss
+        combined = (
+            language_loss + self.forecast_loss_weight * forecast_loss
+        ) * weight.to(device=language_loss.device)
         (combined / self.gradient_accumulation).backward()
         self.microbatch += 1
         stepped = self.microbatch % self.gradient_accumulation == 0

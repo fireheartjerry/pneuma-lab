@@ -39,8 +39,33 @@ def _targets(batch: int = 2) -> dict:
     return {name: torch.zeros(batch) for name in FORECAST_TARGETS}
 
 
-def _masks(batch: int = 2) -> dict:
-    return {name: torch.ones(batch, dtype=torch.bool) for name in FORECAST_TARGETS}
+def _masks(batch: int = 2, *, action_success: bool | None = None) -> dict:
+    if action_success is None:
+        return {name: torch.ones(batch, dtype=torch.bool) for name in FORECAST_TARGETS}
+    return {
+        name: torch.full((batch,), name == "action_success", dtype=torch.bool)
+        for name in FORECAST_TARGETS
+    }
+
+
+def _optimizer_loop(gradient_accumulation: int = 1):
+    shared = SharedPneumaCore()
+    junction = JunctionAdapter(hidden_size=16, shared_core=shared, microsteps=4)
+    model = FakeLanguageModel(junction)
+    for parameter in model.base.parameters():
+        parameter.requires_grad = False
+    optimizer = torch.optim.SGD(
+        [parameter for parameter in model.parameters() if parameter.requires_grad],
+        lr=1e-3,
+    )
+    loop = FoundationOptimizerLoop(
+        model=model,
+        optimizer=optimizer,
+        junctions=(junction,),
+        shared_core=shared,
+        gradient_accumulation=gradient_accumulation,
+    )
+    return loop, model
 
 
 def _forecast_record() -> dict:
@@ -80,6 +105,7 @@ def test_optimizer_accumulates_and_steps_only_at_boundary() -> None:
         model_inputs={"hidden": torch.randn(2, 3, 16)},
         forecast_targets=_targets(),
         forecast_masks=_masks(),
+        effective_weight=torch.tensor([1.0]),
         document_count=1,
     )
     assert first.optimizer_stepped is False
@@ -87,6 +113,7 @@ def test_optimizer_accumulates_and_steps_only_at_boundary() -> None:
         model_inputs={"hidden": torch.randn(2, 3, 16)},
         forecast_targets=_targets(),
         forecast_masks=_masks(),
+        effective_weight=torch.tensor([1.0]),
         document_count=1,
     )
     assert second.optimizer_stepped is True
@@ -111,9 +138,90 @@ def test_optimizer_rejects_multi_document_packing() -> None:
             model_inputs={"hidden": torch.randn(1, 2, 16)},
             forecast_targets=_targets(batch=1),
             forecast_masks=_masks(batch=1),
+            effective_weight=torch.tensor([1.0]),
             document_count=2,
         )
     assert model.forward_calls == 0
+
+
+def test_optimizer_uses_mask_and_authorized_effective_weight() -> None:
+    loop, model = _optimizer_loop()
+    step = loop.train_microbatch(
+        model_inputs={"hidden": torch.randn(1, 3, 16)},
+        forecast_targets=_targets(batch=1),
+        forecast_masks=_masks(batch=1, action_success=True),
+        effective_weight=torch.tensor([1.0]),
+        document_count=1,
+    )
+    assert model.forward_calls == 1
+    assert step.forecast_loss >= 0.0
+
+
+@pytest.mark.parametrize(
+    "weight",
+    (
+        torch.tensor([0.0]),
+        torch.tensor([-1.0]),
+        torch.tensor([math.nan]),
+        torch.tensor([math.inf]),
+        torch.tensor([-math.inf]),
+        torch.tensor([1.0, 1.0]),
+        torch.tensor([1], dtype=torch.long),
+        torch.tensor([True]),
+        1.0,
+        None,
+    ),
+)
+def test_optimizer_rejects_unauthorized_effective_weights(weight) -> None:
+    loop, model = _optimizer_loop()
+    with pytest.raises(TrainingBatchError, match="effective_weight"):
+        loop.train_microbatch(
+            model_inputs={"hidden": torch.randn(1, 3, 16)},
+            forecast_targets=_targets(batch=1),
+            forecast_masks=_masks(batch=1),
+            effective_weight=weight,
+            document_count=1,
+        )
+    assert model.forward_calls == 0
+
+
+def test_effective_weight_scales_accumulated_gradients() -> None:
+    gradients = {}
+    for weight in (1.0, 2.0):
+        torch.manual_seed(0)
+        loop, model = _optimizer_loop(gradient_accumulation=2)
+        torch.manual_seed(7)
+        loop.train_microbatch(
+            model_inputs={"hidden": torch.randn(1, 3, 16)},
+            forecast_targets=_targets(batch=1),
+            forecast_masks=_masks(batch=1),
+            effective_weight=torch.tensor([weight]),
+            document_count=1,
+        )
+        gradients[weight] = model.junction.down_projection.weight.grad.detach().clone()
+    assert torch.allclose(gradients[2.0], 2.0 * gradients[1.0], rtol=1e-5, atol=1e-8)
+
+
+def test_optimizer_resets_shared_state_before_each_base_forward() -> None:
+    loop, model = _optimizer_loop(gradient_accumulation=2)
+    entry_norms = []
+    original_forward = model.forward
+
+    def recording_forward(*, hidden, labels=None, use_cache=False):
+        entry_norms.append(float(loop.shared_core.recurrent_state.abs().sum()))
+        return original_forward(hidden=hidden, labels=labels, use_cache=use_cache)
+
+    model.forward = recording_forward
+    for _ in range(2):
+        loop.train_microbatch(
+            model_inputs={"hidden": torch.randn(1, 3, 16)},
+            forecast_targets=_targets(batch=1),
+            forecast_masks=_masks(batch=1),
+            effective_weight=torch.tensor([1.0]),
+            document_count=1,
+        )
+        assert float(loop.shared_core.recurrent_state.abs().sum()) > 0.0
+    assert entry_norms == [0.0, 0.0]
 
 
 def test_forecast_tensors_include_applicability_masks() -> None:
