@@ -81,7 +81,6 @@ def run_fake_training(
     steps: int,
     checkpoint_root: Path | None = None,
     resume_from: Path | None = None,
-    checkpoint_at: int | None = None,
 ) -> FakeTrainingResult:
     """Drive a tiny deterministic model for N fake optimizer steps on CPU."""
 
@@ -108,7 +107,6 @@ def run_fake_training(
         progress = restored.progress
         metrics = list(restored.telemetry_state["losses"])
 
-    checkpoint_step = checkpoint_at if checkpoint_at is not None else steps
     checkpoint: Path | None = None
     for _ in range(progress.optimizer_step, steps):
         inputs = torch.randn(2, 4)
@@ -126,7 +124,7 @@ def run_fake_training(
             optimizer_step=progress.optimizer_step + 1,
             tokens_seen=progress.tokens_seen + 8,
         )
-        if manager is not None and progress.optimizer_step == checkpoint_step:
+        if manager is not None and progress.optimizer_step == steps:
             checkpoint = manager.save(
                 trainable_modules={"model": model},
                 optimizer=optimizer,

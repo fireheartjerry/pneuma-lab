@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import random
 from pathlib import Path
 
@@ -486,6 +487,239 @@ def test_checkpoint_retention_honors_lower_is_better(tmp_path: Path) -> None:
         "checkpoint-00000004.pt",
         "checkpoint-00000005.pt",
     ]
+
+
+def test_index_is_written_before_pruned_files_are_unlinked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model, optimizer, scheduler = _linear_setup()
+    manager = CheckpointManager(tmp_path, keep_last=3)
+    for step, score in enumerate((0.1, 0.9, 0.2), start=1):
+        _save(
+            manager,
+            model=model,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            optimizer_step=step,
+            value=score,
+        )
+
+    observed: dict[str, object] = {}
+    real_unlink = Path.unlink
+
+    def crashing_unlink(self: Path, *args, **kwargs):
+        if self.name.startswith("checkpoint-") and self.suffix == ".pt":
+            index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+            observed["indexed_steps"] = sorted(
+                record["optimizer_step"] for record in index["checkpoints"]
+            )
+            observed["pruned"] = self.name
+            raise OSError("simulated crash during pruning")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", crashing_unlink)
+    with pytest.raises(OSError, match="simulated crash"):
+        _save(
+            manager,
+            model=model,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            optimizer_step=4,
+            value=0.3,
+        )
+    monkeypatch.setattr(Path, "unlink", real_unlink)
+
+    # At the instant of the first unlink the on-disk index already excluded
+    # the pruned record, so a crash can never leave ghost index entries.
+    assert observed["pruned"] == "checkpoint-00000001.pt"
+    assert observed["indexed_steps"] == [2, 3, 4]
+
+    # After the crash: every indexed record resolves to a real file, and the
+    # unpruned step-1 file is a harmless unreferenced orphan.
+    index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    for record in index["checkpoints"]:
+        assert (tmp_path / record["path"]).exists()
+    assert (tmp_path / "checkpoint-00000001.pt").exists()
+
+    # A re-opened manager keeps retention integrity: the surviving best
+    # (step 2, score 0.9) is protected on the next save.
+    fresh = CheckpointManager(tmp_path, keep_last=3)
+    _save(
+        fresh,
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        optimizer_step=5,
+        value=0.4,
+    )
+    index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    steps = sorted(record["optimizer_step"] for record in index["checkpoints"])
+    assert steps == [2, 3, 4, 5]
+    for record in index["checkpoints"]:
+        assert (tmp_path / record["path"]).exists()
+
+
+def test_load_rejects_shape_mismatch_without_mutation(tmp_path: Path) -> None:
+    torch.manual_seed(7)
+    core = SharedPneumaCore()
+    junction = JunctionAdapter(hidden_size=16, shared_core=core, microsteps=4)
+    optimizer = torch.optim.AdamW(junction.parameters(), lr=1e-3)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
+    manager = CheckpointManager(tmp_path)
+    checkpoint = manager.save(
+        trainable_modules={"shared_core": core, "junction_primary": junction},
+        optimizer=optimizer,
+        scheduler=scheduler,
+        progress=_progress(optimizer_step=1),
+        bindings=BINDINGS,
+        recurrent_state=None,
+        active_memory=None,
+        telemetry_state=None,
+        best_validation=ValidationMetric(
+            metric_name="validation_score",
+            value=0.5,
+            higher_is_better=True,
+        ),
+        lineage=(),
+        termination_reason=None,
+        gradient_accumulation=1,
+    )
+
+    wide_core = SharedPneumaCore()
+    wide_junction = JunctionAdapter(
+        hidden_size=32,
+        shared_core=wide_core,
+        microsteps=4,
+    )
+    wide_optimizer = torch.optim.AdamW(wide_junction.parameters(), lr=1e-3)
+    wide_scheduler = torch.optim.lr_scheduler.StepLR(
+        wide_optimizer,
+        step_size=2,
+        gamma=0.5,
+    )
+    before_core = {
+        key: value.detach().clone() for key, value in wide_core.state_dict().items()
+    }
+    before_junction = {
+        key: value.detach().clone() for key, value in wide_junction.state_dict().items()
+    }
+    with pytest.raises(CheckpointError, match="shapes"):
+        manager.load(
+            checkpoint,
+            trainable_modules={
+                "shared_core": wide_core,
+                "junction_primary": wide_junction,
+            },
+            optimizer=wide_optimizer,
+            scheduler=wide_scheduler,
+            expected_bindings=BINDINGS,
+        )
+    for key, value in before_core.items():
+        assert torch.equal(value, wide_core.state_dict()[key]), key
+    for key, value in before_junction.items():
+        assert torch.equal(value, wide_junction.state_dict()[key]), key
+    assert not wide_optimizer.state_dict()["state"]
+
+
+def test_load_rejects_mismatched_module_names(tmp_path: Path) -> None:
+    model, optimizer, scheduler = _linear_setup()
+    manager = CheckpointManager(tmp_path)
+    checkpoint = _save(
+        manager,
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        optimizer_step=1,
+        value=0.5,
+    )
+    with pytest.raises(CheckpointError, match="module names"):
+        manager.load(
+            checkpoint,
+            trainable_modules={"other": model},
+            optimizer=optimizer,
+            scheduler=scheduler,
+            expected_bindings=BINDINGS,
+        )
+
+
+def test_load_rejects_mismatched_state_keys(tmp_path: Path) -> None:
+    model, optimizer, scheduler = _linear_setup()
+    manager = CheckpointManager(tmp_path)
+    checkpoint = _save(
+        manager,
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        optimizer_step=1,
+        value=0.5,
+    )
+    biasless = torch.nn.Linear(3, 1, bias=False)
+    with pytest.raises(CheckpointError, match="state keys"):
+        manager.load(
+            checkpoint,
+            trainable_modules={"model": biasless},
+            optimizer=optimizer,
+            scheduler=scheduler,
+            expected_bindings=BINDINGS,
+        )
+
+
+def test_resaving_an_optimizer_step_replaces_its_index_record(
+    tmp_path: Path,
+) -> None:
+    model, optimizer, scheduler = _linear_setup()
+    manager = CheckpointManager(tmp_path)
+    _save(
+        manager,
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        optimizer_step=1,
+        value=0.1,
+    )
+    checkpoint = _save(
+        manager,
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        optimizer_step=1,
+        value=0.7,
+    )
+    index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    assert len(index["checkpoints"]) == 1
+    record = index["checkpoints"][0]
+    assert record["optimizer_step"] == 1
+    assert record["value"] == 0.7
+    assert checkpoint.exists()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        "not json at all {",
+        json.dumps({"checkpoints": "wrong-type"}),
+        json.dumps(
+            {
+                "checkpoints": [
+                    {"step": 1, "path": "checkpoint.pt", "validation_score": 0.5}
+                ]
+            }
+        ),
+    ),
+)
+def test_malformed_or_legacy_index_rejects_save(tmp_path: Path, payload: str) -> None:
+    model, optimizer, scheduler = _linear_setup()
+    (tmp_path / "index.json").write_text(payload, encoding="utf-8")
+    with pytest.raises(CheckpointError, match="index"):
+        _save(
+            CheckpointManager(tmp_path),
+            model=model,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            optimizer_step=1,
+            value=0.5,
+        )
 
 
 def test_checkpoint_retention_rejects_metric_identity_changes(tmp_path: Path) -> None:

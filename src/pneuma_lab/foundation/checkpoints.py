@@ -26,7 +26,12 @@ CHECKPOINT_FORMAT = "pneuma-foundation-checkpoint/0.2.0"
 
 _SHARED_CORE_NAME = "shared_core"
 _SHARED_CORE_PREFIX = "shared_core."
+_LORA_MODULE_NAME = "lora"
+_LORA_MODULE_PREFIX = "lora_"
 _LORA_KEY_MARKER = "lora_"
+_INDEX_RECORD_FIELDS = frozenset(
+    {"optimizer_step", "path", "metric_name", "value", "higher_is_better"}
+)
 _FROZEN_BASE_KEY_MARKERS = (
     "embed_tokens",
     "lm_head",
@@ -159,7 +164,7 @@ class CheckpointSchedule:
 
 
 def _is_lora_name(name: str) -> bool:
-    return name.startswith("lora")
+    return name == _LORA_MODULE_NAME or name.startswith(_LORA_MODULE_PREFIX)
 
 
 def _checkpoint_tree(value, *, label: str):
@@ -286,8 +291,26 @@ class CheckpointManager:
     def _index(self) -> list[dict]:
         if not self.index_path.exists():
             return []
-        value = json.loads(self.index_path.read_text(encoding="utf-8"))
-        return list(value.get("checkpoints") or [])
+        try:
+            value = json.loads(self.index_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise CheckpointError("checkpoint index is unreadable") from exc
+        records = value.get("checkpoints") if isinstance(value, dict) else None
+        if not isinstance(records, list):
+            raise CheckpointError("checkpoint index is malformed")
+        for record in records:
+            if (
+                not isinstance(record, dict)
+                or set(record) != _INDEX_RECORD_FIELDS
+                or not isinstance(record["optimizer_step"], int)
+                or not isinstance(record["path"], str)
+                or not isinstance(record["metric_name"], str)
+                or isinstance(record["value"], bool)
+                or not isinstance(record["value"], (int, float))
+                or not isinstance(record["higher_is_better"], bool)
+            ):
+                raise CheckpointError("checkpoint index is malformed")
+        return list(records)
 
     def _write_index(self, records: list[dict]) -> None:
         payload = (json.dumps({"checkpoints": records}, indent=4) + "\n").encode(
@@ -430,12 +453,15 @@ class CheckpointManager:
         retained = [
             record for record in records if record["optimizer_step"] in keep_steps
         ]
+        # Publish the pruned index BEFORE unlinking files: a crash inside the
+        # pruning loop then leaves only unreferenced orphan .pt files, never an
+        # index that references deleted checkpoints.
+        self._write_index(retained)
         for record in records:
             if record["optimizer_step"] not in keep_steps:
                 candidate = self.root / record["path"]
                 if candidate.exists():
                     candidate.unlink()
-        self._write_index(retained)
         return path
 
     def load(
@@ -480,6 +506,15 @@ class CheckpointManager:
                 raise CheckpointError(
                     f"module state keys do not match the checkpoint: {name}"
                 )
+            live_state = module.state_dict()
+            for key, tensor in saved_state.items():
+                if (
+                    not isinstance(tensor, Tensor)
+                    or tensor.shape != live_state[key].shape
+                ):
+                    raise CheckpointError(
+                        f"module tensor shapes do not match the checkpoint: {name}.{key}"
+                    )
             plans.append((name, module, saved_state))
 
         # All checks passed; only now mutate the live objects. Optimizer
