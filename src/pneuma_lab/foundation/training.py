@@ -12,6 +12,10 @@ class TrainingRequestError(ValueError):
     """Raised before allocation when a training request violates the plan."""
 
 
+class FoundationRunError(RuntimeError):
+    """Raised when a gated foundation run cannot start or continue safely."""
+
+
 @dataclass(frozen=True)
 class LocalTrainingConfig:
     sequence_length: int = 512
@@ -51,6 +55,41 @@ def quantization_settings() -> dict[str, object]:
         "bnb_4bit_use_double_quant": True,
         "bnb_4bit_compute_dtype": "bfloat16",
     }
+
+
+def configure_quantized_training_model(model):
+    """Prepare one verified base for frozen-base junction training.
+
+    The base is frozen parameter-by-parameter, gradient checkpointing is
+    enabled, and the native cache is disabled before any junction attaches.
+    A quantized base (NF4 double-quant) additionally requires peft's k-bit
+    preparation; fake test doubles are plain modules and skip only that step.
+    """
+
+    parameters = getattr(model, "parameters", None)
+    if not callable(parameters):
+        raise FoundationRunError("training model must expose parameters()")
+    quantized = bool(
+        getattr(model, "is_loaded_in_4bit", False)
+        or getattr(model, "is_quantized", False)
+    )
+    if quantized:
+        try:
+            from peft import prepare_model_for_kbit_training
+        except ImportError as exc:  # pragma: no cover - environment-dependent
+            raise FoundationRunError(
+                "peft is required to prepare a quantized base for training"
+            ) from exc
+        model = prepare_model_for_kbit_training(model)
+    for parameter in model.parameters():
+        parameter.requires_grad = False
+    enable_checkpointing = getattr(model, "gradient_checkpointing_enable", None)
+    if callable(enable_checkpointing):
+        enable_checkpointing()
+    config = getattr(model, "config", None)
+    if config is not None:
+        config.use_cache = False
+    return model
 
 
 def validate_training_request(
