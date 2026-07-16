@@ -13,10 +13,12 @@ import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
-from pneuma_lab import schemas as pls
-from pneuma_lab.foundation import suite as foundation_suite
-from pneuma_lab.foundation.data import ACTIVE_DATASET_GROUPS
-from pneuma_lab.foundation.suite import (
+pytest.importorskip("torch")
+
+from pneuma_lab import schemas as pls  # noqa: E402
+from pneuma_lab.foundation import suite as foundation_suite  # noqa: E402
+from pneuma_lab.foundation.data import ACTIVE_DATASET_GROUPS  # noqa: E402
+from pneuma_lab.foundation.suite import (  # noqa: E402
     SuitePolicyError,
     build_suite_completeness_report,
     load_suite_policy,
@@ -559,8 +561,15 @@ def test_load_suite_policy_rejects_nonstandard_constants(
 def test_load_suite_policy_wraps_recursion_and_unicode_failures(
     tmp_path: Path,
 ) -> None:
+    # Depth must exceed the C json scanner recursion guard on every
+    # supported interpreter (Python 3.12.13 parses ~8k levels; 3.14's
+    # stack guard allows ~10k+), so 2000 parses cleanly and never
+    # exercises the wrapping path.
+    nesting_depth = 100000
     recursive = tmp_path / "recursive.json"
-    recursive.write_bytes(b"[" * 2000 + b"0" + b"]" * 2000)
+    recursive.write_bytes(
+        b"[" * nesting_depth + b"0" + b"]" * nesting_depth
+    )
     malformed_utf8 = tmp_path / "malformed-utf8.json"
     malformed_utf8.write_bytes(b'{"value":"\xff"}')
     for path in (recursive, malformed_utf8):

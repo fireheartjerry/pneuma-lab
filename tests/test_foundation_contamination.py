@@ -11,9 +11,13 @@ import subprocess
 
 import pytest
 
-from pneuma_lab.foundation import contamination, eval_identities
-from pneuma_lab.foundation.contamination import build_contamination_receipt
-from pneuma_lab.foundation.eval_identities import (
+pytest.importorskip("torch")
+
+from pneuma_lab.foundation import contamination, eval_identities  # noqa: E402
+from pneuma_lab.foundation.contamination import (  # noqa: E402
+    build_contamination_receipt,
+)
+from pneuma_lab.foundation.eval_identities import (  # noqa: E402
     EVAL_METADATA_FIELDS,
     IDENTITY_FIELDS,
     ContaminationIndexError,
@@ -24,7 +28,7 @@ from pneuma_lab.foundation.eval_identities import (
     iter_eval_metadata_identities,
     load_required_eval_identities,
 )
-from pneuma_lab.foundation.suite import load_suite_policy
+from pneuma_lab.foundation.suite import load_suite_policy  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -605,12 +609,17 @@ def test_eval_identity_decoder_rejects_constants_in_discarded_fields(
 
 
 def test_eval_identity_decoder_wraps_recursion_and_unicode_failures() -> None:
+    # Depth must exceed the C json scanner recursion guard on every
+    # supported interpreter (Python 3.12.13 parses ~8k levels; 3.14's
+    # stack guard allows ~10k+), so 2000 parses cleanly and never
+    # exercises the wrapping path.
+    nesting_depth = 100000
     deeply_nested = (
         b'{"source_id":"task-1","repo":"org/repo","base_commit":null,'
         b'"discarded":'
-        + b"[" * 2000
+        + b"[" * nesting_depth
         + b"0"
-        + b"]" * 2000
+        + b"]" * nesting_depth
         + b"}"
     )
     for raw_line in (deeply_nested, b'{"source_id":"\xff"}'):
