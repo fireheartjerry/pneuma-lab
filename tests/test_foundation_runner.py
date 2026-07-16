@@ -6,7 +6,11 @@ import dataclasses
 import hashlib
 import itertools
 import json
+import math
+import os
 import signal
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -46,6 +50,7 @@ from pneuma_lab.foundation.runner import (  # noqa: E402
     run_foundation_training,
 )
 from pneuma_lab.foundation.specs import MODEL_SPECS  # noqa: E402
+from pneuma_lab.foundation.telemetry import TelemetryError  # noqa: E402
 from pneuma_lab.schemas import load_schema  # noqa: E402
 
 
@@ -111,12 +116,26 @@ class FakeQwenModel(torch.nn.Module):
 class FakeSampler:
     """Telemetry stub: healthy samples, with overrides applied to the first one."""
 
-    def __init__(self, output_root: Path, overrides: dict) -> None:
+    def __init__(
+        self,
+        output_root: Path,
+        overrides: dict,
+        *,
+        telemetry_failures: int = 0,
+        sample_side_effect=None,
+    ) -> None:
         self.output_root = Path(output_root)
         self.samples: list[ResourceSample] = []
         self._overrides = dict(overrides)
+        self._telemetry_failures = telemetry_failures
+        self._sample_side_effect = sample_side_effect
 
     def sample(self, *, tokens_per_second, steps_per_second, loss_finite):
+        if self._sample_side_effect is not None:
+            self._sample_side_effect()
+        if self._telemetry_failures > 0:
+            self._telemetry_failures -= 1
+            raise TelemetryError("transient nvidia-smi failure")
         values = dict(_BASE_SAMPLE)
         values.update(
             tokens_per_second=float(tokens_per_second),
@@ -290,6 +309,8 @@ def _runner_dependencies(
     scope_digest: str = _SCOPE_DIGEST,
     environment_ready: bool = True,
     clean_commit_error: str | None = None,
+    telemetry_failures: int = 0,
+    sample_side_effect=None,
 ) -> RunnerDependencies:
     from pneuma_lab.foundation.runner import FoundationRunError
 
@@ -377,7 +398,12 @@ def _runner_dependencies(
 
     def telemetry_factory(*, output_root):
         calls.append("telemetry_factory")
-        return FakeSampler(output_root, overrides)
+        return FakeSampler(
+            output_root,
+            overrides,
+            telemetry_failures=telemetry_failures,
+            sample_side_effect=sample_side_effect,
+        )
 
     return RunnerDependencies(
         verify_authorization=verify_authorization,
@@ -496,6 +522,9 @@ def test_completed_run_writes_schema_valid_manifest_and_checkpoint(
     }
     assert manifest["training"]["token_ceiling"] == 100_000
     assert manifest["training"]["learning_rate"] == request.learning_rate
+    # Collation is deliberately in-process (sealed records cannot cross
+    # process boundaries), so the manifest records the effective value.
+    assert manifest["training"]["data_loader_workers"] == 0
     assert manifest["progress"]["tokens_seen"] == result.progress.tokens_seen
     assert manifest["progress"]["microbatches_seen"] == 32
     assert manifest["checkpoints"]["last_path"] == str(result.last_checkpoint)
@@ -565,6 +594,65 @@ def test_resumed_run_matches_uninterrupted_run_exactly(tmp_path: Path) -> None:
                 left["modules"][name][key],
                 right["modules"][name][key],
             ), f"tensor differs: {name}.{key}"
+
+
+def test_zero_window_run_is_visible_and_keeps_the_index_strict(
+    tmp_path: Path,
+) -> None:
+    request = _run_request(tmp_path)
+    # Sixteen records can never form one complete 32-microbatch window.
+    result = run_foundation_training(
+        request,
+        dependencies=_runner_dependencies(record_count=16),
+    )
+    assert result.status == "completed"
+    assert result.progress.optimizer_step == 0
+    assert result.progress.tokens_seen == 0
+    assert result.last_checkpoint is not None
+    events = [
+        json.loads(line)
+        for line in (request.run_root / "events.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert any(event.get("event") == "no_trainable_window" for event in events)
+    manifest = json.loads(result.run_manifest_path.read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(
+        load_schema("foundation-run-manifest.schema.json")
+    ).validate(manifest)
+    assert manifest["validation"] == {"best_loss": None, "last_loss": None}
+
+    def reject_constant(value: str) -> None:
+        raise AssertionError(f"checkpoint index is not strict JSON: {value}")
+
+    index_text = (request.run_root / "checkpoints" / "index.json").read_text(
+        encoding="utf-8"
+    )
+    index = json.loads(index_text, parse_constant=reject_constant)
+    assert all(math.isfinite(record["value"]) for record in index["checkpoints"])
+
+
+def test_runner_module_imports_without_torch() -> None:
+    source_root = Path(__file__).resolve().parents[1] / "src"
+    code = (
+        "import builtins\n"
+        "real_import = builtins.__import__\n"
+        "def deny(name, *args, **kwargs):\n"
+        "    if name == 'torch' or name.startswith('torch.'):\n"
+        "        raise ImportError('torch is blocked for this probe')\n"
+        "    return real_import(name, *args, **kwargs)\n"
+        "builtins.__import__ = deny\n"
+        "import pneuma_lab.foundation.runner\n"
+        "print('torch-free-import-ok')\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(source_root)},
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "torch-free-import-ok" in completed.stdout
 
 
 def test_pause_signal_handlers_install_and_restore() -> None:

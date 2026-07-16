@@ -37,6 +37,7 @@ from pneuma_lab.foundation.resources import (
 )
 from pneuma_lab.foundation.run_manifest import RunManifestWriter
 from pneuma_lab.foundation.specs import CORE_LIMITS
+from pneuma_lab.foundation.telemetry import TelemetryError
 from pneuma_lab.foundation.training import (
     DEFAULT_TRAINING_CONFIG,
     FoundationRunError,
@@ -58,6 +59,13 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only imports
 
 _COMPLETED = "completed"
 _VALIDATION_METRIC_NAME = "language_loss"
+# Recorded when no validation loss has been observed yet. The value is a
+# finite lower-is-better sentinel so the checkpoint index stays strict JSON
+# (never ``Infinity``) and any real loss immediately replaces it as best.
+_UNMEASURED_VALIDATION_LOSS = 1.0e30
+# Collation runs in-process because sealed EffectiveTrainingRecords refuse to
+# cross process boundaries; the manifest records this effective worker count.
+_EFFECTIVE_DATA_LOADER_WORKERS = 0
 
 
 @dataclass(frozen=True)
@@ -250,7 +258,7 @@ def default_runner_dependencies() -> RunnerDependencies:
 
 
 def _scope_learning_rates(scope: Mapping) -> tuple:
-    rates = scope.get("allowed_learning_rates", scope.get("learning_rates"))
+    rates = scope.get("learning_rates")
     if not isinstance(rates, (list, tuple)) or not rates:
         raise FoundationRunError("authorized learning rates are missing from the scope")
     return tuple(rates)
@@ -424,10 +432,10 @@ def resume_foundation_training(
 ) -> FoundationRunResult:
     """Re-run preflight, verify every resume binding, and continue exactly."""
 
-    dependencies = dependencies or default_runner_dependencies()
-    preflight = preflight_foundation_run(request, dependencies=dependencies)
     if request.checkpoint_path is None:
         raise FoundationRunError("resume requires an exact checkpoint path")
+    dependencies = dependencies or default_runner_dependencies()
+    preflight = preflight_foundation_run(request, dependencies=dependencies)
     tokenizer, runtime, installed, optimizer, scheduler = _allocate_training_stack(
         request,
         preflight,
@@ -625,7 +633,7 @@ def _build_run_manifest(
             "sequence_length": config.sequence_length,
             "microbatch_size": config.microbatch_size,
             "gradient_accumulation": config.gradient_accumulation,
-            "data_loader_workers": config.data_loader_workers,
+            "data_loader_workers": _EFFECTIVE_DATA_LOADER_WORKERS,
             "quantization": "nf4_double_quant",
             "seed": progress.sampler_seed,
             "learning_rate": request.learning_rate,
@@ -795,7 +803,7 @@ def execute_safe_boundary_loop(
     def save_checkpoint(termination: str | None) -> Path:
         metric = ValidationMetric(
             metric_name=_VALIDATION_METRIC_NAME,
-            value=best_loss if best_loss is not None else math.inf,
+            value=(best_loss if best_loss is not None else _UNMEASURED_VALIDATION_LOSS),
             higher_is_better=False,
         )
         return manager.save(
@@ -816,92 +824,134 @@ def execute_safe_boundary_loop(
     writer.write_manifest(manifest_payload("running", None))
     writer.append_event({"event": "run_started", "run_id": run_id, "mode": mode})
 
-    windows = sampler.iter_windows(
-        token_counts,
-        gradient_accumulation=accumulation,
-        token_ceiling=authorization.token_ceiling,
-        tokens_seen=progress.tokens_seen,
-    )
-    for window in windows:
-        window_started = dependencies.clock()
-        window_tokens = 0
-        step = None
-        for index in window:
-            effective = apply_verified_authorization(dataset[index], authorization)
-            batch = collator([effective])
-            step = loop.train_microbatch(
-                model_inputs={
-                    "input_ids": batch.input_ids,
-                    "attention_mask": batch.attention_mask,
-                    "labels": batch.labels,
-                },
-                forecast_targets=batch.forecast_targets,
-                forecast_masks=batch.forecast_masks,
-                effective_weight=batch.effective_weight,
-                document_count=batch.document_count,
-            )
-            window_tokens += token_counts[index]
-        if step is None or not step.optimizer_stepped:
-            raise FoundationRunError(
-                "accumulation window ended outside an optimizer boundary"
-            )
-        scheduler.step()
-        progress = dataclasses.replace(
-            progress,
-            dataset_cursor=sampler.cursor,
-            microbatch=progress.microbatch + accumulation,
-            optimizer_step=progress.optimizer_step + 1,
-            tokens_seen=progress.tokens_seen + window_tokens,
-        )
-        run_tokens += window_tokens
-        loss_finite = math.isfinite(step.language_loss) and math.isfinite(
-            step.forecast_loss
-        )
-        if loss_finite:
-            last_loss = float(step.language_loss)
-            best_loss = last_loss if best_loss is None else min(best_loss, last_loss)
-        elapsed = max(dependencies.clock() - window_started, 0.0)
-        telemetry.sample(
-            tokens_per_second=window_tokens / elapsed if elapsed > 0 else 0.0,
-            steps_per_second=1.0 / elapsed if elapsed > 0 else 0.0,
-            loss_finite=loss_finite,
-        )
-        decision = guard.evaluate(
-            tuple(telemetry.samples),
-            operator_interrupt=bool(pause_signal and pause_signal.requested),
-        )
-        if decision.action != ACTION_CONTINUE:
-            reason = decision.reasons[0]
-            status = "failed" if decision.action == ACTION_FAIL else "paused"
-            break
-        if schedule.should_save(
-            optimizer_step=progress.optimizer_step,
-            last_saved_step=last_saved_step,
-            last_saved_time=last_saved_time,
-            microbatch=progress.microbatch,
+    windows_run = 0
+    try:
+        windows = sampler.iter_windows(
+            token_counts,
             gradient_accumulation=accumulation,
-        ):
-            last_checkpoint = save_checkpoint(None)
-            last_saved_step = progress.optimizer_step
-            last_saved_time = dependencies.clock()
+            token_ceiling=authorization.token_ceiling,
+            tokens_seen=progress.tokens_seen,
+        )
+        for window in windows:
+            window_started = dependencies.clock()
+            window_tokens = 0
+            step = None
+            for index in window:
+                effective = apply_verified_authorization(dataset[index], authorization)
+                batch = collator([effective])
+                step = loop.train_microbatch(
+                    model_inputs={
+                        "input_ids": batch.input_ids,
+                        "attention_mask": batch.attention_mask,
+                        "labels": batch.labels,
+                    },
+                    forecast_targets=batch.forecast_targets,
+                    forecast_masks=batch.forecast_masks,
+                    effective_weight=batch.effective_weight,
+                    document_count=batch.document_count,
+                )
+                window_tokens += token_counts[index]
+            if step is None or not step.optimizer_stepped:
+                raise FoundationRunError(
+                    "accumulation window ended outside an optimizer boundary"
+                )
+            windows_run += 1
+            scheduler.step()
+            progress = dataclasses.replace(
+                progress,
+                dataset_cursor=sampler.cursor,
+                microbatch=progress.microbatch + accumulation,
+                optimizer_step=progress.optimizer_step + 1,
+                tokens_seen=progress.tokens_seen + window_tokens,
+            )
+            run_tokens += window_tokens
+            loss_finite = math.isfinite(step.language_loss) and math.isfinite(
+                step.forecast_loss
+            )
+            if loss_finite:
+                last_loss = float(step.language_loss)
+                best_loss = (
+                    last_loss if best_loss is None else min(best_loss, last_loss)
+                )
+            elapsed = max(dependencies.clock() - window_started, 0.0)
+            try:
+                telemetry.sample(
+                    tokens_per_second=(window_tokens / elapsed if elapsed > 0 else 0.0),
+                    steps_per_second=1.0 / elapsed if elapsed > 0 else 0.0,
+                    loss_finite=loss_finite,
+                )
+                boundary_samples = tuple(telemetry.samples)
+            except TelemetryError:
+                # A transient probe failure must never kill the run: an empty
+                # sample set routes through the guard as a missing resource
+                # sample, pausing at this safe boundary with a checkpoint.
+                boundary_samples = ()
+            decision = guard.evaluate(
+                boundary_samples,
+                operator_interrupt=bool(pause_signal and pause_signal.requested),
+            )
+            if decision.action != ACTION_CONTINUE:
+                reason = decision.reasons[0]
+                status = "failed" if decision.action == ACTION_FAIL else "paused"
+                break
+            if schedule.should_save(
+                optimizer_step=progress.optimizer_step,
+                last_saved_step=last_saved_step,
+                last_saved_time=last_saved_time,
+                microbatch=progress.microbatch,
+                gradient_accumulation=accumulation,
+            ):
+                last_checkpoint = save_checkpoint(None)
+                last_saved_step = progress.optimizer_step
+                last_saved_time = dependencies.clock()
+                writer.append_event(
+                    {
+                        "event": "checkpoint_saved",
+                        "optimizer_step": progress.optimizer_step,
+                        "path": last_checkpoint.name,
+                    }
+                )
+
+        if windows_run == 0 and status == _COMPLETED:
+            # Every candidate window was absent or skipped for the ceiling;
+            # the run completes honestly but the emptiness stays auditable.
             writer.append_event(
                 {
-                    "event": "checkpoint_saved",
-                    "optimizer_step": progress.optimizer_step,
-                    "path": last_checkpoint.name,
+                    "event": "no_trainable_window",
+                    "run_id": run_id,
+                    "tokens_seen": progress.tokens_seen,
                 }
             )
-
-    last_checkpoint = save_checkpoint(None if reason == _COMPLETED else reason)
-    manifest_path = writer.write_manifest(manifest_payload(status, reason))
-    writer.append_event(
-        {
-            "event": "terminated",
-            "status": status,
-            "termination_reason": reason,
-            "optimizer_step": progress.optimizer_step,
-        }
-    )
+        last_checkpoint = save_checkpoint(None if reason == _COMPLETED else reason)
+        manifest_path = writer.write_manifest(manifest_payload(status, reason))
+        writer.append_event(
+            {
+                "event": "terminated",
+                "status": status,
+                "termination_reason": reason,
+                "optimizer_step": progress.optimizer_step,
+            }
+        )
+    except BaseException as exc:
+        # Best-effort terminal record for unexpected errors: the manifest
+        # must never keep claiming "running". The original error always
+        # propagates; a checkpoint is attempted only at a safe boundary.
+        if progress.microbatch % accumulation == 0:
+            with contextlib.suppress(Exception):
+                last_checkpoint = save_checkpoint(None)
+        with contextlib.suppress(Exception):
+            writer.write_manifest(manifest_payload("failed", None))
+        with contextlib.suppress(Exception):
+            writer.append_event(
+                {
+                    "event": "terminated",
+                    "status": "failed",
+                    "termination_reason": None,
+                    "error": type(exc).__name__,
+                    "optimizer_step": progress.optimizer_step,
+                }
+            )
+        raise
     return FoundationRunResult(
         run_id=run_id,
         status=status,

@@ -7,6 +7,7 @@ import json
 import subprocess
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 torch = pytest.importorskip("torch")
@@ -23,10 +24,18 @@ from pneuma_lab.foundation.runner import (  # noqa: E402
     run_foundation_training,
 )
 
+from pneuma_lab.schemas import load_schema  # noqa: E402
+
 from test_foundation_runner import (  # noqa: E402
     _run_request,
     _runner_dependencies,
 )
+
+
+def _assert_schema_valid_manifest(manifest: dict) -> None:
+    jsonschema.Draft202012Validator(
+        load_schema("foundation-run-manifest.schema.json")
+    ).validate(manifest)
 
 
 def test_unauthorized_train_stops_before_cache_model_or_optimizer(
@@ -87,6 +96,7 @@ def test_stopped_runs_record_the_guard_reason_in_the_manifest(
         dependencies=_runner_dependencies(resource_action=decision),
     )
     manifest = json.loads(result.run_manifest_path.read_text(encoding="utf-8"))
+    _assert_schema_valid_manifest(manifest)
     assert manifest["status"] == expected_status
     assert manifest["termination_reason"] == expected_reason
     assert manifest["checkpoints"]["last_path"] == str(result.last_checkpoint)
@@ -172,12 +182,79 @@ def test_operator_signal_pauses_at_next_boundary_with_checkpoint(
     assert manifest["termination_reason"] == "operator_interrupt"
 
 
-def test_resume_requires_a_checkpoint_path(tmp_path: Path) -> None:
+def test_resume_requires_a_checkpoint_path_before_preflight(
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
     with pytest.raises(FoundationRunError, match="checkpoint"):
         resume_foundation_training(
             _run_request(tmp_path),
-            dependencies=_runner_dependencies(),
+            dependencies=_runner_dependencies(calls),
         )
+    assert calls == []
+
+
+def test_transient_telemetry_failure_pauses_with_a_safe_checkpoint(
+    tmp_path: Path,
+) -> None:
+    request = _run_request(tmp_path)
+    result = run_foundation_training(
+        request,
+        dependencies=_runner_dependencies(telemetry_failures=1),
+    )
+    assert result.status == "paused"
+    assert result.progress.microbatch % 32 == 0
+    assert result.last_checkpoint is not None
+    assert result.last_checkpoint.exists()
+    manifest = json.loads(result.run_manifest_path.read_text(encoding="utf-8"))
+    _assert_schema_valid_manifest(manifest)
+    assert manifest["status"] == "paused"
+    assert manifest["termination_reason"] == "missing_resource_sample"
+
+
+def test_unexpected_exception_still_writes_a_terminal_manifest(
+    tmp_path: Path,
+) -> None:
+    request = _run_request(tmp_path)
+    captured: dict = {}
+
+    def explode() -> None:
+        captured["running"] = json.loads(
+            (request.run_root / "manifest.json").read_text(encoding="utf-8")
+        )
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        run_foundation_training(
+            request,
+            dependencies=_runner_dependencies(sample_side_effect=explode),
+        )
+    # The mid-run manifest honestly claimed "running" and was schema-valid.
+    assert captured["running"]["status"] == "running"
+    assert captured["running"]["termination_reason"] is None
+    _assert_schema_valid_manifest(captured["running"])
+    # After the unexpected error it no longer claims "running".
+    manifest = json.loads(
+        (request.run_root / "manifest.json").read_text(encoding="utf-8")
+    )
+    _assert_schema_valid_manifest(manifest)
+    assert manifest["status"] == "failed"
+    assert manifest["termination_reason"] is None
+    events = [
+        json.loads(line)
+        for line in (request.run_root / "events.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert any(
+        event.get("event") == "terminated"
+        and event.get("status") == "failed"
+        and event.get("error") == "RuntimeError"
+        for event in events
+    )
+    # The failure hit at a safe boundary with cleared gradients, so the
+    # best-effort terminal checkpoint was written too.
+    assert list((request.run_root / "checkpoints").glob("checkpoint-*.pt"))
 
 
 def test_resume_rejects_authorization_drift(tmp_path: Path) -> None:
