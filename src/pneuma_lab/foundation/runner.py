@@ -772,7 +772,11 @@ def execute_safe_boundary_loop(
         else (restored.lineage if restored is not None else (run_id,))
     )
     best_loss: float | None = None
-    if restored is not None and math.isfinite(restored.best_validation.value):
+    if (
+        restored is not None
+        and math.isfinite(restored.best_validation.value)
+        and restored.best_validation.value != _UNMEASURED_VALIDATION_LOSS
+    ):
         best_loss = float(restored.best_validation.value)
     last_loss: float | None = None
     last_checkpoint: Path | None = restored.path if restored is not None else None
