@@ -47,7 +47,10 @@ class FoundationShardDataset:
     """Read one immutable JSONL shard only after its manifest digest verifies.
 
     The shard bytes are read exactly once; the digest is computed over those
-    same bytes so the parsed records are provably the hashed records.
+    same bytes so the parsed records are provably the hashed records. The
+    whole shard stays resident in memory by design (single-read verification
+    plus random access under a permutation require it) — roughly 1 GiB of
+    parsed records at the largest 32m stage.
     """
 
     def __init__(self, shard_path: Path, manifest_path: Path) -> None:
@@ -89,7 +92,8 @@ class FoundationShardDataset:
             if not isinstance(record, dict):
                 raise FoundationDatasetError("shard records must be JSON objects")
             records.append(record)
-        if manifest.get("example_count") != len(records):
+        example_count = manifest.get("example_count")
+        if type(example_count) is not int or example_count != len(records):
             raise FoundationDatasetError(
                 "shard manifest example_count does not match its records"
             )
@@ -135,6 +139,10 @@ class DeterministicSampler:
     grouped into complete accumulation windows before a window starts; a window
     whose token sum would cross the authorized ceiling is skipped entirely, so
     the run never leaves pending gradients and never exceeds the cap.
+
+    Keep at most one active window iterator per sampler — iteration mutates
+    the shared ``cursor``. The cursor never resets; construct a fresh sampler
+    for each new epoch.
     """
 
     def __init__(self, seed: int, epoch: int = 0, cursor: int = 0) -> None:
