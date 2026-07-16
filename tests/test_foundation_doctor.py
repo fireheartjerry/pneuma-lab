@@ -91,9 +91,7 @@ def test_doctor_requires_exact_python_3_12_series() -> None:
 
 
 def test_local_doctor_requires_wsl_ram_and_vram_at_exact_boundaries() -> None:
-    assert doctor_report(_healthy_probe(ram_gb=22.0, gpu_total_vram_gb=7.5))[
-        "ready"
-    ]
+    assert doctor_report(_healthy_probe(ram_gb=22.0, gpu_total_vram_gb=7.5))["ready"]
     low_ram = doctor_report(_healthy_probe(ram_gb=21.999))
     low_vram = doctor_report(_healthy_probe(gpu_total_vram_gb=7.499))
     assert "insufficient_ram" in low_ram["blockers"]
@@ -256,6 +254,6 @@ def test_doctor_cli_passes_the_selected_profile(capsys) -> None:
         gpu_name="NVIDIA A40",
         gpu_total_vram_gb=48.0,
     )
-    with patch("pneuma_lab.foundation.__main__.live_probe", return_value=probe):
+    with patch("pneuma_lab.foundation.cli.live_probe", return_value=probe):
         assert main(["doctor", "--profile", "cloud", "--json"]) == 0
     assert '"profile": "cloud"' in capsys.readouterr().out
