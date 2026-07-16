@@ -87,11 +87,31 @@ def test_nvidia_smi_parser_reads_active_throttle_and_power() -> None:
     assert sample.thermal_throttled is True
 
 
-def test_nvidia_smi_parser_reads_bitmask_throttle_reasons() -> None:
-    active = parse_nvidia_smi_line("3458, 4693, 81, 96.5, 92, 0x0000000000000004")
-    idle = parse_nvidia_smi_line("3458, 4693, 81, 96.5, 92, 0x0000000000000000")
-    assert active.thermal_throttled is True
-    assert idle.thermal_throttled is False
+@pytest.mark.parametrize(
+    ("bitmask", "throttled"),
+    [
+        # Benign bits never count as thermal throttling: none set, GpuIdle
+        # (0x1), ApplicationsClocksSetting (0x2), and SwPowerCap (0x4) —
+        # SwPowerCap is routinely active on power-limited laptop GPUs.
+        ("0x0000000000000000", False),
+        ("0x0000000000000001", False),
+        ("0x0000000000000004", False),
+        # Slowdown bits do: HwSlowdown (0x8), SwThermalSlowdown (0x20),
+        # HwThermalSlowdown (0x40), HwPowerBrakeSlowdown (0x80).
+        ("0x0000000000000008", True),
+        ("0x0000000000000020", True),
+        ("0x0000000000000040", True),
+        ("0x0000000000000080", True),
+        # Mixed: SwThermalSlowdown alongside benign SwPowerCap still throttles.
+        ("0x0000000000000024", True),
+    ],
+)
+def test_nvidia_smi_parser_masks_thermal_throttle_bits(
+    bitmask: str,
+    throttled: bool,
+) -> None:
+    sample = parse_nvidia_smi_line(f"3458, 4693, 81, 96.5, 92, {bitmask}")
+    assert sample.thermal_throttled is throttled
 
 
 @pytest.mark.parametrize(
@@ -225,6 +245,21 @@ def test_live_sampler_defaults_to_pinned_nvidia_query(
 def test_live_sampler_rejects_non_positive_bounds(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         LiveResourceSampler(output_root=tmp_path, max_samples=0)
+
+
+def test_live_sampler_wraps_disk_usage_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(telemetry, "_cuda_memory_bytes", lambda: (0, 0))
+    monkeypatch.setattr(telemetry, "_process_memory_bytes", lambda: (0, 0))
+    sampler = LiveResourceSampler(
+        output_root=tmp_path / "missing" / "run-root",
+        nvidia_smi_reader=_global_sample,
+    )
+    with pytest.raises(TelemetryError):
+        sampler.sample()
+    assert len(sampler.samples) == 0
 
 
 def test_aggregate_telemetry_reports_peaks_and_throttle_intervals() -> None:

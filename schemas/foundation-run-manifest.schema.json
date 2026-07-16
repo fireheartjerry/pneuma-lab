@@ -277,18 +277,18 @@
                 { "type": "null" },
                 {
                     "enum": [
+                        "authorization_drift",
+                        "budget_drift",
                         "completed",
-                        "operator_interrupt",
+                        "disk_risk",
                         "gpu_temperature",
-                        "sustained_thermal_throttling",
-                        "vram",
-                        "ram",
                         "missing_resource_sample",
                         "non_finite_loss",
-                        "authorization_drift",
-                        "disk_risk",
-                        "budget_drift",
-                        "regression_failure"
+                        "operator_interrupt",
+                        "ram",
+                        "regression_failure",
+                        "sustained_thermal_throttling",
+                        "vram"
                     ]
                 }
             ]

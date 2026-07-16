@@ -34,6 +34,22 @@ _MIB_PER_GB = 1024.0
 _BYTES_PER_GB = 1024.0**3
 _NVIDIA_SMI_TIMEOUT_SECONDS = 30.0
 
+# NVML nvmlClocksThrottleReasons bits (see nvml.h). Only slowdown bits count
+# as thermal throttling: benign bits such as GpuIdle (0x1),
+# ApplicationsClocksSetting (0x2), and SwPowerCap (0x4) are routinely active
+# during normal full-load operation on power-limited GPUs and must never trip
+# the sustained-thermal-throttling pause.
+NVML_THROTTLE_HW_SLOWDOWN = 0x0000000000000008
+NVML_THROTTLE_SW_THERMAL_SLOWDOWN = 0x0000000000000020
+NVML_THROTTLE_HW_THERMAL_SLOWDOWN = 0x0000000000000040
+NVML_THROTTLE_HW_POWER_BRAKE_SLOWDOWN = 0x0000000000000080
+NVML_THERMAL_THROTTLE_MASK = (
+    NVML_THROTTLE_HW_SLOWDOWN
+    | NVML_THROTTLE_SW_THERMAL_SLOWDOWN
+    | NVML_THROTTLE_HW_THERMAL_SLOWDOWN
+    | NVML_THROTTLE_HW_POWER_BRAKE_SLOWDOWN
+)
+
 
 class TelemetryError(RuntimeError):
     """Raised when live telemetry cannot be read or parsed coherently."""
@@ -77,11 +93,12 @@ def _parse_throttle_flag(field: str) -> bool:
         return False
     if normalized.startswith("0x"):
         try:
-            return int(normalized, 16) != 0
+            bitmask = int(normalized, 16)
         except ValueError as exc:
             raise TelemetryError(
                 f"nvidia-smi throttle bitmask is malformed: {field!r}"
             ) from exc
+        return bool(bitmask & NVML_THERMAL_THROTTLE_MASK)
     raise TelemetryError(f"nvidia-smi throttle flag is not recognized: {field!r}")
 
 
@@ -195,7 +212,12 @@ class LiveResourceSampler:
             global_sample = read_nvidia_smi(NVIDIA_QUERY)
         allocated_bytes, reserved_bytes = _cuda_memory_bytes()
         process_bytes, system_bytes = _process_memory_bytes()
-        disk = shutil.disk_usage(self.output_root)
+        try:
+            disk = shutil.disk_usage(self.output_root)
+        except OSError as exc:
+            raise TelemetryError(
+                f"disk usage cannot be read for {self.output_root}: {exc}"
+            ) from exc
         value = ResourceSample(
             sampled_at=time.time(),
             gpu_temp_c=global_sample.gpu_temp_c,

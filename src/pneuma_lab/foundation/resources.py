@@ -12,6 +12,39 @@ ACTION_CONTINUE = "continue"
 ACTION_PAUSE = "pause"
 ACTION_FAIL = "fail"
 
+# Pause reasons: recoverable local pressure.
+REASON_GPU_TEMPERATURE = "gpu_temperature"
+REASON_VRAM = "vram"
+REASON_RAM = "ram"
+REASON_SUSTAINED_THERMAL_THROTTLING = "sustained_thermal_throttling"
+REASON_OPERATOR_INTERRUPT = "operator_interrupt"
+REASON_MISSING_RESOURCE_SAMPLE = "missing_resource_sample"
+
+# Fail reasons: unrecoverable state.
+REASON_NON_FINITE_LOSS = "non_finite_loss"
+REASON_AUTHORIZATION_DRIFT = "authorization_drift"
+REASON_DISK_RISK = "disk_risk"
+REASON_BUDGET_DRIFT = "budget_drift"
+REASON_REGRESSION_FAILURE = "regression_failure"
+
+# Every reason ``ResourceGuard.evaluate`` can emit; the run-manifest schema's
+# ``termination_reason`` enum is exactly this set plus ``"completed"``.
+GUARD_REASONS = frozenset(
+    {
+        REASON_GPU_TEMPERATURE,
+        REASON_VRAM,
+        REASON_RAM,
+        REASON_SUSTAINED_THERMAL_THROTTLING,
+        REASON_OPERATOR_INTERRUPT,
+        REASON_MISSING_RESOURCE_SAMPLE,
+        REASON_NON_FINITE_LOSS,
+        REASON_AUTHORIZATION_DRIFT,
+        REASON_DISK_RISK,
+        REASON_BUDGET_DRIFT,
+        REASON_REGRESSION_FAILURE,
+    }
+)
+
 # A safe checkpoint must always fit on disk with headroom to spare.
 MIN_FREE_DISK_HEADROOM_GB = 2.0
 
@@ -77,34 +110,34 @@ class ResourceGuard:
         pause_reasons: list[str] = []
 
         if not authorization_unchanged:
-            fail_reasons.append("authorization_drift")
+            fail_reasons.append(REASON_AUTHORIZATION_DRIFT)
         if not budget_ok:
-            fail_reasons.append("budget_drift")
+            fail_reasons.append(REASON_BUDGET_DRIFT)
         if not regression_ok:
-            fail_reasons.append("regression_failure")
+            fail_reasons.append(REASON_REGRESSION_FAILURE)
         if operator_interrupt:
-            pause_reasons.append("operator_interrupt")
+            pause_reasons.append(REASON_OPERATOR_INTERRUPT)
 
         if not values:
-            pause_reasons.append("missing_resource_sample")
+            pause_reasons.append(REASON_MISSING_RESOURCE_SAMPLE)
         else:
             latest = values[-1]
             if any(not sample.loss_finite for sample in values):
-                fail_reasons.append("non_finite_loss")
+                fail_reasons.append(REASON_NON_FINITE_LOSS)
             required_gb = checkpoint_required_gb + MIN_FREE_DISK_HEADROOM_GB
             if latest.disk_free_gb < required_gb:
-                fail_reasons.append("disk_risk")
+                fail_reasons.append(REASON_DISK_RISK)
             if latest.gpu_temp_c >= self.max_gpu_temp_c:
-                pause_reasons.append("gpu_temperature")
+                pause_reasons.append(REASON_GPU_TEMPERATURE)
             if latest.process_vram_gb > RUNTIME_LIMITS.max_vram_gb:
-                pause_reasons.append("vram")
+                pause_reasons.append(REASON_VRAM)
             if latest.process_ram_gb > RUNTIME_LIMITS.max_ram_gb:
-                pause_reasons.append("ram")
+                pause_reasons.append(REASON_RAM)
             tail = values[-self.sustained_throttle_samples :]
             if len(tail) == self.sustained_throttle_samples and all(
                 sample.thermal_throttled for sample in tail
             ):
-                pause_reasons.append("sustained_thermal_throttling")
+                pause_reasons.append(REASON_SUSTAINED_THERMAL_THROTTLING)
 
         if fail_reasons:
             action = ACTION_FAIL

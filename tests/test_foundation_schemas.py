@@ -215,6 +215,15 @@ def test_foundation_run_manifest_requires_lifecycle_telemetry_and_bindings() -> 
     }
 
 
+def test_foundation_run_manifest_termination_reasons_match_the_guard() -> None:
+    from pneuma_lab.foundation.resources import GUARD_REASONS
+
+    schema = pls.load_schema("foundation-run-manifest.schema.json")
+    variants = schema["properties"]["termination_reason"]["oneOf"]
+    enums = [variant["enum"] for variant in variants if "enum" in variant]
+    assert enums == [sorted({"completed"} | GUARD_REASONS)]
+
+
 @pytest.mark.parametrize(
     "section",
     ["mode", "bindings", "curriculum", "latency", "telemetry", "checkpoints"],
