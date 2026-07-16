@@ -38,6 +38,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = '-m "not qwen_smoke"'
 markers = [
     "qwen_smoke: opt-in smoke test that loads the real pinned Qwen 2B snapshot",
 ]

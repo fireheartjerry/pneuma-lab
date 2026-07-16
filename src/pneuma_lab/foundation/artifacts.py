@@ -158,7 +158,7 @@ def _unescape_linux_mount_field(field: str) -> str:
             result.append(character)
             index += 1
             continue
-        octal = field[index + 1:index + 4]
+        octal = field[index + 1 : index + 4]
         if len(octal) != 3 or any(value not in "01234567" for value in octal):
             raise ArtifactPublicationError(
                 "Linux mount provenance contains an invalid escape"
@@ -177,9 +177,7 @@ def _normalized_mount_path(field: str) -> PurePosixPath:
     value = _unescape_linux_mount_field(field)
     normalized = posixpath.normpath(value)
     if not normalized.startswith("/"):
-        raise ArtifactPublicationError(
-            "Linux mount provenance path must be absolute"
-        )
+        raise ArtifactPublicationError("Linux mount provenance path must be absolute")
     return PurePosixPath(normalized)
 
 
@@ -236,9 +234,7 @@ def _underlying_location_for_mount(
             "Linux fd path is inconsistent with its mountpoint"
         ) from exc
     underlying = PurePosixPath(
-        posixpath.normpath(
-            posixpath.join(mount.root.as_posix(), relative.as_posix())
-        )
+        posixpath.normpath(posixpath.join(mount.root.as_posix(), relative.as_posix()))
     )
     if not underlying.is_absolute():
         raise ArtifactPublicationError(
@@ -293,9 +289,7 @@ def _parse_linux_mount_id(fdinfo: str) -> int:
                 raise ArtifactPublicationError(
                     "artifact publication mount identity is malformed"
                 ) from exc
-    raise ArtifactPublicationError(
-        "artifact publication mount identity is unavailable"
-    )
+    raise ArtifactPublicationError("artifact publication mount identity is unavailable")
 
 
 def _linux_mount_id_from_fd(descriptor: int) -> int:
@@ -325,13 +319,9 @@ def _reject_protected_identity_alias(
     bound_identities: Iterable[tuple[int, int, int]],
     protected_identities: Iterable[tuple[int, int, int]],
 ) -> None:
-    protected_objects = {
-        (device, inode)
-        for device, inode, _ in protected_identities
-    }
+    protected_objects = {(device, inode) for device, inode, _ in protected_identities}
     if any(
-        (device, inode) in protected_objects
-        for device, inode, _ in bound_identities
+        (device, inode) in protected_objects for device, inode, _ in bound_identities
     ):
         raise ArtifactPublicationError(
             "artifact publication ancestry aliases a protected root"
@@ -486,9 +476,9 @@ def _windows_handle_final_path(handle) -> Path:
         buffer_size = length + 1
     extended_prefix = "\\\\?\\"
     if value.startswith(f"{extended_prefix}UNC\\"):
-        value = f"\\\\{value[len(extended_prefix) + 4:]}"
+        value = f"\\\\{value[len(extended_prefix) + 4 :]}"
     elif value.startswith(extended_prefix):
-        value = value[len(extended_prefix):]
+        value = value[len(extended_prefix) :]
     final_path = Path(value)
     if not final_path.is_absolute():
         raise ArtifactPublicationError(
@@ -540,9 +530,7 @@ def _windows_handle_identity(handle) -> tuple[int, int, int]:
     information = ByHandleFileInformation()
     if not get_information(handle, ctypes.byref(information)):
         raise ctypes.WinError(ctypes.get_last_error())
-    file_index = (
-        int(information.FileIndexHigh) << 32
-    ) | int(information.FileIndexLow)
+    file_index = (int(information.FileIndexHigh) << 32) | int(information.FileIndexLow)
     return int(information.VolumeSerialNumber), file_index, 0
 
 
@@ -556,11 +544,7 @@ def _open_windows_handle(path: Path, *, directory: bool):
     open_existing = 3
     file_flag_backup_semantics = 0x02000000
     file_flag_open_reparse_point = 0x00200000
-    access = (
-        file_list_directory | file_read_attributes
-        if directory
-        else generic_read
-    )
+    access = file_list_directory | file_read_attributes if directory else generic_read
     flags = file_flag_open_reparse_point
     if directory:
         flags |= file_flag_backup_semantics
@@ -625,9 +609,8 @@ class BoundArtifactPublication:
                 "artifact output directory must remain under its allowed root"
             )
         for forbidden_root in self.forbidden_roots:
-            if (
-                _is_within(self.directory, forbidden_root)
-                or _is_within(forbidden_root, self.directory)
+            if _is_within(self.directory, forbidden_root) or _is_within(
+                forbidden_root, self.directory
             ):
                 raise ArtifactPublicationError(
                     "artifact output directory overlaps a forbidden root"
@@ -773,13 +756,9 @@ class BoundArtifactPublication:
     def _bound_directory_identities(self) -> tuple[tuple[int, int, int], ...]:
         if os.name == "nt":
             return tuple(
-                _windows_handle_identity(binding)
-                for _, binding in self._bound
+                _windows_handle_identity(binding) for _, binding in self._bound
             )
-        return tuple(
-            self._posix_identities[binding]
-            for _, binding in self._bound
-        )
+        return tuple(self._posix_identities[binding] for _, binding in self._bound)
 
     def _protected_root_identities(self) -> tuple[tuple[int, int, int], ...]:
         identities: list[tuple[int, int, int]] = []
@@ -996,9 +975,9 @@ class BoundArtifactPublication:
                     "artifact publication target must be a regular file"
                 )
             expected_final = self.directory / name
-            if _path_identity(
-                _linux_final_path_from_fd(descriptor)
-            ) != _path_identity(expected_final):
+            if _path_identity(_linux_final_path_from_fd(descriptor)) != _path_identity(
+                expected_final
+            ):
                 raise ArtifactPublicationError(
                     "artifact publication target final path changed"
                 )
@@ -1233,9 +1212,7 @@ class BoundArtifactPublication:
         finally:
             os.close(descriptor)
         for _ in range(128):
-            backup_name = (
-                f".{record.name}.{secrets.token_hex(16)}.publication-backup"
-            )
+            backup_name = f".{record.name}.{secrets.token_hex(16)}.publication-backup"
             if not self._entry_exists(backup_name):
                 break
         else:
@@ -1341,10 +1318,7 @@ class BoundArtifactPublication:
                 _fsync_descriptor(self._directory_binding)
             self._verify_ancestry()
             digest, size = self._bound_digest_size(name)
-            if (
-                digest != record.expected_sha256
-                or size != record.expected_size
-            ):
+            if digest != record.expected_sha256 or size != record.expected_size:
                 raise ArtifactPublicationError(
                     "published artifact content differs from its expected digest or size"
                 )
@@ -1436,10 +1410,7 @@ class BoundArtifactPublication:
                     "artifact publication did not publish every tracked target"
                 )
             digest, size = self._bound_digest_size(record.name)
-            if (
-                digest != record.expected_sha256
-                or size != record.expected_size
-            ):
+            if digest != record.expected_sha256 or size != record.expected_size:
                 raise ArtifactPublicationError(
                     "published artifact content changed before commit"
                 )
@@ -1528,9 +1499,7 @@ def bind_artifact_publication(
     except ArtifactPublicationError:
         raise
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
-        raise ArtifactPublicationError(
-            f"artifact publication failed: {exc}"
-        ) from exc
+        raise ArtifactPublicationError(f"artifact publication failed: {exc}") from exc
     finally:
         publication.close()
 
@@ -1577,7 +1546,9 @@ def write_atomic_bytes(
         bound.write_bytes(target, payload)
 
 
-def _canonical_json_bytes(value: Any, *, indent: int | None) -> bytes:
+def canonical_json_bytes(value: Any, *, indent: int | None) -> bytes:
+    """Serialize deterministic JSON bytes shared by atomic and in-place writers."""
+
     payload = json.dumps(
         value,
         allow_nan=False,
@@ -1599,7 +1570,7 @@ def write_atomic_json(
 
     write_atomic_bytes(
         Path(path),
-        _canonical_json_bytes(value, indent=4),
+        canonical_json_bytes(value, indent=4),
         publication=publication,
     )
 
@@ -1616,7 +1587,7 @@ def write_atomic_jsonl(
     for index, record in enumerate(records, start=1):
         if not isinstance(record, Mapping):
             raise TypeError(f"JSONL record {index} must be a mapping")
-        lines.append(_canonical_json_bytes(dict(record), indent=None))
+        lines.append(canonical_json_bytes(dict(record), indent=None))
     write_atomic_bytes(
         Path(path),
         b"".join(lines),

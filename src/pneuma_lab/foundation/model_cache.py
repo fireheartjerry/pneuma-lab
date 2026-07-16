@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 from typing import Callable
 
-from pneuma_lab.foundation.artifacts import _canonical_json_bytes, sha256_file
+from pneuma_lab.foundation.artifacts import canonical_json_bytes, sha256_file
 from pneuma_lab.foundation.snapshot_receipt import (
     SnapshotReceiptError,
     verify_pinned_snapshot as _verify_snapshot_at_path,
@@ -161,14 +161,15 @@ def _write_receipt(receipt_path: Path, receipt: dict) -> None:
     :func:`prepare_pinned_snapshot` proves the resulting bytes.
     """
 
-    payload = _canonical_json_bytes(receipt, indent=4)
+    payload = canonical_json_bytes(receipt, indent=4)
     descriptor = os.open(
         receipt_path,
         os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_BINARY", 0),
         0o644,
     )
     try:
-        os.write(descriptor, payload)
+        if os.write(descriptor, payload) != len(payload):
+            raise ModelCacheError("short receipt write")
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
