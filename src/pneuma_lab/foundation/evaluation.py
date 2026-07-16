@@ -396,6 +396,10 @@ def next_stage_decision(
     held-out resolved rate by at least 0.5 absolute points; saturation,
     instability, or a failed regression gate returns ``None`` (no next
     stage). Delegates the ladder math to :func:`next_token_stage`.
+
+    ``"1m"`` is a legal manifest stage but deliberately OFF the doubling
+    ladder (``STAGE_TOKENS`` intentionally omits it, unlike the preparation
+    and authorization ceilings) — calling this for a 1m run raises.
     """
 
     if stage not in STAGE_TOKENS:
