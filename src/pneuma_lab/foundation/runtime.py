@@ -147,12 +147,18 @@ def load_local_qwen(
     *,
     allow_download: bool,
     vision: bool,
+    snapshot_path: Path | None = None,
     config_loader: Callable | None = None,
     model_loader: Callable | None = None,
     processor_loader: Callable | None = None,
     quantization_factory: Callable | None = None,
 ) -> LoadedRuntime:
-    """Load one pinned model locally; network access is opt-in and 397B is barred."""
+    """Load one pinned model locally; network access is opt-in and 397B is barred.
+
+    When ``snapshot_path`` names a verified local snapshot, every loader
+    receives that path with ``local_files_only=True`` and the process is
+    forced offline via ``HF_HUB_OFFLINE=1`` and ``TRANSFORMERS_OFFLINE=1``.
+    """
 
     spec = MODEL_SPECS.get(model_key)
     if spec is None:
@@ -160,6 +166,10 @@ def load_local_qwen(
     if not spec.download_allowed:
         raise RuntimeLimitError(
             "397B is a compatibility reference and cannot be loaded"
+        )
+    if snapshot_path is not None and allow_download:
+        raise RuntimeLimitError(
+            "a pinned local snapshot load must keep downloads disabled"
         )
     if any(
         loader is None
@@ -175,12 +185,22 @@ def load_local_qwen(
         model_loader = model_loader or defaults[1]
         processor_loader = processor_loader or defaults[2]
         quantization_factory = quantization_factory or defaults[3]
-    common = {
-        "revision": spec.revision,
-        "local_files_only": not allow_download,
-        "trust_remote_code": False,
-    }
-    config = config_loader(spec.model_id, **common)
+    if snapshot_path is not None:
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        source = str(Path(snapshot_path))
+        common = {
+            "local_files_only": True,
+            "trust_remote_code": False,
+        }
+    else:
+        source = spec.model_id
+        common = {
+            "revision": spec.revision,
+            "local_files_only": not allow_download,
+            "trust_remote_code": False,
+        }
+    config = config_loader(source, **common)
     config_dict = config.to_dict() if hasattr(config, "to_dict") else config
     architecture = validate_pinned_config(
         spec,
@@ -188,12 +208,12 @@ def load_local_qwen(
         source_revision=spec.revision,
     )
     model = model_loader(
-        spec.model_id,
+        source,
         **common,
         quantization_config=quantization_factory(),
         device_map="auto",
     )
-    processor = processor_loader(spec.model_id, **common) if vision else None
+    processor = processor_loader(source, **common) if vision else None
     return LoadedRuntime(
         model_key=model_key,
         model=model,
