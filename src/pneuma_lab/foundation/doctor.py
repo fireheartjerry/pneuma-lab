@@ -191,9 +191,15 @@ def doctor_report(probe: EnvironmentProbe, *, profile: str = "local") -> dict:
         blockers.append("linux_required")
     if probe.python_version[:2] != PYTHON_SERIES:
         blockers.append("python_3_12_required")
-    if not probe.cuda_available:
+    if (
+        type(probe.cuda_available) is not bool
+        or probe.cuda_available is not True
+    ):
         blockers.append("cuda_required")
-    if not probe.cuda_bf16_supported:
+    if (
+        type(probe.cuda_bf16_supported) is not bool
+        or probe.cuda_bf16_supported is not True
+    ):
         blockers.append("cuda_bf16_required")
     minimum_vram = RUNTIME_LIMITS.max_vram_gb if profile == "local" else 40.0
     valid_vram = (
@@ -216,11 +222,18 @@ def doctor_report(probe: EnvironmentProbe, *, profile: str = "local") -> dict:
         blockers.append("insufficient_ram")
     if profile == "cloud" and probe.gpu_name.casefold() != "nvidia a40":
         blockers.append("nvidia_a40_required")
-    if not probe.fts5_available:
+    if (
+        type(probe.fts5_available) is not bool
+        or probe.fts5_available is not True
+    ):
         blockers.append("sqlite_fts5_required")
+    dependencies = (
+        probe.dependencies if isinstance(probe.dependencies, Mapping) else {}
+    )
     for name in (*FOUNDATION_VERSION_PINS, "transformers_multimodal"):
         probe_name = name.replace("-", "_")
-        if not probe.dependencies.get(probe_name, False):
+        available = dependencies.get(probe_name)
+        if type(available) is not bool or available is not True:
             blockers.append(f"missing_{probe_name}")
     for name, expected in FOUNDATION_VERSION_PINS.items():
         probe_name = name.replace("-", "_")
@@ -228,7 +241,10 @@ def doctor_report(probe: EnvironmentProbe, *, profile: str = "local") -> dict:
             blockers.append(f"dependency_version_mismatch_{probe_name}")
     if probe.transformers_commit != TRANSFORMERS_COMMIT:
         blockers.append("transformers_commit_mismatch")
-    if not probe.bitsandbytes_cuda_available:
+    if (
+        type(probe.bitsandbytes_cuda_available) is not bool
+        or probe.bitsandbytes_cuda_available is not True
+    ):
         blockers.append("bitsandbytes_cuda_required")
     return {
         "ready": not blockers,
@@ -246,7 +262,7 @@ def doctor_report(probe: EnvironmentProbe, *, profile: str = "local") -> dict:
             "gpu_total_vram_gb": probe.gpu_total_vram_gb,
             "ram_gb": probe.ram_gb,
             "fts5_available": probe.fts5_available,
-            "dependencies": dict(probe.dependencies),
+            "dependencies": dict(dependencies),
             "dependency_versions": dict(probe.dependency_versions),
             "transformers_commit": probe.transformers_commit,
             "bitsandbytes_cuda_available": probe.bitsandbytes_cuda_available,

@@ -19,9 +19,7 @@ from pneuma_lab.foundation.environment import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_TRANSFORMERS_COMMIT = (
-    "11ed2ff4df5fdfb3117f0e3365ef6ad94081ba69"
-)
+EXPECTED_TRANSFORMERS_COMMIT = "11ed2ff4df5fdfb3117f0e3365ef6ad94081ba69"
 REGISTRY_PINS = {
     "accelerate": "1.14.0",
     "bitsandbytes": "0.49.2",
@@ -50,7 +48,7 @@ def _valid_lock() -> str:
     lines = [
         "version = 1",
         "revision = 3",
-        'requires-python = ">=3.12"',
+        'requires-python = "==3.12.*"',
         "",
         "[[package]]",
         'name = "pneuma-lab"',
@@ -89,8 +87,8 @@ def _valid_lock() -> str:
             "[[package]]",
             'name = "transformers"',
             'version = "5.4.0.dev0"',
-            "source = { git = \"https://github.com/huggingface/transformers.git"
-            f"?rev={EXPECTED_TRANSFORMERS_COMMIT}#{EXPECTED_TRANSFORMERS_COMMIT}\" }}",
+            'source = { git = "https://github.com/huggingface/transformers.git'
+            f'?rev={EXPECTED_TRANSFORMERS_COMMIT}#{EXPECTED_TRANSFORMERS_COMMIT}" }}',
             "",
         )
     )
@@ -108,7 +106,7 @@ def test_environment_constants_are_exact() -> None:
     assert PYTHON_SERIES == (3, 12)
     assert TRANSFORMERS_COMMIT == EXPECTED_TRANSFORMERS_COMMIT
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert project["project"]["requires-python"] == ">=3.12,<3.13"
+    assert project["project"]["requires-python"] == "==3.12.*"
 
 
 def test_setup_plan_maps_a_safe_windows_repository_without_side_effects() -> None:
@@ -116,9 +114,7 @@ def test_setup_plan_maps_a_safe_windows_repository_without_side_effects() -> Non
     plan = setup_plan(repo)
 
     assert plan == {
-        "copy_wslconfig": (
-            "Copy-Item .wslconfig.foundation.example $HOME\\.wslconfig"
-        ),
+        "copy_wslconfig": ("Copy-Item .wslconfig.foundation.example $HOME\\.wslconfig"),
         "restart_wsl": "wsl --shutdown",
         "enter_wsl": "wsl -d Ubuntu",
         "repo_path": "/mnt/c/pneuma-lab",
@@ -154,6 +150,42 @@ def test_verify_lock_accepts_structural_exact_pins(lock_directory: Path) -> None
 @pytest.mark.parametrize(
     "mutate",
     (
+        lambda value: value.replace("version = 1\n", "", 1),
+        lambda value: value.replace("version = 1", "version = 2", 1),
+        lambda value: value.replace("version = 1", 'version = "1"', 1),
+        lambda value: value.replace("version = 1", "version = true", 1),
+        lambda value: value.replace("revision = 3\n", "", 1),
+        lambda value: value.replace("revision = 3", "revision = 4", 1),
+        lambda value: value.replace("revision = 3", 'revision = "3"', 1),
+        lambda value: value.replace("revision = 3", "revision = true", 1),
+        lambda value: value.replace('requires-python = "==3.12.*"\n', "", 1),
+        lambda value: value.replace(
+            'requires-python = "==3.12.*"',
+            'requires-python = ">=3.12,<3.13"',
+            1,
+        ),
+        lambda value: value.replace(
+            'requires-python = "==3.12.*"',
+            'requires-python = "==3.14.*"',
+            1,
+        ),
+        lambda value: value.replace(
+            'requires-python = "==3.12.*"', "requires-python = 3.12", 1
+        ),
+        lambda value: value.replace("version = 1\n", "version = 1\nversion = 1\n", 1),
+    ),
+)
+def test_verify_lock_rejects_nonexact_or_duplicate_top_level_metadata(
+    lock_directory: Path,
+    mutate,
+) -> None:
+    with pytest.raises(ValueError):
+        verify_lock(_write_lock(lock_directory, mutate(_valid_lock())))
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    (
         lambda value: value.replace('    { name = "torch" },\n', "", 1),
         lambda value: value.replace(
             'specifier = "==2.13.0"', 'specifier = ">=2.13"', 1
@@ -181,17 +213,17 @@ def test_verify_lock_requires_exact_root_foundation_edges(
             1,
         ),
         lambda value: value.replace(EXPECTED_TRANSFORMERS_COMMIT, "0" * 40),
-        lambda value: value.replace(
-            'version = "5.4.0.dev0"', 'version = ""'
-        ),
+        lambda value: value.replace('version = "5.4.0.dev0"', 'version = ""'),
         lambda value: value.replace(
             'name = "torch"',
             'name = "torch"\nversion = "2.13.0"\n'
             'source = { registry = "https://pypi.org/simple" }\n\n'
             '[[package]]\nname = "torch"',
         ),
-        lambda value: value + '\n[[package]]\nname = "torch"\n'
-        'version = "nan"\nsource = { registry = "https://pypi.org/simple" }\n',
+        lambda value: (
+            value + '\n[[package]]\nname = "torch"\n'
+            'version = "nan"\nsource = { registry = "https://pypi.org/simple" }\n'
+        ),
     ),
 )
 def test_verify_lock_rejects_wrong_sources_commits_versions_and_duplicates(
@@ -206,30 +238,29 @@ def test_verify_lock_rejects_wrong_sources_commits_versions_and_duplicates(
 def test_verify_lock_rejects_substring_only_and_malformed_documents(
     lock_directory: Path,
 ) -> None:
-    substring_only = "\n".join(
-        f'# {name}=={version}' for name, version in REGISTRY_PINS.items()
-    ) + f"\n# transformers {EXPECTED_TRANSFORMERS_COMMIT}\n"
+    substring_only = (
+        "\n".join(f"# {name}=={version}" for name, version in REGISTRY_PINS.items())
+        + f"\n# transformers {EXPECTED_TRANSFORMERS_COMMIT}\n"
+    )
     for payload in (substring_only, "[[package]\n", "version = nan"):
         with pytest.raises(ValueError):
             verify_lock(_write_lock(lock_directory, payload))
 
 
 def test_setup_artifacts_are_exact_and_cannot_start_privileged_work() -> None:
-    assert (ROOT / ".wslconfig.foundation.example").read_text(
-        encoding="utf-8"
-    ) == (
-        "[wsl2]\n"
-        "memory=24GB\n"
-        "swap=8GB\n"
-        "processors=20\n"
-        "localhostForwarding=true\n"
+    assert (ROOT / ".wslconfig.foundation.example").read_text(encoding="utf-8") == (
+        "[wsl2]\nmemory=24GB\nswap=8GB\nprocessors=20\nlocalhostForwarding=true\n"
     )
-    linux = (ROOT / "scripts/foundation/setup-linux.sh").read_text(
-        encoding="utf-8"
-    )
+    linux = (ROOT / "scripts/foundation/setup-linux.sh").read_text(encoding="utf-8")
     wsl = (ROOT / "scripts/foundation/setup-wsl.sh").read_text(encoding="utf-8")
     assert "set -euo pipefail" in linux
     assert "https://astral.sh/uv/0.11.28/install.sh" in linux
+    assert 'uv_reported="$(uv --version 2>&1)"' in linux
+    assert (
+        '[[ "$uv_reported" != "uv ${uv_version}"'
+        ' && "$uv_reported" != "uv ${uv_version} ("* ]]'
+    ) in linux
+    assert '"uv ${uv_version}"*' not in linux
     assert "uv sync --python 3.12 --extra dev --extra foundation --locked" in linux
     assert 'doctor --profile "$profile"' in linux
     assert "SETUP COMPLETE" in linux

@@ -227,6 +227,12 @@ def verify_lock(lock_path: Path) -> None:
     except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
         raise ValueError("lock file is not strict UTF-8 TOML") from exc
     _reject_nonfinite(document)
+    if type(document.get("version")) is not int or document["version"] != 1:
+        raise ValueError("lock version must be the exact integer 1")
+    if type(document.get("revision")) is not int or document["revision"] != 3:
+        raise ValueError("lock revision must be the exact integer 3")
+    if document.get("requires-python") != "==3.12.*":
+        raise ValueError("lock Python requirement must be exactly ==3.12.*")
     packages = document.get("package")
     if not isinstance(packages, list):
         raise ValueError("lock file does not contain package entries")

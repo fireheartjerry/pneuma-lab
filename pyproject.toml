@@ -7,7 +7,7 @@ name = "pneuma-lab"
 version = "0.1.0"
 description = "Standalone research/evaluation harness for machine psyche, SE cognition, continuous affect, instinct, scar-tissue memory, self-modeling, and consciousness-relevant evaluation."
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = "==3.12.*"
 license = { text = "UNLICENSED" }
 # Phase 1 (replay harness + Level-3 psyche exercise) makes frame validation a
 # base requirement (evaluation-guide Layer A), so `jsonschema` is now a runtime

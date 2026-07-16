@@ -170,6 +170,74 @@ def test_doctor_rejects_nonfinite_capacity_measurements(
     assert blocker in report["blockers"]
 
 
+def _healthy_probe_for_profile(profile: str, **overrides) -> EnvironmentProbe:
+    if profile == "cloud":
+        return _healthy_probe(
+            release="6.8.0-generic",
+            gpu_name="NVIDIA A40",
+            gpu_total_vram_gb=48.0,
+            **overrides,
+        )
+    return _healthy_probe(**overrides)
+
+
+@pytest.mark.parametrize("profile", ("local", "cloud"))
+@pytest.mark.parametrize(
+    ("field_name", "blocker"),
+    (
+        ("cuda_available", "cuda_required"),
+        ("cuda_bf16_supported", "cuda_bf16_required"),
+        ("fts5_available", "sqlite_fts5_required"),
+        ("bitsandbytes_cuda_available", "bitsandbytes_cuda_required"),
+    ),
+)
+@pytest.mark.parametrize("non_bool", (1, "true", object(), None))
+def test_doctor_rejects_non_bool_capability_fields(
+    profile: str,
+    field_name: str,
+    blocker: str,
+    non_bool,
+) -> None:
+    report = doctor_report(
+        _healthy_probe_for_profile(profile, **{field_name: non_bool}),
+        profile=profile,
+    )
+    assert report["ready"] is False
+    assert blocker in report["blockers"]
+
+
+@pytest.mark.parametrize("profile", ("local", "cloud"))
+@pytest.mark.parametrize("non_bool", (1, "true", object(), None))
+def test_doctor_rejects_non_bool_dependency_flags(
+    profile: str,
+    non_bool,
+) -> None:
+    baseline = _healthy_probe_for_profile(profile)
+    for name in baseline.dependencies:
+        dependencies = dict(baseline.dependencies)
+        dependencies[name] = non_bool
+        report = doctor_report(
+            _healthy_probe_for_profile(profile, dependencies=dependencies),
+            profile=profile,
+        )
+        assert report["ready"] is False
+        assert f"missing_{name}" in report["blockers"]
+
+
+@pytest.mark.parametrize("profile", ("local", "cloud"))
+def test_doctor_rejects_missing_dependency_flags(profile: str) -> None:
+    baseline = _healthy_probe_for_profile(profile)
+    for name in baseline.dependencies:
+        dependencies = dict(baseline.dependencies)
+        dependencies.pop(name)
+        report = doctor_report(
+            _healthy_probe_for_profile(profile, dependencies=dependencies),
+            profile=profile,
+        )
+        assert report["ready"] is False
+        assert f"missing_{name}" in report["blockers"]
+
+
 def test_duration_uses_measured_tokens_per_second() -> None:
     assert duration_hours(8_000_000, 20.0) == pytest.approx(111.1111, rel=1e-4)
     assert duration_hours(32_000_000, 50.0) == pytest.approx(177.7778, rel=1e-4)

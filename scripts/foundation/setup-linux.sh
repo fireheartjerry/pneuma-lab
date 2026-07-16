@@ -33,7 +33,8 @@ if ! command -v uv >/dev/null 2>&1; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
-if [[ "$(uv --version)" != "uv ${uv_version}"* ]]; then
+uv_reported="$(uv --version 2>&1)"
+if [[ "$uv_reported" != "uv ${uv_version}" && "$uv_reported" != "uv ${uv_version} ("* ]]; then
     printf 'ERROR: uv %s is required\n' "$uv_version" >&2
     exit 2
 fi
