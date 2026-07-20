@@ -121,9 +121,9 @@ def _write_json(path: Path, value: object) -> None:
 
 
 def _pretty_json_bytes(value: object) -> bytes:
-    return (
-        json.dumps(value, indent=4, sort_keys=True, allow_nan=False) + "\n"
-    ).encode("utf-8")
+    return (json.dumps(value, indent=4, sort_keys=True, allow_nan=False) + "\n").encode(
+        "utf-8"
+    )
 
 
 def _canonical_json_bytes(value: object) -> bytes:
@@ -153,21 +153,16 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
 
     output = repo / "build/foundation/preparation/100k"
     spec = MODEL_SPECS["2b"]
-    tokenizer_snapshot_path = (
-        repo / "build/model-cache/models/2b" / spec.revision
-    )
+    tokenizer_snapshot_path = repo / "build/model-cache/models/2b" / spec.revision
     verified_snapshot = _write_pinned_tokenizer_snapshot(tokenizer_snapshot_path)
     tokenizer_receipt_sha256 = verified_snapshot.receipt_sha256
     tokenizer_snapshot_sha256 = verified_snapshot.snapshot_sha256
     conversion_root = output / "conversion"
     conversion_root.mkdir(parents=True)
-    trace_path = (
-        ROOT / "fixtures/adapters/openhands_sampled/golden/pneuma_traces.jsonl"
-    )
+    trace_path = ROOT / "fixtures/adapters/openhands_sampled/golden/pneuma_traces.jsonl"
     adapter_report_path = trace_path.parent / "adapter_report.json"
     traces = [
-        json.loads(line)
-        for line in trace_path.read_text(encoding="utf-8").splitlines()
+        json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()
     ]
     adapter_report = json.loads(adapter_report_path.read_text(encoding="utf-8"))
     conversion_examples = openhands_converter.convert_traces(
@@ -310,9 +305,7 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
     }
     suite_policy = json.loads(
         (
-            ROOT
-            / "docs/data/training-readiness/"
-            "pneuma-foundation-v0-suite.json"
+            ROOT / "docs/data/training-readiness/pneuma-foundation-v0-suite.json"
         ).read_text(encoding="utf-8")
     )
     eval_root = output / "eval-identities"
@@ -380,13 +373,9 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
             "manifest_schema_version": "0.1.0",
             "first_stage": {
                 "stage": "100k",
-                "authorized_lane_candidates": [
-                    "swe-gym-openhands-sampled"
-                ],
+                "authorized_lane_candidates": ["swe-gym-openhands-sampled"],
             },
-            "evaluation_identity": copy.deepcopy(
-                suite_policy["evaluation_identity"]
-            ),
+            "evaluation_identity": copy.deepcopy(suite_policy["evaluation_identity"]),
             "families": [
                 {
                     **copy.deepcopy(item),
@@ -534,14 +523,10 @@ def _authorization_fixture(tmp_path: Path) -> tuple[Path, PreparationResult, str
         diversity_receipt_path=output / "diversity_receipt.json",
         selection_receipt_path=output / "selection_receipt.json",
         conversion_examples_path=conversion_files["examples"][0],
-        conversion_invalid_examples_path=conversion_files[
-            "invalid_examples"
-        ][0],
+        conversion_invalid_examples_path=conversion_files["invalid_examples"][0],
         conversion_report_path=conversion_files["conversion_report"][0],
         conversion_hash_manifest_path=conversion_files["hash_manifest"][0],
-        eval_identity_paths={
-            family: value[0] for family, value in eval_files.items()
-        },
+        eval_identity_paths={family: value[0] for family, value in eval_files.items()},
         authorization_candidate_path=candidate,
     )
     return repo, preparation, commit
@@ -628,9 +613,12 @@ def _refresh_derived_preparation(
     for record in records:
         record["source"]["receipt_hashes"] = source_receipt_hashes
         if recompute_record_ids:
-            record["record_id"] = "ftr:" + hashlib.sha256(
-                json.dumps(record["source"], sort_keys=True).encode("utf-8")
-            ).hexdigest()
+            record["record_id"] = (
+                "ftr:"
+                + hashlib.sha256(
+                    json.dumps(record["source"], sort_keys=True).encode("utf-8")
+                ).hexdigest()
+            )
     shard_payload = b"".join(_canonical_json_bytes(record) for record in records)
     shard_sha256 = hashlib.sha256(shard_payload).hexdigest()
     shard_root = preparation.preparation_manifest_path.parent / "shards"
@@ -662,12 +650,10 @@ def _refresh_derived_preparation(
             record["tokenization"]["total_tokens"] for record in records
         ),
         resolved_count=sum(
-            record["observations"]["labels"]["resolved"] is True
-            for record in records
+            record["observations"]["labels"]["resolved"] is True for record in records
         ),
         unresolved_count=sum(
-            record["observations"]["labels"]["resolved"] is False
-            for record in records
+            record["observations"]["labels"]["resolved"] is False for record in records
         ),
     )
     _write_json(preparation.selection_receipt_path, selection)
@@ -828,9 +814,10 @@ def test_scope_digest_is_strict_deterministic_json() -> None:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
-    assert authorization_scope_digest(unicode_scope) == hashlib.sha256(
-        expected_payload
-    ).hexdigest()
+    assert (
+        authorization_scope_digest(unicode_scope)
+        == hashlib.sha256(expected_payload).hexdigest()
+    )
     for invalid in (
         {1: "non-string-key"},
         {"name": object()},
@@ -933,6 +920,7 @@ def test_candidate_rejects_4b_scope_over_2b_preparation(tmp_path: Path) -> None:
         "shard_manifest_count",
         "contamination_gate",
         "suite_presence",
+        "suite_stage_access",
         "source_presence",
         "source_unchanged",
         "selection_count",
@@ -979,6 +967,7 @@ def test_candidate_rejects_cross_artifact_contradictions(
         paths = {
             "contamination_gate": preparation.contamination_receipt_path,
             "suite_presence": preparation.suite_report_path,
+            "suite_stage_access": preparation.suite_report_path,
             "source_presence": preparation.source_presence_receipt_path,
             "source_unchanged": preparation.source_integrity_receipt_path,
             "selection_count": preparation.selection_receipt_path,
@@ -993,6 +982,8 @@ def test_candidate_rejects_cross_artifact_contradictions(
             receipt["findings"] = [{"fixture": "contradiction"}]
         elif contradiction == "suite_presence":
             receipt["families"][0]["exists"] = False
+        elif contradiction == "suite_stage_access":
+            del receipt["families"][0]["payload_access_100k"]
         elif contradiction == "source_presence":
             receipt["all_ten_present"] = False
         elif contradiction == "source_unchanged":
@@ -1117,9 +1108,7 @@ def test_candidate_recomputes_contamination_from_bound_eval_bytes(
     row["repo"] = selected["identity"]["repo"]
     eval_path.write_bytes(_canonical_json_bytes(row))
     manifest = _strict_json(preparation.preparation_manifest_path)
-    binding = manifest["generated_artifact_sha256"]["eval_identities"][
-        "swe-bench"
-    ]
+    binding = manifest["generated_artifact_sha256"]["eval_identities"]["swe-bench"]
     binding["sha256"] = hashlib.sha256(eval_path.read_bytes()).hexdigest()
     binding["size"] = eval_path.stat().st_size
     _write_json(preparation.preparation_manifest_path, manifest)
@@ -1141,9 +1130,7 @@ def test_candidate_rejects_rehashed_empty_report_source_hashes(
     repo, preparation, commit = _authorization_fixture(tmp_path)
     report = _strict_json(preparation.conversion_report_path)
     report["source_hashes"] = {}
-    preparation.conversion_report_path.write_bytes(
-        _canonical_json_bytes(report)
-    )
+    preparation.conversion_report_path.write_bytes(_canonical_json_bytes(report))
     _refresh_derived_preparation(preparation)
 
     with pytest.raises(
@@ -1266,9 +1253,7 @@ def test_candidate_strictly_rejects_nonempty_invalid_examples(
     repo, preparation, commit = _authorization_fixture(tmp_path)
     preparation.conversion_invalid_examples_path.write_bytes(payload)
     manifest = _strict_json(preparation.preparation_manifest_path)
-    binding = manifest["generated_artifact_sha256"]["conversion"][
-        "invalid_examples"
-    ]
+    binding = manifest["generated_artifact_sha256"]["conversion"]["invalid_examples"]
     binding["sha256"] = hashlib.sha256(payload).hexdigest()
     binding["size"] = len(payload)
     _write_json(preparation.preparation_manifest_path, manifest)
@@ -1479,9 +1464,7 @@ def test_exact_final_handshake_verifies_and_applies_one_lane(tmp_path: Path) -> 
     verified = verify_foundation_authorization(final_path, repo_root=repo)
     assert verified.model_key == "2b"
     assert verified.token_ceiling == 100_000
-    assert dict(verified.authorized_lane_weights) == {
-        "swe-gym-openhands-sampled": 1.0
-    }
+    assert dict(verified.authorized_lane_weights) == {"swe-gym-openhands-sampled": 1.0}
     assert isinstance(verified.authorized_lane_weights, MappingProxyType)
     assert isinstance(verified.authorized_record_membership, MappingProxyType)
     record = json.loads(
@@ -1512,7 +1495,9 @@ def test_exact_final_handshake_verifies_and_applies_one_lane(tmp_path: Path) -> 
         effective.record["forecast_targets"]["action_success"]["value"] = 0.0
     with pytest.raises(AttributeError):
         effective.record["observations"]["tools"].append("direct change")
-    with pytest.raises((FoundationAuthorizationError, TypeError, ValueError), match="authoriz"):
+    with pytest.raises(
+        (FoundationAuthorizationError, TypeError, ValueError), match="authoriz"
+    ):
         EffectiveTrainingRecord(record=before, effective_weight=1.0)
     with pytest.raises((FoundationAuthorizationError, TypeError, ValueError)):
         replace(effective, effective_weight=2.0)
@@ -1526,9 +1511,7 @@ def test_apply_requires_exact_verified_shard_membership(tmp_path: Path) -> None:
     authorized = json.loads(
         preparation.shard_path.read_text(encoding="utf-8").splitlines()[0]
     )
-    assert set(verified.authorized_record_membership) == {
-        authorized["record_id"]
-    }
+    assert set(verified.authorized_record_membership) == {authorized["record_id"]}
     assert apply_verified_authorization(authorized, verified).effective_weight == 1.0
 
     never_in_shard = copy.deepcopy(authorized)
@@ -1539,7 +1522,9 @@ def test_apply_requires_exact_verified_shard_membership(tmp_path: Path) -> None:
 
     modified = copy.deepcopy(authorized)
     modified["rendered"]["target_text"] += " one-byte-mutation"
-    with pytest.raises(FoundationAuthorizationError, match="membership|shard|record|digest"):
+    with pytest.raises(
+        FoundationAuthorizationError, match="membership|shard|record|digest"
+    ):
         apply_verified_authorization(modified, verified)
 
 
@@ -1595,7 +1580,9 @@ def test_finalize_rejects_wrong_handshake_inputs(
     assert not final_path.exists()
 
 
-def test_finalize_rejects_duplicate_and_nonfinite_candidate_json(tmp_path: Path) -> None:
+def test_finalize_rejects_duplicate_and_nonfinite_candidate_json(
+    tmp_path: Path,
+) -> None:
     repo, preparation, commit = _authorization_fixture(tmp_path)
     candidate_path = build_authorization_candidate(
         preparation,
@@ -1694,7 +1681,10 @@ def test_candidate_publication_rolls_back_when_a_bound_source_mutates(
 
     def mutate_then_revalidate(handle, expected):
         nonlocal mutated
-        if not mutated and handle._publication.directory == preparation.shard_path.parent:
+        if (
+            not mutated
+            and handle._publication.directory == preparation.shard_path.parent
+        ):
             mutated = True
             metadata = preparation.shard_path.stat()
             with preparation.shard_path.open("r+b") as stream:
@@ -1715,7 +1705,9 @@ def test_candidate_publication_rolls_back_when_a_bound_source_mutates(
         "revalidate",
         mutate_then_revalidate,
     )
-    with pytest.raises(FoundationAuthorizationError, match="changed|metadata|digest|publication"):
+    with pytest.raises(
+        FoundationAuthorizationError, match="changed|metadata|digest|publication"
+    ):
         build_authorization_candidate(
             preparation,
             repo_root=repo,
@@ -1754,7 +1746,9 @@ def test_final_publication_rolls_back_when_candidate_mutates_in_place(
                 stream.flush()
                 os.fsync(stream.fileno())
             try:
-                os.utime(candidate_path, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+                os.utime(
+                    candidate_path, ns=(metadata.st_atime_ns, metadata.st_mtime_ns)
+                )
             except OSError:
                 pass
         return original_revalidate(handle, expected)
@@ -1764,7 +1758,9 @@ def test_final_publication_rolls_back_when_candidate_mutates_in_place(
         "revalidate",
         mutate_then_revalidate,
     )
-    with pytest.raises(FoundationAuthorizationError, match="changed|metadata|digest|publication"):
+    with pytest.raises(
+        FoundationAuthorizationError, match="changed|metadata|digest|publication"
+    ):
         finalize_authorization(
             candidate_path,
             supplied_scope_digest=candidate["scope_digest"],
@@ -1805,9 +1801,9 @@ def test_verify_rejects_oversized_declared_evidence_before_read(
 ) -> None:
     repo, _preparation, _commit, final_path = _build_and_finalize(tmp_path)
     manifest = _strict_json(final_path)
-    manifest["scope"]["evidence_artifacts"]["eval_identities"]["swe-bench"][
-        "size"
-    ] = 10_000_000
+    manifest["scope"]["evidence_artifacts"]["eval_identities"]["swe-bench"]["size"] = (
+        10_000_000
+    )
     manifest["scope_digest"] = authorization_scope_digest(manifest["scope"])
     manifest["operator_approval"]["scope_digest"] = manifest["scope_digest"]
     phrase = APPROVAL_PHRASE_PREFIX + " " + manifest["scope_digest"]
@@ -1874,7 +1870,9 @@ def test_verify_rejects_rehashed_4b_scope_over_2b_preparation(
     _write_json(final_path, manifest)
     _resign_final_scope(final_path, repo)
 
-    with pytest.raises(FoundationAuthorizationError, match="2b|4b|model|tokenizer|coher"):
+    with pytest.raises(
+        FoundationAuthorizationError, match="2b|4b|model|tokenizer|coher"
+    ):
         verify_foundation_authorization(final_path, repo_root=repo)
 
 
@@ -1933,7 +1931,9 @@ def test_verify_rejects_in_place_final_manifest_mutation(
         "revalidate",
         mutate_then_revalidate,
     )
-    with pytest.raises(FoundationAuthorizationError, match="changed|metadata|digest|binding"):
+    with pytest.raises(
+        FoundationAuthorizationError, match="changed|metadata|digest|binding"
+    ):
         verify_foundation_authorization(final_path, repo_root=repo)
     assert mutated is True
 
@@ -2011,7 +2011,9 @@ def test_candidate_and_final_outputs_cannot_escape_expected_build_paths(
 ) -> None:
     repo, preparation, commit = _authorization_fixture(tmp_path)
     escaped = copy.copy(preparation)
-    object.__setattr__(escaped, "authorization_candidate_path", tmp_path / "candidate.json")
+    object.__setattr__(
+        escaped, "authorization_candidate_path", tmp_path / "candidate.json"
+    )
     with pytest.raises(FoundationAuthorizationError, match="candidate|build|path"):
         build_authorization_candidate(escaped, repo_root=repo, code_commit=commit)
     candidate_path = build_authorization_candidate(
@@ -2034,7 +2036,8 @@ def test_candidate_and_final_outputs_cannot_escape_expected_build_paths(
 def test_committed_pending_authorization_refuses_training() -> None:
     with pytest.raises(FoundationAuthorizationError, match="not authorized"):
         verify_foundation_authorization(
-            ROOT / "docs/data/training-authorizations/pneuma-foundation-v0.pending.json",
+            ROOT
+            / "docs/data/training-authorizations/pneuma-foundation-v0.pending.json",
             repo_root=ROOT,
         )
 

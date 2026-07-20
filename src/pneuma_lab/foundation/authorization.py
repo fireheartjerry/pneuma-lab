@@ -1140,13 +1140,17 @@ def _validate_preparation_coherence_unchecked(
         suite.get("manifest_kind") != "pneuma_foundation_suite_report"
         or suite.get("manifest_schema_version") != "0.1.0"
         or not isinstance(suite_first_stage, Mapping)
-        or suite_first_stage.get("stage") != stage
+        or suite_first_stage.get("stage") != "100k"
         or suite_first_stage.get("authorized_lane_candidates")
         != ["swe-gym-openhands-sampled"]
         or not isinstance(suite_families, list)
         or [item.get("family") for item in suite_families]
         != list(ACTIVE_DATASET_GROUPS)
         or any(item.get("exists") is not True for item in suite_families)
+        or any(
+            not isinstance(item.get(f"payload_access_{stage}"), str)
+            for item in suite_families
+        )
     ):
         raise _coherence_error("suite receipt does not prove all-ten presence")
 
