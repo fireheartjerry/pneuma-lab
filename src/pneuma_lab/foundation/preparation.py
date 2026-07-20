@@ -21,7 +21,10 @@ from pneuma_lab.foundation.artifacts import (
     write_atomic_bytes,
     write_atomic_json,
 )
-from pneuma_lab.foundation.contamination import build_contamination_receipt
+from pneuma_lab.foundation.contamination import (
+    EVAL_REPO_QUARANTINE_ID,
+    build_contamination_receipt,
+)
 from pneuma_lab.foundation.data import (
     ACTIVE_DATASET_GROUPS,
     DataAuthorizationError,
@@ -601,9 +604,6 @@ def _split_from_canonical_repo(canonical_repo: str) -> str:
     if bucket < 90:
         return "validation"
     return "held_out"
-
-
-EVAL_REPO_QUARANTINE_ID = "eval-repo-overlap"
 
 
 def _split_assignments(

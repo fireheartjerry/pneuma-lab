@@ -31,7 +31,10 @@ from pneuma_lab.foundation.artifacts import (
     bind_artifact_publication,
     write_atomic_json,
 )
-from pneuma_lab.foundation.contamination import build_contamination_receipt
+from pneuma_lab.foundation.contamination import (
+    EVAL_REPO_QUARANTINE_ID,
+    build_contamination_receipt,
+)
 from pneuma_lab.foundation.data import (
     ACTIVE_DATASET_GROUPS,
     build_diversity_inventory,
@@ -1553,6 +1556,11 @@ def _validate_preparation_coherence_unchecked(
             )
             for row in rows
         )
+    eval_repo_keys = {
+        normalized
+        for identity in eval_identities
+        if (normalized := normalize_identity_text(identity.repo)) is not None
+    }
     policy_families = []
     for item in suite_families:
         policy_item = {
@@ -1682,7 +1690,7 @@ def _validate_preparation_coherence_unchecked(
             or not isinstance(repo, str)
             or not isinstance(canonical_repo, str)
             or split_id not in expected_sets
-            or assignment.get("quarantine_id") is not None
+            or assignment.get("quarantine_id") not in (None, EVAL_REPO_QUARANTINE_ID)
         ):
             raise _coherence_error("split assignment identity is invalid")
         try:
@@ -1691,6 +1699,11 @@ def _validate_preparation_coherence_unchecked(
             raise _coherence_error("split repository cannot be normalized") from exc
         if normalized_repo is None or normalized_repo != canonical_repo:
             raise _coherence_error("split canonical repository is not reproducible")
+        expected_quarantine = (
+            EVAL_REPO_QUARANTINE_ID if canonical_repo in eval_repo_keys else None
+        )
+        if assignment.get("quarantine_id") != expected_quarantine:
+            raise _coherence_error("split quarantine is not reproducible")
         bucket = (
             int(
                 hashlib.sha256(canonical_repo.encode("utf-8")).hexdigest()[:8],
@@ -1724,6 +1737,7 @@ def _validate_preparation_coherence_unchecked(
         if (
             assignment is None
             or assignment["split_id"] != "train"
+            or assignment["quarantine_id"] is not None
             or not isinstance(identity, Mapping)
             or normalize_identity_text(identity.get("repo"))
             != assignment["canonical_repo"]

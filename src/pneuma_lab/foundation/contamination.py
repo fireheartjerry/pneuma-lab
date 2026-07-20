@@ -16,6 +16,11 @@ from pneuma_lab.foundation.identity_normalization import (
 )
 
 
+# Records from any repository shared with a required evaluation identity
+# family are quarantined out of the training selection under this marker.
+EVAL_REPO_QUARANTINE_ID = "eval-repo-overlap"
+
+
 @dataclass(frozen=True)
 class ContaminationFinding:
     dimension: str
@@ -165,17 +170,13 @@ def build_contamination_receipt(
     )
 
     try:
-        required_families, blocked_families = evaluation_identity_scope(
-            suite_policy
-        )
+        required_families, blocked_families = evaluation_identity_scope(suite_policy)
     except SuitePolicyError as exc:
         raise ContaminationIndexError(
             f"suite evaluation identity policy is invalid: {exc}"
         ) from exc
     family_counts = {
-        family: sum(
-            identity.family == family for identity in evaluation_values
-        )
+        family: sum(identity.family == family for identity in evaluation_values)
         for family in required_families
     }
     evaluation_families = {identity.family for identity in evaluation_values}
@@ -191,8 +192,7 @@ def build_contamination_receipt(
         evaluation_families == set(required_families)
         and all(count > 0 for count in family_counts.values())
         and all(
-            status == "blocked_unavailable"
-            for status in blocked_family_status.values()
+            status == "blocked_unavailable" for status in blocked_family_status.values()
         )
     )
     if not evaluation_coverage_complete:
