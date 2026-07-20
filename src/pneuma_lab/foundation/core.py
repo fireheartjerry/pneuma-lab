@@ -45,7 +45,11 @@ def metacognitive_loss(
     """Average outcome-derived forecast losses over applicable targets only."""
 
     expected = set(FORECAST_TARGETS)
-    if set(predictions) != expected or set(targets) != expected or set(masks) != expected:
+    if (
+        set(predictions) != expected
+        or set(targets) != expected
+        or set(masks) != expected
+    ):
         raise ValueError(
             "forecasts, targets, and applicability masks must match the contract"
         )
@@ -68,9 +72,10 @@ def metacognitive_loss(
             )
             applicable_prediction = prediction[mask]
             applicable_target = target[mask]
-            if not torch.isfinite(applicable_prediction).all() or not torch.isfinite(
-                applicable_target
-            ).all():
+            if (
+                not torch.isfinite(applicable_prediction).all()
+                or not torch.isfinite(applicable_target).all()
+            ):
                 raise ValueError(
                     f"applicable forecast prediction and target must be finite: {name}"
                 )
@@ -186,12 +191,18 @@ class JunctionAdapter(nn.Module):
     def _map_hidden(self, hidden: Tensor) -> Tensor:
         if not self.enabled:
             return hidden
-        pooled = hidden.mean(dim=1)
+        # The quantized base can emit hidden states in a different floating
+        # dtype than the (for example BF16-cast) projection shells; the
+        # junction computes in its own dtype and contributes back in the
+        # base's dtype so the residual stream is never silently retyped.
+        core_dtype = self.down_projection.weight.dtype
+        pooled = hidden.mean(dim=1).to(core_dtype)
         latent = self.down_projection(pooled)
         recurrent, forecasts = self.shared_core(latent, microsteps=self.microsteps)
         residual = self.up_projection(recurrent).unsqueeze(1)
         self.last_forecasts = forecasts
-        return hidden + self.residual_scale * residual
+        contribution = (self.residual_scale * residual).to(hidden.dtype)
+        return hidden + contribution
 
     def map_layer_output(self, output):
         """Replace only hidden states and preserve every native cache object."""
