@@ -32,6 +32,33 @@ checkpoints/checkpoint-00000015.pt).
 - Paid compute spent: $0. Cloud resources created: 0. Lifetime cloud cap: $45
   (hard-coded gate).
 
+## 500K stage result (2026-07-20) and the data-supply finding
+
+The 500K stage completed at the selected 2e-4 under a fresh exact
+authorization (scope digest `b4b5f1da…32f5a2`, code commit `13fbba4`):
+
+| Run          | Steps | Tokens  | Best val loss | Last val loss |
+| ------------ | ----- | ------- | ------------- | ------------- |
+| `500k` @2e-4 | 32    | 200,874 | 3.8832        | 3.9076        |
+
+Two launch-preparation bugs were fixed on the way (commits `0104b77`,
+`13fbba4`): the suite policy lacked a `payload_access_500k` column, and the
+candidate coherence gate wrongly required the suite report `first_stage` to
+equal the run stage (it now pins `100k` and requires a
+`payload_access_<stage>` string per family instead).
+
+**Finding: the ladder is data-bound, not compute-bound.** The
+OpenHands-Sampled lane converts to 6,055 examples but spans only 6
+repositories; the repo-grouped split leaves a 202,162-token train split,
+all of which the 500K run consumed in a single pass (the trainer does not
+repeat epochs). The 500K ceiling — and every later ceiling — is
+unreachable from this lane. A 2M run over the same lane would re-train the
+identical shard, so it was deliberately not run. Before 2M is meaningful,
+the later train families (`multi-swe-bench`, `open-swe-traces`, `swe-evo`)
+need their own conversion lanes and a multi-lane candidate/authorization
+redesign; the 2M falsification kill-gate additionally needs the four-variant
+paired evaluation harness, which does not exist yet.
+
 ## The staged ladder from here
 
 Roles are fixed by the suite policy

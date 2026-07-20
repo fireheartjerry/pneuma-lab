@@ -54,7 +54,8 @@ fenced command in it is validated against the real CLI by
 its final checklist item — the actual `train` command — stays unchecked until
 the operator deliberately runs it. The canonical launch truth lives in
 `docs/project-status.json` under `foundation_training_launch`
-(`training_status: local_100k_smoke_completed`, `optimizer_steps: 45`).
+(`training_status: local_500k_stage_completed_train_lane_exhausted`,
+`optimizer_steps: 77`).
 
 ## Current authorization truth
 
@@ -65,8 +66,12 @@ operator-approved manifests under ignored `build/foundation/authorizations/`.
 Under one such authorization the local 100K smoke stage completed on
 2026-07-20: the pinned 2B snapshot was downloaded and receipt-verified, a
 deterministic zero-weight shard was prepared twice byte-identically, and three
-authorized runs (5e-5, 1e-4, 2e-4) each finished 15 optimizer steps. No
-500K-or-later stage has run and no model has been promoted to the runtime.
+authorized runs (5e-5, 1e-4, 2e-4) each finished 15 optimizer steps. The 500K
+stage then completed at the selected 2e-4 (32 optimizer steps, 200,874 tokens,
+best validation loss 3.8832) and consumed the entire ~202K-token train split
+of the single gradient-eligible OpenHands-Sampled lane — later stages are
+data-blocked until additional train lanes earn readiness. No 2M-or-later
+stage has run and no model has been promoted to the runtime.
 
 `C:\pneuma-data` is immutable input. All derived shards, checkpoints, reports,
 SQLite files, and weights belong under ignored `build/foundation/` storage.

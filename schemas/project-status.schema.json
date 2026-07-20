@@ -578,7 +578,9 @@
             ],
             "properties": {
                 "tooling_status": { "const": "implemented" },
-                "training_status": { "const": "local_100k_smoke_completed" },
+                "training_status": {
+                    "const": "local_500k_stage_completed_train_lane_exhausted"
+                },
                 "runtime_status": { "const": "not_promoted" },
                 "research_model": {
                     "type": "object",
@@ -714,10 +716,10 @@
                     "const": "exact_operator_authorization_required"
                 },
                 "training_status": {
-                    "const": "local_100k_smoke_completed"
+                    "const": "local_500k_stage_completed_train_lane_exhausted"
                 },
                 "optimizer_steps": {
-                    "const": 45
+                    "const": 77
                 },
                 "cloud_resources_created": {
                     "const": 0

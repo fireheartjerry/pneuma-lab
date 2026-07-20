@@ -1,11 +1,20 @@
-# LOCAL 100K SMOKE COMPLETE — LATER STAGES NOT STARTED
+# LOCAL 100K AND 500K STAGES COMPLETE — TRAIN LANE DATA-EXHAUSTED
 
 The local Qwen3.5-2B 100K-token smoke stage completed on 2026-07-20 under
 exact operator authorization: three runs (learning rates 5e-5, 1e-4, 2e-4),
 15 optimizer steps each, ~93,967 tokens per run, best validation loss 3.5085
 at 2e-4, ~312-339 tokens/second, peak 2.82 GiB process VRAM, zero thermal
-throttling. No 500K-or-later stage has run. No cloud resource has been
-created; paid compute remains $0.
+throttling. The 500K stage then completed the same day at the selected 2e-4
+(run `foundation-500k-b4b5f1da90aff5ab`, 32 optimizer steps, best validation
+loss 3.8832) — and consumed the ENTIRE train split of the only
+gradient-eligible lane at 200,874 of 202,162 shard tokens. The 500K token
+ceiling is unreachable from the OpenHands-Sampled lane alone: repo-grouped
+splitting over its 6 repositories leaves ~202K train tokens total. A 2M
+stage over the same single lane would re-train the identical shard and is
+therefore not run. Later stages require multi-lane readiness work
+(`multi-swe-bench`, `open-swe-traces`, `swe-evo` conversion + policy
+redesign) before they are meaningful. No cloud resource has been created;
+paid compute remains $0.
 No Jupyter notebook is required. Local WSL2 and optional RunPod both use the
 same CLI. This guide remains the canonical procedure for every later stage.
 

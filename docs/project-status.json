@@ -2,7 +2,7 @@
     "$schema": "../schemas/project-status.schema.json",
     "manifest_kind": "pneuma_project_status",
     "manifest_schema_version": "0.1.0",
-    "as_of": "2026-07-19",
+    "as_of": "2026-07-20",
     "project": {
         "role": "standalone_research_evaluation_harness",
         "integration_mode": "standalone",
@@ -386,7 +386,7 @@
         },
         "foundation_program": {
             "tooling_status": "implemented",
-            "training_status": "local_100k_smoke_completed",
+            "training_status": "local_500k_stage_completed_train_lane_exhausted",
             "runtime_status": "not_promoted",
             "research_model": {
                 "model_id": "Qwen/Qwen3.5-2B",
@@ -427,8 +427,8 @@
         "local_artifacts": "runtime_checked_not_committed",
         "model_cache_required": "qwen3.5-2b-pinned",
         "authorization_state": "exact_operator_authorization_required",
-        "training_status": "local_100k_smoke_completed",
-        "optimizer_steps": 45,
+        "training_status": "local_500k_stage_completed_train_lane_exhausted",
+        "optimizer_steps": 77,
         "cloud_resources_created": 0,
         "paid_compute_usd": 0
     },
