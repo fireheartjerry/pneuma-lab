@@ -5,7 +5,7 @@
     "description": "Canonical machine-readable status for Pneuma Lab. This manifest separates implemented internal methodology from real-subject, integration, training, RSI, and JSpace claims.",
     "type": "object",
     "x-pneuma-schema-kind": "manifest",
-    "x-pneuma-version": "0.1.0",
+    "x-pneuma-version": "0.2.0",
     "required": [
         "$schema",
         "manifest_kind",
@@ -17,6 +17,7 @@
         "nine_to_five",
         "jspace",
         "training_and_rsi",
+        "foundation_training_launch",
         "artifact_policy",
         "authoritative_docs",
         "historical_snapshots",
@@ -57,6 +58,9 @@
         },
         "training_and_rsi": {
             "$ref": "#/$defs/training_and_rsi"
+        },
+        "foundation_training_launch": {
+            "$ref": "#/$defs/foundation_training_launch"
         },
         "artifact_policy": {
             "$ref": "#/$defs/artifact_policy"
@@ -581,7 +585,9 @@
                     "required": ["model_id", "revision"],
                     "properties": {
                         "model_id": { "const": "Qwen/Qwen3.5-2B" },
-                        "revision": { "const": "15852e8c16360a2fea060d615a32b45270f8a8fc" }
+                        "revision": {
+                            "const": "15852e8c16360a2fea060d615a32b45270f8a8fc"
+                        }
                     },
                     "additionalProperties": false
                 },
@@ -590,7 +596,9 @@
                     "required": ["model_id", "revision"],
                     "properties": {
                         "model_id": { "const": "Qwen/Qwen3.5-4B" },
-                        "revision": { "const": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a" }
+                        "revision": {
+                            "const": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+                        }
                     },
                     "additionalProperties": false
                 },
@@ -675,6 +683,47 @@
                 },
                 "record_status": {
                     "enum": ["absent", "present"]
+                }
+            },
+            "additionalProperties": false
+        },
+        "foundation_training_launch": {
+            "type": "object",
+            "description": "Truth block for the foundation training launch preparation. Every value is pinned so that starting training, spending money, or creating a cloud resource requires a deliberate schema-and-status change.",
+            "required": [
+                "tooling",
+                "local_artifacts",
+                "model_cache_required",
+                "authorization_state",
+                "training_status",
+                "optimizer_steps",
+                "cloud_resources_created",
+                "paid_compute_usd"
+            ],
+            "properties": {
+                "tooling": {
+                    "const": "implemented"
+                },
+                "local_artifacts": {
+                    "const": "runtime_checked_not_committed"
+                },
+                "model_cache_required": {
+                    "const": "qwen3.5-2b-pinned"
+                },
+                "authorization_state": {
+                    "const": "exact_operator_authorization_required"
+                },
+                "training_status": {
+                    "const": "not_started"
+                },
+                "optimizer_steps": {
+                    "const": 0
+                },
+                "cloud_resources_created": {
+                    "const": 0
+                },
+                "paid_compute_usd": {
+                    "const": 0
                 }
             },
             "additionalProperties": false

@@ -2,7 +2,7 @@
     "$schema": "../schemas/project-status.schema.json",
     "manifest_kind": "pneuma_project_status",
     "manifest_schema_version": "0.1.0",
-    "as_of": "2026-07-13",
+    "as_of": "2026-07-19",
     "project": {
         "role": "standalone_research_evaluation_harness",
         "integration_mode": "standalone",
@@ -421,6 +421,16 @@
             "B-RSI-IMPROVEMENT-GATE",
             "B-RSI-DEPLOYMENT"
         ]
+    },
+    "foundation_training_launch": {
+        "tooling": "implemented",
+        "local_artifacts": "runtime_checked_not_committed",
+        "model_cache_required": "qwen3.5-2b-pinned",
+        "authorization_state": "exact_operator_authorization_required",
+        "training_status": "not_started",
+        "optimizer_steps": 0,
+        "cloud_resources_created": 0,
+        "paid_compute_usd": 0
     },
     "artifact_policy": {
         "generated_root": "build",

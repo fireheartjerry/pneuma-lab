@@ -8,11 +8,11 @@ Canonical current status: [`docs/project-status.json`](../project-status.json).
 
 ## Model pins
 
-| Role | Model | Revision | Status |
-|---|---|---|---|
-| Research | `Qwen/Qwen3.5-2B` | `15852e8c16360a2fea060d615a32b45270f8a8fc` | implementation ready, not trained |
-| Promotion candidate | `Qwen/Qwen3.5-4B` | `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a` | gated on the 2B falsification result |
-| Compatibility reference | `Qwen/Qwen3.5-397B-A17B` | `8472618112abcbd45acbcdc58436aff4233c23f7` | downloads and execution forbidden |
+| Role                    | Model                    | Revision                                   | Status                               |
+| ----------------------- | ------------------------ | ------------------------------------------ | ------------------------------------ |
+| Research                | `Qwen/Qwen3.5-2B`        | `15852e8c16360a2fea060d615a32b45270f8a8fc` | implementation ready, not trained    |
+| Promotion candidate     | `Qwen/Qwen3.5-4B`        | `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a` | gated on the 2B falsification result |
+| Compatibility reference | `Qwen/Qwen3.5-397B-A17B` | `8472618112abcbd45acbcdc58436aff4233c23f7` | downloads and execution forbidden    |
 
 Junction positions are derived from the pinned `layer_types` schedule. The
 loader refuses a changed revision, hidden width, layer count, or hybrid block
@@ -21,21 +21,40 @@ schedule before allocating model weights.
 ## What is implemented
 
 - A fixed-width 256-dimensional recurrent core with 64 local memory slots, two
-    candidate plans, four total latent microsteps, and base-specific projection
-    shells.
+  candidate plans, four total latent microsteps, and base-specific projection
+  shells.
 - One primary full-attention junction, with a second junction unavailable until
-    the recurrent design clears the early kill gate.
+  the recurrent design clears the early kill gate.
 - Four-variant paired evaluation and bootstrap confidence gating.
 - NF4/double-quant local configuration, staged token ceilings, learning-rate
-    selection, gradient accumulation, atomic resume checkpoints, and thermal
-    stop rules.
+  selection, gradient accumulation, atomic resume checkpoints, and thermal
+  stop rules.
 - Content-addressed authorized shards under ignored `build/` storage, ten-group
-    governance, and repo/issue/task/commit/patch/text contamination checks.
+  governance, and repo/issue/task/commit/patch/text contamination checks.
 - SQLite/FTS5 event, knowledge, lineage, and meta-memory with reversible
-    suppression and hard erasure that revokes affected adapters.
+  suppression and hard erasure that revokes affected adapters.
 - Signed local repository/tool scopes and unconditional sole-operator denial of
-    deployment, spending, public communication, credentials, destructive
-    operations, privilege changes, and self-modification.
+  deployment, spending, public communication, credentials, destructive
+  operations, privilege changes, and self-modification.
+- The complete training launch surface: pinned 2B model cache with verified
+  snapshot receipts, a no-gradient dry run with parity/latency/FLOPs gates,
+  live telemetry and schema-valid run manifests, exact optimizer-boundary
+  checkpoint/resume, a hash-verifying single-document data loader, the
+  preflight-first gated runner, claim-bounded evaluation and reports, the
+  `python -m pneuma_lab.foundation` CLI (fourteen commands with strict
+  command separation), an authorized-only cloud reproduction bundle behind a
+  hard budget quote gate, and the drift-checked operator guide
+  `START-HERE-TRAINING.md`.
+
+## Launch runbook
+
+`START-HERE-TRAINING.md` at the repository root is the operator runbook. Every
+fenced command in it is validated against the real CLI by
+`python -m pneuma_lab.foundation.operator_guide START-HERE-TRAINING.md`, and
+its final checklist item — the actual `train` command — stays unchecked until
+the operator deliberately runs it. The canonical launch truth lives in
+`docs/project-status.json` under `foundation_training_launch`
+(`training_status: not_started`, `optimizer_steps: 0`).
 
 ## Current authorization truth
 
@@ -62,16 +81,16 @@ each capped at 8 MiB before parsing.
 
 ## WSL2 environment
 
-The official Qwen3.5 model card currently requires Transformers from its main
-branch. Install the local foundation extra in WSL2, then install the current
-Transformers main branch in the same environment:
+The environment is fully pinned (uv 0.11.28, Python 3.12, `uv.lock`, and
+Transformers at commit `11ed2ff4df5fdfb3117f0e3365ef6ad94081ba69` per the
+Qwen3.5 model card). The setup script installs it and runs the doctor; it can
+neither authorize nor train:
 
 ```bash
 wsl -d Ubuntu
-python -m venv .venv
+cd /mnt/c/pneuma-lab
+bash scripts/foundation/setup-wsl.sh
 source .venv/bin/activate
-pip install -e ".[dev,foundation]"
-pip install "transformers @ git+https://github.com/huggingface/transformers.git@main"
 python -m pneuma_lab.foundation doctor
 ```
 

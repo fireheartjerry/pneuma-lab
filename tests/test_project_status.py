@@ -342,3 +342,14 @@ def test_project_status_tracks_local_foundation_tooling_without_training_claim()
     assert program["runtime_status"] == "not_promoted"
     assert program["default_paid_compute_usd"] == 0
     assert program["cloud_lifetime_cap_usd"] == 45
+
+
+def test_project_status_keeps_training_unstarted() -> None:
+    manifest = status.load_manifest()
+    launch = manifest["foundation_training_launch"]
+    assert launch["tooling"] == "implemented"
+    assert launch["training_status"] == "not_started"
+    assert launch["optimizer_steps"] == 0
+    assert launch["cloud_resources_created"] == 0
+    assert launch["paid_compute_usd"] == 0
+    assert launch["authorization_state"] == "exact_operator_authorization_required"
