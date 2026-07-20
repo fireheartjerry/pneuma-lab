@@ -215,7 +215,7 @@ def _metadata_rows(
     allow_unretained_fields: bool = False,
 ) -> tuple[dict, ...]:
     rows = []
-    source_ids: set[str] = set()
+    retained_by_source_id: dict[str, dict] = {}
     for line_number, raw_line in enumerate(stream, start=1):
         if not isinstance(raw_line, bytes):
             raise ContaminationIndexError(
@@ -227,11 +227,18 @@ def _metadata_rows(
             allow_unretained_fields=allow_unretained_fields,
         )
         source_id = row["source_id"]
-        if source_id in source_ids:
-            raise ContaminationIndexError(
-                f"duplicate evaluation source_id: {source_id}"
-            )
-        source_ids.add(source_id)
+        seen = retained_by_source_id.get(source_id)
+        if seen is not None:
+            # Corpus mirrors legitimately repeat a task across dataset
+            # variants (for example SWE-bench full and SWE-bench Lite); a
+            # repeat is tolerated only when every retained identity field
+            # is byte-identical, and the identity is kept once.
+            if seen != row:
+                raise ContaminationIndexError(
+                    f"conflicting duplicate evaluation source_id: {source_id}"
+                )
+            continue
+        retained_by_source_id[source_id] = row
         rows.append(row)
     if not rows:
         raise ContaminationIndexError(
@@ -323,12 +330,12 @@ def load_required_eval_identities(
             ) from exc
         file_identity = (metadata.st_dev, metadata.st_ino)
         if identity in paths or file_identity in file_identities:
-            raise ContaminationIndexError("evaluation identity index paths are duplicated")
+            raise ContaminationIndexError(
+                "evaluation identity index paths are duplicated"
+            )
         paths.add(identity)
         file_identities.add(file_identity)
-        result.extend(
-            iter_eval_metadata_identities(path, family, EVAL_METADATA_FIELDS)
-        )
+        result.extend(iter_eval_metadata_identities(path, family, EVAL_METADATA_FIELDS))
     return tuple(result)
 
 
@@ -344,9 +351,7 @@ def _policy_source_path(policy: Mapping, family: str) -> str:
         if isinstance(item, Mapping) and item.get("family") == family
     ]
     if len(matches) != 1:
-        raise ContaminationIndexError(
-            f"suite policy must define {family} exactly once"
-        )
+        raise ContaminationIndexError(f"suite policy must define {family} exactly once")
     relative = matches[0].get("identity_metadata_relative_path")
     if not isinstance(relative, str) or not relative:
         raise ContaminationIndexError(

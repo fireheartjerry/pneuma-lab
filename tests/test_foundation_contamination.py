@@ -1324,3 +1324,31 @@ def test_eval_identity_index_rejects_source_duplicate_members(
             allowed_fields=EVAL_METADATA_FIELDS,
         )
     assert not output.exists()
+
+
+def test_eval_identity_index_deduplicates_identical_variant_repeats(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "swe-bench.jsonl"
+    row = '{"base_commit":"a","repo":"o/r","source_id":"o__r-123"}\n'
+    path.write_text(row + row, encoding="utf-8")
+    identities = tuple(
+        iter_eval_metadata_identities(path, "swe-bench", EVAL_METADATA_FIELDS)
+    )
+    assert len(identities) == 1
+    assert identities[0].task_id == "o__r-123"
+
+
+def test_eval_identity_index_rejects_conflicting_duplicate_source_ids(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "swe-bench.jsonl"
+    path.write_text(
+        '{"base_commit":"a","repo":"o/r","source_id":"o__r-123"}\n'
+        '{"base_commit":"b","repo":"o/r","source_id":"o__r-123"}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ContaminationIndexError, match="conflicting duplicate"):
+        tuple(
+            iter_eval_metadata_identities(path, "swe-bench", EVAL_METADATA_FIELDS)
+        )
