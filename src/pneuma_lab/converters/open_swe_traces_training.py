@@ -28,10 +28,16 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
+from typing import BinaryIO
 
 from pneuma_lab.estimators.features import FEATURE_EXTRACTOR_VERSION, agentFrames
+from pneuma_lab.foundation.artifacts import (
+    ArtifactPublicationError,
+    bind_artifact_publication,
+    write_atomic_bytes,
+)
 from pneuma_lab.governance import open_swe_traces as governance
 from pneuma_lab.schemas import load_schema
 
@@ -70,6 +76,9 @@ FORBIDDEN_INPUT_PATH_PARTS = ("swe-chat", "/raw/", "\\raw\\")
 FORBIDDEN_OUTPUT_ROOT = Path("C:/pneuma-data")
 # Raw/target-bearing tokens that must never appear in an example ``input`` block.
 FORBIDDEN_INPUT_KEYS = set(governance.BLOCKED_FIELD_TOKENS)
+TRACE_SCHEMA = "pneuma-trace.schema.json"
+ADAPTER_REPORT_SCHEMA_VERSION = "0.1.0"
+_TRACE_VALIDATOR = None
 
 
 def _short_hash(value: str) -> str:
@@ -82,6 +91,225 @@ def _canonical_json(value: dict) -> str:
 
 def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _strict_json_loads(payload: bytes, *, label: str):
+    def reject_duplicate_members(pairs):
+        value = {}
+        for name, member in pairs:
+            if name in value:
+                raise ValueError(f"{label} has duplicate JSON member: {name}")
+            value[name] = member
+        return value
+
+    def reject_constant(constant: str):
+        raise ValueError(f"{label} has non-finite JSON constant: {constant}")
+
+    try:
+        return json.loads(
+            payload,
+            object_pairs_hook=reject_duplicate_members,
+            parse_constant=reject_constant,
+        )
+    except ValueError:
+        raise
+    except (json.JSONDecodeError, RecursionError, UnicodeError) as exc:
+        raise ValueError(f"{label} must be strict JSON") from exc
+
+
+def _require_mapping(value, *, field: str) -> Mapping:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{field} must be a mapping")
+    return value
+
+
+def _require_mapping_list(value, *, field: str) -> list[Mapping]:
+    if not isinstance(value, list) or not all(
+        isinstance(item, Mapping) for item in value
+    ):
+        raise ValueError(f"{field} must be a list of mappings")
+    return value
+
+
+def _validate_trace_boundaries(trace: Mapping, *, index: int) -> dict:
+    try:
+        json.dumps(trace, allow_nan=False)
+    except (TypeError, ValueError, OverflowError, RecursionError) as exc:
+        raise ValueError(f"trace {index} must be finite canonical JSON") from exc
+    global _TRACE_VALIDATOR
+    if Draft202012Validator is None:
+        raise RuntimeError("jsonschema is required for verified trace validation")
+    if _TRACE_VALIDATOR is None:
+        _TRACE_VALIDATOR = Draft202012Validator(load_schema(TRACE_SCHEMA))
+    errors = sorted(
+        _TRACE_VALIDATOR.iter_errors(dict(trace)),
+        key=lambda error: list(error.absolute_path),
+    )
+    if errors:
+        error = errors[0]
+        path = ".".join(str(part) for part in error.absolute_path) or "<root>"
+        raise ValueError(f"trace {index} schema is invalid at {path}: {error.message}")
+    trace_id = trace.get("trace_id")
+    if not isinstance(trace_id, str) or not trace_id:
+        raise ValueError(f"trace {index}.trace_id must be a nonempty string")
+    labels = _require_mapping(trace.get("labels"), field=f"trace {index}.labels")
+    outcome = _require_mapping(
+        trace.get("outcome"),
+        field=f"trace {index}.outcome",
+    )
+    provenance = _require_mapping(
+        trace.get("provenance"),
+        field=f"trace {index}.provenance",
+    )
+    build = _require_mapping(trace.get("build"), field=f"trace {index}.build")
+    trajectory = _require_mapping(
+        trace.get("trajectory"),
+        field=f"trace {index}.trajectory",
+    )
+    frames = _require_mapping_list(
+        trace.get("frames"),
+        field=f"trace {index}.frames",
+    )
+    if not frames:
+        raise ValueError(f"trace {index}.frames must not be empty")
+    for field, value in (
+        ("labels.repo_digest", labels.get("repo_digest")),
+        ("labels.instance_id_digest", labels.get("instance_id_digest")),
+        ("labels.trajectory_id_digest", labels.get("trajectory_id_digest")),
+        ("labels.source_group", labels.get("source_group")),
+        ("provenance.source_id", provenance.get("source_id")),
+        ("build.content_hash", build.get("content_hash")),
+    ):
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"trace {index}.{field} must be a nonempty string")
+    for field, value in (
+        ("labels.resolved", labels.get("resolved")),
+        ("outcome.resolved", outcome.get("resolved")),
+    ):
+        if type(value) is not bool:
+            raise ValueError(f"trace {index}.{field} must be a bool")
+    for field in ("num_agent_steps", "num_messages"):
+        value = trajectory.get(field)
+        if type(value) is not int or value < 0:
+            raise ValueError(
+                f"trace {index}.trajectory.{field} must be a nonnegative integer"
+            )
+    for frame_index, frame in enumerate(frames):
+        frame_kind = frame.get("frame_kind")
+        if not isinstance(frame_kind, str) or not frame_kind:
+            raise ValueError(
+                f"trace {index}.frames[{frame_index}].frame_kind is invalid"
+            )
+        if frame_kind == "world":
+            _require_mapping(
+                frame.get("objective"),
+                field=f"trace {index}.frames[{frame_index}].objective",
+            )
+            _require_mapping(
+                frame.get("repo_state"),
+                field=f"trace {index}.frames[{frame_index}].repo_state",
+            )
+        if frame_kind == "agent_trace":
+            tool_calls = _require_mapping_list(
+                frame.get("tool_calls"),
+                field=f"trace {index}.frames[{frame_index}].tool_calls",
+            )
+            observations = _require_mapping_list(
+                frame.get("observations"),
+                field=f"trace {index}.frames[{frame_index}].observations",
+            )
+            for tool_index, tool_call in enumerate(tool_calls):
+                tool = tool_call.get("tool")
+                if not isinstance(tool, str) or not tool:
+                    raise ValueError(
+                        f"trace {index}.frames[{frame_index}].tool_calls"
+                        f"[{tool_index}].tool must be a nonempty string"
+                    )
+            for observation_index, observation in enumerate(observations):
+                error_marker = observation.get("error_marker")
+                if type(error_marker) is not bool:
+                    raise ValueError(
+                        f"trace {index}.frames[{frame_index}].observations"
+                        f"[{observation_index}].error_marker must be a bool"
+                    )
+    return dict(trace)
+
+
+def _validate_adapter_report(report: Mapping) -> dict:
+    try:
+        json.dumps(report, allow_nan=False)
+    except (TypeError, ValueError, OverflowError, RecursionError) as exc:
+        raise ValueError("adapter report must be finite canonical JSON") from exc
+    if report.get("adapter_report_schema_version") != ADAPTER_REPORT_SCHEMA_VERSION:
+        raise ValueError(
+            "adapter report adapter_report_schema_version must be "
+            f"{ADAPTER_REPORT_SCHEMA_VERSION}"
+        )
+    adapter = _require_mapping(report.get("adapter"), field="adapter report adapter")
+    if adapter.get("name") != "open-swe-traces":
+        raise ValueError("adapter report adapter.name must be open-swe-traces")
+    if report.get("dataset") != DATASET_ID:
+        raise ValueError(f"adapter report dataset must be {DATASET_ID}")
+    if report.get("dataset_family") != DATASET_FAMILY:
+        raise ValueError(f"adapter report dataset_family must be {DATASET_FAMILY}")
+    counts = _require_mapping(report.get("counts"), field="adapter report counts")
+    trajectory = _require_mapping(
+        report.get("trajectory"),
+        field="adapter report trajectory",
+    )
+    privacy = _require_mapping(
+        report.get("privacy"),
+        field="adapter report privacy",
+    )
+    for field in ("source_rows", "traces_emitted", "valid", "invalid", "skipped"):
+        value = counts.get(field)
+        if type(value) is not int or value < 0:
+            raise ValueError(f"adapter report counts.{field} is invalid")
+    for field in ("resolved_false", "resolved_true", "total_agent_steps"):
+        value = trajectory.get(field)
+        if type(value) is not int or value < 0:
+            raise ValueError(f"adapter report trajectory.{field} is invalid")
+    for field in (
+        "raw_identifiers_in_frames_or_labels",
+        "raw_patch_text_embedded",
+        "raw_trajectory_text_embedded",
+    ):
+        if privacy.get(field) is not False:
+            raise ValueError(f"adapter report privacy.{field} must be false")
+    return dict(report)
+
+
+def parse_verified_trace_stream(stream: BinaryIO) -> tuple[dict, ...]:
+    """Parse strict JSONL from the already-authorized binary stream."""
+
+    traces = []
+    for line_number, raw_line in enumerate(stream, start=1):
+        if not isinstance(raw_line, bytes):
+            raise ValueError("verified trace stream must yield bytes")
+        if not raw_line.strip():
+            raise ValueError(f"verified trace line {line_number} must not be blank")
+        value = _strict_json_loads(
+            raw_line,
+            label=f"verified trace line {line_number}",
+        )
+        if not isinstance(value, Mapping):
+            raise ValueError(f"verified trace line {line_number} must be an object")
+        traces.append(_validate_trace_boundaries(value, index=line_number - 1))
+    if not traces:
+        raise ValueError("verified trace stream must contain at least one trace")
+    return tuple(traces)
+
+
+def parse_verified_adapter_report_stream(stream: BinaryIO) -> dict:
+    """Parse one strict adapter report from its authorized binary stream."""
+
+    payload = stream.read()
+    if not isinstance(payload, bytes):
+        raise ValueError("verified adapter-report stream must yield bytes")
+    value = _strict_json_loads(payload, label="verified adapter report")
+    if not isinstance(value, Mapping):
+        raise ValueError("verified adapter report must be an object")
+    return _validate_adapter_report(value)
 
 
 def _resolved_label(trace: dict) -> bool:
@@ -830,6 +1058,105 @@ def run_full_conversion(
     }
 
 
+def run_verified_stream_conversion(
+    traces: Iterable[Mapping],
+    adapter_report: Mapping,
+    *,
+    repo_root: Path,
+    data_root: Path,
+    output_root: Path,
+) -> dict:
+    """Convert parsed verified-stream values and publish one atomic output set."""
+
+    validated_values = []
+    for index, trace in enumerate(traces):
+        if not isinstance(trace, Mapping):
+            raise ValueError(f"trace {index} must be a mapping")
+        validated_values.append(_validate_trace_boundaries(trace, index=index))
+    validated_traces = tuple(validated_values)
+    if not validated_traces:
+        raise ValueError("at least one verified trace is required")
+    validated_report = _validate_adapter_report(adapter_report)
+    manifest_ref = "full/hash_manifest.json"
+    adapter_report_ref = "verified-stream:adapter_report.json"
+    examples = convert_traces(
+        validated_traces,
+        adapter_report_ref=adapter_report_ref,
+        manifest_ref=manifest_ref,
+    )
+    validate_training_examples(examples)
+    invalid_records: list[dict] = []
+    examples_text = _jsonl_bytes(examples)
+    invalid_text = ""
+    output_hashes = {
+        "examples_jsonl_sha256": _sha256_text(examples_text),
+        "invalid_examples_jsonl_sha256": _sha256_text(invalid_text),
+    }
+    report = build_conversion_report(
+        mode=FULL_MODE,
+        input_path="verified-stream:pneuma_traces.jsonl",
+        adapter_report_path=adapter_report_ref,
+        adapter_report=validated_report,
+        limit=None,
+        traces_read=len(validated_traces),
+        agent_steps=sum(_trace_agent_steps(trace) for trace in validated_traces),
+        examples=examples,
+        invalid_records=invalid_records,
+        output_hashes=output_hashes,
+    )
+    if not report["count_reconciliation"]["reconciled"]:
+        raise ValueError("verified conversion does not reconcile with adapter report")
+    report_text = _canonical_json(report) + "\n"
+    manifest = build_hash_manifest(
+        mode=FULL_MODE,
+        examples_text=examples_text,
+        invalid_text=invalid_text,
+        report_text=report_text,
+        limit=None,
+        input_path="verified-stream:pneuma_traces.jsonl",
+        adapter_report_path=adapter_report_ref,
+    )
+    manifest["hashes"]["hash_manifest_json_sha256"] = _sha256_text(
+        _canonical_json(manifest) + "\n"
+    )
+    manifest_text = _canonical_json(manifest) + "\n"
+
+    output_root = Path(output_root)
+    paths = {
+        "examples": output_root / "examples.jsonl",
+        "invalid_examples": output_root / "invalid_examples.jsonl",
+        "report": output_root / "conversion_report.json",
+        "hash_manifest": output_root / "hash_manifest.json",
+    }
+    try:
+        with bind_artifact_publication(
+            output_root,
+            anchor_root=Path(repo_root),
+            allowed_root=Path(repo_root) / "build",
+            forbidden_roots=(Path(data_root),),
+        ) as publication:
+            for name, payload in (
+                ("examples", examples_text.encode("utf-8")),
+                ("invalid_examples", invalid_text.encode("utf-8")),
+                ("report", report_text.encode("utf-8")),
+                ("hash_manifest", manifest_text.encode("utf-8")),
+            ):
+                write_atomic_bytes(
+                    paths[name],
+                    payload,
+                    publication=publication,
+                )
+    except ArtifactPublicationError as exc:
+        raise ValueError(f"verified conversion publication failed: {exc}") from exc
+    return {
+        "examples": examples,
+        "invalid_records": invalid_records,
+        "report": report,
+        "hash_manifest": manifest,
+        "paths": {name: str(path) for name, path in paths.items()},
+    }
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m pneuma_lab.converters.open_swe_traces_training"
@@ -902,10 +1229,13 @@ __all__ = [
     "convert_trace",
     "convert_traces",
     "main",
+    "parse_verified_adapter_report_stream",
+    "parse_verified_trace_stream",
     "read_bounded_trace_lines",
     "read_bounded_traces",
     "run_bounded_sample_conversion",
     "run_full_conversion",
+    "run_verified_stream_conversion",
     "validate_no_forbidden_input_keys",
     "validate_training_examples",
 ]
