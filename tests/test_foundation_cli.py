@@ -733,3 +733,15 @@ def test_cli_help_never_imports_the_model_stack() -> None:
         timeout=120,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_run_directories_are_distinct_per_learning_rate(tmp_path: Path) -> None:
+    from pneuma_lab.foundation.cli import _run_directory
+
+    paths = {
+        _run_directory(tmp_path, "100k", rate) for rate in (5e-5, 1e-4, 2e-4)
+    }
+    assert len(paths) == 3
+    assert all(path.parent == tmp_path / "build" / "foundation" / "runs" for path in paths)
+    with pytest.raises(ValueError, match="approved"):
+        _run_directory(tmp_path, "100k", 3e-4)

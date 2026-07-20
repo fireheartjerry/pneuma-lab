@@ -435,6 +435,23 @@ def _run_prepare(args: argparse.Namespace) -> dict:
     return payload
 
 
+_LEARNING_RATE_NAMES = {5e-5: "5e-5", 1e-4: "1e-4", 2e-4: "2e-4"}
+
+
+def _run_directory(repo_root: Path, stage: str, learning_rate: float) -> Path:
+    """One run directory per stage and learning rate.
+
+    The runner treats ``run_root`` as the run directory itself, and the
+    run id excludes the learning rate, so the three per-rate smoke runs
+    would otherwise overwrite one another's manifests and checkpoints.
+    """
+
+    rate_name = _LEARNING_RATE_NAMES.get(learning_rate)
+    if rate_name is None:
+        raise ValueError(f"learning rate has no approved run name: {learning_rate}")
+    return repo_root / "build" / "foundation" / "runs" / f"{stage}-{rate_name}"
+
+
 def _foundation_run_request(
     args: argparse.Namespace,
     *,
@@ -450,7 +467,7 @@ def _foundation_run_request(
         registry_path=repo_root / _REGISTRY_RELATIVE,
         suite_path=repo_root / _SUITE_RELATIVE,
         cache_root=repo_root / "build" / "foundation" / "cache",
-        run_root=repo_root / "build" / "foundation" / "runs",
+        run_root=_run_directory(repo_root, stage, learning_rate),
         stage=stage,
         learning_rate=learning_rate,
         execution_profile=args.profile,

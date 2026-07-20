@@ -557,6 +557,12 @@ def _resume_bindings(
     )
 
 
+def _model_device(model):
+    for parameter in model.parameters():
+        return parameter.device
+    return None
+
+
 def _run_id(preflight: FoundationPreflightResult) -> str:
     scope = preflight.authorization.manifest["scope"]
     return f"foundation-{scope['stage']}-{preflight.authorization.scope_digest[:16]}"
@@ -754,6 +760,7 @@ def execute_safe_boundary_loop(
         shared_core=installed.shared_core,
         gradient_accumulation=accumulation,
     )
+    device = _model_device(installed.model)
     modules = _trainable_modules(installed)
     bindings = _resume_bindings(request, preflight)
     manager = CheckpointManager(_checkpoint_root(request))
@@ -843,15 +850,23 @@ def execute_safe_boundary_loop(
             for index in window:
                 effective = apply_verified_authorization(dataset[index], authorization)
                 batch = collator([effective])
+                # The collator builds CPU tensors; the quantized base lives on
+                # the CUDA device, so every batch tensor moves once here.
                 step = loop.train_microbatch(
                     model_inputs={
-                        "input_ids": batch.input_ids,
-                        "attention_mask": batch.attention_mask,
-                        "labels": batch.labels,
+                        "input_ids": batch.input_ids.to(device),
+                        "attention_mask": batch.attention_mask.to(device),
+                        "labels": batch.labels.to(device),
                     },
-                    forecast_targets=batch.forecast_targets,
-                    forecast_masks=batch.forecast_masks,
-                    effective_weight=batch.effective_weight,
+                    forecast_targets={
+                        name: value.to(device)
+                        for name, value in batch.forecast_targets.items()
+                    },
+                    forecast_masks={
+                        name: value.to(device)
+                        for name, value in batch.forecast_masks.items()
+                    },
+                    effective_weight=batch.effective_weight.to(device),
                     document_count=batch.document_count,
                 )
                 window_tokens += token_counts[index]
