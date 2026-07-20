@@ -68,19 +68,14 @@ STAGE_TOKEN_CEILINGS = {
     "32m": 32_000_000,
 }
 
-_REGISTRY_RELATIVE_PATH = Path(
-    "docs/data/training-readiness/dataset-registry.json"
-)
+_REGISTRY_RELATIVE_PATH = Path("docs/data/training-readiness/dataset-registry.json")
 _SUITE_RELATIVE_PATH = Path(
     "docs/data/training-readiness/pneuma-foundation-v0-suite.json"
 )
 _LICENSE_RELATIVE_PATH = Path(
-    "docs/data/license-receipts/"
-    "swe-gym-openhands-sampled.local-research.json"
+    "docs/data/license-receipts/swe-gym-openhands-sampled.local-research.json"
 )
-_TRACE_RELATIVE_PATH = Path(
-    "processed/swe-gym/openhands-sampled/pneuma_traces.jsonl"
-)
+_TRACE_RELATIVE_PATH = Path("processed/swe-gym/openhands-sampled/pneuma_traces.jsonl")
 _ADAPTER_REPORT_RELATIVE_PATH = Path(
     "processed/swe-gym/openhands-sampled/adapter_report.json"
 )
@@ -272,9 +267,7 @@ def _family_metadata_snapshot(data_root: Path, family: str) -> dict:
     entries = [_metadata_entry(family_root, family_root=family_root)]
 
     def walk_error(exc: OSError) -> None:
-        raise ValueError(
-            f"governed family metadata walk failed: {family}"
-        ) from exc
+        raise ValueError(f"governed family metadata walk failed: {family}") from exc
 
     for directory, subdirectories, files in os.walk(
         family_root,
@@ -320,12 +313,9 @@ def _family_metadata_snapshot(data_root: Path, family: str) -> dict:
 
 def _all_ten_metadata_snapshot(registry: Mapping, data_root: Path) -> dict:
     families = tuple(
-        _family_metadata_snapshot(data_root, family)
-        for family in ACTIVE_DATASET_GROUPS
+        _family_metadata_snapshot(data_root, family) for family in ACTIVE_DATASET_GROUPS
     )
-    family_hashes = {
-        item["family"]: item["metadata_sha256"] for item in families
-    }
+    family_hashes = {item["family"]: item["metadata_sha256"] for item in families}
     lanes = registry.get("lanes")
     if not isinstance(lanes, list) or not lanes:
         raise ValueError("canonical registry lanes are unavailable")
@@ -451,7 +441,9 @@ def _issue_suffix(source_id: str) -> str | None:
     return match.group(1) if match is not None else None
 
 
-def _identities_from_rows(family: str, rows: Iterable[Mapping]) -> tuple[IdentityRecord, ...]:
+def _identities_from_rows(
+    family: str, rows: Iterable[Mapping]
+) -> tuple[IdentityRecord, ...]:
     return tuple(
         IdentityRecord(
             family=family,
@@ -597,10 +589,13 @@ def _canonical_repo_key(repo: object) -> str:
 
 
 def _split_from_canonical_repo(canonical_repo: str) -> str:
-    bucket = int(
-        hashlib.sha256(canonical_repo.encode("utf-8")).hexdigest()[:8],
-        16,
-    ) % 100
+    bucket = (
+        int(
+            hashlib.sha256(canonical_repo.encode("utf-8")).hexdigest()[:8],
+            16,
+        )
+        % 100
+    )
     if bucket < 80:
         return "train"
     if bucket < 90:
@@ -608,7 +603,14 @@ def _split_from_canonical_repo(canonical_repo: str) -> str:
     return "held_out"
 
 
-def _split_assignments(examples: Iterable[Mapping]) -> tuple[dict, ...]:
+EVAL_REPO_QUARANTINE_ID = "eval-repo-overlap"
+
+
+def _split_assignments(
+    examples: Iterable[Mapping],
+    *,
+    quarantined_repos: frozenset[str] = frozenset(),
+) -> tuple[dict, ...]:
     assignments = []
     repository_splits: dict[str, str] = {}
     for example in examples:
@@ -629,10 +631,30 @@ def _split_assignments(examples: Iterable[Mapping]) -> tuple[dict, ...]:
                 "repo": repo,
                 "canonical_repo": canonical_repo,
                 "split_id": split_id,
-                "quarantine_id": None,
+                "quarantine_id": (
+                    EVAL_REPO_QUARANTINE_ID
+                    if canonical_repo in quarantined_repos
+                    else None
+                ),
             }
         )
     return tuple(assignments)
+
+
+def _eval_overlap_quarantine(
+    eval_identities: Iterable["IdentityRecord"],
+) -> frozenset[str]:
+    """Canonical repos shared with any evaluation identity, per the
+    cross-dataset leakage registry rule: overlapping repositories are
+    quarantined out of the training selection rather than trained on."""
+
+    keys = set()
+    for identity in eval_identities:
+        repo = identity.repo
+        if not isinstance(repo, str) or not repo.strip():
+            continue
+        keys.add(_canonical_repo_key(repo))
+    return frozenset(keys)
 
 
 def _build_split_receipt(assignments: Iterable[Mapping]) -> dict:
@@ -759,9 +781,7 @@ def _result_paths(
         diversity_receipt_path=output_root / "diversity_receipt.json",
         selection_receipt_path=output_root / "selection_receipt.json",
         conversion_examples_path=conversion_root / "examples.jsonl",
-        conversion_invalid_examples_path=(
-            conversion_root / "invalid_examples.jsonl"
-        ),
+        conversion_invalid_examples_path=(conversion_root / "invalid_examples.jsonl"),
         conversion_report_path=conversion_root / "conversion_report.json",
         conversion_hash_manifest_path=conversion_root / "hash_manifest.json",
         eval_identity_paths={
@@ -769,9 +789,7 @@ def _result_paths(
             for family in eval_families
         },
         authorization_candidate_path=(
-            repo_root
-            / "build/foundation/authorizations/candidates"
-            / f"{stage}.json"
+            repo_root / "build/foundation/authorizations/candidates" / f"{stage}.json"
         ),
     )
 
@@ -791,9 +809,7 @@ def _task7_tokenizer_snapshot_path(repo_root: Path, snapshot: Path) -> Path:
     try:
         relative = candidate.relative_to(root)
     except ValueError as exc:
-        raise ValueError(
-            "tokenizer snapshot must be under repository build/"
-        ) from exc
+        raise ValueError("tokenizer snapshot must be under repository build/") from exc
     expected_suffix = ("models", "2b", MODEL_SPECS["2b"].revision)
     if (
         len(relative.parts) < 5
@@ -850,6 +866,7 @@ def select_complete_records(
             for record in values
             if (
                 record["split"]["split_id"] == "train"
+                and record["split"]["quarantine_id"] is None
                 and record["disposition"]["terminal_role"] == "train"
                 and record["disposition"]["gradient_eligibility"]
                 in {"first_stage", "later"}
@@ -868,12 +885,12 @@ def select_complete_records(
             None,
         )
         if anchor is None:
-            raise ValueError("train records must include resolved and unresolved labels")
+            raise ValueError(
+                "train records must include resolved and unresolved labels"
+            )
         anchors.append(anchor)
     selected_ids = {record["record_id"] for record in anchors}
-    total_tokens = sum(
-        record["tokenization"]["total_tokens"] for record in anchors
-    )
+    total_tokens = sum(record["tokenization"]["total_tokens"] for record in anchors)
     if total_tokens > token_ceiling:
         raise ValueError("resolved/unresolved anchors exceed the token ceiling")
     for record in train:
@@ -905,9 +922,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
     ):
         if not path.is_absolute():
             raise ValueError(f"{label} must be absolute")
-    expected_output_root = (
-        repo_root / "build/foundation/preparation" / request.stage
-    )
+    expected_output_root = repo_root / "build/foundation/preparation" / request.stage
     if Path(os.path.abspath(output_root)) != Path(
         os.path.abspath(expected_output_root)
     ):
@@ -943,18 +958,15 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
     )
     if registry_findings:
         raise ValueError(
-            "canonical dataset registry is invalid: "
-            + "; ".join(registry_findings)
+            "canonical dataset registry is invalid: " + "; ".join(registry_findings)
         )
     suite_policy = load_suite_policy(repo_root / _SUITE_RELATIVE_PATH)
     validate_suite_policy(suite_policy, registry)
     suite_report = build_suite_completeness_report(suite_policy, data_root)
     families = suite_report.get("families")
-    if (
-        not isinstance(families, list)
-        or [item.get("family") for item in families]
-        != list(ACTIVE_DATASET_GROUPS)
-    ):
+    if not isinstance(families, list) or [
+        item.get("family") for item in families
+    ] != list(ACTIVE_DATASET_GROUPS):
         raise ValueError("all ten governed dataset families must be represented")
     all_ten_before = _all_ten_metadata_snapshot(registry, data_root)
     all_ten_present = all_ten_before["complete"] is True
@@ -1027,9 +1039,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         eval_relative_paths[family] = relative_path
         identities = _identities_from_rows(family, rows)
         if not identities:
-            raise ValueError(
-                f"required evaluation identity family is empty: {family}"
-            )
+            raise ValueError(f"required evaluation identity family is empty: {family}")
         planned_eval_identities.extend(identities)
     source_before = sorted(source_before, key=lambda item: item["relative_path"])
 
@@ -1045,7 +1055,10 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
             )
         )
     )
-    assignments = _split_assignments(bundle["examples"])
+    assignments = _split_assignments(
+        bundle["examples"],
+        quarantined_repos=_eval_overlap_quarantine(planned_eval_identities),
+    )
     records = _render_records(
         bundle["examples"],
         assignments,
@@ -1066,15 +1079,15 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         or contamination_receipt["finding_count"] != 0
         or contamination_receipt["repo_issue_disjoint"] is not True
     ):
-        raise ValueError("foundation selection is contaminated or eval coverage is incomplete")
+        raise ValueError(
+            "foundation selection is contaminated or eval coverage is incomplete"
+        )
     diversity_receipt = {
         "manifest_kind": "pneuma_foundation_diversity_receipt",
         "manifest_schema_version": "0.1.0",
         **build_diversity_inventory(selected),
     }
-    selected_tokens = sum(
-        record["tokenization"]["total_tokens"] for record in selected
-    )
+    selected_tokens = sum(record["tokenization"]["total_tokens"] for record in selected)
     tokenizer_recount_total = sum(
         len(
             tokenizer.encode(
@@ -1104,12 +1117,10 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         "selected_token_count": selected_tokens,
         "tokenizer_recount_total": tokenizer_recount_total,
         "resolved_count": sum(
-            record["observations"]["labels"]["resolved"] is True
-            for record in selected
+            record["observations"]["labels"]["resolved"] is True for record in selected
         ),
         "unresolved_count": sum(
-            record["observations"]["labels"]["resolved"] is False
-            for record in selected
+            record["observations"]["labels"]["resolved"] is False for record in selected
         ),
         "persisted_training_weight": 0.0,
     }
@@ -1273,7 +1284,9 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
 
     source_after = source_after_snapshot()
     if source_before != source_after:
-        raise ValueError("protected source metadata or hashes changed during preparation")
+        raise ValueError(
+            "protected source metadata or hashes changed during preparation"
+        )
     all_ten_after = _all_ten_metadata_snapshot(registry, data_root)
     if all_ten_before != all_ten_after:
         raise ValueError("all-ten governed source metadata changed during preparation")
@@ -1312,16 +1325,10 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
     receipt_payloads = {
         "suite_report.json": _pretty_json_bytes(suite_report),
         "license_receipt.json": license_bytes,
-        "source_presence_receipt.json": _pretty_json_bytes(
-            source_presence_receipt
-        ),
-        "source_integrity_receipt.json": _pretty_json_bytes(
-            source_integrity_receipt
-        ),
+        "source_presence_receipt.json": _pretty_json_bytes(source_presence_receipt),
+        "source_integrity_receipt.json": _pretty_json_bytes(source_integrity_receipt),
         "split_receipt.json": _pretty_json_bytes(split_receipt),
-        "contamination_receipt.json": _pretty_json_bytes(
-            contamination_receipt
-        ),
+        "contamination_receipt.json": _pretty_json_bytes(contamination_receipt),
         "diversity_receipt.json": _pretty_json_bytes(diversity_receipt),
         "selection_receipt.json": _pretty_json_bytes(selection_receipt),
     }
@@ -1354,15 +1361,9 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
             },
             "eval_identities": {
                 family: {
-                    "path": eval_index_paths[family]
-                    .relative_to(repo_root)
-                    .as_posix(),
-                    "sha256": eval_index_payloads[
-                        eval_index_paths[family]
-                    ].sha256,
-                    "size": eval_index_payloads[
-                        eval_index_paths[family]
-                    ].size,
+                    "path": eval_index_paths[family].relative_to(repo_root).as_posix(),
+                    "sha256": eval_index_payloads[eval_index_paths[family]].sha256,
+                    "size": eval_index_payloads[eval_index_paths[family]].size,
                 }
                 for family in required_families
             },

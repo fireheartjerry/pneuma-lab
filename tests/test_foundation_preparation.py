@@ -1183,3 +1183,63 @@ def test_preparation_module_has_no_training_execution_dependencies() -> None:
         "load_local_qwen",
     ):
         assert forbidden not in source
+
+
+def test_split_assignments_quarantine_eval_overlapping_repos() -> None:
+    from pneuma_lab.foundation import preparation
+
+    examples = (
+        {"example_id": "keep-1", "split_group": {"repo": "safe-org/safe-repo"}},
+        {"example_id": "drop-1", "split_group": {"repo": "Shared-Org/Shared-Repo"}},
+    )
+    assignments = preparation._split_assignments(
+        examples,
+        quarantined_repos=frozenset({"shared-org/shared-repo"}),
+    )
+    by_id = {item["record_source_id"]: item for item in assignments}
+    assert by_id["keep-1"]["quarantine_id"] is None
+    assert by_id["drop-1"]["quarantine_id"] == preparation.EVAL_REPO_QUARANTINE_ID
+
+
+def test_eval_overlap_quarantine_uses_canonical_repo_keys() -> None:
+    from pneuma_lab.foundation import preparation
+    from pneuma_lab.foundation.contamination import IdentityRecord
+
+    identities = (
+        IdentityRecord(
+            "swe-bench",
+            "swe-bench",
+            "Shared-Org/Shared-Repo ",
+            "1",
+            "t-1",
+            None,
+            None,
+            None,
+            None,
+        ),
+        IdentityRecord(
+            "swe-bench",
+            "swe-bench",
+            None,
+            "2",
+            "t-2",
+            None,
+            None,
+            None,
+            None,
+        ),
+    )
+    assert preparation._eval_overlap_quarantine(identities) == frozenset(
+        {"shared-org/shared-repo"}
+    )
+
+
+def test_selection_excludes_quarantined_records() -> None:
+    from pneuma_lab.foundation import preparation
+    from pneuma_lab.foundation.preparation import select_complete_records
+
+    records = _foundation_records()
+    for record in records:
+        record["split"]["quarantine_id"] = preparation.EVAL_REPO_QUARANTINE_ID
+    with pytest.raises(ValueError, match="resolved and unresolved"):
+        select_complete_records(records, token_ceiling=100_000)
