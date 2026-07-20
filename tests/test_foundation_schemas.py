@@ -34,7 +34,7 @@ def test_pending_foundation_authorization_is_schema_valid_and_non_authorizing() 
 
 def test_foundation_authorization_schema_requires_exact_nested_scope() -> None:
     schema = pls.load_schema("foundation-training-authorization.schema.json")
-    assert schema["x-pneuma-version"] == "0.2.0"
+    assert schema["x-pneuma-version"] == "0.3.0"
     assert schema["additionalProperties"] is False
     scope = schema["$defs"]["scope"]
     assert scope["additionalProperties"] is False

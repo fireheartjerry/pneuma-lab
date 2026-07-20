@@ -146,13 +146,25 @@ _SOURCE_POLICY = {
     "write_allowed": False,
     "private_cloud_transfer": False,
 }
+_CLOUD_SOURCE_POLICY = {
+    "root": "bundle://authorized-shard",
+    "write_allowed": False,
+    "private_cloud_transfer": False,
+    "private_cloud_transfer_allowed": True,
+}
+_CLOUD_BUDGET_KEYS = {
+    "paid_compute_usd",
+    "paid_compute_ceiling_usd",
+    "cloud_jobs_used",
+    "cloud_job_ceiling",
+    "cloud_lifetime_cap_usd",
+}
+_LOCAL_GATE_REPORT_SIZE_CEILING = 4 * 1024 * 1024
 _OUTPUT_ROOT = "build/foundation/runs/"
 _PROTECTED_DATA_ROOT = Path(r"C:\pneuma-data")
 _COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
-_UTC_PATTERN = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$"
-)
+_UTC_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$")
 _MIB = 1024 * 1024
 _GIB = 1024 * _MIB
 _AUTHORIZATION_MANIFEST_SIZE_CEILING = 8 * _MIB
@@ -193,10 +205,7 @@ def _artifact_size_limits(
         max(4 * _MIB, token_ceiling * 64),
     )
     limits.update(
-        {
-            f"{_EVAL_PAYLOAD_PREFIX}{family}": eval_limit
-            for family in eval_families
-        }
+        {f"{_EVAL_PAYLOAD_PREFIX}{family}": eval_limit for family in eval_families}
     )
     # Strict JSON/JSONL materialization can transiently amplify held bytes by
     # roughly 8x. Keep the aggregate under 2 GiB so parsing remains bounded
@@ -263,9 +272,7 @@ def _validated_json_value(value: Any, *, path: str = "scope") -> Any:
         return value
     if isinstance(value, float):
         if not math.isfinite(value):
-            raise FoundationAuthorizationError(
-                f"{path} JSON number must be finite"
-            )
+            raise FoundationAuthorizationError(f"{path} JSON number must be finite")
         return value
     if isinstance(value, list):
         return [
@@ -320,8 +327,14 @@ def _strict_json_bytes(payload: bytes, *, label: str) -> dict:
             object_pairs_hook=_strict_pairs,
             parse_constant=_reject_constant,
         )
-    except (UnicodeDecodeError, json.JSONDecodeError, FoundationAuthorizationError) as exc:
-        raise FoundationAuthorizationError(f"cannot load strict JSON {label}: {exc}") from exc
+    except (
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        FoundationAuthorizationError,
+    ) as exc:
+        raise FoundationAuthorizationError(
+            f"cannot load strict JSON {label}: {exc}"
+        ) from exc
     if not isinstance(value, dict):
         raise FoundationAuthorizationError(f"expected JSON object: {label}")
     return value
@@ -351,11 +364,7 @@ def _strict_jsonl_records(payload: bytes, *, label: str) -> tuple[dict, ...]:
 
 
 def _is_exact_positive_zero(value: Any) -> bool:
-    return (
-        type(value) is float
-        and value == 0.0
-        and math.copysign(1.0, value) > 0
-    )
+    return type(value) is float and value == 0.0 and math.copysign(1.0, value) > 0
 
 
 def _require_digest(value: Any, *, label: str) -> str:
@@ -398,7 +407,9 @@ def _canonical_record_digest(record: Mapping) -> str:
 def _absolute_lexical(path: Path) -> Path:
     candidate = Path(path)
     if ".." in candidate.parts:
-        raise FoundationAuthorizationError("authorization path contains parent traversal")
+        raise FoundationAuthorizationError(
+            "authorization path contains parent traversal"
+        )
     if not candidate.is_absolute():
         candidate = Path.cwd() / candidate
     return Path(os.path.abspath(candidate))
@@ -582,9 +593,7 @@ def _hold_artifacts(
     build_root = root / "build"
     held: dict[str, _HeldArtifact] = {}
     forbidden_roots = (
-        (_PROTECTED_DATA_ROOT,)
-        if _PROTECTED_DATA_ROOT.is_absolute()
-        else ()
+        (_PROTECTED_DATA_ROOT,) if _PROTECTED_DATA_ROOT.is_absolute() else ()
     )
     try:
         with ExitStack() as stack:
@@ -622,7 +631,13 @@ def _hold_artifacts(
             yield held
     except FoundationAuthorizationError:
         raise
-    except (ArtifactPublicationError, OSError, RuntimeError, TypeError, ValueError) as exc:
+    except (
+        ArtifactPublicationError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:
         raise FoundationAuthorizationError(f"artifact binding failed: {exc}") from exc
 
 
@@ -668,16 +683,22 @@ def current_clean_code_commit(repo_root: Path) -> str:
         raise FoundationAuthorizationError("current git commit is not a full SHA-1")
     status = _git(root, "status", "--porcelain", "--untracked-files=all")
     if status:
-        raise FoundationAuthorizationError("foundation authorization requires a clean git checkout")
+        raise FoundationAuthorizationError(
+            "foundation authorization requires a clean git checkout"
+        )
     return commit
 
 
 def _validate_commit_binding(repo_root: Path, code_commit: str) -> None:
     if not isinstance(code_commit, str) or not _COMMIT_PATTERN.fullmatch(code_commit):
-        raise FoundationAuthorizationError("code_commit must be a full lowercase git SHA-1")
+        raise FoundationAuthorizationError(
+            "code_commit must be a full lowercase git SHA-1"
+        )
     current = current_clean_code_commit(repo_root)
     if not hmac.compare_digest(current, code_commit):
-        raise FoundationAuthorizationError("code_commit differs from the current clean checkout")
+        raise FoundationAuthorizationError(
+            "code_commit differs from the current clean checkout"
+        )
 
 
 def _validate_manifest(manifest: Mapping) -> None:
@@ -685,7 +706,9 @@ def _validate_manifest(manifest: Mapping) -> None:
         load_schema("foundation-training-authorization.schema.json"),
         format_checker=FormatChecker(),
     )
-    errors = sorted(validator.iter_errors(dict(manifest)), key=lambda error: list(error.path))
+    errors = sorted(
+        validator.iter_errors(dict(manifest)), key=lambda error: list(error.path)
+    )
     if errors:
         detail = "; ".join(
             f"{'.'.join(str(part) for part in error.path) or '<root>'}: {error.message}"
@@ -724,9 +747,8 @@ def _evidence_paths_from_preparation(preparation: Any) -> dict[str, Path]:
         if not isinstance(eval_paths, Mapping) or not eval_paths:
             raise TypeError("evaluation identity paths are incomplete")
         for family, path in eval_paths.items():
-            if (
-                not isinstance(family, str)
-                or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", family)
+            if not isinstance(family, str) or not re.fullmatch(
+                r"[a-z0-9][a-z0-9-]*", family
             ):
                 raise TypeError("evaluation identity family is invalid")
             paths[f"{_EVAL_PAYLOAD_PREFIX}{family}"] = Path(path)
@@ -754,13 +776,11 @@ def _flatten_scope_bindings(scope: Mapping) -> dict[str, Mapping]:
     ):
         raise _coherence_error("scope evidence artifact bindings are incomplete")
     flattened = {
-        _CONVERSION_PAYLOAD_NAMES[name]: binding
-        for name, binding in conversion.items()
+        _CONVERSION_PAYLOAD_NAMES[name]: binding for name, binding in conversion.items()
     }
     for family, binding in eval_identities.items():
-        if (
-            not isinstance(family, str)
-            or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", family)
+        if not isinstance(family, str) or not re.fullmatch(
+            r"[a-z0-9][a-z0-9-]*", family
         ):
             raise _coherence_error("scope evaluation identity family is invalid")
         flattened[f"{_EVAL_PAYLOAD_PREFIX}{family}"] = binding
@@ -794,25 +814,25 @@ def _validate_exact_preparation_paths(
     }
     for name, filename in expected_direct.items():
         if _absolute_lexical(paths[name]) != preparation_root / filename:
-            raise FoundationAuthorizationError(
-                f"preparation {name} path is not exact"
-            )
+            raise FoundationAuthorizationError(f"preparation {name} path is not exact")
     shard_root = preparation_root / "shards"
     if (
         _absolute_lexical(paths["shard"].parent) != shard_root
         or _absolute_lexical(paths["shard_manifest"].parent) != shard_root
     ):
-        raise FoundationAuthorizationError(
-            "preparation shard paths are not exact"
-        )
+        raise FoundationAuthorizationError("preparation shard paths are not exact")
     for name in _CONVERSION_ARTIFACT_FIELDS:
         key = _CONVERSION_PAYLOAD_NAMES[name]
-        expected = preparation_root / "conversion" / {
-            "examples": "examples.jsonl",
-            "invalid_examples": "invalid_examples.jsonl",
-            "conversion_report": "conversion_report.json",
-            "hash_manifest": "hash_manifest.json",
-        }[name]
+        expected = (
+            preparation_root
+            / "conversion"
+            / {
+                "examples": "examples.jsonl",
+                "invalid_examples": "invalid_examples.jsonl",
+                "conversion_report": "conversion_report.json",
+                "hash_manifest": "hash_manifest.json",
+            }[name]
+        )
         if _absolute_lexical(evidence_paths[key]) != expected:
             raise FoundationAuthorizationError(
                 f"preparation conversion {name} path is not exact"
@@ -834,8 +854,7 @@ def _validate_exact_preparation_paths(
                 f"preparation evaluation identity {family} path is not exact"
             )
     normalized = tuple(
-        _absolute_lexical(path)
-        for path in (*paths.values(), *evidence_paths.values())
+        _absolute_lexical(path) for path in (*paths.values(), *evidence_paths.values())
     )
     if len(normalized) != len(set(normalized)):
         raise FoundationAuthorizationError(
@@ -902,19 +921,15 @@ def _validate_preparation_coherence_unchecked(
     if scope.get("token_ceiling") != token_ceiling:
         raise _coherence_error("scope stage and token ceiling differ")
     if (
-        preparation.get("manifest_kind")
-        != "pneuma_foundation_preparation_manifest"
+        preparation.get("manifest_kind") != "pneuma_foundation_preparation_manifest"
         or preparation.get("manifest_schema_version") != "0.1.0"
         or preparation.get("stage") != stage
         or preparation.get("token_ceiling") != token_ceiling
         or preparation.get("dry_run") is not False
         or preparation.get("dataset_suite") != "all_ten_governed_groups"
-        or preparation.get("gradient_lane")
-        != "swe-gym-openhands-sampled"
+        or preparation.get("gradient_lane") != "swe-gym-openhands-sampled"
         or preparation.get("training_authorized") is not False
-        or not _is_exact_positive_zero(
-            preparation.get("persisted_training_weight")
-        )
+        or not _is_exact_positive_zero(preparation.get("persisted_training_weight"))
     ):
         raise _coherence_error("preparation scope fields are not exact")
 
@@ -942,13 +957,14 @@ def _validate_preparation_coherence_unchecked(
         or scoped_tokenizer.get("receipt_sha256") != tokenizer_receipt_digest
         or scoped_tokenizer.get("snapshot_sha256") != tokenizer_snapshot_digest
     ):
-        raise _coherence_error(
-            "scope tokenizer snapshot differs from preparation"
-        )
+        raise _coherence_error("scope tokenizer snapshot differs from preparation")
 
     receipt_digests = preparation.get("receipt_sha256")
     expected_receipt_names = set(_RECEIPT_FILENAMES.values())
-    if not isinstance(receipt_digests, Mapping) or set(receipt_digests) != expected_receipt_names:
+    if (
+        not isinstance(receipt_digests, Mapping)
+        or set(receipt_digests) != expected_receipt_names
+    ):
         raise _coherence_error("preparation receipt digest map is not exact")
     for binding_name, filename in _RECEIPT_FILENAMES.items():
         expected = _require_digest(
@@ -966,9 +982,8 @@ def _validate_preparation_coherence_unchecked(
     ):
         raise _coherence_error("generated artifact digest groups are incomplete")
     conversion = generated["conversion"]
-    if (
-        not isinstance(conversion, Mapping)
-        or set(conversion) != set(_CONVERSION_ARTIFACT_FIELDS)
+    if not isinstance(conversion, Mapping) or set(conversion) != set(
+        _CONVERSION_ARTIFACT_FIELDS
     ):
         raise _coherence_error("generated conversion digest map is incomplete")
     eval_digests = generated["eval_identities"]
@@ -981,9 +996,8 @@ def _validate_preparation_coherence_unchecked(
             raise _coherence_error("generated evaluation binding is invalid")
 
     source_receipt_hashes = preparation.get("source_receipt_hashes")
-    if (
-        not isinstance(source_receipt_hashes, list)
-        or source_receipt_hashes != sorted(set(source_receipt_hashes))
+    if not isinstance(source_receipt_hashes, list) or source_receipt_hashes != sorted(
+        set(source_receipt_hashes)
     ):
         raise _coherence_error("preparation source receipt hashes are not canonical")
     for digest in source_receipt_hashes:
@@ -1061,9 +1075,7 @@ def _validate_preparation_coherence_unchecked(
                 )
             )
         except Exception as exc:
-            raise _coherence_error(
-                f"pinned tokenizer recount failed: {exc}"
-            ) from exc
+            raise _coherence_error(f"pinned tokenizer recount failed: {exc}") from exc
         if prompt_tokens <= 0 or target_tokens <= 0:
             raise _coherence_error(
                 "pinned tokenizer recount produced an empty record component"
@@ -1090,16 +1102,14 @@ def _validate_preparation_coherence_unchecked(
         or shard_entry.get("artifact") != f"{shard_digest}.jsonl"
         or shard_entry.get("sha256") != shard_digest
         or shard_entry.get("example_count") != len(records)
-        or shard_entry.get("manifest_artifact")
-        != f"{shard_digest}.manifest.json"
+        or shard_entry.get("manifest_artifact") != f"{shard_digest}.manifest.json"
         or shard_manifest.get("manifest_kind") != "pneuma_foundation_shard"
         or shard_manifest.get("schema_version") != "0.1.0"
         or shard_manifest.get("sha256") != shard_digest
         or shard_manifest.get("example_count") != len(records)
         or shard_manifest.get("duplicate_example_ids") != []
         or shard_manifest.get("inventory") != expected_inventory
-        or shard_manifest.get("source_policy")
-        != "read_only_external_corpus"
+        or shard_manifest.get("source_policy") != "read_only_external_corpus"
         or shard_manifest.get("token_ceiling") != token_ceiling
         or expected_inventory["token_count"] > token_ceiling
         or recount_total > token_ceiling
@@ -1141,8 +1151,7 @@ def _validate_preparation_coherence_unchecked(
         or license_receipt.get("decision")
         != "local_research_candidate_no_redistribution"
         or license_receipt.get("cloud_redistribution_allowed") is not False
-        or license_receipt.get("requires_exact_operator_authorization")
-        is not True
+        or license_receipt.get("requires_exact_operator_authorization") is not True
     ):
         raise _coherence_error("license receipt does not permit exact local research")
 
@@ -1155,10 +1164,8 @@ def _validate_preparation_coherence_unchecked(
         or source_presence.get("before") != source_presence.get("after")
         or not isinstance(source_presence.get("before"), Mapping)
         or source_presence["before"].get("complete") is not True
-        or source_presence.get("families")
-        != source_presence["after"].get("families")
-        or source_presence.get("lanes")
-        != source_presence["after"].get("lanes")
+        or source_presence.get("families") != source_presence["after"].get("families")
+        or source_presence.get("lanes") != source_presence["after"].get("lanes")
     ):
         raise _coherence_error("source presence receipt contradicts all-ten gate")
 
@@ -1246,8 +1253,7 @@ def _validate_preparation_coherence_unchecked(
     )
     unresolved_examples = len(examples) - resolved_examples
     agent_steps = sum(
-        int(example["input"]["trajectory"]["num_agent_steps"])
-        for example in examples
+        int(example["input"]["trajectory"]["num_agent_steps"]) for example in examples
     )
     report_converter = conversion_report.get("converter")
     report_input = conversion_report.get("input")
@@ -1432,22 +1438,16 @@ def _validate_preparation_coherence_unchecked(
             raise _coherence_error("source integrity snapshot is malformed")
         snapshots_by_path[snapshot["relative_path"]] = snapshot
     if set(snapshots_by_path) != expected_source_paths:
-        raise _coherence_error(
-            "source integrity paths differ from authorized inputs"
-        )
+        raise _coherence_error("source integrity paths differ from authorized inputs")
     trace_snapshot = snapshots_by_path[_OPENHANDS_SOURCE_PATHS[0]]
     if not hmac.compare_digest(
         trace_snapshot["sha256"],
         report_source_hashes["traces_file_sha256"],
     ):
-        raise _coherence_error(
-            "conversion trace digest differs from source integrity"
-        )
+        raise _coherence_error("conversion trace digest differs from source integrity")
 
     manifest_hashes = hash_manifest.get("hashes")
-    report_read = bound_payloads[
-        _CONVERSION_PAYLOAD_NAMES["conversion_report"]
-    ]
+    report_read = bound_payloads[_CONVERSION_PAYLOAD_NAMES["conversion_report"]]
     if (
         set(hash_manifest)
         != {
@@ -1484,10 +1484,8 @@ def _validate_preparation_coherence_unchecked(
             "hash_manifest_json_sha256",
         }
         or manifest_hashes.get("examples_jsonl_sha256") != examples_read.sha256
-        or manifest_hashes.get("invalid_examples_jsonl_sha256")
-        != invalid_read.sha256
-        or manifest_hashes.get("conversion_report_json_sha256")
-        != report_read.sha256
+        or manifest_hashes.get("invalid_examples_jsonl_sha256") != invalid_read.sha256
+        or manifest_hashes.get("conversion_report_json_sha256") != report_read.sha256
     ):
         raise _coherence_error("conversion hash manifest differs from held bytes")
     self_digest = _require_digest(
@@ -1516,9 +1514,7 @@ def _validate_preparation_coherence_unchecked(
     if not isinstance(suite_evaluation, Mapping):
         raise _coherence_error("suite evaluation identity policy is missing")
     required_eval_families = suite_evaluation.get("required_families")
-    blocked_eval_families = suite_evaluation.get(
-        "blocked_unavailable_families"
-    )
+    blocked_eval_families = suite_evaluation.get("blocked_unavailable_families")
     if (
         required_eval_families != ["swe-bench", "swe-mera", "swe-polybench"]
         or blocked_eval_families != ["swe-bench-pro"]
@@ -1528,9 +1524,7 @@ def _validate_preparation_coherence_unchecked(
     eval_identities = []
     for family in required_eval_families:
         rows = _metadata_rows(
-            io.BytesIO(
-                bound_payloads[f"{_EVAL_PAYLOAD_PREFIX}{family}"].payload
-            )
+            io.BytesIO(bound_payloads[f"{_EVAL_PAYLOAD_PREFIX}{family}"].payload)
         )
         eval_identities.extend(
             IdentityRecord(
@@ -1598,15 +1592,13 @@ def _validate_preparation_coherence_unchecked(
         or contamination.get("finding_count") != 0
         or contamination.get("findings") != []
         or contamination.get("repo_issue_disjoint") is not True
-        or contamination.get("required_evaluation_families")
-        != required_eval_families
+        or contamination.get("required_evaluation_families") != required_eval_families
     ):
         raise _coherence_error("contamination receipt contradicts disjointness gates")
 
     diversity = parsed["diversity_receipt"]
     if (
-        diversity.get("manifest_kind")
-        != "pneuma_foundation_diversity_receipt"
+        diversity.get("manifest_kind") != "pneuma_foundation_diversity_receipt"
         or diversity.get("manifest_schema_version") != "0.1.0"
         or {
             key: value
@@ -1619,12 +1611,10 @@ def _validate_preparation_coherence_unchecked(
 
     selection = parsed["selection_receipt"]
     resolved_count = sum(
-        record["observations"]["labels"]["resolved"] is True
-        for record in records
+        record["observations"]["labels"]["resolved"] is True for record in records
     )
     if (
-        selection.get("manifest_kind")
-        != "pneuma_foundation_selection_receipt"
+        selection.get("manifest_kind") != "pneuma_foundation_selection_receipt"
         or selection.get("manifest_schema_version") != "0.1.0"
         or selection.get("stage") != stage
         or selection.get("token_ceiling") != token_ceiling
@@ -1636,17 +1626,14 @@ def _validate_preparation_coherence_unchecked(
         or selection.get("tokenizer_recount_total") != recount_total
         or selection.get("resolved_count") != resolved_count
         or selection.get("unresolved_count") != len(records) - resolved_count
-        or not _is_exact_positive_zero(
-            selection.get("persisted_training_weight")
-        )
+        or not _is_exact_positive_zero(selection.get("persisted_training_weight"))
     ):
         raise _coherence_error("selection receipt differs from shard records")
 
     split = parsed["split_receipt"]
     canonical_sets = split.get("canonical_repository_sets")
     if (
-        split.get("manifest_kind")
-        != "pneuma_foundation_repo_grouped_split_receipt"
+        split.get("manifest_kind") != "pneuma_foundation_repo_grouped_split_receipt"
         or split.get("manifest_schema_version") != "0.1.0"
         or split.get("repository_grouped") is not True
         or not isinstance(split.get("assignments"), list)
@@ -1700,10 +1687,13 @@ def _validate_preparation_coherence_unchecked(
             raise _coherence_error("split repository cannot be normalized") from exc
         if normalized_repo is None or normalized_repo != canonical_repo:
             raise _coherence_error("split canonical repository is not reproducible")
-        bucket = int(
-            hashlib.sha256(canonical_repo.encode("utf-8")).hexdigest()[:8],
-            16,
-        ) % 100
+        bucket = (
+            int(
+                hashlib.sha256(canonical_repo.encode("utf-8")).hexdigest()[:8],
+                16,
+            )
+            % 100
+        )
         expected_split = (
             "train" if bucket < 80 else "validation" if bucket < 90 else "held_out"
         )
@@ -1719,9 +1709,9 @@ def _validate_preparation_coherence_unchecked(
         raise _coherence_error(
             "conversion examples do not join exactly to split assignments"
         )
-    if {
-        name: sorted(values) for name, values in expected_sets.items()
-    } != dict(canonical_sets):
+    if {name: sorted(values) for name, values in expected_sets.items()} != dict(
+        canonical_sets
+    ):
         raise _coherence_error("split repository sets are not reproducible")
     for record in records:
         source_id = record["source"]["source_record_id"]
@@ -1796,7 +1786,9 @@ def build_authorization_candidate(
     root = _absolute_lexical(repo_root)
     _validate_commit_binding(root, code_commit)
     if model_key not in ("2b", "4b"):
-        raise FoundationAuthorizationError("only pinned 2b or 4b models may be authorized")
+        raise FoundationAuthorizationError(
+            "only pinned 2b or 4b models may be authorized"
+        )
     spec = MODEL_SPECS[model_key]
     snapshot_path = getattr(preparation, "tokenizer_snapshot_path", None)
     if not isinstance(snapshot_path, Path):
@@ -1886,12 +1878,16 @@ def build_authorization_candidate(
             or preparation_manifest.get("dry_run") is not False
             or preparation_manifest.get("token_ceiling") != token_ceiling
         ):
-            raise FoundationAuthorizationError("preparation manifest is not a zero-weight final plan")
+            raise FoundationAuthorizationError(
+                "preparation manifest is not a zero-weight final plan"
+            )
         if (
             selection_receipt.get("stage") != stage
             or selection_receipt.get("token_ceiling") != token_ceiling
         ):
-            raise FoundationAuthorizationError("selection receipt ceiling differs from preparation")
+            raise FoundationAuthorizationError(
+                "selection receipt ceiling differs from preparation"
+            )
         shard_entry = preparation_manifest.get("shard")
         if (
             not isinstance(shard_entry, Mapping)
@@ -1994,7 +1990,13 @@ def build_authorization_candidate(
             ) as publication:
                 write_atomic_json(candidate_path, candidate, publication=publication)
                 _revalidate_held(held)
-        except (ArtifactPublicationError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        except (
+            ArtifactPublicationError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
             raise FoundationAuthorizationError(
                 f"authorization candidate publication failed: {exc}"
             ) from exc
@@ -2005,7 +2007,9 @@ def required_approval_phrase(candidate: Mapping) -> str:
     """Return the exact phrase for a validated nonauthorizing candidate."""
 
     if not isinstance(candidate, Mapping):
-        raise FoundationAuthorizationError("approval phrase requires a candidate mapping")
+        raise FoundationAuthorizationError(
+            "approval phrase requires a candidate mapping"
+        )
     _validate_manifest(candidate)
     if candidate.get("authorization_status") != "candidate":
         raise FoundationAuthorizationError("approval phrase requires candidate status")
@@ -2022,13 +2026,18 @@ def _repo_from_authorization_path(path: Path) -> Path:
     for parent in candidate.parents:
         if parent.name == "build":
             return parent.parent
-    raise FoundationAuthorizationError("authorization path is outside a repository build tree")
+    raise FoundationAuthorizationError(
+        "authorization path is outside a repository build tree"
+    )
 
 
-def _require_exact_authorization_path(path: Path, *, repo_root: Path, status: str, stage: str) -> Path:
+def _require_exact_authorization_path(
+    path: Path, *, repo_root: Path, status: str, stage: str, cloud: bool = False
+) -> Path:
     folder = "candidates" if status == "candidate" else "final"
+    name = f"{stage}-cloud.json" if cloud else f"{stage}.json"
     expected = _absolute_lexical(
-        repo_root / f"build/foundation/authorizations/{folder}/{stage}.json"
+        repo_root / f"build/foundation/authorizations/{folder}/{name}"
     )
     actual = _absolute_lexical(path)
     if actual != expected:
@@ -2036,13 +2045,21 @@ def _require_exact_authorization_path(path: Path, *, repo_root: Path, status: st
     return actual
 
 
+def _is_cloud_scope(scope: Mapping) -> bool:
+    return isinstance(scope, Mapping) and scope.get("execution_profile") == "cloud"
+
+
 def _validated_utc_timestamp(value: str) -> str:
     if not isinstance(value, str) or not _UTC_PATTERN.fullmatch(value):
-        raise FoundationAuthorizationError("approved_at must be a strict UTC timestamp ending in Z")
+        raise FoundationAuthorizationError(
+            "approved_at must be a strict UTC timestamp ending in Z"
+        )
     try:
         parsed = datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
     except ValueError as exc:
-        raise FoundationAuthorizationError("approved_at is not a valid UTC timestamp") from exc
+        raise FoundationAuthorizationError(
+            "approved_at is not a valid UTC timestamp"
+        ) from exc
     if parsed.tzinfo != timezone.utc:
         raise FoundationAuthorizationError("approved_at must be UTC")
     return value
@@ -2101,13 +2118,17 @@ def finalize_authorization(
             supplied_approval_phrase,
             expected_phrase,
         ):
-            raise FoundationAuthorizationError("supplied approval phrase does not match")
+            raise FoundationAuthorizationError(
+                "supplied approval phrase does not match"
+            )
         if (
             not isinstance(operator_id, str)
             or not operator_id.strip()
             or operator_id != operator_id.strip()
         ):
-            raise FoundationAuthorizationError("operator_id must be a nonempty exact string")
+            raise FoundationAuthorizationError(
+                "operator_id must be a nonempty exact string"
+            )
         approved_at = _validated_utc_timestamp(approved_at)
         final = {
             "manifest_kind": candidate["manifest_kind"],
@@ -2138,7 +2159,13 @@ def finalize_authorization(
             ) as publication:
                 write_atomic_json(output_path, final, publication=publication)
                 _revalidate_held(held)
-        except (ArtifactPublicationError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        except (
+            ArtifactPublicationError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
             raise FoundationAuthorizationError(
                 f"final authorization publication failed: {exc}"
             ) from exc
@@ -2157,7 +2184,9 @@ def _assert_exact_scope(scope: Mapping, *, repo_root: Path) -> None:
         "tokenizer_id": spec.model_id,
         "tokenizer_revision": spec.revision,
     }:
-        raise FoundationAuthorizationError("authorization does not match the model/tokenizer pin")
+        raise FoundationAuthorizationError(
+            "authorization does not match the model/tokenizer pin"
+        )
     tokenizer_snapshot = scope.get("tokenizer_snapshot")
     if (
         not isinstance(tokenizer_snapshot, Mapping)
@@ -2190,7 +2219,9 @@ def _assert_exact_scope(scope: Mapping, *, repo_root: Path) -> None:
     if scope.get("token_ceiling") != _STAGE_TOKEN_CEILINGS[stage]:
         raise FoundationAuthorizationError("authorization stage and ceiling differ")
     if scope.get("local_profile") != _LOCAL_PROFILE:
-        raise FoundationAuthorizationError("authorization is not the exact local profile")
+        raise FoundationAuthorizationError(
+            "authorization is not the exact local profile"
+        )
     if scope.get("learning_rates") != [0.00005, 0.0001, 0.0002]:
         raise FoundationAuthorizationError("authorization learning-rate scope changed")
     if scope.get("authorized_lane_weights") != _AUTHORIZED_LANE_WEIGHTS:
@@ -2200,13 +2231,17 @@ def _assert_exact_scope(scope: Mapping, *, repo_root: Path) -> None:
     if scope.get("output_root") != _OUTPUT_ROOT:
         raise FoundationAuthorizationError("authorization output root changed")
     if scope.get("budget") != _BUDGET:
-        raise FoundationAuthorizationError("authorization budget must remain zero-paid local")
+        raise FoundationAuthorizationError(
+            "authorization budget must remain zero-paid local"
+        )
     _validate_commit_binding(repo_root, scope.get("code_commit"))
 
 
 def _deep_freeze(value: Any) -> Any:
     if isinstance(value, Mapping):
-        return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
+        return MappingProxyType(
+            {key: _deep_freeze(item) for key, item in value.items()}
+        )
     if isinstance(value, list):
         return tuple(_deep_freeze(item) for item in value)
     return value
@@ -2225,9 +2260,7 @@ def verify_foundation_authorization(
     root = _absolute_lexical(repo_root)
     path = _absolute_lexical(authorization_path)
     pending_template = _absolute_lexical(
-        root
-        / "docs/data/training-authorizations/"
-        "pneuma-foundation-v0.pending.json"
+        root / "docs/data/training-authorizations/pneuma-foundation-v0.pending.json"
     )
     if path == pending_template:
         raise FoundationAuthorizationError("foundation training is not authorized")
@@ -2235,9 +2268,7 @@ def verify_foundation_authorization(
         with _hold_artifacts(
             {"authorization": path},
             repo_root=root,
-            max_sizes={
-                "authorization": _AUTHORIZATION_MANIFEST_SIZE_CEILING
-            },
+            max_sizes={"authorization": _AUTHORIZATION_MANIFEST_SIZE_CEILING},
             max_total_size=_AUTHORIZATION_MANIFEST_SIZE_CEILING,
         ) as authorization_held:
             manifest = _strict_json_bytes(
@@ -2247,7 +2278,9 @@ def verify_foundation_authorization(
             _validate_manifest(manifest)
             status = manifest.get("authorization_status")
             if status != "authorized":
-                raise FoundationAuthorizationError("foundation training is not authorized")
+                raise FoundationAuthorizationError(
+                    "foundation training is not authorized"
+                )
             scope = manifest["scope"]
             stage = scope["stage"]
             _require_exact_authorization_path(
@@ -2260,16 +2293,22 @@ def verify_foundation_authorization(
             computed = authorization_scope_digest(scope)
             approval = manifest["operator_approval"]
             if not hmac.compare_digest(digest, computed):
-                raise FoundationAuthorizationError("authorization scope digest does not match")
+                raise FoundationAuthorizationError(
+                    "authorization scope digest does not match"
+                )
             if not hmac.compare_digest(approval["scope_digest"], digest):
-                raise FoundationAuthorizationError("operator scope digest does not match")
+                raise FoundationAuthorizationError(
+                    "operator scope digest does not match"
+                )
             phrase = f"{APPROVAL_PHRASE_PREFIX} {digest}"
             phrase_sha256 = hashlib.sha256(phrase.encode("utf-8")).hexdigest()
             if not hmac.compare_digest(
                 approval["approval_phrase_sha256"],
                 phrase_sha256,
             ):
-                raise FoundationAuthorizationError("operator approval phrase hash changed")
+                raise FoundationAuthorizationError(
+                    "operator approval phrase hash changed"
+                )
             if (
                 not isinstance(approval["operator_id"], str)
                 or not approval["operator_id"].strip()
@@ -2295,7 +2334,9 @@ def verify_foundation_authorization(
             )
             bindings = scope["artifacts"]
             if set(bindings) != set(_ARTIFACT_FIELDS):
-                raise FoundationAuthorizationError("authorization artifact set is incomplete")
+                raise FoundationAuthorizationError(
+                    "authorization artifact set is incomplete"
+                )
             paths = {
                 name: _path_from_binding(binding, repo_root=root)
                 for name, binding in bindings.items()
@@ -2339,10 +2380,7 @@ def verify_foundation_authorization(
                         )
                 record_membership = _validate_preparation_coherence(
                     scope,
-                    {
-                        name: item.read
-                        for name, item in artifact_held.items()
-                    },
+                    {name: item.read for name, item in artifact_held.items()},
                     tokenizer=tokenizer,
                 )
                 after_recount = _verify_authorization_snapshot(
@@ -2365,16 +2403,22 @@ def verify_foundation_authorization(
                     authorized_lane_weights=_deep_freeze(
                         copy.deepcopy(scope["authorized_lane_weights"])
                     ),
-                    authorized_record_membership=_deep_freeze(
-                        record_membership
-                    ),
+                    authorized_record_membership=_deep_freeze(record_membership),
                     scope_digest=digest,
                     manifest=frozen_manifest,
                 )
     except FoundationAuthorizationError:
         raise
-    except (ArtifactPublicationError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        raise FoundationAuthorizationError(f"authorization verification failed: {exc}") from exc
+    except (
+        ArtifactPublicationError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise FoundationAuthorizationError(
+            f"authorization verification failed: {exc}"
+        ) from exc
 
 
 def apply_verified_authorization(
@@ -2384,68 +2428,76 @@ def apply_verified_authorization(
     """Apply one in-memory lane weight without mutating the persisted record."""
 
     if not isinstance(authorization, VerifiedFoundationAuthorization):
-        raise FoundationAuthorizationError("a verified foundation authorization is required")
+        raise FoundationAuthorizationError(
+            "a verified foundation authorization is required"
+        )
     if not isinstance(record, Mapping):
         raise FoundationAuthorizationError("foundation record must be a mapping")
     weight = record.get("training_weight")
-    if (
-        type(weight) is not float
-        or weight != 0.0
-        or math.copysign(1.0, weight) < 0
-    ):
-        raise FoundationAuthorizationError("persisted training weight must be exactly +0.0")
+    if type(weight) is not float or weight != 0.0 or math.copysign(1.0, weight) < 0:
+        raise FoundationAuthorizationError(
+            "persisted training weight must be exactly +0.0"
+        )
     try:
         validate_foundation_record(record)
     except FoundationRecordError as exc:
-        raise FoundationAuthorizationError(f"foundation record is invalid: {exc}") from exc
+        raise FoundationAuthorizationError(
+            f"foundation record is invalid: {exc}"
+        ) from exc
     source = record.get("source")
     lane = source.get("lane_id") if isinstance(source, Mapping) else None
     if lane not in authorization.authorized_lane_weights:
-        raise FoundationAuthorizationError("foundation record lane is not exactly authorized")
+        raise FoundationAuthorizationError(
+            "foundation record lane is not exactly authorized"
+        )
     if lane != "swe-gym-openhands-sampled" or source.get("dataset_family") != "swe-gym":
-        raise FoundationAuthorizationError("foundation record lane is outside the exact scope")
+        raise FoundationAuthorizationError(
+            "foundation record lane is outside the exact scope"
+        )
     disposition = record.get("disposition")
     if (
         not isinstance(disposition, Mapping)
         or disposition.get("terminal_role") != "train"
         or disposition.get("gradient_eligibility") != "first_stage"
     ):
-        raise FoundationAuthorizationError("foundation record is not eligible for this lane")
+        raise FoundationAuthorizationError(
+            "foundation record is not eligible for this lane"
+        )
     rendered = record.get("rendered")
     target_text = rendered.get("target_text") if isinstance(rendered, Mapping) else None
     if not isinstance(target_text, str) or not target_text.strip():
-        raise FoundationAuthorizationError("foundation record target text must be nonempty")
-    forecasts = record.get("forecast_targets")
-    applicable = (
-        isinstance(forecasts, Mapping)
-        and any(
-            isinstance(target, Mapping)
-            and target.get("applicable") is True
-            and target.get("provenance") == "observed_outcome"
-            and isinstance(target.get("value"), (int, float))
-            and not isinstance(target.get("value"), bool)
-            and math.isfinite(target["value"])
-            for target in forecasts.values()
+        raise FoundationAuthorizationError(
+            "foundation record target text must be nonempty"
         )
+    forecasts = record.get("forecast_targets")
+    applicable = isinstance(forecasts, Mapping) and any(
+        isinstance(target, Mapping)
+        and target.get("applicable") is True
+        and target.get("provenance") == "observed_outcome"
+        and isinstance(target.get("value"), (int, float))
+        and not isinstance(target.get("value"), bool)
+        and math.isfinite(target["value"])
+        for target in forecasts.values()
     )
     if not applicable:
         raise FoundationAuthorizationError(
             "foundation record needs an applicable outcome-derived forecast"
         )
     record_id = record.get("record_id")
-    expected_record_digest = authorization.authorized_record_membership.get(
-        record_id
-    )
+    expected_record_digest = authorization.authorized_record_membership.get(record_id)
     actual_record_digest = _canonical_record_digest(record)
-    if (
-        not isinstance(expected_record_digest, str)
-        or not hmac.compare_digest(expected_record_digest, actual_record_digest)
+    if not isinstance(expected_record_digest, str) or not hmac.compare_digest(
+        expected_record_digest, actual_record_digest
     ):
         raise FoundationAuthorizationError(
             "foundation record is not an exact member of the authorized shard"
         )
     effective_weight = authorization.authorized_lane_weights[lane]
-    if type(effective_weight) is not float or effective_weight <= 0 or not math.isfinite(effective_weight):
+    if (
+        type(effective_weight) is not float
+        or effective_weight <= 0
+        or not math.isfinite(effective_weight)
+    ):
         raise FoundationAuthorizationError("authorized effective weight is invalid")
     try:
         return _make_effective_training_record(
