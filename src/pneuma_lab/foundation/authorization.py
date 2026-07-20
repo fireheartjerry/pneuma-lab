@@ -1575,6 +1575,7 @@ def _validate_preparation_coherence_unchecked(
                 "gradient_eligibility",
                 "payload_access_100k",
                 "payload_access_500k",
+                "payload_access_2m",
             )
         }
         if "identity_metadata_relative_path" in item:

@@ -3,11 +3,19 @@
     "manifest_schema_version": "0.1.0",
     "first_stage": {
         "stage": "100k",
-        "authorized_lane_candidates": ["swe-gym-openhands-sampled"]
+        "authorized_lane_candidates": [
+            "swe-gym-openhands-sampled"
+        ]
     },
     "evaluation_identity": {
-        "required_families": ["swe-bench", "swe-mera", "swe-polybench"],
-        "blocked_unavailable_families": ["swe-bench-pro"]
+        "required_families": [
+            "swe-bench",
+            "swe-mera",
+            "swe-polybench"
+        ],
+        "blocked_unavailable_families": [
+            "swe-bench-pro"
+        ]
     },
     "families": [
         {
@@ -15,21 +23,24 @@
             "terminal_role": "train",
             "gradient_eligibility": "later",
             "payload_access_100k": "metadata_only",
-            "payload_access_500k": "metadata_only"
+            "payload_access_500k": "metadata_only",
+            "payload_access_2m": "metadata_only"
         },
         {
             "family": "open-swe-traces",
             "terminal_role": "train",
             "gradient_eligibility": "later",
             "payload_access_100k": "metadata_only",
-            "payload_access_500k": "metadata_only"
+            "payload_access_500k": "metadata_only",
+            "payload_access_2m": "approved_processed_lane_only"
         },
         {
             "family": "sec-bench-pro",
             "terminal_role": "governance",
             "gradient_eligibility": "never",
             "payload_access_100k": "metadata_only",
-            "payload_access_500k": "metadata_only"
+            "payload_access_500k": "metadata_only",
+            "payload_access_2m": "metadata_only"
         },
         {
             "family": "swe-bench",
@@ -37,6 +48,7 @@
             "gradient_eligibility": "never",
             "payload_access_100k": "identity_metadata_only",
             "payload_access_500k": "identity_metadata_only",
+            "payload_access_2m": "identity_metadata_only",
             "identity_metadata_relative_path": "processed/swe-bench/normalized_metadata.jsonl"
         },
         {
@@ -44,28 +56,32 @@
             "terminal_role": "eval",
             "gradient_eligibility": "never",
             "payload_access_100k": "metadata_only",
-            "payload_access_500k": "metadata_only"
+            "payload_access_500k": "metadata_only",
+            "payload_access_2m": "metadata_only"
         },
         {
             "family": "swe-chat",
             "terminal_role": "governance",
             "gradient_eligibility": "never",
             "payload_access_100k": "metadata_only",
-            "payload_access_500k": "metadata_only"
+            "payload_access_500k": "metadata_only",
+            "payload_access_2m": "metadata_only"
         },
         {
             "family": "swe-evo",
             "terminal_role": "train",
             "gradient_eligibility": "later",
             "payload_access_100k": "metadata_only",
-            "payload_access_500k": "metadata_only"
+            "payload_access_500k": "metadata_only",
+            "payload_access_2m": "metadata_only"
         },
         {
             "family": "swe-gym",
             "terminal_role": "train",
             "gradient_eligibility": "first_stage",
             "payload_access_100k": "approved_processed_lane_only",
-            "payload_access_500k": "approved_processed_lane_only"
+            "payload_access_500k": "approved_processed_lane_only",
+            "payload_access_2m": "approved_processed_lane_only"
         },
         {
             "family": "swe-mera",
@@ -73,6 +89,7 @@
             "gradient_eligibility": "never",
             "payload_access_100k": "identity_metadata_only",
             "payload_access_500k": "identity_metadata_only",
+            "payload_access_2m": "identity_metadata_only",
             "identity_metadata_relative_path": "processed/swe-mera/normalized_metadata.jsonl"
         },
         {
@@ -81,6 +98,7 @@
             "gradient_eligibility": "later",
             "payload_access_100k": "identity_metadata_only",
             "payload_access_500k": "identity_metadata_only",
+            "payload_access_2m": "identity_metadata_only",
             "identity_metadata_relative_path": "processed/swe-polybench/normalized_metadata.jsonl"
         }
     ]

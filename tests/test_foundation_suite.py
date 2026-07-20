@@ -34,22 +34,66 @@ AUTHORITATIVE_PLAN = (
 )
 
 EXPECTED_FAMILY_MATRIX = {
-    "multi-swe-bench": ("train", "later", "metadata_only", "metadata_only", None),
-    "open-swe-traces": ("train", "later", "metadata_only", "metadata_only", None),
-    "sec-bench-pro": ("governance", "never", "metadata_only", "metadata_only", None),
+    "multi-swe-bench": (
+        "train",
+        "later",
+        "metadata_only",
+        "metadata_only",
+        "metadata_only",
+        None,
+    ),
+    "open-swe-traces": (
+        "train",
+        "later",
+        "metadata_only",
+        "metadata_only",
+        "approved_processed_lane_only",
+        None,
+    ),
+    "sec-bench-pro": (
+        "governance",
+        "never",
+        "metadata_only",
+        "metadata_only",
+        "metadata_only",
+        None,
+    ),
     "swe-bench": (
         "eval",
         "never",
         "identity_metadata_only",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-bench/normalized_metadata.jsonl",
     ),
-    "swe-bench-pro": ("eval", "never", "metadata_only", "metadata_only", None),
-    "swe-chat": ("governance", "never", "metadata_only", "metadata_only", None),
-    "swe-evo": ("train", "later", "metadata_only", "metadata_only", None),
+    "swe-bench-pro": (
+        "eval",
+        "never",
+        "metadata_only",
+        "metadata_only",
+        "metadata_only",
+        None,
+    ),
+    "swe-chat": (
+        "governance",
+        "never",
+        "metadata_only",
+        "metadata_only",
+        "metadata_only",
+        None,
+    ),
+    "swe-evo": (
+        "train",
+        "later",
+        "metadata_only",
+        "metadata_only",
+        "metadata_only",
+        None,
+    ),
     "swe-gym": (
         "train",
         "first_stage",
+        "approved_processed_lane_only",
         "approved_processed_lane_only",
         "approved_processed_lane_only",
         None,
@@ -59,11 +103,13 @@ EXPECTED_FAMILY_MATRIX = {
         "never",
         "identity_metadata_only",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-mera/normalized_metadata.jsonl",
     ),
     "swe-polybench": (
         "eval",
         "later",
+        "identity_metadata_only",
         "identity_metadata_only",
         "identity_metadata_only",
         "processed/swe-polybench/normalized_metadata.jsonl",
@@ -83,6 +129,7 @@ def _matrix_mutations() -> tuple[tuple[str, str, str], ...]:
         _gradient,
         _access,
         _access_500k,
+        _access_2m,
         identity_path,
     ) in EXPECTED_FAMILY_MATRIX.items():
         for field in (
@@ -90,6 +137,7 @@ def _matrix_mutations() -> tuple[tuple[str, str, str], ...]:
             "gradient_eligibility",
             "payload_access_100k",
             "payload_access_500k",
+            "payload_access_2m",
         ):
             for mutation in ("missing", "wrong_value", "wrong_type"):
                 cases.append((family, field, mutation))
@@ -107,6 +155,7 @@ def _wrong_value(field: str) -> str:
         "gradient_eligibility": "sometimes",
         "payload_access_100k": "payload_allowed",
         "payload_access_500k": "payload_allowed",
+        "payload_access_2m": "payload_allowed",
         "identity_metadata_relative_path": "processed/wrong/metadata.jsonl",
     }[field]
 
@@ -121,6 +170,11 @@ def _different_valid_value(field: str, current: str) -> str:
             "approved_processed_lane_only",
         ),
         "payload_access_500k": (
+            "metadata_only",
+            "identity_metadata_only",
+            "approved_processed_lane_only",
+        ),
+        "payload_access_2m": (
             "metadata_only",
             "identity_metadata_only",
             "approved_processed_lane_only",
@@ -439,6 +493,7 @@ def test_suite_requires_exact_family_policy_matrix(
             "gradient_eligibility",
             "payload_access_100k",
             "payload_access_500k",
+            "payload_access_2m",
         )
     ],
 )
@@ -814,9 +869,74 @@ def test_payload_opener_enforces_the_same_matrix_at_the_500k_stage(
             pytest.fail("denied payload must not be yielded")
 
 
+def test_payload_opener_opens_both_approved_lanes_at_the_2m_stage(
+    tmp_path: Path,
+) -> None:
+    policy = _suite_fixture()
+    openhands = _write_fixture(
+        tmp_path,
+        "processed/swe-gym/openhands-sampled/records.jsonl",
+    )
+    traces = _write_fixture(
+        tmp_path,
+        "processed/open-swe-traces/pneuma-trace/pneuma_traces.jsonl",
+    )
+    for family, lane_id, payload in (
+        ("swe-gym", "swe-gym-openhands-sampled", openhands),
+        ("open-swe-traces", "open-swe-traces", traces),
+    ):
+        with foundation_suite.open_authorized_payload(
+            policy,
+            stage="2m",
+            family=family,
+            lane_id=lane_id,
+            data_root=tmp_path,
+            path=payload,
+        ) as stream:
+            assert stream.read() == b"metadata-only test fixture"
+
+
+def test_payload_opener_denies_the_traces_lane_before_the_2m_stage(
+    tmp_path: Path,
+) -> None:
+    policy = _suite_fixture()
+    traces = _write_fixture(
+        tmp_path,
+        "processed/open-swe-traces/pneuma-trace/pneuma_traces.jsonl",
+    )
+    for stage in ("100k", "500k"):
+        with pytest.raises(SuitePolicyError, match="metadata-only"):
+            with foundation_suite.open_authorized_payload(
+                policy,
+                stage=stage,
+                family="open-swe-traces",
+                lane_id="open-swe-traces",
+                data_root=tmp_path,
+                path=traces,
+            ):
+                pytest.fail("denied payload must not be yielded")
+
+
+def test_payload_opener_keeps_2m_denials_for_unapproved_families(
+    tmp_path: Path,
+) -> None:
+    policy = _suite_fixture()
+    for family in ("multi-swe-bench", "swe-evo", "swe-chat", "sec-bench-pro"):
+        with pytest.raises(SuitePolicyError, match="metadata-only"):
+            with foundation_suite.open_authorized_payload(
+                policy,
+                stage="2m",
+                family=family,
+                lane_id=family,
+                data_root=tmp_path,
+                path=tmp_path / f"processed/{family}/records.jsonl",
+            ):
+                pytest.fail("denied payload must not be yielded")
+
+
 @pytest.mark.parametrize(
     ("stage", "family"),
-    [("1m", "swe-gym"), ("2m", "swe-gym"), ("100k", "unknown-family")],
+    [("1m", "swe-gym"), ("8m", "swe-gym"), ("100k", "unknown-family")],
 )
 def test_payload_opener_unknown_stage_or_family_fails_closed(
     tmp_path: Path,
@@ -1257,6 +1377,7 @@ def test_suite_report_schema_rejects_duplicate_family_and_extra_fields(
         ("swe-chat", "gradient_eligibility", "first_stage"),
         ("swe-chat", "payload_access_100k", "approved_processed_lane_only"),
         ("swe-chat", "payload_access_500k", "approved_processed_lane_only"),
+        ("swe-chat", "payload_access_2m", "approved_processed_lane_only"),
     ],
 )
 def test_suite_report_schema_pins_family_role_matrix(

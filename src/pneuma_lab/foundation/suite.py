@@ -39,30 +39,82 @@ class _TrustedPayload:
 
 
 # Each row: family, terminal_role, gradient_eligibility, payload access at
-# 100k, payload access at 500k, identity metadata path. The 500k smoke stage
-# deliberately reuses the exact first-stage access matrix: only the approved
-# swe-gym lane may open payloads and the "later" train families stay
-# metadata-only until their own readiness work lands. 2m-and-later stages
+# 100k, at 500k, at 2m, identity metadata path. The 500k smoke stage reuses
+# the exact first-stage access matrix. The 2m stage additionally opens the
+# approved open-swe-traces processed lane (its "later" gradient eligibility
+# becomes live), with the committed cross-dataset leakage registry governing
+# the overlap quarantine. multi-swe-bench and swe-evo stay metadata-only
+# until their own conversion lanes earn readiness. 8m-and-later stages
 # remain fail-closed until a payload_access_<stage> column exists.
 _EXPECTED_FAMILY_MATRIX = (
-    ("multi-swe-bench", "train", "later", "metadata_only", "metadata_only", None),
-    ("open-swe-traces", "train", "later", "metadata_only", "metadata_only", None),
-    ("sec-bench-pro", "governance", "never", "metadata_only", "metadata_only", None),
+    (
+        "multi-swe-bench",
+        "train",
+        "later",
+        "metadata_only",
+        "metadata_only",
+        "metadata_only",
+        None,
+    ),
+    (
+        "open-swe-traces",
+        "train",
+        "later",
+        "metadata_only",
+        "metadata_only",
+        "approved_processed_lane_only",
+        None,
+    ),
+    (
+        "sec-bench-pro",
+        "governance",
+        "never",
+        "metadata_only",
+        "metadata_only",
+        "metadata_only",
+        None,
+    ),
     (
         "swe-bench",
         "eval",
         "never",
         "identity_metadata_only",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-bench/normalized_metadata.jsonl",
     ),
-    ("swe-bench-pro", "eval", "never", "metadata_only", "metadata_only", None),
-    ("swe-chat", "governance", "never", "metadata_only", "metadata_only", None),
-    ("swe-evo", "train", "later", "metadata_only", "metadata_only", None),
+    (
+        "swe-bench-pro",
+        "eval",
+        "never",
+        "metadata_only",
+        "metadata_only",
+        "metadata_only",
+        None,
+    ),
+    (
+        "swe-chat",
+        "governance",
+        "never",
+        "metadata_only",
+        "metadata_only",
+        "metadata_only",
+        None,
+    ),
+    (
+        "swe-evo",
+        "train",
+        "later",
+        "metadata_only",
+        "metadata_only",
+        "metadata_only",
+        None,
+    ),
     (
         "swe-gym",
         "train",
         "first_stage",
+        "approved_processed_lane_only",
         "approved_processed_lane_only",
         "approved_processed_lane_only",
         None,
@@ -73,6 +125,7 @@ _EXPECTED_FAMILY_MATRIX = (
         "never",
         "identity_metadata_only",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-mera/normalized_metadata.jsonl",
     ),
     (
@@ -81,9 +134,23 @@ _EXPECTED_FAMILY_MATRIX = (
         "later",
         "identity_metadata_only",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-polybench/normalized_metadata.jsonl",
     ),
 )
+
+# The exact processed lane one family may open at an approved stage:
+# family -> (required lane_id, lexical lane root under the data root).
+_APPROVED_LANE_TABLE = {
+    "swe-gym": (
+        "swe-gym-openhands-sampled",
+        ("processed", "swe-gym", "openhands-sampled"),
+    ),
+    "open-swe-traces": (
+        "open-swe-traces",
+        ("processed", "open-swe-traces", "pneuma-trace"),
+    ),
+}
 _EXPECTED_POLICY_KEYS = {
     "manifest_kind",
     "manifest_schema_version",
@@ -203,13 +270,22 @@ def _validated_family_map(policy: Mapping) -> dict[str, Mapping]:
         raise SuitePolicyError("suite policy families must use documented order")
 
     for item, expected in zip(entries, _EXPECTED_FAMILY_MATRIX, strict=True):
-        family, role, gradient, access, access_500k, identity_path = expected
+        (
+            family,
+            role,
+            gradient,
+            access,
+            access_500k,
+            access_2m,
+            identity_path,
+        ) = expected
         expected_item = {
             "family": family,
             "terminal_role": role,
             "gradient_eligibility": gradient,
             "payload_access_100k": access,
             "payload_access_500k": access_500k,
+            "payload_access_2m": access_2m,
         }
         if identity_path is not None:
             expected_item["identity_metadata_relative_path"] = identity_path
@@ -271,20 +347,24 @@ def _validate_candidate_lane(registry: Mapping) -> None:
     lanes = registry.get("lanes")
     if not isinstance(lanes, list):
         raise SuitePolicyError("candidate lane requires a registry lanes list")
-    matches = []
+    matches: dict[str, list] = {
+        lane_id: [] for lane_id, _root in _APPROVED_LANE_TABLE.values()
+    }
     for lane in lanes:
         if not isinstance(lane, Mapping):
             raise SuitePolicyError("candidate lane registry entries must be objects")
         lane_id = lane.get("lane_id")
         source_family = lane.get("source_family")
-        if lane_id == _CANDIDATE_LANE_ID:
-            matches.append(lane)
+        if isinstance(lane_id, str) and lane_id in matches:
+            matches[lane_id].append(lane)
         elif not isinstance(lane_id, str) or not isinstance(source_family, str):
             raise SuitePolicyError("candidate lane registry structure is contradictory")
-    if len(matches) != 1 or matches[0].get("source_family") != "swe-gym":
-        raise SuitePolicyError(
-            "candidate lane must appear exactly once under the swe-gym family"
-        )
+    for family, (lane_id, _root) in _APPROVED_LANE_TABLE.items():
+        found = matches[lane_id]
+        if len(found) != 1 or found[0].get("source_family") != family:
+            raise SuitePolicyError(
+                f"candidate lane must appear exactly once under the {family} family"
+            )
 
 
 def _trusted_existing_file(
@@ -410,13 +490,13 @@ def _validate_payload_request(
         raise SuitePolicyError(f"unknown or unsupported suite stage: {stage!r}")
     relative_parts = _lexical_data_relative_parts(path)
 
-    approved_root = ("processed", "swe-gym", "openhands-sampled")
+    lane_spec = _APPROVED_LANE_TABLE.get(family)
     approved_lane = (
         access == "approved_processed_lane_only"
-        and family == "swe-gym"
-        and lane_id == "swe-gym-openhands-sampled"
+        and lane_spec is not None
+        and lane_id == lane_spec[0]
         and relative_parts is not None
-        and relative_parts[:3] == approved_root
+        and relative_parts[: len(lane_spec[1])] == lane_spec[1]
     )
     identity_path = item.get("identity_metadata_relative_path")
     identity_metadata = (
@@ -428,14 +508,11 @@ def _validate_payload_request(
     if not (approved_lane or identity_metadata):
         raise SuitePolicyError(f"{family} is metadata-only for stage {stage}")
     if approved_lane:
+        assert lane_spec is not None
         return _trusted_existing_file(
             data_root=data_root,
             path=path,
-            allowed_relative_root=(
-                "processed",
-                "swe-gym",
-                "openhands-sampled",
-            ),
+            allowed_relative_root=lane_spec[1],
             exact=False,
         )
     return _trusted_existing_file(
@@ -606,6 +683,7 @@ def build_suite_completeness_report(policy: Mapping, data_root: Path) -> dict:
         gradient,
         access,
         access_500k,
+        access_2m,
         identity_path,
     ) in _EXPECTED_FAMILY_MATRIX:
         report_item = {
@@ -614,6 +692,7 @@ def build_suite_completeness_report(policy: Mapping, data_root: Path) -> dict:
             "gradient_eligibility": gradient,
             "payload_access_100k": access,
             "payload_access_500k": access_500k,
+            "payload_access_2m": access_2m,
             **asdict(probe_family_presence(data_root, family)),
         }
         if identity_path is not None:
