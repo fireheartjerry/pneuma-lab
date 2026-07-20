@@ -308,7 +308,14 @@ def _artifact_size_limits(
         "source_integrity_receipt": 16 * _MIB,
         "shard": max(4 * _MIB, token_ceiling * 96),
         "shard_manifest": 8 * _MIB,
-        "split_receipt": max(4 * _MIB, token_ceiling * 16),
+        # Split assignments scale with the converted-lane example count,
+        # not the stage token ceiling: the full Open-SWE-Traces lane alone
+        # contributes ~161k assignments (~67 MiB measured at 2m).
+        "split_receipt": (
+            max(4 * _MIB, token_ceiling * 16)
+            if stage in _SINGLE_LANE_STAGES
+            else 256 * _MIB
+        ),
         "contamination_receipt": 16 * _MIB,
         "diversity_receipt": 8 * _MIB,
         "selection_receipt": 8 * _MIB,
@@ -318,12 +325,12 @@ def _artifact_size_limits(
         limits["leakage_receipt"] = 4 * _MIB
     # Conversion always renders the full approved lane before stage
     # selection, so the examples payload scales with the lane (about
-    # 16 MiB for the 6k-trace OpenHands-Sampled lane and a few hundred
-    # MiB for the full Open-SWE-Traces lane), not with the stage token
-    # ceiling.
+    # 16 MiB for the 6k-trace OpenHands-Sampled lane and ~554 MiB
+    # measured for the full 161k-trace Open-SWE-Traces lane), not with
+    # the stage token ceiling.
     for lane_id in lane_ids:
         limits[_conversion_payload_name(stage, lane_id, "examples")] = max(
-            256 * _MIB if stage not in _SINGLE_LANE_STAGES else 64 * _MIB,
+            1 * _GIB if stage not in _SINGLE_LANE_STAGES else 64 * _MIB,
             token_ceiling * 128,
         )
         limits[_conversion_payload_name(stage, lane_id, "invalid_examples")] = 1 * _MIB
