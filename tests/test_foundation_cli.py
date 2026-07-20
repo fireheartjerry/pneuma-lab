@@ -17,10 +17,12 @@ from pneuma_lab.foundation import cli
 from pneuma_lab.foundation.cli import (
     CommandHandlers,
     _parser,
+    build_parser,
     derive_final_authorization_path,
     main,
     render_command_result,
 )
+from pneuma_lab.foundation.model_cache import ModelCacheError
 
 
 REQUIRED_COMMANDS = {
@@ -484,6 +486,228 @@ def test_module_entrypoint_reexports_cli_main() -> None:
     from pneuma_lab.foundation.__main__ import main as module_main
 
     assert module_main is main
+
+
+def test_dry_run_with_missing_cache_is_blocked_not_a_traceback(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """Regression: a ModelCacheError escaping run_no_gradient_dry_run must
+    exit 2 with BLOCKED, never a raw traceback (exit 1)."""
+
+    assert (
+        main(
+            [
+                "dry-run",
+                "--stage",
+                "100k",
+                "--cache-root",
+                str(tmp_path / "missing-cache"),
+            ]
+        )
+        == 2
+    )
+    assert "BLOCKED" in capsys.readouterr().err
+
+
+def test_dry_run_planning_with_missing_cache_is_blocked(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    assert (
+        main(
+            [
+                "dry-run",
+                "--stage",
+                "100k",
+                "--dry-run",
+                "--cache-root",
+                str(tmp_path / "missing-cache"),
+            ]
+        )
+        == 2
+    )
+    assert "BLOCKED" in capsys.readouterr().err
+
+
+def test_model_cache_errors_from_gated_commands_are_blocked(capsys) -> None:
+    """preflight/train/resume consult verify_pinned_snapshot without any
+    wrapper; main must translate the escaping ModelCacheError itself."""
+
+    handlers = _handlers([])
+    handlers = CommandHandlers(
+        **{
+            field.name: (
+                (
+                    lambda args: (_ for _ in ()).throw(
+                        ModelCacheError("no pinned snapshot")
+                    )
+                )
+                if field.name == "preflight"
+                else getattr(handlers, field.name)
+            )
+            for field in fields(CommandHandlers)
+        }
+    )
+    assert (
+        main(
+            [
+                "preflight",
+                "--stage",
+                "100k",
+                "--authorization",
+                "auth.json",
+                "--lr",
+                "1e-4",
+            ],
+            handlers=handlers,
+        )
+        == 2
+    )
+    assert "BLOCKED: no pinned snapshot" in capsys.readouterr().err
+
+
+class _TorchStub:
+    def __init__(self, payload=None, error=None) -> None:
+        self._payload = payload
+        self._error = error
+
+    def load(self, path, map_location=None, weights_only=None):
+        assert map_location == "cpu"
+        assert weights_only is True
+        if self._error is not None:
+            raise self._error
+        return self._payload
+
+
+def test_checkpoint_learning_rate_happy_path(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setitem(
+        sys.modules,
+        "torch",
+        _TorchStub(payload={"progress": {"selected_learning_rate": 1e-4}}),
+    )
+    assert cli._checkpoint_learning_rate(tmp_path / "checkpoint.pt") == (
+        pytest.approx(1e-4)
+    )
+
+
+def test_checkpoint_learning_rate_requires_torch(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setitem(sys.modules, "torch", None)
+    with pytest.raises(RuntimeError, match="torch extra"):
+        cli._checkpoint_learning_rate(tmp_path / "checkpoint.pt")
+
+
+@pytest.mark.parametrize(
+    "error",
+    (
+        OSError("unreadable"),
+        RuntimeError("corrupt"),
+        ValueError("bad zip"),
+        EOFError(),
+    ),
+)
+def test_checkpoint_learning_rate_blocks_unreadable_checkpoints(
+    monkeypatch,
+    tmp_path: Path,
+    error,
+) -> None:
+    monkeypatch.setitem(sys.modules, "torch", _TorchStub(error=error))
+    with pytest.raises(RuntimeError, match="checkpoint cannot be read"):
+        cli._checkpoint_learning_rate(tmp_path / "checkpoint.pt")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        ["not-a-mapping"],
+        {},
+        {"progress": "not-a-mapping"},
+        {"progress": {}},
+        {"progress": {"selected_learning_rate": "2e-4"}},
+        {"progress": {"selected_learning_rate": 2}},
+        {"progress": {"selected_learning_rate": 0.0}},
+        {"progress": {"selected_learning_rate": -1e-4}},
+        {"progress": {"selected_learning_rate": float("nan")}},
+    ),
+)
+def test_checkpoint_learning_rate_rejects_invalid_progress(
+    monkeypatch,
+    tmp_path: Path,
+    payload,
+) -> None:
+    monkeypatch.setitem(sys.modules, "torch", _TorchStub(payload=payload))
+    with pytest.raises(ValueError, match="positive selected learning rate"):
+        cli._checkpoint_learning_rate(tmp_path / "checkpoint.pt")
+
+
+def test_stage_from_authorization_happy_path(tmp_path: Path) -> None:
+    path = tmp_path / "authorization.json"
+    path.write_text(json.dumps({"scope": {"stage": "2m"}}), encoding="utf-8")
+    assert cli._stage_from_authorization(path) == "2m"
+
+
+def test_stage_from_authorization_requires_a_readable_manifest(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="cannot be read"):
+        cli._stage_from_authorization(tmp_path / "missing.json")
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    (
+        {},
+        {"scope": "2m"},
+        {"scope": {}},
+        {"scope": {"stage": ""}},
+        {"scope": {"stage": 2}},
+    ),
+)
+def test_stage_from_authorization_rejects_missing_scope_stage(
+    tmp_path: Path,
+    manifest,
+) -> None:
+    path = tmp_path / "authorization.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="scope stage"):
+        cli._stage_from_authorization(path)
+
+
+def test_variant_results_reach_the_evaluate_handler() -> None:
+    calls = []
+    seen = {}
+    handlers = _capturing_handlers(calls, seen)
+    assert (
+        main(
+            [
+                "evaluate",
+                "--run",
+                "run-dir",
+                "--variant-results",
+                "a.json",
+                "--variant-results",
+                "b.json",
+            ],
+            handlers=handlers,
+        )
+        == 0
+    )
+    assert seen["evaluate"].variant_results == ["a.json", "b.json"]
+
+
+def test_build_parser_is_the_public_parser_alias() -> None:
+    assert build_parser is _parser
+    assert "build_parser" in cli.__all__
+
+
+def test_ready_blockers_rendering_is_keyed_on_doctor_only(capsys) -> None:
+    payload = {"ready": True, "blockers": []}
+    render_command_result(payload, command="doctor")
+    assert "READY" in capsys.readouterr().out
+    render_command_result(payload, command="preflight")
+    output = capsys.readouterr().out
+    assert "READY" not in output
+    assert '"ready": true' in output
 
 
 def test_cli_help_never_imports_the_model_stack() -> None:

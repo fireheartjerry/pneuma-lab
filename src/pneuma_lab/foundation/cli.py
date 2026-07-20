@@ -13,12 +13,16 @@ Command separation invariants:
   gradient work.
 - ``preflight`` calls only ``preflight_foundation_run()`` and allocates
   nothing.
-- Handler failures (``ValueError``/``RuntimeError``/``OSError``, which cover
-  every foundation error type after the explicit ``ModelCacheError`` and
-  ``DryRunError`` translations below) exit with status 2 and a ``BLOCKED:``
-  line on stderr; unexpected exception types propagate. A missing optional
-  foundation dependency surfaces as ``BLOCKED`` through ``_lazy_import``, not
-  as a traceback.
+- Handler failures exit with status 2 and a ``BLOCKED:`` line on stderr.
+  ``main`` catches ``ValueError``, ``RuntimeError``, ``OSError``, and
+  ``ModelCacheError`` — the last is a bare ``Exception`` that can surface
+  from any code path that consults the pinned cache, including deep inside
+  ``run_no_gradient_dry_run`` and the runner preflight, so it is caught
+  centrally rather than translated per call site. ``DryRunError`` is
+  translated to ``RuntimeError`` inside its handler because importing
+  ``dry_run`` requires the torch extra. Unexpected exception types
+  propagate. A missing optional foundation dependency surfaces as
+  ``BLOCKED`` through ``_lazy_import``, not as a traceback.
 
 Documented CLI contracts:
 
@@ -55,6 +59,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from pneuma_lab.foundation.doctor import doctor_report, duration_hours, live_probe
+
+# model_cache and its whole import chain (artifacts, snapshot_receipt, specs)
+# are stdlib-only, so this import keeps the torch-less `--help` path intact.
+from pneuma_lab.foundation.model_cache import ModelCacheError
 
 
 STAGES = ("100k", "500k", "2m", "8m", "16m", "32m")
@@ -208,6 +216,11 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+# Public alias for external consumers (for example the operator-guide drift
+# checker); the private name stays for the existing test surface.
+build_parser = _parser
+
+
 def _json_safe(value):
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return _json_safe(dataclasses.asdict(value))
@@ -220,8 +233,18 @@ def _json_safe(value):
     return value
 
 
-def render_command_result(result, *, as_json: bool = False) -> None:
-    """Print one command result; ``None`` renders nothing."""
+def render_command_result(
+    result,
+    *,
+    as_json: bool = False,
+    command: str | None = None,
+) -> None:
+    """Print one command result; ``None`` renders nothing.
+
+    The READY/BLOCKED human rendering is keyed on the ``doctor`` command,
+    never duck-typed from result keys, so other commands whose payloads
+    happen to carry ``ready``/``blockers`` members still render as JSON.
+    """
 
     if result is None:
         return
@@ -229,9 +252,9 @@ def render_command_result(result, *, as_json: bool = False) -> None:
     if as_json:
         print(json.dumps(payload, default=str, indent=4, sort_keys=True))
         return
-    if isinstance(payload, Mapping) and "ready" in payload and "blockers" in payload:
-        print("READY" if payload["ready"] else "BLOCKED")
-        for blocker in payload["blockers"]:
+    if command == "doctor" and isinstance(payload, Mapping):
+        print("READY" if payload.get("ready") else "BLOCKED")
+        for blocker in payload.get("blockers") or ():
             print(f"- {blocker}")
         return
     if isinstance(payload, Mapping):
@@ -276,10 +299,14 @@ def main(
     try:
         _validate_arguments(args)
         result = handler(args)
-    except (ValueError, RuntimeError, OSError) as exc:
+    except (ValueError, RuntimeError, OSError, ModelCacheError) as exc:
         print(f"BLOCKED: {exc}", file=sys.stderr)
         return 2
-    render_command_result(result, as_json=getattr(args, "as_json", False))
+    render_command_result(
+        result,
+        as_json=getattr(args, "as_json", False),
+        command=args.command,
+    )
     if args.command == "doctor":
         return 0 if isinstance(result, Mapping) and result.get("ready") is True else 1
     return 0
@@ -389,12 +416,9 @@ def _run_prepare(args: argparse.Namespace) -> dict:
     preparation = _lazy_import("pneuma_lab.foundation.preparation")
 
     repo_root = _repo_root()
-    try:
-        tokenizer_snapshot = model_cache.pinned_snapshot_path(
-            "2b", cache_root=_cache_root(args, repo_root)
-        )
-    except model_cache.ModelCacheError as exc:
-        raise RuntimeError(str(exc)) from exc
+    tokenizer_snapshot = model_cache.pinned_snapshot_path(
+        "2b", cache_root=_cache_root(args, repo_root)
+    )
     request = preparation.PreparationRequest(
         stage=args.stage,
         repo_root=repo_root,
@@ -456,17 +480,10 @@ def _run_preflight(args: argparse.Namespace) -> dict:
 def _run_download_model(args: argparse.Namespace) -> dict:
     model_cache = _lazy_import("pneuma_lab.foundation.model_cache")
     cache_root = _cache_root(args, _repo_root())
-    try:
-        if args.dry_run:
-            cached = model_cache.verify_pinned_snapshot(
-                args.model, cache_root=cache_root
-            )
-        else:
-            cached = model_cache.prepare_pinned_snapshot(
-                args.model, cache_root=cache_root
-            )
-    except model_cache.ModelCacheError as exc:
-        raise RuntimeError(str(exc)) from exc
+    if args.dry_run:
+        cached = model_cache.verify_pinned_snapshot(args.model, cache_root=cache_root)
+    else:
+        cached = model_cache.prepare_pinned_snapshot(args.model, cache_root=cache_root)
     return {
         "model_key": cached.model_key,
         "revision": cached.revision,
@@ -482,15 +499,14 @@ def _run_dry_run(args: argparse.Namespace) -> dict:
     output_root = repo_root / "build" / "foundation" / "dry-run" / args.stage
     if args.dry_run:
         model_cache = _lazy_import("pneuma_lab.foundation.model_cache")
-        try:
-            cached = model_cache.verify_pinned_snapshot("2b", cache_root=cache_root)
-        except model_cache.ModelCacheError as exc:
-            raise RuntimeError(str(exc)) from exc
+        cached = model_cache.verify_pinned_snapshot("2b", cache_root=cache_root)
         return {
             "planned_only": True,
             "model_key": "2b",
             "stage": args.stage,
             "snapshot_path": str(cached.snapshot_path),
+            # Pairs with dry_run._REPORT_NAME; duplicated deliberately so the
+            # planned path stays reportable on a torch-less interpreter.
             "report_path": str(output_root / "dry-run-report.json"),
         }
     dry_run = _lazy_import("pneuma_lab.foundation.dry_run")
@@ -761,6 +777,7 @@ __all__ = [
     "DEFAULT_SEED",
     "LEARNING_RATES",
     "STAGES",
+    "build_parser",
     "default_handlers",
     "derive_final_authorization_path",
     "main",
