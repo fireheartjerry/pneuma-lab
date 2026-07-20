@@ -8,11 +8,11 @@ Canonical current status: [`docs/project-status.json`](../project-status.json).
 
 ## Model pins
 
-| Role                    | Model                    | Revision                                   | Status                               |
-| ----------------------- | ------------------------ | ------------------------------------------ | ------------------------------------ |
-| Research                | `Qwen/Qwen3.5-2B`        | `15852e8c16360a2fea060d615a32b45270f8a8fc` | implementation ready, not trained    |
-| Promotion candidate     | `Qwen/Qwen3.5-4B`        | `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a` | gated on the 2B falsification result |
-| Compatibility reference | `Qwen/Qwen3.5-397B-A17B` | `8472618112abcbd45acbcdc58436aff4233c23f7` | downloads and execution forbidden    |
+| Role                    | Model                    | Revision                                   | Status                                |
+| ----------------------- | ------------------------ | ------------------------------------------ | ------------------------------------- |
+| Research                | `Qwen/Qwen3.5-2B`        | `15852e8c16360a2fea060d615a32b45270f8a8fc` | local 100K smoke trained (2026-07-20) |
+| Promotion candidate     | `Qwen/Qwen3.5-4B`        | `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a` | gated on the 2B falsification result  |
+| Compatibility reference | `Qwen/Qwen3.5-397B-A17B` | `8472618112abcbd45acbcdc58436aff4233c23f7` | downloads and execution forbidden     |
 
 Junction positions are derived from the pinned `layer_types` schedule. The
 loader refuses a changed revision, hidden width, layer count, or hybrid block
@@ -54,15 +54,19 @@ fenced command in it is validated against the real CLI by
 its final checklist item — the actual `train` command — stays unchecked until
 the operator deliberately runs it. The canonical launch truth lives in
 `docs/project-status.json` under `foundation_training_launch`
-(`training_status: not_started`, `optimizer_steps: 0`).
+(`training_status: local_100k_smoke_completed`, `optimizer_steps: 45`).
 
 ## Current authorization truth
 
-`docs/data/training-authorizations/pneuma-foundation-v0.pending.json` is
-schema-valid but explicitly `not_authorized`. No positive-weight foundation
-shard has been approved, no Qwen checkpoint has been downloaded by this work,
-no foundation training run has occurred, and no model has been promoted to the
-runtime.
+The committed
+`docs/data/training-authorizations/pneuma-foundation-v0.pending.json` remains
+schema-valid and `not_authorized`; live authorizations are exact, per-stage,
+operator-approved manifests under ignored `build/foundation/authorizations/`.
+Under one such authorization the local 100K smoke stage completed on
+2026-07-20: the pinned 2B snapshot was downloaded and receipt-verified, a
+deterministic zero-weight shard was prepared twice byte-identically, and three
+authorized runs (5e-5, 1e-4, 2e-4) each finished 15 optimizer steps. No
+500K-or-later stage has run and no model has been promoted to the runtime.
 
 `C:\pneuma-data` is immutable input. All derived shards, checkpoints, reports,
 SQLite files, and weights belong under ignored `build/foundation/` storage.
@@ -94,19 +98,20 @@ source .venv/bin/activate
 python -m pneuma_lab.foundation doctor
 ```
 
-The first authorized run is a 100K-token correctness and throughput smoke test.
-Its measured tokens/second, not a theoretical estimate, sets the wall-clock
-forecast for later stages.
+The first authorized runs were the 100K-token correctness and throughput
+smoke tests. Their measured 312-339 tokens/second, not a theoretical estimate,
+sets the wall-clock forecast for later stages (roughly 1.7 hours for 2M and
+7 hours for 8M tokens locally).
 
 ## Hardware-dependent gates
 
-Hardware validation is currently `not_run`. The first authorized smoke run must
-record peak VRAM, peak process RAM, tokens/second, p50 and p95 latency, maximum
-GPU temperature, thermal-throttling intervals, and wall time. Promotion remains
-blocked until those measurements demonstrate the 7.5GB VRAM, 24GB RAM, 20%
-additional-FLOP, 25% p95-latency, and 85 C thermal limits. The read-only
-`doctor` command reports environment prerequisites but does not satisfy these
-measured gates.
+The 100K smoke runs measured: peak 2.82 GiB process VRAM (limit 7.5), zero
+thermal-throttle intervals with live GPU temperatures 63-73 °C (limit 85),
+312-339 tokens/second, and ~278-301 s wall time per run. The no-gradient dry
+run measured a −5.3% enabled-core p95 latency overhead (limit +25%) with
+parity error 0.0 across all five cache boundaries. Promotion to 4B remains
+blocked on the later-stage falsification results, not on these hardware
+gates.
 
 ## Claim boundary
 

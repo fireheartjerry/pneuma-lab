@@ -531,10 +531,13 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
 
     training = manifest["training_and_rsi"]
     foundation_program = training.get("foundation_program") or {}
-    if foundation_program.get("tooling_status") != "implemented_not_run":
-        errors.append("foundation tooling status must not imply a completed run")
-    if foundation_program.get("training_status") != "not_authorized":
-        errors.append("foundation training must remain not_authorized")
+    if foundation_program.get("tooling_status") != "implemented":
+        errors.append("foundation tooling status must record the implemented surface")
+    if foundation_program.get("training_status") != "local_100k_smoke_completed":
+        errors.append(
+            "foundation training truth must record exactly the completed"
+            " local 100K smoke stage"
+        )
     if foundation_program.get("runtime_status") != "not_promoted":
         errors.append("foundation runtime must remain not_promoted")
     if foundation_program.get("compatibility_reference_download_allowed") is not False:

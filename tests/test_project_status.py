@@ -327,7 +327,9 @@ def test_cli_corrupted_manifest_fails_without_output_artifacts(
     assert "FAIL: project status" in capsys.readouterr().err
 
 
-def test_project_status_tracks_local_foundation_tooling_without_training_claim() -> None:
+def test_project_status_tracks_local_foundation_tooling_without_training_claim() -> (
+    None
+):
     manifest = status.load_manifest()
     systems = {item["id"]: item for item in manifest["systems"]}
     for system_id in (
@@ -337,19 +339,19 @@ def test_project_status_tracks_local_foundation_tooling_without_training_claim()
     ):
         assert systems[system_id]["status"] == "implemented"
     program = manifest["training_and_rsi"]["foundation_program"]
-    assert program["tooling_status"] == "implemented_not_run"
-    assert program["training_status"] == "not_authorized"
+    assert program["tooling_status"] == "implemented"
+    assert program["training_status"] == "local_100k_smoke_completed"
     assert program["runtime_status"] == "not_promoted"
     assert program["default_paid_compute_usd"] == 0
     assert program["cloud_lifetime_cap_usd"] == 45
 
 
-def test_project_status_keeps_training_unstarted() -> None:
+def test_project_status_records_the_local_smoke_only() -> None:
     manifest = status.load_manifest()
     launch = manifest["foundation_training_launch"]
     assert launch["tooling"] == "implemented"
-    assert launch["training_status"] == "not_started"
-    assert launch["optimizer_steps"] == 0
+    assert launch["training_status"] == "local_100k_smoke_completed"
+    assert launch["optimizer_steps"] == 45
     assert launch["cloud_resources_created"] == 0
     assert launch["paid_compute_usd"] == 0
     assert launch["authorization_state"] == "exact_operator_authorization_required"

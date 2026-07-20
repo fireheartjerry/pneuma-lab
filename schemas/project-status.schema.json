@@ -577,8 +577,8 @@
                 "authorization_ref"
             ],
             "properties": {
-                "tooling_status": { "const": "implemented_not_run" },
-                "training_status": { "const": "not_authorized" },
+                "tooling_status": { "const": "implemented" },
+                "training_status": { "const": "local_100k_smoke_completed" },
                 "runtime_status": { "const": "not_promoted" },
                 "research_model": {
                     "type": "object",
@@ -714,10 +714,10 @@
                     "const": "exact_operator_authorization_required"
                 },
                 "training_status": {
-                    "const": "not_started"
+                    "const": "local_100k_smoke_completed"
                 },
                 "optimizer_steps": {
-                    "const": 0
+                    "const": 45
                 },
                 "cloud_resources_created": {
                     "const": 0

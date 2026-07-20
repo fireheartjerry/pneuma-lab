@@ -25,7 +25,7 @@ def _parser():
 
 def test_operator_guide_is_marked_and_last_action_is_train() -> None:
     text = GUIDE.read_text(encoding="utf-8")
-    assert text.startswith("# TRAINING HAS NOT STARTED")
+    assert text.startswith("# LOCAL 100K SMOKE COMPLETE — LATER STAGES NOT STARTED")
     assert "No Jupyter notebook is required." in text
     checklist = [line for line in text.splitlines() if line.startswith("- [")]
     assert checklist[-1].startswith("- [ ] `python -m pneuma_lab.foundation train")
@@ -145,7 +145,7 @@ def test_module_main_exit_codes(tmp_path: Path, capsys) -> None:
     assert main([str(GUIDE)]) == 0
     assert '"valid": true' in capsys.readouterr().out
     broken = GUIDE.read_text(encoding="utf-8").replace(
-        "# TRAINING HAS NOT STARTED", "# training maybe started", 1
+        "# LOCAL 100K SMOKE COMPLETE", "# stage truth removed", 1
     )
     assert main([str(_write_guide(tmp_path / "guide.md", broken))]) == 1
     captured = capsys.readouterr()

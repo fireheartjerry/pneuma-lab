@@ -385,8 +385,8 @@
             "blockers": []
         },
         "foundation_program": {
-            "tooling_status": "implemented_not_run",
-            "training_status": "not_authorized",
+            "tooling_status": "implemented",
+            "training_status": "local_100k_smoke_completed",
             "runtime_status": "not_promoted",
             "research_model": {
                 "model_id": "Qwen/Qwen3.5-2B",
@@ -427,8 +427,8 @@
         "local_artifacts": "runtime_checked_not_committed",
         "model_cache_required": "qwen3.5-2b-pinned",
         "authorization_state": "exact_operator_authorization_required",
-        "training_status": "not_started",
-        "optimizer_steps": 0,
+        "training_status": "local_100k_smoke_completed",
+        "optimizer_steps": 45,
         "cloud_resources_created": 0,
         "paid_compute_usd": 0
     },

@@ -120,3 +120,26 @@ Do not commit tracked changes between finalization and training — the
 authorization binds the exact clean commit. The optional RunPod path is guide
 section 13 and stays gated behind its own cloud authorization and the $45
 lifetime cap.
+
+## Addendum (2026-07-20): the local 100K smoke stage ran and completed
+
+After the original stop-point, the operator delegated execution. Under exact
+operator authorization (finalize → preflight → train), all three 100K runs
+completed on the local RTX 5060:
+
+| Run | Steps | Tokens | Tokens/s | Best val loss | Last val loss |
+| --- | --- | --- | --- | --- | --- |
+| 5e-5 | 15 | 93,967 | 339.0 | 3.5294 | 4.0125 |
+| 1e-4 | 15 | 93,967 | 314.5 | 3.5216 | 4.0018 |
+| 2e-4 | 15 | 93,967 | 312.6 | 3.5085 | 3.9648 |
+
+2e-4 selected (lowest validation loss). Peak process VRAM 2.82 GiB, zero
+thermal throttling. Three additional real-hardware defects were found and
+fixed en route (each committed with tests): CPU-collated batches fed to the
+CUDA model, per-learning-rate run directories to stop manifest clobbering,
+and fp32-vs-BF16 dtype mismatch at the junction boundary. The failed first
+attempt is archived at `build/foundation/runs/failed-first-attempt/`. The
+terminal-manifest guarantee held in production on the real failure.
+
+Next steps and the cloud path live in
+`docs/foundation/cloud-training-handoff.md`.

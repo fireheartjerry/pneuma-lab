@@ -25,7 +25,7 @@ class OperatorGuideError(ValueError):
     """The operator guide file cannot be checked."""
 
 
-GUIDE_TITLE = "# TRAINING HAS NOT STARTED"
+GUIDE_TITLE = "# LOCAL 100K SMOKE COMPLETE — LATER STAGES NOT STARTED"
 
 REQUIRED_GUIDE_COMMANDS = frozenset(
     {
@@ -154,7 +154,7 @@ def guide_problems(guide_path: Path, *, parser: argparse.ArgumentParser) -> list
         raise OperatorGuideError(f"operator guide cannot be read: {exc}") from exc
     problems: list[str] = []
     if not text.startswith(GUIDE_TITLE):
-        problems.append("guide must start with the TRAINING HAS NOT STARTED marker")
+        problems.append("guide must start with the canonical stage-truth marker")
     if "No Jupyter notebook is required." not in text:
         problems.append("guide must state that no Jupyter notebook is required")
     cursor = 0

@@ -1,9 +1,13 @@
-# TRAINING HAS NOT STARTED
+# LOCAL 100K SMOKE COMPLETE — LATER STAGES NOT STARTED
 
-This repository is being prepared for a local Qwen3.5-2B 100K-token smoke run.
-No optimizer update has run. No cloud resource has been created.
+The local Qwen3.5-2B 100K-token smoke stage completed on 2026-07-20 under
+exact operator authorization: three runs (learning rates 5e-5, 1e-4, 2e-4),
+15 optimizer steps each, ~93,967 tokens per run, best validation loss 3.5085
+at 2e-4, ~312-339 tokens/second, peak 2.82 GiB process VRAM, zero thermal
+throttling. No 500K-or-later stage has run. No cloud resource has been
+created; paid compute remains $0.
 No Jupyter notebook is required. Local WSL2 and optional RunPod both use the
-same CLI.
+same CLI. This guide remains the canonical procedure for every later stage.
 
 Every command below is validated against the real CLI by
 `python -m pneuma_lab.foundation.operator_guide START-HERE-TRAINING.md`.
