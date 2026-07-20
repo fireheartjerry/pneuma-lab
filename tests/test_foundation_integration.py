@@ -191,3 +191,18 @@ def test_shared_core_transfers_to_new_4b_projection_shell() -> None:
         parameter.requires_grad
         for parameter in target.junctions[0].down_projection.parameters()
     )
+
+
+def test_install_junctions_finds_the_multimodal_text_decoder() -> None:
+    class MultimodalWrapper(torch.nn.Module):
+        def __init__(self, layer_count: int, hidden_size: int) -> None:
+            super().__init__()
+            self.model = torch.nn.Module()
+            self.model.visual = torch.nn.Identity()
+            self.model.language_model = FakeBackbone(layer_count)
+            self.base_projection = torch.nn.Linear(hidden_size, hidden_size)
+
+    plan = _plan()
+    model = MultimodalWrapper(len(plan.layer_types), plan.hidden_size)
+    installed = install_junctions(model, plan)
+    assert len(installed.junctions) == 1

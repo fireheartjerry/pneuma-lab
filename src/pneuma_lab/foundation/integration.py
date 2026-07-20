@@ -24,6 +24,9 @@ def _decoder_layers(model):
     candidates = (
         ("model", "layers"),
         ("model", "model", "layers"),
+        # The pinned multimodal checkpoint nests the text decoder beside the
+        # vision tower: Qwen3_5ForConditionalGeneration.model.language_model.
+        ("model", "language_model", "layers"),
         ("language_model", "model", "layers"),
         ("language_model", "layers"),
     )
