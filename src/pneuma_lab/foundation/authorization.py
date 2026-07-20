@@ -192,8 +192,12 @@ def _artifact_size_limits(
         "contamination_receipt": 16 * _MIB,
         "diversity_receipt": 8 * _MIB,
         "selection_receipt": 8 * _MIB,
+        # Conversion always renders the full approved lane before stage
+        # selection, so the examples payload scales with the lane (about
+        # 16 MiB for the 6k-trace OpenHands-Sampled lane), not with the
+        # stage token ceiling.
         _CONVERSION_PAYLOAD_NAMES["examples"]: max(
-            4 * _MIB,
+            64 * _MIB,
             token_ceiling * 128,
         ),
         _CONVERSION_PAYLOAD_NAMES["invalid_examples"]: 1 * _MIB,
