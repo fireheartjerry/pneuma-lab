@@ -24,9 +24,7 @@ from pneuma_lab.foundation.specs import MODEL_SPECS
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TRACE_FIXTURE = (
-    ROOT / "fixtures/adapters/openhands_sampled/golden/pneuma_traces.jsonl"
-)
+TRACE_FIXTURE = ROOT / "fixtures/adapters/openhands_sampled/golden/pneuma_traces.jsonl"
 LICENSE_RECEIPT = (
     ROOT / "docs/data/license-receipts/swe-gym-openhands-sampled.local-research.json"
 )
@@ -63,6 +61,7 @@ def _foundation_records() -> list[dict]:
         )
         for example in examples
     ]
+
 
 def test_preparation_public_contract_exists() -> None:
     from pneuma_lab.foundation.preparation import (
@@ -111,6 +110,22 @@ def test_preparation_public_contract_exists() -> None:
         "conversion_hash_manifest_path",
         "eval_identity_paths",
         "authorization_candidate_path",
+        "ost_license_receipt_path",
+        "leakage_receipt_path",
+        "lane_conversion_paths",
+    }
+    single_lane_defaults = {
+        field: PreparationResult.__dataclass_fields__[field].default
+        for field in (
+            "ost_license_receipt_path",
+            "leakage_receipt_path",
+            "lane_conversion_paths",
+        )
+    }
+    assert single_lane_defaults == {
+        "ost_license_receipt_path": None,
+        "leakage_receipt_path": None,
+        "lane_conversion_paths": None,
     }
     assert callable(deterministic_split)
     assert callable(select_complete_records)
@@ -122,7 +137,9 @@ def test_deterministic_split_uses_casefolded_repository_hash() -> None:
 
     for repo in ("demo/alpha", "demo/beta", "Org/Mixed-Case"):
         bucket = int(hashlib.sha256(repo.casefold().encode()).hexdigest()[:8], 16) % 100
-        expected = "train" if bucket < 80 else "validation" if bucket < 90 else "held_out"
+        expected = (
+            "train" if bucket < 80 else "validation" if bucket < 90 else "held_out"
+        )
         assert deterministic_split(repo) == expected
         assert deterministic_split(repo.swapcase()) == expected
     with pytest.raises(ValueError, match="repository"):
@@ -159,7 +176,10 @@ def test_selection_is_stable_train_only_bounded_and_label_anchored() -> None:
     (
         (lambda record: record["observations"].pop("labels"), "labels"),
         (lambda record: record["tokenization"].update(total_tokens=0), "token"),
-        (lambda record: record["tokenization"].update(total_tokens=float("nan")), "token|JSON"),
+        (
+            lambda record: record["tokenization"].update(total_tokens=float("nan")),
+            "token|JSON",
+        ),
         (lambda record: record.update(record_id="duplicate"), "record_id|schema"),
     ),
 )
@@ -193,9 +213,7 @@ def test_selection_excludes_nontraining_terminal_roles() -> None:
         token_ceiling=100_000,
     )
 
-    assert eval_record["record_id"] not in {
-        record["record_id"] for record in selected
-    }
+    assert eval_record["record_id"] not in {record["record_id"] for record in selected}
 
 
 def test_committed_license_receipt_is_exact_and_conservative() -> None:
@@ -315,9 +333,7 @@ def _prepare_fixture(tmp_path: Path):
             encoding="utf-8",
         )
     tokenizer_snapshot = (
-        repo_root
-        / "build/model-cache/models/2b"
-        / MODEL_SPECS["2b"].revision
+        repo_root / "build/model-cache/models/2b" / MODEL_SPECS["2b"].revision
     )
     _write_pinned_tokenizer_snapshot(tokenizer_snapshot)
     request = PreparationRequest(
@@ -355,11 +371,19 @@ def _result_files(result) -> tuple[Path, ...]:
         if field == "tokenizer_snapshot_path":
             continue
         value = getattr(result, field)
+        if value is None:
+            continue
         if field == "eval_identity_paths":
             paths.extend(Path(path) for path in value.values())
+        elif field == "lane_conversion_paths":
+            paths.extend(
+                Path(path)
+                for lane_paths in value.values()
+                for path in lane_paths.values()
+            )
         else:
             paths.append(Path(value))
-    return tuple(paths)
+    return tuple(sorted(set(paths)))
 
 
 def _make_directory_alias(link: Path, target: Path) -> None:
@@ -425,9 +449,7 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
     assert selection["tokenizer_recount_total"] == recounted
 
     suite = json.loads(first.suite_report_path.read_text(encoding="utf-8"))
-    assert [item["family"] for item in suite["families"]] == list(
-        ACTIVE_DATASET_GROUPS
-    )
+    assert [item["family"] for item in suite["families"]] == list(ACTIVE_DATASET_GROUPS)
     assert all(item["exists"] for item in suite["families"])
     contamination = json.loads(
         first.contamination_receipt_path.read_text(encoding="utf-8")
@@ -450,8 +472,7 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
                 for path in (
                     conversion_root / "conversion_report.json",
                     conversion_root / "hash_manifest.json",
-                    request.repo_root
-                    / "docs/data/license-receipts/"
+                    request.repo_root / "docs/data/license-receipts/"
                     "swe-gym-openhands-sampled.local-research.json",
                 )
             ),
@@ -459,7 +480,9 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
             verified_snapshot.snapshot_sha256,
         ]
     )
-    assert all(record["source"]["receipt_hashes"] == expected_receipts for record in records)
+    assert all(
+        record["source"]["receipt_hashes"] == expected_receipts for record in records
+    )
     source_integrity = json.loads(
         first.source_integrity_receipt_path.read_text(encoding="utf-8")
     )
@@ -468,8 +491,7 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
 
     split = json.loads(first.split_receipt_path.read_text(encoding="utf-8"))
     canonical_sets = {
-        name: set(values)
-        for name, values in split["canonical_repository_sets"].items()
+        name: set(values) for name, values in split["canonical_repository_sets"].items()
     }
     assert split["repository_grouped"] is True
     assert all(
@@ -478,13 +500,9 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
         for right in canonical_sets
         if left < right
     )
-    manifest = json.loads(
-        first.preparation_manifest_path.read_text(encoding="utf-8")
-    )
+    manifest = json.loads(first.preparation_manifest_path.read_text(encoding="utf-8"))
     assert manifest["token_ceiling"] == 100_000
-    shard_manifest = json.loads(
-        first.shard_manifest_path.read_text(encoding="utf-8")
-    )
+    shard_manifest = json.loads(first.shard_manifest_path.read_text(encoding="utf-8"))
     assert shard_manifest["token_ceiling"] == 100_000
     assert set(manifest["generated_artifact_sha256"]["conversion"]) == {
         "conversion_report",
@@ -501,9 +519,9 @@ def test_prepare_stage_is_repeatable_zero_weight_and_fully_receipted(
         for binding in group.values():
             artifact = request.repo_root / binding["path"]
             assert artifact.is_relative_to(request.output_root)
-            assert binding["sha256"] == hashlib.sha256(
-                artifact.read_bytes()
-            ).hexdigest()
+            assert (
+                binding["sha256"] == hashlib.sha256(artifact.read_bytes()).hexdigest()
+            )
             assert binding["size"] == artifact.stat().st_size
     assert manifest["tokenizer_snapshot"]["model_id"] == MODEL_SPECS["2b"].model_id
     assert manifest["tokenizer_snapshot"]["revision"] == MODEL_SPECS["2b"].revision
@@ -533,12 +551,8 @@ def test_split_assignments_use_one_canonical_repo_identity() -> None:
     assignments = preparation._split_assignments(examples)
     receipt = preparation._build_split_receipt(assignments)
 
-    assert [item["canonical_repo"] for item in assignments[:3]] == [
-        "org/repo-1"
-    ] * 3
-    assert [item["canonical_repo"] for item in assignments[3:]] == [
-        "org /repo-1"
-    ] * 3
+    assert [item["canonical_repo"] for item in assignments[:3]] == ["org/repo-1"] * 3
+    assert [item["canonical_repo"] for item in assignments[3:]] == ["org /repo-1"] * 3
     assert len({item["split_id"] for item in assignments[:3]}) == 1
     assert len({item["split_id"] for item in assignments[3:]}) == 1
     canonical_sets = {
@@ -692,12 +706,12 @@ def test_local_tokenizer_loader_enforces_offline_flags(tmp_path, monkeypatch) ->
             observed.update(kwargs)
             observed["path"] = Path(path)
             observed["HF_HUB_OFFLINE"] = os.environ.get("HF_HUB_OFFLINE")
-            observed["TRANSFORMERS_OFFLINE"] = os.environ.get(
-                "TRANSFORMERS_OFFLINE"
-            )
+            observed["TRANSFORMERS_OFFLINE"] = os.environ.get("TRANSFORMERS_OFFLINE")
             return ByteTokenizer()
 
-    fake_transformers = type("FakeTransformers", (), {"AutoTokenizer": FakeAutoTokenizer})
+    fake_transformers = type(
+        "FakeTransformers", (), {"AutoTokenizer": FakeAutoTokenizer}
+    )
     monkeypatch.setitem(__import__("sys").modules, "transformers", fake_transformers)
 
     preparation._load_tokenizer(snapshot)
@@ -793,7 +807,9 @@ def test_prepare_stage_rejects_loader_mutation_after_local_read(
     assert not (request.repo_root / "build/training_examples").exists()
 
 
-@pytest.mark.parametrize("target_name", ("tokenizer.json", "pneuma-snapshot-receipt.json"))
+@pytest.mark.parametrize(
+    "target_name", ("tokenizer.json", "pneuma-snapshot-receipt.json")
+)
 def test_prepare_stage_rejects_snapshot_mutation_during_encode(
     tmp_path,
     monkeypatch,
@@ -859,9 +875,7 @@ def test_prepare_stage_dry_run_validates_without_writing(tmp_path, monkeypatch) 
     from pneuma_lab.foundation import authorization, preparation
 
     request = _prepare_fixture(tmp_path)
-    request = preparation.PreparationRequest(
-        **{**request.__dict__, "dry_run": True}
-    )
+    request = preparation.PreparationRequest(**{**request.__dict__, "dry_run": True})
     monkeypatch.setattr(preparation, "_load_tokenizer", lambda path: ByteTokenizer())
 
     def reject_candidate(*args, **kwargs):
@@ -903,8 +917,16 @@ def test_prepare_stage_builds_candidate_only_after_every_receipt_is_stable(
         assert len(code_commit) == 40
         for field in prepared.__dataclass_fields__:
             value = getattr(prepared, field)
+            if value is None:
+                continue
             if field == "tokenizer_snapshot_path":
                 assert Path(value).is_dir()
+            elif field == "lane_conversion_paths":
+                assert all(
+                    Path(path).is_file()
+                    for lane_paths in value.values()
+                    for path in lane_paths.values()
+                ), field
             elif field != "authorization_candidate_path":
                 paths = value.values() if isinstance(value, dict) else (value,)
                 assert all(Path(path).is_file() for path in paths), field
@@ -913,14 +935,20 @@ def test_prepare_stage_builds_candidate_only_after_every_receipt_is_stable(
         prepared.authorization_candidate_path.write_text("candidate", encoding="utf-8")
         return prepared.authorization_candidate_path
 
-    monkeypatch.setattr(authorization, "build_authorization_candidate", observe_candidate)
+    monkeypatch.setattr(
+        authorization, "build_authorization_candidate", observe_candidate
+    )
     result = preparation.prepare_stage(request)
 
     assert calls == [result.authorization_candidate_path]
-    assert result.authorization_candidate_path.read_text(encoding="utf-8") == "candidate"
+    assert (
+        result.authorization_candidate_path.read_text(encoding="utf-8") == "candidate"
+    )
 
 
-def test_prepare_stage_denies_invalid_suite_before_any_output(tmp_path, monkeypatch) -> None:
+def test_prepare_stage_denies_invalid_suite_before_any_output(
+    tmp_path, monkeypatch
+) -> None:
     from pneuma_lab.foundation import preparation
 
     request = _prepare_fixture(tmp_path)
@@ -1005,8 +1033,7 @@ def test_prepare_stage_rejects_duplicate_registry_json_before_writes(
     registry_path.write_text(
         payload.replace(
             '"registry_schema_version": "0.1.0",',
-            '"registry_schema_version": "0.1.0",'
-            '"registry_schema_version": "0.1.0",',
+            '"registry_schema_version": "0.1.0","registry_schema_version": "0.1.0",',
             1,
         ),
         encoding="utf-8",
@@ -1140,10 +1167,7 @@ def test_prepare_stage_rejects_in_place_generated_set_mutation_without_receipt(
             artifact_kind in {"conversion_report", "hash_manifest"}
             and publication.directory == conversion_root
             and conversion_reads == 2
-        ) or (
-            artifact_kind == "eval_index"
-            and publication.directory == eval_root
-        )
+        ) or (artifact_kind == "eval_index" and publication.directory == eval_root)
         if mutated or not should_mutate:
             return
         mutated = True
@@ -1174,9 +1198,9 @@ def test_prepare_stage_rejects_in_place_generated_set_mutation_without_receipt(
 
 
 def test_preparation_module_has_no_training_execution_dependencies() -> None:
-    source = (
-        ROOT / "src/pneuma_lab/foundation/preparation.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "src/pneuma_lab/foundation/preparation.py").read_text(
+        encoding="utf-8"
+    )
     for forbidden in (
         "foundation.optimizer",
         "foundation.runner",

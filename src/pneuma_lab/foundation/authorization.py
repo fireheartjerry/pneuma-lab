@@ -23,6 +23,7 @@ import unicodedata
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from pneuma_lab.converters import open_swe_traces_training as ost_converter
 from pneuma_lab.converters import openhands_sampled_training as openhands_converter
 from pneuma_lab.foundation.artifacts import (
     ArtifactPublicationError,
@@ -32,9 +33,12 @@ from pneuma_lab.foundation.artifacts import (
     write_atomic_json,
 )
 from pneuma_lab.foundation.contamination import (
+    CROSS_DATASET_LEAKAGE_QUARANTINE_ID,
     EVAL_REPO_QUARANTINE_ID,
     build_contamination_receipt,
 )
+from pneuma_lab.governance import open_swe_traces as ost_governance
+from pneuma_lab.training import leakage_registry
 from pneuma_lab.foundation.data import (
     ACTIVE_DATASET_GROUPS,
     build_diversity_inventory,
@@ -68,7 +72,14 @@ if TYPE_CHECKING:
 
 
 APPROVAL_PHRASE_PREFIX = "I APPROVE THIS EXACT PNEUMA FOUNDATION SCOPE"
-_AUTHORIZED_LANE_WEIGHTS = {"swe-gym-openhands-sampled": 1.0}
+_OPENHANDS_LANE_ID = "swe-gym-openhands-sampled"
+_OST_LANE_ID = "open-swe-traces"
+_AUTHORIZED_LANE_WEIGHTS = {_OPENHANDS_LANE_ID: 1.0}
+_MULTI_LANE_AUTHORIZED_LANE_WEIGHTS = {
+    _OPENHANDS_LANE_ID: 1.0,
+    _OST_LANE_ID: 1.0,
+}
+_SINGLE_LANE_STAGES = frozenset({"100k", "500k", "1m"})
 _STAGE_TOKEN_CEILINGS = {
     "100k": 100_000,
     "500k": 500_000,
@@ -78,6 +89,22 @@ _STAGE_TOKEN_CEILINGS = {
     "16m": 16_000_000,
     "32m": 32_000_000,
 }
+
+
+def _stage_lane_ids(stage: str) -> tuple[str, ...]:
+    """Exact gradient lanes per stage: OpenHands only before 2m, both after."""
+
+    if stage in _SINGLE_LANE_STAGES:
+        return (_OPENHANDS_LANE_ID,)
+    return (_OPENHANDS_LANE_ID, _OST_LANE_ID)
+
+
+def _stage_lane_weights(stage: str) -> dict:
+    if stage in _SINGLE_LANE_STAGES:
+        return dict(_AUTHORIZED_LANE_WEIGHTS)
+    return dict(_MULTI_LANE_AUTHORIZED_LANE_WEIGHTS)
+
+
 _ARTIFACT_FIELDS = {
     "preparation_manifest": "preparation_manifest_path",
     "suite_report": "suite_report_path",
@@ -100,12 +127,31 @@ _CONVERSION_ARTIFACT_FIELDS = {
 _CONVERSION_PAYLOAD_NAMES = {
     name: f"conversion:{name}" for name in _CONVERSION_ARTIFACT_FIELDS
 }
+_MULTI_LANE_ARTIFACT_FIELDS = {
+    **_ARTIFACT_FIELDS,
+    "ost_license_receipt": "ost_license_receipt_path",
+    "leakage_receipt": "leakage_receipt_path",
+}
+_CONVERSION_FILENAMES = {
+    "examples": "examples.jsonl",
+    "invalid_examples": "invalid_examples.jsonl",
+    "conversion_report": "conversion_report.json",
+    "hash_manifest": "hash_manifest.json",
+}
 _EVAL_PAYLOAD_PREFIX = "eval_identity:"
 _REQUIRED_EVAL_FAMILIES = ("swe-bench", "swe-mera", "swe-polybench")
 _OPENHANDS_SOURCE_PATHS = (
     "processed/swe-gym/openhands-sampled/pneuma_traces.jsonl",
     "processed/swe-gym/openhands-sampled/adapter_report.json",
 )
+_OST_SOURCE_PATHS = (
+    "processed/open-swe-traces/pneuma-trace/pneuma_traces.jsonl",
+    "processed/open-swe-traces/pneuma-trace/adapter_report.json",
+)
+_LEAKAGE_REGISTRY_RELATIVE_PATH = (
+    "docs/data/training-readiness/cross-dataset-leakage-registry.json"
+)
+_LEAKAGE_DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 _FIRST_STAGE_DISPOSITION = LaneDisposition(
     terminal_role=TerminalRole.TRAIN,
     gradient_eligibility=GradientEligibility.FIRST_STAGE,
@@ -114,6 +160,50 @@ _FIRST_STAGE_DISPOSITION = LaneDisposition(
     dual_use_disposition="not_flagged",
     oracle_disposition="target_only",
 )
+_OST_LANE_DISPOSITION = LaneDisposition(
+    terminal_role=TerminalRole.TRAIN,
+    gradient_eligibility=GradientEligibility.LATER,
+    license_disposition="local_research_candidate_no_redistribution",
+    privacy_disposition="digest_only_by_construction",
+    dual_use_disposition="not_flagged",
+    oracle_disposition="target_only",
+)
+
+
+@dataclass(frozen=True)
+class _LaneRules:
+    lane_id: str
+    family: str
+    dataset_id: str
+    gradient_eligibility: str
+    disposition: LaneDisposition
+    converter: Any
+    converter_name: str
+    source_paths: tuple[str, str]
+
+
+_LANE_RULES = {
+    _OPENHANDS_LANE_ID: _LaneRules(
+        lane_id=_OPENHANDS_LANE_ID,
+        family="swe-gym",
+        dataset_id=_OPENHANDS_LANE_ID,
+        gradient_eligibility="first_stage",
+        disposition=_FIRST_STAGE_DISPOSITION,
+        converter=openhands_converter,
+        converter_name="openhands-sampled-training",
+        source_paths=_OPENHANDS_SOURCE_PATHS,
+    ),
+    _OST_LANE_ID: _LaneRules(
+        lane_id=_OST_LANE_ID,
+        family="open-swe-traces",
+        dataset_id=_OST_LANE_ID,
+        gradient_eligibility="later",
+        disposition=_OST_LANE_DISPOSITION,
+        converter=ost_converter,
+        converter_name="open-swe-traces-training",
+        source_paths=_OST_SOURCE_PATHS,
+    ),
+}
 _RECEIPT_FILENAMES = {
     "suite_report": "suite_report.json",
     "license_receipt": "license_receipt.json",
@@ -124,6 +214,31 @@ _RECEIPT_FILENAMES = {
     "diversity_receipt": "diversity_receipt.json",
     "selection_receipt": "selection_receipt.json",
 }
+_MULTI_LANE_RECEIPT_FILENAMES = {
+    **_RECEIPT_FILENAMES,
+    "ost_license_receipt": "ost_license_receipt.json",
+    "leakage_receipt": "leakage_receipt.json",
+}
+
+
+def _artifact_fields(stage: str) -> dict[str, str]:
+    if stage in _SINGLE_LANE_STAGES:
+        return _ARTIFACT_FIELDS
+    return _MULTI_LANE_ARTIFACT_FIELDS
+
+
+def _receipt_filenames(stage: str) -> dict[str, str]:
+    if stage in _SINGLE_LANE_STAGES:
+        return _RECEIPT_FILENAMES
+    return _MULTI_LANE_RECEIPT_FILENAMES
+
+
+def _conversion_payload_name(stage: str, lane_id: str, name: str) -> str:
+    if stage in _SINGLE_LANE_STAGES:
+        return _CONVERSION_PAYLOAD_NAMES[name]
+    return f"conversion:{lane_id}:{name}"
+
+
 _LOCAL_PROFILE = {
     "profile": "wsl2_local_nf4",
     "quantization": "nf4_double_quant",
@@ -178,11 +293,13 @@ class FoundationAuthorizationError(ValueError):
 
 
 def _artifact_size_limits(
-    token_ceiling: int,
+    stage: str,
     eval_families: tuple[str, ...],
 ) -> tuple[dict[str, int], int]:
-    if token_ceiling not in _STAGE_TOKEN_CEILINGS.values():
+    if stage not in _STAGE_TOKEN_CEILINGS:
         raise FoundationAuthorizationError("artifact size ceiling stage is invalid")
+    token_ceiling = _STAGE_TOKEN_CEILINGS[stage]
+    lane_ids = _stage_lane_ids(stage)
     limits = {
         "preparation_manifest": 4 * _MIB,
         "suite_report": 4 * _MIB,
@@ -195,18 +312,23 @@ def _artifact_size_limits(
         "contamination_receipt": 16 * _MIB,
         "diversity_receipt": 8 * _MIB,
         "selection_receipt": 8 * _MIB,
-        # Conversion always renders the full approved lane before stage
-        # selection, so the examples payload scales with the lane (about
-        # 16 MiB for the 6k-trace OpenHands-Sampled lane), not with the
-        # stage token ceiling.
-        _CONVERSION_PAYLOAD_NAMES["examples"]: max(
-            64 * _MIB,
-            token_ceiling * 128,
-        ),
-        _CONVERSION_PAYLOAD_NAMES["invalid_examples"]: 1 * _MIB,
-        _CONVERSION_PAYLOAD_NAMES["conversion_report"]: 8 * _MIB,
-        _CONVERSION_PAYLOAD_NAMES["hash_manifest"]: 2 * _MIB,
     }
+    if stage not in _SINGLE_LANE_STAGES:
+        limits["ost_license_receipt"] = 1 * _MIB
+        limits["leakage_receipt"] = 4 * _MIB
+    # Conversion always renders the full approved lane before stage
+    # selection, so the examples payload scales with the lane (about
+    # 16 MiB for the 6k-trace OpenHands-Sampled lane and a few hundred
+    # MiB for the full Open-SWE-Traces lane), not with the stage token
+    # ceiling.
+    for lane_id in lane_ids:
+        limits[_conversion_payload_name(stage, lane_id, "examples")] = max(
+            256 * _MIB if stage not in _SINGLE_LANE_STAGES else 64 * _MIB,
+            token_ceiling * 128,
+        )
+        limits[_conversion_payload_name(stage, lane_id, "invalid_examples")] = 1 * _MIB
+        limits[_conversion_payload_name(stage, lane_id, "conversion_report")] = 8 * _MIB
+        limits[_conversion_payload_name(stage, lane_id, "hash_manifest")] = 2 * _MIB
     eval_limit = min(
         256 * _MIB,
         max(4 * _MIB, token_ceiling * 64),
@@ -217,10 +339,15 @@ def _artifact_size_limits(
     # Strict JSON/JSONL materialization can transiently amplify held bytes by
     # roughly 8x. Keep the aggregate under 2 GiB so parsing remains bounded
     # beneath the 24 GiB local process envelope even at the largest stage.
-    total_limit = min(
-        2 * _GIB,
-        max(128 * _MIB, token_ceiling * 64),
-    )
+    # Multi-lane stages hold the full converted lanes at once, so they use
+    # the fixed 2 GiB aggregate rather than the token-scaled bound.
+    if stage in _SINGLE_LANE_STAGES:
+        total_limit = min(
+            2 * _GIB,
+            max(128 * _MIB, token_ceiling * 64),
+        )
+    else:
+        total_limit = 2 * _GIB
     return limits, total_limit
 
 
@@ -734,22 +861,49 @@ def _candidate_path(preparation: Any, *, repo_root: Path, stage: str) -> Path:
     return actual
 
 
-def _artifact_paths_from_preparation(preparation: Any) -> dict[str, Path]:
+def _artifact_paths_from_preparation(
+    preparation: Any,
+    *,
+    stage: str,
+) -> dict[str, Path]:
     try:
         return {
             name: Path(getattr(preparation, field))
-            for name, field in _ARTIFACT_FIELDS.items()
+            for name, field in _artifact_fields(stage).items()
         }
     except (AttributeError, TypeError) as exc:
         raise FoundationAuthorizationError("preparation result is incomplete") from exc
 
 
-def _evidence_paths_from_preparation(preparation: Any) -> dict[str, Path]:
+def _evidence_paths_from_preparation(
+    preparation: Any,
+    *,
+    stage: str,
+) -> dict[str, Path]:
     try:
-        paths = {
-            _CONVERSION_PAYLOAD_NAMES[name]: Path(getattr(preparation, field))
-            for name, field in _CONVERSION_ARTIFACT_FIELDS.items()
-        }
+        if stage in _SINGLE_LANE_STAGES:
+            paths = {
+                _CONVERSION_PAYLOAD_NAMES[name]: Path(getattr(preparation, field))
+                for name, field in _CONVERSION_ARTIFACT_FIELDS.items()
+            }
+        else:
+            lane_conversion_paths = preparation.lane_conversion_paths
+            lane_ids = _stage_lane_ids(stage)
+            if not isinstance(lane_conversion_paths, Mapping) or set(
+                lane_conversion_paths
+            ) != set(lane_ids):
+                raise TypeError("lane conversion paths are incomplete")
+            paths = {}
+            for lane_id in lane_ids:
+                lane_paths = lane_conversion_paths[lane_id]
+                if not isinstance(lane_paths, Mapping) or set(lane_paths) != set(
+                    _CONVERSION_ARTIFACT_FIELDS
+                ):
+                    raise TypeError("lane conversion paths are incomplete")
+                for name in _CONVERSION_ARTIFACT_FIELDS:
+                    paths[_conversion_payload_name(stage, lane_id, name)] = Path(
+                        lane_paths[name]
+                    )
         eval_paths = preparation.eval_identity_paths
         if not isinstance(eval_paths, Mapping) or not eval_paths:
             raise TypeError("evaluation identity paths are incomplete")
@@ -766,7 +920,7 @@ def _evidence_paths_from_preparation(preparation: Any) -> dict[str, Path]:
         ) from exc
 
 
-def _flatten_scope_bindings(scope: Mapping) -> dict[str, Mapping]:
+def _flatten_scope_bindings(scope: Mapping, *, stage: str) -> dict[str, Mapping]:
     evidence = scope.get("evidence_artifacts")
     if not isinstance(evidence, Mapping) or set(evidence) != {
         "conversion",
@@ -777,14 +931,38 @@ def _flatten_scope_bindings(scope: Mapping) -> dict[str, Mapping]:
     eval_identities = evidence.get("eval_identities")
     if (
         not isinstance(conversion, Mapping)
-        or set(conversion) != set(_CONVERSION_ARTIFACT_FIELDS)
         or not isinstance(eval_identities, Mapping)
         or not eval_identities
     ):
         raise _coherence_error("scope evidence artifact bindings are incomplete")
-    flattened = {
-        _CONVERSION_PAYLOAD_NAMES[name]: binding for name, binding in conversion.items()
-    }
+    flattened = {}
+    if stage in _SINGLE_LANE_STAGES:
+        if set(conversion) != set(_CONVERSION_ARTIFACT_FIELDS):
+            raise _coherence_error("scope evidence artifact bindings are incomplete")
+        flattened.update(
+            {
+                _CONVERSION_PAYLOAD_NAMES[name]: binding
+                for name, binding in conversion.items()
+            }
+        )
+    else:
+        lane_ids = _stage_lane_ids(stage)
+        if set(conversion) != set(lane_ids):
+            raise _coherence_error("scope evidence artifact bindings are incomplete")
+        for lane_id in lane_ids:
+            lane_group = conversion[lane_id]
+            if not isinstance(lane_group, Mapping) or set(lane_group) != set(
+                _CONVERSION_ARTIFACT_FIELDS
+            ):
+                raise _coherence_error(
+                    "scope evidence artifact bindings are incomplete"
+                )
+            flattened.update(
+                {
+                    _conversion_payload_name(stage, lane_id, name): binding
+                    for name, binding in lane_group.items()
+                }
+            )
     for family, binding in eval_identities.items():
         if not isinstance(family, str) or not re.fullmatch(
             r"[a-z0-9][a-z0-9-]*", family
@@ -819,6 +997,16 @@ def _validate_exact_preparation_paths(
         "diversity_receipt": "diversity_receipt.json",
         "selection_receipt": "selection_receipt.json",
     }
+    if stage not in _SINGLE_LANE_STAGES:
+        expected_direct = {
+            **expected_direct,
+            "ost_license_receipt": "ost_license_receipt.json",
+            "leakage_receipt": "leakage_receipt.json",
+        }
+    if set(paths) != set(expected_direct) | {"shard", "shard_manifest"}:
+        raise FoundationAuthorizationError(
+            "preparation artifact path set is not exact for this stage"
+        )
     for name, filename in expected_direct.items():
         if _absolute_lexical(paths[name]) != preparation_root / filename:
             raise FoundationAuthorizationError(f"preparation {name} path is not exact")
@@ -828,22 +1016,22 @@ def _validate_exact_preparation_paths(
         or _absolute_lexical(paths["shard_manifest"].parent) != shard_root
     ):
         raise FoundationAuthorizationError("preparation shard paths are not exact")
-    for name in _CONVERSION_ARTIFACT_FIELDS:
-        key = _CONVERSION_PAYLOAD_NAMES[name]
-        expected = (
-            preparation_root
-            / "conversion"
-            / {
-                "examples": "examples.jsonl",
-                "invalid_examples": "invalid_examples.jsonl",
-                "conversion_report": "conversion_report.json",
-                "hash_manifest": "hash_manifest.json",
-            }[name]
-        )
-        if _absolute_lexical(evidence_paths[key]) != expected:
-            raise FoundationAuthorizationError(
-                f"preparation conversion {name} path is not exact"
-            )
+    for lane_id in _stage_lane_ids(stage):
+        for name in _CONVERSION_ARTIFACT_FIELDS:
+            key = _conversion_payload_name(stage, lane_id, name)
+            if stage in _SINGLE_LANE_STAGES:
+                expected = preparation_root / "conversion" / _CONVERSION_FILENAMES[name]
+            else:
+                expected = (
+                    preparation_root
+                    / "conversion"
+                    / lane_id
+                    / _CONVERSION_FILENAMES[name]
+                )
+            if _absolute_lexical(evidence_paths[key]) != expected:
+                raise FoundationAuthorizationError(
+                    f"preparation conversion {name} path is not exact"
+                )
     eval_keys = {
         key.removeprefix(_EVAL_PAYLOAD_PREFIX)
         for key in evidence_paths
@@ -874,15 +1062,23 @@ def _validate_preparation_coherence_unchecked(
     bound_payloads: Mapping[str, BoundArtifactRead],
     *,
     tokenizer,
+    repo_root: Path,
 ) -> dict[str, str]:
     """Prove all held preparation artifacts describe one exact local run."""
 
-    evidence_bindings = _flatten_scope_bindings(scope)
-    expected_payloads = set(_ARTIFACT_FIELDS) | set(evidence_bindings)
+    stage = scope.get("stage")
+    if stage not in _STAGE_TOKEN_CEILINGS:
+        raise _coherence_error("scope stage is unknown")
+    lane_ids = _stage_lane_ids(stage)
+    multi_lane = len(lane_ids) > 1
+    artifact_fields = _artifact_fields(stage)
+    receipt_filenames = _receipt_filenames(stage)
+    evidence_bindings = _flatten_scope_bindings(scope, stage=stage)
+    expected_payloads = set(artifact_fields) | set(evidence_bindings)
     if set(bound_payloads) != expected_payloads:
         raise _coherence_error("bound artifact set is incomplete")
     bindings = scope.get("artifacts")
-    if not isinstance(bindings, Mapping) or set(bindings) != set(_ARTIFACT_FIELDS):
+    if not isinstance(bindings, Mapping) or set(bindings) != set(artifact_fields):
         raise _coherence_error("scope artifact bindings are incomplete")
     flattened_bindings = {**bindings, **evidence_bindings}
     for name, read in bound_payloads.items():
@@ -897,7 +1093,7 @@ def _validate_preparation_coherence_unchecked(
     parsed = {
         name: _strict_json_bytes(read.payload, label=name.replace("_", " "))
         for name, read in bound_payloads.items()
-        if name in _ARTIFACT_FIELDS and name != "shard"
+        if name in artifact_fields and name != "shard"
     }
     records = _strict_jsonl_records(
         bound_payloads["shard"].payload,
@@ -921,12 +1117,19 @@ def _validate_preparation_coherence_unchecked(
     }
     if dict(model) != expected_model:
         raise _coherence_error("scope model and tokenizer pin changed")
-    stage = scope.get("stage")
-    if stage not in _STAGE_TOKEN_CEILINGS:
-        raise _coherence_error("scope stage is unknown")
     token_ceiling = _STAGE_TOKEN_CEILINGS[stage]
     if scope.get("token_ceiling") != token_ceiling:
         raise _coherence_error("scope stage and token ceiling differ")
+    if multi_lane:
+        lane_binding_exact = (
+            preparation.get("gradient_lanes") == list(lane_ids)
+            and "gradient_lane" not in preparation
+        )
+    else:
+        lane_binding_exact = (
+            preparation.get("gradient_lane") == "swe-gym-openhands-sampled"
+            and "gradient_lanes" not in preparation
+        )
     if (
         preparation.get("manifest_kind") != "pneuma_foundation_preparation_manifest"
         or preparation.get("manifest_schema_version") != "0.1.0"
@@ -934,7 +1137,7 @@ def _validate_preparation_coherence_unchecked(
         or preparation.get("token_ceiling") != token_ceiling
         or preparation.get("dry_run") is not False
         or preparation.get("dataset_suite") != "all_ten_governed_groups"
-        or preparation.get("gradient_lane") != "swe-gym-openhands-sampled"
+        or not lane_binding_exact
         or preparation.get("training_authorized") is not False
         or not _is_exact_positive_zero(preparation.get("persisted_training_weight"))
     ):
@@ -967,13 +1170,13 @@ def _validate_preparation_coherence_unchecked(
         raise _coherence_error("scope tokenizer snapshot differs from preparation")
 
     receipt_digests = preparation.get("receipt_sha256")
-    expected_receipt_names = set(_RECEIPT_FILENAMES.values())
+    expected_receipt_names = set(receipt_filenames.values())
     if (
         not isinstance(receipt_digests, Mapping)
         or set(receipt_digests) != expected_receipt_names
     ):
         raise _coherence_error("preparation receipt digest map is not exact")
-    for binding_name, filename in _RECEIPT_FILENAMES.items():
+    for binding_name, filename in receipt_filenames.items():
         expected = _require_digest(
             receipt_digests[filename],
             label=f"{filename} receipt binding",
@@ -989,10 +1192,23 @@ def _validate_preparation_coherence_unchecked(
     ):
         raise _coherence_error("generated artifact digest groups are incomplete")
     conversion = generated["conversion"]
-    if not isinstance(conversion, Mapping) or set(conversion) != set(
-        _CONVERSION_ARTIFACT_FIELDS
-    ):
-        raise _coherence_error("generated conversion digest map is incomplete")
+    if multi_lane:
+        if not isinstance(conversion, Mapping) or set(conversion) != set(lane_ids):
+            raise _coherence_error("generated conversion digest map is incomplete")
+        conversion_groups = {}
+        for lane_id in lane_ids:
+            lane_group = conversion[lane_id]
+            if not isinstance(lane_group, Mapping) or set(lane_group) != set(
+                _CONVERSION_ARTIFACT_FIELDS
+            ):
+                raise _coherence_error("generated conversion digest map is incomplete")
+            conversion_groups[lane_id] = lane_group
+    else:
+        if not isinstance(conversion, Mapping) or set(conversion) != set(
+            _CONVERSION_ARTIFACT_FIELDS
+        ):
+            raise _coherence_error("generated conversion digest map is incomplete")
+        conversion_groups = {lane_ids[0]: conversion}
     eval_digests = generated["eval_identities"]
     if not isinstance(eval_digests, Mapping) or not eval_digests:
         raise _coherence_error("generated evaluation identity digests are empty")
@@ -1013,9 +1229,17 @@ def _validate_preparation_coherence_unchecked(
         bound_payloads["license_receipt"].sha256,
         tokenizer_receipt_digest,
         tokenizer_snapshot_digest,
-        conversion["conversion_report"]["sha256"],
-        conversion["hash_manifest"]["sha256"],
     }
+    for lane_id in lane_ids:
+        required_source_digests.add(
+            conversion_groups[lane_id]["conversion_report"]["sha256"]
+        )
+        required_source_digests.add(
+            conversion_groups[lane_id]["hash_manifest"]["sha256"]
+        )
+    if multi_lane:
+        required_source_digests.add(bound_payloads["ost_license_receipt"].sha256)
+        required_source_digests.add(bound_payloads["leakage_receipt"].sha256)
     if not required_source_digests.issubset(source_receipt_hashes):
         raise _coherence_error("generated and tokenizer sources lack receipts")
 
@@ -1023,6 +1247,8 @@ def _validate_preparation_coherence_unchecked(
     source_record_ids = []
     record_membership = {}
     recount_by_source_id = {}
+    record_lane_by_source_id = {}
+    records_per_lane = {lane_id: 0 for lane_id in lane_ids}
     recount_total = 0
     for record in records:
         try:
@@ -1035,15 +1261,17 @@ def _validate_preparation_coherence_unchecked(
         rendered = record.get("rendered")
         forecasts = record.get("forecast_targets")
         tokenization = record.get("tokenization")
+        record_lane = source.get("lane_id") if isinstance(source, Mapping) else None
+        rules = _LANE_RULES.get(record_lane) if record_lane in lane_ids else None
         if (
             not _is_exact_positive_zero(record.get("training_weight"))
             or not isinstance(source, Mapping)
-            or source.get("dataset_family") != "swe-gym"
-            or source.get("lane_id") != "swe-gym-openhands-sampled"
+            or rules is None
+            or source.get("dataset_family") != rules.family
             or source.get("receipt_hashes") != source_receipt_hashes
             or not isinstance(disposition, Mapping)
             or disposition.get("terminal_role") != "train"
-            or disposition.get("gradient_eligibility") != "first_stage"
+            or disposition.get("gradient_eligibility") != rules.gradient_eligibility
             or not isinstance(split, Mapping)
             or split.get("split_id") != "train"
             or not isinstance(rendered, Mapping)
@@ -1093,6 +1321,8 @@ def _validate_preparation_coherence_unchecked(
             prompt_tokens,
             target_tokens,
         )
+        record_lane_by_source_id[source_record_id] = record_lane
+        records_per_lane[record_lane] += 1
         recount_total += prompt_tokens + target_tokens
         record_membership[record_id] = _canonical_record_digest(record)
     if len(record_ids) != len(set(record_ids)):
@@ -1124,13 +1354,16 @@ def _validate_preparation_coherence_unchecked(
         raise _coherence_error("shard bytes, manifest, and preparation differ")
 
     gates = preparation.get("gates")
-    if gates != {
+    expected_gates = {
         "all_ten_present": True,
         "eval_coverage_complete": True,
         "contamination_findings": 0,
         "source_unchanged": True,
         "tokenizer_recount_matches": True,
-    }:
+    }
+    if multi_lane:
+        expected_gates["cross_dataset_leakage_quarantine_applied"] = True
+    if gates != expected_gates:
         raise _coherence_error("preparation gates are not exact")
 
     suite = parsed["suite_report"]
@@ -1166,6 +1399,91 @@ def _validate_preparation_coherence_unchecked(
     ):
         raise _coherence_error("license receipt does not permit exact local research")
 
+    leak_digests: frozenset[str] = frozenset()
+    if multi_lane:
+        ost_license = parsed["ost_license_receipt"]
+        if (
+            ost_license.get("receipt_kind") != "dataset_license_posture"
+            or ost_license.get("receipt_schema_version") != "0.1.0"
+            or ost_license.get("dataset_id") != "open-swe-traces"
+            or ost_license.get("artifact_card_license_declared") is not True
+            or ost_license.get("upstream_dataset_license") != "CC-BY-4.0"
+            or not isinstance(ost_license.get("model_output_tos_note"), str)
+            or not ost_license["model_output_tos_note"].strip()
+            or ost_license.get("decision")
+            != "local_research_candidate_no_redistribution"
+            or ost_license.get("cloud_redistribution_allowed") is not False
+            or ost_license.get("requires_exact_operator_authorization") is not True
+        ):
+            raise _coherence_error(
+                "Open-SWE-Traces license receipt does not permit exact local research"
+            )
+        leakage = parsed["leakage_receipt"]
+        try:
+            registry_bytes = (
+                _absolute_lexical(repo_root) / _LEAKAGE_REGISTRY_RELATIVE_PATH
+            ).read_bytes()
+        except OSError as exc:
+            raise _coherence_error(
+                f"committed cross-dataset leakage registry cannot be read: {exc}"
+            ) from exc
+        registry = _strict_json_bytes(
+            registry_bytes,
+            label="cross-dataset leakage registry",
+        )
+        registry_pairs = registry.get("pairs")
+        registry_matches = (
+            [
+                pair
+                for pair in registry_pairs
+                if isinstance(pair, Mapping)
+                and pair.get("dataset_a") == _OPENHANDS_LANE_ID
+                and pair.get("dataset_b") == _OST_LANE_ID
+            ]
+            if isinstance(registry_pairs, list)
+            else []
+        )
+        if (
+            registry.get("status") != "populated"
+            or registry.get("registry_version") != leakage_registry.REGISTRY_VERSION
+            or len(registry_matches) != 1
+        ):
+            raise _coherence_error(
+                "committed cross-dataset leakage registry is not a populated "
+                "OpenHands/Open-SWE-Traces pair"
+            )
+        registry_digests = registry_matches[0].get("overlapping_repo_digests")
+        receipt_digest_list = leakage.get("overlapping_repo_digests")
+        if (
+            leakage.get("manifest_kind")
+            != "pneuma_foundation_cross_dataset_leakage_receipt"
+            or leakage.get("manifest_schema_version") != "0.1.0"
+            or leakage.get("registry_relative_path") != _LEAKAGE_REGISTRY_RELATIVE_PATH
+            or leakage.get("registry_sha256")
+            != hashlib.sha256(registry_bytes).hexdigest()
+            or leakage.get("registry_version") != leakage_registry.REGISTRY_VERSION
+            or leakage.get("registry_status") != "populated"
+            or not isinstance(receipt_digest_list, list)
+            or any(
+                not isinstance(digest, str)
+                or not _LEAKAGE_DIGEST_PATTERN.fullmatch(digest)
+                for digest in receipt_digest_list
+            )
+            or receipt_digest_list != sorted(set(receipt_digest_list))
+            or receipt_digest_list != registry_digests
+            or leakage.get("pair")
+            != {
+                "dataset_a": _OPENHANDS_LANE_ID,
+                "dataset_b": _OST_LANE_ID,
+                "overlap_count": len(receipt_digest_list),
+            }
+            or leakage.get("quarantine_id") != CROSS_DATASET_LEAKAGE_QUARANTINE_ID
+        ):
+            raise _coherence_error(
+                "leakage receipt contradicts the committed leakage registry"
+            )
+        leak_digests = frozenset(receipt_digest_list)
+
     source_presence = parsed["source_presence_receipt"]
     if (
         source_presence.get("manifest_kind")
@@ -1197,222 +1515,9 @@ def _validate_preparation_coherence_unchecked(
     ):
         raise _coherence_error("source integrity receipt contradicts source gate")
 
-    examples = _strict_jsonl_records(
-        bound_payloads[_CONVERSION_PAYLOAD_NAMES["examples"]].payload,
-        label="conversion examples",
-    )
-    try:
-        openhands_converter.validate_training_examples(
-            [dict(example) for example in examples]
-        )
-    except (RuntimeError, TypeError, ValueError) as exc:
-        raise _coherence_error(
-            f"conversion examples fail the committed training schema: {exc}"
-        ) from exc
-    invalid_payload = bound_payloads[
-        _CONVERSION_PAYLOAD_NAMES["invalid_examples"]
-    ].payload
-    if invalid_payload != b"":
-        _strict_jsonl_records(
-            invalid_payload,
-            label="conversion invalid examples",
-        )
-        raise _coherence_error("conversion invalid examples are not empty")
-    conversion_report = _strict_json_bytes(
-        bound_payloads[_CONVERSION_PAYLOAD_NAMES["conversion_report"]].payload,
-        label="conversion report",
-    )
-    hash_manifest = _strict_json_bytes(
-        bound_payloads[_CONVERSION_PAYLOAD_NAMES["hash_manifest"]].payload,
-        label="conversion hash manifest",
-    )
-    example_ids = []
-    examples_by_id = {}
-    for example in examples:
-        example_id = example.get("example_id")
-        split_group = example.get("split_group")
-        repo = split_group.get("repo") if isinstance(split_group, Mapping) else None
-        if (
-            not isinstance(example_id, str)
-            or not example_id
-            or not isinstance(repo, str)
-            or not repo.strip()
-            or example.get("dataset_id") != "swe-gym-openhands-sampled"
-            or example.get("dataset_family") != "swe-gym"
-            or example.get("example_type") != "TrajectoryExample"
-            or example.get("input_modality") != "structured_features"
-            or example.get("model_use_tier") != "train_after_adapter"
-            or not _is_exact_positive_zero(example.get("training_weight"))
-            or example.get("split_policy") != "repo_grouped"
-            or openhands_converter.CONVERTER_VERSION
-            not in example.get("canonical_feature_refs", ())
-        ):
-            raise _coherence_error("conversion example identity is incomplete")
-        example_ids.append(example_id)
-        examples_by_id[example_id] = example
-    if len(example_ids) != len(set(example_ids)):
-        raise _coherence_error("conversion example IDs are not unique")
-
-    report_output = conversion_report.get("output")
-    report_hashes = (
-        report_output.get("hashes") if isinstance(report_output, Mapping) else None
-    )
-    examples_read = bound_payloads[_CONVERSION_PAYLOAD_NAMES["examples"]]
-    invalid_read = bound_payloads[_CONVERSION_PAYLOAD_NAMES["invalid_examples"]]
-    resolved_examples = sum(
-        example["target"]["resolved"] is True for example in examples
-    )
-    unresolved_examples = len(examples) - resolved_examples
-    agent_steps = sum(
-        int(example["input"]["trajectory"]["num_agent_steps"]) for example in examples
-    )
-    report_converter = conversion_report.get("converter")
-    report_input = conversion_report.get("input")
-    report_source_hashes = conversion_report.get("source_hashes")
-    report_source_counts = conversion_report.get("source_counts")
-    report_source_trajectory = conversion_report.get("source_trajectory")
-    report_reconciliation = conversion_report.get("count_reconciliation")
-    report_schema = conversion_report.get("schema")
-    expected_report_keys = {
-        "conversion_report_schema_version",
-        "mode",
-        "converter",
-        "dataset_id",
-        "dataset_family",
-        "input",
-        "output",
-        "source_hashes",
-        "source_counts",
-        "source_trajectory",
-        "count_reconciliation",
-        "privacy",
-        "schema",
-        "training_authorization",
-        "warnings",
-    }
-    expected_source_hash_fields = {
-        "traces_file_sha256",
-        "trace_index_file_sha256",
-        "invalid_traces_file_sha256",
-    }
-    if (
-        set(conversion_report) != expected_report_keys
-        or conversion_report.get("conversion_report_schema_version") != "0.1.0"
-        or conversion_report.get("mode") != "full"
-        or conversion_report.get("dataset_id") != "swe-gym-openhands-sampled"
-        or conversion_report.get("dataset_family") != "swe-gym"
-        or report_converter
-        != {
-            "name": "openhands-sampled-training",
-            "version": openhands_converter.CONVERTER_VERSION,
-            "git_sha": report_converter.get("git_sha")
-            if isinstance(report_converter, Mapping)
-            else None,
-        }
-        or not isinstance(report_converter, Mapping)
-        or not isinstance(report_converter.get("git_sha"), str)
-        or not _COMMIT_PATTERN.fullmatch(report_converter["git_sha"])
-        or report_input
-        != {
-            "trace_jsonl": "verified-stream:pneuma_traces.jsonl",
-            "adapter_report": "verified-stream:adapter_report.json",
-            "requested_limit": None,
-            "loaded_traces": len(examples),
-            "selection": "all_adapter_emitted_processed_traces",
-        }
-        or not isinstance(report_output, Mapping)
-        or set(report_output)
-        != {
-            "examples_emitted",
-            "invalid_examples",
-            "quarantined_examples",
-            "resolved_targets",
-            "unresolved_targets",
-            "hashes",
-            "schema_validation_passed",
-        }
-        or report_output.get("examples_emitted") != len(examples)
-        or report_output.get("invalid_examples") != 0
-        or report_output.get("quarantined_examples") != 0
-        or report_output.get("resolved_targets") != resolved_examples
-        or report_output.get("unresolved_targets") != unresolved_examples
-        or report_output.get("schema_validation_passed") is not True
-        or report_hashes
-        != {
-            "examples_jsonl_sha256": examples_read.sha256,
-            "invalid_examples_jsonl_sha256": invalid_read.sha256,
-        }
-        or not isinstance(report_source_hashes, Mapping)
-        or set(report_source_hashes) != expected_source_hash_fields
-        or any(
-            not isinstance(digest, str) or not _DIGEST_PATTERN.fullmatch(digest)
-            for digest in report_source_hashes.values()
-        )
-        or not isinstance(report_source_counts, Mapping)
-        or not report_source_counts
-        or report_source_counts.get(
-            "valid",
-            report_source_counts.get("traces_emitted"),
-        )
-        != len(examples)
-        or report_source_counts.get("invalid") != 0
-        or not isinstance(report_source_trajectory, Mapping)
-        or not report_source_trajectory
-        or report_source_trajectory.get("total_agent_steps") != agent_steps
-        or report_source_trajectory.get("resolved_true") != resolved_examples
-        or report_source_trajectory.get("resolved_false") != unresolved_examples
-        or not isinstance(report_reconciliation, Mapping)
-        or report_reconciliation.get("reconciled") is not True
-        or not isinstance(report_reconciliation.get("checks"), Mapping)
-        or report_reconciliation["checks"]
-        != {
-            "examples_plus_quarantined_match_traces_read": True,
-            "traces_read_match_adapter_valid": True,
-            "agent_steps_match_adapter_report": True,
-            "resolved_targets_match_adapter_report": True,
-            "unresolved_targets_match_adapter_report": True,
-        }
-        or report_reconciliation.get("expected")
-        != {
-            "valid_traces": len(examples),
-            "invalid_traces": 0,
-            "skipped_rows": report_source_counts.get("skipped"),
-            "agent_steps": agent_steps,
-            "resolved": resolved_examples,
-            "unresolved": unresolved_examples,
-        }
-        or not isinstance(report_reconciliation.get("observed"), Mapping)
-        or report_reconciliation["observed"]
-        != {
-            "traces_read": len(examples),
-            "examples_emitted": len(examples),
-            "invalid_examples": 0,
-            "quarantined_examples": 0,
-            "agent_steps": agent_steps,
-            "resolved": resolved_examples,
-            "unresolved": unresolved_examples,
-        }
-        or report_schema
-        != {
-            "training_example": openhands_converter.TRAINING_EXAMPLE_SCHEMA,
-            "training_example_version": load_schema(
-                openhands_converter.TRAINING_EXAMPLE_SCHEMA
-            ).get("x-pneuma-version"),
-        }
-        or not isinstance(conversion_report.get("training_authorization"), Mapping)
-        or conversion_report["training_authorization"].get("model_use_tier")
-        != "train_after_adapter"
-        or not _is_exact_positive_zero(
-            conversion_report["training_authorization"].get("training_weight")
-        )
-        or not isinstance(conversion_report.get("privacy"), Mapping)
-        or conversion_report.get("warnings") != []
-    ):
-        raise _coherence_error("conversion report contradicts held conversion bytes")
-
     source_snapshots = source_integrity["before"]
     expected_source_paths = {
-        *_OPENHANDS_SOURCE_PATHS,
+        *(path for lane_id in lane_ids for path in _LANE_RULES[lane_id].source_paths),
         *(
             f"processed/{family}/normalized_metadata.jsonl"
             for family in _REQUIRED_EVAL_FAMILIES
@@ -1450,76 +1555,351 @@ def _validate_preparation_coherence_unchecked(
         snapshots_by_path[snapshot["relative_path"]] = snapshot
     if set(snapshots_by_path) != expected_source_paths:
         raise _coherence_error("source integrity paths differ from authorized inputs")
-    trace_snapshot = snapshots_by_path[_OPENHANDS_SOURCE_PATHS[0]]
-    if not hmac.compare_digest(
-        trace_snapshot["sha256"],
-        report_source_hashes["traces_file_sha256"],
-    ):
-        raise _coherence_error("conversion trace digest differs from source integrity")
 
-    manifest_hashes = hash_manifest.get("hashes")
-    report_read = bound_payloads[_CONVERSION_PAYLOAD_NAMES["conversion_report"]]
-    if (
-        set(hash_manifest)
-        != {
-            "hash_manifest_schema_version",
+    example_ids = []
+    examples_by_id = {}
+    example_lane_by_id = {}
+    lane_example_counts = {}
+    for lane_id in lane_ids:
+        rules = _LANE_RULES[lane_id]
+        lane_converter = rules.converter
+        examples_name = _conversion_payload_name(stage, lane_id, "examples")
+        invalid_name = _conversion_payload_name(stage, lane_id, "invalid_examples")
+        report_name = _conversion_payload_name(stage, lane_id, "conversion_report")
+        manifest_name = _conversion_payload_name(stage, lane_id, "hash_manifest")
+        examples = _strict_jsonl_records(
+            bound_payloads[examples_name].payload,
+            label=f"{lane_id} conversion examples",
+        )
+        try:
+            lane_converter.validate_training_examples(
+                [dict(example) for example in examples]
+            )
+        except (RuntimeError, TypeError, ValueError) as exc:
+            raise _coherence_error(
+                f"conversion examples fail the committed training schema: {exc}"
+            ) from exc
+        invalid_payload = bound_payloads[invalid_name].payload
+        if invalid_payload != b"":
+            _strict_jsonl_records(
+                invalid_payload,
+                label=f"{lane_id} conversion invalid examples",
+            )
+            raise _coherence_error("conversion invalid examples are not empty")
+        conversion_report = _strict_json_bytes(
+            bound_payloads[report_name].payload,
+            label=f"{lane_id} conversion report",
+        )
+        hash_manifest = _strict_json_bytes(
+            bound_payloads[manifest_name].payload,
+            label=f"{lane_id} conversion hash manifest",
+        )
+        lane_example_counts[lane_id] = len(examples)
+        for example in examples:
+            example_id = example.get("example_id")
+            split_group = example.get("split_group")
+            repo = split_group.get("repo") if isinstance(split_group, Mapping) else None
+            if (
+                not isinstance(example_id, str)
+                or not example_id
+                or not isinstance(repo, str)
+                or not repo.strip()
+                or example.get("dataset_id") != rules.dataset_id
+                or example.get("dataset_family") != rules.family
+                or example.get("example_type") != "TrajectoryExample"
+                or example.get("input_modality") != "structured_features"
+                or example.get("model_use_tier") != "train_after_adapter"
+                or not _is_exact_positive_zero(example.get("training_weight"))
+                or example.get("split_policy") != "repo_grouped"
+                or lane_converter.CONVERTER_VERSION
+                not in example.get("canonical_feature_refs", ())
+                or (
+                    lane_id == _OST_LANE_ID
+                    and not _LEAKAGE_DIGEST_PATTERN.fullmatch(repo)
+                )
+            ):
+                raise _coherence_error("conversion example identity is incomplete")
+            if example_id in examples_by_id:
+                raise _coherence_error("conversion example IDs are not unique")
+            example_ids.append(example_id)
+            examples_by_id[example_id] = example
+            example_lane_by_id[example_id] = lane_id
+
+        report_output = conversion_report.get("output")
+        report_hashes = (
+            report_output.get("hashes") if isinstance(report_output, Mapping) else None
+        )
+        examples_read = bound_payloads[examples_name]
+        invalid_read = bound_payloads[invalid_name]
+        resolved_examples = sum(
+            example["target"]["resolved"] is True for example in examples
+        )
+        unresolved_examples = len(examples) - resolved_examples
+        if lane_id == _OPENHANDS_LANE_ID:
+            agent_steps = sum(
+                int(example["input"]["trajectory"]["num_agent_steps"])
+                for example in examples
+            )
+        else:
+            agent_steps = sum(
+                int(example["input"]["trajectory_summary"]["num_agent_steps"])
+                for example in examples
+            )
+        report_converter = conversion_report.get("converter")
+        report_input = conversion_report.get("input")
+        report_source_hashes = conversion_report.get("source_hashes")
+        report_source_counts = conversion_report.get("source_counts")
+        report_source_trajectory = conversion_report.get("source_trajectory")
+        report_reconciliation = conversion_report.get("count_reconciliation")
+        report_schema = conversion_report.get("schema")
+        expected_report_keys = {
+            "conversion_report_schema_version",
             "mode",
+            "converter",
             "dataset_id",
-            "converter_version",
-            "hash_manifest_hash_convention",
+            "dataset_family",
             "input",
-            "hashes",
+            "output",
+            "source_hashes",
+            "source_counts",
+            "source_trajectory",
+            "count_reconciliation",
+            "privacy",
+            "schema",
+            "training_authorization",
+            "warnings",
         }
-        or hash_manifest.get("hash_manifest_schema_version") != "0.1.0"
-        or hash_manifest.get("mode") != "full"
-        or hash_manifest.get("dataset_id") != "swe-gym-openhands-sampled"
-        or hash_manifest.get("converter_version")
-        != openhands_converter.CONVERTER_VERSION
-        or hash_manifest.get("hash_manifest_hash_convention")
-        != (
-            "hash_manifest_json_sha256 is the sha256 of canonical manifest JSON "
-            "with hashes.hash_manifest_json_sha256 set to null"
+        if lane_id == _OST_LANE_ID:
+            expected_report_keys |= {
+                "label_policy",
+                "third_party_model_output_tos_reviewed",
+            }
+            expected_warnings = [ost_governance.MINIMAX_QWEN_TOS_CAVEAT]
+        else:
+            expected_warnings = []
+        expected_source_hash_fields = {
+            "traces_file_sha256",
+            "trace_index_file_sha256",
+            "invalid_traces_file_sha256",
+        }
+        if (
+            set(conversion_report) != expected_report_keys
+            or conversion_report.get("conversion_report_schema_version") != "0.1.0"
+            or conversion_report.get("mode") != "full"
+            or conversion_report.get("dataset_id") != rules.dataset_id
+            or conversion_report.get("dataset_family") != rules.family
+            or report_converter
+            != {
+                "name": rules.converter_name,
+                "version": lane_converter.CONVERTER_VERSION,
+                "git_sha": report_converter.get("git_sha")
+                if isinstance(report_converter, Mapping)
+                else None,
+            }
+            or not isinstance(report_converter, Mapping)
+            or not isinstance(report_converter.get("git_sha"), str)
+            or not _COMMIT_PATTERN.fullmatch(report_converter["git_sha"])
+            or report_input
+            != {
+                "trace_jsonl": "verified-stream:pneuma_traces.jsonl",
+                "adapter_report": "verified-stream:adapter_report.json",
+                "requested_limit": None,
+                "loaded_traces": len(examples),
+                "selection": "all_adapter_emitted_processed_traces",
+            }
+            or not isinstance(report_output, Mapping)
+            or set(report_output)
+            != {
+                "examples_emitted",
+                "invalid_examples",
+                "quarantined_examples",
+                "resolved_targets",
+                "unresolved_targets",
+                "hashes",
+                "schema_validation_passed",
+            }
+            or report_output.get("examples_emitted") != len(examples)
+            or report_output.get("invalid_examples") != 0
+            or report_output.get("quarantined_examples") != 0
+            or report_output.get("resolved_targets") != resolved_examples
+            or report_output.get("unresolved_targets") != unresolved_examples
+            or report_output.get("schema_validation_passed") is not True
+            or report_hashes
+            != {
+                "examples_jsonl_sha256": examples_read.sha256,
+                "invalid_examples_jsonl_sha256": invalid_read.sha256,
+            }
+            or not isinstance(report_source_hashes, Mapping)
+            or set(report_source_hashes) != expected_source_hash_fields
+            or any(
+                not isinstance(digest, str) or not _DIGEST_PATTERN.fullmatch(digest)
+                for digest in report_source_hashes.values()
+            )
+            or not isinstance(report_source_counts, Mapping)
+            or not report_source_counts
+            or report_source_counts.get(
+                "valid",
+                report_source_counts.get("traces_emitted"),
+            )
+            != len(examples)
+            or report_source_counts.get("invalid") != 0
+            or not isinstance(report_source_trajectory, Mapping)
+            or not report_source_trajectory
+            or report_source_trajectory.get("total_agent_steps") != agent_steps
+            or report_source_trajectory.get("resolved_true") != resolved_examples
+            or report_source_trajectory.get("resolved_false") != unresolved_examples
+            or not isinstance(report_reconciliation, Mapping)
+            or report_reconciliation.get("reconciled") is not True
+            or not isinstance(report_reconciliation.get("checks"), Mapping)
+            or report_reconciliation["checks"]
+            != {
+                "examples_plus_quarantined_match_traces_read": True,
+                "traces_read_match_adapter_valid": True,
+                "agent_steps_match_adapter_report": True,
+                "resolved_targets_match_adapter_report": True,
+                "unresolved_targets_match_adapter_report": True,
+            }
+            or report_reconciliation.get("expected")
+            != {
+                "valid_traces": len(examples),
+                "invalid_traces": 0,
+                "skipped_rows": report_source_counts.get("skipped"),
+                "agent_steps": agent_steps,
+                "resolved": resolved_examples,
+                "unresolved": unresolved_examples,
+            }
+            or not isinstance(report_reconciliation.get("observed"), Mapping)
+            or report_reconciliation["observed"]
+            != {
+                "traces_read": len(examples),
+                "examples_emitted": len(examples),
+                "invalid_examples": 0,
+                "quarantined_examples": 0,
+                "agent_steps": agent_steps,
+                "resolved": resolved_examples,
+                "unresolved": unresolved_examples,
+            }
+            or report_schema
+            != {
+                "training_example": lane_converter.TRAINING_EXAMPLE_SCHEMA,
+                "training_example_version": load_schema(
+                    lane_converter.TRAINING_EXAMPLE_SCHEMA
+                ).get("x-pneuma-version"),
+            }
+            or not isinstance(conversion_report.get("training_authorization"), Mapping)
+            or conversion_report["training_authorization"].get("model_use_tier")
+            != "train_after_adapter"
+            or not _is_exact_positive_zero(
+                conversion_report["training_authorization"].get("training_weight")
+            )
+            or not isinstance(conversion_report.get("privacy"), Mapping)
+            or conversion_report.get("warnings") != expected_warnings
+        ):
+            raise _coherence_error(
+                "conversion report contradicts held conversion bytes"
+            )
+        if lane_id == _OST_LANE_ID and (
+            conversion_report.get("label_policy")
+            != {
+                "kind": "constructed_label",
+                "confidence": "medium",
+                "harness_outcome_forbidden": True,
+            }
+            or conversion_report.get("third_party_model_output_tos_reviewed")
+            is not False
+        ):
+            raise _coherence_error(
+                "Open-SWE-Traces conversion report label policy is not exact"
+            )
+
+        trace_snapshot = snapshots_by_path[rules.source_paths[0]]
+        if not hmac.compare_digest(
+            trace_snapshot["sha256"],
+            report_source_hashes["traces_file_sha256"],
+        ):
+            raise _coherence_error(
+                "conversion trace digest differs from source integrity"
+            )
+
+        manifest_hashes = hash_manifest.get("hashes")
+        report_read = bound_payloads[report_name]
+        if (
+            set(hash_manifest)
+            != {
+                "hash_manifest_schema_version",
+                "mode",
+                "dataset_id",
+                "converter_version",
+                "hash_manifest_hash_convention",
+                "input",
+                "hashes",
+            }
+            or hash_manifest.get("hash_manifest_schema_version") != "0.1.0"
+            or hash_manifest.get("mode") != "full"
+            or hash_manifest.get("dataset_id") != rules.dataset_id
+            or hash_manifest.get("converter_version")
+            != lane_converter.CONVERTER_VERSION
+            or hash_manifest.get("hash_manifest_hash_convention")
+            != (
+                "hash_manifest_json_sha256 is the sha256 of canonical manifest JSON "
+                "with hashes.hash_manifest_json_sha256 set to null"
+            )
+            or hash_manifest.get("input")
+            != {
+                "trace_jsonl": "verified-stream:pneuma_traces.jsonl",
+                "adapter_report": "verified-stream:adapter_report.json",
+                "requested_limit": None,
+            }
+            or not isinstance(manifest_hashes, Mapping)
+            or set(manifest_hashes)
+            != {
+                "examples_jsonl_sha256",
+                "invalid_examples_jsonl_sha256",
+                "conversion_report_json_sha256",
+                "hash_manifest_json_sha256",
+            }
+            or manifest_hashes.get("examples_jsonl_sha256") != examples_read.sha256
+            or manifest_hashes.get("invalid_examples_jsonl_sha256")
+            != invalid_read.sha256
+            or manifest_hashes.get("conversion_report_json_sha256")
+            != report_read.sha256
+        ):
+            raise _coherence_error("conversion hash manifest differs from held bytes")
+        self_digest = _require_digest(
+            manifest_hashes.get("hash_manifest_json_sha256"),
+            label="conversion hash manifest self digest",
         )
-        or hash_manifest.get("input")
-        != {
-            "trace_jsonl": "verified-stream:pneuma_traces.jsonl",
-            "adapter_report": "verified-stream:adapter_report.json",
-            "requested_limit": None,
+        self_hash_value = copy.deepcopy(hash_manifest)
+        self_hash_value["hashes"]["hash_manifest_json_sha256"] = None
+        self_hash_payload = (
+            json.dumps(
+                self_hash_value,
+                allow_nan=False,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
+        ).encode("utf-8")
+        if not hmac.compare_digest(
+            self_digest,
+            hashlib.sha256(self_hash_payload).hexdigest(),
+        ):
+            raise _coherence_error("conversion hash manifest self digest is invalid")
+
+    if multi_lane:
+        lane_counts = preparation.get("lane_counts")
+        expected_lane_counts = {
+            lane_id: {
+                "converted_examples": lane_example_counts[lane_id],
+                "selected_records": records_per_lane[lane_id],
+            }
+            for lane_id in lane_ids
         }
-        or not isinstance(manifest_hashes, Mapping)
-        or set(manifest_hashes)
-        != {
-            "examples_jsonl_sha256",
-            "invalid_examples_jsonl_sha256",
-            "conversion_report_json_sha256",
-            "hash_manifest_json_sha256",
-        }
-        or manifest_hashes.get("examples_jsonl_sha256") != examples_read.sha256
-        or manifest_hashes.get("invalid_examples_jsonl_sha256") != invalid_read.sha256
-        or manifest_hashes.get("conversion_report_json_sha256") != report_read.sha256
-    ):
-        raise _coherence_error("conversion hash manifest differs from held bytes")
-    self_digest = _require_digest(
-        manifest_hashes.get("hash_manifest_json_sha256"),
-        label="conversion hash manifest self digest",
-    )
-    self_hash_value = copy.deepcopy(hash_manifest)
-    self_hash_value["hashes"]["hash_manifest_json_sha256"] = None
-    self_hash_payload = (
-        json.dumps(
-            self_hash_value,
-            allow_nan=False,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        + "\n"
-    ).encode("utf-8")
-    if not hmac.compare_digest(
-        self_digest,
-        hashlib.sha256(self_hash_payload).hexdigest(),
-    ):
-        raise _coherence_error("conversion hash manifest self digest is invalid")
+        if lane_counts != expected_lane_counts:
+            raise _coherence_error(
+                "preparation lane counts differ from held conversions and shard"
+            )
 
     suite_evaluation = suite.get("evaluation_identity")
     if not isinstance(suite_evaluation, Mapping):
@@ -1565,6 +1945,12 @@ def _validate_preparation_coherence_unchecked(
         for identity in eval_identities
         if (normalized := normalize_identity_text(identity.repo)) is not None
     }
+    if multi_lane:
+        eval_repo_keys |= {
+            leakage_registry.canonicalize_repo(identity.repo)
+            for identity in eval_identities
+            if isinstance(identity.repo, str) and identity.repo.strip()
+        }
     policy_families = []
     for item in suite_families:
         policy_item = {
@@ -1677,8 +2063,14 @@ def _validate_preparation_coherence_unchecked(
         "split_id",
         "quarantine_id",
     }
+    allowed_quarantine_ids = (
+        (None, EVAL_REPO_QUARANTINE_ID, CROSS_DATASET_LEAKAGE_QUARANTINE_ID)
+        if multi_lane
+        else (None, EVAL_REPO_QUARANTINE_ID)
+    )
     assignment_by_source = {}
     expected_sets = {"train": set(), "validation": set(), "held_out": set()}
+    leak_quarantine_counts = {lane_id: 0 for lane_id in lane_ids}
     for assignment in assignments:
         if (
             not isinstance(assignment, Mapping)
@@ -1696,7 +2088,7 @@ def _validate_preparation_coherence_unchecked(
             or not isinstance(repo, str)
             or not isinstance(canonical_repo, str)
             or split_id not in expected_sets
-            or assignment.get("quarantine_id") not in (None, EVAL_REPO_QUARANTINE_ID)
+            or assignment.get("quarantine_id") not in allowed_quarantine_ids
         ):
             raise _coherence_error("split assignment identity is invalid")
         try:
@@ -1705,11 +2097,16 @@ def _validate_preparation_coherence_unchecked(
             raise _coherence_error("split repository cannot be normalized") from exc
         if normalized_repo is None or normalized_repo != canonical_repo:
             raise _coherence_error("split canonical repository is not reproducible")
-        expected_quarantine = (
-            EVAL_REPO_QUARANTINE_ID if canonical_repo in eval_repo_keys else None
-        )
+        if canonical_repo in eval_repo_keys:
+            expected_quarantine = EVAL_REPO_QUARANTINE_ID
+        elif multi_lane and leakage_registry.canonicalize_repo(repo) in leak_digests:
+            expected_quarantine = CROSS_DATASET_LEAKAGE_QUARANTINE_ID
+        else:
+            expected_quarantine = None
         if assignment.get("quarantine_id") != expected_quarantine:
             raise _coherence_error("split quarantine is not reproducible")
+        if expected_quarantine == CROSS_DATASET_LEAKAGE_QUARANTINE_ID:
+            leak_quarantine_counts[example_lane_by_id[source_id]] += 1
         bucket = (
             int(
                 hashlib.sha256(canonical_repo.encode("utf-8")).hexdigest()[:8],
@@ -1736,12 +2133,23 @@ def _validate_preparation_coherence_unchecked(
         canonical_sets
     ):
         raise _coherence_error("split repository sets are not reproducible")
+    if multi_lane:
+        leakage = parsed["leakage_receipt"]
+        if leakage.get("quarantined_example_counts") != leak_quarantine_counts or (
+            leakage.get("quarantined_example_total")
+            != sum(leak_quarantine_counts.values())
+        ):
+            raise _coherence_error(
+                "leakage receipt quarantine counts are not reproducible"
+            )
     for record in records:
         source_id = record["source"]["source_record_id"]
         assignment = assignment_by_source.get(source_id)
         identity = record.get("identity")
+        record_lane = record_lane_by_source_id[source_id]
         if (
             assignment is None
+            or example_lane_by_id.get(source_id) != record_lane
             or assignment["split_id"] != "train"
             or assignment["quarantine_id"] is not None
             or not isinstance(identity, Mapping)
@@ -1755,7 +2163,7 @@ def _validate_preparation_coherence_unchecked(
                 record,
                 example=examples_by_id[source_id],
                 split_assignment=assignment,
-                lane_disposition=_FIRST_STAGE_DISPOSITION,
+                lane_disposition=_LANE_RULES[record_lane].disposition,
                 source_receipt_hashes=tuple(source_receipt_hashes),
                 tokenizer_id=spec.model_id,
                 tokenizer_revision=spec.revision,
@@ -1775,6 +2183,7 @@ def _validate_preparation_coherence(
     bound_payloads: Mapping[str, BoundArtifactRead],
     *,
     tokenizer,
+    repo_root: Path,
 ) -> dict[str, str]:
     """Fail closed around the shared held-byte semantic validator."""
 
@@ -1783,6 +2192,7 @@ def _validate_preparation_coherence(
             scope,
             bound_payloads,
             tokenizer=tokenizer,
+            repo_root=repo_root,
         )
     except FoundationAuthorizationError:
         raise
@@ -1847,12 +2257,15 @@ def build_authorization_candidate(
             raise FoundationAuthorizationError(
                 "pinned tokenizer snapshot changed before recount"
             )
-    artifact_paths = _artifact_paths_from_preparation(preparation)
-    evidence_paths = _evidence_paths_from_preparation(preparation)
-    all_paths = {**artifact_paths, **evidence_paths}
-    stage_hint = artifact_paths["preparation_manifest"].parent.name
+    try:
+        stage_hint = Path(preparation.preparation_manifest_path).parent.name
+    except (AttributeError, TypeError) as exc:
+        raise FoundationAuthorizationError("preparation result is incomplete") from exc
     if stage_hint not in _STAGE_TOKEN_CEILINGS:
         raise FoundationAuthorizationError("preparation stage path is not authorized")
+    artifact_paths = _artifact_paths_from_preparation(preparation, stage=stage_hint)
+    evidence_paths = _evidence_paths_from_preparation(preparation, stage=stage_hint)
+    all_paths = {**artifact_paths, **evidence_paths}
     _validate_exact_preparation_paths(
         artifact_paths,
         evidence_paths,
@@ -1865,7 +2278,7 @@ def build_authorization_candidate(
         if name.startswith(_EVAL_PAYLOAD_PREFIX)
     )
     size_limits, total_size_limit = _artifact_size_limits(
-        _STAGE_TOKEN_CEILINGS[stage_hint],
+        stage_hint,
         eval_families,
     )
     with _hold_artifacts(
@@ -1923,6 +2336,7 @@ def build_authorization_candidate(
                 "preparation manifest shard paths are not exact"
             )
         candidate_path = _candidate_path(preparation, repo_root=root, stage=stage)
+        artifact_field_names = _artifact_fields(stage)
         bindings = {
             name: {
                 "path": _repo_relative(item.path, repo_root=root),
@@ -1930,20 +2344,33 @@ def build_authorization_candidate(
                 "size": item.read.size,
             }
             for name, item in held.items()
-            if name in _ARTIFACT_FIELDS
+            if name in artifact_field_names
         }
-        evidence_bindings = {
-            "conversion": {
-                name: {
-                    "path": _repo_relative(
-                        held[_CONVERSION_PAYLOAD_NAMES[name]].path,
-                        repo_root=root,
-                    ),
-                    "sha256": held[_CONVERSION_PAYLOAD_NAMES[name]].read.sha256,
-                    "size": held[_CONVERSION_PAYLOAD_NAMES[name]].read.size,
-                }
+
+        def _held_conversion_binding(payload_name: str) -> dict:
+            return {
+                "path": _repo_relative(held[payload_name].path, repo_root=root),
+                "sha256": held[payload_name].read.sha256,
+                "size": held[payload_name].read.size,
+            }
+
+        if stage in _SINGLE_LANE_STAGES:
+            conversion_bindings = {
+                name: _held_conversion_binding(_CONVERSION_PAYLOAD_NAMES[name])
                 for name in _CONVERSION_ARTIFACT_FIELDS
-            },
+            }
+        else:
+            conversion_bindings = {
+                lane_id: {
+                    name: _held_conversion_binding(
+                        _conversion_payload_name(stage, lane_id, name)
+                    )
+                    for name in _CONVERSION_ARTIFACT_FIELDS
+                }
+                for lane_id in _stage_lane_ids(stage)
+            }
+        evidence_bindings = {
+            "conversion": conversion_bindings,
             "eval_identities": {
                 name.removeprefix(_EVAL_PAYLOAD_PREFIX): {
                     "path": _repo_relative(item.path, repo_root=root),
@@ -1973,7 +2400,7 @@ def build_authorization_candidate(
             "code_commit": code_commit,
             "artifacts": bindings,
             "evidence_artifacts": evidence_bindings,
-            "authorized_lane_weights": copy.deepcopy(_AUTHORIZED_LANE_WEIGHTS),
+            "authorized_lane_weights": _stage_lane_weights(stage),
             "source_data_policy": copy.deepcopy(_SOURCE_POLICY),
             "output_root": _OUTPUT_ROOT,
             "budget": copy.deepcopy(_BUDGET),
@@ -1982,6 +2409,7 @@ def build_authorization_candidate(
             scope,
             {name: item.read for name, item in held.items()},
             tokenizer=tokenizer,
+            repo_root=root,
         )
         after_recount = _verify_authorization_snapshot(
             verified_snapshot.snapshot_path,
@@ -2248,7 +2676,7 @@ def _assert_exact_scope(scope: Mapping, *, repo_root: Path) -> None:
         )
     if scope.get("learning_rates") != [0.00005, 0.0001, 0.0002]:
         raise FoundationAuthorizationError("authorization learning-rate scope changed")
-    if scope.get("authorized_lane_weights") != _AUTHORIZED_LANE_WEIGHTS:
+    if scope.get("authorized_lane_weights") != _stage_lane_weights(stage):
         raise FoundationAuthorizationError("authorization lane-weight map changed")
     if scope.get("source_data_policy") != _SOURCE_POLICY:
         raise FoundationAuthorizationError("protected source policy changed")
@@ -2357,7 +2785,7 @@ def verify_foundation_authorization(
                 tokenizer_loader=_tokenizer_loader,
             )
             bindings = scope["artifacts"]
-            if set(bindings) != set(_ARTIFACT_FIELDS):
+            if set(bindings) != set(_artifact_fields(stage)):
                 raise FoundationAuthorizationError(
                     "authorization artifact set is incomplete"
                 )
@@ -2365,7 +2793,7 @@ def verify_foundation_authorization(
                 name: _path_from_binding(binding, repo_root=root)
                 for name, binding in bindings.items()
             }
-            evidence_bindings = _flatten_scope_bindings(scope)
+            evidence_bindings = _flatten_scope_bindings(scope, stage=stage)
             evidence_paths = {
                 name: _path_from_binding(binding, repo_root=root)
                 for name, binding in evidence_bindings.items()
@@ -2379,7 +2807,7 @@ def verify_foundation_authorization(
             all_bindings = {**bindings, **evidence_bindings}
             eval_families = tuple(scope["evidence_artifacts"]["eval_identities"])
             size_limits, total_size_limit = _artifact_size_limits(
-                scope["token_ceiling"],
+                stage,
                 eval_families,
             )
             _validate_declared_size_limits(
@@ -2406,6 +2834,7 @@ def verify_foundation_authorization(
                     scope,
                     {name: item.read for name, item in artifact_held.items()},
                     tokenizer=tokenizer,
+                    repo_root=root,
                 )
                 after_recount = _verify_authorization_snapshot(
                     verified_snapshot.snapshot_path,
@@ -2474,7 +2903,8 @@ def apply_verified_authorization(
         raise FoundationAuthorizationError(
             "foundation record lane is not exactly authorized"
         )
-    if lane != "swe-gym-openhands-sampled" or source.get("dataset_family") != "swe-gym":
+    lane_rules = _LANE_RULES.get(lane)
+    if lane_rules is None or source.get("dataset_family") != lane_rules.family:
         raise FoundationAuthorizationError(
             "foundation record lane is outside the exact scope"
         )
@@ -2482,7 +2912,7 @@ def apply_verified_authorization(
     if (
         not isinstance(disposition, Mapping)
         or disposition.get("terminal_role") != "train"
-        or disposition.get("gradient_eligibility") != "first_stage"
+        or disposition.get("gradient_eligibility") != lane_rules.gradient_eligibility
     ):
         raise FoundationAuthorizationError(
             "foundation record is not eligible for this lane"

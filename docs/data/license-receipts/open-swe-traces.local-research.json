@@ -1,0 +1,15 @@
+{
+    "receipt_kind": "dataset_license_posture",
+    "receipt_schema_version": "0.1.0",
+    "dataset_id": "open-swe-traces",
+    "artifact_card_license_declared": true,
+    "upstream_dataset_license": "CC-BY-4.0",
+    "model_output_tos_note": "MiniMax/Qwen model-output terms not independently verified; local research only",
+    "decision": "local_research_candidate_no_redistribution",
+    "cloud_redistribution_allowed": false,
+    "requires_exact_operator_authorization": true,
+    "sources": [
+        "https://huggingface.co/datasets/nvidia/Open-SWE-Traces",
+        "arXiv:2606.16038"
+    ]
+}

@@ -38,6 +38,7 @@ _OBSERVABLE_NUMERIC_PROMPT_FIELDS = (
 _REVIEWED_FEATURE_REFS = frozenset(
     {
         "openhands-sampled-training/0.1.0",
+        "open-swe-traces-training/0.1.0",
         "pneuma-estimators-features/0.1.0",
     }
 )
@@ -100,9 +101,7 @@ def _make_effective_training_record(
         or not math.isfinite(effective_weight)
         or effective_weight <= 0.0
     ):
-        raise FoundationRecordError(
-            "effective_weight must be a finite positive float"
-        )
+        raise FoundationRecordError("effective_weight must be a finite positive float")
     detached = _canonical_json_copy(record)
     effective = object.__new__(EffectiveTrainingRecord)
     object.__setattr__(effective, "record", _freeze_json_value(detached))
@@ -332,9 +331,7 @@ def render_prompt_payload(example: Mapping) -> dict:
         "observable_summary": _render_observable_summary(
             input_value.get("observable_summary")
         ),
-        "objective": _render_objective_payload(
-            input_value.get("objective", _MISSING)
-        ),
+        "objective": _render_objective_payload(input_value.get("objective", _MISSING)),
         "feature_refs": _render_feature_refs(input_value.get("feature_refs")),
     }
 
@@ -382,9 +379,7 @@ def render_foundation_record(
             allow_nan=False,
         )
     except (TypeError, ValueError, OverflowError) as exc:
-        raise FoundationRecordError(
-            f"target must be canonical JSON: {exc}"
-        ) from exc
+        raise FoundationRecordError(f"target must be canonical JSON: {exc}") from exc
     prompt_tokens = len(tokenizer.encode(prompt_text, add_special_tokens=False))
     target_tokens = len(tokenizer.encode(target_text, add_special_tokens=False))
     source = {
@@ -486,9 +481,7 @@ def validate_derived_foundation_record(
             separators=(",", ":"),
         )
     except (KeyError, TypeError, ValueError, OverflowError) as exc:
-        raise FoundationRecordError(
-            f"target must be canonical JSON: {exc}"
-        ) from exc
+        raise FoundationRecordError(f"target must be canonical JSON: {exc}") from exc
     receipt_hashes = sorted(source_receipt_hashes)
     source = {
         "dataset_family": dataset_family,

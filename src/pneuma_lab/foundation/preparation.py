@@ -13,6 +13,7 @@ import re
 import stat as stat_module
 
 from pneuma_lab import dataset_readiness
+from pneuma_lab.converters import open_swe_traces_training as ost_converter
 from pneuma_lab.converters import openhands_sampled_training as openhands_converter
 from pneuma_lab.foundation.artifacts import (
     ArtifactPublicationError,
@@ -22,9 +23,11 @@ from pneuma_lab.foundation.artifacts import (
     write_atomic_json,
 )
 from pneuma_lab.foundation.contamination import (
+    CROSS_DATASET_LEAKAGE_QUARANTINE_ID,
     EVAL_REPO_QUARANTINE_ID,
     build_contamination_receipt,
 )
+from pneuma_lab.training import leakage_registry
 from pneuma_lab.foundation.data import (
     ACTIVE_DATASET_GROUPS,
     DataAuthorizationError,
@@ -99,6 +102,94 @@ _LICENSE_RECEIPT = {
         "swe-gym_openhands_sampled_trajectories/LICENSE",
     ],
 }
+_OST_LICENSE_RELATIVE_PATH = Path(
+    "docs/data/license-receipts/open-swe-traces.local-research.json"
+)
+_OST_TRACE_RELATIVE_PATH = Path(
+    "processed/open-swe-traces/pneuma-trace/pneuma_traces.jsonl"
+)
+_OST_ADAPTER_REPORT_RELATIVE_PATH = Path(
+    "processed/open-swe-traces/pneuma-trace/adapter_report.json"
+)
+_OST_LICENSE_RECEIPT = {
+    "receipt_kind": "dataset_license_posture",
+    "receipt_schema_version": "0.1.0",
+    "dataset_id": "open-swe-traces",
+    "artifact_card_license_declared": True,
+    "upstream_dataset_license": "CC-BY-4.0",
+    "model_output_tos_note": (
+        "MiniMax/Qwen model-output terms not independently verified; "
+        "local research only"
+    ),
+    "decision": "local_research_candidate_no_redistribution",
+    "cloud_redistribution_allowed": False,
+    "requires_exact_operator_authorization": True,
+    "sources": [
+        "https://huggingface.co/datasets/nvidia/Open-SWE-Traces",
+        "arXiv:2606.16038",
+    ],
+}
+_LEAKAGE_REGISTRY_RELATIVE_PATH = Path(
+    "docs/data/training-readiness/cross-dataset-leakage-registry.json"
+)
+_LEAKAGE_DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+_OPENHANDS_LANE_ID = "swe-gym-openhands-sampled"
+_OST_LANE_ID = "open-swe-traces"
+_SINGLE_LANE_STAGES = frozenset({"100k", "500k", "1m"})
+_CONVERSION_ARTIFACT_NAMES = (
+    "examples.jsonl",
+    "invalid_examples.jsonl",
+    "conversion_report.json",
+    "hash_manifest.json",
+)
+
+
+@dataclass(frozen=True)
+class _GradientLane:
+    family: str
+    lane_id: str
+    trace_relative_path: Path
+    adapter_report_relative_path: Path
+
+
+_OPENHANDS_LANE = _GradientLane(
+    family="swe-gym",
+    lane_id=_OPENHANDS_LANE_ID,
+    trace_relative_path=_TRACE_RELATIVE_PATH,
+    adapter_report_relative_path=_ADAPTER_REPORT_RELATIVE_PATH,
+)
+_OST_LANE = _GradientLane(
+    family="open-swe-traces",
+    lane_id=_OST_LANE_ID,
+    trace_relative_path=_OST_TRACE_RELATIVE_PATH,
+    adapter_report_relative_path=_OST_ADAPTER_REPORT_RELATIVE_PATH,
+)
+_LANE_DISPOSITIONS = {
+    _OPENHANDS_LANE_ID: LaneDisposition(
+        terminal_role=TerminalRole.TRAIN,
+        gradient_eligibility=GradientEligibility.FIRST_STAGE,
+        license_disposition="local_research_candidate_no_redistribution",
+        privacy_disposition="redaction_verified",
+        dual_use_disposition="not_flagged",
+        oracle_disposition="target_only",
+    ),
+    _OST_LANE_ID: LaneDisposition(
+        terminal_role=TerminalRole.TRAIN,
+        gradient_eligibility=GradientEligibility.LATER,
+        license_disposition="local_research_candidate_no_redistribution",
+        privacy_disposition="digest_only_by_construction",
+        dual_use_disposition="not_flagged",
+        oracle_disposition="target_only",
+    ),
+}
+
+
+def _stage_gradient_lanes(stage: str) -> tuple[_GradientLane, ...]:
+    """Gradient lanes per stage: single OpenHands lane before 2m, both after."""
+
+    if stage in _SINGLE_LANE_STAGES:
+        return (_OPENHANDS_LANE,)
+    return (_OPENHANDS_LANE, _OST_LANE)
 
 
 @dataclass(frozen=True)
@@ -132,6 +223,11 @@ class PreparationResult:
     conversion_hash_manifest_path: Path
     eval_identity_paths: Mapping[str, Path]
     authorization_candidate_path: Path
+    # Multi-lane (2m and later) extensions; None for single-lane stages so
+    # earlier-stage results keep their exact historical shape and semantics.
+    ost_license_receipt_path: Path | None = None
+    leakage_receipt_path: Path | None = None
+    lane_conversion_paths: Mapping[str, Mapping[str, Path]] | None = None
 
 
 class _DigestingBinaryStream:
@@ -541,6 +637,207 @@ def _conversion_bundle(traces: tuple[dict, ...], adapter_report: Mapping) -> dic
     }
 
 
+def _ost_streaming_conversion_parser(stream) -> dict:
+    """Parse, validate, and convert Open-SWE-Traces envelopes one line at a time.
+
+    Mirrors ``ost_converter.parse_verified_trace_stream`` line handling and
+    ``run_verified_stream_conversion`` per-trace validation/conversion, but
+    never holds more than one raw trace in memory; only the small digest-only
+    training examples and running counters are retained. This keeps the real
+    multi-gigabyte Open-SWE-Traces lane inside the local memory envelope.
+    """
+
+    examples: list[dict] = []
+    traces_read = 0
+    agent_steps = 0
+    for line_number, raw_line in enumerate(stream, start=1):
+        if not isinstance(raw_line, bytes):
+            raise ValueError("verified trace stream must yield bytes")
+        if not raw_line.strip():
+            raise ValueError(f"verified trace line {line_number} must not be blank")
+        value = ost_converter._strict_json_loads(
+            raw_line,
+            label=f"verified trace line {line_number}",
+        )
+        if not isinstance(value, Mapping):
+            raise ValueError(f"verified trace line {line_number} must be an object")
+        trace = ost_converter._validate_trace_boundaries(
+            value,
+            index=line_number - 1,
+        )
+        traces_read += 1
+        agent_steps += ost_converter._trace_agent_steps(trace)
+        examples.append(
+            ost_converter.convert_trace(
+                trace,
+                adapter_report_ref="verified-stream:adapter_report.json",
+                manifest_ref="full/hash_manifest.json",
+            )
+        )
+    if not traces_read:
+        raise ValueError("verified trace stream must contain at least one trace")
+    return {
+        "examples": examples,
+        "traces_read": traces_read,
+        "agent_steps": agent_steps,
+    }
+
+
+def _ost_conversion_bundle(parsed: Mapping, adapter_report: Mapping) -> dict:
+    """Deterministic Open-SWE-Traces conversion bundle from streamed values."""
+
+    examples = list(parsed["examples"])
+    ost_converter.validate_training_examples(examples)
+    examples_bytes = b"".join(_canonical_json_bytes(example) for example in examples)
+    invalid_bytes = b""
+    output_hashes = {
+        "examples_jsonl_sha256": hashlib.sha256(examples_bytes).hexdigest(),
+        "invalid_examples_jsonl_sha256": hashlib.sha256(invalid_bytes).hexdigest(),
+    }
+    report = ost_converter.build_conversion_report(
+        mode=ost_converter.FULL_MODE,
+        input_path="verified-stream:pneuma_traces.jsonl",
+        adapter_report_path="verified-stream:adapter_report.json",
+        adapter_report=dict(adapter_report),
+        limit=None,
+        traces_read=parsed["traces_read"],
+        agent_steps=parsed["agent_steps"],
+        examples=examples,
+        invalid_records=[],
+        output_hashes=output_hashes,
+    )
+    if not report["count_reconciliation"]["reconciled"]:
+        raise ValueError("trace counts do not reconcile with the adapter report")
+    report_bytes = _canonical_json_bytes(report)
+    manifest = ost_converter.build_hash_manifest(
+        mode=ost_converter.FULL_MODE,
+        examples_text=examples_bytes.decode("utf-8"),
+        invalid_text="",
+        report_text=report_bytes.decode("utf-8"),
+        limit=None,
+        input_path="verified-stream:pneuma_traces.jsonl",
+        adapter_report_path="verified-stream:adapter_report.json",
+    )
+    manifest["hashes"]["hash_manifest_json_sha256"] = hashlib.sha256(
+        _canonical_json_bytes(manifest)
+    ).hexdigest()
+    manifest_bytes = _canonical_json_bytes(manifest)
+    return {
+        "examples": examples,
+        "examples.jsonl": examples_bytes,
+        "invalid_examples.jsonl": invalid_bytes,
+        "conversion_report.json": report_bytes,
+        "hash_manifest.json": manifest_bytes,
+    }
+
+
+def _publish_conversion_bundle(
+    bundle: Mapping,
+    *,
+    repo_root: Path,
+    data_root: Path,
+    output_root: Path,
+) -> None:
+    """Publish one already-validated conversion bundle atomically."""
+
+    try:
+        with bind_artifact_publication(
+            output_root,
+            anchor_root=Path(repo_root),
+            allowed_root=Path(repo_root) / "build",
+            forbidden_roots=(Path(data_root),),
+        ) as publication:
+            for name in _CONVERSION_ARTIFACT_NAMES:
+                write_atomic_bytes(
+                    output_root / name,
+                    bundle[name],
+                    publication=publication,
+                )
+    except ArtifactPublicationError as exc:
+        raise ValueError(f"verified conversion publication failed: {exc}") from exc
+
+
+def _load_leakage_registry_pair(repo_root: Path) -> tuple[dict, tuple[str, ...], bytes]:
+    """Load and strictly validate the committed cross-dataset leakage registry."""
+
+    registry, registry_bytes = _load_strict_json(
+        Path(repo_root) / _LEAKAGE_REGISTRY_RELATIVE_PATH,
+        label="committed cross-dataset leakage registry",
+    )
+    if registry.get("leakage_registry_schema_version") != "0.1.0":
+        raise ValueError("cross-dataset leakage registry schema version is invalid")
+    if registry.get("registry_version") != leakage_registry.REGISTRY_VERSION:
+        raise ValueError("cross-dataset leakage registry version is invalid")
+    if registry.get("status") != "populated":
+        raise ValueError("cross-dataset leakage registry must be populated")
+    pairs = registry.get("pairs")
+    if not isinstance(pairs, list) or not pairs:
+        raise ValueError("cross-dataset leakage registry pairs are missing")
+    matches = [
+        pair
+        for pair in pairs
+        if isinstance(pair, Mapping)
+        and pair.get("dataset_a") == _OPENHANDS_LANE_ID
+        and pair.get("dataset_b") == _OST_LANE_ID
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            "cross-dataset leakage registry must pair the OpenHands and "
+            "Open-SWE-Traces lanes exactly once"
+        )
+    pair = dict(matches[0])
+    digests = pair.get("overlapping_repo_digests")
+    if (
+        not isinstance(digests, list)
+        or any(
+            not isinstance(digest, str) or not _LEAKAGE_DIGEST_PATTERN.fullmatch(digest)
+            for digest in digests
+        )
+        or digests != sorted(set(digests))
+    ):
+        raise ValueError(
+            "cross-dataset leakage registry overlap digests must be sorted "
+            "unique sha256:<hex> strings"
+        )
+    if pair.get("overlap_count") != len(digests):
+        raise ValueError("cross-dataset leakage registry overlap count is wrong")
+    if pair.get("disjoint") is not (len(digests) == 0):
+        raise ValueError(
+            "cross-dataset leakage registry disjoint flag contradicts overlap"
+        )
+    return pair, tuple(digests), registry_bytes
+
+
+def _build_leakage_receipt(
+    *,
+    registry_bytes: bytes,
+    overlapping_digests: tuple[str, ...],
+    lane_quarantine_counts: Mapping[str, int],
+) -> dict:
+    """Record the applied cross-dataset leakage quarantine for the candidate."""
+
+    return {
+        "manifest_kind": "pneuma_foundation_cross_dataset_leakage_receipt",
+        "manifest_schema_version": "0.1.0",
+        "registry_relative_path": _LEAKAGE_REGISTRY_RELATIVE_PATH.as_posix(),
+        "registry_sha256": hashlib.sha256(registry_bytes).hexdigest(),
+        "registry_version": leakage_registry.REGISTRY_VERSION,
+        "registry_status": "populated",
+        "pair": {
+            "dataset_a": _OPENHANDS_LANE_ID,
+            "dataset_b": _OST_LANE_ID,
+            "overlap_count": len(overlapping_digests),
+        },
+        "overlapping_repo_digests": list(overlapping_digests),
+        "quarantine_id": CROSS_DATASET_LEAKAGE_QUARANTINE_ID,
+        "quarantined_example_counts": {
+            lane_id: lane_quarantine_counts[lane_id]
+            for lane_id in sorted(lane_quarantine_counts)
+        },
+        "quarantined_example_total": sum(lane_quarantine_counts.values()),
+    }
+
+
 def _conversion_is_complete(
     output_root: Path,
     bundle: Mapping,
@@ -610,6 +907,7 @@ def _split_assignments(
     examples: Iterable[Mapping],
     *,
     quarantined_repos: frozenset[str] = frozenset(),
+    leakage_quarantined_digests: frozenset[str] = frozenset(),
 ) -> tuple[dict, ...]:
     assignments = []
     repository_splits: dict[str, str] = {}
@@ -625,17 +923,22 @@ def _split_assignments(
         previous = repository_splits.setdefault(canonical_repo, split_id)
         if previous != split_id:
             raise ValueError("one repository cannot be assigned to multiple splits")
+        if canonical_repo in quarantined_repos:
+            quarantine_id = EVAL_REPO_QUARANTINE_ID
+        elif (
+            leakage_quarantined_digests
+            and leakage_registry.canonicalize_repo(repo) in leakage_quarantined_digests
+        ):
+            quarantine_id = CROSS_DATASET_LEAKAGE_QUARANTINE_ID
+        else:
+            quarantine_id = None
         assignments.append(
             {
                 "record_source_id": example.get("example_id"),
                 "repo": repo,
                 "canonical_repo": canonical_repo,
                 "split_id": split_id,
-                "quarantine_id": (
-                    EVAL_REPO_QUARANTINE_ID
-                    if canonical_repo in quarantined_repos
-                    else None
-                ),
+                "quarantine_id": quarantine_id,
             }
         )
     return tuple(assignments)
@@ -643,10 +946,17 @@ def _split_assignments(
 
 def _eval_overlap_quarantine(
     eval_identities: Iterable["IdentityRecord"],
+    *,
+    include_repo_digests: bool = False,
 ) -> frozenset[str]:
     """Canonical repos shared with any evaluation identity, per the
     cross-dataset leakage registry rule: overlapping repositories are
-    quarantined out of the training selection rather than trained on."""
+    quarantined out of the training selection rather than trained on.
+
+    When ``include_repo_digests`` is true (multi-lane stages), each raw
+    evaluation repository is additionally canonicalized to its
+    ``sha256:<hex>`` digest so digest-only lanes (Open-SWE-Traces) are
+    quarantined against the same evaluation identities."""
 
     keys = set()
     for identity in eval_identities:
@@ -654,6 +964,8 @@ def _eval_overlap_quarantine(
         if not isinstance(repo, str) or not repo.strip():
             continue
         keys.add(_canonical_repo_key(repo))
+        if include_repo_digests:
+            keys.add(leakage_registry.canonicalize_repo(repo))
     return frozenset(keys)
 
 
@@ -698,19 +1010,20 @@ def _render_records(
     examples: Iterable[Mapping],
     assignments: Iterable[Mapping],
     *,
+    lane_ids: Iterable[str],
     tokenizer,
     source_receipt_hashes: tuple[str, ...],
 ) -> tuple[dict, ...]:
-    disposition = LaneDisposition(
-        terminal_role=TerminalRole.TRAIN,
-        gradient_eligibility=GradientEligibility.FIRST_STAGE,
-        license_disposition="local_research_candidate_no_redistribution",
-        privacy_disposition="redaction_verified",
-        dual_use_disposition="not_flagged",
-        oracle_disposition="target_only",
-    )
     records = []
-    for example, assignment in zip(examples, assignments, strict=True):
+    for example, assignment, lane_id in zip(
+        examples,
+        assignments,
+        lane_ids,
+        strict=True,
+    ):
+        disposition = _LANE_DISPOSITIONS.get(lane_id)
+        if disposition is None:
+            raise ValueError(f"unknown gradient lane for rendering: {lane_id!r}")
         record = render_foundation_record(
             example,
             lane_disposition=disposition,
@@ -766,7 +1079,41 @@ def _result_paths(
     shard_manifest_path: Path,
     eval_families: Iterable[str],
 ) -> PreparationResult:
-    conversion_root = output_root / "conversion"
+    lanes = _stage_gradient_lanes(stage)
+    multi_lane = len(lanes) > 1
+    if multi_lane:
+        lane_conversion_paths = {
+            lane.lane_id: {
+                "examples": (
+                    output_root / "conversion" / lane.lane_id / "examples.jsonl"
+                ),
+                "invalid_examples": (
+                    output_root / "conversion" / lane.lane_id / "invalid_examples.jsonl"
+                ),
+                "conversion_report": (
+                    output_root / "conversion" / lane.lane_id / "conversion_report.json"
+                ),
+                "hash_manifest": (
+                    output_root / "conversion" / lane.lane_id / "hash_manifest.json"
+                ),
+            }
+            for lane in lanes
+        }
+        openhands_paths = lane_conversion_paths[_OPENHANDS_LANE_ID]
+        extras = {
+            "ost_license_receipt_path": output_root / "ost_license_receipt.json",
+            "leakage_receipt_path": output_root / "leakage_receipt.json",
+            "lane_conversion_paths": lane_conversion_paths,
+        }
+    else:
+        conversion_root = output_root / "conversion"
+        openhands_paths = {
+            "examples": conversion_root / "examples.jsonl",
+            "invalid_examples": conversion_root / "invalid_examples.jsonl",
+            "conversion_report": conversion_root / "conversion_report.json",
+            "hash_manifest": conversion_root / "hash_manifest.json",
+        }
+        extras = {}
     return PreparationResult(
         tokenizer_snapshot_path=tokenizer_snapshot_path,
         preparation_manifest_path=output_root / "preparation_manifest.json",
@@ -780,10 +1127,10 @@ def _result_paths(
         contamination_receipt_path=output_root / "contamination_receipt.json",
         diversity_receipt_path=output_root / "diversity_receipt.json",
         selection_receipt_path=output_root / "selection_receipt.json",
-        conversion_examples_path=conversion_root / "examples.jsonl",
-        conversion_invalid_examples_path=(conversion_root / "invalid_examples.jsonl"),
-        conversion_report_path=conversion_root / "conversion_report.json",
-        conversion_hash_manifest_path=conversion_root / "hash_manifest.json",
+        conversion_examples_path=openhands_paths["examples"],
+        conversion_invalid_examples_path=openhands_paths["invalid_examples"],
+        conversion_report_path=openhands_paths["conversion_report"],
+        conversion_hash_manifest_path=openhands_paths["hash_manifest"],
         eval_identity_paths={
             family: output_root / "eval-identities" / f"{family}.jsonl"
             for family in eval_families
@@ -791,6 +1138,7 @@ def _result_paths(
         authorization_candidate_path=(
             repo_root / "build/foundation/authorizations/candidates" / f"{stage}.json"
         ),
+        **extras,
     )
 
 
@@ -933,18 +1281,26 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         repo_root,
         request.tokenizer_snapshot,
     )
+    lanes = _stage_gradient_lanes(request.stage)
+    multi_lane = len(lanes) > 1
+    if multi_lane:
+        lane_conversion_roots = {
+            lane.lane_id: output_root / "conversion" / lane.lane_id for lane in lanes
+        }
+    else:
+        lane_conversion_roots = {lanes[0].lane_id: output_root / "conversion"}
     try:
         _validate_output_path(
             repo_root=repo_root,
             output_root=output_root,
             data_root=data_root,
         )
-        conversion_root = output_root / "conversion"
-        _validate_output_path(
-            repo_root=repo_root,
-            output_root=conversion_root,
-            data_root=data_root,
-        )
+        for lane_conversion_root in lane_conversion_roots.values():
+            _validate_output_path(
+                repo_root=repo_root,
+                output_root=lane_conversion_root,
+                data_root=data_root,
+            )
     except DataAuthorizationError as exc:
         raise ValueError(f"preparation output policy failed: {exc}") from exc
 
@@ -981,6 +1337,21 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
     )
     if license_receipt != _LICENSE_RECEIPT:
         raise ValueError("committed OpenHands license receipt posture is invalid")
+    ost_license_bytes = None
+    leakage_digests: tuple[str, ...] = ()
+    leakage_registry_bytes = None
+    if multi_lane:
+        ost_license_receipt, ost_license_bytes = _load_strict_json(
+            repo_root / _OST_LICENSE_RELATIVE_PATH,
+            label="committed Open-SWE-Traces license receipt",
+        )
+        if ost_license_receipt != _OST_LICENSE_RECEIPT:
+            raise ValueError(
+                "committed Open-SWE-Traces license receipt posture is invalid"
+            )
+        _pair, leakage_digests, leakage_registry_bytes = _load_leakage_registry_pair(
+            repo_root
+        )
     verified_tokenizer_snapshot = verify_pinned_snapshot(
         "2b",
         snapshot_path=tokenizer_snapshot_path,
@@ -995,28 +1366,39 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         raise ValueError("tokenizer snapshot binding changed during local load")
 
     source_before = []
-    traces, trace_snapshot = _read_authorized_value(
-        suite_policy,
-        stage=request.stage,
-        family="swe-gym",
-        lane_id="swe-gym-openhands-sampled",
-        data_root=data_root,
-        relative_path=_TRACE_RELATIVE_PATH,
-        parser=openhands_converter.parse_verified_trace_stream,
-    )
-    source_before.append(trace_snapshot)
-    adapter_report, report_snapshot = _read_authorized_value(
-        suite_policy,
-        stage=request.stage,
-        family="swe-gym",
-        lane_id="swe-gym-openhands-sampled",
-        data_root=data_root,
-        relative_path=_ADAPTER_REPORT_RELATIVE_PATH,
-        parser=openhands_converter.parse_verified_adapter_report_stream,
-    )
-    source_before.append(report_snapshot)
-    if adapter_report.get("traces_file_sha256") != trace_snapshot["sha256"]:
-        raise ValueError("verified trace digest does not match the adapter report")
+    lane_parsed_values: dict[str, object] = {}
+    lane_adapter_reports: dict[str, dict] = {}
+    for lane in lanes:
+        if lane.lane_id == _OPENHANDS_LANE_ID:
+            trace_parser = openhands_converter.parse_verified_trace_stream
+            report_parser = openhands_converter.parse_verified_adapter_report_stream
+        else:
+            trace_parser = _ost_streaming_conversion_parser
+            report_parser = ost_converter.parse_verified_adapter_report_stream
+        parsed_value, trace_snapshot = _read_authorized_value(
+            suite_policy,
+            stage=request.stage,
+            family=lane.family,
+            lane_id=lane.lane_id,
+            data_root=data_root,
+            relative_path=lane.trace_relative_path,
+            parser=trace_parser,
+        )
+        source_before.append(trace_snapshot)
+        adapter_report, report_snapshot = _read_authorized_value(
+            suite_policy,
+            stage=request.stage,
+            family=lane.family,
+            lane_id=lane.lane_id,
+            data_root=data_root,
+            relative_path=lane.adapter_report_relative_path,
+            parser=report_parser,
+        )
+        source_before.append(report_snapshot)
+        if adapter_report.get("traces_file_sha256") != trace_snapshot["sha256"]:
+            raise ValueError("verified trace digest does not match the adapter report")
+        lane_parsed_values[lane.lane_id] = parsed_value
+        lane_adapter_reports[lane.lane_id] = adapter_report
 
     required_families, _blocked_families = evaluation_identity_scope(suite_policy)
     eval_relative_paths = {}
@@ -1043,25 +1425,70 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         planned_eval_identities.extend(identities)
     source_before = sorted(source_before, key=lambda item: item["relative_path"])
 
-    bundle = _conversion_bundle(tuple(traces), adapter_report)
-    receipt_hashes = tuple(
-        sorted(
-            (
-                hashlib.sha256(bundle["conversion_report.json"]).hexdigest(),
-                hashlib.sha256(bundle["hash_manifest.json"]).hexdigest(),
-                hashlib.sha256(license_bytes).hexdigest(),
-                verified_tokenizer_snapshot.receipt_sha256,
-                verified_tokenizer_snapshot.snapshot_sha256,
+    lane_bundles: dict[str, dict] = {}
+    for lane in lanes:
+        if lane.lane_id == _OPENHANDS_LANE_ID:
+            lane_bundles[lane.lane_id] = _conversion_bundle(
+                tuple(lane_parsed_values[lane.lane_id]),
+                lane_adapter_reports[lane.lane_id],
             )
-        )
+        else:
+            lane_bundles[lane.lane_id] = _ost_conversion_bundle(
+                lane_parsed_values[lane.lane_id],
+                lane_adapter_reports[lane.lane_id],
+            )
+    example_lane_ids = tuple(
+        lane.lane_id
+        for lane in lanes
+        for _example in lane_bundles[lane.lane_id]["examples"]
+    )
+    combined_examples = tuple(
+        example for lane in lanes for example in lane_bundles[lane.lane_id]["examples"]
     )
     assignments = _split_assignments(
-        bundle["examples"],
-        quarantined_repos=_eval_overlap_quarantine(planned_eval_identities),
+        combined_examples,
+        quarantined_repos=_eval_overlap_quarantine(
+            planned_eval_identities,
+            include_repo_digests=multi_lane,
+        ),
+        leakage_quarantined_digests=frozenset(leakage_digests),
     )
+    leakage_receipt = None
+    if multi_lane:
+        lane_quarantine_counts = {lane.lane_id: 0 for lane in lanes}
+        for lane_id, assignment in zip(example_lane_ids, assignments, strict=True):
+            if assignment["quarantine_id"] == CROSS_DATASET_LEAKAGE_QUARANTINE_ID:
+                lane_quarantine_counts[lane_id] += 1
+        leakage_receipt = _build_leakage_receipt(
+            registry_bytes=leakage_registry_bytes,
+            overlapping_digests=leakage_digests,
+            lane_quarantine_counts=lane_quarantine_counts,
+        )
+    receipt_hash_values = [
+        *(
+            hashlib.sha256(
+                lane_bundles[lane.lane_id]["conversion_report.json"]
+            ).hexdigest()
+            for lane in lanes
+        ),
+        *(
+            hashlib.sha256(lane_bundles[lane.lane_id]["hash_manifest.json"]).hexdigest()
+            for lane in lanes
+        ),
+        hashlib.sha256(license_bytes).hexdigest(),
+        verified_tokenizer_snapshot.receipt_sha256,
+        verified_tokenizer_snapshot.snapshot_sha256,
+    ]
+    if multi_lane:
+        receipt_hash_values.append(hashlib.sha256(ost_license_bytes).hexdigest())
+        receipt_hash_values.append(
+            hashlib.sha256(_pretty_json_bytes(leakage_receipt)).hexdigest()
+        )
+    receipt_hashes = tuple(sorted(set(receipt_hash_values)))
     records = _render_records(
-        bundle["examples"],
+        combined_examples,
         assignments,
+        lane_ids=example_lane_ids,
         tokenizer=tokenizer,
         source_receipt_hashes=receipt_hashes,
     )
@@ -1134,15 +1561,13 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
 
     def source_after_snapshot() -> list[dict]:
         source_specs = [
-            (
-                "swe-gym",
-                "swe-gym-openhands-sampled",
-                _TRACE_RELATIVE_PATH,
-            ),
-            (
-                "swe-gym",
-                "swe-gym-openhands-sampled",
-                _ADAPTER_REPORT_RELATIVE_PATH,
+            *(
+                spec
+                for lane in lanes
+                for spec in (
+                    (lane.family, lane.lane_id, lane.trace_relative_path),
+                    (lane.family, lane.lane_id, lane.adapter_report_relative_path),
+                )
             ),
             *(
                 (family, None, eval_relative_paths[family])
@@ -1186,41 +1611,60 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
             )
         return planned_result
 
-    if not _conversion_is_complete(
-        conversion_root,
-        bundle,
-        repo_root=repo_root,
-        data_root=data_root,
-    ):
-        openhands_converter.run_verified_stream_conversion(
-            traces,
-            adapter_report,
+    if multi_lane:
+        planned_lane_conversion_paths = planned_result.lane_conversion_paths
+    else:
+        planned_lane_conversion_paths = {
+            lanes[0].lane_id: {
+                "examples": planned_result.conversion_examples_path,
+                "invalid_examples": planned_result.conversion_invalid_examples_path,
+                "conversion_report": planned_result.conversion_report_path,
+                "hash_manifest": planned_result.conversion_hash_manifest_path,
+            }
+        }
+    lane_conversion_payloads: dict[str, Mapping] = {}
+    for lane in lanes:
+        lane_conversion_root = lane_conversion_roots[lane.lane_id]
+        lane_bundle = lane_bundles[lane.lane_id]
+        if not _conversion_is_complete(
+            lane_conversion_root,
+            lane_bundle,
             repo_root=repo_root,
             data_root=data_root,
-            output_root=conversion_root,
+        ):
+            if lane.lane_id == _OPENHANDS_LANE_ID:
+                openhands_converter.run_verified_stream_conversion(
+                    lane_parsed_values[lane.lane_id],
+                    lane_adapter_reports[lane.lane_id],
+                    repo_root=repo_root,
+                    data_root=data_root,
+                    output_root=lane_conversion_root,
+                )
+            else:
+                _publish_conversion_bundle(
+                    lane_bundle,
+                    repo_root=repo_root,
+                    data_root=data_root,
+                    output_root=lane_conversion_root,
+                )
+        if not _conversion_is_complete(
+            lane_conversion_root,
+            lane_bundle,
+            repo_root=repo_root,
+            data_root=data_root,
+        ):
+            raise ValueError("published conversion is not byte-identical to the plan")
+        lane_paths = planned_lane_conversion_paths[lane.lane_id]
+        payloads = read_bound_artifact_set(
+            tuple(lane_paths.values()),
+            directory=lane_conversion_root,
+            anchor_root=repo_root,
+            allowed_root=repo_root / "build",
+            forbidden_roots=(data_root,),
         )
-    if not _conversion_is_complete(
-        conversion_root,
-        bundle,
-        repo_root=repo_root,
-        data_root=data_root,
-    ):
-        raise ValueError("published conversion is not byte-identical to the plan")
-    conversion_paths = {
-        "examples": planned_result.conversion_examples_path,
-        "invalid_examples": planned_result.conversion_invalid_examples_path,
-        "conversion_report": planned_result.conversion_report_path,
-        "hash_manifest": planned_result.conversion_hash_manifest_path,
-    }
-    conversion_payloads = read_bound_artifact_set(
-        tuple(conversion_paths.values()),
-        directory=conversion_root,
-        anchor_root=repo_root,
-        allowed_root=repo_root / "build",
-        forbidden_roots=(data_root,),
-    )
-    if conversion_payloads is None:
-        raise ValueError("operational conversion evidence is incomplete")
+        if payloads is None:
+            raise ValueError("operational conversion evidence is incomplete")
+        lane_conversion_payloads[lane.lane_id] = payloads
 
     eval_index_paths = {}
     for family in required_families:
@@ -1332,6 +1776,57 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         "diversity_receipt.json": _pretty_json_bytes(diversity_receipt),
         "selection_receipt.json": _pretty_json_bytes(selection_receipt),
     }
+    if multi_lane:
+        receipt_payloads["ost_license_receipt.json"] = ost_license_bytes
+        receipt_payloads["leakage_receipt.json"] = _pretty_json_bytes(leakage_receipt)
+
+    def _conversion_binding_group(lane_id: str) -> dict:
+        lane_paths = planned_lane_conversion_paths[lane_id]
+        payloads = lane_conversion_payloads[lane_id]
+        return {
+            name: {
+                "path": path.relative_to(repo_root).as_posix(),
+                "sha256": payloads[path].sha256,
+                "size": payloads[path].size,
+            }
+            for name, path in lane_paths.items()
+        }
+
+    if multi_lane:
+        conversion_bindings = {
+            lane.lane_id: _conversion_binding_group(lane.lane_id) for lane in lanes
+        }
+        lane_fields = {
+            "gradient_lanes": [lane.lane_id for lane in lanes],
+            "lane_counts": {
+                lane.lane_id: {
+                    "converted_examples": len(lane_bundles[lane.lane_id]["examples"]),
+                    "selected_records": sum(
+                        record["source"]["lane_id"] == lane.lane_id
+                        for record in selected
+                    ),
+                }
+                for lane in lanes
+            },
+        }
+        gates = {
+            "all_ten_present": all_ten_present,
+            "eval_coverage_complete": True,
+            "contamination_findings": 0,
+            "source_unchanged": True,
+            "tokenizer_recount_matches": True,
+            "cross_dataset_leakage_quarantine_applied": True,
+        }
+    else:
+        conversion_bindings = _conversion_binding_group(lanes[0].lane_id)
+        lane_fields = {"gradient_lane": "swe-gym-openhands-sampled"}
+        gates = {
+            "all_ten_present": all_ten_present,
+            "eval_coverage_complete": True,
+            "contamination_findings": 0,
+            "source_unchanged": True,
+            "tokenizer_recount_matches": True,
+        }
     manifest = {
         "manifest_kind": "pneuma_foundation_preparation_manifest",
         "manifest_schema_version": "0.1.0",
@@ -1340,7 +1835,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
         "seed": request.seed,
         "dry_run": False,
         "dataset_suite": "all_ten_governed_groups",
-        "gradient_lane": "swe-gym-openhands-sampled",
+        **lane_fields,
         "training_authorized": False,
         "persisted_training_weight": 0.0,
         "source_receipt_hashes": list(receipt_hashes),
@@ -1351,14 +1846,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
             "snapshot_sha256": verified_tokenizer_snapshot.snapshot_sha256,
         },
         "generated_artifact_sha256": {
-            "conversion": {
-                name: {
-                    "path": path.relative_to(repo_root).as_posix(),
-                    "sha256": conversion_payloads[path].sha256,
-                    "size": conversion_payloads[path].size,
-                }
-                for name, path in conversion_paths.items()
-            },
+            "conversion": conversion_bindings,
             "eval_identities": {
                 family: {
                     "path": eval_index_paths[family].relative_to(repo_root).as_posix(),
@@ -1378,13 +1866,7 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
             "example_count": shard_result.example_count,
             "manifest_artifact": result.shard_manifest_path.name,
         },
-        "gates": {
-            "all_ten_present": all_ten_present,
-            "eval_coverage_complete": True,
-            "contamination_findings": 0,
-            "source_unchanged": True,
-            "tokenizer_recount_matches": True,
-        },
+        "gates": gates,
     }
     try:
         with bind_artifact_publication(
@@ -1438,6 +1920,17 @@ def prepare_stage(request: PreparationRequest) -> PreparationResult:
                 selection_receipt,
                 publication=publication,
             )
+            if multi_lane:
+                write_atomic_bytes(
+                    result.ost_license_receipt_path,
+                    ost_license_bytes,
+                    publication=publication,
+                )
+                write_atomic_json(
+                    result.leakage_receipt_path,
+                    leakage_receipt,
+                    publication=publication,
+                )
     except ArtifactPublicationError as exc:
         raise ValueError(f"preparation receipt publication failed: {exc}") from exc
     from pneuma_lab.foundation.authorization import (

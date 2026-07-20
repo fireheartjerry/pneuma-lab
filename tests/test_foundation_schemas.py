@@ -34,7 +34,7 @@ def test_pending_foundation_authorization_is_schema_valid_and_non_authorizing() 
 
 def test_foundation_authorization_schema_requires_exact_nested_scope() -> None:
     schema = pls.load_schema("foundation-training-authorization.schema.json")
-    assert schema["x-pneuma-version"] == "0.3.0"
+    assert schema["x-pneuma-version"] == "0.4.0"
     assert schema["additionalProperties"] is False
     scope = schema["$defs"]["scope"]
     assert scope["additionalProperties"] is False
@@ -51,9 +51,31 @@ def test_foundation_authorization_schema_requires_exact_nested_scope() -> None:
         "diversity_receipt",
         "selection_receipt",
     }
+    assert set(scope["properties"]["artifacts"]["properties"]) == (
+        set(scope["properties"]["artifacts"]["required"])
+        | {"ost_license_receipt", "leakage_receipt"}
+    )
     assert (
         scope["properties"]["authorized_lane_weights"]["additionalProperties"] is False
     )
+    assert set(scope["properties"]["authorized_lane_weights"]["properties"]) == {
+        "swe-gym-openhands-sampled",
+        "open-swe-traces",
+    }
+    assert scope["properties"]["authorized_lane_weights"]["required"] == [
+        "swe-gym-openhands-sampled"
+    ]
+    conversion_evidence = schema["$defs"]["conversion_evidence"]["oneOf"]
+    assert conversion_evidence[0] == {"$ref": "#/$defs/conversion_set"}
+    assert set(conversion_evidence[1]["required"]) == {
+        "swe-gym-openhands-sampled",
+        "open-swe-traces",
+    }
+    assert conversion_evidence[1]["additionalProperties"] is False
+    cloud_scope = schema["$defs"]["cloud_scope"]
+    assert set(cloud_scope["properties"]["authorized_lane_weights"]["properties"]) == {
+        "swe-gym-openhands-sampled"
+    }
 
 
 def test_learned_subject_profile_validates_without_level_fields() -> None:

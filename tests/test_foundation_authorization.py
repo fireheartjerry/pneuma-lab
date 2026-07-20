@@ -1080,6 +1080,8 @@ def test_candidate_rejects_internally_coherent_sibling_preparation_root(
         }:
             continue
         value = getattr(preparation, field)
+        if value is None:
+            continue
         if isinstance(value, Mapping):
             replaced = {
                 family: sibling_root / path.relative_to(original_root)

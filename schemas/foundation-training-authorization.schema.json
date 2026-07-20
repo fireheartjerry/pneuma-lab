@@ -5,7 +5,7 @@
     "description": "Two-step, exact-scope authorization for one bounded local Qwen3.5 foundation stage.",
     "type": "object",
     "x-pneuma-schema-kind": "manifest",
-    "x-pneuma-version": "0.3.0",
+    "x-pneuma-version": "0.4.0",
     "required": [
         "manifest_kind",
         "manifest_schema_version",
@@ -106,6 +106,43 @@
                 "size": { "type": "integer", "minimum": 0 }
             },
             "additionalProperties": false
+        },
+        "conversion_set": {
+            "type": "object",
+            "required": [
+                "examples",
+                "invalid_examples",
+                "conversion_report",
+                "hash_manifest"
+            ],
+            "properties": {
+                "examples": { "$ref": "#/$defs/artifact_binding" },
+                "invalid_examples": { "$ref": "#/$defs/artifact_binding" },
+                "conversion_report": { "$ref": "#/$defs/artifact_binding" },
+                "hash_manifest": { "$ref": "#/$defs/artifact_binding" }
+            },
+            "additionalProperties": false
+        },
+        "conversion_evidence": {
+            "oneOf": [
+                { "$ref": "#/$defs/conversion_set" },
+                {
+                    "type": "object",
+                    "required": [
+                        "swe-gym-openhands-sampled",
+                        "open-swe-traces"
+                    ],
+                    "properties": {
+                        "swe-gym-openhands-sampled": {
+                            "$ref": "#/$defs/conversion_set"
+                        },
+                        "open-swe-traces": {
+                            "$ref": "#/$defs/conversion_set"
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            ]
         },
         "scope": {
             "type": "object",
@@ -270,6 +307,12 @@
                         },
                         "selection_receipt": {
                             "$ref": "#/$defs/artifact_binding"
+                        },
+                        "ost_license_receipt": {
+                            "$ref": "#/$defs/artifact_binding"
+                        },
+                        "leakage_receipt": {
+                            "$ref": "#/$defs/artifact_binding"
                         }
                     },
                     "additionalProperties": false
@@ -279,28 +322,7 @@
                     "required": ["conversion", "eval_identities"],
                     "properties": {
                         "conversion": {
-                            "type": "object",
-                            "required": [
-                                "examples",
-                                "invalid_examples",
-                                "conversion_report",
-                                "hash_manifest"
-                            ],
-                            "properties": {
-                                "examples": {
-                                    "$ref": "#/$defs/artifact_binding"
-                                },
-                                "invalid_examples": {
-                                    "$ref": "#/$defs/artifact_binding"
-                                },
-                                "conversion_report": {
-                                    "$ref": "#/$defs/artifact_binding"
-                                },
-                                "hash_manifest": {
-                                    "$ref": "#/$defs/artifact_binding"
-                                }
-                            },
-                            "additionalProperties": false
+                            "$ref": "#/$defs/conversion_evidence"
                         },
                         "eval_identities": {
                             "type": "object",
@@ -319,7 +341,8 @@
                     "type": "object",
                     "required": ["swe-gym-openhands-sampled"],
                     "properties": {
-                        "swe-gym-openhands-sampled": { "const": 1.0 }
+                        "swe-gym-openhands-sampled": { "const": 1.0 },
+                        "open-swe-traces": { "const": 1.0 }
                     },
                     "additionalProperties": false
                 },

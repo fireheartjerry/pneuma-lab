@@ -20,6 +20,12 @@ from pneuma_lab.foundation.identity_normalization import (
 # family are quarantined out of the training selection under this marker.
 EVAL_REPO_QUARANTINE_ID = "eval-repo-overlap"
 
+# Records from any repository listed in the committed cross-dataset leakage
+# registry (repos shared between the OpenHands-Sampled and Open-SWE-Traces
+# gradient lanes) are quarantined out of the training selection under this
+# marker whenever more than one gradient lane is active.
+CROSS_DATASET_LEAKAGE_QUARANTINE_ID = "cross-dataset-leakage"
+
 
 @dataclass(frozen=True)
 class ContaminationFinding:
