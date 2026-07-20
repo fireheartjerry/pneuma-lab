@@ -8,7 +8,9 @@ arrives through :class:`RunnerDependencies`. Preflight performs every
 fail-closed check without allocating a model; the safe-boundary loop trains
 in exact 32-microbatch windows, samples telemetry, consults the resource
 guard, and checkpoints only at clean optimizer boundaries. Every termination
-writes a safe checkpoint and a schema-valid run manifest with its reason.
+writes a safe checkpoint and a schema-valid run manifest with its reason,
+plus ``validation_batches.json`` — the per-boundary token-weighted metric
+rows the evaluate CLI consumes (the manifest keeps only best/last).
 
 Torch-dependent modules (checkpoints, dataset, optimizer, authorization) are
 imported lazily so importing this module never requires the foundation extra.
@@ -29,6 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from pneuma_lab.foundation.artifacts import write_atomic_json
 from pneuma_lab.foundation.doctor import doctor_report
 from pneuma_lab.foundation.resources import (
     ACTION_CONTINUE,
@@ -59,6 +62,11 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only imports
 
 _COMPLETED = "completed"
 _VALIDATION_METRIC_NAME = "language_loss"
+# Per-batch validation metrics persisted next to the manifest so the
+# evaluate/report CLI can consume token-weighted per-batch records instead of
+# only the aggregate best/last losses the manifest carries. Each row satisfies
+# ``pneuma_lab.foundation.evaluation.aggregate_validation_metrics``.
+VALIDATION_BATCHES_NAME = "validation_batches.json"
 # Recorded when no validation loss has been observed yet. The value is a
 # finite lower-is-better sentinel so the checkpoint index stays strict JSON
 # (never ``Infinity``) and any real loss immediately replaces it as best.
@@ -557,6 +565,24 @@ def _resume_bindings(
     )
 
 
+def _load_validation_batches(path: Path) -> list[dict]:
+    """Reload the persisted per-batch validation rows for an exact resume."""
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise FoundationRunError(
+            f"validation batches artifact cannot be read: {exc}"
+        ) from exc
+    if not isinstance(payload, list) or not all(
+        isinstance(item, Mapping) for item in payload
+    ):
+        raise FoundationRunError(
+            "validation batches artifact must be a JSON array of mappings"
+        )
+    return [dict(item) for item in payload]
+
+
 def _model_device(model):
     for parameter in model.parameters():
         return parameter.device
@@ -772,6 +798,18 @@ def execute_safe_boundary_loop(
     telemetry = dependencies.telemetry_factory(output_root=request.run_root)
     guard = ResourceGuard(max_gpu_temp_c=config.thermal_pause_c)
     writer = RunManifestWriter(request.run_root)
+    validation_batches_path = Path(request.run_root) / VALIDATION_BATCHES_NAME
+    # A resumed run extends the interrupted run's per-batch history so the
+    # final artifact matches an uninterrupted run of the same schedule.
+    validation_batches: list[dict] = (
+        _load_validation_batches(validation_batches_path)
+        if restored is not None and validation_batches_path.is_file()
+        else []
+    )
+
+    def write_validation_batches() -> None:
+        writer.run_root.mkdir(parents=True, exist_ok=True)
+        write_atomic_json(validation_batches_path, list(validation_batches))
 
     lineage = (
         (*restored.lineage, run_id)
@@ -892,6 +930,13 @@ def execute_safe_boundary_loop(
                 best_loss = (
                     last_loss if best_loss is None else min(best_loss, last_loss)
                 )
+                validation_batches.append(
+                    {
+                        "token_count": int(window_tokens),
+                        "validation_loss": float(step.language_loss),
+                        "forecast_loss": float(step.forecast_loss),
+                    }
+                )
             elapsed = max(dependencies.clock() - window_started, 0.0)
             try:
                 telemetry.sample(
@@ -921,6 +966,7 @@ def execute_safe_boundary_loop(
                 gradient_accumulation=accumulation,
             ):
                 last_checkpoint = save_checkpoint(None)
+                write_validation_batches()
                 last_saved_step = progress.optimizer_step
                 last_saved_time = dependencies.clock()
                 writer.append_event(
@@ -942,6 +988,7 @@ def execute_safe_boundary_loop(
                 }
             )
         last_checkpoint = save_checkpoint(None if reason == _COMPLETED else reason)
+        write_validation_batches()
         manifest_path = writer.write_manifest(manifest_payload(status, reason))
         writer.append_event(
             {
@@ -958,6 +1005,8 @@ def execute_safe_boundary_loop(
         if progress.microbatch % accumulation == 0:
             with contextlib.suppress(Exception):
                 last_checkpoint = save_checkpoint(None)
+        with contextlib.suppress(Exception):
+            write_validation_batches()
         with contextlib.suppress(Exception):
             writer.write_manifest(manifest_payload("failed", None))
         with contextlib.suppress(Exception):
@@ -987,6 +1036,7 @@ __all__ = [
     "FoundationRunResult",
     "PauseSignal",
     "RunnerDependencies",
+    "VALIDATION_BATCHES_NAME",
     "assert_clean_commit",
     "default_runner_dependencies",
     "execute_safe_boundary_loop",

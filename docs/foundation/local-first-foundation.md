@@ -25,7 +25,15 @@ schedule before allocating model weights.
   shells.
 - One primary full-attention junction, with a second junction unavailable until
   the recurrent design clears the early kill gate.
-- Four-variant paired evaluation and bootstrap confidence gating.
+- Four-variant paired evaluation and bootstrap confidence gating, plus the
+  offline honest-proxy harness (`pneuma_lab.foundation.variants` and the
+  `variant-eval` CLI verb) that produces the four paired result files from a
+  trained run's last checkpoint over the shard's repo-disjoint held-out
+  (validation) records. Every emitted file carries
+  `task_semantics: held_out_risk_prediction_correctness` and
+  `no_consciousness_claim: true`; the two pre-registered baselines run with
+  deterministic untrained initializations until baseline training is
+  authorized, and the index manifest records that provenance.
 - NF4/double-quant local configuration, staged token ceilings, learning-rate
   selection, gradient accumulation, atomic resume checkpoints, and thermal
   stop rules.
@@ -39,9 +47,11 @@ schedule before allocating model weights.
 - The complete training launch surface: pinned 2B model cache with verified
   snapshot receipts, a no-gradient dry run with parity/latency/FLOPs gates,
   live telemetry and schema-valid run manifests, exact optimizer-boundary
-  checkpoint/resume, a hash-verifying single-document data loader, the
-  preflight-first gated runner, claim-bounded evaluation and reports, the
-  `python -m pneuma_lab.foundation` CLI (fourteen commands with strict
+  checkpoint/resume with per-boundary `validation_batches.json` persistence
+  (the token-weighted per-batch rows the evaluate CLI consumes), a
+  hash-verifying single-document data loader, the preflight-first gated
+  runner, claim-bounded evaluation and reports, the
+  `python -m pneuma_lab.foundation` CLI (fifteen commands with strict
   command separation), an authorized-only cloud reproduction bundle behind a
   hard budget quote gate, and the drift-checked operator guide
   `START-HERE-TRAINING.md`.

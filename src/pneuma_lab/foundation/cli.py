@@ -33,9 +33,18 @@ Documented CLI contracts:
   planned request without allocating a model.
 - ``evaluate --run`` consumes ``<run>/manifest.json`` plus
   ``<run>/validation_batches.json`` (a JSON array of per-batch mappings with
-  ``token_count`` and ``validation_loss``). The runner manifest records only
-  aggregate best/last validation losses, so evaluation fails closed until the
-  per-batch artifact exists; it never fabricates batch weights.
+  ``token_count`` and ``validation_loss``). The runner now persists that
+  artifact at every checkpoint boundary and at termination; evaluation still
+  fails closed when it is absent and never fabricates batch weights.
+- ``variant-eval`` runs the offline four-variant paired falsification
+  harness (``pneuma_lab.foundation.variants``) over one trained run's last
+  checkpoint and writes the four ``<variant>.json`` results plus an
+  ``index.json`` manifest. It is honest-proxy scoped: every emitted file
+  carries ``task_semantics = held_out_risk_prediction_correctness`` and
+  ``no_consciousness_claim = true``, and it fails closed when the run
+  manifest, checkpoint, authorized stage, or held-out shard slice is
+  missing. ``--shard``/``--shard-manifest`` (both or neither) override the
+  authorized shard with a prepared held-out evaluation shard.
 - The cloud handlers import ``pneuma_lab.foundation.cloud_bundle`` lazily
   (Task 14). Until that module lands, both commands fail closed with
   ``BLOCKED``. The CLI boundary passes primitives:
@@ -93,6 +102,7 @@ class CommandHandlers:
     train: Callable
     resume: Callable
     evaluate: Callable
+    variant_eval: Callable
     report: Callable
     cloud_bundle: Callable
 
@@ -198,6 +208,20 @@ def _parser() -> argparse.ArgumentParser:
     )
     evaluate.add_argument("--run", required=True)
     evaluate.add_argument("--variant-results", action="append")
+
+    variant_eval = subparsers.add_parser(
+        "variant-eval",
+        help="offline four-variant paired falsification evaluation",
+    )
+    variant_eval.add_argument(
+        "--stage", choices=("2m", "8m", "16m", "32m"), required=True
+    )
+    variant_eval.add_argument("--authorization", required=True)
+    variant_eval.add_argument("--run", required=True)
+    variant_eval.add_argument("--output", required=True)
+    variant_eval.add_argument("--shard")
+    variant_eval.add_argument("--shard-manifest")
+    _add_json_flag(variant_eval)
 
     report = subparsers.add_parser(
         "report", help="materialize the fixed-section reports for one run"
@@ -730,6 +754,110 @@ def _run_evaluate(args: argparse.Namespace) -> dict:
     return dict(report, evaluation_report_path=str(report_path))
 
 
+def _run_variant_eval(args: argparse.Namespace) -> dict:
+    """Four-variant paired falsification evaluation over one trained run.
+
+    Fail-closed argument order: the cheap local checks (shard-flag pairing,
+    run manifest, stage binding, checkpoint presence) run before any heavy
+    import, then the authorization and pinned snapshot are verified, and only
+    then does the harness load models. Everything stays offline against the
+    pinned local cache.
+    """
+
+    if (args.shard is None) != (args.shard_manifest is None):
+        raise ValueError("--shard and --shard-manifest must be provided together")
+    run_root = Path(args.run)
+    manifest = _load_json_object(run_root / "manifest.json", label="run manifest")
+    curriculum = manifest.get("curriculum")
+    stage = curriculum.get("stage") if isinstance(curriculum, Mapping) else None
+    if stage != args.stage:
+        raise ValueError(
+            f"run manifest stage {stage!r} differs from --stage {args.stage!r}"
+        )
+    checkpoints = manifest.get("checkpoints")
+    last_path = (
+        checkpoints.get("last_path") if isinstance(checkpoints, Mapping) else None
+    )
+    if not isinstance(last_path, str) or not last_path:
+        raise ValueError("run manifest records no last checkpoint to evaluate")
+    checkpoint_path = Path(last_path)
+    if not checkpoint_path.is_file():
+        raise ValueError(f"trained checkpoint is missing: {checkpoint_path}")
+
+    repo_root = _repo_root()
+    authorization = _lazy_import("pneuma_lab.foundation.authorization")
+    verified = authorization.verify_foundation_authorization(
+        Path(args.authorization),
+        repo_root=repo_root,
+        registry_path=repo_root / _REGISTRY_RELATIVE,
+    )
+    if verified.manifest["scope"].get("stage") != args.stage:
+        raise ValueError("stage differs from the authorized scope")
+    model_cache = _lazy_import("pneuma_lab.foundation.model_cache")
+    cached = model_cache.verify_pinned_snapshot(
+        verified.model_key,
+        cache_root=repo_root / "build" / "foundation" / "cache",
+    )
+    variants = _lazy_import("pneuma_lab.foundation.variants")
+    runtime = _lazy_import("pneuma_lab.foundation.runtime")
+    try:
+        from transformers import AutoTokenizer
+    except ImportError as exc:
+        raise RuntimeError(
+            "variant-eval requires the foundation transformers extra"
+        ) from exc
+    tokenizer = AutoTokenizer.from_pretrained(
+        cached.snapshot_path,
+        local_files_only=True,
+    )
+
+    def base_model_factory():
+        loaded = runtime.load_local_qwen(
+            verified.model_key,
+            allow_download=False,
+            vision=False,
+            snapshot_path=cached.snapshot_path,
+        )
+        return loaded.model, loaded.architecture_plan
+
+    if args.shard is not None:
+        shard_path = Path(args.shard)
+        shard_manifest_path = Path(args.shard_manifest)
+    else:
+        shard_path = verified.shard_path
+        shard_manifest_path = verified.shard_manifest_path
+    outcome = variants.evaluate_variants(
+        shard_path=shard_path,
+        shard_manifest_path=shard_manifest_path,
+        tokenizer=tokenizer,
+        base_model_factory=base_model_factory,
+        checkpoint_path=checkpoint_path,
+    )
+    output_root = Path(args.output)
+    result_paths = variants.write_variant_results(
+        outcome.results,
+        output_root,
+        weights=outcome.metadata["weights"],
+    )
+    index_path = variants.write_variant_eval_index(
+        output_root,
+        stage=args.stage,
+        result_paths=result_paths,
+        metadata=outcome.metadata,
+        run_id=manifest.get("run_id"),
+    )
+    return {
+        "stage": args.stage,
+        "run_id": manifest.get("run_id"),
+        "task_semantics": outcome.metadata["task_semantics"],
+        "no_consciousness_claim": True,
+        "task_count": outcome.metadata["task_count"],
+        "repo_disjoint": outcome.metadata["repo_disjoint"],
+        "variant_files": {name: str(path) for name, path in result_paths.items()},
+        "index_path": str(index_path),
+    }
+
+
 def _run_report(args: argparse.Namespace) -> dict:
     reports = _lazy_import("pneuma_lab.foundation.reports")
     run_root = Path(args.run)
@@ -784,6 +912,7 @@ def default_handlers() -> CommandHandlers:
         train=_run_train,
         resume=_run_resume,
         evaluate=_run_evaluate,
+        variant_eval=_run_variant_eval,
         report=_run_report,
         cloud_bundle=_run_cloud_bundle,
     )
