@@ -38,24 +38,32 @@ class _TrustedPayload:
     inode: int
 
 
+# Each row: family, terminal_role, gradient_eligibility, payload access at
+# 100k, payload access at 500k, identity metadata path. The 500k smoke stage
+# deliberately reuses the exact first-stage access matrix: only the approved
+# swe-gym lane may open payloads and the "later" train families stay
+# metadata-only until their own readiness work lands. 2m-and-later stages
+# remain fail-closed until a payload_access_<stage> column exists.
 _EXPECTED_FAMILY_MATRIX = (
-    ("multi-swe-bench", "train", "later", "metadata_only", None),
-    ("open-swe-traces", "train", "later", "metadata_only", None),
-    ("sec-bench-pro", "governance", "never", "metadata_only", None),
+    ("multi-swe-bench", "train", "later", "metadata_only", "metadata_only", None),
+    ("open-swe-traces", "train", "later", "metadata_only", "metadata_only", None),
+    ("sec-bench-pro", "governance", "never", "metadata_only", "metadata_only", None),
     (
         "swe-bench",
         "eval",
         "never",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-bench/normalized_metadata.jsonl",
     ),
-    ("swe-bench-pro", "eval", "never", "metadata_only", None),
-    ("swe-chat", "governance", "never", "metadata_only", None),
-    ("swe-evo", "train", "later", "metadata_only", None),
+    ("swe-bench-pro", "eval", "never", "metadata_only", "metadata_only", None),
+    ("swe-chat", "governance", "never", "metadata_only", "metadata_only", None),
+    ("swe-evo", "train", "later", "metadata_only", "metadata_only", None),
     (
         "swe-gym",
         "train",
         "first_stage",
+        "approved_processed_lane_only",
         "approved_processed_lane_only",
         None,
     ),
@@ -64,12 +72,14 @@ _EXPECTED_FAMILY_MATRIX = (
         "eval",
         "never",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-mera/normalized_metadata.jsonl",
     ),
     (
         "swe-polybench",
         "eval",
         "later",
+        "identity_metadata_only",
         "identity_metadata_only",
         "processed/swe-polybench/normalized_metadata.jsonl",
     ),
@@ -160,10 +170,7 @@ def _policy_entries(policy: Mapping) -> tuple[Mapping, ...]:
 def _validated_family_map(policy: Mapping) -> dict[str, Mapping]:
     if not isinstance(policy, Mapping):
         raise SuitePolicyError("suite policy must be a mapping")
-    if (
-        set(policy) != _EXPECTED_POLICY_KEYS
-        or tuple(policy) != _EXPECTED_POLICY_ORDER
-    ):
+    if set(policy) != _EXPECTED_POLICY_KEYS or tuple(policy) != _EXPECTED_POLICY_ORDER:
         raise SuitePolicyError("suite policy manifest has missing or extra fields")
     if policy.get("manifest_kind") != "pneuma_foundation_dataset_suite":
         raise SuitePolicyError("suite policy manifest_kind is invalid")
@@ -184,29 +191,32 @@ def _validated_family_map(policy: Mapping) -> dict[str, Mapping]:
     for item in entries:
         family = item.get("family")
         if not isinstance(family, str) or not family:
-            raise SuitePolicyError("suite policy family names must be non-empty strings")
+            raise SuitePolicyError(
+                "suite policy family names must be non-empty strings"
+            )
         families.append(family)
     if len(families) != 10 or set(families) != set(ACTIVE_DATASET_GROUPS):
-        raise SuitePolicyError("suite policy must contain each active family exactly once")
+        raise SuitePolicyError(
+            "suite policy must contain each active family exactly once"
+        )
     if tuple(families) != ACTIVE_DATASET_GROUPS:
         raise SuitePolicyError("suite policy families must use documented order")
 
     for item, expected in zip(entries, _EXPECTED_FAMILY_MATRIX, strict=True):
-        family, role, gradient, access, identity_path = expected
+        family, role, gradient, access, access_500k, identity_path = expected
         expected_item = {
             "family": family,
             "terminal_role": role,
             "gradient_eligibility": gradient,
             "payload_access_100k": access,
+            "payload_access_500k": access_500k,
         }
         if identity_path is not None:
             expected_item["identity_metadata_relative_path"] = identity_path
         if dict(item) != expected_item or not all(
             isinstance(value, str) for value in item.values()
         ):
-            raise SuitePolicyError(
-                f"{family} must match the exact policy matrix"
-            )
+            raise SuitePolicyError(f"{family} must match the exact policy matrix")
 
     first_stage = policy.get("first_stage")
     if not isinstance(first_stage, Mapping):
@@ -220,9 +230,11 @@ def _validated_family_map(policy: Mapping) -> dict[str, Mapping]:
     ):
         raise SuitePolicyError("suite policy first stage must be 100k")
     candidates = first_stage.get("authorized_lane_candidates")
-    if not isinstance(candidates, list) or not all(
-        isinstance(candidate, str) for candidate in candidates
-    ) or candidates != ["swe-gym-openhands-sampled"]:
+    if (
+        not isinstance(candidates, list)
+        or not all(isinstance(candidate, str) for candidate in candidates)
+        or candidates != ["swe-gym-openhands-sampled"]
+    ):
         raise SuitePolicyError(
             "suite first-stage authorized lane candidates may nominate only "
             "the OpenHands Sampled lane"
@@ -237,9 +249,7 @@ def _lexical_data_relative_parts(path: object) -> tuple[str, ...] | None:
         return None
     if not isinstance(raw_path, str) or not raw_path:
         return None
-    raw_parts = tuple(
-        part for part in re.split(r"[\\/]", raw_path) if part
-    )
+    raw_parts = tuple(part for part in re.split(r"[\\/]", raw_path) if part)
     if not raw_parts or any(part in {".", ".."} for part in raw_parts):
         return None
     if raw_parts.count("processed") != 1:
@@ -288,9 +298,13 @@ def _trusted_existing_file(
         root = Path(os.fspath(data_root))
         candidate = Path(os.fspath(path))
     except (TypeError, ValueError) as exc:
-        raise SuitePolicyError("trusted data root and payload path must be path-like") from exc
+        raise SuitePolicyError(
+            "trusted data root and payload path must be path-like"
+        ) from exc
     if not root.is_absolute() or not candidate.is_absolute():
-        raise SuitePolicyError("payload path must be absolute under the trusted data root")
+        raise SuitePolicyError(
+            "payload path must be absolute under the trusted data root"
+        )
     try:
         relative = candidate.relative_to(root)
     except ValueError as exc:
@@ -463,9 +477,9 @@ def _windows_final_path_from_fd(fd: int) -> Path:
 
     extended_prefix = "\\\\?\\"
     if value.startswith(f"{extended_prefix}UNC\\"):
-        value = f"\\\\{value[len(extended_prefix) + 4:]}"
+        value = f"\\\\{value[len(extended_prefix) + 4 :]}"
     elif value.startswith(extended_prefix):
-        value = value[len(extended_prefix):]
+        value = value[len(extended_prefix) :]
         if not re.match(r"^[A-Za-z]:\\", value):
             raise OSError("opened payload returned an unsupported Windows namespace")
     final_path = Path(value)
@@ -586,12 +600,20 @@ def build_suite_completeness_report(policy: Mapping, data_root: Path) -> dict:
     _validated_family_map(policy)
     first_stage = policy["first_stage"]
     families = []
-    for family, role, gradient, access, identity_path in _EXPECTED_FAMILY_MATRIX:
+    for (
+        family,
+        role,
+        gradient,
+        access,
+        access_500k,
+        identity_path,
+    ) in _EXPECTED_FAMILY_MATRIX:
         report_item = {
             "family": family,
             "terminal_role": role,
             "gradient_eligibility": gradient,
             "payload_access_100k": access,
+            "payload_access_500k": access_500k,
             **asdict(probe_family_presence(data_root, family)),
         }
         if identity_path is not None:

@@ -35,6 +35,12 @@ Every persisted training record carries `training_weight: 0.0`. A positive
 effective weight exists only in memory, only for the exact authorized lane,
 and only while a verified final authorization is loaded.
 
+The 500K stage reuses the exact 100K access matrix (`payload_access_500k`
+in the suite policy): only the approved OpenHands-Sampled lane opens
+payloads and every other family stays metadata-only. 2M-and-later stages
+remain fail-closed until their own `payload_access_<stage>` column lands
+with its readiness work.
+
 ## 2. Current readiness and hard safety boundaries
 
 - The committed authorization

@@ -30,33 +30,41 @@ ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "docs/data/training-readiness/pneuma-foundation-v0-suite.json"
 REGISTRY = ROOT / "docs/data/training-readiness/dataset-registry.json"
 AUTHORITATIVE_PLAN = (
-    ROOT
-    / "docs/superpowers/plans/2026-07-13-foundation-training-launch-preparation.md"
+    ROOT / "docs/superpowers/plans/2026-07-13-foundation-training-launch-preparation.md"
 )
 
 EXPECTED_FAMILY_MATRIX = {
-    "multi-swe-bench": ("train", "later", "metadata_only", None),
-    "open-swe-traces": ("train", "later", "metadata_only", None),
-    "sec-bench-pro": ("governance", "never", "metadata_only", None),
+    "multi-swe-bench": ("train", "later", "metadata_only", "metadata_only", None),
+    "open-swe-traces": ("train", "later", "metadata_only", "metadata_only", None),
+    "sec-bench-pro": ("governance", "never", "metadata_only", "metadata_only", None),
     "swe-bench": (
         "eval",
         "never",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-bench/normalized_metadata.jsonl",
     ),
-    "swe-bench-pro": ("eval", "never", "metadata_only", None),
-    "swe-chat": ("governance", "never", "metadata_only", None),
-    "swe-evo": ("train", "later", "metadata_only", None),
-    "swe-gym": ("train", "first_stage", "approved_processed_lane_only", None),
+    "swe-bench-pro": ("eval", "never", "metadata_only", "metadata_only", None),
+    "swe-chat": ("governance", "never", "metadata_only", "metadata_only", None),
+    "swe-evo": ("train", "later", "metadata_only", "metadata_only", None),
+    "swe-gym": (
+        "train",
+        "first_stage",
+        "approved_processed_lane_only",
+        "approved_processed_lane_only",
+        None,
+    ),
     "swe-mera": (
         "eval",
         "never",
+        "identity_metadata_only",
         "identity_metadata_only",
         "processed/swe-mera/normalized_metadata.jsonl",
     ),
     "swe-polybench": (
         "eval",
         "later",
+        "identity_metadata_only",
         "identity_metadata_only",
         "processed/swe-polybench/normalized_metadata.jsonl",
     ),
@@ -70,13 +78,18 @@ EXPECTED_EVALUATION_IDENTITY = {
 
 def _matrix_mutations() -> tuple[tuple[str, str, str], ...]:
     cases = []
-    for family, (_role, _gradient, _access, identity_path) in (
-        EXPECTED_FAMILY_MATRIX.items()
-    ):
+    for family, (
+        _role,
+        _gradient,
+        _access,
+        _access_500k,
+        identity_path,
+    ) in EXPECTED_FAMILY_MATRIX.items():
         for field in (
             "terminal_role",
             "gradient_eligibility",
             "payload_access_100k",
+            "payload_access_500k",
         ):
             for mutation in ("missing", "wrong_value", "wrong_type"):
                 cases.append((family, field, mutation))
@@ -93,6 +106,7 @@ def _wrong_value(field: str) -> str:
         "terminal_role": "other",
         "gradient_eligibility": "sometimes",
         "payload_access_100k": "payload_allowed",
+        "payload_access_500k": "payload_allowed",
         "identity_metadata_relative_path": "processed/wrong/metadata.jsonl",
     }[field]
 
@@ -102,6 +116,11 @@ def _different_valid_value(field: str, current: str) -> str:
         "terminal_role": ("train", "eval", "governance"),
         "gradient_eligibility": ("first_stage", "later", "never"),
         "payload_access_100k": (
+            "metadata_only",
+            "identity_metadata_only",
+            "approved_processed_lane_only",
+        ),
+        "payload_access_500k": (
             "metadata_only",
             "identity_metadata_only",
             "approved_processed_lane_only",
@@ -247,9 +266,7 @@ def _assert_secure_stream_plan(plan: str) -> None:
         "current path-opening `run_full_conversion()` implementation",
     ):
         assert required in prepare_paragraph
-    path_reopening_conversion = re.compile(
-        r"(?<!`)run_full_conversion\s*\(\s*(?!\))"
-    )
+    path_reopening_conversion = re.compile(r"(?<!`)run_full_conversion\s*\(\s*(?!\))")
     assert path_reopening_conversion.search(task_4) is None
 
 
@@ -421,6 +438,7 @@ def test_suite_requires_exact_family_policy_matrix(
             "terminal_role",
             "gradient_eligibility",
             "payload_access_100k",
+            "payload_access_500k",
         )
     ],
 )
@@ -531,10 +549,7 @@ def test_load_suite_policy_rejects_invalid_json_and_non_object(
     "payload",
     (
         b'{"manifest_kind":"x","manifest_kind":"x"}',
-        (
-            b'{"evaluation_identity":{"required_families":[],'
-            b'"required_families":[]}}'
-        ),
+        (b'{"evaluation_identity":{"required_families":[],"required_families":[]}}'),
     ),
 )
 def test_load_suite_policy_rejects_duplicate_members_at_every_depth(
@@ -567,9 +582,7 @@ def test_load_suite_policy_wraps_recursion_and_unicode_failures(
     # exercises the wrapping path.
     nesting_depth = 100000
     recursive = tmp_path / "recursive.json"
-    recursive.write_bytes(
-        b"[" * nesting_depth + b"0" + b"]" * nesting_depth
-    )
+    recursive.write_bytes(b"[" * nesting_depth + b"0" + b"]" * nesting_depth)
     malformed_utf8 = tmp_path / "malformed-utf8.json"
     malformed_utf8.write_bytes(b'{"value":"\xff"}')
     for path in (recursive, malformed_utf8):
@@ -746,9 +759,64 @@ def test_payload_opener_accepts_exact_trusted_identity_path(tmp_path: Path) -> N
         assert stream.read() == b"metadata-only test fixture"
 
 
+def test_payload_opener_enforces_the_same_matrix_at_the_500k_stage(
+    tmp_path: Path,
+) -> None:
+    policy = _suite_fixture()
+    approved = _write_fixture(
+        tmp_path,
+        "processed/swe-gym/openhands-sampled/records.jsonl",
+    )
+    with foundation_suite.open_authorized_payload(
+        policy,
+        stage="500k",
+        family="swe-gym",
+        lane_id="swe-gym-openhands-sampled",
+        data_root=tmp_path,
+        path=approved,
+    ) as stream:
+        assert stream.read() == b"metadata-only test fixture"
+
+    metadata = _write_fixture(
+        tmp_path,
+        "processed/swe-bench/normalized_metadata.jsonl",
+    )
+    with foundation_suite.open_authorized_payload(
+        policy,
+        stage="500k",
+        family="swe-bench",
+        lane_id=None,
+        data_root=tmp_path,
+        path=metadata,
+    ) as stream:
+        assert stream.read() == b"metadata-only test fixture"
+
+    with pytest.raises(SuitePolicyError, match="metadata-only"):
+        with foundation_suite.open_authorized_payload(
+            policy,
+            stage="500k",
+            family="sec-bench-pro",
+            lane_id=None,
+            data_root=tmp_path,
+            path=tmp_path / "processed/sec-bench-pro/records.jsonl",
+        ):
+            pytest.fail("denied payload must not be yielded")
+
+    with pytest.raises(SuitePolicyError, match="metadata-only"):
+        with foundation_suite.open_authorized_payload(
+            policy,
+            stage="500k",
+            family="swe-gym",
+            lane_id="swe-gym-openhands-verifier",
+            data_root=tmp_path,
+            path=approved,
+        ):
+            pytest.fail("denied payload must not be yielded")
+
+
 @pytest.mark.parametrize(
     ("stage", "family"),
-    [("1m", "swe-gym"), ("100k", "unknown-family")],
+    [("1m", "swe-gym"), ("2m", "swe-gym"), ("100k", "unknown-family")],
 )
 def test_payload_opener_unknown_stage_or_family_fails_closed(
     tmp_path: Path,
@@ -1188,6 +1256,7 @@ def test_suite_report_schema_rejects_duplicate_family_and_extra_fields(
         ("swe-chat", "terminal_role", "train"),
         ("swe-chat", "gradient_eligibility", "first_stage"),
         ("swe-chat", "payload_access_100k", "approved_processed_lane_only"),
+        ("swe-chat", "payload_access_500k", "approved_processed_lane_only"),
     ],
 )
 def test_suite_report_schema_pins_family_role_matrix(
@@ -1237,14 +1306,10 @@ def test_suite_report_schema_pins_identity_metadata_paths(
         )
     else:
         item = next(
-            entry
-            for entry in report["families"]
-            if entry["family"] == "swe-bench"
+            entry for entry in report["families"] if entry["family"] == "swe-bench"
         )
         if mutation == "changed":
-            item["identity_metadata_relative_path"] = (
-                "processed/swe-bench/other.jsonl"
-            )
+            item["identity_metadata_relative_path"] = "processed/swe-bench/other.jsonl"
         else:
             item.pop("identity_metadata_relative_path")
     with pytest.raises(ValidationError):

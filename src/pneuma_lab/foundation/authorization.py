@@ -1570,6 +1570,7 @@ def _validate_preparation_coherence_unchecked(
                 "terminal_role",
                 "gradient_eligibility",
                 "payload_access_100k",
+                "payload_access_500k",
             )
         }
         if "identity_metadata_relative_path" in item:

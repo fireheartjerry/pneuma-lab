@@ -22,40 +22,26 @@
         },
         "first_stage": {
             "type": "object",
-            "required": [
-                "stage",
-                "authorized_lane_candidates"
-            ],
+            "required": ["stage", "authorized_lane_candidates"],
             "properties": {
                 "stage": {
                     "const": "100k"
                 },
                 "authorized_lane_candidates": {
-                    "const": [
-                        "swe-gym-openhands-sampled"
-                    ]
+                    "const": ["swe-gym-openhands-sampled"]
                 }
             },
             "additionalProperties": false
         },
         "evaluation_identity": {
             "type": "object",
-            "required": [
-                "required_families",
-                "blocked_unavailable_families"
-            ],
+            "required": ["required_families", "blocked_unavailable_families"],
             "properties": {
                 "required_families": {
-                    "const": [
-                        "swe-bench",
-                        "swe-mera",
-                        "swe-polybench"
-                    ]
+                    "const": ["swe-bench", "swe-mera", "swe-polybench"]
                 },
                 "blocked_unavailable_families": {
-                    "const": [
-                        "swe-bench-pro"
-                    ]
+                    "const": ["swe-bench-pro"]
                 }
             },
             "additionalProperties": false
@@ -108,6 +94,7 @@
                 "terminal_role",
                 "gradient_eligibility",
                 "payload_access_100k",
+                "payload_access_500k",
                 "exists",
                 "file_count",
                 "byte_count",
@@ -128,6 +115,9 @@
                 "payload_access_100k": {
                     "type": "string"
                 },
+                "payload_access_500k": {
+                    "type": "string"
+                },
                 "exists": {
                     "type": "boolean"
                 },
@@ -140,10 +130,7 @@
                     "minimum": 0
                 },
                 "newest_mtime_ns": {
-                    "type": [
-                        "integer",
-                        "null"
-                    ],
+                    "type": ["integer", "null"],
                     "minimum": 0
                 },
                 "inspection": {
@@ -172,6 +159,9 @@
                         },
                         "payload_access_100k": {
                             "const": "metadata_only"
+                        },
+                        "payload_access_500k": {
+                            "const": "metadata_only"
                         }
                     }
                 }
@@ -195,6 +185,9 @@
                             "const": "later"
                         },
                         "payload_access_100k": {
+                            "const": "metadata_only"
+                        },
+                        "payload_access_500k": {
                             "const": "metadata_only"
                         }
                     }
@@ -220,6 +213,9 @@
                         },
                         "payload_access_100k": {
                             "const": "metadata_only"
+                        },
+                        "payload_access_500k": {
+                            "const": "metadata_only"
                         }
                     }
                 }
@@ -232,9 +228,7 @@
                     "$ref": "#/$defs/family_presence"
                 },
                 {
-                    "required": [
-                        "identity_metadata_relative_path"
-                    ],
+                    "required": ["identity_metadata_relative_path"],
                     "properties": {
                         "family": {
                             "const": "swe-bench"
@@ -246,6 +240,9 @@
                             "const": "never"
                         },
                         "payload_access_100k": {
+                            "const": "identity_metadata_only"
+                        },
+                        "payload_access_500k": {
                             "const": "identity_metadata_only"
                         },
                         "identity_metadata_relative_path": {
@@ -274,6 +271,9 @@
                         },
                         "payload_access_100k": {
                             "const": "metadata_only"
+                        },
+                        "payload_access_500k": {
+                            "const": "metadata_only"
                         }
                     }
                 }
@@ -297,6 +297,9 @@
                             "const": "never"
                         },
                         "payload_access_100k": {
+                            "const": "metadata_only"
+                        },
+                        "payload_access_500k": {
                             "const": "metadata_only"
                         }
                     }
@@ -322,6 +325,9 @@
                         },
                         "payload_access_100k": {
                             "const": "metadata_only"
+                        },
+                        "payload_access_500k": {
+                            "const": "metadata_only"
                         }
                     }
                 }
@@ -346,6 +352,9 @@
                         },
                         "payload_access_100k": {
                             "const": "approved_processed_lane_only"
+                        },
+                        "payload_access_500k": {
+                            "const": "approved_processed_lane_only"
                         }
                     }
                 }
@@ -358,9 +367,7 @@
                     "$ref": "#/$defs/family_presence"
                 },
                 {
-                    "required": [
-                        "identity_metadata_relative_path"
-                    ],
+                    "required": ["identity_metadata_relative_path"],
                     "properties": {
                         "family": {
                             "const": "swe-mera"
@@ -372,6 +379,9 @@
                             "const": "never"
                         },
                         "payload_access_100k": {
+                            "const": "identity_metadata_only"
+                        },
+                        "payload_access_500k": {
                             "const": "identity_metadata_only"
                         },
                         "identity_metadata_relative_path": {
@@ -388,9 +398,7 @@
                     "$ref": "#/$defs/family_presence"
                 },
                 {
-                    "required": [
-                        "identity_metadata_relative_path"
-                    ],
+                    "required": ["identity_metadata_relative_path"],
                     "properties": {
                         "family": {
                             "const": "swe-polybench"
@@ -402,6 +410,9 @@
                             "const": "later"
                         },
                         "payload_access_100k": {
+                            "const": "identity_metadata_only"
+                        },
+                        "payload_access_500k": {
                             "const": "identity_metadata_only"
                         },
                         "identity_metadata_relative_path": {
