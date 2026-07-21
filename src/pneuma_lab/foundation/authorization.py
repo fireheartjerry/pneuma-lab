@@ -37,6 +37,7 @@ from pneuma_lab.foundation.contamination import (
     EVAL_REPO_QUARANTINE_ID,
     build_contamination_receipt,
 )
+from pneuma_lab.foundation.budget import MAX_LIFETIME_CLOUD_USD
 from pneuma_lab.governance import open_swe_traces as ost_governance
 from pneuma_lab.training import leakage_registry
 from pneuma_lab.foundation.data import (
@@ -2508,6 +2509,80 @@ def _is_cloud_scope(scope: Mapping) -> bool:
     return isinstance(scope, Mapping) and scope.get("execution_profile") == "cloud"
 
 
+def _assert_exact_cloud_posture(scope: Mapping) -> None:
+    """Enforce the cloud transfer posture and quoted one-job budget exactly.
+
+    Both lane license receipts stay ``cloud_redistribution_allowed: false``;
+    the only permitted cloud movement is the private single-job transfer of
+    derived, digest-bearing artifacts recorded by the operator-approved
+    ``private_cloud_transfer_allowed`` posture below.
+    """
+
+    if scope.get("source_data_policy") != _CLOUD_SOURCE_POLICY:
+        raise FoundationAuthorizationError(
+            "cloud authorization transfer posture is not exact"
+        )
+    budget = scope.get("budget")
+    if not isinstance(budget, Mapping) or set(budget) != _CLOUD_BUDGET_KEYS:
+        raise FoundationAuthorizationError(
+            "cloud authorization budget keys are not exact"
+        )
+    ceiling = budget.get("paid_compute_ceiling_usd")
+    if (
+        budget.get("paid_compute_usd") != 0
+        or isinstance(budget.get("paid_compute_usd"), bool)
+        or budget.get("cloud_jobs_used") != 0
+        or isinstance(budget.get("cloud_jobs_used"), bool)
+        or budget.get("cloud_job_ceiling") != 1
+        or isinstance(budget.get("cloud_job_ceiling"), bool)
+        or budget.get("cloud_lifetime_cap_usd") != MAX_LIFETIME_CLOUD_USD
+        or isinstance(ceiling, bool)
+        or not isinstance(ceiling, (int, float))
+        or not math.isfinite(float(ceiling))
+        or not 0 < float(ceiling) <= MAX_LIFETIME_CLOUD_USD
+    ):
+        raise FoundationAuthorizationError(
+            "cloud authorization budget ceilings are not exact"
+        )
+    if not isinstance(scope.get("local_gate_report"), Mapping):
+        raise FoundationAuthorizationError(
+            "cloud authorization local gate report binding is missing"
+        )
+
+
+def _verify_cloud_gate_report(scope: Mapping, *, repo_root: Path) -> None:
+    """Re-bind the passing local-gate report named by one cloud scope."""
+
+    binding = scope.get("local_gate_report")
+    if not isinstance(binding, Mapping):
+        raise FoundationAuthorizationError(
+            "cloud authorization local gate report binding is missing"
+        )
+    path = _path_from_binding(binding, repo_root=repo_root)
+    with _hold_artifacts(
+        {"local_gate_report": path},
+        repo_root=repo_root,
+        max_sizes={"local_gate_report": _LOCAL_GATE_REPORT_SIZE_CEILING},
+        max_total_size=_LOCAL_GATE_REPORT_SIZE_CEILING,
+    ) as held:
+        item = held["local_gate_report"]
+        expected_digest = binding.get("sha256")
+        if (
+            not isinstance(expected_digest, str)
+            or not hmac.compare_digest(item.read.sha256, expected_digest)
+            or item.read.size != binding.get("size")
+        ):
+            raise FoundationAuthorizationError(
+                "cloud local gate report binding changed"
+            )
+        report = _strict_json_bytes(item.read.payload, label="local gate report")
+        if report.get("local_gates_passed") is not True:
+            raise FoundationAuthorizationError(
+                "cloud reproduction requires all local gates to pass"
+            )
+        _revalidate_held(held)
+
+
 def _validated_utc_timestamp(value: str) -> str:
     if not isinstance(value, str) or not _UTC_PATTERN.fullmatch(value):
         raise FoundationAuthorizationError(
@@ -2551,17 +2626,20 @@ def finalize_authorization(
             raise FoundationAuthorizationError("only a candidate may be finalized")
         scope = candidate["scope"]
         stage = scope["stage"]
+        cloud = _is_cloud_scope(scope)
         _require_exact_authorization_path(
             candidate_path,
             repo_root=repo_root,
             status="candidate",
             stage=stage,
+            cloud=cloud,
         )
         output_path = _require_exact_authorization_path(
             output_path,
             repo_root=repo_root,
             status="authorized",
             stage=stage,
+            cloud=cloud,
         )
         digest = candidate["scope_digest"]
         computed = authorization_scope_digest(scope)
@@ -2685,14 +2763,17 @@ def _assert_exact_scope(scope: Mapping, *, repo_root: Path) -> None:
         raise FoundationAuthorizationError("authorization learning-rate scope changed")
     if scope.get("authorized_lane_weights") != _stage_lane_weights(stage):
         raise FoundationAuthorizationError("authorization lane-weight map changed")
-    if scope.get("source_data_policy") != _SOURCE_POLICY:
-        raise FoundationAuthorizationError("protected source policy changed")
+    if _is_cloud_scope(scope):
+        _assert_exact_cloud_posture(scope)
+    else:
+        if scope.get("source_data_policy") != _SOURCE_POLICY:
+            raise FoundationAuthorizationError("protected source policy changed")
+        if scope.get("budget") != _BUDGET:
+            raise FoundationAuthorizationError(
+                "authorization budget must remain zero-paid local"
+            )
     if scope.get("output_root") != _OUTPUT_ROOT:
         raise FoundationAuthorizationError("authorization output root changed")
-    if scope.get("budget") != _BUDGET:
-        raise FoundationAuthorizationError(
-            "authorization budget must remain zero-paid local"
-        )
     _validate_commit_binding(repo_root, scope.get("code_commit"))
 
 
@@ -2742,11 +2823,13 @@ def verify_foundation_authorization(
                 )
             scope = manifest["scope"]
             stage = scope["stage"]
+            cloud = _is_cloud_scope(scope)
             _require_exact_authorization_path(
                 path,
                 repo_root=root,
                 status="authorized",
                 stage=stage,
+                cloud=cloud,
             )
             digest = manifest["scope_digest"]
             computed = authorization_scope_digest(scope)
@@ -2776,6 +2859,8 @@ def verify_foundation_authorization(
                 raise FoundationAuthorizationError("operator approval is invalid")
             _validated_utc_timestamp(approval["approved_at"])
             _assert_exact_scope(scope, repo_root=root)
+            if cloud:
+                _verify_cloud_gate_report(scope, repo_root=root)
             snapshot_path = _scope_snapshot_path(scope, repo_root=root)
             verified_snapshot = _verify_authorization_snapshot(
                 snapshot_path,

@@ -34,7 +34,7 @@ def test_pending_foundation_authorization_is_schema_valid_and_non_authorizing() 
 
 def test_foundation_authorization_schema_requires_exact_nested_scope() -> None:
     schema = pls.load_schema("foundation-training-authorization.schema.json")
-    assert schema["x-pneuma-version"] == "0.4.0"
+    assert schema["x-pneuma-version"] == "0.5.0"
     assert schema["additionalProperties"] is False
     scope = schema["$defs"]["scope"]
     assert scope["additionalProperties"] is False
@@ -67,14 +67,53 @@ def test_foundation_authorization_schema_requires_exact_nested_scope() -> None:
     ]
     conversion_evidence = schema["$defs"]["conversion_evidence"]["oneOf"]
     assert conversion_evidence[0] == {"$ref": "#/$defs/conversion_set"}
-    assert set(conversion_evidence[1]["required"]) == {
+    assert conversion_evidence[1] == {"$ref": "#/$defs/multi_lane_conversion"}
+    multi_lane = schema["$defs"]["multi_lane_conversion"]
+    assert set(multi_lane["required"]) == {
         "swe-gym-openhands-sampled",
         "open-swe-traces",
     }
-    assert conversion_evidence[1]["additionalProperties"] is False
+    assert multi_lane["additionalProperties"] is False
     cloud_scope = schema["$defs"]["cloud_scope"]
     assert set(cloud_scope["properties"]["authorized_lane_weights"]["properties"]) == {
-        "swe-gym-openhands-sampled"
+        "swe-gym-openhands-sampled",
+        "open-swe-traces",
+    }
+    assert set(cloud_scope["properties"]["artifacts"]["properties"]) == (
+        set(cloud_scope["properties"]["artifacts"]["required"])
+        | {"ost_license_receipt", "leakage_receipt"}
+    )
+    assert cloud_scope["properties"]["evidence_artifacts"]["properties"][
+        "conversion"
+    ] == {"$ref": "#/$defs/conversion_evidence"}
+    stage_condition = cloud_scope["allOf"][0]
+    assert stage_condition["if"]["properties"]["stage"]["enum"] == [
+        "100k",
+        "500k",
+        "1m",
+    ]
+    single_lane_shape = stage_condition["then"]["properties"]
+    assert single_lane_shape["artifacts"]["properties"] == {
+        "ost_license_receipt": False,
+        "leakage_receipt": False,
+    }
+    assert single_lane_shape["evidence_artifacts"]["properties"]["conversion"] == {
+        "$ref": "#/$defs/conversion_set"
+    }
+    assert single_lane_shape["authorized_lane_weights"]["properties"] == {
+        "open-swe-traces": False
+    }
+    multi_lane_shape = stage_condition["else"]["properties"]
+    assert set(multi_lane_shape["artifacts"]["required"]) == {
+        "ost_license_receipt",
+        "leakage_receipt",
+    }
+    assert multi_lane_shape["evidence_artifacts"]["properties"]["conversion"] == {
+        "$ref": "#/$defs/multi_lane_conversion"
+    }
+    assert set(multi_lane_shape["authorized_lane_weights"]["required"]) == {
+        "swe-gym-openhands-sampled",
+        "open-swe-traces",
     }
 
 

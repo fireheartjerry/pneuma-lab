@@ -7,10 +7,20 @@ creates a Pod, and never opens a network connection.
 
 The bundle contains tracked source at the authorized clean commit, the
 final authorization, the exact preparation receipts, the authorized
-content-addressed shard plus its manifest, the pinned model-cache receipt
-(never model weights), the dependency lock, and the Linux setup script.
-It contains no secrets, raw source paths, blocked or unapproved dataset
-payloads, notebooks, checkpoints, or Hugging Face cache content.
+content-addressed shard plus its manifest, the bound local-gate report,
+the pinned model-cache receipt (never model weights), the dependency
+lock, and the Linux setup script. From the 2m stage on, the receipts
+cover both gradient lanes (including the Open-SWE-Traces license receipt
+and the cross-dataset leakage receipt). It contains no secrets, raw
+source paths, blocked or unapproved dataset payloads, notebooks,
+checkpoints, or Hugging Face cache content.
+
+Both lane license receipts declare ``cloud_redistribution_allowed:
+false``. The bundle is not redistribution: it is the private, single-job
+transfer of derived, digest-bearing artifacts to an ephemeral pod, and it
+is permitted only when the separately finalized cloud authorization
+carries the operator-approved ``private_cloud_transfer_allowed: true``
+posture.
 
 ``build_cloud_reproduction_candidate`` derives a separate, nonauthorizing
 cloud candidate from the verified local authorization; it binds the passed
@@ -270,8 +280,16 @@ def authorized_bundle_paths(verified, *, repo_root: Path) -> tuple[Path, ...]:
     if not isinstance(artifacts, Mapping) or not artifacts:
         raise CloudBundleError("verified authorization artifacts are missing")
     paths = [_binding_path(binding, repo_root=root) for binding in artifacts.values()]
-    suffix = "-cloud" if scope.get("execution_profile") == "cloud" else ""
+    cloud = scope.get("execution_profile") == "cloud"
+    suffix = "-cloud" if cloud else ""
     paths.append(root / _FINAL_RELATIVE / f"{scope.get('stage')}{suffix}.json")
+    if cloud:
+        gate_binding = scope.get("local_gate_report")
+        if not isinstance(gate_binding, Mapping):
+            raise CloudBundleError(
+                "verified cloud authorization gate-report binding is missing"
+            )
+        paths.append(_binding_path(gate_binding, repo_root=root))
     snapshot = scope.get("tokenizer_snapshot")
     snapshot_relative = snapshot.get("path") if isinstance(snapshot, Mapping) else None
     if not isinstance(snapshot_relative, str) or not snapshot_relative:

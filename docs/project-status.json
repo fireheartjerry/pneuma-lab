@@ -386,7 +386,7 @@
         },
         "foundation_program": {
             "tooling_status": "implemented",
-            "training_status": "local_500k_stage_completed_train_lane_exhausted",
+            "training_status": "local_2m_stage_completed_falsification_gate_passed",
             "runtime_status": "not_promoted",
             "research_model": {
                 "model_id": "Qwen/Qwen3.5-2B",
@@ -427,8 +427,8 @@
         "local_artifacts": "runtime_checked_not_committed",
         "model_cache_required": "qwen3.5-2b-pinned",
         "authorization_state": "exact_operator_authorization_required",
-        "training_status": "local_500k_stage_completed_train_lane_exhausted",
-        "optimizer_steps": 77,
+        "training_status": "local_2m_stage_completed_falsification_gate_passed",
+        "optimizer_steps": 407,
         "cloud_resources_created": 0,
         "paid_compute_usd": 0
     },

@@ -50,6 +50,11 @@ _ARTIFACT_NAMES = (
     "diversity_receipt",
     "selection_receipt",
 )
+_MULTI_LANE_ARTIFACT_NAMES = _ARTIFACT_NAMES + (
+    "ost_license_receipt",
+    "leakage_receipt",
+)
+_LANE_IDS = ("swe-gym-openhands-sampled", "open-swe-traces")
 _LOCAL_PROFILE = {
     "profile": "wsl2_local_nf4",
     "quantization": "nf4_double_quant",
@@ -136,28 +141,48 @@ def _write_artifact(root: Path, relative: str, payload: bytes) -> dict:
     }
 
 
-def _local_scope(root: Path, *, stage: str = "2m") -> dict:
+def _local_scope(root: Path, *, stage: str = "2m", single_lane: bool = False) -> dict:
+    """Fixture scope: two-lane at the cloud stages unless forced single-lane."""
+
+    artifact_names = _ARTIFACT_NAMES if single_lane else _MULTI_LANE_ARTIFACT_NAMES
     artifacts = {
         name: _write_artifact(
             root,
             f"build/foundation/preparation/{stage}/{name}.json",
             f'{{"artifact": "{name}"}}\n'.encode("utf-8"),
         )
-        for name in _ARTIFACT_NAMES
+        for name in artifact_names
     }
-    conversion = {
-        name: _write_artifact(
-            root,
-            f"build/foundation/preparation/{stage}/conversion/{name}.jsonl",
-            f'{{"conversion": "{name}"}}\n'.encode("utf-8"),
-        )
-        for name in (
-            "examples",
-            "invalid_examples",
-            "conversion_report",
-            "hash_manifest",
-        )
-    }
+    conversion_names = (
+        "examples",
+        "invalid_examples",
+        "conversion_report",
+        "hash_manifest",
+    )
+    if single_lane:
+        conversion = {
+            name: _write_artifact(
+                root,
+                f"build/foundation/preparation/{stage}/conversion/{name}.jsonl",
+                f'{{"conversion": "{name}"}}\n'.encode("utf-8"),
+            )
+            for name in conversion_names
+        }
+        lane_weights = {"swe-gym-openhands-sampled": 1.0}
+    else:
+        conversion = {
+            lane_id: {
+                name: _write_artifact(
+                    root,
+                    f"build/foundation/preparation/{stage}/conversion/"
+                    f"{lane_id}/{name}.jsonl",
+                    f'{{"conversion": "{lane_id}/{name}"}}\n'.encode("utf-8"),
+                )
+                for name in conversion_names
+            }
+            for lane_id in _LANE_IDS
+        }
+        lane_weights = {lane_id: 1.0 for lane_id in _LANE_IDS}
     eval_identities = {
         "swe-bench": _write_artifact(
             root,
@@ -190,7 +215,7 @@ def _local_scope(root: Path, *, stage: str = "2m") -> dict:
             "conversion": conversion,
             "eval_identities": eval_identities,
         },
-        "authorized_lane_weights": {"swe-gym-openhands-sampled": 1.0},
+        "authorized_lane_weights": lane_weights,
         "source_data_policy": {
             "root": "C:\\pneuma-data",
             "write_allowed": False,
@@ -227,8 +252,8 @@ def _authorized_manifest(scope: dict) -> dict:
     }
 
 
-def _local_authorization(root: Path) -> Path:
-    manifest = _authorized_manifest(_local_scope(root))
+def _local_authorization(root: Path, *, single_lane: bool = False) -> Path:
+    manifest = _authorized_manifest(_local_scope(root, single_lane=single_lane))
     path = root / "build/foundation/authorizations/final/2m.json"
     _write_json(path, manifest)
     return path
@@ -374,6 +399,9 @@ def test_dry_run_lists_only_permitted_files_and_writes_nothing(
     assert "src/demo.py" in arcnames
     assert "build/foundation/authorizations/final/2m-cloud.json" in arcnames
     assert "build/foundation/preparation/2m/shard.json" in arcnames
+    assert "build/foundation/preparation/2m/ost_license_receipt.json" in arcnames
+    assert "build/foundation/preparation/2m/leakage_receipt.json" in arcnames
+    assert "build/foundation/gates/local-gate-report.json" in arcnames
     assert f"build/cache/models/2b/{_REVISION}/pneuma-snapshot-receipt.json" in arcnames
     assert manifest["network_access"] == "none"
     assert manifest["quote"]["allowed"] is True
@@ -445,6 +473,14 @@ def test_cloud_candidate_is_separate_and_binds_local_gates(tmp_path: Path) -> No
         candidate["scope"]["source_data_policy"]["private_cloud_transfer_allowed"]
         is True
     )
+    assert candidate["scope"]["authorized_lane_weights"] == {
+        "swe-gym-openhands-sampled": 1.0,
+        "open-swe-traces": 1.0,
+    }
+    assert {"ost_license_receipt", "leakage_receipt"} <= set(
+        candidate["scope"]["artifacts"]
+    )
+    assert set(candidate["scope"]["evidence_artifacts"]["conversion"]) == set(_LANE_IDS)
     assert candidate["scope"]["local_gate_report"]["sha256"]
     assert candidate["operator_approval"] is None
     assert candidate["scope_digest"] == authorization_scope_digest(candidate["scope"])
@@ -514,6 +550,64 @@ def test_cloud_candidate_enforces_quote_caps(tmp_path: Path) -> None:
             / "build/foundation/authorizations/candidates/2m-cloud.json",
             repo_root=tmp_path,
         )
+
+
+def test_cloud_candidate_rejects_a_single_lane_2m_scope(tmp_path: Path) -> None:
+    with pytest.raises(FoundationAuthorizationError, match="schema invalid"):
+        build_cloud_reproduction_candidate(
+            _local_authorization(tmp_path, single_lane=True),
+            local_gate_report_path=_local_gate_report(tmp_path, passed=True),
+            quote=_safe_quote(),
+            output_path=tmp_path
+            / "build/foundation/authorizations/candidates/2m-cloud.json",
+            repo_root=tmp_path,
+        )
+    assert not (
+        tmp_path / "build/foundation/authorizations/candidates/2m-cloud.json"
+    ).exists()
+
+
+def test_cloud_candidate_rejects_a_missing_ost_receipt_binding(
+    tmp_path: Path,
+) -> None:
+    scope = _local_scope(tmp_path)
+    del scope["artifacts"]["ost_license_receipt"]
+    path = tmp_path / "build/foundation/authorizations/final/2m.json"
+    _write_json(path, _authorized_manifest(scope))
+    with pytest.raises(FoundationAuthorizationError, match="schema invalid"):
+        build_cloud_reproduction_candidate(
+            path,
+            local_gate_report_path=_local_gate_report(tmp_path, passed=True),
+            quote=_safe_quote(),
+            output_path=tmp_path
+            / "build/foundation/authorizations/candidates/2m-cloud.json",
+            repo_root=tmp_path,
+        )
+    assert not (
+        tmp_path / "build/foundation/authorizations/candidates/2m-cloud.json"
+    ).exists()
+
+
+def test_cloud_bundle_packs_both_lane_receipts_without_forbidden_bytes(
+    tmp_path: Path,
+) -> None:
+    request = _bundle_request(tmp_path)
+    manifest = build_cloud_bundle(request)
+    arcnames = [entry["arcname"] for entry in manifest["files"]]
+    for name in ("ost_license_receipt", "leakage_receipt", "shard", "shard_manifest"):
+        assert f"build/foundation/preparation/2m/{name}.json" in arcnames
+    assert "build/foundation/gates/local-gate-report.json" in arcnames
+    for arcname in arcnames:
+        lowered = arcname.casefold()
+        assert "pneuma-data" not in lowered
+        assert "swe-chat" not in lowered
+        assert "sec-bench-pro" not in lowered
+        assert not lowered.endswith(".ipynb")
+        assert not any(
+            lowered.endswith(suffix)
+            for suffix in (".pt", ".pth", ".ckpt", ".safetensors")
+        )
+        assert ".env" not in lowered
 
 
 def test_cloud_candidate_accepts_cli_primitives(tmp_path: Path) -> None:

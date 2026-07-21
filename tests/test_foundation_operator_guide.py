@@ -26,7 +26,7 @@ def _parser():
 def test_operator_guide_is_marked_and_last_action_is_train() -> None:
     text = GUIDE.read_text(encoding="utf-8")
     assert text.startswith(
-        "# LOCAL 100K AND 500K STAGES COMPLETE — TRAIN LANE DATA-EXHAUSTED"
+        "# LOCAL 100K, 500K, AND 2M STAGES COMPLETE — FALSIFICATION GATE PASSED"
     )
     assert "No Jupyter notebook is required." in text
     checklist = [line for line in text.splitlines() if line.startswith("- [")]
@@ -147,7 +147,7 @@ def test_module_main_exit_codes(tmp_path: Path, capsys) -> None:
     assert main([str(GUIDE)]) == 0
     assert '"valid": true' in capsys.readouterr().out
     broken = GUIDE.read_text(encoding="utf-8").replace(
-        "# LOCAL 100K AND 500K STAGES COMPLETE", "# stage truth removed", 1
+        "# LOCAL 100K, 500K, AND 2M STAGES COMPLETE", "# stage truth removed", 1
     )
     assert main([str(_write_guide(tmp_path / "guide.md", broken))]) == 1
     captured = capsys.readouterr()

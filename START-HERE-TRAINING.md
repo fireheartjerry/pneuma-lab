@@ -1,20 +1,20 @@
-# LOCAL 100K AND 500K STAGES COMPLETE — TRAIN LANE DATA-EXHAUSTED
+# LOCAL 100K, 500K, AND 2M STAGES COMPLETE — FALSIFICATION GATE PASSED
 
-The local Qwen3.5-2B 100K-token smoke stage completed on 2026-07-20 under
-exact operator authorization: three runs (learning rates 5e-5, 1e-4, 2e-4),
-15 optimizer steps each, ~93,967 tokens per run, best validation loss 3.5085
-at 2e-4, ~312-339 tokens/second, peak 2.82 GiB process VRAM, zero thermal
-throttling. The 500K stage then completed the same day at the selected 2e-4
-(run `foundation-500k-b4b5f1da90aff5ab`, 32 optimizer steps, best validation
-loss 3.8832) — and consumed the ENTIRE train split of the only
-gradient-eligible lane at 200,874 of 202,162 shard tokens. The 500K token
-ceiling is unreachable from the OpenHands-Sampled lane alone: repo-grouped
-splitting over its 6 repositories leaves ~202K train tokens total. A 2M
-stage over the same single lane would re-train the identical shard and is
-therefore not run. Later stages require multi-lane readiness work
-(`multi-swe-bench`, `open-swe-traces`, `swe-evo` conversion + policy
-redesign) before they are meaningful. No cloud resource has been created;
-paid compute remains $0.
+The local Qwen3.5-2B ladder completed through 2M on 2026-07-20 under exact
+per-stage operator authorizations. 100K smoke: three runs (5e-5/1e-4/2e-4),
+best validation loss 3.5085 at the selected 2e-4, ~312-339 tokens/second.
+500K: run `foundation-500k-b4b5f1da90aff5ab`, 32 steps, 200,874 tokens —
+exhausting the single OpenHands-Sampled lane and motivating the multi-lane
+redesign. 2M: run `foundation-2m-20a569bfe4a43886` over TWO gradient lanes
+(OpenHands-Sampled + the new 160,731-trace open-swe-traces pneuma-trace
+lane), 330 steps, 1,997,114 tokens, best validation loss 0.0875. The
+four-variant falsification kill gate PASSED on 3,399 repo-disjoint held-out
+tasks: pneuma_recurrent 64.14% vs 35.86% for the strongest baseline
+(+28.27 absolute points, bootstrap CI95 [0.251, 0.315], honest-proxy
+`held_out_risk_prediction_correctness` semantics; the two pre-registered
+baselines run from deterministic untrained initializations, disclosed in
+every result file). No cloud resource has been created; paid compute
+remains $0.
 No Jupyter notebook is required. Local WSL2 and optional RunPod both use the
 same CLI. This guide remains the canonical procedure for every later stage.
 
@@ -45,10 +45,13 @@ effective weight exists only in memory, only for the exact authorized lane,
 and only while a verified final authorization is loaded.
 
 The 500K stage reuses the exact 100K access matrix (`payload_access_500k`
-in the suite policy): only the approved OpenHands-Sampled lane opens
-payloads and every other family stays metadata-only. 2M-and-later stages
-remain fail-closed until their own `payload_access_<stage>` column lands
-with its readiness work.
+in the suite policy). The 2M stage (`payload_access_2m`) additionally opens
+the approved `open-swe-traces` processed lane
+(`processed/open-swe-traces/pneuma-trace`), with the committed
+cross-dataset leakage registry quarantining the 7 overlapping repositories
+and both lane license receipts pinned. 8M-and-later stages remain
+fail-closed until their own `payload_access_<stage>` column lands with its
+readiness work.
 
 ## 2. Current readiness and hard safety boundaries
 
@@ -255,6 +258,15 @@ notebooks. Official references: [pricing](https://www.runpod.io/pricing),
 [connecting](https://docs.runpod.io/pods/connect-to-a-pod),
 [pricing model](https://docs.runpod.io/pods/pricing), and
 [pod lifecycle](https://docs.runpod.io/pods/manage-pods).
+
+At 2M the cloud authorization binds the same two gradient lanes as the local
+final: the Open-SWE-Traces license receipt, the cross-dataset leakage receipt,
+the lane-keyed conversion evidence, and both lane weights travel unchanged
+into the cloud scope, and a single-lane 2M cloud candidate fails closed. Both
+lane license receipts keep `cloud_redistribution_allowed: false`; the bundle
+is not redistribution — it is the private, single-job transfer of derived,
+digest-bearing artifacts, permitted only by the operator-approved
+`private_cloud_transfer_allowed: true` posture in the finalized cloud scope.
 
 When a passing local-gate report exists and transfer is approved, build the
 separately finalized cloud authorization and bundle locally:

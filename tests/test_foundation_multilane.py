@@ -21,6 +21,12 @@ from pneuma_lab.foundation.authorization import (
     verify_foundation_authorization,
     apply_verified_authorization,
 )
+from pneuma_lab.foundation.budget import CloudQuote
+from pneuma_lab.foundation.cloud_bundle import (
+    CloudBundleRequest,
+    build_cloud_bundle,
+    build_cloud_reproduction_candidate,
+)
 from pneuma_lab.foundation.contamination import (
     CROSS_DATASET_LEAKAGE_QUARANTINE_ID,
     EVAL_REPO_QUARANTINE_ID,
@@ -272,6 +278,10 @@ def _prepare_fixture_2m(
         output_root=repo_root / "build/foundation/preparation/2m",
     )
     _copy_committed(ROOT / ".gitignore", repo_root / ".gitignore")
+    (repo_root / "uv.lock").write_text("# pinned dependency lock\n", encoding="utf-8")
+    setup_script = repo_root / "scripts/foundation/setup-linux.sh"
+    setup_script.parent.mkdir(parents=True, exist_ok=True)
+    setup_script.write_text("#!/bin/sh\necho inert\n", encoding="utf-8")
     subprocess.run(["git", "init"], cwd=repo_root, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "tests@pneuma.invalid"],
@@ -371,6 +381,43 @@ def _finalize(repo_root: Path, result) -> Path:
         operator_id="student-operator",
         approved_at=APPROVED_AT,
         output_path=final_path,
+    )
+
+
+def _safe_cloud_quote() -> CloudQuote:
+    return CloudQuote(
+        hourly_usd=0.44,
+        tax_inclusive_usd=38.0,
+        prepaid_credit_usd=38.0,
+        auto_pay_enabled=False,
+        termination_hours=72,
+        measured_tokens_per_second=20.0,
+        prior_lifetime_spend_usd=0.0,
+    )
+
+
+def _build_cloud_candidate(repo_root: Path, final_path: Path) -> dict:
+    gate_path = repo_root / "build/foundation/gates/local-gate-report.json"
+    _write_json(gate_path, {"local_gates_passed": True})
+    return build_cloud_reproduction_candidate(
+        final_path,
+        local_gate_report_path=gate_path,
+        quote=_safe_cloud_quote(),
+        output_path=repo_root
+        / "build/foundation/authorizations/candidates/2m-cloud.json",
+        repo_root=repo_root,
+        _tokenizer_loader=lambda _path: ByteTokenizer(),
+    )
+
+
+def _finalize_cloud(repo_root: Path, candidate: dict) -> Path:
+    return finalize_authorization(
+        repo_root / "build/foundation/authorizations/candidates/2m-cloud.json",
+        supplied_scope_digest=candidate["scope_digest"],
+        supplied_approval_phrase=required_approval_phrase(candidate),
+        operator_id="student-operator",
+        approved_at=APPROVED_AT,
+        output_path=repo_root / "build/foundation/authorizations/final/2m-cloud.json",
     )
 
 
@@ -723,6 +770,160 @@ def test_2m_candidate_rejects_tampered_ost_conversion_report(
             code_commit=_fixture_commit(request.repo_root),
             _tokenizer=ByteTokenizer(),
         )
+
+
+def test_2m_cloud_candidate_finalizes_and_verifies_both_lanes(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    request, _ost_repos = _prepare_fixture_2m(tmp_path)
+    result = _prepare(monkeypatch, request)
+    final_path = _finalize(request.repo_root, result)
+    candidate = _build_cloud_candidate(request.repo_root, final_path)
+    scope = candidate["scope"]
+    local_manifest = json.loads(final_path.read_text(encoding="utf-8"))
+    assert candidate["authorization_status"] == "candidate"
+    assert scope["execution_profile"] == "cloud"
+    assert scope["stage"] == "2m"
+    assert scope["authorized_lane_weights"] == {
+        "swe-gym-openhands-sampled": 1.0,
+        "open-swe-traces": 1.0,
+    }
+    assert {"ost_license_receipt", "leakage_receipt"} <= set(scope["artifacts"])
+    assert scope["artifacts"] == local_manifest["scope"]["artifacts"]
+    assert scope["evidence_artifacts"] == local_manifest["scope"]["evidence_artifacts"]
+    assert set(scope["evidence_artifacts"]["conversion"]) == {
+        "swe-gym-openhands-sampled",
+        "open-swe-traces",
+    }
+    assert scope["source_data_policy"] == {
+        "root": "bundle://authorized-shard",
+        "write_allowed": False,
+        "private_cloud_transfer": False,
+        "private_cloud_transfer_allowed": True,
+    }
+    assert scope["budget"] == {
+        "paid_compute_usd": 0,
+        "cloud_jobs_used": 0,
+        "paid_compute_ceiling_usd": 38.0,
+        "cloud_job_ceiling": 1,
+        "cloud_lifetime_cap_usd": 45,
+    }
+
+    cloud_final = _finalize_cloud(request.repo_root, candidate)
+    assert cloud_final == (
+        request.repo_root / "build/foundation/authorizations/final/2m-cloud.json"
+    )
+    verified = verify_foundation_authorization(
+        cloud_final,
+        repo_root=request.repo_root,
+        _tokenizer_loader=lambda _path: ByteTokenizer(),
+    )
+    assert verified.token_ceiling == 2_000_000
+    assert dict(verified.authorized_lane_weights) == {
+        "swe-gym-openhands-sampled": 1.0,
+        "open-swe-traces": 1.0,
+    }
+    assert verified.manifest["scope"]["execution_profile"] == "cloud"
+    assert len(verified.authorized_record_membership) == len(_shard_records(result))
+
+
+def test_2m_cloud_candidate_rejects_a_tampered_leakage_receipt(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    request, _ost_repos = _prepare_fixture_2m(tmp_path)
+    result = _prepare(monkeypatch, request)
+    final_path = _finalize(request.repo_root, result)
+    original = result.leakage_receipt_path.read_bytes()
+    result.leakage_receipt_path.write_bytes(b"X" * len(original))
+    with pytest.raises(
+        FoundationAuthorizationError,
+        match="digest|changed|leakage",
+    ):
+        _build_cloud_candidate(request.repo_root, final_path)
+    assert not (
+        request.repo_root / "build/foundation/authorizations/candidates/2m-cloud.json"
+    ).exists()
+
+
+def test_2m_cloud_verification_rejects_a_tampered_gate_report(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    request, _ost_repos = _prepare_fixture_2m(tmp_path)
+    result = _prepare(monkeypatch, request)
+    final_path = _finalize(request.repo_root, result)
+    candidate = _build_cloud_candidate(request.repo_root, final_path)
+    cloud_final = _finalize_cloud(request.repo_root, candidate)
+    gate_path = request.repo_root / "build/foundation/gates/local-gate-report.json"
+    _write_json(gate_path, {"local_gates_passed": False})
+    with pytest.raises(FoundationAuthorizationError, match="gate report"):
+        verify_foundation_authorization(
+            cloud_final,
+            repo_root=request.repo_root,
+            _tokenizer_loader=lambda _path: ByteTokenizer(),
+        )
+
+
+def test_2m_cloud_bundle_lists_both_lane_receipts_and_no_raw_corpus(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from pneuma_lab.foundation import cloud_bundle
+
+    request, _ost_repos = _prepare_fixture_2m(tmp_path)
+    result = _prepare(monkeypatch, request)
+    final_path = _finalize(request.repo_root, result)
+    candidate = _build_cloud_candidate(request.repo_root, final_path)
+    cloud_final = _finalize_cloud(request.repo_root, candidate)
+
+    def _verify_with_fixture_tokenizer(path, *, repo_root, registry_path=None):
+        del registry_path
+        return verify_foundation_authorization(
+            path,
+            repo_root=repo_root,
+            _tokenizer_loader=lambda _path: ByteTokenizer(),
+        )
+
+    monkeypatch.setattr(
+        cloud_bundle,
+        "verify_foundation_authorization",
+        _verify_with_fixture_tokenizer,
+    )
+    bundle_request = CloudBundleRequest(
+        repo_root=request.repo_root,
+        data_root=request.data_root,
+        authorization_path=cloud_final,
+        output_path=request.repo_root / "build/foundation/cloud/2m-bundle.tar",
+        stage="2m",
+        quote=_safe_cloud_quote(),
+        dry_run=True,
+    )
+    manifest = build_cloud_bundle(bundle_request)
+    arcnames = {entry["arcname"] for entry in manifest["files"]}
+    scope = candidate["scope"]
+    for name in (
+        "shard",
+        "shard_manifest",
+        "license_receipt",
+        "ost_license_receipt",
+        "leakage_receipt",
+    ):
+        assert scope["artifacts"][name]["path"] in arcnames
+    assert scope["local_gate_report"]["path"] in arcnames
+    assert "build/foundation/authorizations/final/2m-cloud.json" in arcnames
+    for arcname in arcnames:
+        lowered = arcname.casefold()
+        assert "pneuma-data" not in lowered
+        assert "swe-chat" not in lowered
+        assert "sec-bench-pro" not in lowered
+        assert not lowered.endswith(".ipynb")
+        assert not any(
+            lowered.endswith(suffix)
+            for suffix in (".pt", ".pth", ".ckpt", ".safetensors")
+        )
+    assert not bundle_request.output_path.exists()
 
 
 def test_canonical_repo_key_accepts_digest_identities() -> None:
