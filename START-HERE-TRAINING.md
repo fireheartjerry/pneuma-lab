@@ -1,4 +1,4 @@
-# LOCAL 100K, 500K, AND 2M STAGES COMPLETE — FALSIFICATION GATE PASSED
+# LOCAL LADDER AND CLOUD 2M COMPLETE — FALSIFICATION GATE PASSED
 
 The local Qwen3.5-2B ladder completed through 2M on 2026-07-20 under exact
 per-stage operator authorizations. 100K smoke: three runs (5e-5/1e-4/2e-4),
@@ -13,8 +13,14 @@ tasks: pneuma_recurrent 64.14% vs 35.86% for the strongest baseline
 (+28.27 absolute points, bootstrap CI95 [0.251, 0.315], honest-proxy
 `held_out_risk_prediction_correctness` semantics; the two pre-registered
 baselines run from deterministic untrained initializations, disclosed in
-every result file). No cloud resource has been created; paid compute
-remains $0.
+every result file). The one-time RunPod cloud reproduction then completed
+on 2026-07-21 under a separately finalized two-lane cloud authorization
+(scope digest `35f23296…`, $35 all-in job ceiling): run
+`foundation-2m-35f2329653ca804e` on an On-Demand A40 ($0.44/hr, CUDA 13.0
+host), 330 steps, best validation loss 0.08654 (local: 0.08746), results
+archive retrieved and the pod terminated with zero pods and zero volumes
+remaining. Lifetime cloud jobs used: 1 of 1; actual paid compute under
+$2, within every budget gate.
 No Jupyter notebook is required. Local WSL2 and optional RunPod both use the
 same CLI. This guide remains the canonical procedure for every later stage.
 

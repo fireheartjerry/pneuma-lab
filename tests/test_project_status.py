@@ -342,7 +342,7 @@ def test_project_status_tracks_local_foundation_tooling_without_training_claim()
     assert program["tooling_status"] == "implemented"
     assert (
         program["training_status"]
-        == "local_2m_stage_completed_falsification_gate_passed"
+        == "local_and_cloud_2m_completed_falsification_gate_passed"
     )
     assert program["runtime_status"] == "not_promoted"
     assert program["default_paid_compute_usd"] == 0
@@ -355,9 +355,9 @@ def test_project_status_records_the_local_smoke_only() -> None:
     assert launch["tooling"] == "implemented"
     assert (
         launch["training_status"]
-        == "local_2m_stage_completed_falsification_gate_passed"
+        == "local_and_cloud_2m_completed_falsification_gate_passed"
     )
-    assert launch["optimizer_steps"] == 407
-    assert launch["cloud_resources_created"] == 0
-    assert launch["paid_compute_usd"] == 0
+    assert launch["optimizer_steps"] == 737
+    assert launch["cloud_resources_created"] == "one_lifetime_pod_terminated"
+    assert launch["paid_compute_usd"] == "under_2_within_35_ceiling"
     assert launch["authorization_state"] == "exact_operator_authorization_required"

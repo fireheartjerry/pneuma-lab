@@ -83,6 +83,33 @@ derived digest-bearing artifacts is separately controlled by the cloud
 scope's `source_data_policy.private_cloud_transfer_allowed` and the $45
 lifetime budget gates.
 
+## Cloud reproduction (2026-07-21, completed)
+
+The one-time RunPod reproduction ran under a separately finalized
+two-lane cloud authorization (scope digest `35f23296…`, live A40 quote
+$0.44/hr, $35 all-in tax-inclusive job ceiling; the operator's $50
+credit load exceeds the $38/$45 caps so the job ceiling — not the load —
+is what the gates bind). Pod lifecycle was driven over the RunPod REST
+API with an operator-provided key (never committed or logged):
+
+- Two false starts, both terminated within minutes: a pod that booted
+  before the account SSH key registered, and a host whose driver topped
+  out at CUDA 12.8 (the locked torch needs CUDA 13 wheels;
+  `allowedCudaVersions: ["13.0"]` fixed placement).
+- Pod-side verification required two artifacts the tar bundle omits by
+  design: the git history (shipped as a `git bundle`, checked out clean
+  at the bound commit `92d307d`) and the ~750MB per-lane conversion
+  evidence (streamed over SSH; digests verified against local). Both are
+  pre-existing bundle-design debt, now documented.
+- Run `foundation-2m-35f2329653ca804e`: preflight verified the full
+  two-lane cloud authorization on the pod, then 330 optimizer steps,
+  status `completed`, best/last validation loss 0.08654/0.09223 —
+  closely reproducing the local run (0.08746/0.09091).
+- `pneuma-results.tar.gz` (manifest, validation_batches.json, terminal
+  checkpoints) retrieved to `build/foundation/cloud/`; the pod was
+  terminated and the API confirms zero pods and zero network volumes
+  remain. Lifetime cloud jobs: 1 of 1. Actual paid compute: under $2.
+
 ## Verification
 
 - Full suite green at every commit boundary (last: 2044 passed, 3

@@ -579,7 +579,7 @@
             "properties": {
                 "tooling_status": { "const": "implemented" },
                 "training_status": {
-                    "const": "local_2m_stage_completed_falsification_gate_passed"
+                    "const": "local_and_cloud_2m_completed_falsification_gate_passed"
                 },
                 "runtime_status": { "const": "not_promoted" },
                 "research_model": {
@@ -716,16 +716,16 @@
                     "const": "exact_operator_authorization_required"
                 },
                 "training_status": {
-                    "const": "local_2m_stage_completed_falsification_gate_passed"
+                    "const": "local_and_cloud_2m_completed_falsification_gate_passed"
                 },
                 "optimizer_steps": {
-                    "const": 407
+                    "const": 737
                 },
                 "cloud_resources_created": {
-                    "const": 0
+                    "const": "one_lifetime_pod_terminated"
                 },
                 "paid_compute_usd": {
-                    "const": 0
+                    "const": "under_2_within_35_ceiling"
                 }
             },
             "additionalProperties": false
