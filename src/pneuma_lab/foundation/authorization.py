@@ -1970,6 +1970,7 @@ def _validate_preparation_coherence_unchecked(
                 "payload_access_100k",
                 "payload_access_500k",
                 "payload_access_2m",
+                "payload_access_8m",
             )
         }
         if "identity_metadata_relative_path" in item:

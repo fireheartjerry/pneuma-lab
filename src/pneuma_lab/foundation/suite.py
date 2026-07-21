@@ -39,18 +39,21 @@ class _TrustedPayload:
 
 
 # Each row: family, terminal_role, gradient_eligibility, payload access at
-# 100k, at 500k, at 2m, identity metadata path. The 500k smoke stage reuses
-# the exact first-stage access matrix. The 2m stage additionally opens the
-# approved open-swe-traces processed lane (its "later" gradient eligibility
-# becomes live), with the committed cross-dataset leakage registry governing
-# the overlap quarantine. multi-swe-bench and swe-evo stay metadata-only
-# until their own conversion lanes earn readiness. 8m-and-later stages
-# remain fail-closed until a payload_access_<stage> column exists.
+# 100k, at 500k, at 2m, at 8m, identity metadata path. The 500k smoke stage
+# reuses the exact first-stage access matrix. The 2m stage additionally opens
+# the approved open-swe-traces processed lane (its "later" gradient
+# eligibility becomes live), with the committed cross-dataset leakage
+# registry governing the overlap quarantine. The 8m stage reuses the exact
+# 2m access matrix over the same two approved lanes. multi-swe-bench and
+# swe-evo stay metadata-only until their own conversion lanes earn
+# readiness. 16m-and-later stages remain fail-closed until a
+# payload_access_<stage> column exists.
 _EXPECTED_FAMILY_MATRIX = (
     (
         "multi-swe-bench",
         "train",
         "later",
+        "metadata_only",
         "metadata_only",
         "metadata_only",
         "metadata_only",
@@ -63,12 +66,14 @@ _EXPECTED_FAMILY_MATRIX = (
         "metadata_only",
         "metadata_only",
         "approved_processed_lane_only",
+        "approved_processed_lane_only",
         None,
     ),
     (
         "sec-bench-pro",
         "governance",
         "never",
+        "metadata_only",
         "metadata_only",
         "metadata_only",
         "metadata_only",
@@ -81,12 +86,14 @@ _EXPECTED_FAMILY_MATRIX = (
         "identity_metadata_only",
         "identity_metadata_only",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-bench/normalized_metadata.jsonl",
     ),
     (
         "swe-bench-pro",
         "eval",
         "never",
+        "metadata_only",
         "metadata_only",
         "metadata_only",
         "metadata_only",
@@ -99,12 +106,14 @@ _EXPECTED_FAMILY_MATRIX = (
         "metadata_only",
         "metadata_only",
         "metadata_only",
+        "metadata_only",
         None,
     ),
     (
         "swe-evo",
         "train",
         "later",
+        "metadata_only",
         "metadata_only",
         "metadata_only",
         "metadata_only",
@@ -117,6 +126,7 @@ _EXPECTED_FAMILY_MATRIX = (
         "approved_processed_lane_only",
         "approved_processed_lane_only",
         "approved_processed_lane_only",
+        "approved_processed_lane_only",
         None,
     ),
     (
@@ -126,12 +136,14 @@ _EXPECTED_FAMILY_MATRIX = (
         "identity_metadata_only",
         "identity_metadata_only",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-mera/normalized_metadata.jsonl",
     ),
     (
         "swe-polybench",
         "eval",
         "later",
+        "identity_metadata_only",
         "identity_metadata_only",
         "identity_metadata_only",
         "identity_metadata_only",
@@ -277,6 +289,7 @@ def _validated_family_map(policy: Mapping) -> dict[str, Mapping]:
             access,
             access_500k,
             access_2m,
+            access_8m,
             identity_path,
         ) = expected
         expected_item = {
@@ -286,6 +299,7 @@ def _validated_family_map(policy: Mapping) -> dict[str, Mapping]:
             "payload_access_100k": access,
             "payload_access_500k": access_500k,
             "payload_access_2m": access_2m,
+            "payload_access_8m": access_8m,
         }
         if identity_path is not None:
             expected_item["identity_metadata_relative_path"] = identity_path
@@ -684,6 +698,7 @@ def build_suite_completeness_report(policy: Mapping, data_root: Path) -> dict:
         access,
         access_500k,
         access_2m,
+        access_8m,
         identity_path,
     ) in _EXPECTED_FAMILY_MATRIX:
         report_item = {
@@ -693,6 +708,7 @@ def build_suite_completeness_report(policy: Mapping, data_root: Path) -> dict:
             "payload_access_100k": access,
             "payload_access_500k": access_500k,
             "payload_access_2m": access_2m,
+            "payload_access_8m": access_8m,
             **asdict(probe_family_presence(data_root, family)),
         }
         if identity_path is not None:

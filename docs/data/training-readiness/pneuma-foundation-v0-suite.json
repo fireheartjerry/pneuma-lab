@@ -24,7 +24,8 @@
             "gradient_eligibility": "later",
             "payload_access_100k": "metadata_only",
             "payload_access_500k": "metadata_only",
-            "payload_access_2m": "metadata_only"
+            "payload_access_2m": "metadata_only",
+            "payload_access_8m": "metadata_only"
         },
         {
             "family": "open-swe-traces",
@@ -32,7 +33,8 @@
             "gradient_eligibility": "later",
             "payload_access_100k": "metadata_only",
             "payload_access_500k": "metadata_only",
-            "payload_access_2m": "approved_processed_lane_only"
+            "payload_access_2m": "approved_processed_lane_only",
+            "payload_access_8m": "approved_processed_lane_only"
         },
         {
             "family": "sec-bench-pro",
@@ -40,7 +42,8 @@
             "gradient_eligibility": "never",
             "payload_access_100k": "metadata_only",
             "payload_access_500k": "metadata_only",
-            "payload_access_2m": "metadata_only"
+            "payload_access_2m": "metadata_only",
+            "payload_access_8m": "metadata_only"
         },
         {
             "family": "swe-bench",
@@ -49,6 +52,7 @@
             "payload_access_100k": "identity_metadata_only",
             "payload_access_500k": "identity_metadata_only",
             "payload_access_2m": "identity_metadata_only",
+            "payload_access_8m": "identity_metadata_only",
             "identity_metadata_relative_path": "processed/swe-bench/normalized_metadata.jsonl"
         },
         {
@@ -57,7 +61,8 @@
             "gradient_eligibility": "never",
             "payload_access_100k": "metadata_only",
             "payload_access_500k": "metadata_only",
-            "payload_access_2m": "metadata_only"
+            "payload_access_2m": "metadata_only",
+            "payload_access_8m": "metadata_only"
         },
         {
             "family": "swe-chat",
@@ -65,7 +70,8 @@
             "gradient_eligibility": "never",
             "payload_access_100k": "metadata_only",
             "payload_access_500k": "metadata_only",
-            "payload_access_2m": "metadata_only"
+            "payload_access_2m": "metadata_only",
+            "payload_access_8m": "metadata_only"
         },
         {
             "family": "swe-evo",
@@ -73,7 +79,8 @@
             "gradient_eligibility": "later",
             "payload_access_100k": "metadata_only",
             "payload_access_500k": "metadata_only",
-            "payload_access_2m": "metadata_only"
+            "payload_access_2m": "metadata_only",
+            "payload_access_8m": "metadata_only"
         },
         {
             "family": "swe-gym",
@@ -81,7 +88,8 @@
             "gradient_eligibility": "first_stage",
             "payload_access_100k": "approved_processed_lane_only",
             "payload_access_500k": "approved_processed_lane_only",
-            "payload_access_2m": "approved_processed_lane_only"
+            "payload_access_2m": "approved_processed_lane_only",
+            "payload_access_8m": "approved_processed_lane_only"
         },
         {
             "family": "swe-mera",
@@ -90,6 +98,7 @@
             "payload_access_100k": "identity_metadata_only",
             "payload_access_500k": "identity_metadata_only",
             "payload_access_2m": "identity_metadata_only",
+            "payload_access_8m": "identity_metadata_only",
             "identity_metadata_relative_path": "processed/swe-mera/normalized_metadata.jsonl"
         },
         {
@@ -99,6 +108,7 @@
             "payload_access_100k": "identity_metadata_only",
             "payload_access_500k": "identity_metadata_only",
             "payload_access_2m": "identity_metadata_only",
+            "payload_access_8m": "identity_metadata_only",
             "identity_metadata_relative_path": "processed/swe-polybench/normalized_metadata.jsonl"
         }
     ]

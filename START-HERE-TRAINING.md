@@ -55,9 +55,11 @@ in the suite policy). The 2M stage (`payload_access_2m`) additionally opens
 the approved `open-swe-traces` processed lane
 (`processed/open-swe-traces/pneuma-trace`), with the committed
 cross-dataset leakage registry quarantining the 7 overlapping repositories
-and both lane license receipts pinned. 8M-and-later stages remain
-fail-closed until their own `payload_access_<stage>` column lands with its
-readiness work.
+and both lane license receipts pinned. The 8M stage (`payload_access_8m`)
+reuses the exact 2M two-lane access matrix; the two-lane data supply
+(~135K post-quarantine examples, ~19M train-split tokens) covers the 8M
+ceiling in a single pass. 16M-and-later stages remain fail-closed until
+their own `payload_access_<stage>` column lands with its readiness work.
 
 ## 2. Current readiness and hard safety boundaries
 

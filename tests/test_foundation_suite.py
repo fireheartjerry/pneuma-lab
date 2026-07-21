@@ -40,6 +40,7 @@ EXPECTED_FAMILY_MATRIX = {
         "metadata_only",
         "metadata_only",
         "metadata_only",
+        "metadata_only",
         None,
     ),
     "open-swe-traces": (
@@ -48,11 +49,13 @@ EXPECTED_FAMILY_MATRIX = {
         "metadata_only",
         "metadata_only",
         "approved_processed_lane_only",
+        "approved_processed_lane_only",
         None,
     ),
     "sec-bench-pro": (
         "governance",
         "never",
+        "metadata_only",
         "metadata_only",
         "metadata_only",
         "metadata_only",
@@ -64,11 +67,13 @@ EXPECTED_FAMILY_MATRIX = {
         "identity_metadata_only",
         "identity_metadata_only",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-bench/normalized_metadata.jsonl",
     ),
     "swe-bench-pro": (
         "eval",
         "never",
+        "metadata_only",
         "metadata_only",
         "metadata_only",
         "metadata_only",
@@ -80,11 +85,13 @@ EXPECTED_FAMILY_MATRIX = {
         "metadata_only",
         "metadata_only",
         "metadata_only",
+        "metadata_only",
         None,
     ),
     "swe-evo": (
         "train",
         "later",
+        "metadata_only",
         "metadata_only",
         "metadata_only",
         "metadata_only",
@@ -96,6 +103,7 @@ EXPECTED_FAMILY_MATRIX = {
         "approved_processed_lane_only",
         "approved_processed_lane_only",
         "approved_processed_lane_only",
+        "approved_processed_lane_only",
         None,
     ),
     "swe-mera": (
@@ -104,11 +112,13 @@ EXPECTED_FAMILY_MATRIX = {
         "identity_metadata_only",
         "identity_metadata_only",
         "identity_metadata_only",
+        "identity_metadata_only",
         "processed/swe-mera/normalized_metadata.jsonl",
     ),
     "swe-polybench": (
         "eval",
         "later",
+        "identity_metadata_only",
         "identity_metadata_only",
         "identity_metadata_only",
         "identity_metadata_only",
@@ -130,6 +140,7 @@ def _matrix_mutations() -> tuple[tuple[str, str, str], ...]:
         _access,
         _access_500k,
         _access_2m,
+        _access_8m,
         identity_path,
     ) in EXPECTED_FAMILY_MATRIX.items():
         for field in (
@@ -138,6 +149,7 @@ def _matrix_mutations() -> tuple[tuple[str, str, str], ...]:
             "payload_access_100k",
             "payload_access_500k",
             "payload_access_2m",
+            "payload_access_8m",
         ):
             for mutation in ("missing", "wrong_value", "wrong_type"):
                 cases.append((family, field, mutation))
@@ -156,6 +168,7 @@ def _wrong_value(field: str) -> str:
         "payload_access_100k": "payload_allowed",
         "payload_access_500k": "payload_allowed",
         "payload_access_2m": "payload_allowed",
+        "payload_access_8m": "payload_allowed",
         "identity_metadata_relative_path": "processed/wrong/metadata.jsonl",
     }[field]
 
@@ -175,6 +188,11 @@ def _different_valid_value(field: str, current: str) -> str:
             "approved_processed_lane_only",
         ),
         "payload_access_2m": (
+            "metadata_only",
+            "identity_metadata_only",
+            "approved_processed_lane_only",
+        ),
+        "payload_access_8m": (
             "metadata_only",
             "identity_metadata_only",
             "approved_processed_lane_only",
@@ -494,6 +512,7 @@ def test_suite_requires_exact_family_policy_matrix(
             "payload_access_100k",
             "payload_access_500k",
             "payload_access_2m",
+            "payload_access_8m",
         )
     ],
 )
@@ -1378,6 +1397,7 @@ def test_suite_report_schema_rejects_duplicate_family_and_extra_fields(
         ("swe-chat", "payload_access_100k", "approved_processed_lane_only"),
         ("swe-chat", "payload_access_500k", "approved_processed_lane_only"),
         ("swe-chat", "payload_access_2m", "approved_processed_lane_only"),
+        ("swe-chat", "payload_access_8m", "approved_processed_lane_only"),
     ],
 )
 def test_suite_report_schema_pins_family_role_matrix(
