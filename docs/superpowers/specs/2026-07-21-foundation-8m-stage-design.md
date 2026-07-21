@@ -12,10 +12,14 @@ reachability.
 - The 2M falsification kill gate PASSED (+28.3 points absolute, CI95 strictly
   above zero), so `next_token_stage(2_000_000, falsification_gate_passed=True)`
   returns 8,000,000.
-- Data supply is sufficient without a new lane: the two approved gradient
-  lanes (OpenHands-Sampled + Open-SWE-Traces) yield ~135K post-quarantine
-  examples at ~189 tokens each (~19-20M train-split tokens at the 80/10/10
-  repo-grouped split); the 8M train shard needs ~42K selected records.
+- Data supply (measured at preparation, correcting the pre-run estimate):
+  the two approved gradient lanes yield 22,189 selectable train-split
+  records totalling 4,195,743 tokens. The 8M ceiling is therefore
+  unreachable from the current lanes; the stage runs over the full 4.2M
+  train supply — 2.1x the 2M run — and the data-bound-ladder finding
+  first recorded at 500K is re-confirmed at 8M. Reaching the ceiling
+  requires the `multi-swe-bench`/`swe-evo` conversion lanes (out of
+  scope).
 - Evaluation, budget, preparation, authorization, CLI, and curriculum code
   already accept the `8m` stage; the ONLY fail-closed gap is the suite
   policy, which has no `payload_access_8m` column.
