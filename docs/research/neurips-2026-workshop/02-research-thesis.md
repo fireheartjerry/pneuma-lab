@@ -3,7 +3,7 @@
 **Status:** canonical, Protocol v2, revised 2026-07-22. Every downstream
 document MUST agree with Section 8. Changes to a locked constant require a row
 in `15-decision-log.md`. `16-protocol-v2-hardening.md` records the red-team that
-motivated DL-16–DL-43; this file incorporates those decisions and is now the
+motivated DL-16–DL-44; this file incorporates those decisions and is now the
 canonical statement of the study. `18-mathematical-formalism.md` is its
 subordinate mathematical companion; it adds notation and conditional proofs but
 cannot amend a locked constant.
@@ -614,7 +614,7 @@ baseline.
 
 #### Power and reporting (DL-21, DL-32, DL-33)
 
-- Pilot 20–30 disjoint authored prototype lineages estimates pooled/blinded
+- The fixed 30-lineage disjoint authored-prototype pilot estimates pooled/blinded
   event rates, dependence, detector error, attrition, and paired variance only.
   The deterministic Monte Carlo sample-size rule uses the complete estimator,
   assignment, simultaneous-inference, magnitude, and non-inferiority decision
@@ -659,26 +659,40 @@ unsupported-claim rate, calibration, and behavioural consistency separately
 from H1/H2. If the decoder matches the reporter, describe receipt decodability/
 system auditability rather than agent self-explanation.
 
-### 8.12 Staged compute ceiling
+### 8.12 Fixed nominal roster and power-selected independent sample (DL-44)
 
-Power simulation, not this ceiling, selects the final sample size. The maximum
-planned matrix before the paid-compute checkpoint is:
+The nominal roster is fixed; the independent-lineage count is not guessed.
+Before the paid-compute checkpoint:
 
-- Suite-A confirmatory: six high-precision motifs, up to 96 sequences nested
-  within a power-selected number of genuinely independent authored prototype
-  lineages, three challenges, seven arms, two decoding seeds, with Qwen2.5-Coder-
-  7B as the primary model; 96 variants never count as 96 independent units unless
-  their lineage digests are distinct;
+- nuisance-only pilot: exactly 30 disjoint authored prototype lineages from the
+  pilot split;
+- Suite-A confirmatory: exactly 96 registered sequences across six
+  high-precision motifs (16 per motif), nested within the number of genuinely
+  independent authored prototype lineages selected by the locked rule in
+  §8.10, with three challenges, seven arms, and two decoding seeds, and
+  Qwen2.5-Coder-7B as the primary model; the 96 sequences never count as 96
+  independent units unless all 96 highest-lineage digests are distinct;
 - local robustness: Qwen2.5-Coder-1.5B on the same design or a preregistered
   subset;
-- causal battery: approximately 48 Suite-A sequences covering Influence-off,
-  sham, reset, permutation, update-off, and dose interventions;
-- Suite-B-live external validation: 24–36 sequences across three or four
-  mechanically scorable known motifs and the frozen repository/prototype target
+- causal battery: exactly 48 of the registered Suite-A sequences, balanced as
+  eight per motif, covering Influence-off, sham, reset, permutation, update-off,
+  and dose interventions;
+- Suite-B-live external validation: exactly 36 sequences across four
+  mechanically scorable known motifs (nine per motif) and the frozen
+  repository/prototype target
   population, explicitly labelled underpowered external validation if lineage-
   cluster power is insufficient; and
 - Suite-B-offline: Open-SWE/OpenHands discovery and detector/evaluator validation,
   never a live treatment comparison.
+
+The independent Suite-A confirmatory sample size is
+$G^\star=\min\{G:\pi_{H1}(G)\geq0.80\}$ under document 18 equation (21), using
+only the locked nuisance-only pilot projection. Neither $G^\star$ nor attainment
+of the 0.80 target is a proved number at this planning checkpoint because the
+nuisance quantities do not yet exist. If $G^\star$ cannot be instantiated
+inside the fixed 96-sequence registry, the run is no-go or invokes the
+predeclared scope-narrowing rule; nested challenges, transforms, and seeds may
+not be counted as substitute lineages.
 
 No controller weight training is planned. Every paid run requires a locally
 validated bundle, exact runtime forecast, current provider price, cost ledger,

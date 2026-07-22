@@ -235,7 +235,7 @@ task instead.
 | G3 — bound benchmark/runtime | V2-15–V2-23 pass; common prefix byte-equal through `t0`; descendants run live | state/condition comparison |
 | G4 — condition parity | V2-24–V2-31 pass for all seven arms under fake backend and one authorized local smoke sequence, including identical inert notice checkpoint/prompt/schema/decoding/timing/call count/token cap, a separate equal notice meter, and exact independent Uniform(7!) mapping/order machinery | pilot |
 | G5 — estimand/causal/statistics | V2-32–V2-37 pass, including equal opportunity→cell→lineage→motif primary aggregation, complete-block masking, anti-gaming, exact conditional replay of Uniform(7!) policy mapping `M` given independent stream order `O`, separate Fisher sharp-null and lineage-bootstrap average-effect outputs, powered stochastic equivalence, mandatory persistence reset with no rehydration, explicit H1–H4 IUTs/four-slot Holm, and the same actor's target-symmetric post-behavior nine-label report firewall. The lineage fallback is tested but cannot pass randomized-causal evidence | preregistration and official run |
-| G6 — local pilot/prereg | disjoint 20–30-authored-lineage nuisance-only pilot, complete-H1-conjunction power report at `Delta_power=0.10`, dry-run receipts, proof every scientific criterion/grid/margin predates pilot, frozen constants/splits/labels, clean commit | confirmatory execution |
+| G6 — local pilot/prereg | exactly 30 disjoint authored-lineage nuisance-only pilot units, complete-H1-conjunction power report at `Delta_power=0.10`, fixed 96-sequence/six-motif/two-seed Suite-A roster, dry-run receipts, proof every scientific criterion/grid/margin predates pilot, frozen constants/splits/labels, clean commit | confirmatory execution |
 | G7 — paid-compute approval | exact matrix, GPU/provider/image, observed throughput, retry allowance, current price, append-only ledger balance/reservations, and plan hash shown to user; `settled spend + active reservations + new worst case ≤ USD 50`; one-use explicit approval and atomic reservation receipts exist | every RunPod API call, pod creation, paid image pull, or paid model run |
 | G8 — official run | V2-38 creates a scoped nominal `OfficialRunCapability` only after validating clean tree, worktree-local frozen uv environment, imported-module/source-root digests, authorization, prereg hash, checkpoint/config/prompt/task/sandbox digests, seed schedule, and G7 when paid | every confirmatory data read, model/provider call, and result generation |
 
@@ -1531,7 +1531,7 @@ def build_live_sequence(
 ) -> SuiteBLiveSequence: ...
 ```
 
-Plan a 24–36-sequence ceiling across three or four mechanically scorable known
+Plan exactly 36 sequences across four mechanically scorable known
 motifs. This lane's target population is explicitly the mechanically scorable
 known-motif subset with an executable standardized-opportunity protocol, not
 natural SWE tasks or prevalence in repositories generally. The plan binds
@@ -3199,7 +3199,7 @@ Before confirmatory execution:
    search (including all four scalar families with at least Pneuma's budget) and
    V2-35 recognition-criteria freeze; seal both ledgers/artifacts
    before opening any pilot label;
-3. run a pooled/blinded 20–30 **authored-prototype-lineage** pilot drawn only
+3. run a pooled/blinded pilot of exactly 30 **authored-prototype lineages** drawn only
    from the pilot split;
 4. project pilot data through the typed nuisance-only interface and use it only
    for feasibility, pooled event rates, paired variance, actor-signal error,
@@ -3210,8 +3210,10 @@ Before confirmatory execution:
    the predeclared infeasibility/scope-narrowing rule;
 5. run V2-35 complete-conjunction power under one frozen joint DGP with every
    superiority effect at `Delta_power=0.10`, every true utility difference zero,
-   and the preregistered non-inferiority margins, then select a matrix no larger
-   than the §8.12 ceilings;
+   and the preregistered non-inferiority margins, then select the minimum
+   independent-lineage count $G^\star$ inside the fixed 96-sequence,
+   six-motif, two-seed Suite-A roster; if no feasible $G^\star$ reaches 0.80
+   complete-H1 joint power, stop under the predeclared no-go/scope rule;
 6. freeze hypotheses, unchanged dev-fitted common-schema seven-arm notice
    criteria, same-actor measurement checkpoint/prompt/scaffold/schema/decoding/
    timing/call-count/max-token parity plus separate meter, and all five
@@ -3608,7 +3610,7 @@ Recommended execution batches:
 | Local-first cumulative ≤USD 50 paid-compute approval | G7 and V2-04/V2-38 |
 | Long paper, short fallback, honest negatives, reproducibility | V2-39 |
 
-### DL-33–DL-43 locked-decision coverage
+### DL-33–DL-44 locked-decision coverage
 
 This matrix is part of the executable specification. A task cannot be accepted
 by satisfying an older or weaker formulation of the corresponding decision.
@@ -3626,6 +3628,7 @@ by satisfying an older or weaker formulation of the corresponding decision.
 | DL-41 | Primary notice uses `NoticeScore = 1 - mean((p-y)^2)` with higher better on `[0,1]`, exactly balanced target/decoy/counterfactual cases, the equal cell→lineage→motif hierarchy, five Pneuma-minus-comparator contrasts, and separate discrimination/AUROC, calibration, coverage, and specificity hard gates | V2-09, V2-13, V2-15, V2-27, V2-32, V2-35, V2-38, V2-39 | notice/readout, inference, power, and analysis tests hand-calculate the proper score and hierarchy, reject reversed orientation/unbalanced cells/alternate confirmatory scores, require simultaneous `Gamma>0`, and keep the 0.05 observed magnitude rule exclusive to repeat-harm |
 | DL-42 | Only same-session live child evidence yields a nominal, non-serializable G0 capability; persisted JSON is unauthenticated honest-local-operator audit evidence and cannot recreate authority | V2-01, V2-02, V2-38, V2-39 | ignored-control, fresh-environment, environment-tree, Git/WSL binding, raw-stream/journal, re-signing, replay, serialization, and nominal-guard tests fail closed |
 | DL-43 | Freeze the exact receipt-bound state updates, H2/H3 estimands and assignments, notice criteria, RNG/cache/session isolation, studentized max-T direction, centered bootstrap-t p-values, and target-population assumptions in document 18; interpret clamps only as registered controlled-coordinate effects | V2-02, V2-09, V2-23, V2-25, V2-27, V2-32, V2-33, V2-35, V2-37–V2-39 | state, intervention, notice, inference, reporter, orchestration, and analysis tests reject alternate update laws, assignment supports, metric orientation, RNG/cache coupling, undefined family p-values, and mechanism-necessity overclaims |
+| DL-44 | Fix 30 pilot lineages, a 96-sequence/six-motif/three-challenge/seven-arm/two-seed Suite-A roster, a 48-sequence causal subroster, and 36 Suite-B-live sequences across four motifs; let the existing complete-H1 power rule select only the independent-lineage count and stop if 0.80 joint power is infeasible inside the fixed roster | V2-09, V2-15, V2-19, V2-20, V2-33, V2-35, V2-38 | registry/orchestration/power tests reject alternate nominal counts, pseudoreplication of nested descendants, a guessed pre-pilot lineage count, or execution when the frozen power receipt is infeasible |
 
 ## 6. Frozen implementation decisions and failure handling
 

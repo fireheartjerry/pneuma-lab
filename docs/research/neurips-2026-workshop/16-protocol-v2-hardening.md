@@ -10,7 +10,7 @@ them, and accurately attribute behaviour changes. No phenomenal claim is made.
 
 No confirmatory run may start until the canonical thesis, task backlog, schemas,
 power simulation, and preregistration all agree with this addendum. Changes to
-locked constants are recorded as DL-16–DL-43 in `15-decision-log.md`.
+locked constants are recorded as DL-16–DL-44 in `15-decision-log.md`.
 
 ## 1. Why protocol v1 is no-go
 
@@ -438,8 +438,9 @@ under one frozen joint DGP. The declared design alternative is
 `Delta_power = 0.10` for every H1 superiority component, true utility differences
 are zero, and utility margins are preregistered. The sample size is the number of
 independent lineages needed for at least 80% probability that the **complete H1
-conjunction** passes. This is not power at the 0.05 observed SESOI. A disjoint
-20–30-lineage pilot exposes only pooled/blinded nuisance quantities and may
+conjunction** passes. This is not power at the 0.05 observed SESOI. The earlier
+20–30-lineage range is resolved by DL-44 at exactly 30. That pilot
+exposes only pooled/blinded nuisance quantities and may
 declare infeasibility or invoke a preregistered scope rule. Motifs, transforms,
 checkpoint rules, notice/evaluator criteria, hyperparameters, margins,
 controller grids, `Delta_power`, and DGP freeze on dev before pilot; pilot
