@@ -6,6 +6,7 @@ import inspect
 import json
 import os
 from pathlib import Path
+import pickle
 import platform
 import subprocess
 import sys
@@ -1409,6 +1410,71 @@ def test_malformed_capability_session_fails_closed() -> None:
 
     with pytest.raises(BaselineReceiptError, match="active launcher registry"):
         capture_baseline.require_live_g0_capability(malformed)
+
+
+def test_live_g0_capability_is_not_serializable() -> None:
+    fabricated = capture_baseline._LiveG0Capability(
+        audit_record=MappingProxyType({}),
+        session=capture_baseline._LaunchSession(
+            root=Path.cwd(),
+            token=object(),
+            official_runtime=True,
+        ),
+    )
+
+    with pytest.raises(TypeError, match="not serializable"):
+        pickle.dumps(fabricated)
+
+
+@pytest.mark.parametrize(
+    ("started", "finished", "message"),
+    [
+        (
+            "2026-07-22T12:00:00",
+            "2026-07-22T12:00:02+00:00",
+            "timezone-aware",
+        ),
+        (
+            "2026-07-22T12:00:02+00:00",
+            "2026-07-22T12:00:01+00:00",
+            "outside the process interval",
+        ),
+        (
+            "2000-01-01T00:00:00+00:00",
+            "2000-01-01T00:00:01+00:00",
+            "outside the process interval",
+        ),
+    ],
+)
+def test_persisted_audit_rejects_invalid_process_time_evidence(
+    official_run: tuple[Path, dict, dict, dict],
+    started: str,
+    finished: str,
+    message: str,
+) -> None:
+    repo, first, second, _pair = official_run
+    receipt_path = Path(first["receipt_path"])
+    journal_path = Path(first["process_journal_path"])
+    original_receipt = receipt_path.read_bytes()
+    original_journal = journal_path.read_bytes()
+    changed = dict(first)
+    changed["started_at_utc"] = started
+    changed["finished_at_utc"] = finished
+    journal = json.loads(original_journal)
+    journal["started_at_utc"] = started
+    journal["finished_at_utc"] = finished
+    journal_bytes = canonical_receipt_bytes(journal)
+    journal_path.write_bytes(journal_bytes)
+    changed["process_journal_sha256"] = hashlib.sha256(journal_bytes).hexdigest()
+    changed = _resign(changed)
+    receipt_path.write_bytes(canonical_receipt_bytes(changed))
+
+    try:
+        with pytest.raises(BaselineReceiptError, match=message):
+            _trusted_validate(repo, changed, second)
+    finally:
+        journal_path.write_bytes(original_journal)
+        receipt_path.write_bytes(original_receipt)
 
 
 def test_launcher_detects_tree_change_between_runs(tmp_path: Path) -> None:
