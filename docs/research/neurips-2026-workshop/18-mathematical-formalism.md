@@ -1,8 +1,9 @@
 # 18 — Mathematical Formalism and Testable Guarantees
 
-**Status:** Protocol-v2 mathematical companion, 2026-07-22. This document is
+**Status:** Protocol-v2 mathematical companion and proof appendix, rigor freeze
+2026-07-22. This document is
 subordinate to the locked scientific contract in `02-research-thesis.md`.
-DL-42 hardens only the executable baseline-evidence trust boundary; DL-43 binds
+DL-42 hardens only the executable baseline-evidence trust boundary; DL-43–DL-44 bind
 the mathematical corrections and exact pre-pilot freeze obligations below.
 This appendix supplies notation, estimands, identification assumptions, and
 small conditional proofs for implementation and review. It contains no
@@ -22,6 +23,60 @@ look more sophisticated. We distinguish three kinds of statement throughout:
 No proposition below proves that persistent state helps an agent. The
 propositions prove narrower facts about what a conforming implementation can and
 cannot do.
+
+### 0.1 Probability model and target populations
+
+A registered block is $b=(\ell,m,g,q,s)$: model stratum, motif, highest
+authored semantic lineage, canonical sequence, and one of the two fixed master
+seed strata. Let $X_b$ denote all pre-assignment facts: generator and lineage
+digests, the live untreated exposure receipt, independent sandbox snapshots,
+the three scheduled opportunity roles and order, checkpoint/configuration/tool
+versions, and resource caps. Let $\mathbf V_b$ be the complete vector of
+potential notice, behavioural, utility, intervention, and report outcomes under
+every registered regime, fixed stream id, and execution order. The finite-roster randomization model conditions on
+$\mathcal F_0=\sigma\{(X_b,\mathbf V_b):b\in\mathcal B_0\}$ and places all
+probability on the independent assignment draws in (7e) and (16):
+
+$$
+P_0=P(M,O,J\mid\mathcal F_0),
+\qquad M_b,O_b\stackrel{ind}{\sim}\operatorname{Uniform}(S_7),
+\quad J_{ir}\sim\operatorname{Bernoulli}(1/2). \tag{0}
+$$
+
+This is the primary probability model. It makes no iid claim about authored
+lineages or the two chosen seeds. The finite-roster causal estimands are fixed
+functionals of $\mathbf V_b$; assignment-exact inference averages only over
+(0).
+
+A superpopulation interpretation adds a second layer. For each motif $m$,
+highest-dependency lineage vectors $W_{mg}$ are assumed independent and
+exchangeable draws from a named population $P_m$, with finite nonzero second
+moments. Conditional on a lineage, role variants and the two seeds are repeated
+measurements, not independent sampling units. The target distribution is the
+equal-motif mixture $P^\star=|\mathcal M_0|^{-1}\sum_mP_m$; it is not the
+empirical prevalence of software failures. The lineage bootstrap in §8 is valid
+only for this added model.
+
+For a bounded registered outcome functional $f$, define
+
+$$
+\Psi_f(a,\iota;P)=
+{1\over|\mathcal M_0|}\sum_m
+E_{W\sim P_m}\!\left[
+ {1\over|\mathcal C_m(W)|}\sum_c
+ {1\over J_{mc}}\sum_j f_{mcj}(a,\iota)
+\right]. \tag{0a}
+$$
+
+For the seven-arm trial, $f_{mcj}(a,\iota)$ in (0a) is the average over the
+seven fixed stream ids conditional on the realized execution-order vector $O$.
+Thus the finite target is conditional on $O$, exactly as the Fisher analysis is;
+independence of $M$ and $O$ is not an assumption that order has no effect.
+Using the empirical measure on the locked roster in (0a) gives the finite
+functional in (9). Using the named $P_m$ gives the conditional
+superpopulation functional. All primary and secondary estimands below are
+instances or contrasts of $\Psi_f$; changing $f$, weights, support, or $P$
+after outcomes changes the estimand.
 
 ---
 
@@ -330,8 +385,41 @@ functional. **[G for arithmetic and freeze; A for construct validity]**
 ## 4. Structural causal model and interventions
 
 The longitudinal system is represented by an acyclic structural causal model
-after unrolling decisions in time. A compact parent table is clearer than a
-dense graph:
+after unrolling decisions in time. The DAG below suppresses time indices and
+repeats the trace-to-receipt-to-next-state edge only forward in time.
+
+```mermaid
+flowchart LR
+    X["Frozen prefix, task, seeds, tools"] --> E["Live untreated exposure"]
+    X --> A["Randomized arm / intervention"]
+    E --> Z["Persistent state"]
+    A --> CA["Behavioural text carrier"]
+    A --> CB["Numeric controller carrier"]
+    A --> CN["Inert notice carrier"]
+    Z --> CB
+    Z --> CN
+    CA --> K["Candidate tuple"]
+    X --> K
+    CB --> B["Bounded pressure"]
+    K --> D["Selected action"]
+    B --> D
+    D --> T["Live tool/environment trace"]
+    T --> Y["Prose-blind behavioural score"]
+    T --> RHO["Allowlisted learning receipt"]
+    RHO --> ZN["Next state"]
+    CN --> N["Pre-action notice"]
+    N --> NS["Notice-only sink"]
+    T --> PR["Target-symmetric report packet"]
+    Z --> PR
+    PR --> R["Post-behaviour report"]
+    R --> RS["Report-only sink"]
+```
+
+There is deliberately no notice or report edge back to candidates, pressure,
+actions, state updates, budgets, or the behavioural score. This is a dataflow
+firewall claim. Stronger module-graph separation remains V2-03 and is
+unimplemented; until that evidence exists, the paper may not claim module-level
+isolation. The exact parent allowlist is:
 
 | Node | Meaning | Permitted parents |
 | --- | --- | --- |
@@ -602,6 +690,92 @@ Violation of assumptions 2, 3, or the hard oracle/support gates makes the causal
 claim no-go or inconclusive as specified in `02`, rather than something to fix
 with a post-hoc covariate.
 
+### 4.5 Identification results
+
+**Theorem 1 (seven-arm finite-roster identification).** Under consistency,
+isolation/no interference, mapping integrity, positivity of every label-to-stream
+assignment in (16), and arm-common outcome construction, the observed
+fixed-roster functional for arm $a$ equals its potential-outcome functional:
+
+$$
+E_{M\mid\mathcal F_0,O}\{\widehat\Psi_f(a,\iota_0)\}
+=\Psi_f(a,\iota_0;P_{\mathcal B_0}).
+\tag{7l}
+$$
+
+Consequently, the paired observed contrasts identify every finite-roster
+$\Delta_a^B$, $\Delta_a^N$, utility/anti-gaming contrast, and H4
+surface- or repository-holdout contrast.
+
+**Proof.** In each complete block, (16) assigns label $a$ to exactly one of the
+seven fixed streams, with probability $1/7$ for each stream. Consistency maps
+the observed outcome at that stream to the corresponding potential outcome.
+Isolation makes that potential outcome invariant to the other six labels;
+conditioning on $O$ keeps the execution-order vector fixed. Averaging the
+inverse-probability identity over the seven
+streams gives the block potential-outcome mean. The registered estimator then
+applies only fixed linear cell, lineage, and motif weights, so iterated
+expectation gives (7l). Linearity identifies every contrast. The same argument
+holds after an arm-common mask because the mask and weights are fixed with
+respect to assignment. ∎
+
+Because all seven labels are actually executed in every complete block, the
+implemented estimator is the paired complete-block mean rather than a
+single-arm inverse-probability estimator; the argument above establishes its
+design expectation. It does not establish a named-population effect. Replacing
+$P_{\mathcal B_0}$ by $P^\star$ additionally requires the lineage assumption
+in §0.1 and §4.4(5).
+
+**Theorem 2 (eligible-prefix intervention identification).** For a frozen
+eligible set $\mathcal E_r$, suppose eligibility is a function only of the
+common prefix, both regimes have the positive probabilities in (7e), assignment
+is concealed until eligibility is sealed, and consistency and isolation hold.
+Then the paired difference in observed descendant outcomes is unbiased for the
+finite eligible-prefix average of
+$Y_i(p,\iota_H)-Y_i(p,\iota_L)$. With the fixed orientation and hierarchy, it
+identifies (7f), (7g), and each side of (7h).
+
+**Proof.** Conditional on the sealed prefix and its potential descendant
+outcomes, $J_{ir}$ is independent of those outcomes and assigns each regime
+with probability $1/2$. Therefore the conditional expectation of the observed
+oriented pair difference is its potential-outcome difference. Averaging over
+the fixed eligible set and then applying fixed hierarchy weights proves the
+claim. Assignment of execution order is independent and is either conditioned
+on or included in exact replay, so it cannot alter the expectation under
+isolation. ∎
+
+The theorem identifies controlled regime effects only on $\mathcal E_r$.
+For a component clamp it does not identify a natural indirect effect, a
+derivative, or general mechanism necessity. A post-assignment eligibility rule,
+a sealed receipt reaching the reset branch, an intervention changing any
+non-target structural equation, or a regime with zero realized support violates
+the theorem.
+
+**Theorem 3 (report-performance identification).** If every frozen report mode
+is evaluated on the same target-symmetric packet roster, the mechanical
+verifier fixes $G_i$ independently of report output, and missingness/support do
+not depend on the mode's prediction, then the observed functionals (7i)–(7k)
+equal their finite-roster report-performance functionals.
+
+**Proof.** Each mode's prediction, coverage, and confidence are observed for
+each fixed packet, and $G_i$ is fixed before report scoring. Equations
+(7i)–(7j) are therefore deterministic functions of the complete paired roster;
+(7k) is a difference of those identified functionals. No causal
+exchangeability assertion about internal awareness is used. ∎
+
+Thus H3 identifies comparative, trace-grounded report performance, not
+phenomenal introspection. Target-dependent fields or missingness, a verifier
+that reads the report, unequal packet rosters, report-to-behaviour feedback, or
+deletion of an unsupported class violates the identification claim.
+
+**Corollary (secondary registered outcomes).** Any already-registered bounded
+success, total/new-family failure, false-avoidance, completion, refusal,
+resource, calibration, or severity functional is identified by Theorem 1 or 2
+when it uses the same fixed support and hierarchy and its outcome map is frozen
+before assignment. This corollary adds no endpoint: it only applies the generic
+functional $\Psi_f$ to the secondary outcomes already enumerated in the
+canonical protocol.
+
 ---
 
 ## 5. Exact fixed-denominator potential-outcome estimand
@@ -657,7 +831,8 @@ a\in\mathcal A_{H1}
 $$
 
 This $\Delta_a^B$ is the canonical document's $\Delta_a$. Positive values
-favour Pneuma. Severity-weighted and empirical-population-
+favour Pneuma. “RUF effect” is retained only as an alias for this exact
+fixed-denominator contrast. Severity-weighted and empirical-population-
 weighted estimands are explicitly secondary.
 
 Equations (8)–(10) define a finite registered-roster estimand. They become an
@@ -727,6 +902,45 @@ is mandatory even for a valid common mask.
 
 A missing generator artifact or failed common preflight invalidates the run
 before assignment and is not an outcome or an exclusion from (9).
+
+### 5.2 Registry form for every secondary outcome
+
+Let $\mathcal R_0$ be the finite preregistered set of secondary outcome maps
+already named in `02` §8.8: attempt, completion, verified success,
+total/new-family failure severity, refusal, timeout, premature finish,
+invalid/model/runtime failure, counterfactual false avoidance, first harmful-
+failure incidence, natural-sequence policy value, recovery, resource use/
+frontiers, constraint violations, calibration, intervention outcomes,
+surface/repository transfer, cross-seed stability, and severity-weighted
+recurrence. Each $r\in\mathcal R_0$ binds before pilot:
+
+$$
+f_r(T,Y,N,R)\in [L_r,U_r],\qquad
+\omega_r\in\{-1,+1\},\qquad U_r-L_r<\infty ,
+\tag{12c}
+$$
+
+including its fixed denominator, missingness value, hierarchy, and any margin
+$e_r\geq0$. Its comparator effect is the functional
+
+$$
+\theta_{r,a}
+=\omega_r\{\Psi_{f_r}(p,\iota_0;P)
+             -\Psi_{f_r}(a,\iota_0;P)\}+e_r .
+\tag{12d}
+$$
+
+The finite-roster choice of $P$ gives the registered descriptive/causal target;
+the named lineage-superpopulation choice requires §4.4(5). Severity weighting
+is part of $f_r$ and cannot change the primary binary map. A resource frontier
+is the preregistered vector $(\theta_{r,a})$ for its existing resource maps, not
+an outcome-selected composite. Cross-seed stability is the contrast between the
+two fixed seed-stratum functionals and is descriptive because two chosen seeds
+do not define a seed superpopulation. Natural-sequence outcomes are identified
+only on an arm-common fixed opportunity roster; arm-specific post-treatment
+eligibility would change the target and is forbidden. No member of
+$\mathcal R_0$ creates a new confirmatory family unless it is already one of the
+H1/H5 co-gates.
 
 ---
 
@@ -966,6 +1180,93 @@ a finite-roster point estimand and the assignment-exact sharp-null analysis;
 bootstrap intervals/p-values may be shown only as model-based stability
 summaries, not population-generalization evidence.
 
+### 8.2 Validity of pairing, max-T, IUT, Holm, and exploratory BH
+
+The current protocol's primary bootstrap unit is the highest dependency
+lineage, not the seed or sequence. “Paired” means that a sampled lineage carries
+all seven arm outcomes and all intervention/report-mode descendants together.
+The two decoding seeds are fixed nested repeated measurements and are averaged
+inside their registered cells; they are never resampled as independent units.
+Any Protocol-v1 phrase “seed-stratified bootstrap” is therefore read only as
+preserving the fixed seed strata inside each paired lineage draw. A bootstrap
+that samples seeds or sequences independently is nonconforming.
+
+Let $G_m\to\infty$ for every fixed motif stratum while the motif count remains
+fixed. Assume: independent exchangeable highest lineages within motif; bounded
+cluster contribution or a finite $(2+\epsilon)$ moment; fixed nonrandom
+hierarchy weights; no outcome-dependent cluster splitting; positive limiting
+class/cell support; a uniquely defined frozen estimator; and standard-error
+functionals that are jointly consistent and bounded away from zero. For rank,
+quantile, or threshold functionals, additionally assume no positive limiting
+mass at a discontinuity induced by the frozen tie/threshold rule. These are the
+regularity conditions for the following result.
+
+**Lemma 1 (lineage-bootstrap and max-T validity).** Under those conditions,
+the motif-stratified whole-lineage bootstrap consistently estimates the joint
+law of
+
+$$
+\left(
+{\widehat\theta_h-\theta_h\over\widehat\sigma_h}
+\right)_{h\in\mathcal H_{\mathrm{sim}}},
+$$
+
+and (20) has asymptotic simultaneous one-sided coverage at least $0.95$.
+
+**Proof.** Within each fixed motif, the estimator is a fixed functional of the
+empirical measure of independent lineage vectors. The stated moment, support,
+and regularity conditions give joint empirical-bootstrap consistency for the
+finite vector of studentized estimators. Motif macro-averaging is a fixed
+linear map, so joint consistency is preserved. The maximum and empirical
+quantile maps are continuous at a limit distribution with no atom at its
+$0.95$ quantile. Hence $c_{0.95}$ consistently estimates the critical value of
+the maximum studentized estimation error. Simultaneous coverage of all lower
+bounds is the event that this maximum is at most that critical value. ∎
+
+This is an asymptotic theorem, not a finite-sample guarantee. Too few
+independent lineages, a zero variance, a disappearing class, a bootstrap draw
+with no motif support, or a mass at a rank/threshold discontinuity breaks a
+regularity condition and makes the corresponding population claim
+inconclusive.
+
+**Lemma 2 (component and IUT validity).** Suppose the centered
+bootstrap-$t$ law is consistent at the least-favourable boundary
+$\theta_h=0$, and rejection probability is nondecreasing in $\theta_h$ over
+$\theta_h\leq0$. Then (20b) is asymptotically super-uniform under
+$H_{0h}:\theta_h\leq0$. If every component p-value has that property, the family
+p-value $p_H=\max_h p_h$ is super-uniform for the union null
+$H_0=\bigcup_h\{\theta_h\leq0\}$, without any dependence assumption.
+
+**Proof.** Bootstrap consistency gives the boundary tail probability; the
+least-favourable and monotonicity condition extends size control to the
+composite null. Under the union null, at least one component $h_0$ is null.
+Therefore
+$\Pr(p_H\leq\alpha)\leq\Pr(p_{h_0}\leq\alpha)\leq\alpha$. ∎
+
+If the least-favourable-boundary or monotonicity condition is not defensible for
+a nonsmooth functional, its component is an explicit validity gap and the
+family receives $p=1$; the Fisher test cannot be substituted because it targets
+a different null.
+
+**Lemma 3 (four-family FWER).** If $p_{H1},\ldots,p_{H4}$ are
+super-uniform under their respective nulls, Holm's rule (15) controls strong
+familywise error at $0.05$ under arbitrary dependence.
+
+**Proof.** Let $m_0$ true family nulls remain and let $p^\circ$ be their
+smallest p-value. Any false rejection implies
+$p^\circ\leq0.05/m_0$: before the first true null is rejected, at least $m_0$
+hypotheses remain. By the union bound,
+$\Pr(p^\circ\leq0.05/m_0)\leq
+\sum_{j\in H_0}\Pr(p_j\leq0.05/m_0)\leq0.05$. ∎
+
+The exploratory Benjamini–Hochberg family controls FDR at its frozen level only
+if its valid p-values are independent or satisfy the positive-regression-
+dependence condition required by the BH theorem. That dependence condition is
+an assumption, not a consequence of shared lineages. If it is not justified,
+BH-adjusted values are descriptive and no FDR-control claim is made. The
+exploratory family must still be frozen before analysis and cannot alter any
+H1–H5 decision.
+
 ---
 
 ## 9. Complete-H1 joint power
@@ -984,7 +1285,17 @@ $$
 \Pr_{D\sim\mathcal D_{0.10}(G)}\{\mathscr R_{H1}(D)=1\}. \tag{21}
 $$
 
-The selected allocation must satisfy $\pi_{H1}(G)\geq0.80$ under the frozen
+DL-44 fixes 30 pilot lineages and the nominal Suite-A roster at 96 sequences,
+six motifs, three challenges, seven arms, and two decoding seeds. Within that
+roster, the selected independent-lineage allocation is
+
+$$
+G^\star=\arg\min_G\left\{\sum_mG_m:
+\pi_{H1}(G)\geq0.80,\ G\text{ is feasible in the fixed registry}\right\}.
+\tag{21a}
+$$
+
+The selected allocation must satisfy $\pi_{H1}(G^\star)\geq0.80$ under the frozen
 Monte Carlo decision rule. Each simulation includes all five notice tests, all
 five behavioural tests, all co-gates, simultaneous inference, point-estimate
 thresholds, attrition model, and exact estimator hierarchy. Report simulation
@@ -992,6 +1303,14 @@ draw count, seed, Monte Carlo standard error, the full joint-DGP artifact, and
 the fraction failing each component. Tasks, surfaces, challenges, and seeds do
 not count as independent lineages. This is power at 0.10, not at the observed
 behavioural 0.05 magnitude rule.
+
+At this planning checkpoint $G^\star$ is not numerically identified: the locked
+DGP requires blinded-pilot nuisance quantities that do not yet exist, and this
+pass is forbidden to run a pilot or simulation. The fixed 96-sequence roster is
+therefore a capacity, not a proof of power and not 96 independent units. If the
+feasible set in (21a) is empty, the confirmatory run is no-go or invokes the
+already-preregistered scope-narrowing rule. This is an explicit unresolved
+execution blocker, not permission to add nested replicates or change the method.
 
 ---
 
@@ -1071,6 +1390,119 @@ the same support enumerated in (17). Its upper-tail randomization rank is thus
 uniform when untied and super-uniform with ties. Equation (18)'s plus-one
 correction preserves finite-Monte-Carlo validity under independent uniform
 draws. ∎
+
+---
+
+### 10.1 Formal propositions H1–H5
+
+The propositions below formalize the hypotheses already locked in `02`. A
+family's statistical null concerns its oriented parameters; integrity,
+construct-validity, support, magnitude, and logical gates remain additional
+decision requirements. “Practically refuted” always means that the frozen
+smallest-effect/equivalence region supports the adverse conclusion. Mere
+non-rejection is inconclusive.
+
+**H1 proposition (recognition plus repeat-harm reduction).**
+
+- **Null and alternative:**
+  $H_{01}=\bigcup_{h\in\mathcal H_1}\{\theta_h\leq0\}$ and
+  $H_{11}=\bigcap_{h\in\mathcal H_1}\{\theta_h>0\}$, where
+  $\mathcal H_1$ contains exactly the five notice, five repeat-harm, and frozen
+  H5 co-gate components in (13).
+- **Statistic:** the registered component studentized statistics and
+  simultaneous max-T bounds, summarized for testing by
+  $p_{H1}=\max_{h\in\mathcal H_1}p_h$.
+- **Decision rule:** support H1 only if Holm rejects its permanent family slot,
+  all five behavioural point estimates are at least $0.05$, all ten
+  superiority lower bounds exceed zero, and every frozen notice and utility
+  gate passes.
+- **Proof obligation:** Theorem 1, the notice construct/oracle assumptions,
+  Lemmas 1–3, and all assignment, isolation, support, and version gates
+  must hold. These prove identification and error control conditional on the
+  assumptions; they do not prove $H_{11}$ true.
+- **Falsification condition:** H1 is practically refuted when a frozen
+  recognition practical region fails or a simultaneous interval excludes the
+  required benefit for any locked comparator. Otherwise a failed decision is
+  inconclusive.
+
+**H2 proposition (registered causal state influence).**
+
+- **Null and alternative:**
+  $H_{02}=\bigcup_{h\in\mathcal H_2}\{\theta_h\leq0\}$ and
+  $H_{12}=\bigcap_{h\in\mathcal H_2}\{\theta_h>0\}$, with the exact full-path,
+  persistence-reset, controlled-clamp, dose, and two-sided equivalence
+  components in (14a).
+- **Statistic:** paired eligible-prefix component statistics, their frozen
+  family simultaneous bounds, and $p_{H2}=\max_{h\in\mathcal H_2}p_h$.
+- **Decision rule:** support H2 only if Holm rejects its slot, H1 has passed,
+  every component passes, exact restore and persistence-reset evidence passes,
+  and all intervention/support/wiring-null hard gates pass.
+- **Proof obligation:** Theorem 2, intervention positivity, concealed
+  pre-outcome assignment, SUTVA/consistency, surgical intervention integrity,
+  and Lemmas 1–3. Clamp results prove only controlled-coordinate
+  sensitivity on the registered support.
+- **Falsification condition:** powered equivalence of intact and
+  Influence-off refutes state-to-action influence under this implementation;
+  failure of persistence-off to remove the frozen carryover benefit prevents
+  crediting persistence. A moved sham/no-op/restore branch invalidates the
+  harness rather than refuting a biological or general mechanism.
+
+**H3 proposition (trace-grounded causal-attribution report performance).**
+
+- **Null and alternative:**
+  $H_{03}=\bigcup_{h\in\mathcal H_3}\{\theta_h\leq0\}$ and
+  $H_{13}=\bigcap_{h\in\mathcal H_3}\{\theta_h>0\}$. The comparator roster is
+  exactly grounded+verified versus unconstrained, uniform, empirical-prior,
+  and receipt-only reporting, with macro recall, coverage non-inferiority,
+  no-change specificity, and risk–coverage components in (7k).
+- **Statistic:** the paired nine-label report component statistics and
+  $p_{H3}=\max_{h\in\mathcal H_3}p_h$.
+- **Decision rule:** support H3 only if Holm rejects its slot after H1 and H2
+  pass and every frozen absolute criterion, nine-class support, packet symmetry,
+  timing, same-checkpoint, and no-leak gate passes.
+- **Proof obligation:** Theorem 3 plus valid verifier labels, equal paired
+  packets, report noninterference, estimator regularity, and Lemmas 1–3.
+- **Falsification condition:** a frozen practical interval favouring any locked
+  comparator, or grounded+verified performance practically matching the
+  receipt-only decoder, refutes the scoped agent-report advantage. Packet
+  asymmetry, target leakage, or missing class support makes H3 invalid or
+  inconclusive, not negative. No H3 outcome establishes phenomenal
+  introspection.
+
+**H4 proposition (known-motif holdout generalization).**
+
+- **Null and alternative:**
+  $H_{04}=H_{04,S}\cup H_{04,R}$ and
+  $H_{14}=H_{14,S}\cap H_{14,R}$, where each axis repeats the complete H1
+  component alternative on its preregistered known-motif holdout roster.
+- **Statistic:** the two H1-like family statistics and
+  $p_{H4}=\max(p_{H4,S},p_{H4,R})$.
+- **Decision rule:** support H4 only if Holm rejects its slot, H1 passes, and
+  both surface and repository holdout IUTs and all their H1 gates pass.
+- **Proof obligation:** Theorem 1 and Lemmas 1–3 on each leakage-controlled
+  roster, plus immutable split ancestry and adequate independent-lineage
+  support.
+- **Falsification condition:** a frozen practical interval excluding the
+  required benefit on either axis refutes the conjunction. Passing only the
+  surface axis is not repository generalization; failure to reject on one axis
+  is otherwise inconclusive.
+
+**H5 proposition (utility and anti-gaming co-gate).**
+
+- **Null and alternative:** for the frozen set $\mathcal H_U$,
+  $H_{05}=\bigcup_{u\in\mathcal H_U}\{\eta_u\leq0\}$ and
+  $H_{15}=\bigcap_{u\in\mathcal H_U}\{\eta_u>0\}$.
+- **Statistic:** the registered utility/non-inferiority component statistics
+  already included in $\Theta_{H1}$; there is no fifth family p-value.
+- **Decision rule:** H5 passes only when every co-gate rejects in its registered
+  direction and all fixed-denominator attempt, completion, success,
+  total/new-family failure, false-avoidance, and resource criteria pass as
+  specified. It is evaluated exactly once inside H1.
+- **Proof obligation:** Theorem 1, frozen metric/oracle validity, arm-common
+  denominators and budgets, and the same component/IUT validity used by H1.
+- **Falsification condition:** a powered practical utility loss or failed
+  false-avoidance gate classifies the apparent repeat-harm reduction as
+  avoidance/inertia and blocks H1. Mere non-rejection is inconclusive.
 
 ---
 
