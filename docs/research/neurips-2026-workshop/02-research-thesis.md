@@ -3,7 +3,7 @@
 **Status:** canonical, Protocol v2, revised 2026-07-22. Every downstream
 document MUST agree with Section 8. Changes to a locked constant require a row
 in `15-decision-log.md`. `16-protocol-v2-hardening.md` records the red-team that
-motivated DL-16–DL-41; this file incorporates those decisions and is now the
+motivated DL-16–DL-43; this file incorporates those decisions and is now the
 canonical statement of the study. `18-mathematical-formalism.md` is its
 subordinate mathematical companion; it adds notation and conditional proofs but
 cannot amend a locked constant.
@@ -181,7 +181,8 @@ be described as powered at the 0.05 SESOI.
   state through an actor path. Current task, candidates, and head are otherwise
   preserved;
   loss of the intact advantage is required to credit persistence. Component
-  clamps estimate mechanism necessity and are not required to reproduce Base.
+  clamps estimate controlled-coordinate sensitivity and are not required to
+  reproduce Base.
 - **H3 (causal-attribution faithfulness).** Across randomized intervention pairs,
   the same frozen actor checkpoint, invoked in a separate post-behaviour report
   call with a fixed prompt/scaffold and no tools or feedback, must predict one
@@ -595,8 +596,9 @@ not supported.
   max(p_lower, p_upper)`; the wiring-null family is the maximum over its TOST
   p-values. Restore/sham/no-op integrity remains a hard gate.
 - `p_H3` is the maximum over nine-class macro superiority versus uniform,
-  empirical-prior, and receipt-only decoder baselines, coverage non-inferiority,
-  no-change specificity, and the frozen risk–coverage component. All nine labels,
+  empirical-prior, receipt-only decoder, and unconstrained-reporting baselines,
+  coverage non-inferiority, no-change specificity, and the frozen risk–coverage
+  component. All nine labels,
   target-symmetric packet integrity, and minimum class support are hard gates.
 - Surface-holdout and repository-holdout known-motif analyses each form a full
   H1-like family decision. `p_H4` is the maximum of those two family p-values;

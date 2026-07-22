@@ -229,7 +229,7 @@ task instead.
 
 | Gate | Required evidence | What remains blocked |
 | --- | --- | --- |
-| G0 — reproducible baseline | after reviewed harness/baseline repairs are narrowly committed, V2-01 trusted launcher proves two independent nonce-bound identical-collection full-suite processes from one final clean commit/worktree-local frozen uv environment, bound import root and source-root digest, with zero return code/failures/errors | every task from V2-02 onward |
+| G0 — reproducible baseline | after reviewed harness/baseline repairs are narrowly committed, V2-01 trusted launcher proves two independent nonce-bound identical committed-default-suite processes from one final clean commit/worktree-local frozen uv environment, bound import root and source-root digest, with zero return code/failures/errors; the fixed default policy excludes opt-in `qwen_smoke` GPU tests, which have a separate governed smoke gate | every task from V2-02 onward |
 | G1 — safe substrate | ordered V2-02 → V2-04 → V2-05 plus prerequisite-correct V2-03/V2-06; nominal deny-by-default guard, import/privacy checks, signed-run verifier, fake backend, and sandbox tests green | raw-data processing and any local model execution |
 | G2 — valid labels | V2-07–V2-14 pass; exact evaluator never shares code/parameters with actor labels | conditions, pilot, and causal claims |
 | G3 — bound benchmark/runtime | V2-15–V2-23 pass; common prefix byte-equal through `t0`; descendants run live | state/condition comparison |
@@ -254,6 +254,9 @@ shell history, or paper artifacts.
 
 **Files:**
 
+- Modify: `.gitattributes`
+- Create: `scripts/__init__.py`
+- Create: `scripts/research/__init__.py`
 - Create: `scripts/research/capture_baseline.py`
 - Create: `tests/research/test_capture_baseline.py`
 - Generate: `build/research/baseline/pytest-run-1.xml`
@@ -262,9 +265,17 @@ shell history, or paper artifacts.
 - Generate: `build/research/baseline/run-2-nonce.txt`
 - Generate: `build/research/baseline/run-1-collection.json`
 - Generate: `build/research/baseline/run-2-collection.json`
+- Generate: `build/research/baseline/validation-collection.json`
+- Generate: `build/research/baseline/run-1-stdout.bin`
+- Generate: `build/research/baseline/run-2-stdout.bin`
+- Generate: `build/research/baseline/run-1-stderr.bin`
+- Generate: `build/research/baseline/run-2-stderr.bin`
+- Generate: `build/research/baseline/run-1-process.json`
+- Generate: `build/research/baseline/run-2-process.json`
 - Generate: `build/research/baseline/baseline-receipt-run-1.json`
 - Generate: `build/research/baseline/baseline-receipt-run-2.json`
 - Generate: `build/research/baseline/baseline-pair-receipt.json`
+- Generate (ephemeral, fresh each trusted invocation): `build/research/env/`
 
 **Contract:**
 
@@ -276,19 +287,46 @@ def build_baseline_receipt(
     python_version: str,
     dependency_lock_sha256: str,
     project_config_sha256: str,
+    repo_root: pathlib.Path,
 ) -> dict: ...
 
-def validate_baseline_pair(first: dict, second: dict) -> dict: ...
+def validate_baseline_pair(first: object, second: object) -> _LiveG0Capability: ...
+
+def require_live_g0_capability(value: object) -> _LiveG0Capability: ...
+
+def audit_persisted_baseline_pair(first: dict, second: dict) -> dict: ...
 
 def run_trusted_baseline_pair(
+    repo_root: pathlib.Path,
+    output_dir: pathlib.Path,
+) -> _LiveG0Capability: ...
+
+def run_diagnostic_baseline_pair(
     repo_root: pathlib.Path,
     output_dir: pathlib.Path,
 ) -> dict: ...
 ```
 
 `build_baseline_receipt` is a lower-level parser for tests and diagnostics; a
-caller-supplied XML file can never mint G0 authority. Only
-`run_trusted_baseline_pair` may emit a receipt with `authority = "g0"`.
+caller-supplied XML file can never mint G0 authority. Only two live child
+processes owned by one active `run_trusted_baseline_pair` session can produce a
+non-serializable `_LiveG0Capability`. Persisted run/pair JSON has
+`authority = "none"`, `authentication = "none"`, and
+`threat_model = "honest_local_operator"`; its SHA-256 identifiers are content
+addresses, never signatures. `audit_persisted_baseline_pair` may recheck those
+artifacts but can never recreate G0. A later process that requires G0 reruns the
+trusted launcher, while one orchestration process may carry the live capability
+forward.
+The official entrypoint pins the imported launcher bytes, the complete
+transitive module-function closure, critical type/constant identities, and
+imported process/evidence primitives. This detects accidental same-process test
+fixture injection; it is not claimed to resist a hostile Python process that
+can rewrite arbitrary module globals. Monkeypatched/injected transports are
+accepted only by `run_diagnostic_baseline_pair`, whose output remains
+non-authoritative. Every downstream consumer calls
+`require_live_g0_capability`, which accepts only the exact object stored in its
+still-active official launcher registry entry; directly constructing the
+nominal dataclass cannot recreate G0.
 
 The trusted launcher resolves and validates the exact worktree, strips ambient
 `GIT_DIR`, `GIT_WORK_TREE`, `PYTEST_ADDOPTS`, coverage, Python-path, and test-
@@ -297,25 +335,49 @@ the §0 bootstrap and explicit `--git-dir`/`--work-tree` Git calls before,
 between, and after the two runs. A linked-worktree `.git` file is parsed as one
 strict `gitdir:` line; a Windows drive path is converted with a validated
 `wslpath`, while malformed, missing, escaping, or worktree-mismatched
-administrative paths fail closed. It
-hashes the fixed config set (`pyproject.toml`, `uv.lock`, `.gitattributes`, and
-the launcher source), resolved uv executable/version/digest, exact
+administrative paths fail closed. The exact `.git` marker bytes, canonical Git
+administrative path, Git executable/digest and—under WSL—the lexical `wslpath`
+executable/target digest, exact translation argv digest, and translated path are
+receipt-bound. Directory creation walks one canonical component at a time and
+rejects symlinks/junctions before writing. It
+hashes the fixed config set (`pyproject.toml`, `uv.lock`, `.gitattributes`, both
+regular-package `scripts/**/__init__.py` markers, and the launcher source),
+resolved uv executable/version/digest, exact
 `UV_PROJECT_ENVIRONMENT=$WT/build/research/env`, the uv-selected Python
 executable/version, and a canonical installed-distribution inventory into
 `project_config_sha256` and `environment_sha256`. It separately hashes the
-tracked `src/pneuma_lab/` tree into `source_root_sha256` and runs the clean-
+tracked full working tree against HEAD after Git clean filters, separately binds
+its raw-byte manifest as `tracked_tree_sha256`, hashes `src/pneuma_lab/` as
+`source_tree_sha256`, and runs the clean-
 subprocess import-root check defined in §0 before, between, and after both runs.
-Dirty state, HEAD/config/environment/source drift, an unexpected worktree or
+Before the first probe, `build/research/env` must be absent. The launcher creates
+it component-by-component, provisions it only through the bound uv command,
+hashes every regular environment file and directory, rejects every
+non-allowlisted link, and receipt-binds the POSIX uv `bin/python*` interpreter
+aliases and `lib64 -> lib` link. It rejects case collisions at every directory
+component, a preseeded environment, or any ignored/untracked checkout file
+outside the exact baseline-output and managed-environment trees. Pytest plugin
+autoload and its cache provider are disabled. Dirty state,
+HEAD/config/environment/source drift,
+an unexpected worktree or
 module root, the default/root `.venv`, or an unapproved uv/Python executable
 fails before G0 is emitted.
 
-The launcher constructs—not accepts from a caller—the exact full-suite argv:
+The launcher constructs—not accepts from a caller—the exact committed-default-
+suite argv:
 the receipt-bound uv executable, `run --project <resolved-WT> --frozen --extra
 dev python -m pytest tests -q`, the repository's fixed pytest config, a
 launcher-owned JUnit path, and a launcher-owned nonce binding, with
-`UV_PROJECT_ENVIRONMENT` fixed to the worktree-local research environment. No extra
-path, marker, keyword, deselection, last-failed, max-fail, ignore, or caller
-`PYTEST_ADDOPTS` is permitted. Before each process starts it issues and persists
+`UV_PROJECT_ENVIRONMENT` fixed to the worktree-local research environment. The
+committed `pyproject.toml` deliberately contributes
+`addopts = '-m "not qwen_smoke"'`: G0 covers the complete default CPU collection,
+while opt-in GPU smoke tests are governed separately. No caller-supplied or
+launcher-added path, marker, keyword, deselection, last-failed, max-fail,
+ignore, or `PYTEST_ADDOPTS` selection beyond that fixed, receipt-bound config is
+permitted. A launcher-owned `pythonpath` override puts the
+regular-package worktree root before `src`, preventing an installed or
+`src/`-local `scripts` package from shadowing the hook. Before each process
+starts it issues and persists
 a distinct nonce under `build/research/baseline/`, binds that nonce into the
 JUnit suite name through the launcher-owned fixed argument
 `-o junit_suite_name=pneuma-baseline-<nonce>`, and later verifies the binding.
@@ -325,17 +387,25 @@ process id, start/end timestamp, exact argv, sanitized-environment digest,
 uv/Python executable digests, resolved project/environment/module paths,
 source-root digest, return code, stdout/stderr digests, nonce, JUnit path/content
 digest, testcase collection digest/count, outcome counts, and receipt id. A
-launcher-owned pytest hook records the canonical collected node-id list before
-execution; the collection digest is not inferred only from whichever testcases
-happen to appear in JUnit.
+launcher-owned pytest hook records the canonical collected node-id list and its
+own exact worktree-relative path/source digest before execution; the collection
+digest is not inferred only from whichever testcases happen to appear in JUnit.
+Raw stdout/stderr and a canonical launcher-owned
+process journal are persisted and cross-checked against the in-memory completed
+child; timestamps must be timezone-aware and ordered, and the JUnit timestamp
+must fall inside the process interval.
 
-`validate_baseline_pair` requires two genuinely independent zero-return-code,
+`validate_baseline_pair` requires two launcher-registry-owned, live,
+same-session, genuinely independent zero-return-code,
 zero-failure/error executions: same commit, clean state, fixed config,
 environment, uv/Python identities, worktree/module root, source-root digest,
 platform, testcase collection digest, and collected counts;
 distinct nonces, processes, paths, timestamps, JUnit hashes, and receipt ids. It
-returns the canonical pair receipt dict written as sorted JSON to
-`baseline-pair-receipt.json`. Copying XML, accepting arbitrary parser output, or
+returns a nominal live capability. The trusted/diagnostic pair runner writes the
+canonical, non-authoritative local audit record as sorted JSON to
+`baseline-pair-receipt.json`. Copying XML,
+re-signing a content hash, accepting arbitrary parser output, deserializing the
+capability, or
 changing collection between runs fails G0. All launcher-owned evidence/config/
 nonce I/O must resolve strictly below `build/research/baseline/`; it refuses any
 artifact path or symlink escape outside that directory (pytest's isolated test
@@ -343,7 +413,8 @@ fixtures retain their existing temporary-directory behavior).
 
 - [ ] Add tests `test_receipt_rejects_failing_suite`,
   `test_receipt_is_canonical`, `test_missing_junit_fails_closed`,
-  `test_pair_rejects_copied_junit`, `test_pair_rejects_environment_drift`, and
+  `test_persisted_audit_rejects_copied_trusted_junit`,
+  `test_pair_rejects_environment_drift`, and
   `test_pair_accepts_two_independent_green_runs`. Add trusted-launcher tests for
   dirty/changed HEAD, ambient Git/pytest option stripping, caller selection-flag
   refusal, wrong executable/config, missing or replayed nonce, JUnit nonce
@@ -352,8 +423,11 @@ fixtures retain their existing temporary-directory behavior).
   drift, output traversal/symlink escape, a Windows-path linked-worktree
   `gitdir:` under WSL, CRLF in that one line, relative gitdir resolution,
   unavailable/failing `wslpath`, multiple/malformed lines, missing gitdir, and
-  explicit-Git top-level mismatch, and proof that a raw
-  `build_baseline_receipt` result has no G0 authority.
+  explicit-Git top-level mismatch, transitive argv/environment selection
+  injection, POSIX uv interpreter aliases, directory-component case collisions,
+  pytest-hook package shadowing, and proof that a raw
+  `build_baseline_receipt` result, a rewrapped run, or a directly constructed
+  nominal capability has no G0 authority.
 - [ ] Run `pyrun -m pytest tests/research/test_capture_baseline.py -q`; expect
   collection or import failure before the script exists.
 - [ ] Implement the contract and run
@@ -364,7 +438,8 @@ fixtures retain their existing temporary-directory behavior).
   receipt harness first with subject
   `test: lock empirical baseline`, using only its exact `Files` paths.
 - [ ] Confirm that committed harness `HEAD` is clean, then invoke the trusted
-  launcher once. It must issue both nonces and launch both immutable full-suite
+  launcher once. It must issue both nonces and launch both immutable committed-
+  default-suite
   commands itself; manually invoking pytest and passing XML to the parser is
   diagnostic only and cannot satisfy G0.
 - [ ] If either run fails, diagnose it, add a focused regression test, commit
@@ -376,11 +451,16 @@ fixtures retain their existing temporary-directory behavior).
   config/environment/source-root digest, imported module root, and testcase
   collection while preserving two complete process evidence sets.
 
-**Acceptance:** the trusted launcher proves the same full testcase collection
+**Acceptance:** within the explicit honest-local-operator / trusted-OS-and-tools
+boundary, the trusted launcher proves the same complete committed-default CPU
+testcase collection
 passes in two independent processes launched from one final clean commit after
 the reviewed harness and every baseline repair are committed; generated evidence remains
 untracked under `build/research/baseline/`; no parser-only receipt is accepted
-as G0 and no research feature has been introduced as a baseline repair.
+as G0, persisted JSON never recreates live authority, and no research feature
+has been introduced as a baseline repair. Protection against a malicious
+filesystem owner, compromised OS/toolchain, or concurrent hostile writer is out
+of scope and is stated rather than implied away.
 
 ### V2-02 — Define Protocol-v2 typed contracts and schemas
 
@@ -3528,7 +3608,7 @@ Recommended execution batches:
 | Local-first cumulative ≤USD 50 paid-compute approval | G7 and V2-04/V2-38 |
 | Long paper, short fallback, honest negatives, reproducibility | V2-39 |
 
-### DL-33–DL-41 locked-decision coverage
+### DL-33–DL-43 locked-decision coverage
 
 This matrix is part of the executable specification. A task cannot be accepted
 by satisfying an older or weaker formulation of the corresponding decision.
@@ -3544,6 +3624,8 @@ by satisfying an older or weaker formulation of the corresponding decision.
 | DL-39 | The H3 LLM reporter is the same frozen actor checkpoint in one separately seeded, separately metered, tool-free call only after behavior is irreversibly finalized; it receives a target-symmetric public frame plus legitimate report-time state and can never feed behavior | V2-03, V2-14, V2-32, V2-37–V2-39 | `test_repeat_harm_v2.py` seals `BehaviorFinalizationReceipt`; `test_self_report_faithfulness_v2.py` rejects checkpoint drift, pre-finalization calls, asymmetric fields/missingness, tool/state/evaluator mutation, and action-budget debit; orchestration/analysis tests bind timing and identity |
 | DL-40 | Four state variables and nine H3 labels are mandatory with no automatic fallback; persistence-off replaces all actor/updater/carrier/head state access with a same-shape inert handle through the first decision, then releases the immutable receipt only to audit/report and forbids every rehydration path | V2-25, V2-27, V2-30, V2-33, V2-35, V2-37–V2-39 | `test_persistent_state_core.py` hard-stops failed `r_m`; `test_live_interventions_v2.py` probes store/retrieval/replay/summary/derived-feature rehydration; self-report, official-gate, and analysis tests enforce four variables, nine labels, mandatory reset evidence, and a global protocol amendment before any cardinality change |
 | DL-41 | Primary notice uses `NoticeScore = 1 - mean((p-y)^2)` with higher better on `[0,1]`, exactly balanced target/decoy/counterfactual cases, the equal cell→lineage→motif hierarchy, five Pneuma-minus-comparator contrasts, and separate discrimination/AUROC, calibration, coverage, and specificity hard gates | V2-09, V2-13, V2-15, V2-27, V2-32, V2-35, V2-38, V2-39 | notice/readout, inference, power, and analysis tests hand-calculate the proper score and hierarchy, reject reversed orientation/unbalanced cells/alternate confirmatory scores, require simultaneous `Gamma>0`, and keep the 0.05 observed magnitude rule exclusive to repeat-harm |
+| DL-42 | Only same-session live child evidence yields a nominal, non-serializable G0 capability; persisted JSON is unauthenticated honest-local-operator audit evidence and cannot recreate authority | V2-01, V2-02, V2-38, V2-39 | ignored-control, fresh-environment, environment-tree, Git/WSL binding, raw-stream/journal, re-signing, replay, serialization, and nominal-guard tests fail closed |
+| DL-43 | Freeze the exact receipt-bound state updates, H2/H3 estimands and assignments, notice criteria, RNG/cache/session isolation, studentized max-T direction, centered bootstrap-t p-values, and target-population assumptions in document 18; interpret clamps only as registered controlled-coordinate effects | V2-02, V2-09, V2-23, V2-25, V2-27, V2-32, V2-33, V2-35, V2-37–V2-39 | state, intervention, notice, inference, reporter, orchestration, and analysis tests reject alternate update laws, assignment supports, metric orientation, RNG/cache coupling, undefined family p-values, and mechanism-necessity overclaims |
 
 ## 6. Frozen implementation decisions and failure handling
 

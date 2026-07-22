@@ -10,7 +10,7 @@ them, and accurately attribute behaviour changes. No phenomenal claim is made.
 
 No confirmatory run may start until the canonical thesis, task backlog, schemas,
 power simulation, and preregistration all agree with this addendum. Changes to
-locked constants are recorded as DL-16–DL-41 in `15-decision-log.md`.
+locked constants are recorded as DL-16–DL-43 in `15-decision-log.md`.
 
 ## 1. Why protocol v1 is no-go
 
@@ -419,8 +419,9 @@ p-value:
   wiring-null components. For each frozen-margin equivalence contrast,
   `p_TOST = max(p_lower, p_upper)`; the null family maximizes over its TOSTs.
 - `p_H3` maximizes nine-class macro superiority over uniform, empirical-prior,
-  and receipt-only decoder baselines, coverage non-inferiority, no-change
-  specificity, and risk–coverage. All nine labels, symmetric packet integrity,
+  receipt-only decoder, and unconstrained-reporting baselines, coverage
+  non-inferiority, no-change specificity, and risk–coverage. All nine labels,
+  symmetric packet integrity,
   and minimum class support are hard gates.
 - Surface- and repository-holdout known-motif analyses each make a full H1-like
   decision; `p_H4` is the maximum of those two family p-values.

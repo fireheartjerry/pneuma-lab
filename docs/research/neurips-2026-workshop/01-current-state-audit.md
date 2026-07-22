@@ -130,5 +130,5 @@ The pivot does not require rebuilding Pneuma Lab; it requires **adding the three
 missing load-bearing pieces** (a real failure detector, a state→action decision
 head, and a real-data outcome experiment) **on top of assets that are already
 publication-grade** (paired causal runner, prose-blind firewall, leakage-safe
-splits, determinism). The implementation plan (`12`) is dependency-ordered around
+splits, determinism). The executable implementation plan (`17`) is dependency-ordered around
 exactly those additions.

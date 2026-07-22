@@ -41,6 +41,7 @@ subset in isolated sandboxes.
 
 | #   | Document                                 | What it fixes                                                                                       |
 | --- | ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 00  | `00-README.md`                           | Index, claim-to-evidence map, venue, and critical path                                               |
 | 01  | `01-current-state-audit.md`              | Honest maturity map of every subsystem (from 15 code-tracing audits)                                |
 | 02  | `02-research-thesis.md`                  | **Canonical Protocol v2:** H1–H4 families, embedded H5 co-gates, estimand, seven arms, causal/statistical locks, venue |
 | 03  | `03-related-work-positioning.md`         | Audited 2025–2026 neighbours, narrow conjunction claim, scoop assessment, citation ledger           |
@@ -55,7 +56,7 @@ subset in isolated sandboxes.
 | 12  | `12-implementation-plan.md`              | Historical v1 39-task backlog; do not execute                                                       |
 | 13  | `13-publication-plan.md`                 | Verify-Agents target, 9/4-page plans, figures, anonymous reproducibility/PDF gates                   |
 | 14  | `14-risk-register.md`                    | Live ranked risks with validity gates, mitigation, and honest contingencies                          |
-| 15  | `15-decision-log.md`                     | DL-01…DL-41 with supersessions, rejected alternatives, and rationale                                 |
+| 15  | `15-decision-log.md`                     | DL-01…DL-43 with supersessions, rejected alternatives, and rationale                                 |
 | 16  | `16-protocol-v2-hardening.md`            | Protocol-v1 red-team, hardening rationale, and amendment history                                    |
 | 17  | `17-implementation-plan-v2.md`           | **Executable Protocol-v2 backlog:** dependency order, tests, gates, and old-task mapping            |
 | 18  | `18-mathematical-formalism.md`           | State/action equations, SCM and do-interventions, exact estimands/inference, and testable propositions |
@@ -96,5 +97,5 @@ cannot substitute for live treatment evidence.
 
 Built from 15 parallel read-only code-tracing audits of the repository (working
 notes in the session scratchpad under `audit/`) plus a verified related-work and
-on-disk-data survey. Protocol-v2 hardening amendments, including DL-24–DL-41,
+on-disk-data survey. Protocol-v2 hardening amendments, including DL-24–DL-43,
 are recorded in `15`; no confirmatory result is claimed by this blueprint.

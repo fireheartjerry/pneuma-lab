@@ -1,10 +1,12 @@
 # 18 — Mathematical Formalism and Testable Guarantees
 
 **Status:** Protocol-v2 mathematical companion, 2026-07-22. This document is
-subordinate to the locked scientific contract in `02-research-thesis.md` and
-does not change any decision in DL-16–DL-41. It supplies notation, estimands,
-identification assumptions, and small conditional proofs for implementation and
-review. It contains no empirical result.
+subordinate to the locked scientific contract in `02-research-thesis.md`.
+DL-42 hardens only the executable baseline-evidence trust boundary; DL-43 binds
+the mathematical corrections and exact pre-pilot freeze obligations below.
+This appendix supplies notation, estimands, identification assumptions, and
+small conditional proofs for implementation and review. It contains no
+empirical result.
 
 The purpose of the mathematics is to remove ambiguity, not to make the system
 look more sophisticated. We distinguish three kinds of statement throughout:
@@ -25,15 +27,20 @@ cannot do.
 
 ## 1. Objects, indices, and state space
 
-Let the seven policies be
+Let the seven randomized labels be
 
 \[
 \mathcal A=\{\text{Base},\text{Retrieval},\text{Reflection},
 \text{Retry},\text{Scalar},\text{Pneuma},\text{InfluenceOff}\},
 \]
 
-and write \(p\) for Pneuma. Let \(\mathcal M_0\) be the finite, preregistered
-set of confirmatory motif strata and \(K=|\mathcal M_0|\). Boundary index \(n\)
+and write \(p\) for Pneuma. Section 4.1 defines the exact mapping from those
+labels to intervention regimes; in particular, `InfluenceOff` is an alias for
+\((p,\iota_{\mathrm{off}})\), not an eighth treatment version. Let
+\(\mathcal M_0\) be the finite, preregistered set of confirmatory motif strata
+and \(K=|\mathcal M_0|\). All estimands below are conditional on one registered
+model stratum \(\ell\); the \(\ell\) index is suppressed, and different model
+strata are reported separately rather than pooled. Boundary index \(n\)
 advances in task/opportunity time, never token or action time.
 
 The complete structured state is
@@ -82,7 +89,61 @@ Equation (1) is deliberately a typed transition rather than a claim that the
 chosen update law is optimal. Whether its learned pressure improves behaviour is
 an empirical question.
 
-### 1.2 Centered motif pressure
+### 1.2 Exact four-lane update family
+
+The policy is not defined by the symbol \(U_\theta\) alone. The allowlisted
+projection of a valid receipt is the typed tuple
+
+\[
+\lambda(\rho_n)=
+\bigl((f_{n,m})_m,o_n^c,e_n,h_n^+,h_n^-,
+      (o_{n,m}^r,u_{n,m})_m\bigr), \tag{1a}
+\]
+
+where \(f,e,h^+,h^-,u\in[0,1]\), observation flags
+\(o^c,o_m^r\in\{0,1\}\), and every value is computed only from the
+actor-visible diagnostic schema. In particular, none is an offline evaluator
+label, generator-held recurrence target, report field, token count, or action
+count. Let \(\Delta_n\geq1\) be the receipt-bound task-clock increment and define
+
+\[
+\begin{aligned}
+\bar c_n&={1\over2}+(1-\lambda_c)^{\Delta_n}
+                    (c_n-{1\over2}),\\
+\bar t_n&=(1-\lambda_t)^{\Delta_n}t_n,\\
+\bar r_{n,m}&={1\over2}+(1-\lambda_r)^{\Delta_n}
+                    (r_{n,m}-{1\over2}),\\[2mm]
+s_{n+1,m}&=\operatorname{clip}\!\left(
+ (1-\lambda_s)^{\Delta_n}s_{n,m}+\eta_s f_{n,m},0,1\right),\\
+c_{n+1}&=\operatorname{clip}\!\left(
+ (1-\eta_c o_n^c)\bar c_n+\eta_c o_n^c e_n,0,1\right),\\
+t_{n+1}&=\operatorname{clip}\!\left(
+ \bar t_n+\eta_t^+h_n^+-\eta_t^-h_n^-,0,1\right),\\
+r_{n+1,m}&=\operatorname{clip}\!\left(
+ {\tau_r\bar r_{n,m}+o_{n,m}^r u_{n,m}
+  \over \tau_r+o_{n,m}^r},0,1\right).
+\end{aligned} \tag{1b}
+\]
+
+Here \(e_n\) is bounded forecast-reliability evidence (the actor-side
+one-minus-Brier value when observed), \(h^+,h^-\) are separately bounded
+failure and recovery appraisals, and \(u_{n,m}\) is bounded prospective-
+recognizer reliability evidence. The last line is the posterior-mean update of
+a fixed-concentration Beta working model with prior strength \(\tau_r\), so it
+is Markov in the declared four-variable state and introduces no hidden
+posterior-count state. Constants satisfy
+\(0\leq\lambda_s,\lambda_c,\lambda_t,\lambda_r<1\),
+\(0<\eta_s,\eta_c,\eta_t^+,\eta_t^-\leq1\), and \(\tau_r>0\).
+
+The exact diagnostic-to-signal maps, constants, numeric precision, missing-
+diagnostic convention, and constants digest are selected only on development
+under the registered budget and frozen before pilot. A confirmatory policy does
+not exist until that artifact instantiates every symbol in (1a)–(1b). Changing
+the functional form after pilot is a protocol change, not hyperparameter
+tuning. These equations specify the policy; they do not assert that any lane is
+useful or well calibrated. **[G for transition arithmetic; H for usefulness]**
+
+### 1.3 Centered motif pressure
 
 For current-only applicability \(a_m(x_n)\in[0,1]\), the locked motif pressure is
 
@@ -181,6 +242,16 @@ readout is written through a one-way sink with no action, prompt, state-update,
 retry, budget-allocation, or evaluator capability. Its separate meter cannot
 debit the action budget. **[G]**
 
+The sink is operationally inert only if it is also runtime-isolated. Candidate,
+notice, and report calls use domain-separated random streams
+\(U^K\perp U^N\perp U^R\), separate invocation/session and KV-cache state, and
+no shared mutable sampler, batch, callback, or model-runtime cache. Calling,
+disabling, truncating, or changing notice/report bytes cannot advance the actor
+stream or mutate a later actor invocation. The receipt binds all three stream
+namespaces and invocation ids. This is an executable software obligation, not a
+consequence of placing no arrow in a diagram. **[G, conditional on isolation and
+metamorphic receipts]**
+
 Each registered cell contains generator-balanced target, decoy, and
 counterfactual notice subsets. For the three subset labels
 \(r\in\{\mathrm{target},\mathrm{decoy},\mathrm{counterfactual}\}\), let
@@ -208,6 +279,52 @@ distinct values. Calibration is defined only with respect to this registered,
 balanced opportunity distribution; it is not a claim of calibration to natural
 software-task prevalence.
 
+### 3.1 Exact notice-validity functionals
+
+Let \(\mathcal U_{mgc}=\bigcup_r\mathcal U^r_{mgc}\),
+\(n_{mgc}=|\mathcal U_{mgc}|\), and use a half credit for a tied positive/
+negative score. Every valid cell must contain both target classes. The cell AUROC
+is
+
+\[
+\operatorname{AUC}_{mgc}(a)=
+{1\over n_+n_-}\sum_{i:Q_i=1}\sum_{j:Q_j=0}
+\left[\mathbf1\{P_i(a)>P_j(a)\}
+      +{1\over2}\mathbf1\{P_i(a)=P_j(a)\}\right]. \tag{7a}
+\]
+
+Let \(0=e_0<e_1<\cdots<e_B=1\) be immutable calibration-bin edges,
+with an observation on an interior edge assigned to the bin on its right and
+\(P=1\) assigned to bin \(B\). With
+\(I_b=[e_{b-1},e_b)\) for \(b<B\), \(I_B=[e_{B-1},1]\), define
+
+\[
+\operatorname{ECE}_{mgc}(a)=
+\sum_{b=1}^{B}{n_b\over n_{mgc}}
+\left|{1\over n_b}\sum_{i:P_i\in I_b}P_i(a)
+      -{1\over n_b}\sum_{i:P_i\in I_b}Q_i\right|, \tag{7b}
+\]
+
+where an empty bin contributes zero. Coverage and subset-specific proper scores
+are
+
+\[
+\operatorname{Cov}_{mgc}(a)={1\over n_{mgc}}\sum_{i\in\mathcal U_{mgc}}V_i(a),
+\qquad
+\nu^r_{mgc}(a)=1-{1\over|\mathcal U^r_{mgc}|}
+\sum_{i\in\mathcal U^r_{mgc}}(P_i(a)-Q_i)^2. \tag{7c}
+\]
+
+Each cell functional is averaged cell → lineage → motif exactly as in (11),
+without outcome-selected pooling. The immutable `NoticeValidityCriteria`
+artifact fixes \(B\), every bin edge, AUROC tie rule, thresholds and weak/strict
+inequalities for macro AUC, macro ECE, macro coverage, and each
+\(\nu^r\), minimum class/cell support, and its own digest before pilot. The
+primary probability score is computed for every slot regardless of \(V\);
+coverage cannot change its denominator. Any undefined cell, support failure, or
+artifact mismatch makes H1 inconclusive rather than permitting a replacement
+functional. **[G for arithmetic and freeze; A for construct validity]**
+
 ---
 
 ## 4. Structural causal model and interventions
@@ -220,18 +337,20 @@ dense graph:
 | --- | --- | --- |
 | \(E\) | common live pretreatment exposure and immutable receipt | block/task inputs, exposure RNG |
 | \(A\) | policy label placed on a fixed stream | randomized mapping \(M\), stream id |
+| \(U_n^K,U_n^N,U^R\) | actor, notice, and report random/runtime contexts | domain-separated seed derivation and isolated invocation state |
+| \(X_i^O,W_i\) | common exogenous-outage telemetry and arm-common slot mask | external environment only; never an arm outcome |
 | \(C_n^A\) | declared behavioural prompt carrier | declared retrieval/reflection text for those two arms only; the constant empty carrier for Base/Retry/Scalar/Pneuma/Influence-off |
 | \(C_n^N\) | declared inert notice carrier | \(A,E\), allowlisted prior within-policy history, and the arm-specific projection of \(Z_n\) only for Pneuma/Influence-off |
 | \(Z_n\) | structured state | prior \(Z\), valid learning receipts, intervention \(I\) |
 | \(C_n^B\) | declared numeric behavioural-controller carrier | \(A\), allowlisted retry/scalar history, and the \(Z_n\) projection for Pneuma/Influence-off |
-| \(K_n\) | model-proposed candidate tuple | current observables, \(C_n^A\), frozen actor, actor RNG |
-| \(N_n\) | inert notice readout | current observables, \(C_n^N\), frozen actor checkpoint, notice RNG |
+| \(K_n\) | model-proposed candidate tuple | current observables, \(C_n^A\), frozen actor, \(U_n^K\) |
+| \(N_n\) | inert notice readout | current observables, \(C_n^N\), frozen actor checkpoint, \(U_n^N\) |
 | \(B_n\) | bounded class pressure | \(C_n^B\), current-only applicability, \(I\) |
 | \(D_n\) | selected action | \(K_n,B_n\), fixed tie rule |
-| \(T_n\) | live tool/environment trace | \(D_n\), sandbox state, environment RNG |
+| \(T_n\) | live tool/environment trace | \(D_n\), sandbox state, environment RNG, \(X_i^O\) |
 | \(Y_n\) | arm-blind behavioural score | immutable \(T_n\), generator-held oracle |
 | \(P^R\) | target-symmetric post-behaviour report packet | terminal trace, legitimate report-time state/carrier |
-| \(R\) | post-behaviour report | \(P^R\), same frozen actor checkpoint, report RNG |
+| \(R\) | post-behaviour report | \(P^R\), same frozen actor checkpoint, \(U^R\) |
 
 The repeated temporal arrows are
 
@@ -266,6 +385,20 @@ Reflection may place only their declared text memory in \(C_n^A\). Every arm's
 
 Write \(Y_i(a,\iota)\) and \(N_i(a,\iota)\) for the potential behavioural
 outcome and notice readout under policy \(a\) and intervention regime \(\iota\).
+The seven-arm label map is a map to regimes:
+
+\[
+\begin{aligned}
+\operatorname{regime}(\text{Pneuma})&=(p,\iota_0),\\
+\operatorname{regime}(\text{InfluenceOff})&=(p,\iota_{\mathrm{off}}),\\
+\operatorname{regime}(a)&=(a,\iota_0),
+\quad a\in\mathcal A\setminus\{\text{Pneuma,InfluenceOff}\}.
+\end{aligned} \tag{7d}
+\]
+
+Consistency requires the implementation carrying the `InfluenceOff` label to
+be byte-identical to the second regime in (7d); it is not a separately tunable
+policy.
 The registered operators have the following surgical meanings:
 
 - **Intact, \(\iota_0\):** use (1)–(5) without modification.
@@ -296,7 +429,143 @@ The registered operators have the following surgical meanings:
 Only live descendants after intervention are observed. Freezing a realized
 post-intervention transcript would not implement any of these do-operators.
 
-### 4.2 Assumptions required for causal and population interpretation
+### 4.2 H2 eligible populations, assignment, and estimands
+
+For each registered component \(d\in\mathcal D=\{s_m,c,t,r_m\}\), let
+\(\mathcal E_d\) be the finite list of common-prefix decision points whose
+eligibility predicate is evaluated and digest-bound before intervention
+assignment. A failure after assignment to reach the scheduled action remains in
+the assigned branch as the adverse outcome in (8); it does not remove the pair.
+For every registered two-regime comparison \(r=(\iota_L,\iota_H)\), let
+\(\mathcal E_r\) denote its corresponding frozen eligible set (equal to the
+appropriate \(\mathcal E_d\) for a component comparison). Two fixed descendant
+stream ids receive regimes and execution order through independent fair draws
+
+\[
+J_{ir}\sim\operatorname{Bernoulli}(1/2),\qquad
+O_{ir}\sim\operatorname{Bernoulli}(1/2),\qquad
+J_{ir}\perp O_{ir},\quad i\in\mathcal E_r. \tag{7e}
+\]
+
+Domain-separated pre-issued seeds, the complete two-element support, realized
+draws, eligibility digest, and assignment probability are receipt-bound.
+Blocked balance across motif, lineage, target, and direction may be used only if
+its complete conditional assignment support is frozen before pilot and replayed
+exactly in randomization inference. The seven-arm intact/Influence-off contrast
+continues to use (16), not (7e).
+
+Let \(\mu(p,\iota)\) denote the same arm-common masked hierarchy as (9), with
+the eligible prefix and regime included in the registered cell id. Because
+\(Y=1\) is adverse, the primary full-path and persistence effects are
+
+\[
+\delta_{\mathrm{off}}=\mu(p,\iota_{\mathrm{off}})-\mu(p,\iota_0),
+\qquad
+\delta_{\mathrm{reset}}=\mu(p,\iota_{\mathrm{reset}})-\mu(p,\iota_0), \tag{7f}
+\]
+
+with positive values favouring the intact persistent path. For each component,
+freeze an active clamp value \(v_{d,A}\), a low/high dose pair
+\(v_{d,L}<v_{d,H}\), and orientation signs
+\(\omega_d^C,\omega_d^D\in\{-1,+1\}\) before outcomes. Define
+
+\[
+\begin{aligned}
+\delta_d^C&=\omega_d^C
+ [\mu(p,\iota_{d,v_{d,A}})-\mu(p,\iota_0)],\\
+\delta_d^D&=\omega_d^D
+ [\mu(p,\iota_{d,v_{d,H}})-\mu(p,\iota_{d,v_{d,L}})].
+\end{aligned} \tag{7g}
+\]
+
+The orientation artifact must state the substantive predicted direction rather
+than choosing a sign from results. Positive \(\delta_d^C\) and
+\(\delta_d^D\) mean the registered controlled-coordinate and dose predictions
+held on the tested interval. They are controlled intervention effects, not
+natural indirect effects, derivative estimates, or proofs that the coordinate
+is necessary in every state.
+
+Let \(\mathcal J_0\) be the finite set of sham/no-op/restore wiring comparisons
+frozen before pilot. For each \(j\in\mathcal J_0\), let
+\(\zeta_j=\mu(p,\iota_j)-\mu(p,\iota_{j,\mathrm{reference}})\) and freeze an
+absolute equivalence margin \(\epsilon_j>0\). Equivalence is the conjunction
+
+\[
+\theta_{j,L}=\zeta_j+\epsilon_j>0,
+\qquad
+\theta_{j,U}=\epsilon_j-\zeta_j>0,
+\qquad
+p_{\mathrm{TOST},j}=\max(p_{j,L},p_{j,U}). \tag{7h}
+\]
+
+Exact state-byte restore, prefix equality, assignment integrity, eligibility
+support, and intervention-version digests are hard gates. Update-off,
+permutation, first-intent TV/JS, and action-vector effects are separately named
+mechanism diagnostics unless included in the preregistered H2 component set.
+Randomization identifies (7f)–(7g) on the registered eligible prefixes under
+§4.4 assumptions; lineage inference is distinct and follows §8.
+
+### 4.3 H3 report functionals and contrasts
+
+Let
+\(\mathcal L_R=\{s_m^-,s_m^+,c^-,c^+,t^-,t^+,r_m^-,r_m^+,
+\varnothing\}\). For every randomized active intervention pair, the frozen
+mechanical verifier sets \(G_i\) to its target/direction label only when a
+structured action or verified outcome differs; otherwise
+\(G_i=\varnothing\). A report mode \(v\) emits
+\((\widehat G_i(v),A_i(v),q_i(v))\), where
+\(A_i\in\{0,1\}\) is coverage, \(q_i\in[0,1]\) is confidence, and an abstention
+has \(A_i=0\) and no guessed label. For \(n_g>0\), define
+
+\[
+\begin{aligned}
+\operatorname{Acc}(v)&={1\over n}\sum_i
+ \mathbf1\{A_i(v)=1,\widehat G_i(v)=G_i\},\\
+\operatorname{MR}(v)&={1\over9}\sum_{g\in\mathcal L_R}
+ {1\over n_g}\sum_{i:G_i=g}
+ \mathbf1\{A_i(v)=1,\widehat G_i(v)=g\},\\
+\operatorname{Cov}(v)&={1\over n}\sum_i A_i(v),\\
+\operatorname{Spec}_0(v)&={1\over n_{\varnothing}}
+ \sum_{i:G_i=\varnothing}
+ \mathbf1\{A_i(v)=1,\widehat G_i(v)=\varnothing\}.
+\end{aligned} \tag{7i}
+\]
+
+Thus abstention is an error in macro recall and no-change specificity while
+remaining explicit in coverage. For risk–coverage, order covered reports by
+decreasing \(q_i\), breaking ties by the frozen pair id, and let
+
+\[
+\operatorname{AURC}(v)={1\over n_v}\sum_{k=1}^{n_v}
+ \left[1-{1\over k}\sum_{j=1}^{k}
+ \mathbf1\{\widehat G_{i_{(j)}}(v)=G_{i_{(j)}}\}\right], \tag{7j}
+\]
+
+where \(n_v=\sum_iA_i(v)>0\); zero coverage is a hard failure. Let `gv` denote
+grounded+verified reporting and
+\(\mathcal B_R=\{\mathrm{uniform},\mathrm{empirical\ prior},
+\mathrm{receipt\ only},\mathrm{unconstrained}\}\). With a frozen coverage
+non-inferiority margin \(\epsilon_C\), orient the registered effects as
+
+\[
+\gamma_b^M=\operatorname{MR}(gv)-\operatorname{MR}(b),\quad
+\gamma_b^C=\operatorname{Cov}(gv)-\operatorname{Cov}(b)+\epsilon_C,
+\quad
+\gamma_b^0=\operatorname{Spec}_0(gv)-\operatorname{Spec}_0(b),\quad
+\gamma_b^R=\operatorname{AURC}(b)-\operatorname{AURC}(gv). \tag{7k}
+\]
+
+Positive values favour the registered report. `FrozenSelfReportCriteria` binds
+the target mode, baselines, confidence/tie convention, \(\epsilon_C\), absolute
+minimum coverage and class support, any absolute macro/no-change/risk threshold,
+and every strict/weak inequality before pilot. Accuracy, conditional direction
+accuracy, calibration, unsupported claims, and behavioural consistency remain
+separate named diagnostics unless the artifact registers them as additional
+IUT components. A missing class, asymmetric packet, target leak, zero covered
+set, or failed support threshold makes H3 inconclusive; it never triggers class
+deletion or a new metric.
+
+### 4.4 Assumptions required for causal and population interpretation
 
 The following are not software theorems:
 
@@ -311,12 +580,22 @@ The following are not software theorems:
 4. **[A: oracle validity]** The generator-held recurrence target and mechanical
    verifier measure the registered construct. Metamorphic tests and blinded
    agreement diagnose this assumption but cannot prove semantic completeness.
-5. **[A: lineage target]** Within each motif, the registered authored lineages
-   support the intended population-average interpretation. Randomization
-   identifies effects on the registered fixtures even if this broader sampling
-   claim is weak; bootstrap generalization does not repair a biased lineage
-   roster.
-6. **[A: version stability]** Frozen checkpoint, prompt, tool, sandbox,
+5. **[A: lineage superpopulation, when claimed]** Within each motif, the
+   highest dependency clusters are independent and exchangeable draws from an
+   explicitly named lineage population with finite, nonzero second moments.
+   Authored convenience lineages do not satisfy this merely by being numerous.
+   Without this assumption, (9) is only the finite registered-roster estimand;
+   randomization still identifies effects on those fixtures, but a lineage
+   bootstrap does not manufacture population generality.
+6. **[A/design: intervention positivity and eligibility]** Every H2 eligible
+   prefix is determined without a post-intervention variable; each registered
+   regime has its stated nonzero assignment probability, and assignments are
+   hidden until after eligibility is sealed.
+7. **[G/A: diagnostic isolation]** Domain-separated RNG derivation and isolated
+   invocation/cache/session state implement the missing notice/report arrows in
+   the table. Runtime interference, shared batching state, or a report that can
+   alter a later task violates the model rather than becoming a covariate.
+8. **[A: version stability]** Frozen checkpoint, prompt, tool, sandbox,
    quantization, and evaluator digests define one treatment version per arm.
 
 Violation of assumptions 2, 3, or the hard oracle/support gates makes the causal
@@ -331,8 +610,9 @@ For motif \(m\in\mathcal M_0\), let \(\mathcal G_m\) be its registered set of
 highest authored semantic prototype/generator lineages. For
 \(g\in\mathcal G_m\), let \(\mathcal C_{mg}\) be the registered
 sequence×surface×challenge×decoding-seed cells. Cell \(c\) contains
-\(J_{mgc}>0\) scheduled opportunities. Descendants of one authored lineage are
-nested; they never increase \(|\mathcal G_m|\).
+\(J_{mgc}>0\) scheduled opportunities. Every \(\mathcal G_m\) and
+\(\mathcal C_{mg}\) is finite and nonempty. Descendants of one authored lineage
+are nested; they never increase \(|\mathcal G_m|\).
 
 For intact policy \(a\), define the total binary outcome
 
@@ -380,6 +660,11 @@ This \(\Delta_a^B\) is the canonical document's \(\Delta_a\). Positive values
 favour Pneuma. Severity-weighted and empirical-population-
 weighted estimands are explicitly secondary.
 
+Equations (8)–(10) define a finite registered-roster estimand. They become an
+estimand for a named lineage superpopulation only under assumption 5 in §4.4.
+The point estimate is meaningful for the registered roster without that
+assumption; a bootstrap population confidence claim is not.
+
 For notice, average the exact cell score (7) through the same upper hierarchy:
 
 \[
@@ -408,14 +693,37 @@ as an H2 notice-path diagnostic and is not a sixth contrast in (12).
 
 ### 5.1 Common-outage mask
 
-Let \(W_b\in\{0,1\}\) be the arm-independent mask for a complete seven-arm
-block. It may be zero only when immutable preregistered telemetry proves one
-common exogenous outage. If a registered child is masked, the analysis removes
-that child from every arm and recursively renormalizes the remaining fixed
-equal weights within its parent; if a parent has no remaining child, the same
-rule propagates upward. The exact same support and weights must be used for all
-arms. Every branch-local or uncertain event stays in (8) with value one.
-Best/worst attrition sensitivity is mandatory even for a valid common mask.
+Let \(W_{mgcj}\in\{0,1\}\) be the arm-independent mask for the exact scheduled
+opportunity slot \((m,g,c,j)\). It may be zero only when immutable preregistered
+telemetry proves one common exogenous outage made that slot unobservable for all
+seven randomized arms independently of assignment. Define
+
+\[
+\begin{aligned}
+\mathcal J^W_{mgc}&=\{j:W_{mgcj}=1\},\\
+\mathcal C^W_{mg}&=\{c\in\mathcal C_{mg}:|\mathcal J^W_{mgc}|>0\},\\
+\mathcal G^W_m&=\{g\in\mathcal G_m:|\mathcal C^W_{mg}|>0\}.
+\end{aligned} \tag{12a}
+\]
+
+For nonempty sets, the masked estimator replaces the three lower lines of (9)
+by
+
+\[
+\mu^W_{mgc}(a)={1\over|\mathcal J^W_{mgc}|}
+ \sum_{j\in\mathcal J^W_{mgc}}Y_{mgcj}(a),\quad
+\mu^W_{mg}(a)={1\over|\mathcal C^W_{mg}|}
+ \sum_{c\in\mathcal C^W_{mg}}\mu^W_{mgc}(a),\quad
+\mu^W_m(a)={1\over|\mathcal G^W_m|}
+ \sum_{g\in\mathcal G^W_m}\mu^W_{mg}(a). \tag{12b}
+\]
+
+The motif macro-average remains over the original fixed \(\mathcal M_0\). If
+\(\mathcal G^W_m=\varnothing\) for any registered motif, the affected family is
+inconclusive; that motif is never dropped and the macro target is never changed.
+The exact same support and weights must be used for all arms. Every branch-local
+or uncertain event stays in (8) with value one. Best/worst attrition sensitivity
+is mandatory even for a valid common mask.
 
 A missing generator artifact or failed common preflight invalidates the run
 before assignment and is not an outcome or an exclusion from (9).
@@ -425,33 +733,37 @@ before assignment and is not an outcome or an exclusion from (9).
 ## 6. H1 decision vector, IUT, and four-slot Holm procedure
 
 Orient every registered component so a larger value favours the claimed
-direction. Let
+direction. Define the index sets
 
 \[
-\Theta_{H1}=
-\bigl(
- (\Delta_a^N)_{a\in\mathcal A_{H1}},
- (\Delta_a^B)_{a\in\mathcal A_{H1}},
- (\eta_q)_{q\in\mathcal Q_U}
-\bigr), \tag{13}
+\mathcal H_N=\{(N,a):a\in\mathcal A_{H1}\},\quad
+\mathcal H_B=\{(B,a):a\in\mathcal A_{H1}\},\quad
+\mathcal H_U=\{u:u\text{ is a frozen metric--comparator co-gate}\},
+\quad \mathcal H_1=\mathcal H_N\cup\mathcal H_B\cup\mathcal H_U.
 \]
 
-where \(\eta_q\) is the corresponding utility/anti-gaming non-inferiority
+Then
+
+\[
+\Theta_{H1}=(\theta_h)_{h\in\mathcal H_1}
+=\bigl((\Delta_a^N)_a,(\Delta_a^B)_a,(\eta_u)_u\bigr). \tag{13}
+\]
+
+Here \(\eta_u\) is the corresponding utility/anti-gaming non-inferiority
 contrast after incorporating its preregistered absolute margin 0.05. For
-example, for a higher-is-better utility \(U_q\),
+example, for a higher-is-better utility \(U_q\) and comparator \(a\), the index
+is \(u=(q,a)\) and
 
 \[
 \eta_{q,a}=U_q(p)-U_q(a)+0.05,
 \]
 
 so \(\eta_{q,a}>0\) is the non-inferiority direction. Adverse-rate gates use the
-algebraically equivalent opposite orientation.
-
-If \(p_h\) is the valid preregistered one-sided population p-value for component
-\(h\), then
+algebraically equivalent opposite orientation. With the component p-values
+defined in §8.1,
 
 \[
-p_{H1}=\max_{h\in\Theta_{H1}}p_h. \tag{14}
+p_{H1}=\max_{h\in\mathcal H_1}p_h. \tag{14}
 \]
 
 This is an intersection–union test: H1 can pass only if every one of the five
@@ -463,8 +775,44 @@ frozen notice discrimination/calibration/coverage and validity gates pass. There
 is no observed 0.05 magnitude gate for notice. The behavioural 0.05 point-
 estimate rule is not a claim that the true behavioural effect is at least 0.05.
 
-Construct \(p_{H2},p_{H3},p_{H4}\) from their locked IUT components in §8.10 of
-`02`. An unavailable, invalid, or inconclusive family receives \(p=1\). Sort the
+For H2, let
+
+\[
+\mathcal H_2=\{\mathrm{off},\mathrm{reset}\}
+\cup\{(C,d),(D,d):d\in\mathcal D\}
+\cup\{(L,j),(U,j):j\in\mathcal J_0\}, \tag{14a}
+\]
+
+with oriented effects \(\delta_{\mathrm{off}},\delta_{\mathrm{reset}},
+\delta_d^C,\delta_d^D,\theta_{j,L},\theta_{j,U}\) from (7f)–(7h), and define
+
+\[
+p_{H2}=\max_{h\in\mathcal H_2}p_h. \tag{14b}
+\]
+
+Thus every registered component/dose direction is an IUT requirement; none may
+be replaced by an observed-best coordinate. Exact restore bytes, intervention
+support, prefix/eligibility integrity, and powered stochastic-null support are
+additional hard gates. Missing support for any locked coordinate makes H2
+inconclusive; coordinates may not be dropped after development outcomes.
+
+For H3, define
+
+\[
+\mathcal H_3=\{(M,b),(C,b),(0,b),(R,b):b\in\mathcal B_R\},\qquad
+p_{H3}=\max_{h\in\mathcal H_3}p_h, \tag{14c}
+\]
+
+using the four oriented effects in (7k). The absolute frozen criteria and every
+nine-class support/symmetry/no-leak gate must also pass. Surface- and repository-
+holdout analyses each rerun the complete H1 index set and gates on their fixed
+known-motif roster; if their IUT p-values are \(p_{H4,S}\) and \(p_{H4,R}\),
+
+\[
+p_{H4}=\max(p_{H4,S},p_{H4,R}). \tag{14d}
+\]
+
+An unavailable, invalid, or inconclusive family receives \(p=1\). Sort the
 four labeled values as \(p_{(1)}\leq\cdots\leq p_{(4)}\), breaking exact ties by
 frozen hypothesis id. Holm rejects sequentially while
 
@@ -492,7 +840,11 @@ where \(M_b\) maps the seven policy labels to stream ids and \(O_b\) orders the
 stream ids for execution. Every joint pair has probability \((7!)^{-2}\); over
 \(B\) independently randomized blocks the joint probability is
 \((7!)^{-2B}\). Pre-issued seeds, support indices, permutations, and receipt
-digests must reproduce both draws. **[G, if the receipt audit passes]**
+digests must reproduce both draws. A receipt proves only faithful replay of the
+realized draws. Uniformity and independence are a design guarantee conditional
+on the verified full-support sampler, domain-separated seed derivation, and
+trusted runtime; they are not established by inspecting one receipt. **[G under
+the verified assignment implementation; A for runtime integrity]**
 
 For a registered statistic \(T\), Fisher's test conditions on realized
 \(O=(O_1,\ldots,O_B)\) and rerandomizes the complete mapping vector
@@ -524,20 +876,32 @@ they are not confidence intervals for population-average effects.
 
 ## 8. Motif-stratified lineage bootstrap and simultaneous bounds
 
-For population-average inference, one bootstrap draw independently samples
-\(|\mathcal G_m|\) lineage ids with replacement inside each motif \(m\), carrying
-all seven arms, assignments, cells, opportunities, seeds, and interventions of a
-sampled lineage together. It then recomputes the complete estimator. There are
-at least 10,000 seeded draws.
+For superpopulation-average inference under assumption 5, one Suite-A bootstrap
+draw independently samples \(|\mathcal G_m|\) highest-dependency lineage ids
+with replacement inside each motif \(m\), carrying all seven arms, assignments,
+cells, opportunities, seeds, interventions, and report modes of a sampled
+lineage together. It then recomputes the complete estimator and all nonlinear
+functionals. There are at least 10,000 seeded draws.
+
+Suite B-live first forms connected dependency clusters: two observations are in
+the same cluster if they share a repository or a semantic prototype/generator
+ancestor, with transitive closure. A cluster may never be split merely to fit a
+motif stratum. If every cluster is nested in one motif, use the Suite-A
+stratified resampling. Otherwise sample the global dependency-cluster ids once
+with replacement and carry every member across all motifs jointly before
+recomputing the fixed motif hierarchy. A bootstrap draw with zero support for a
+registered motif is a support failure; it is not silently redrawn or repaired.
+The registry must demonstrate adequate support under this rule before pilot.
 
 Let \(\widehat\theta_h\) be an oriented registered component effect,
 \(\widehat\sigma_h\) its frozen lineage-cluster standard-error functional, and
 \((\widehat\theta_h^{*(b)},\widehat\sigma_h^{*(b)})\) their values in bootstrap
-draw \(b\). Define
+draw \(b\). For the immutable simultaneous-bound set
+\(\mathcal H_{\mathrm{sim}}\), define the correctly oriented lower-bound pivot
 
 \[
-R_b=\max_{h\in\mathcal H}
- \frac{\widehat\theta_h-\widehat\theta_h^{*(b)}}
+R_b=\max_{h\in\mathcal H_{\mathrm{sim}}}
+ \frac{\widehat\theta_h^{*(b)}-\widehat\theta_h}
       {\widehat\sigma_h^{*(b)}},
 \qquad
 c_{0.95}=Q_{0.95}(R_1,\ldots,R_{B_*}), \tag{19}
@@ -549,13 +913,58 @@ and the simultaneous one-sided lower bounds
 L_h=\widehat\theta_h-c_{0.95}\widehat\sigma_h. \tag{20}
 \]
 
-The registered set \(\mathcal H\), zero-variance handling, quantile convention,
-studentization, and bootstrap RNG seeds are frozen before analysis. A support or
-zero-variance failure is inconclusive, not a license to drop a contrast. Suite
-B-live replaces the lineage cluster by the highest shared repository plus
-semantic prototype/generator ancestor. This procedure targets average-effect
-uncertainty under the lineage assumptions in §4.2; it does not inherit Fisher's
-finite-randomization exactness.
+The sign in (19) approximates
+\(\max_h(\widehat\theta_h-\theta_h)/\widehat\sigma_h\); reversing it would use
+the wrong bootstrap tail except under an unregistered symmetry assumption.
+For H1,
+\(\mathcal H_{\mathrm{sim}}=\mathcal H_N\cup\mathcal H_B\); each other family
+binds its own simultaneous set before pilot.
+
+### 8.1 Component nulls and population p-values
+
+Every superiority or margin-adjusted non-inferiority component is oriented so
+that
+
+\[
+H_{0h}:\theta_h\leq0,\qquad H_{1h}:\theta_h>0. \tag{20a}
+\]
+
+For a TOST side, \(\theta_h\) is the corresponding margin-adjusted quantity in
+(7h). With
+
+\[
+Z_h^{\mathrm{obs}}={\widehat\theta_h\over\widehat\sigma_h},
+\qquad
+Z_h^{*(b)}={\widehat\theta_h^{*(b)}-\widehat\theta_h
+                  \over\widehat\sigma_h^{*(b)}},
+\]
+
+the frozen one-sided centered bootstrap-\(t\) component p-value is
+
+\[
+p_h={1+\sum_{b=1}^{B_*}
+ \mathbf1\{Z_h^{*(b)}\geq Z_h^{\mathrm{obs}}\}
+ \over B_*+1}. \tag{20b}
+\]
+
+The plus-one rule prevents a zero Monte Carlo p-value and is applied to every
+component before an IUT maximum. Report its binomial Monte Carlo standard error.
+Equation (20b) is asymptotically valid at the boundary of (20a) only under the
+independent/exchangeable highest-cluster assumption, consistency, finite
+nonzero variance, regularity of the frozen estimator, and adequate per-motif and
+per-class support. It is not design-exact, and the plus-one correction does not
+repair a biased lineage roster, too few clusters, a nonsmooth unsupported
+functional, or a wrong cluster definition. Fisher p-values from §7 remain a
+separate sharp-null analysis and never substitute for (20b).
+
+The family index sets, \(\mathcal H_{\mathrm{sim}}\), standard-error functional,
+zero-variance and support behavior, empirical-quantile convention, bootstrap
+RNG seeds, and all component orientations are frozen before pilot. A failed
+condition makes the affected family inconclusive with \(p=1\), not a license to
+drop a contrast. Without the lineage-superpopulation assumption, report (9) as
+a finite-roster point estimand and the assignment-exact sharp-null analysis;
+bootstrap intervals/p-values may be shown only as model-based stability
+summaries, not population-generalization evidence.
 
 ---
 
@@ -631,15 +1040,18 @@ dependency allowlist, temporal gate, and separate-budget tests passing. ∎
 
 ### Proposition 4 — Fixed-denominator totality [G]
 
-For every valid assigned run and every scheduled opportunity not removed by a
-valid common seven-arm outage mask, (8) has exactly one value in \(\{0,1\}\), so
-every mean in (9) is defined and has arm-independent support.
+For every valid assigned run and every scheduled opportunity with
+\(W_{mgcj}=1\), (8) has exactly one value in \(\{0,1\}\). If every registered
+motif retains at least one lineage under (12a), every mean in the masked form
+(12b) and its fixed-motif macro-average is defined and has arm-independent
+support; otherwise the family is inconclusive.
 
 **Proof.** A completed branch is scored by the frozen mechanical rule. Every
 enumerated branch-local noncompletion or missing slot is assigned one. These
-cases exhaust observed post-assignment branches. Since each \(J_{mgc}>0\), the
-cell mean is defined. The only mask is common to all seven arms and the recursive
-renormalization rule is arm-independent, so no arm-specific eligibility
+cases exhaust observed post-assignment branches. Definition (12a) includes only
+nonempty cell and lineage sets, and the stated support condition keeps every
+fixed motif nonempty. The exact slot mask is common to all seven arms and (12b)
+renormalizes by the same arm-independent rule, so no arm-specific eligibility
 denominator is created. Pre-assignment generator/preflight failures invalidate
 the run and never enter the estimator. ∎
 
