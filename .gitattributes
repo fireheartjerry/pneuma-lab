@@ -3,6 +3,11 @@
 # byte-mismatches the adapter's LF output. Applies to the hermetic adapter fixtures.
 fixtures/adapters/** text eol=lf
 
+# Historical estimator artifacts are verified by SHA-256 over exact committed
+# bytes.  Keep their JSON and Markdown payloads LF-only on Windows checkouts so
+# the integrity record hashes the same content users actually execute against.
+build/estimators/** text eol=lf
+
 # WSL bootstrap scripts must remain executable Bash with LF endings even when
 # the repository is checked out by Git for Windows with autocrlf enabled.
 scripts/foundation/*.sh text eol=lf
