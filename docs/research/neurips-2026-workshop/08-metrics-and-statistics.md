@@ -1,10 +1,16 @@
 # 08 — Metrics and Statistics
 
-Status: derived. This document instantiates the metric and statistics slots fixed
-in `02-research-thesis.md` §8.7 (DL-08) and §8.8 (DL-09). It defines every metric
-formally, fixes the statistical protocol, and pre-registers the tests. Where a
-symbol or constant appears in doc 02, this document reuses it verbatim; any
-deviation would be logged in `15-decision-log.md`.
+> [!WARNING]
+> **Protocol v2 supersession notice (2026-07-22).** This document is retained as
+> a historical Protocol-v1 specification. **Do not implement from it.** Use
+> `02-research-thesis.md` for the canonical scientific constants,
+> `16-protocol-v2-hardening.md` for the hardened rationale and contracts, and
+> `17-implementation-plan-v2.md` for the executable build backlog. If this file
+> conflicts with those documents, Protocol v2 governs.
+
+Status: **archived Protocol v1; non-authoritative.** The formulas below preserve
+the old metric/statistics design and may conflict with Protocol v2. They are not
+the preregistered analysis contract.
 
 Scope reminder: this is a **planning** document. It authorizes no run, no data
 conversion, and no training. It fixes _how_ we will measure and _how_ we will

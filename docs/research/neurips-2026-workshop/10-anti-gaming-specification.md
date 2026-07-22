@@ -1,11 +1,18 @@
 # 10 — Anti-Gaming Specification
 
-Status: planning. Governed by `02-research-thesis.md` §8.9 (DL-10) and §8.10
-(DL-11); nothing here may contradict the Locked Design Constants. This document
-does not authorize implementation, training, data conversion, or any run. It
-fixes _what the agent must not be able to earn credit for_ and _how each avenue
-is closed_, so the metric (`08-metrics-and-statistics.md`) and the causal-validity
-plan (`09-intervention-and-causal-validity.md`) inherit an unambiguous contract.
+> [!WARNING]
+> **Protocol v2 supersession notice (2026-07-22).** This document is retained as
+> a historical Protocol-v1 specification. **Do not implement from it.** Use
+> `02-research-thesis.md` for the canonical scientific constants,
+> `16-protocol-v2-hardening.md` for the hardened rationale and contracts, and
+> `17-implementation-plan-v2.md` for the executable build backlog. If this file
+> conflicts with those documents, Protocol v2 governs.
+
+Status: **archived Protocol v1; non-authoritative.** The material below preserves
+the old anti-gaming design and may conflict with Protocol v2. It does not define
+the live evaluator contract. Historically, it described what the agent could
+not earn credit for and how each avenue was closed, so the metric and causal-
+validity plan inherited an unambiguous contract.
 
 ## 0. Doctrine (inherited, non-negotiable)
 

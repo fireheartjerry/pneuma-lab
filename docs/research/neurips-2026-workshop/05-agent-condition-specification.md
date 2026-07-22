@@ -1,9 +1,16 @@
 # 05 — Agent Condition Specification
 
-Status: canonical-derived. This document expands `02-research-thesis.md` §8.2
-(Conditions), §8.4 (State→behaviour coupling), and §8.1 (Shared substrate). It
-MUST NOT contradict Section 8 of `02-research-thesis.md`. Any deviation is
-recorded in `15-decision-log.md` and back-propagated to `02`.
+> [!WARNING]
+> **Protocol v2 supersession notice (2026-07-22).** This document is retained as
+> a historical Protocol-v1 specification. **Do not implement from it.** Use
+> `02-research-thesis.md` for the canonical scientific constants,
+> `16-protocol-v2-hardening.md` for the hardened rationale and contracts, and
+> `17-implementation-plan-v2.md` for the executable build backlog. If this file
+> conflicts with those documents, Protocol v2 governs.
+
+Status: **archived Protocol v1; non-authoritative.** The material below records
+the old condition design and may conflict with Protocol v2. It is not an
+implementation contract.
 
 Scope reminder: **planning only.** Nothing here authorizes implementation,
 training, experiments, or data conversion. It fixes _exactly what each of the

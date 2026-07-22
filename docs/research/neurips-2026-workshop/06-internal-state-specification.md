@@ -1,14 +1,22 @@
 # 06 — Internal-State Specification
 
-Status: planning. This document is the most technically precise in the package. It
-fixes the **exact** definition, data type, initialization, update rule, decay,
-serialization, observability, intervention hook, and validating tests for every
-persistent internal-state variable of the **Pneuma-state** condition
-(`02-research-thesis.md` §8.3), plus the **decision head** (§8.4) that couples
-state to behaviour.
+> [!WARNING]
+> **Protocol v2 supersession notice (2026-07-22).** This document is retained as
+> a historical Protocol-v1 specification. **Do not implement from it.** Use
+> `02-research-thesis.md` for the canonical scientific constants,
+> `16-protocol-v2-hardening.md` for the hardened rationale and contracts, and
+> `17-implementation-plan-v2.md` for the executable build backlog. If this file
+> conflicts with those documents, Protocol v2 governs.
 
-It MUST stay consistent with `02-research-thesis.md` Section 8 (Locked Design
-Constants). Where a variable's update rule extends an _existing_ psyche rule, the
+Status: **archived Protocol v1; non-authoritative.** The material below records
+the old state design and may conflict with Protocol v2. It does not fix the live
+implementation contract. Historically, it specified the definition, data type,
+initialization, update rule, decay, serialization, observability, intervention
+hook, and tests for every persistent internal-state variable, plus the head that
+couples state to behaviour.
+
+At the time it was written, it was intended to match the former locked design.
+Where a variable's update rule extends an _existing_ psyche rule, the
 existing rule is quoted verbatim from the code audits
 (`audit/audit-psyche.md`, `audit/audit-nervous-system.md`) and the delta ("what
 must be added") is stated explicitly. Nothing here authorizes implementation.

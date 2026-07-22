@@ -1,8 +1,16 @@
 # 04 — Benchmark Specification
 
-Status: planning. Inherits every decision in `02-research-thesis.md` §8 (Locked
-Design Constants); where §8 fixes a constant, this document only elaborates it and
-never contradicts it. Any deviation is recorded in `15-decision-log.md`.
+> [!WARNING]
+> **Protocol v2 supersession notice (2026-07-22).** This document is retained as
+> a historical Protocol-v1 specification. **Do not implement from it.** Use
+> `02-research-thesis.md` for the canonical scientific constants,
+> `16-protocol-v2-hardening.md` for the hardened rationale and contracts, and
+> `17-implementation-plan-v2.md` for the executable build backlog. If this file
+> conflicts with those documents, Protocol v2 governs.
+
+Status: **archived Protocol v1; non-authoritative.** The material below records
+the old benchmark design and may conflict with Protocol v2. It is not an
+implementation contract.
 
 Scope reminder: this is a **planning** document. Nothing here authorizes a
 download, conversion, training run, or experiment. Every data lane referenced

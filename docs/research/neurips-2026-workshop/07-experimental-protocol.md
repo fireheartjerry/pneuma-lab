@@ -1,10 +1,16 @@
 # 07 — Experimental Protocol
 
-Status: planning. This document is the **single runnable protocol** that ties the
-finalized specifications into one ordered, reproducible execution procedure. It
-inherits every Locked Design Constant in `02-research-thesis.md` §8 and MUST NOT
-contradict it; where a constant is fixed upstream, this document only sequences
-_when_ and _how_ it is executed. Sibling contracts it operationalizes:
+> [!WARNING]
+> **Protocol v2 supersession notice (2026-07-22).** This document is retained as
+> a historical Protocol-v1 specification. **Do not implement from it.** Use
+> `02-research-thesis.md` for the canonical scientific constants,
+> `16-protocol-v2-hardening.md` for the hardened rationale and contracts, and
+> `17-implementation-plan-v2.md` for the executable build backlog. If this file
+> conflicts with those documents, Protocol v2 governs.
+
+Status: **archived Protocol v1; non-authoritative.** This is no longer the
+runnable protocol. The material below preserves the old execution procedure for
+history and crosswalk purposes only. Its former sibling contracts were:
 `04-benchmark-specification.md` (suites/taxonomy), `05-agent-condition-specification.md`
 (six conditions), `06-internal-state-specification.md` (state variables + decision
 head), `08-metrics-and-statistics.md` (metrics + statistics), `09-intervention-and-causal-validity.md`

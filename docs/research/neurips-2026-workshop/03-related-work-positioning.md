@@ -1,261 +1,371 @@
-# 03 — Related Work and Positioning
+# 03 — Related Work and Defensible Positioning
 
-Status: canonical-consistent. This document inherits every claim from
-`02-research-thesis.md` §8 (Locked Design Constants) and the maturity map in
-`01-current-state-audit.md`. It positions the first paper against prior work,
-names its closest neighbors, pre-empts reviewer objections, and flags citation
-uncertainty honestly. Source material: the URL-cited related-work map archived in
-the session scratchpad (`audit/research-related-work.md`, compiled 2026-07-22).
+**Status:** Protocol-v2-aligned literature audit. Search frozen 2026-07-22;
+refresh before the anonymous source freeze. Primary venue: Verify-Agents at
+NeurIPS 2026 in Sydney, Australia; IAB is the fallback.
+Primary sources below are peer-reviewed proceedings or paper records; arXiv-only
+work is labelled as such.
 
-Planning only. No implementation, no experiments, no data conversion.
+## 0. Claim discipline
 
-**The four differentiators the paper owns** (the contrast axes used throughout;
-verbatim from thesis §7):
+Prior work already shows that agents can retain structured experience, reduce
+recurring mistakes, maintain compact state, and benefit from active memory or
+activation interventions. Therefore the paper makes none of these claims:
 
-1. **Persistent, structured, causally-active state** — a live internal variable
-   that gates the action, not natural-language text re-injected from a store.
-2. **Clamp/ablation causal proof** — paired control/treated/null replay with an
-   _a priori_ expected-vs-observed delta and a holding null (thesis §8.8).
-3. **Behaviour-vs-self-report firewall** — a prose-blind behavioural scorer;
-   self-report is a separate, non-scored channel (thesis §8.9–8.10).
-4. **Repeated-structural-failure metric** — the `RUF` cross-task recurrence rate
-   (thesis §8.7), orthogonal to per-task resolve rate / Pass@1.
+- not the first persistent agent memory;
+- not the first structured, compact, or private memory/state;
+- not the first system intended to avoid recurrent errors;
+- not the first causal intervention on memory, experience, or agent activations;
+- not the first process-level analysis of coding-agent trajectories;
+- not the first verifier-backed state-centered agent architecture; and
+- no consciousness, sentience, or phenomenal-interiority claim.
 
-Machine-consciousness indicator work (Cluster 5) is cited **strictly as
-motivation**. The paper makes **no phenomenal-consciousness claim** (thesis §5,
-tier 6; `phenomenal_consciousness_claim: not_claimed`).
+The defensible contribution is the following conjunction:
 
----
+> A low-dimensional state that is never placed in a language-model prompt on the
+> behavioural/action path and can only boundedly rerank a common set of
+> model-proposed actions (with state visible only to one-way inert measurement/
+> post-behaviour reporting sinks); a same-subject
+> live pretreatment failure under a common untreated prefix, followed by
+> independent task snapshots and fixed scheduled opportunities; a current-only
+> shared recognizer, carrier-matched notice readouts for every arm, and a
+> pretreatment recurrence label; randomized live state
+> clamps with Influence-off, persistence-off, update-off, dose, permutation, and
+> powered stochastic wiring nulls; exact conditional replay of the randomized
+> seven-arm policy-to-stream mapping with independent stream order and
+> prototype/generator lineage as the independent unit; an actor/updater/evaluator
+> firewall with task-utility co-gates; and a target-symmetric nine-label reporter
+> evaluated against a receipt-only decoder.
 
-## 1. Five clusters
+As of the frozen search, no identified study evaluates this full contract in a
+live software-engineering agent. That is a qualified “to our knowledge” claim,
+not an absolute priority claim. If a pre-submission refresh finds the full
+combination, the paper becomes an independent replication/extension and says so.
 
-### Cluster 1 — LLM agent memory systems
+## 1. Cross-task experience in software-engineering agents
 
-| Work                            | ID / venue                               | One-line what-it-does                                                                                                     |
-| ------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| MemGPT (Packer et al.)          | arXiv:2310.08560; COLM 2024 (UNVERIFIED) | OS-style virtual context that pages **text** between main/recall/archival tiers via function calls.                       |
-| Generative Agents (Park et al.) | arXiv:2304.03442; UIST 2023              | A **memory stream** of NL observations scored by recency/importance/relevance; reflection synthesizes higher-level notes. |
-| Voyager (Wang et al.)           | arXiv:2305.16291; venue UNVERIFIED       | A retrieval **skill library of executable code** indexed by description embeddings.                                       |
-| A-MEM (Xu, Liang et al.)        | arXiv:2502.12110; NeurIPS 2025           | A Zettelkasten **linked note graph** with agentic link-generation and memory evolution.                                   |
-| Reflexion (Shinn et al.)        | arXiv:2303.11366; NeurIPS 2023           | Verbal reflections held in an **episodic memory buffer** and re-injected (also a Cluster-2 baseline).                     |
+### 1.1 Reflection and accumulated experience
 
-**Precise gap Pneuma fills.** In every system here, "memory" is externalized
-NL/code whose _only_ channel of influence on behaviour is **token re-injection
-into the context window**; even A-MEM's graph is structure _over text_ consulted
-by retrieval, never a variable in the forward pass. None clamps/ablates an
-internal state against a null to prove memory's causal role, and none targets
-**repeated structurally-similar failures** (all report aggregate task
-success / QA accuracy). Pneuma carries state that gates the action, proves its
-role by clamp/ablation with expected-vs-observed deltas, and scores
-failure-recurrence reduction (`RUF`). MemGPT's SQLite/FTS5-style store is
-reused, honestly, as our **retrieval baseline** (`foundation/memory.py`,
-thesis §8.2) — not as a differentiator.
+Reflexion uses linguistic feedback stored in episodic memory, ExpeL extracts and
+reuses experience across tasks, and Self-Refine iteratively conditions on its own
+feedback. These establish strong textual reflection baselines; they do not
+justify treating reflection as a strawman.
 
-### Cluster 2 — Self-reflection / verbal reinforcement / self-improvement
+SWE-Exp stores successful and failed repair experience and reports strong
+SWE-bench Verified resolution. FailureMem converts failed repair attempts into
+reusable guidance. PROBE uses telemetry, structured diagnosis, and bounded next-
+attempt recovery guidance. Structurally Aligned Subtask-Level Memory aligns
+storage, retrieval, and updates with a coding agent's functional subtasks rather
+than whole episodes. PROJECTMEM records typed coding events and uses a
+deterministic pre-action gate to warn about repeated failed fixes. All are close
+to the intervention target even when their memory carrier, evidence strength, or
+outcome differs.
 
-| Work                        | ID / venue                               | One-line what-it-does                                                                                            |
-| --------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Reflexion (Shinn et al.)    | arXiv:2303.11366; NeurIPS 2023           | NL reflection after failure, stored in an episodic buffer and re-injected as prompt.                             |
-| Self-Refine (Madaan et al.) | arXiv:2303.17651; NeurIPS 2023           | One LLM writes NL feedback on its own output and re-injects to revise, within an episode.                        |
-| CRITIC (Gou et al.)         | arXiv:2305.11738; ICLR 2024 (UNVERIFIED) | Self-correction grounded in **external tools** (search, code interpreter).                                       |
-| ExpeL (Zhao et al.)         | arXiv:2308.10144; AAAI-24                | Cross-task NL "insights" extracted from a trajectory experience pool, injected at test time.                     |
-| Retroformer (Yao et al.)    | arXiv ID / venue UNVERIFIED              | A retrospective model tunes the agent's prompt via SFT+PPO; the actuated artifact is still injected prompt text. |
+### 1.2 Recurrence and continual coding
 
-**Precise gap Pneuma fills.** The whole cluster stores _prose_ that is
-re-injected: prose is not machine-addressable (cannot be diffed / snapshot /
-held byte-identical), so no clean causal test; its "ablations" toggle whether a
-text block is present and read task score — indistinguishable from generic
-"extra context primed the decoder"; and the reflection text is simultaneously
-the mechanism _and_ the self-explanation, so the metric is gameable by fluent
-rationalization. Pneuma uses re-appliable structured state, a paired
-control/treated/null clamp, and a prose-blind scorer measuring `RUF`. Reflexion
-and ExpeL are **included as baselines under identical budget** (thesis §8.2,
-conditions 3 and 2-adjacent), not merely cited.
+SWE-Bench-CL explicitly orders repository issues chronologically and measures
+continual transfer, forgetting, and tool efficiency. Zhao et al.'s dynamic coding
+memory in machine-learning-engineering agents captures task/package/error/fix
+records; its chain-based agents avoid recurring mistakes, while memory can reduce
+search diversity in tree-based agents. Accumulated Behavioral Rules directly
+reports reduced error-class recurrence across 11 production sessions, although
+without randomized condition assignment.
 
-### Cluster 3 — SWE agents and their evaluation
+These papers invalidate any claim that cross-task recurrence is absent from the
+literature. Our narrower question is whether **non-prose machine-addressable
+state** contributes causally beyond retrieval, reflection, retry count, and a
+persistent scalar controller selected from a published last-bit/count/EWMA/Beta
+grid with at least the same development budget, under standardized exposure and
+fixed opportunities.
 
-| Work                                                | ID / venue                          | One-line what-it-does                                                                                                  |
-| --------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| SWE-bench (Jimenez et al.)                          | arXiv:2310.06770; ICLR 2024         | 2,294 real GitHub issue→PR tasks; success = hidden tests pass (per-task, memoryless).                                  |
-| SWE-bench Verified (OpenAI)                         | 2024 announcement + HF dataset      | 500 human-validated instances; de-facto standard test set, same contract.                                              |
-| SWE-agent (Yang et al.)                             | arXiv:2405.15793; NeurIPS 2024      | Agent-Computer Interface; produces the trajectory format others consume; fresh episode per task.                       |
-| SWE-Gym (Pan et al.)                                | arXiv:2412.21139; ICML 2025         | First _training_ env (2,438 executable instances); cross-task gains come via **weight updates**, reports resolve rate. |
-| SWE-Exp (Chen et al.)                               | arXiv:2507.23361; 2026              | A **cross-task experience bank** (success + failure) — nearest memory competitor; reports only Pass@1 = 73.0%.         |
-| TraceProbe / "What Resolve Rate Hides" (Shu et al.) | arXiv:2607.06184; 2026 (UNVERIFIED) | 9-type action taxonomy naming **single-trajectory** anti-patterns (e.g. search loops).                                 |
-| Failure as a Process (Zhao et al.)                  | arXiv:2607.09510; 2026 (UNVERIFIED) | Root-cause failure taxonomy _within a single trajectory_ (Epistemic / Competence / Environment).                       |
+Key sources:
 
-**Precise gap Pneuma fills.** The field splits into (1) memoryless per-task
-resolve-rate benchmarks, (2) _within-run_ failure analyses, and (3)
-memory/experience methods that still report only aggregate Pass@1. None occupies
-Pneuma's cell, which differs on three axes at once: **unit** (a
-structurally-similar failure class recurring _across_ tasks — two systems with
-identical Pass@1 can have very different repeated-failure rates); **metric**
-(`RUF` reduction, not bundled Pass@1); **causal attribution** (memory-on vs
-memory-off/null ablation, not a bundled resolve-rate gain). SWE-Gym's gains
-entangle "learned the domain" with "stopped repeating an error"; our memory-off
-null disentangles them. Benchmark data (Open-SWE-Traces, SWE-Gym
-OpenHands-Sampled) is reused via existing adapters (thesis §8.5).
+- Reflexion: Shinn et al., NeurIPS 2023,
+  <https://proceedings.neurips.cc/paper_files/paper/2023/hash/1b44b878bb782e6954cd888628510e90-Abstract-Conference.html>
+- ExpeL: Zhao et al., AAAI 2024, DOI 10.1609/aaai.v38i17.29936,
+  <https://ojs.aaai.org/index.php/AAAI/article/view/29936>
+- Self-Refine: Madaan et al., NeurIPS 2023,
+  <https://proceedings.neurips.cc/paper_files/paper/2023/hash/91edff07232fb1b55a505a9e9f6c0ff3-Abstract-Conference.html>
+- SWE-Exp: Chen et al., arXiv:2507.23361,
+  <https://arxiv.org/abs/2507.23361>
+- SWE-Bench-CL: Joshi, Chowdhury, and Uysal, arXiv:2507.00014,
+  <https://arxiv.org/abs/2507.00014>
+- Demystify the Role of Memory in Machine Learning Engineering Agents: Xinyu
+  Zhao et al., Findings of ACL 2026, DOI 10.18653/v1/2026.findings-acl.525,
+  <https://aclanthology.org/2026.findings-acl.525/>
+- Self-Improving AI Coding Agents Through Accumulated Behavioral Rules:
+  Aggarwal and Farhady Ghalaty, arXiv:2607.13091; the paper record reports ICE
+  2026 presentation, <https://arxiv.org/abs/2607.13091>
+- FailureMem: Ma et al., arXiv:2603.17826,
+  <https://arxiv.org/abs/2603.17826>
+- Debugging the Debuggers / PROBE: Chenyu Zhao et al., arXiv:2605.08717,
+  <https://arxiv.org/abs/2605.08717>
+- Structurally Aligned Subtask-Level Memory for Software Engineering Agents:
+  Shen et al., ICML 2026, arXiv:2602.21611,
+  <https://arxiv.org/abs/2602.21611>;
+  <https://openreview.net/forum?id=2CoRS45Ucj>
+- PROJECTMEM: Malo and Qiu, arXiv:2606.12329; evaluated as a two-month,
+  10-project self-study rather than a randomized agent trial,
+  <https://arxiv.org/abs/2606.12329>
 
-### Cluster 4 — Causal / interpretability methods for internal states
+## 2. Structured, active, and controllable memory/state
 
-| Work                                                                   | ID / venue                      | One-line what-it-does                                                                                       |
-| ---------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| ROME / Causal Tracing (Meng et al.)                                    | arXiv:2202.05262; NeurIPS 2022  | Corrupt-then-restore hidden states (causal mediation) for single-shot factual recall; rank-one weight edit. |
-| Causal Mediation Analysis in LMs (Vig et al.)                          | NeurIPS 2020                    | Intervene on neurons/heads as mediators (direct/indirect effects) on transient activations (bias).          |
-| Path Patching / Causal Scrubbing (Goldowsky-Dill et al. / Chan et al.) | arXiv:2304.05969 / Redwood 2023 | Patch or resample-ablate activations along circuit edges to test necessity/sufficiency.                     |
-| LMs (Mostly) Know What They Know (Kadavath et al.)                     | arXiv:2207.05221; 2022          | Behavioral calibration self-eval (P(True), P(IK)); touches self-report but no intervention.                 |
-| CoT Unfaithfulness (Turpin et al.)                                     | arXiv:2305.04388; NeurIPS 2023  | **Input biasing** shows chain-of-thought explanations misstate the true cause.                              |
+MemGPT virtualizes context with tiered memory. A-MEM organizes agent memories
+agentically. MEM1 learns to update a compact shared internal state each turn.
+Remember When It Matters is the closest identified active-memory neighbor: a separate
+memory agent maintains structured private status and selectively injects
+memory-grounded reminders rather than exposing a passive bank. StructAgent uses
+unified state, verifier-backed transitions, checkpoints, and targeted recovery.
+SteeM explicitly controls memory reliance in long-term interaction. Memory in
+the Loop causally varies retrieval latency under a fixed per-turn budget and
+links slower access to redundant action; Useful Memories Become Faulty shows
+that repeated LLM consolidation can make initially useful memories harmful.
 
-**Precise gap Pneuma fills.** Every canonical causal method operates on
-**transient within-forward-pass activations**, overwhelmingly for single-shot
-factual recall or bias. The two faithfulness papers use behavioral calibration
-(Kadavath) or input-side perturbation (Turpin) — neither clamps/ablates an
-_internal state_ to certify that a self-report names the true internal cause.
-Pneuma differs on two couplings: the intervention target is **persistent,
-structured, cross-episode agent state** (scar/affect/self-model/memory-trust,
-surviving between episodes), not activations that vanish at pass end; and the
-clamp/ablation is a **faithfulness oracle** — the paired control/treated/null
-design checks that the self-report moves in the predicted direction _only when_
-the responsible state is perturbed (thesis H3). We borrow the corrupt-then-
-restore _logic_ but relocate it from circuit localization to cross-episode-state
-faithfulness certification.
+Thus the meaningful distinction is not “active memory versus passive memory.”
+It is the exact **carrier and actuation contract**. Pneuma's state stays outside
+the frozen LM weights and every candidate/action-path prompt, has no retrieval-
+text channel in its core arm, and can only add bounded biases to model-proposed
+candidate intents. One-way inert notice measurement and post-behaviour report
+calls may read the state but cannot affect action. This makes state influence
+directly zeroable without changing the behavioural prompt or candidate-
+generation call. The claim is about this experimental isolation, not inherent
+superiority of numbers over language.
 
-### Cluster 5 — Machine-consciousness indicators (MOTIVATION ONLY — no claim)
+Key sources:
 
-> This cluster motivates _why_ persistent causally-active state and
-> workspace-broadcast architectures are worth building and measuring. The paper
-> makes **no phenomenal-consciousness claim** and takes no position on machine
-> experience (thesis §5 tier 6; §2).
+- MemGPT: Packer et al., arXiv:2310.08560,
+  <https://arxiv.org/abs/2310.08560>
+- A-MEM: Agentic Memory for LLM Agents, Xu et al., NeurIPS 2025,
+  <https://proceedings.neurips.cc/paper_files/paper/2025/hash/19909c36f51abc4856b4560aff3d36d6-Abstract-Conference.html>
+- MEM1: Zhou et al., arXiv:2506.15841,
+  <https://arxiv.org/abs/2506.15841>
+- Remember When It Matters: Wu et al., arXiv:2607.08716,
+  <https://arxiv.org/abs/2607.08716>
+- StructAgent: Wu et al., arXiv:2607.11388,
+  <https://arxiv.org/abs/2607.11388>
+- Controllable Memory Usage / SteeM: Tian et al., ACL 2026,
+  <https://aclanthology.org/2026.acl-long.670/>
+- Memory in the Loop: Khan and Lipizzi, arXiv:2607.05690,
+  <https://arxiv.org/abs/2607.05690>
+- Useful Memories Become Faulty When Continuously Updated by LLMs: Zhang et
+  al., arXiv:2605.12978, <https://arxiv.org/abs/2605.12978>
 
-| Work                                                 | ID / venue                                              | One-line what-it-does                                                                                                                             |
-| ---------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Butlin, Long, et al. (2023)                          | arXiv:2308.08708                                        | Derives assessable **indicator properties** from neuroscientific theories; concludes no current AI is conscious but no obvious technical barrier. |
-| Global Workspace Theory (Baars 1988; Dehaene et al.) | Prog. Brain Res. 2005 (S0079612305500049); GWT overview | Information becomes conscious when "broadcast" across a shared workspace / prefrontal-parietal network.                                           |
-| Chalmers (2023)                                      | arXiv:2303.07103                                        | Names the _absence_ of recurrence, a global workspace, and unified agency as what LLMs lack.                                                      |
-| Long, Sebo, Butlin et al. (2024)                     | arXiv:2411.00986                                        | "Taking AI Welfare Seriously" — an uncertainty-management stance, not a consciousness assertion.                                                  |
+## 3. Causal dependence on memory and state
 
-**Precise gap Pneuma fills.** These works give a rubric of _which architectural
-properties are worth building and measuring_ (persistent state, workspace
-broadcast, recurrent processing, self-monitoring) but stop at
-assessment/verdict; they do not deliver a falsifiable behavioural+causal test on
-a real agent. Pneuma supplies exactly that test — controlled clamp/ablation over
-paired replay on a software-engineering agent — and stays firewalled from any
-phenomenal claim.
+Large Language Model Agents Are Not Always Faithful Self-Evolvers performs
+empty, shuffled, irrelevant, corrupted, and filler interventions on raw and
+condensed agent experience across frameworks. Causal Intervention-Based Memory
+Selection compares no-memory, memory, and perturbed-memory conditions. Xiong et
+al. use controlled addition/deletion of episodic memories to study experience-
+following and error propagation. What Happens Inside Agent Memory uses causal
+feature-level circuit analysis. SOPHIA detects self-loops and intervenes with
+activation steering.
 
----
+These works invalidate statements such as “no one intervenes on memory” or “all
+causal agent work targets only end-task success.” They also strengthen our design:
+causal dependence must be demonstrated, not inferred from memory availability.
+Memory in the Loop additionally shows why identical ex-ante action budgets are
+not enough on their own: access-path latency can change repetition within those
+budgets, so memory/controller latency and realized efficiency must be reported.
 
-## 2. Closest neighbors
+Our residual contribution is a system-level intervention on persistent
+controller state with:
 
-These five are the most dangerous neighbors: cite and distinguish each
-explicitly. A ✓ means the neighbor _lacks_ our differentiator (so it separates
-us); the cell says how.
+- one same-subject live verified pretreatment failure under a common untreated
+  prefix, cloned before arm mapping, and independently live descendants;
+- a fixed repeat-harm estimand independent of treatment-induced eligibility;
+- all-state Influence-off plus update-off, dose, persistence reset, permutation,
+  and powered restore/no-op stochastic-equivalence controls;
+- the same structured-action candidate call and complete accounting of candidate,
+  reflection, maintenance, repair/fallback, token, tool, retry, and failed-call
+  costs in every arm;
+- exact replay of the actual seven-label within-block assignment, prototype/
+  generator-lineage aggregation, H1–H4 family decisions, and simultaneous
+  intervals, with H5 embedded in H1; and
+- task-success, engagement, total-failure, and false-avoidance co-gates.
 
-| Neighbor                     | ID               | Persistent structured causally-active state                                                      | Clamp/ablation causal proof                                                              | Behaviour-vs-self-report firewall                  | Repeated-structural-failure metric                                  |
-| ---------------------------- | ---------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------- |
-| **SWE-Exp** (Chen et al.)    | arXiv:2507.23361 | ✓ carries a cross-task experience bank, but as **re-injected text**, not a forward-pass variable | ✓ no intervention; reports bundled Pass@1 = 73.0%                                        | ✓ experience prose is both mechanism and rationale | ✓ never quantifies repeated-failure reduction — reports Pass@1 only |
-| **Reflexion** (Shinn et al.) | arXiv:2303.11366 | ✓ verbal reflections in an episodic buffer, re-injected as prompt text                           | ✓ ablations toggle feedback _variants_, never clamp a state on a byte-identical timeline | ✓ reflection _is_ mechanism-and-explanation-in-one | ✓ scores end-task success, not cross-task recurrence                |
-| **ExpeL** (Zhao et al.)      | arXiv:2308.10144 | ✓ cross-task NL "insights" injected at test time; text, not state                                | ✓ whether its ablation ever holds behaviour fixed is UNVERIFIED; no null-arm clamp       | ✓ insight prose doubles as explanation             | ✓ reports aggregate task performance                                |
-| **A-MEM** (Xu, Liang et al.) | arXiv:2502.12110 | ✓ most "structured" prior memory — but a linked note graph _over text_, consulted by retrieval   | ✓ QA benchmark + coarse module ablation, no clamp-against-null                           | ✓ no separate non-scored self-report channel       | ✓ reports QA accuracy                                               |
-| **MemGPT** (Packer et al.)   | arXiv:2310.08560 | ✓ nearest neighbor to _managed_ memory, but pages **text** between tiers                         | ✓ no causal intervention on state                                                        | ✓ no firewall                                      | ✓ no recurrence metric; reused by us as the retrieval baseline      |
+Every observed branch-local refusal, timeout, premature finish, budget
+exhaustion, model error, or runtime failure remains adverse. A block is removable
+only when immutable arm-blind evidence identifies one common exogenous outage
+that made all seven arms unobservable.
 
-**How our four differentiators separate us, in one line each.** (1)
-_Carrier:_ ours is persistent structured state that gates the action and is
-snapshot/clone-equivalent; theirs is free-text re-injected. (2) _Causality:_ we
-clamp/ablate the state on a byte-identical (synthetic) or seed-frozen
-(statistical) timeline, require the observed delta to match an a-priori expected
-delta, and require the restore/null to hold; none of them intervenes on its own
-memory. (3) _Anti-gaming:_ we firewall a prose-blind non-scored self-report from
-the behavioural score; in all five the prose is simultaneously mechanism and
-explanation. (4) _Metric:_ we score `RUF` cross-task recurrence; all five report
-resolve rate / Pass@1 / QA accuracy. Correct framing for the paper: SWE-Exp and
-Reflexion show cross-task text _correlates with_ improvement; Pneuma shows a
-_specific structured state causally_ reduces recurrence of a failure class under
-a clamp, independent of what the agent says — same problem family, strictly
-stronger evidential contract.
+Key sources:
 
----
+- Large Language Model Agents Are Not Always Faithful Self-Evolvers: Weixiang
+  Zhao et al., arXiv:2601.22436 (paper record comments “ICML 2026”),
+  <https://arxiv.org/abs/2601.22436>
+- Causal Intervention-Based Memory Selection for Long-Horizon LLM Agents:
+  Srivastava, arXiv:2605.17641,
+  <https://arxiv.org/abs/2605.17641>
+- How Memory Management Impacts LLM Agents: Xiong et al., ACL 2026,
+  DOI 10.18653/v1/2026.acl-long.27,
+  <https://aclanthology.org/2026.acl-long.27/>
+- What Happens Inside Agent Memory?: Mao et al., arXiv:2605.03354,
+  <https://arxiv.org/abs/2605.03354>
+- SOPHIA / Can We Break LLMs Out of Self-Loops?: Yu et al.,
+  arXiv:2607.18100, <https://arxiv.org/abs/2607.18100>
 
-## 3. Reviewer-objection table
+## 4. Process-level agent verification
 
-| Objection                                                        | Concrete rebuttal grounded in our design                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| "This is just Reflexion / written reflection with a new name."   | Reflexion is **included as a baseline under identical base model, tools, budget, retry cap, and task order** (thesis §8.2, condition 3). If our numeric-state condition does not beat it on `RUF`, H1 is falsified (thesis §6). The clamp isolates structured state _over_ text: Reflexion re-injects prose (not diffable / not snapshot-identical) and its ablations toggle feedback variants; we clamp a specific state variable on a byte-identical timeline and require an a-priori delta plus a holding null.                         |
-| "This is just retrieval memory / MemGPT."                        | In MemGPT the store influences behaviour **only** via token re-injection; remove the re-injection and the effect is zero because it was never in the computation. Our state participates in the decision head directly (thesis §8.4), so its influence is testable independent of any prompt text. MemGPT's store is precisely our **retrieval baseline** (`foundation/memory.py`) — we out-condition it, not relabel it.                                                                                                                  |
-| "The internal state is hand-designed, not learned — so what?"    | We claim a **causal** result, not an emergent-representation result. The four variables (thesis §8.3) are chosen for having a measurable causal role or being cut; each ships a clamp seam. Hand-design is a feature: it makes the state addressable, snapshot/clone-equivalent, and cleanly ablatable — the precondition for the causal test that learned prose memory cannot support. An optional recurrent-hidden-state arm (thesis §8.2) probes the learned-state variant as an ablation.                                              |
-| "SWE-bench / synthetic motifs are toy tasks."                    | Two-suite design (thesis §8.5): a synthetic controlled-motif suite for exact motif ground truth _and_ a **real-repo suite** (Open-SWE-Traces: 207k step-level trajectories, ~41% resolved, 2 models × 2 harnesses; plus SWE-Gym OpenHands-Sampled). H4 requires the effect to survive surface variation and **held-out repos and motifs** (thesis §6), so identifier memorization falsifies us. Splits are leakage-quarantined (7 overlapping repos registered).                                                                           |
-| "Isn't clamping just prompt ablation by another name?"           | No. Prompt ablation toggles whether a text block is in context and reads task score — it cannot distinguish "the content caused it" from "extra tokens primed the decoder." We clamp a **numeric state variable inside the decision head** while holding the prompt, tools, seed, and retrieved memory fixed (thesis §8.8): frozen model seeds, frozen prompts, frozen retrieved memory, recorded transcripts, plus an N-sample distributional null. The treated-minus-null contrast, not the presence/absence of text, carries the claim. |
-| "Your own signals didn't even predict failure (the E-0 result)." | Stated honestly up front (audit §7): E-0 replayed psyche signals scored AUROC 0.339/0.349 vs a retry-count baseline of 0.705 at _passive prediction_. Consequence, not concealment: retry-count is a **mandatory strong baseline** (thesis §8.2, arm 5), budgets are tightly matched, and the DV is **behavioural repeat-reduction under causal gating**, not passive prediction — a different quantity.                                                                                                                                   |
-| "Where is the persistence — scars reset every run."              | Acknowledged as currently aspirational (audit §7.3): today's persistence is tautological (fixed +0.1 on a fixture motif). Genuine longitudinal persistence on real data is a **build and a claim to earn** (blocker B-EVID-LONGITUDINAL), with decay and cap added to the failure-sensitivity variable (thesis §8.3). The paper reports measured cross-run persistence, not asserted persistence.                                                                                                                                          |
+ACT*ONOMY supplies a large hierarchical runtime-behaviour taxonomy. TraceProbe
+normalizes coding-agent traces, detects single-trajectory anti-patterns, and
+aligns paired trajectories to localize divergence. Failure as a Process analyzes
+failure onset, evolution, and recovery. Understanding Code Agent Behaviour
+contrasts successful and failed SWE-bench trajectories. SWE-Gym provides 2,438
+executable software tasks with execution-based verifiers. AgentProcessBench adds
+8,509 human-labelled steps in 1,000 tool-use trajectories and shows that early
+termination can inflate apparent step correctness. A 20,574-session field study
+finds seven recurring forms of developer-visible coding-agent misalignment, but
+is observational and cannot establish a memory intervention effect. AgentAbstain
+uses paired executable should-act/should-abstain variants; its paired scoring
+directly motivates our false-avoidance and meaningful-engagement co-gates.
 
----
+Our taxonomy is therefore not presented as the scientific novelty. Its role is
+measurement validity: preregistered opportunity/outcome rules, exact mechanical
+primary motifs, a current-task/within-opportunity-only prospective recognizer
+distinct from the update signal, a generator-held recurrence label fixed before
+action, an arm-blind offline scorer, and immutable typed traces. Semantic labels
+and judge ensembles are secondary external-validity evidence. Suite B-live
+supports only the frozen mechanically scorable known-motif repository/prototype
+population, not natural software-engineering tasks generally.
 
-## 4. Citation-status table
+Key sources:
 
-Carried forward honestly from the source map's flags. **Do not invent
-citations.** VERIFIED = primary text or authoritative source confirmed the
-claim; UNVERIFIED = corroborated only by secondary sources or abstract-level;
-NOT FOUND = could not confirm and must be checked before camera-ready.
+- How to Interpret Agent Behavior / ACT*ONOMY: Gao et al.,
+  arXiv:2605.13625, <https://arxiv.org/abs/2605.13625>
+- What Resolve Rate Hides / TraceProbe: Shu et al., arXiv:2607.06184,
+  <https://arxiv.org/abs/2607.06184>
+- Failure as a Process: Xiangxin Zhao et al., arXiv:2607.09510,
+  <https://arxiv.org/abs/2607.09510>
+- Understanding Code Agent Behaviour: Majgaonkar et al., arXiv:2511.00197,
+  <https://arxiv.org/abs/2511.00197>
+- SWE-Gym: Pan et al., ICML 2025, PMLR 267,
+  <https://proceedings.mlr.press/v267/pan25g.html>
+- SWE-agent: Yang et al., NeurIPS 2024,
+  <https://proceedings.neurips.cc/paper_files/paper/2024/hash/5a7c947568c1b1328ccc5230172e1e7c-Abstract-Conference.html>
+- AgentProcessBench: Fan et al., arXiv:2603.14465,
+  <https://arxiv.org/abs/2603.14465>
+- How Coding Agents Fail Their Users: Tang et al., arXiv:2605.29442,
+  <https://arxiv.org/abs/2605.29442>
+- AgentAbstain: Liu et al., arXiv:2607.10059,
+  <https://arxiv.org/abs/2607.10059>
 
-| Reference                                              | ID                            | Status                                                                                 | What to confirm before citing                                                                       |
-| ------------------------------------------------------ | ----------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| MemGPT                                                 | arXiv:2310.08560              | arXiv VERIFIED; **venue (COLM 2024) UNVERIFIED**                                       | Confirm proceedings-level venue or cite as arXiv.                                                   |
-| Generative Agents                                      | arXiv:2304.03442              | VERIFIED (UIST 2023)                                                                   | —                                                                                                   |
-| Voyager                                                | arXiv:2305.16291              | arXiv VERIFIED; **venue UNVERIFIED**                                                   | Confirm venue or cite as arXiv/preprint.                                                            |
-| A-MEM                                                  | arXiv:2502.12110              | VERIFIED (NeurIPS 2025)                                                                | —                                                                                                   |
-| Reflexion                                              | arXiv:2303.11366              | VERIFIED (NeurIPS 2023)                                                                | —                                                                                                   |
-| Self-Refine                                            | arXiv:2303.17651              | VERIFIED (NeurIPS 2023)                                                                | —                                                                                                   |
-| CRITIC                                                 | arXiv:2305.11738              | arXiv VERIFIED; **venue (ICLR 2024) UNVERIFIED**                                       | Confirm ICLR 2024 acceptance.                                                                       |
-| ExpeL                                                  | arXiv:2308.10144              | VERIFIED (AAAI-24); **ablation-holds-behaviour-fixed UNVERIFIED**                      | Read the ablation protocol before asserting it does/doesn't hold behaviour fixed.                   |
-| Retroformer                                            | ID / venue UNVERIFIED         | **UNVERIFIED (author, arXiv id, venue)**                                               | Locate and verify arXiv id + author list before citing; drop if unconfirmable.                      |
-| SWE-bench                                              | arXiv:2310.06770              | VERIFIED (ICLR 2024)                                                                   | —                                                                                                   |
-| SWE-bench Verified                                     | OpenAI 2024 announcement + HF | VERIFIED (announcement)                                                                | Cite announcement + dataset; no paper venue.                                                        |
-| SWE-agent                                              | arXiv:2405.15793              | VERIFIED (NeurIPS 2024)                                                                | —                                                                                                   |
-| OpenHands / OpenDevin                                  | arXiv:2407.16741              | VERIFIED (ICLR 2025)                                                                   | —                                                                                                   |
-| SWE-Gym                                                | arXiv:2412.21139              | VERIFIED (ICML 2025)                                                                   | —                                                                                                   |
-| **SWE-Exp**                                            | arXiv:2507.23361              | arXiv VERIFIED; **Pass@1 = 73.0% figure abstract-level, venue UNVERIFIED**             | Confirm the 73.0% number and venue from the paper body (load-bearing — it is the closest neighbor). |
-| TraceProbe / "What Resolve Rate Hides"                 | arXiv:2607.06184              | **UNVERIFIED** (2026 id; abstract-level)                                               | Verify id, authors, and the within-vs-cross-trajectory claim.                                       |
-| Failure as a Process                                   | arXiv:2607.09510              | **UNVERIFIED** (2026 id; taxonomy percentages abstract-level)                          | Verify id and the Epistemic/Competence/Environment split.                                           |
-| Understanding Code Agent Behaviour (Majgaonkar et al.) | arXiv:2511.00197              | **UNVERIFIED**                                                                         | Verify id and authorship.                                                                           |
-| ROME / Causal Tracing                                  | arXiv:2202.05262              | VERIFIED (NeurIPS 2022)                                                                | —                                                                                                   |
-| Causal Mediation (Vig et al.)                          | NeurIPS 2020                  | VERIFIED                                                                               | —                                                                                                   |
-| Path Patching                                          | arXiv:2304.05969              | ID/title VERIFIED; **author spelling not byte-verified**                               | Confirm author list spelling.                                                                       |
-| Causal Scrubbing                                       | Redwood / AlignmentForum 2023 | VERIFIED (blog/forum, non-archival)                                                    | Cite as technical report / forum post.                                                              |
-| Kadavath et al.                                        | arXiv:2207.05221              | VERIFIED                                                                               | —                                                                                                   |
-| Turpin et al. (CoT Unfaithfulness)                     | arXiv:2305.04388              | VERIFIED (NeurIPS 2023)                                                                | —                                                                                                   |
-| Mao et al. "What Happens Inside Agent Memory?"         | arXiv:2605.03354              | **UNVERIFIED** (excerpts only)                                                         | Verify before citing; relevant as a near-miss (within-model, not cross-episode clamp).              |
-| Azaria & Mitchell                                      | arXiv:2304.13734              | VERIFIED (adjacent)                                                                    | Optional; transient-activation probe.                                                               |
-| Butlin, Long, et al.                                   | arXiv:2308.08708              | VERIFIED; **"agency/embodiment as a named theory" UNVERIFIED**                         | Cite theories as indicator dimensions, not as a 6th named theory.                                   |
-| GWT (Baars 1988; Dehaene et al.)                       | S0079612305500049 + overview  | Baars/Dehaene VERIFIED; **year-by-year Dehaene citations via secondary overview only** | Confirm individual Dehaene year citations if used precisely.                                        |
-| Chalmers (2023)                                        | arXiv:2303.07103              | VERIFIED                                                                               | —                                                                                                   |
-| Long, Sebo, Butlin et al. (2024)                       | arXiv:2411.00986              | VERIFIED                                                                               | —                                                                                                   |
-| MIRAGE-Bench                                           | arXiv:2507.21017              | **UNVERIFIED** (color, not load-bearing)                                               | Cite only if verified; otherwise omit.                                                              |
+## 5. Self-report and causal attribution
 
-Workshop-target facts (from the source map, for `02`/`11` cross-reference):
-IAB workshop and "Who Verifies the Agents?" both **CONFIRMED**, both deadline
-**2026-08-29**; IAB page limits **9pp long / 4pp short + refs (CONFIRMED)**;
-"Who Verifies the Agents?" page limits **NOT FOUND** (do not assume a number).
-NeurIPS 2026 = Sydney, Dec 6–12 (a stale `/Dates` sub-page says "San Diego" —
-that page is wrong).
+Language-model verbal reports can be calibrated in some settings but can also be
+unfaithful to causal influences and semantically unstable. The paper therefore
+does not equate fluent explanation with access to mechanism. H3 is a balanced
+nine-label classification/abstention task: four variables × two directions plus
+`no_attributable_change`. The reporter receives target-symmetric public inputs
+and no intervention identity, its prose is behaviourally inert, and it must beat
+uniform/prior and receipt-only decoder baselines on frozen macro metrics,
+coverage, and risk–coverage while distinguishing verified paired divergence from
+no attributable change.
 
----
+Relevant sources include Turpin et al. on unfaithful chain-of-thought, Betley et
+al. on self-knowledge reports, Mayne et al. on positive conditions for
+faithfulness, and Szeider on semantic invariance failures. Their collective
+lesson is to validate reports against interventions rather than rhetorical
+plausibility.
 
-## 5. Positioning statement (drop-in for the intro)
+- Language Models Don't Always Say What They Think: Turpin et al., NeurIPS
+  2023,
+  <https://proceedings.neurips.cc/paper_files/paper/2023/hash/ed3fea9033a80fea1376299fa7863f4a-Abstract-Conference.html>
+- Tell Me About Yourself: Betley et al., arXiv:2501.11120,
+  <https://arxiv.org/abs/2501.11120>
+- A Positive Case for Faithfulness: Mayne et al., arXiv:2602.02639,
+  <https://arxiv.org/abs/2602.02639>
+- LLM Self-Explanations Fail Semantic Invariance: Szeider,
+  arXiv:2603.01254, <https://arxiv.org/abs/2603.01254>
 
-No prior line of work occupies our cell. Memory agents (MemGPT, Generative
-Agents, Voyager, A-MEM) and reflection methods (Reflexion, Self-Refine, ExpeL,
-and the SWE-specific SWE-Exp) carry learning as **re-injected text** and validate
-it by **outcome**, never by clamping an internal state against a holding null.
-SWE-agent evaluation (SWE-bench and SWE-bench Verified, SWE-Gym, and even the
-memory-bearing SWE-Exp at Pass@1 = 73.0%) scores **memoryless per-task resolve
-rate**, and single-trajectory failure analyses (Failure-as-a-Process, TraceProbe)
-stay **within one run**. Causal interpretability (ROME, path patching, causal
-scrubbing) intervenes on **transient activations** for factual recall, while
-self-report faithfulness work (Turpin, Kadavath) perturbs the **input** or
-measures **calibration** rather than ablating persistent state to certify a
-report. We are the first to combine (1) persistent, structured, causally-active
-internal state that gates the action, (2) a clamp/ablation causal proof against a
-holding null with an a-priori expected-vs-observed delta, (3) a prose-blind
-behaviour-vs-self-report firewall, and (4) a repeated-structurally-similar-failure
-metric (`RUF`) — with machine-consciousness indicator work (Butlin, Long, et al.;
-Global Workspace Theory) cited strictly to motivate _which_ architectural
-properties are worth measuring, and no phenomenal-consciousness claim made.
+## 6. Motivation boundary
+
+Global-workspace and machine-consciousness-indicator literature motivates why
+persistent broadcast-like state and self-model variables might be worth testing.
+It supplies no outcome label and no consciousness inference. The relevant Global
+Workspace review is Baars (2005), DOI 10.1016/S0079-6123(05)50004-9; the DOI is
+not a Dehaene coauthored paper. Extended consciousness discussion belongs in a
+short motivation/limitations paragraph, not the empirical claim or related-work
+center of gravity.
+
+## 7. Closest-neighbour matrix
+
+| Work | What is already close | Residual difference from Protocol v2 |
+| --- | --- | --- |
+| Remember When It Matters | Structured private memory; selective active reminders; long-horizon agents | Acts through language injection; does not report a fixed repeated-harm estimand, randomized machine-state clamps, or blinded attribution. |
+| Faithful Self-Evolvers | Controlled interventions on raw/condensed experience; explicit causal dependence | Experience remains prompt/context material; does not report a live coding-recurrence study with standardized exposure and utility co-gates. |
+| Dynamic Coding Memory | Structured error/fix records; recurring-error avoidance; coding domain | Does not report a randomized state Influence-off/dose/persistence path or treatment-independent opportunity denominator. |
+| Structurally Aligned Subtask-Level Memory | Subtask-granular coding memory with aligned retrieve/update operations | Retrieved context rather than prompt-excluded bounded controller state; does not evaluate the fixed repeat-harm causal contract. |
+| PROJECTMEM | Typed event log and deterministic pre-action repeated-fix gate | Textual summaries/warnings and small self-study; does not report randomized matched-arm evidence. |
+| SWE-Bench-CL | Chronological coding sequences; memory-enabled/disabled comparison; transfer/forgetting | A benchmark/protocol contribution that does not evaluate the same state carrier or causal-mechanism isolation. |
+| Accumulated Behavioral Rules | Direct cross-session error-class recurrence objective in production | Human-approved instruction rules; 11-session observational report; does not evaluate randomized matched controls. |
+| Causal Memory Selection | No-memory/memory/perturbed-memory comparison | Memory selection rather than bounded non-prompt controller state; does not evaluate a software-recurrence endpoint. |
+| StructAgent | Unified compact state; verifier-backed transitions and recovery | Primarily within-task progress state; does not report a same-subject standardized cross-task prior-failure experiment or blinded causal report. |
+| SOPHIA | Online self-loop detection and causal activation steering | Evaluates a transient hidden-activation intervention; does not report persistent cross-task machine-addressable controller state. |
+| Memory in the Loop | Causal latency intervention with redundant-action endpoint | Evaluates access latency and in-loop retrieval; does not report persistent failure-sensitive state or cross-task recurrence. |
+| AgentAbstain | Paired executable act/abstain counterfactuals and anti-inertia scoring | A verification benchmark that does not evaluate a cross-task memory treatment; supplies a key co-gate pattern. |
+
+## 8. Reviewer-objection map
+
+| Objection | Answer that the evidence must support |
+| --- | --- |
+| “This is Remember When It Matters.” | It is the closest identified active-memory neighbor; our differentiator is non-prompt bounded reranking plus randomized state clamps and fixed recurrence/utility estimands. |
+| “Causal memory intervention already exists.” | Correct. We cite it and claim the live system-level causal-verification contract, not first intervention. |
+| “This is Dynamic Coding Memory or SWE-Bench-CL.” | Those establish recurrence/continual coding. Our experiment tests a different carrier against both textual experience and a matched persistent count/EMA falsifier. |
+| “`s_m` is a renamed counter.” | The scalar arm competes over a frozen last-bit/count/EWMA/Beta grid with the same recognizer, scope, head, and at least Pneuma's development budget; H1 must beat the selected controller. Otherwise the rich state claim fails. |
+| “The gain is extra context or compute.” | Core Pneuma adds no prompt text; all arms share the candidate call and complete caps/accounting for reflection, maintenance, repair/fallback, tokens, tools, retries, and failed calls; realized resources and utility frontiers are reported, not adjusted away. |
+| “Standardized exposure is artificial or belongs to another agent.” | Yes to artificiality, no to foreign exposure: confirmatory exposure is the same frozen subject's live verified failure under a common untreated prefix. Natural sequences and B-live are secondary, with B-live scoped to its known-motif target population. |
+| “The metric rewards refusal, a crash, or a new error.” | Every observed agent-side non-engagement or branch-local failure is adverse; only a proven common exogenous whole-block outage is removable; total/new-family failure, success, completion, and counterfactual false avoidance are mandatory co-gates. |
+| “The recognizer smuggles memory in or declares its own success.” | It sees current-task/within-opportunity observables only, predicts a generator-held recurrence fact fixed before action, and is separate from the update signal and arm-blind outcome evaluator in code, data, parameters, imports, and schemas. |
+| “The reporter decodes the receipt or clamp metadata.” | Inputs are target-symmetric and intervention identity is withheld; nine-label macro metrics, minimum coverage, risk–coverage, no-change specificity, a receipt-only decoder, and behavioural-inertness controls are required. |
+| “There are 96 tasks, so the study is powered.” | Surface variants, challenges, and seeds are nested within the highest shared authored prototype/generator lineage. Power, bootstrap, and assignment replay operate at that auditable lineage unit. |
+| “A five-contrast sign flip is not the randomization.” | Correct. Inference replays the recorded seven-arm assignment by permuting all seven labels within each original block and re-aggregating seeds and lineages after every draw; H1–H4 each yield one family decision and H5 is tested only inside H1. |
+| “E-0 already says state is worse.” | E-0 is disclosed: it falsified passive failure prediction and motivated Retry-count, fixed opportunities, identical caps, and a causal behavioural endpoint. |
+| “Generalization is overstated.” | Confirmatory H4 covers known motifs across new surfaces/repositories only; Suite B-live is limited to its mechanically scorable frozen population and unseen-motif transfer is exploratory. |
+
+## 9. Scoop assessment
+
+The component landscape is crowded, especially after the July 2026 releases.
+The strongest novelty threats are Remember When It Matters (active structured
+memory), Faithful Self-Evolvers (causal experience interventions), Structurally
+Aligned Subtask-Level Memory/PROJECTMEM (coding-memory structure and pre-action
+gating), and Dynamic Coding Memory/Accumulated Behavioral Rules (coding
+recurrence).
+None makes our planned result automatic; together they make broad novelty
+language indefensible and the Motif-count/EMA baseline mandatory.
+
+The same papers strengthen the Verify-Agents submission:
+
+- active memory can affect behaviour, so causal faithfulness is a real question;
+- memory can narrow search, so H5 discrimination/utility co-gates are essential;
+- process taxonomies reveal what resolve rate hides, supporting a typed trace
+  endpoint rather than final success alone; and
+- causal interventions on experience are now expected, raising the bar from
+  “memory improves Pass@1” to a verifier-valid, anti-gamed mechanism test.
+
+## 10. Citation and writing rules
+
+1. Use proceedings metadata where available; label all other works “arXiv
+   preprint” even if their record comments name a conference.
+2. Never write “all prior memory is passive token reinjection,” “no prior work
+   intervenes,” “coding agents are memoryless,” “no one studies recurrence,” or
+   “TraceProbe is single-trajectory only.”
+3. Describe our mechanism accurately: state stays outside the frozen LM weights
+   and every behavioural/action prompt and boundedly reranks a shared candidate
+   set. Only one-way inert notice-measurement and post-behaviour report calls may
+   serialize it; those diagnostic forward passes cannot affect behaviour.
+4. Replace every legacy arm-specific RUF statement with fixed-denominator
+   `repeat_harm` plus utility co-gates.
+5. Replace exact post-treatment transcript replay with a frozen common prefix and
+   independently live cloned descendants.
+6. Self-report is intervention-blinded causal attribution, not introspection or
+   consciousness evidence; it uses nine joint labels, target-symmetric inputs,
+   and a receipt-only decoder baseline.
+7. Treat the highest shared authored prototype/generator lineage as independent;
+   replay the actual seven-label assignment rather than sign-flipping contrasts.
+8. Freeze every criterion, margin, transform, and controller grid on development
+   data before the pilot; the pilot may expose pooled/blinded nuisance quantities
+   only and its lineages never enter confirmation.
+9. Refresh arXiv, ACL Anthology, NeurIPS proceedings, OpenReview, and the
+   Verify-Agents accepted-paper list immediately before paper freeze; log any
+   changed novelty claim in `15-decision-log.md`.

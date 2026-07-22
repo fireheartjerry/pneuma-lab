@@ -1,24 +1,43 @@
-# 12 — Implementation Plan (Dependency-Ordered)
+# 12 — Historical v1 Implementation Plan (Superseded)
 
-Status: planning. This is the executable build plan for the NeurIPS/IAB 2026 paper.
-It is consistent with `02-research-thesis.md` §8 (Locked Design Constants) and MUST
-NOT contradict them; where a downstream choice deviates it is logged in
-`15-decision-log.md`. **This document plans work only. It writes no code and
-authorizes no run, download, conversion, or training.** Every data lane referenced
-stays `training_weight: 0.0` / `not_authorized` until a human signs an
-authorization manifest. On-disk paths under `C:\pneuma-data\` are read-only
-provenance references, never write targets.
+> **DO NOT EXECUTE THIS BACKLOG.** This document is retained only as a historical
+> record and as file-level context for the legacy WS-A–WS-I task ids. The sole
+> executable backlog is `17-implementation-plan-v2.md`; its dependency graph,
+> interfaces, gates, tests, and acceptance criteria supersede every task below.
+> `02-research-thesis.md` remains the canonical scientific protocol, and
+> `16-protocol-v2-hardening.md` records why this v1 plan was replaced.
 
-Audience: the coding agent that executes this plan. Each task is decomposed until
-it is directly executable with minimal ambiguity: it names its id, purpose,
+Status: **archived and non-authoritative.** Do not resolve a difference by
+combining v1 and v2 requirements: follow document 17 and consult this file only
+through document 17's explicit 39-task legacy crosswalk. The user's current
+research goal authorizes local implementation, fixture testing, local data
+processing, and local model experiments under Protocol v2. Paid RunPod use
+remains blocked until document 17's G7 approval checkpoint. Raw paths under
+`C:\pneuma-data\` are read-only; derived artifacts go to repository build/output
+locations.
+
+Historical audience: this was written for the coding agent that would have
+executed v1. The task detail is retained for crosswalk context only: each item
+names its id, purpose,
 prerequisites, exact files created/modified (real repo paths from the audits),
 interfaces/schemas touched, data inputs, outputs, invariants, failure modes,
 tests, and acceptance criteria. Read the referenced spec section before starting a
 task; do not re-derive a decision this plan inherits.
 
-Indentation is 4 spaces throughout. Global conventions: `ALL_CAPS` for
-final/pinned constants, `snake_case` for mutable variables, `camelCase` for
-functions (`detectFailure`, `decisionHead`, `injectMotif`).
+Indentation is 4 spaces throughout. Global conventions follow the repository:
+`ALL_CAPS` for final/pinned constants and `snake_case` for variables and
+functions (`detect_failure`, `decision_head`, `inject_motif`).
+
+All imperative language after this banner is preserved historical text, not a
+current instruction or authorization.
+
+> **Protocol-v2 stop sign.** No task below is independently executable, including
+> tasks that appear unaffected by the listed flaws. Use the matching V2 task in
+> document 17. In particular, do not implement arm-specific RUF eligibility, one
+> detector for treatment and scoring, a post-divergence frozen transcript,
+> retrieval-dependent Pneuma state, an `s_m`-only Base-equivalent null,
+> post-treatment budget adjustment, or a scientific result as a software
+> acceptance test.
 
 ---
 
@@ -1770,7 +1789,8 @@ a _build_ task; each blocks _executing_ the run at a pinned value.
 - Statistical causal path + deterministic-oracle reuse (WS-F; `02` §8.8). ✓
 - Prose-blind evaluator + anti-gaming controls (WS-G; `02` §8.9). ✓
 - Four self-report conditions, never feeding the score (WS-H; `02` §8.10). ✓
-- IAB @ NeurIPS 2026 deadline drives WS-I sequencing (`02` §8.11). ✓
+- Verify-Agents @ NeurIPS 2026 is the primary venue and drives WS-I sequencing;
+  IAB is fallback only (`02` §8.11; DL-22). ✓
 
 No Locked Design Constant is contradicted. Any deviation discovered during
 execution is logged in `15-decision-log.md` and back-propagated to `02`.

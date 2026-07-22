@@ -1,10 +1,16 @@
 # 11 — Ablation Matrix
 
-Status: planning. Consistent with `02-research-thesis.md` §8 (Locked Design
-Constants). This document enumerates the ablations that isolate _which part_ of
-the Pneuma-state condition is doing the work, so a reviewer cannot attribute the
-H1/H2 effect to context volume, tokens, or a lucky confound. Nothing here
-authorizes implementation, training, or runs.
+> [!WARNING]
+> **Protocol v2 supersession notice (2026-07-22).** This document is retained as
+> a historical Protocol-v1 specification. **Do not implement from it.** Use
+> `02-research-thesis.md` for the canonical scientific constants,
+> `16-protocol-v2-hardening.md` for the hardened rationale and contracts, and
+> `17-implementation-plan-v2.md` for the executable build backlog. If this file
+> conflicts with those documents, Protocol v2 governs.
+
+Status: **archived Protocol v1; non-authoritative.** The matrix below preserves
+the old ablation design and may conflict with Protocol v2. It is not the live
+causal battery or execution contract.
 
 Cross-references (conceptual — those docs are planned, not yet written):
 
@@ -121,7 +127,8 @@ must be fixed before any headline number is reported.
 
 ## 7. Minimal ablation set for the workshop paper (9 pages)
 
-For a 9-page IAB submission (`02` §8.11), the main body can carry ~6 ablations.
+For a 9-page Verify-Agents submission (`02` §8.11), the main body can carry ~6
+ablations. IAB remains the fallback venue only.
 Chosen to (a) prove H1, (b) prove H2 causally, (c) defend the four
 differentiators, and (d) pre-empt the "just reflection / just retrieval / just
 tokens" objection. Everything else moves to the appendix.

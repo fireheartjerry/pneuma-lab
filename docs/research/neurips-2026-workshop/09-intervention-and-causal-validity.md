@@ -1,11 +1,18 @@
 # 09 — Intervention and Causal Validity
 
-Status: planning. Consistent with `02-research-thesis.md` §8 (Locked Design
-Constants), especially §8.8 (DL-09). Nothing here authorizes implementation,
-training, or experiments. It fixes _how_ the causal claim (H2) is structured so
-that a real stochastic LLM agent — not only a deterministic toy mind — can carry
-it, and how the existing byte-equality machinery is preserved for the synthetic
-sub-experiments.
+> [!WARNING]
+> **Protocol v2 supersession notice (2026-07-22).** This document is retained as
+> a historical Protocol-v1 specification. **Do not implement from it.** Use
+> `02-research-thesis.md` for the canonical scientific constants,
+> `16-protocol-v2-hardening.md` for the hardened rationale and contracts, and
+> `17-implementation-plan-v2.md` for the executable build backlog. If this file
+> conflicts with those documents, Protocol v2 governs.
+
+Status: **archived Protocol v1; non-authoritative.** The material below preserves
+the old causal design and may conflict with Protocol v2. It does not define the
+live H2 contract. Historically, it described how a stochastic LLM agent—not
+only a deterministic toy subject—could carry the claim, and how the existing
+byte-equality machinery was preserved for the synthetic sub-experiments.
 
 This document is the paper's central differentiator. Prior memory/reflection work
 reports only end-task success and never intervenes on its own memory to prove
