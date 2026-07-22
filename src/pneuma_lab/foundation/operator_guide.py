@@ -25,7 +25,7 @@ class OperatorGuideError(ValueError):
     """The operator guide file cannot be checked."""
 
 
-GUIDE_TITLE = "# LOCAL LADDER AND CLOUD 2M COMPLETE — FALSIFICATION GATE PASSED"
+GUIDE_TITLE = "# LOCAL LADDER COMPLETE THROUGH 8M — DOUBLING GATE STOPPED THE LADDER"
 
 REQUIRED_GUIDE_COMMANDS = frozenset(
     {

@@ -8,11 +8,11 @@ Canonical current status: [`docs/project-status.json`](../project-status.json).
 
 ## Model pins
 
-| Role                    | Model                    | Revision                                   | Status                                |
-| ----------------------- | ------------------------ | ------------------------------------------ | ------------------------------------- |
-| Research                | `Qwen/Qwen3.5-2B`        | `15852e8c16360a2fea060d615a32b45270f8a8fc` | local 100K smoke trained (2026-07-20) |
-| Promotion candidate     | `Qwen/Qwen3.5-4B`        | `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a` | gated on the 2B falsification result  |
-| Compatibility reference | `Qwen/Qwen3.5-397B-A17B` | `8472618112abcbd45acbcdc58436aff4233c23f7` | downloads and execution forbidden     |
+| Role                    | Model                    | Revision                                   | Status                                        |
+| ----------------------- | ------------------------ | ------------------------------------------ | --------------------------------------------- |
+| Research                | `Qwen/Qwen3.5-2B`        | `15852e8c16360a2fea060d615a32b45270f8a8fc` | local ladder complete through 8M (2026-07-21) |
+| Promotion candidate     | `Qwen/Qwen3.5-4B`        | `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a` | gated on the 2B falsification result          |
+| Compatibility reference | `Qwen/Qwen3.5-397B-A17B` | `8472618112abcbd45acbcdc58436aff4233c23f7` | downloads and execution forbidden             |
 
 Junction positions are derived from the pinned `layer_types` schedule. The
 loader refuses a changed revision, hidden width, layer count, or hybrid block
@@ -64,8 +64,8 @@ fenced command in it is validated against the real CLI by
 its final checklist item — the actual `train` command — stays unchecked until
 the operator deliberately runs it. The canonical launch truth lives in
 `docs/project-status.json` under `foundation_training_launch`
-(`training_status: local_500k_stage_completed_train_lane_exhausted`,
-`optimizer_steps: 77`).
+(`training_status: local_8m_completed_doubling_gate_stopped_ladder`,
+`optimizer_steps: 1430`).
 
 ## Current authorization truth
 
@@ -73,15 +73,19 @@ The committed
 `docs/data/training-authorizations/pneuma-foundation-v0.pending.json` remains
 schema-valid and `not_authorized`; live authorizations are exact, per-stage,
 operator-approved manifests under ignored `build/foundation/authorizations/`.
-Under one such authorization the local 100K smoke stage completed on
-2026-07-20: the pinned 2B snapshot was downloaded and receipt-verified, a
-deterministic zero-weight shard was prepared twice byte-identically, and three
-authorized runs (5e-5, 1e-4, 2e-4) each finished 15 optimizer steps. The 500K
-stage then completed at the selected 2e-4 (32 optimizer steps, 200,874 tokens,
-best validation loss 3.8832) and consumed the entire ~202K-token train split
-of the single gradient-eligible OpenHands-Sampled lane — later stages are
-data-blocked until additional train lanes earn readiness. No 2M-or-later
-stage has run and no model has been promoted to the runtime.
+Under such per-stage authorizations the full local ladder completed on
+2026-07-20/21: the 100K smoke stage (three runs, 2e-4 selected), the 500K
+stage (32 steps, single-lane supply exhausted), the two-lane 2M stage (330
+steps, falsification kill gate PASSED, +28.3 points over the strongest
+baseline), a one-time cloud 2M reproduction on RunPod (under $2, pod
+terminated), and the two-lane 8M stage (693 steps, 4,193,262 tokens — the
+entire train supply; the 8M token ceiling is unreachable until new lanes
+earn readiness). The 8M falsification gate PASSED with the identical
++28.3-point margin, but the held-out resolved rate was exactly equal to the
+2M result (2180/3399 = 64.14%), so the pre-registered ≥0.5-point-per-
+doubling gate stops the ladder at 8M as a recorded negative result. 16M is
+unreachable without both new gradient lanes and a fresh doubling gain. No
+model has been promoted to the runtime.
 
 `C:\pneuma-data` is immutable input. All derived shards, checkpoints, reports,
 SQLite files, and weights belong under ignored `build/foundation/` storage.

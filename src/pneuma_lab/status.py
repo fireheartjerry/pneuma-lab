@@ -535,11 +535,11 @@ def validate_manifest(manifest: dict, *, root: Path = ROOT) -> list[str]:
         errors.append("foundation tooling status must record the implemented surface")
     if (
         foundation_program.get("training_status")
-        != "local_and_cloud_2m_completed_falsification_gate_passed"
+        != "local_8m_completed_doubling_gate_stopped_ladder"
     ):
         errors.append(
             "foundation training truth must record exactly the completed"
-            " local and cloud 2M stages with the passed falsification gate"
+            " local 8M stage with the doubling gate stopping the ladder"
         )
     if foundation_program.get("runtime_status") != "not_promoted":
         errors.append("foundation runtime must remain not_promoted")

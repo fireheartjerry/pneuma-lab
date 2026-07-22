@@ -1,6 +1,21 @@
-# LOCAL LADDER AND CLOUD 2M COMPLETE — FALSIFICATION GATE PASSED
+# LOCAL LADDER COMPLETE THROUGH 8M — DOUBLING GATE STOPPED THE LADDER
 
-The local Qwen3.5-2B ladder completed through 2M on 2026-07-20 under exact
+The 8M stage completed locally on 2026-07-21 under a fresh exact two-lane
+authorization (scope digest `3c6018f9…`, code commit `d088dc1`): run
+`foundation-8m-3c6018f9243e0f1c`, 693 optimizer steps, 4,193,262 tokens —
+the ENTIRE unquarantined two-lane train supply (22,189 records; the 8M
+token ceiling is unreachable until new lanes earn readiness) — best
+validation loss 0.0796, 296.8 tokens/second, zero thermal pauses, one
+exact-boundary checkpoint resume. The 8M four-variant falsification gate
+PASSED on the same 3,399 repo-disjoint held-out tasks (pneuma_recurrent
+64.14% vs 35.86%, +28.27 points, CI95 [0.250, 0.315]), but the held-out
+resolved rate exactly equals the 2M result (2180/3399), so the
+pre-registered ≥0.5-point-per-doubling rule returns no next stage: the
+ladder STOPS at 8M as a recorded negative result. 16M requires both new
+gradient lanes (multi-swe-bench / swe-evo readiness) and a fresh doubling
+gain.
+
+The earlier ladder: the local Qwen3.5-2B ladder completed through 2M on 2026-07-20 under exact
 per-stage operator authorizations. 100K smoke: three runs (5e-5/1e-4/2e-4),
 best validation loss 3.5085 at the selected 2e-4, ~312-339 tokens/second.
 500K: run `foundation-500k-b4b5f1da90aff5ab`, 32 steps, 200,874 tokens —
