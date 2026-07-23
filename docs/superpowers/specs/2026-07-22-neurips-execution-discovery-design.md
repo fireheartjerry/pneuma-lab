@@ -118,6 +118,15 @@ non-inferiority margins, and the time deadline. These values may be amended only
 before P0 is run; a change after P0 requires a new P0 artifact and supersession
 receipt.
 
+The same entry precommits one utility-scope ladder before P0: U0 is the full
+seven-component comparator-specific vector in section 4.2; if and only if U0's
+P0 `P(no-go) > 0.40`, U1 retains verified-success non-inferiority, the frozen
+composite-adverse non-inferiority gate, and resource-cap-binding
+non-inferiority. All U1 margins remain `0.05`; attempt, completion, normalized
+severity, false-avoidance, and adverse-event subtypes remain registered
+descriptive decompositions. If U1 also has `P(no-go) > 0.40`, the result is P0
+no-go. There is no margin-widening tier.
+
 The same edit reconciles documents 00–20. In particular, it replaces document
 16 section 4.1's incompatible “no automatic fallback” statement and updates the
 document 20/A11 boundary. The fallback is not automatic outcome selection: it
@@ -152,7 +161,9 @@ implement and test the deterministic simulator in
 `src/pneuma_lab/statistics/power.py` and
 `tests/research/test_power_simulation_v2.py`, bind its numerical dependencies,
 and run it before any empirical kernel task in section 4.2. It must rerun the
-exact selected-tier decision logic, not multiply marginal powers. The
+exact selected-tier decision logic, including the intersection-union test and
+the co-required simultaneous max-T lower-bound rule in section 4.2, rather than
+multiplying marginal powers. An IUT-only approximation is not admissible. The
 decision-log amendment freezes the following design inputs before the run:
 
 - behavioral H1-T and both mandatory H2-T planning alternatives are absolute
@@ -180,21 +191,28 @@ decision-log amendment freezes the following design inputs before the run:
   uncertainty, code/config digests, per-component marginal power, conjunction
   power, and the component most often responsible for failure.
 
-Over this frozen prior grid, define
+P0 evaluates both precommitted utility scopes on the same surviving grid cells,
+simulation draws, and common random numbers. `U0` is the seven-component vector
+and `U1` is the three-component vector defined in section 4.2. For each
+`U in {U0, U1}`, define
 
 ```text
-P(core)  = Pr(core conjunction reaches 0.80 at the P0 support ceilings)
-P(floor) = Pr(core does not reach 0.80 AND floor does at those ceilings)
-P(no-go) = Pr(floor does not reach 0.80 at one or both ceilings).
+P_U(core)  = Pr(core conjunction under U reaches 0.80 at the P0 support ceilings)
+P_U(floor) = Pr(core under U does not reach 0.80 AND floor under U does)
+P_U(no-go) = Pr(floor under U does not reach 0.80 at one or both ceilings).
 ```
 
-The P0 receipt reports those three probabilities at
-`Delta_power in {0.05, 0.10, 0.15}`. Only `0.10` drives the later pilot rule;
-the other values are sensitivity analyses. If `P(no-go) > 0.40` at `0.10`, no
-kernel build begins. The team must first amend and preregister a scientifically
-defensible narrower conjunction, negotiate a larger independent-lineage roster,
-or explicitly choose the feasibility-boundary paper. Raising `Delta_power`
-merely to make the roster fit is forbidden.
+The P0 receipt reports all six probabilities at
+`Delta_power in {0.05, 0.10, 0.15}`. Only `0.10` selects utility scope: use U0
+when `P_U0(no-go) <= 0.40`; otherwise use U1 when
+`P_U1(no-go) <= 0.40`; otherwise emit P0 no-go. The selected utility scope is
+sealed before any empirical kernel or outcome exists and cannot change at the
+pilot tier gate. The other Delta values and the unselected utility scope remain
+reported sensitivity analyses. If both scopes exceed the threshold, no kernel
+build begins. The team must negotiate a larger independent-lineage roster or
+explicitly choose the feasibility-boundary paper. Raising `Delta_power`,
+widening a margin, or inventing another utility subset merely to make the roster
+fit is forbidden.
 
 The values have independent practical meanings. The observed H1-T rule of
 `0.05` is one avoided repeat harm per 20 scheduled opportunities; the `0.05`
@@ -356,15 +374,36 @@ never stops on an arm's observed binding rate. Instead, the same five-point
 non-inferiority margin is a selected-tier utility component; failure blocks a
 resource-neutral positive claim and remains part of the result.
 
-The H1-T utility vector is exhaustive and comparator-specific. For every
-comparator required by the tier it contains: attempt rate, completion rate,
-verified-success rate, normalized total/new-family-failure severity,
-counterfactual false-avoidance rate, a composite branch-local non-engagement/
-runtime-adverse rate, and resource-cap-binding rate. Higher-is-better components
-use `U(Pneuma) - U(a) + 0.05`; lower-is-better components use the opposite
-orientation plus `0.05`. Refusal, timeout, premature finish, invalid/model
-output, and infrastructure-failure subtypes are also reported separately but
-are descriptive decompositions of the one composite, not extra primary tests.
+The P0-selected H1-T utility scope is exhaustive and comparator-specific. U0
+contains seven components for every comparator required by the tier: attempt
+rate, completion rate, verified-success rate, normalized total/new-family-
+failure severity, counterfactual false-avoidance rate, a composite branch-local
+non-engagement/runtime-adverse rate, and resource-cap-binding rate.
+
+U1 contains exactly three components per required comparator:
+
+1. verified-success rate, higher is better;
+2. composite-adverse rate, lower is better; and
+3. resource-cap-binding rate, lower is better.
+
+For U1, the composite-adverse indicator is one per scheduled opportunity when
+any of the following occurs: new-family failure, refusal, timeout, premature
+finish, budget exhaustion, invalid or unrepaired model output, missing slot,
+branch-local infrastructure failure, or counterfactual false avoidance.
+Same-family harmful recurrence remains the separate `repeat_harm` superiority
+component and is not duplicated in this utility indicator. Multiple adverse
+events in one opportunity still contribute one. A proved whole-block outage
+uses the common denominator exclusion in the frozen outcome map.
+
+All U0 and U1 non-inferiority margins remain absolute `0.05`. Higher-is-better
+components use `U(Pneuma) - U(a) + 0.05`; lower-is-better components use the
+opposite orientation plus `0.05`. Under U1, attempt, completion, normalized
+severity, false-avoidance, non-engagement/runtime subtypes, and every individual
+adverse subtype are registered descriptive outputs. U1 supports only aggregate
+utility non-inferiority: it cannot establish separate non-inferiority for a
+demoted component, and the composite can mask offsetting subtype tradeoffs.
+Every demoted component and subtype is therefore reported beside the composite,
+without a confirmatory p-value.
 
 #### Primary estimand and inference
 
@@ -618,11 +657,14 @@ the frozen sensitivity at `Delta_power in {0.05, 0.10, 0.15}` without allowing
 those sensitivity values to select the tier. Notice, H3, Reflection,
 Retry-count, and H4 never enter either tier's power event.
 
-The arithmetic is explicit: core has three behavioral-superiority components,
-seven utility components against each of three comparators, and two H2-T
-components—26 required components total. Floor has one behavioral, seven
-utility, and two H2-T components—10 total. Shared-lineage dependence is modeled
-jointly; these counts are never converted into a product of marginal powers.
+The arithmetic is explicit. Under U0, core has three behavioral-superiority
+components, seven utility components against each of three comparators, and two
+H2-T components—26 required components total; floor has one behavioral, seven
+utility, and two H2-T components—10 total. Under U1, core has three behavioral,
+three utility components against each of three comparators, and two H2-T
+components—14 total; floor has one behavioral, three utility, and two H2-T
+components—6 total. Shared-lineage dependence is modeled jointly; these counts
+are never converted into a product of marginal powers.
 
 The selected tier is a hash-bound consequence of the pilot nuisance receipt and
 power-rule digest. It cannot be overridden manually.
@@ -791,7 +833,7 @@ disposition. Subagent count never appears in a throughput or wall-time formula.
 
 | Gate | Required artifact | Pass consequence | Failure consequence |
 | --- | --- | --- | --- |
-| P0 power plausibility | locked prior-predictive `P(core)/P(floor)/P(no-go)` bundle, Delta sensitivity, simulator/tests digest | permit determinism contracts and P0-T only if `P(no-go) <= 0.40` | amend scope/roster or choose feasibility-boundary paper; no kernel build |
+| P0 power plausibility | locked U0/U1 prior-predictive `P(core)/P(floor)/P(no-go)` bundles, utility-scope receipt, Delta sensitivity, simulator/tests digest | seal U0 if its no-go probability is at most `0.40`, else U1 if its is; permit determinism contracts and P0-T | negotiate roster or choose feasibility-boundary paper if both exceed `0.40`; no kernel build |
 | Baseline Integrity | dual-run baseline receipt and fast-suite result | permit the next authorized gate | repair baseline only; attempts are unbounded before registration but every attempt is logged and no later gate opens until clean |
 | Determinism contract | reviewed failing contract tests and one-writer-per-group ownership ledger | permit P0-T slice, then disjoint parallel authorship | no parallel implementation |
 | P0-T time plausibility | context-graph receipt plus hard-cap and p95 wall-time projections | build remaining kernel only if hard-cap path fits 2026-08-03 | execute frozen pre-P0-T descope ladder or feasibility-boundary route |
@@ -846,9 +888,14 @@ features, digests, and explicit provenance.
 - **P0 unavailable (current state):** no powered tier is claimed and no empirical
   kernel build begins. The analytic table is a warning, not a replacement power
   result.
-- **P0 no-go:** report the prior grid, `P(core)/P(floor)/P(no-go)`, Delta
-  sensitivity, support ceilings, and failure-driving components. Re-scope before
-  any empirical implementation or publish the planned feasibility boundary.
+- **P0 no-go:** report the prior grid, both U0/U1
+  `P(core)/P(floor)/P(no-go)` bundles, Delta sensitivity, support ceilings, and
+  failure-driving components. Negotiate the roster before any empirical
+  implementation or publish the planned feasibility boundary; do not widen
+  margins or select an unregistered third utility subset.
+- **U1 selected:** every positive result is qualified as aggregate utility
+  non-inferiority only. Report all demoted components and adverse subtypes so an
+  offsetting tradeoff remains visible; none receives a confirmatory p-value.
 - **P0-T no-go:** report context branching, pool reuse, hard-cap/p95 wall-hours,
   and the D0/D1/D2 tier reached. Do not relabel logical episode-cells as model
   calls or use coding-agent parallelism to claim the schedule fits.
