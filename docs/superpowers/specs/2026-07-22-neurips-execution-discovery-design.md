@@ -1,7 +1,7 @@
 # NeurIPS 2026 Execution and Discovery Phase Design
 
-**Status:** revised architecture; empirical implementation blocked on the P0
-joint-power plausibility gate in section 4.0
+**Status:** revised architecture; empirical implementation blocked on statistical
+P0, then the conditional P0-T candidate-graph time gate in section 4.0
 
 **Branch:** `codex/neurips-2026-empirical`
 
@@ -83,13 +83,23 @@ rescue it.
   memory, disk, and sandbox quotas. Differential cap binding is an outcome and
   a claim gate, never a reason to change a denominator or grant an arm more
   resources.
+- Blinding is capability-enforced, not entrusted to a solo operator's memory.
+  Raw pilot bytes are encrypted and quarantined before projection; tier
+  computation can read only the sealed nuisance receipt. Every agent session has
+  a capability/access receipt.
+- An agent context that reads pilot, discovery, or confirmation outcome bytes is
+  permanently outcome-tainted. That context and every descendant context are
+  forbidden from authoring or modifying tier, power, or confirmatory-analysis
+  code. The tier decision executes in a fresh context against sealed inputs.
+- Subagents may parallelize disjoint authorship after determinism contracts are
+  frozen; they are never counted as model-inference throughput or schedule slack.
 - No RunPod action, pod creation, paid image pull, or paid model call occurs
   without the explicit approval gate in section 9.2.
 
 ## 3. Pre-pilot protocol amendment
 
 Before any nuisance-pilot data are opened, one decision-log entry must record
-all four linked decisions and their consequences:
+all five linked decisions and their consequences:
 
 1. adopt I1, I2, I3, I5, and I7 as the approved core revision; size I4 in the
    pilot, retain I6 as a diagnostic, use I8 as the H3 falsifier/demotion rule,
@@ -97,7 +107,9 @@ all four linked decisions and their consequences:
 2. replace the undefined fallback with the monotone core → floor → no-go rule;
 3. require an additive discovery band whose effect cannot gate confirmation;
 4. require a digest-sealed nuisance kernel and a mutually disjoint seed-band
-   ledger.
+   ledger; and
+5. require context-keyed candidate-pool sharing, the P0-T time gate, capability-
+   scoped agent sessions, and outcome-context taint propagation.
 
 That single entry also freezes the P0 prior-predictive nuisance grid, the
 H2-T planning alternatives, the outcome-coding table in section 4.2, the
@@ -211,6 +223,52 @@ cross-component dependence, utility gates, H2-T, and the 48-sequence clamp
 ceiling. It is an auditable warning that a complete conjunction can fail even
 when a marginal contrast looks conventional.
 
+#### P0-T candidate-graph time plausibility gate
+
+P0-T runs only if statistical P0 permits further work. Before the rest of the
+empirical kernel, it authorizes one minimal local slice:
+`src/pneuma_lab/agent/{backend,ollama_backend,sandbox,tools,actions,candidate_prompt,repair,candidate_pool,metering,driver}.py`
+and the minimum experiment authorization seam, together with their determinism,
+firewall, fake-backend, and one bounded primary-checkpoint spike tests. Static
+fixture-only tasks exercise context divergence; no endpoint or treatment-effect
+outcome is computed.
+
+Candidate sharing is keyed by the complete pre-action generation context:
+checkpoint/quantization and decoding digests, prompt/scaffold and tool-schema
+digests, actor-visible current context, declared text-memory context if any,
+sandbox snapshot digest, sequence/opportunity/challenge/seed, candidate-call
+ordinal, repair state, and a pool seed derived without a configuration id.
+Controller state, pressure, condition identity, intervention metadata, and
+outcome/evaluator fields are forbidden key or prompt inputs.
+
+One candidate batch is generated and receipt-bound per exact context key, then
+fanned out byte-identically to every selection configuration with that key. Each
+configuration reranks independently. Once selected actions or observable
+histories diverge, their context keys diverge and they receive separate live
+candidate calls. A later byte-identical context may share again. Tool execution
+and downstream outcomes are not shared unless the determinism manifest
+separately proves that operation pure; the default is independent cloned live
+execution. There is no global one-pool-per-episode shortcut and no off-policy
+one-step proxy for full `repeat_harm`.
+
+Thus the 28,800 selection episode-cells are logical policy evaluations and
+scoring operations, not automatically 28,800 model generations. The 360
+`60 lineages × 3 challenges × 2 seeds` pools are only the first-decision nodes.
+The candidate-graph receipt separately reports total unique context nodes,
+fan-out per node, decision depth, divergence/reconvergence, actual model calls,
+tokens, tool calls, cache hits, and cache-key collision checks.
+
+P0-T uses a fixture-only six-lineage seed band, one lineage per motif, disjoint
+from throwaway, selection, pilot, discovery, confirmation, and B-live. It
+projects the complete 60-lineage selection band twice: once from configured hard
+caps and once from p95 observed context-node growth and model/tool use. The
+hard-cap projection determines authorization; p95 is reported as operational
+expectation only. Both projections use section 9.1's measured throughput and
+deadline. P0-T applies section 9.1's precommitted D0→D1→D2 rule; if D2 misses
+2026-08-03, no remaining kernel work begins. Any different descope requires a
+signed amendment and a fresh P0-T run. P0-T may not change grid members,
+selection outcomes, endpoints, or scientific constants.
+
 ### 4.1 Baseline Integrity Gate
 
 Review and narrowly commit the accelerated test policy currently present in
@@ -224,6 +282,15 @@ ambiguous shorthand “G0” in execution-facing documents so it cannot be confu
 with the powered lineage count $G^\star$.
 
 ### 4.2 Build the confirmation-grade nuisance kernel
+
+Before parallel authorship begins, write and review the failing determinism and
+firewall contract tests for every module group in section 4.5. These tests own
+canonical serialization, seed derivation, candidate-context keys, state/head
+purity, outcome totality, power RNG, and manifest replay. Only after that test
+commit is frozen may subagents implement disjoint module groups. An ownership
+ledger permits one writer at a time per manifest group; cross-group interface
+changes require the contract owner to update and re-freeze tests before parallel
+work resumes.
 
 Build only the code that contributes to nuisance estimation, tier power, the
 first result, or the causal identification floor. Every element is implemented
@@ -360,20 +427,32 @@ ten per motif, disjoint by lineage and seed, for matched controller development.
 It is the only efficacy-bearing development source allowed to choose scalar and
 Pneuma constants.
 
+Execution uses the P0-T context-keyed candidate graph. A `CandidateBatch` is a
+common randomized pre-action object only for configurations whose full
+generation-context key is identical. Every such configuration receives the
+same bytes and performs its own deterministic rerank and live continuation.
+Sharing stops at the first context divergence. The out-of-fold score is always
+the full live fixed-denominator outcome; cached candidate generation never
+becomes an off-policy or candidate-label proxy.
+
 Selection uses five highest-lineage-blocked outer folds and four inner folds.
-`controller-search-space.json` contains exactly 16 unique, pre-enumerated
-configurations for each of five families: last-failure bit, cumulative count,
-EWMA hazard, Beta-posterior hazard, and Pneuma. Thus the Pneuma grid cardinality
-is 16, each scalar-family cardinality is 16, and the scalar competition receives
-64 total candidates. Adaptive additions, duplicate padding, and unlogged manual
-trials are forbidden. Selection then proceeds as follows:
+`controller-search-space.json` contains the D0 master of exactly 16 unique,
+pre-enumerated configurations for each of five families: last-failure bit,
+cumulative count, EWMA hazard, Beta-posterior hazard, and Pneuma, plus the frozen
+D1/D2 subset labels from section 9.1. P0-T selects one equal family cardinality:
+16, eight, or four. The scalar competition therefore receives 64, 32, or 16
+total candidates against Pneuma's 16, eight, or four. Adaptive additions,
+duplicate padding, and unlogged manual trials are forbidden. Selection then
+proceeds as follows:
 
 - inside each outer fold, inner folds search the complete last-failure-bit,
   count, EWMA, and Beta-posterior scalar grids plus the preregistered Pneuma
   grid; the chosen inner-fold configurations are evaluated only on that
   outer-held-out fold;
 - the scalar receives at least the same attempted configurations, episodes,
-  candidate selections, and model-call budget as Pneuma;
+  candidate selections, and logical candidate-access budget as Pneuma. Physical
+  shared-pool calls are recorded once in the pool ledger rather than falsely
+  multiplied across configurations;
 - aggregate outer-held-out predictions estimate fixed-denominator harm reduction
   and utility out of fold for each controller family;
 - the frozen objective first requires validity/parity and utility gates, then
@@ -408,7 +487,7 @@ manifest containing hashes for:
 1. Suite-A injector, oracle, motif and lineage registries, nested schedule, and
    sandbox builder;
 2. Base, Retrieval, selected scalar, Pneuma, InfluenceOff, clamp schedule, and
-   shared candidate/decision machinery;
+   shared candidate/context-key/decision machinery;
 3. endpoint, utility, adverse-event, complete-block, and outage logic;
 4. nuisance projector, core/floor power rules, inference code, numerical
    dependencies, and analysis seeds;
@@ -416,17 +495,21 @@ manifest containing hashes for:
    environment lock, and source commit; and
 6. every development receipt and selected-controller artifact.
 
-The manifest also owns an enumerated seed-band ledger for throwaway,
+The manifest also binds the agent-session capability ledger, context-taint
+ancestry, raw-band encryption public key, projector/tier capability digests, and
+protected-code path set in section 6.
+
+The manifest also owns an enumerated seed-band ledger for P0-T, throwaway,
 scalar-selection, 30-lineage pilot, additive discovery, frozen 96-sequence
 confirmation, and B-live. Each entry binds its generator version, allowed seed
 support, highest-lineage digests, purpose, and forbidden consumers. Validation
-proves pairwise disjointness and asserts that throwaway, selection, pilot, and
-discovery instances are newly minted rather than carved from the 96-sequence
-confirmation roster.
+proves pairwise disjointness and asserts that P0-T, throwaway, selection, pilot,
+and discovery instances are newly minted rather than carved from the
+96-sequence confirmation roster.
 
-The ledger fixes the nominal bands at six throwaway lineages, 60 selection
-lineages, 30 pilot lineages, 12 discovery lineages, 96 confirmation sequences,
-and 36 B-live sequences. Each entry includes both `sequence_id` and
+The ledger fixes the nominal bands at six fixture-only P0-T lineages, six
+throwaway lineages, 60 selection lineages, 30 pilot lineages, 12 discovery
+lineages, 96 confirmation sequences, and 36 B-live sequences. Each entry includes both `sequence_id` and
 `lineage_id`; confirmation records the computed `G_max` after conservative
 ancestry merging. “No band carved from the 96” is a machine-checked invariant,
 not prose metadata.
@@ -456,6 +539,12 @@ seed, source, configuration, and numerical lock is required for:
    authorization receipts, and result-bundle indexes after volatile timestamps
    are excluded from the hashed payload by one frozen serializer.
 
+The same byte-stability requirement applies to
+`src/pneuma_lab/agent/candidate_pool.py` context keys, pool-seed derivation,
+fan-out order, and cache receipts. Candidate model output itself remains
+stochastic; identical sharing means one realized receipt-bound batch is reused,
+not that repeated model calls are claimed byte-identical.
+
 Live model tokens/actions, external tool latency, OS scheduling, and wall-clock
 timestamps are explicitly stochastic and receive no byte-stability claim.
 Their prompts, caps, seeds, inputs, outputs, ordering, and environment are bound
@@ -474,6 +563,18 @@ lineage cross-condition covariance, variance, and ICC structure required for
 paired power. It also exposes detector/oracle error, attrition, runtime, and
 resource nuisance quantities. It masks condition identities, mean contrasts,
 efficacy ordering, and treatment-effect sign.
+
+The pilot runner writes append-only encrypted outcome chunks using a
+manifest-bound projector public key and has no decrypt capability. The projector
+capability alone may decrypt inside a fresh process, emit the signed nuisance
+receipt, append its read/write audit, and reseal raw bytes into quarantine; it
+has no source-write or tier-decision capability. The tier capability runs in a
+fresh agent/process context, can read only the manifest, signed nuisance receipt,
+and frozen power executable, and emits the tier receipt. Direct raw-byte access,
+a missing access receipt, a tainted tier context, or a protected-code write after
+raw access invalidates the pilot. With one OS owner this prevents accidental and
+tool-mediated leakage; it is not represented as independent-party blinding
+against a malicious machine administrator.
 
 Run the locked joint-power simulator at `Delta_power = 0.10`, true utility
 differences zero, the absolute `0.05` non-inferiority margins, and at least 80%
@@ -654,15 +755,50 @@ discovery, confirmation, B-live, and paid execution capabilities are not
 interchangeable. A capability validates its band, manifest, task digests, source
 commit, and maximum model/resource calls before the guarded operation begins.
 
+### 6.1 Agent-session capability and context-taint firewall
+
+Every human or agent operation carries a manifest-bound `session_id`, parent
+context ids, capability, readable path prefixes, writable path prefixes, source
+commit, and append-only access log. The minimum capability classes are:
+
+| Capability | May read | May write | Forbidden |
+| --- | --- | --- | --- |
+| Contract/source author | Frozen docs, tests, fixtures, source | Assigned source/test group | Every pilot/discovery/confirmation outcome path |
+| Band runner | Frozen executable inputs and encrypted-output public key | Encrypted raw chunks and run receipts only | Decryption, source/docs, tier or analysis output |
+| Nuisance projector | Encrypted pilot chunks via private projector capability | Signed blinded nuisance receipt and audit only | Source/docs, arm map, mean contrasts, tier receipt |
+| Fresh tier decider | Manifest, blinded nuisance receipt, frozen power executable | Tier receipt only | Raw outcomes, source/docs, manual override |
+| Result analyst | Sealed discovery/confirmation outcomes and frozen analysis executable | Immutable result bundle only | Source/docs, tier/power/analysis-code writes |
+| Incident custodian | Encrypted/quarantined bytes and integrity telemetry | Quarantine and incident receipts only | Efficacy analysis and protected-code writes |
+
+Reading any raw or unblinded pilot, discovery, or confirmation outcome marks the
+session and all descendant contexts `outcome_tainted=true` permanently. The
+capability layer then denies writes to the protected set:
+`src/pneuma_lab/statistics/{power,config,randomization,bootstrap,multiplicity,decision_regions}.py`,
+`src/pneuma_lab/experiment/{analysis,preregistration,official_gate,official_executor}.py`,
+their tests and schemas, the frozen outcome map, and the decision-log/spec
+sections governing tier or inference. Renaming a file or creating an alternate
+analysis path does not evade the set: an import-graph and artifact-role audit
+classifies new equivalents fail-closed.
+
+A “fresh” tier context has no parent that is outcome-tainted, inherits no prior
+conversation/transcript or scratch state, and receives only the three allowed
+sealed inputs. Context separation is proved by the session ancestry/access
+receipt and operating-system process boundary, not asserted in prose. Any
+violation invalidates the affected band and triggers section 4.8's incident
+disposition. Subagent count never appears in a throughput or wall-time formula.
+
 ## 7. Gates, artifacts, and failure behavior
 
 | Gate | Required artifact | Pass consequence | Failure consequence |
 | --- | --- | --- | --- |
-| P0 power plausibility | locked prior-predictive `P(core)/P(floor)/P(no-go)` bundle, Delta sensitivity, simulator/tests digest | begin empirical kernel only if `P(no-go) <= 0.40` | amend scope/roster or choose feasibility-boundary paper; no kernel build |
-| Baseline Integrity | dual-run baseline receipt and fast-suite result | build kernel | repair baseline only; attempts are unbounded before registration but every attempt is logged and no later gate opens until clean |
+| P0 power plausibility | locked prior-predictive `P(core)/P(floor)/P(no-go)` bundle, Delta sensitivity, simulator/tests digest | permit determinism contracts and P0-T only if `P(no-go) <= 0.40` | amend scope/roster or choose feasibility-boundary paper; no kernel build |
+| Baseline Integrity | dual-run baseline receipt and fast-suite result | permit the next authorized gate | repair baseline only; attempts are unbounded before registration but every attempt is logged and no later gate opens until clean |
+| Determinism contract | reviewed failing contract tests and one-writer-per-group ownership ledger | permit P0-T slice, then disjoint parallel authorship | no parallel implementation |
+| P0-T time plausibility | context-graph receipt plus hard-cap and p95 wall-time projections | build remaining kernel only if hard-cap path fits 2026-08-03 | execute frozen pre-P0-T descope ladder or feasibility-boundary route |
 | Injector validity | throwaway-band oracle/endpoint report | start selection | repair, regenerate throwaway band |
-| Controller selection | 60-lineage nested-CV ledger, 16×5 search manifest, stability and selected-artifact receipt | seal manifest | no pilot; instability or repair requires amendment and fresh selection band |
+| Controller selection | 60-lineage nested-CV ledger, P0-T-selected D0/D1/D2 search manifest, stability and selected-artifact receipt | seal manifest | no pilot; instability or repair requires amendment and fresh selection band |
 | Kernel seal | manifest plus disjoint seed-band ledger | authorize pilot | no pilot |
+| Context firewall | capability matrix, encryption/key receipt, session ancestry, protected-path and access-log audit | authorize each outcome-bearing capability | affected band invalid; quarantine and incident report |
 | Feasibility | bounded nuisance receipt, core/floor power bundles, `G_max`/causal-support comparison, tier receipt | build/run selected tier | no-go below floor |
 | Discovery validity | digest-equality receipt and immutable descriptive result | confirmation remains authorized | stop only for pipeline invalidity |
 | Time feasibility | measured section 9.1 ledger and deadline slack | authorize each run band | shrink/amend before selection or stop; never trim a frozen run |
@@ -686,6 +822,8 @@ features, digests, and explicit provenance.
 | Branch-local adverse and only proved whole-block exclusion | Injector validity; endpoint totality; confirmation analysis receipt |
 | No pilot/discovery/confirmation efficacy-driven tuning | Controller-selection provenance; nuisance blinding; feasibility and discovery-validity gates |
 | Equal ex-ante resources and differential binding as outcome | Injector validity; parity receipt; H1-T utility gate |
+| Capability-enforced blinding and permanent context taint | Context firewall; projector and fresh-tier receipts; discovery/confirmation analyst receipts |
+| Subagents provide no inference-speed credit | Determinism contract; P0-T and section 9.1 ledgers |
 | No paid action without approval | Time feasibility; Paid compute capability and one-use reservation |
 
 ## 8. Verification and interpretation
@@ -711,6 +849,9 @@ features, digests, and explicit provenance.
 - **P0 no-go:** report the prior grid, `P(core)/P(floor)/P(no-go)`, Delta
   sensitivity, support ceilings, and failure-driving components. Re-scope before
   any empirical implementation or publish the planned feasibility boundary.
+- **P0-T no-go:** report context branching, pool reuse, hard-cap/p95 wall-hours,
+  and the D0/D1/D2 tier reached. Do not relabel logical episode-cells as model
+  calls or use coding-agent parallelism to claim the schedule fits.
 - **Core positive:** Pneuma beats Base, Retrieval, and the visibly strong scalar
   while utility gates pass, and InfluenceOff/clamp evidence supports causal
   state influence. Credit the four-variable controller only to the extent that
@@ -720,7 +861,7 @@ features, digests, and explicit provenance.
 - **Floor positive:** claim only persistent causally active state versus no
   persistent state. Do not claim protection against a renamed counter.
 - **InfluenceOff equivalent to Pneuma:** the implemented state is epiphenomenal;
-  H2 is practically refuted even if a behavioral contrast exists.
+  H2-T is practically refuted even if a behavioral contrast exists.
 - **Pipeline-valid null/negative:** report the interval and practical decision.
   Do not call failure to reject “no effect.”
 - **ITT/sensitivity split:** ITT determines the claim. A materially different
@@ -744,13 +885,15 @@ and memory permit.
 ### 9.1 Wall-clock ledger and deadline gate
 
 The time budget is binding even when dollar cost is zero. One **episode-cell** is
-one condition/configuration × sequence × challenge × decoding-seed execution.
-Suite A has three challenges and two seeds. The planned primary-path caps are:
+one condition/configuration × sequence × challenge × decoding-seed logical
+execution. It is not synonymous with one model call. Suite A has three
+challenges and two seeds. The planned primary-path caps are:
 
 | Band | Exact episode-cell cap before retries | Purpose |
 | --- | ---: | --- |
 | Throwaway | `6 lineages × 5 arms × 3 × 2 = 180` | Injector/oracle/endpoint and resource validity |
-| Selection | `60 lineages × (4 scalar families + Pneuma) × 16 configs × 3 × 2 = 28,800` | Five-fold nested-CV controller selection; fixed config outcomes are generated once and access-controlled across folds |
+| P0-T | six fixture-only lineages; model calls set by unique context nodes | Candidate-graph branching and wall-time plausibility only |
+| Selection | `60 lineages × (4 scalar families + Pneuma) × 16 configs × 3 × 2 = 28,800` logical evaluations | Five-fold nested-CV live controller selection over context-keyed shared candidate pools |
 | Pilot | `30 lineages × 5 arms × 3 × 2 = 900` | Core nuisance estimation |
 | Discovery floor/core | `12 × 3 × 3 × 2 = 216` / `12 × 5 × 3 × 2 = 360` | First descriptive result |
 | Confirmation floor/core | `96 × 3 × 3 × 2 = 1,728` / `96 × 5 × 3 × 2 = 2,880` | Nominal execution capacity; power still uses `G_max` |
@@ -765,22 +908,41 @@ secondaries receive a separate post-primary ledger and cannot delay or borrow
 from the selected-tier run.
 
 A local light spike before each new execution class measures, separately for
-model and tool work: p50/p95 model calls per episode-cell, input/output tokens,
-sustained p10 tokens/second, fixed call latency, sandbox/tool seconds, memory,
-disk I/O, safe parallel workers, retry rate, and checkpoint-load/setup time.
-For band `b`, the receipt computes
+model and tool work: unique context nodes, fan-out, p50/p95 model calls per
+logical episode-cell, input/output tokens, sustained p10 tokens/second, fixed
+call latency, sandbox/tool seconds, memory, disk I/O, safe physical inference
+workers, retry rate, and checkpoint-load/setup time. For band `b`, the receipt
+computes and reports both projections:
 
 ```text
-model_hours_b = sum(call_token_cap / measured_p10_tokens_per_second
-                    + p95_fixed_call_seconds) / (3600 * safe_workers)
-tool_hours_b  = sum(p95_tool_and_sandbox_seconds) / (3600 * safe_workers)
-wall_hours_b  = 1.25 * (model_hours_b + tool_hours_b + setup_hours_b)
+cap_model_hours_b = sum(max_context_nodes * max_calls_per_node
+                        * token_cap / measured_p10_tokens_per_second
+                        + max_calls * fixed_call_cap_seconds)
+                    / (3600 * safe_physical_workers)
+p95_model_hours_b = sum(p95_context_nodes * p95_calls_per_node
+                        * p95_tokens / measured_p10_tokens_per_second
+                        + p95_calls * p95_fixed_call_seconds)
+                    / (3600 * safe_physical_workers)
+cap_wall_hours_b = 1.25 * (cap_model_hours_b + cap_tool_hours_b + setup_hours_b)
+p95_wall_hours_b = 1.25 * (p95_model_hours_b + p95_tool_hours_b + setup_hours_b)
 ```
 
-The sum uses episode-cell **caps**, not optimistic observed means, and the 1.25
-factor is contingency, not spare experimental capacity. A content-addressed
-fixed-configuration result may be read by multiple CV folds but is executed
-once; rerunning it consumes the retry ledger and never erases the first receipt.
+The hard gate uses `cap_wall_hours`; p95 is operational context, not permission.
+The 1.25 factor is contingency, not spare experimental capacity. A
+content-addressed fixed-configuration result may be read by multiple CV folds
+but is executed once; rerunning it consumes the retry ledger and never erases
+the first receipt. `safe_physical_workers` counts measured model-serving slots,
+not coding subagents or agent sessions.
+
+Before P0-T, `controller-search-space.json` freezes nested, equal-cardinality
+configuration sets for every scalar family and Pneuma: D0 has 16 per family, D1
+has eight, and D2 has four. D1 and D2 are deterministic maximin-coverage subsets
+of D0's normalized hyperparameter coordinates, selected without outcomes. P0-T
+applies the monotone time rule: use D0 if its hard-cap path meets the deadline;
+otherwise D1; otherwise D2; otherwise selection is time no-go. Their logical
+selection sizes are 28,800, 14,400, and 7,200. Any descope weakens the
+strongest-scalar falsifier and is recorded in the claim limitation; it never
+changes the 60-lineage band or uses efficacy.
 
 Hard milestones are inherited from the publication plan: kernel and selection
 seal by 2026-08-03, pilot by 2026-08-06, tier/preregistration by 2026-08-09,
@@ -791,6 +953,15 @@ fit its milestone. If it does not, the run is no-go until scope is amended
 before selection or compute is explicitly approved under section 9.2. No frozen
 band is trimmed, parallelized beyond measured safety, or stopped on efficacy to
 save the schedule.
+
+The dated stop/descope triggers are: P0 and its decision-log inputs sealed by
+2026-07-25; determinism contracts and P0-T tier D0/D1/D2 sealed by 2026-07-27;
+throwaway and controller-selection execution authorized by 2026-07-29;
+selection immutable by 2026-08-03; pilot immutable by 2026-08-06; and the tier
+receipt sealed by 2026-08-09. Missing the first three triggers moves immediately
+to the next precommitted time tier or the feasibility-boundary paper; missing
+selection, pilot, or tier triggers forbids confirmation for this deadline. A
+coding subagent cannot extend any trigger.
 
 ### 9.2 Paid-compute approval
 
@@ -827,11 +998,16 @@ state without leaving the implementer to decide:
 - which nuisance bound and power alternative drive feasibility;
 - whether resource failures, partial rosters, and interrupted runs are handled;
 - whether the wall-clock critical path meets the publication deadline;
+- which candidate-generation contexts may share one realized pool;
+- which agent capability may read each band's bytes;
+- which context ancestry is permanently disqualified from protected code; and
+- which dated descope or stop trigger applies;
 - what discovery can gate;
 - when RunPod is permitted; or
 - how positive, null, negative, invalid, and infeasible outcomes are reported.
 
-This document authorizes planning plus local implementation/testing of P0 only.
-The empirical kernel remains blocked until P0 passes. It does not authorize the
-nuisance pilot, discovery run, confirmation, training, or paid compute by
-itself.
+This document authorizes planning plus local implementation/testing of
+statistical P0. If P0 passes, it conditionally authorizes only the frozen
+determinism contracts and minimal P0-T slice. The remaining empirical kernel is
+blocked until P0-T passes. It does not authorize the nuisance pilot, discovery
+run, confirmation, training, or paid compute by itself.
