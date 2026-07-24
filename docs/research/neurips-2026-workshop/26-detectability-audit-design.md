@@ -53,6 +53,93 @@ Therefore:
   the detectable effect roughly **10–14×** — one order of magnitude. Not two. Any draft
   claiming two is wrong.
 
+## 2b. The exact statistics
+
+**Paired comparison** on the same binary-scored items — the usual case, since these papers
+compare a memory-augmented system against its own ablation on identical items. Let
+$D_i = Y_{Ai} - Y_{Bi} \in \{-1,0,1\}$ and let $d = P(D_i \neq 0) = p_{10} + p_{01}$ be the
+discordance rate. Then
+
+$$
+\mathrm{MDE}(\rho_D) \approx \left(z_{1-\alpha/2} + z_{1-\beta}\right)
+\sqrt{\frac{d \cdot \mathrm{DEFF}_D(\rho_D)}{n}}, \qquad
+\mathrm{DEFF}_D(\rho_D) = 1 + (m-1)\rho_D
+$$
+
+The binding quantity is the **discordance rate**, not either system's accuracy — McNemar
+analyses only discordant pairs. Multiplier is $1.96 + 0.842 = 2.802$ two-sided, or
+$1.645 + 0.842 = 2.487$ one-sided.
+
+**Unpaired**, equal allocation, $n$ per arm, reference rate $p_0$:
+
+$$
+\mathrm{MDE}(\rho) \approx \left(z_{1-\alpha/2}+z_{1-\beta}\right)
+\sqrt{\frac{2p_0(1-p_0)\,\mathrm{DEFF}(\rho)}{n}}
+$$
+
+**Three technical constraints that must not be violated:**
+
+1. **$\rho_D$ is the ICC of the paired contrast $D_i$, not of raw correctness.** Pairing can
+   remove shared item difficulty, so mechanically applying a raw-score ICC is wrong and may
+   be far too pessimistic. Where a paper's comparison is paired, the grid is over $\rho_D$
+   and the doc says so.
+2. **With few clusters, $z$ is the wrong critical value.** Design-effect arithmetic does not
+   solve the degrees-of-freedom problem; small-sample cluster-level critical values are
+   required and the correction is reported.
+3. **Defaults are two-sided $\alpha = 0.05$ and 80% power.** One-sided is defensible only for
+   a genuinely precommitted directional question, which these papers do not have (0/10
+   pre-specify any decision rule).
+
+**Single-cluster designs.** With all observations from one cluster, between-cluster variance
+and ICC are not estimable, so there is no identified design effect, no cluster-robust standard
+error, and no MDE for generalization — only an assumption-indexed one. The
+cluster-randomized-trial literature states this directly (Murray et al.; Eldridge et al.), and
+one cluster in total is strictly more restrictive than one cluster per condition.
+
+**The sentences we may and may not write.**
+
+Licensed:
+
+> Published item and cluster counts do not identify a unique effective sample size or minimum
+> detectable effect for claims generalizing beyond the observed conversations, repositories,
+> websites, or simulations. Under an equal-size exchangeable-cluster working model we report
+> ICC-indexed sensitivity ranges rather than point estimates; every reported MDE is
+> conditional on the stated ICC, cluster size, discordance or base rate, and testing
+> assumptions.
+
+Forbidden:
+
+> ~~The study's effective sample size was the number of clusters.~~ (sets $\rho = 1$ silently)
+
+> ~~The study could not detect effects smaller than $x$.~~ — unless $x$ carries its full
+> qualification: _under $\rho = 0.10$, equal cluster sizes, two-sided 0.05, 80% power, and
+> the stated discordance rate._
+
+The strongest public-information claim is about **non-identification and sensitivity**, never
+about a study's true power.
+
+## 2c. Two precedents found late, and how we stand against them
+
+| Work                                                                                                                                              | Status                                | What it owns                                                                                                                                                                   | What it leaves                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Siska, Marazopoulou, Ailem & Bono**, _Examining the robustness of LLM evaluation to the distributional assumptions of benchmarks_, **ACL 2024** | **VERIFIED by fetch**                 | The closest peer-reviewed precedent for the core insight: correlation across test prompts is non-random, and accounting for it **changes model rankings** on major benchmarks. | Test-prompt correlation within a benchmark, not hierarchical nesting in conversations, repositories, or simulations. Concerns model _rankings_, not what a study could detect. No design effects, no ICC, no MDE. Does not audit published claims. |
+| **TMLS AI Research (2026)**, _eval sample complexity_ — benchmark MDE atlas with explicit DEFF treatment for templates and conversations          | **UNVERIFIED — URL returns HTTP 403** | Described as the closest exact precedent.                                                                                                                                      | Unknown.                                                                                                                                                                                                                                           |
+
+**Siska must be cited in the introduction's first paragraph.** Failing to cite the ACL paper
+that established non-independence in LLM benchmarks would, on its own, justify rejection.
+
+**The TMLS report is an open risk and a blocking obligation.** Per this project's standing
+rule an unverifiable citation is dropped rather than softened — but a 403 is not evidence of
+absence. It must be resolved before submission by another route (direct contact, a mirror, or
+a search for a published version). If it does what it is described as doing, our contribution
+narrows to the agent-memory corpus and the claimed-effect-versus-MDE comparison, and the paper
+must say so plainly.
+
+**Revised air gap, stated honestly:** no _peer-reviewed_ work systematically reanalyzes
+published **agent-memory** claims with ICC-sensitivity MDEs at the conversation, repository, or
+simulation level, and none compares a paper's claimed effect against what its own design could
+have detected. Novelty must not be overstated relative to Siska or to the TMLS report.
+
 ## 3. What each paper contributes to the table
 
 Per system, from the frozen nine-field rubric in `22-audit-rubric.md`, plus:
