@@ -99,7 +99,7 @@ rescue it.
 ## 3. Pre-pilot protocol amendment
 
 Before any nuisance-pilot data are opened, one decision-log entry must record
-all five linked decisions and their consequences:
+all six linked decisions and their consequences:
 
 1. adopt I1, I2, I3, I5, and I7 as the approved core revision; size I4 in the
    pilot, retain I6 as a diagnostic, use I8 as the H3 falsifier/demotion rule,
@@ -109,14 +109,19 @@ all five linked decisions and their consequences:
 4. require a digest-sealed nuisance kernel and a mutually disjoint seed-band
    ledger; and
 5. require context-keyed candidate-pool sharing, the P0-T time gate, capability-
-   scoped agent sessions, and outcome-context taint propagation.
+   scoped agent sessions, and outcome-context taint propagation; and
+6. target 48 highest-dependency confirmation lineages—eight per motif, with two
+   nested sequences per lineage—and give all 96 confirmation sequences the
+   randomized clamp so behavioral and causal support share the same lineage
+   ceiling.
 
 That single entry also freezes the P0 prior-predictive nuisance grid, the
 H2-T planning alternatives, the outcome-coding table in section 4.2, the
 selection-band size and grid cardinalities, the observed-effect and
-non-inferiority margins, and the time deadline. These values may be amended only
-before P0 is run; a change after P0 requires a new P0 artifact and supersession
-receipt.
+non-inferiority margins, `G_max_expected = 48`, the support-sensitivity floor
+of 24 lineages, full causal coverage, and the time deadline. These values may be
+amended only before P0 is run; a change after P0 requires a new P0 artifact and
+supersession receipt.
 
 The same entry precommits one utility-scope ladder before P0: U0 is the full
 seven-component comparator-specific vector in section 4.2; if and only if U0's
@@ -128,10 +133,14 @@ descriptive decompositions. If U1 also has `P(no-go) > 0.40`, the result is P0
 no-go. There is no margin-widening tier.
 
 The same edit reconciles documents 00–20. In particular, it replaces document
-16 section 4.1's incompatible “no automatic fallback” statement and updates the
-document 20/A11 boundary. The fallback is not automatic outcome selection: it
-is a pre-pilot rule driven only by the blinded nuisance projection and locked
-joint-power calculation.
+16 section 4.1's incompatible “no automatic fallback” statement, updates the
+document 20/A11 boundary, and supersedes the 48-**sequence** causal subroster in
+document 02 section 8.12 and document 17/DL-44 with full 96-sequence causal
+coverage over the expected 48 lineages. Documents 15, 16, and 20 carry one
+linked decision-log/traceability entry; documents 02 and 17 receive the matching
+roster correction in the same pre-P0 edit. The fallback is not automatic
+outcome selection: it is a pre-pilot rule driven only by the blinded nuisance
+projection and locked joint-power calculation.
 
 The amendment must say explicitly that the floor drops Retrieval and the
 strongest scalar condition. It therefore forfeits the “not a renamed counter”
@@ -186,11 +195,17 @@ following design inputs before the run:
   product of their dimension weights; effect/discordance-incompatible or
   non-positive-semidefinite cells are rejected by frozen rules and surviving
   weights are renormalized;
-- because the concrete registry is not built before P0, P0 uses the deliberately
-  optimistic ceilings of 96 distinct behavioral lineages and 48 distinct clamp
-  lineages and repeats the screen at behavioral ceilings `{48, 64, 80, 96}`;
-  the later manifest/pilot decision replaces those ceilings with the actual
-  distinct conservative lineage counts and can only reduce feasibility; and
+- because the concrete registry is not built before P0, the official P0 gate
+  uses `G_max_expected = G_causal_expected = 48`: eight independently authored
+  highest-dependency lineages per motif and two nested confirmation sequences
+  per lineage. All 96 sequences receive the randomized clamp. P0 also computes
+  the common behavioral-and-causal support curve for every integer
+  `G in [24, 96]` and highlights `{24, 32, 48, 64, 80, 96}`. Values above 48
+  are counterfactual roster-expansion sensitivities and cannot authorize the
+  current roster; values below 48 show the consequence of conservative ancestry
+  merges. A sealed registry with actual `G_max < 24` is no-go before the pilot;
+  otherwise the later manifest/pilot decision replaces 48 with the actual
+  conservative count and can only reduce feasibility; and
 - official mode uses at least 10,000 deterministic decision-pipeline draws per
   surviving grid cell and adaptively increases to 100,000 whenever the 99%
   Monte Carlo interval intersects the `0.80` boundary. It emits Monte Carlo
@@ -254,25 +269,33 @@ selection/pilot/discovery/confirmation outcomes.
 P0 evaluates both precommitted utility scopes on the same surviving grid cells,
 simulation draws, and common random numbers. `U0` is the seven-component vector
 and `U1` is the three-component vector defined in section 4.2. For each
-`U in {U0, U1}`, define
+`U in {U0, U1}` and support count `G`, define
 
 ```text
-P_U(core)  = Pr(core conjunction under U reaches 0.80 at the P0 support ceilings)
-P_U(floor) = Pr(core under U does not reach 0.80 AND floor under U does)
-P_U(no-go) = Pr(floor under U does not reach 0.80 at one or both ceilings).
+P_U^G(core)  = Pr(core conjunction under U reaches 0.80 with G behavioral
+                  and the same G causally covered lineages)
+P_U^G(floor) = Pr(core under U does not reach 0.80 AND floor under U does)
+P_U^G(no-go) = Pr(floor under U does not reach 0.80).
 ```
 
-The P0 receipt reports all six probabilities at
-`Delta_power in {0.05, 0.10, 0.15}`. Only `0.10` selects utility scope: use U0
-when `P_U0(no-go) <= 0.40`; otherwise use U1 when
-`P_U1(no-go) <= 0.40`; otherwise emit P0 no-go. The selected utility scope is
-sealed before any empirical kernel or outcome exists and cannot change at the
-pilot tier gate. The other Delta values and the unselected utility scope remain
-reported sensitivity analyses. If both scopes exceed the threshold, no kernel
-build begins. The team must negotiate a larger independent-lineage roster or
-explicitly choose the feasibility-boundary paper. Raising `Delta_power`,
-widening a margin, or inventing another utility subset merely to make the roster
-fit is forbidden.
+The P0 receipt reports all six probabilities for every integer
+`G in [24, 96]` at `Delta_power in {0.05, 0.10, 0.15}`. Only
+`Delta_power = 0.10` and `G = 48` select utility scope: use U0 when
+`P_U0^48(no-go) <= 0.40`; otherwise use U1 when
+`P_U1^48(no-go) <= 0.40`; otherwise emit P0 no-go. The selected utility scope
+is sealed before any empirical kernel or outcome exists and cannot change at
+the registry or pilot tier gate. The other Delta values, support counts, and
+unselected utility scope remain reported sensitivity analyses. If both scopes
+exceed the threshold at 48, no kernel build begins. The team must negotiate a
+larger independent-lineage roster or explicitly choose the feasibility-boundary
+paper. Raising `Delta_power`, widening a margin, or inventing another utility
+subset merely to make the roster fit is forbidden.
+
+At kernel seal, the actual conservative `G_max` is looked up in that already
+frozen curve. The pilot is authorized only when `G_max >= 24` and
+`P_Uselected^G_max(no-go) <= 0.40`. Failure is pre-pilot no-go; it cannot switch
+U0 to U1, rerun P0 with new weights, or use the next larger support checkpoint.
+This registry check uses no empirical treatment outcome.
 
 The values have independent practical meanings. The observed H1-T rule of
 `0.05` is one avoided repeat harm per 20 scheduled opportunities; the `0.05`
@@ -283,24 +306,25 @@ an even chance of clearing the point-estimate rule. It is a planning scenario,
 not the claimed minimum true effect and not a feasibility-tuned SESOI.
 
 An analytic stress check already demonstrates why P0 is blocking. Under a
-simplified paired-Bernoulli approximation with 96 independent lineages,
-one-sided `alpha=0.05`, true difference `0.10`, and the observed five-point
-gate, use `SE = sqrt((discordance - Delta^2) / 96)` and pass threshold
+simplified paired-Bernoulli approximation with the expected 48 independent
+lineages, one-sided `alpha=0.05`, true difference `0.10`, and the observed
+five-point gate, use `SE = sqrt((discordance - Delta^2) / 48)` and pass threshold
 `max(0.05, 1.645 * SE)`. The power of **one** behavioral component is:
 
 | Paired discordance | One-component power | Three independent components |
 | ---: | ---: | ---: |
-| 0.10 (mathematical minimum) | 0.948 | 0.851 |
-| 0.15 | 0.835 | 0.582 |
-| 0.20 | 0.727 | 0.384 |
-| 0.30 | 0.569 | 0.185 |
-| 0.40 | 0.470 | 0.104 |
+| 0.10 (mathematical minimum) | 0.747 | 0.416 |
+| 0.15 | 0.582 | 0.197 |
+| 0.20 | 0.478 | 0.109 |
+| 0.30 | 0.360 | 0.047 |
+| 0.40 | 0.296 | 0.026 |
 
 The `0.10` row is retained only as the mathematical boundary stress check; it
 has zero weight in the official prior. This is not the locked result: it omits
 the lineage opportunity averages, cross-component dependence, utility gates,
-H2-T, and the 48-sequence clamp ceiling. It is an auditable warning that a
-complete conjunction can fail even when a marginal contrast looks conventional.
+and H2-T. It is an auditable warning that a complete conjunction can fail even
+when a marginal contrast looks conventional. The old optimistic 96-lineage
+calculation survives only as the upper sensitivity point, not the P0 gate.
 
 #### P0-T candidate-graph time plausibility gate
 
@@ -609,10 +633,20 @@ and discovery instances are newly minted rather than carved from the
 
 The ledger fixes the nominal bands at six fixture-only P0-T lineages, six
 throwaway lineages, 60 selection lineages, 30 pilot lineages, 12 discovery
-lineages, 96 confirmation sequences, and 36 B-live sequences. Each entry includes both `sequence_id` and
-`lineage_id`; confirmation records the computed `G_max` after conservative
-ancestry merging. “No band carved from the 96” is a machine-checked invariant,
-not prose metadata.
+lineages, 96 confirmation sequences, and 36 B-live sequences. The confirmation
+target is exactly eight declared lineages per motif and two nested sequences per
+declared lineage, giving `G_max_expected = 48`. Each entry includes both
+`sequence_id` and `lineage_id`; confirmation records the computed `G_max` after
+conservative ancestry merging. Merging shared ancestors may reduce 48 but no
+surface variant, challenge, or seed may split a lineage to preserve it.
+
+Every one of the 96 confirmation sequences is in the randomized-clamp schedule,
+so the sealed registry requires `G_causal_max = G_max`; there is no smaller
+causal subroster hidden behind the behavioral count. A missing clamp schedule
+for any confirmation sequence fails kernel seal. The exact pre-pilot support
+rule is the frozen-curve lookup in section 4.0; `G_max < 24` always emits no-go.
+“No band carved from the 96” is a machine-checked invariant, not prose
+metadata.
 
 #### Determinism manifest
 
@@ -695,11 +729,11 @@ step-function decision. It constructs a simultaneous 95% nuisance confidence
 set over per-condition rates, the complete within-lineage covariance matrix,
 variance/ICC, detector/oracle error, attrition, resource binding, and common-
 outage quantities using whole-lineage resampling. For tier `T` and nuisance
-vector `theta`, let `pi_T(G; theta)` run the complete decision on `G` behavioral
-lineages while the frozen causal subroster contributes
-`min(G, G_causal_max)` lineages. Define
+vector `theta`, let `pi_T(G; theta)` run the complete behavioral and H2-T
+decision on the same `G` lineages because the full-coverage clamp schedule gives
+every confirmation sequence causal support. Define
 `G_T(theta) = min{G: pi_T(G; theta) >= 0.80}`, with `G_T(theta) = infinity`
-when H2-T cannot reach target power at `G_causal_max`, and use the conservative
+when H2-T cannot reach target power at the actual `G_max`, and use the conservative
 projection `G_T* = max_{theta in C_0.95} G_T(theta)`. Beneficial covariance receives its
 lower confidence bound; variance, ICC, error, attrition, and resource-loss terms
 receive their adverse bounds. If point, lower, and upper-bound projections imply
@@ -712,11 +746,12 @@ InfluenceOff plus randomized-clamp identification components. The floor
 conjunction contains Pneuma's repeat-harm superiority over Base, the same
 utility gates, and the same identification components. Select core when
 `G_core* <= G_max`; otherwise select floor when `G_floor* <= G_max`; otherwise
-emit no-go. A causal-subroster shortfall makes the corresponding `G_T*` infinite,
-so it cannot be hidden by the larger behavioral registry. The receipt also reports
-the frozen sensitivity at `Delta_power in {0.05, 0.10, 0.15}` without allowing
-those sensitivity values to select the tier. Notice, H3, Reflection,
-Retry-count, and H4 never enter either tier's power event.
+emit no-go. Behavioral and causal support must use the same actual `G_max`;
+neither can mask a shortfall in the other, and incomplete causal coverage has
+already failed kernel seal. The receipt also reports the frozen sensitivity at
+`Delta_power in {0.05, 0.10, 0.15}` without allowing those sensitivity values
+to select the tier. Notice, H3, Reflection, Retry-count, and H4 never enter
+either tier's power event.
 
 The arithmetic is explicit. Under U0, core has three behavioral-superiority
 components, seven utility components against each of three comparators, and two
@@ -897,13 +932,13 @@ disposition. Subagent count never appears in a throughput or wall-time formula.
 
 | Gate | Required artifact | Pass consequence | Failure consequence |
 | --- | --- | --- | --- |
-| P0 power plausibility | hash-verified `prior-anchor.json`, locked U0/U1 prior-predictive `P(core)/P(floor)/P(no-go)` bundles, utility-scope receipt, Delta sensitivity, simulator/tests digest | seal U0 if its no-go probability is at most `0.40`, else U1 if its is; permit determinism contracts and P0-T | P0 no-run on anchor failure; otherwise negotiate roster or choose feasibility-boundary paper if both scopes exceed `0.40`; no kernel build |
+| P0 power plausibility | hash-verified `prior-anchor.json`, `G_max_expected = G_causal_expected = 48`, full integer support curve with highlighted `{24,32,48,64,80,96}`, locked U0/U1 `P(core)/P(floor)/P(no-go)` bundles, utility-scope receipt, Delta sensitivity, simulator/tests digest | seal U0 if its expected-48 no-go probability is at most `0.40`, else U1 if its is; permit determinism contracts and P0-T | P0 no-run on anchor failure; otherwise negotiate roster or choose feasibility-boundary paper if both scopes exceed `0.40` at 48; no kernel build |
 | Baseline Integrity | dual-run baseline receipt and fast-suite result | permit the next authorized gate | repair baseline only; attempts are unbounded before registration but every attempt is logged and no later gate opens until clean |
 | Determinism contract | reviewed failing contract tests and one-writer-per-group ownership ledger | permit P0-T slice, then disjoint parallel authorship | no parallel implementation |
 | P0-T time plausibility | context-graph receipt plus hard-cap and p95 wall-time projections | build remaining kernel only if hard-cap path fits 2026-08-03 | execute frozen pre-P0-T descope ladder or feasibility-boundary route |
 | Injector validity | throwaway-band oracle/endpoint report | start selection | repair, regenerate throwaway band |
 | Controller selection | 60-lineage nested-CV ledger, P0-T-selected D0/D1/D2 search manifest, stability and selected-artifact receipt | seal manifest | no pilot; instability or repair requires amendment and fresh selection band |
-| Kernel seal | manifest plus disjoint seed-band ledger | authorize pilot | no pilot |
+| Kernel seal | manifest, disjoint seed-band ledger, actual conservative `G_max`, full-clamp proof, and frozen-curve lookup receipt | authorize pilot only if actual `G_max >= 24` and `P_Uselected^G_max(no-go) <= 0.40` | no pilot; insufficient support, failed lookup, or incomplete causal coverage is no-go; utility scope cannot change |
 | Context firewall | capability matrix, encryption/key receipt, session ancestry, protected-path and access-log audit | authorize each outcome-bearing capability | affected band invalid; quarantine and incident report |
 | Feasibility | bounded nuisance receipt, core/floor power bundles, `G_max`/causal-support comparison, tier receipt | build/run selected tier | no-go below floor |
 | Discovery validity | digest-equality receipt and immutable descriptive result | confirmation remains authorized | stop only for pipeline invalidity |
@@ -957,7 +992,8 @@ features, digests, and explicit provenance.
   uniform prior.
 - **P0 no-go:** report `prior-anchor.json`, the transported base-harm support,
   the weighted prior grid, both U0/U1 `P(core)/P(floor)/P(no-go)` bundles,
-  Delta sensitivity, support ceilings, and failure-driving components.
+  Delta sensitivity, the full 24–96 support curve, and failure-driving
+  components.
   Negotiate the roster before any empirical implementation or publish the
   planned feasibility boundary; do not widen margins or select an unregistered
   third utility subset.
@@ -1011,12 +1047,12 @@ challenges and two seeds. The planned primary-path caps are:
 | Selection | `60 lineages × (4 scalar families + Pneuma) × 16 configs × 3 × 2 = 28,800` logical evaluations | Five-fold nested-CV live controller selection over context-keyed shared candidate pools |
 | Pilot | `30 lineages × 5 arms × 3 × 2 = 900` | Core nuisance estimation |
 | Discovery floor/core | `12 × 3 × 3 × 2 = 216` / `12 × 5 × 3 × 2 = 360` | First descriptive result |
-| Confirmation floor/core | `96 × 3 × 3 × 2 = 1,728` / `96 × 5 × 3 × 2 = 2,880` | Nominal execution capacity; power still uses `G_max` |
+| Confirmation floor/core | `96 × 3 × 3 × 2 = 1,728` / `96 × 5 × 3 × 2 = 2,880` | Nominal execution capacity over expected 48 lineages; power uses actual `G_max` |
 
-The randomized full-state clamp adds one descendant per causal-subroster cell:
+The randomized full-state clamp adds one descendant per causally covered cell:
 `30 × 3 × 2 = 180` in the pilot, `12 × 3 × 2 = 72` in discovery, and
-`48 × 3 × 2 = 288` in confirmation. Therefore the all-in primary caps are
-1,080 pilot cells, 288 floor/432 core discovery cells, and 2,016 floor/3,168
+`96 × 3 × 2 = 576` in confirmation. Therefore the all-in primary caps are
+1,080 pilot cells, 288 floor/432 core discovery cells, and 2,304 floor/3,456
 core confirmation cells. Retries may consume only the common preregistered
 retry allowance and appear separately in the ledger. B-live and other
 secondaries receive a separate post-primary ledger and cannot delay or borrow
@@ -1109,6 +1145,8 @@ state without leaving the implementer to decide:
 - what code must remain byte-identical;
 - how every terminal state enters the primary numerator and denominator;
 - which unit is independent and how sequence capacity maps to `G_max`;
+- which expected and actual lineage counts govern both behavioral and causal
+  support, and why all 96 confirmation sequences receive the clamp;
 - which estimand, test, bootstrap, IUT, and secondary multiplicity rule apply;
 - which nuisance bound and power alternative drive feasibility;
 - whether resource failures, partial rosters, and interrupted runs are handled;
