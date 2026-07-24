@@ -157,29 +157,35 @@ Consequently, as of 2026-07-22, `P(core)`, `P(floor)`, and `P(no-go)` are
 would be worse than reporting no power result.
 
 P0 is therefore the first and only permitted pre-kernel implementation unit:
-implement and test the deterministic simulator in
-`src/pneuma_lab/statistics/power.py` and
-`tests/research/test_power_simulation_v2.py`, bind its numerical dependencies,
-and run it before any empirical kernel task in section 4.2. It must rerun the
-exact selected-tier decision logic, including the intersection-union test and
-the co-required simultaneous max-T lower-bound rule in section 4.2, rather than
-multiplying marginal powers. An IUT-only approximation is not admissible. The
-decision-log amendment freezes the following design inputs before the run:
+implement and test the deterministic prior-anchor builder and simulator in
+`src/pneuma_lab/statistics/prior_anchor.py`,
+`src/pneuma_lab/statistics/power.py`,
+`tests/research/test_prior_anchor.py`, and
+`tests/research/test_power_simulation_v2.py`; bind their numerical
+dependencies; and run them before any empirical kernel task in section 4.2.
+The simulator must rerun the exact selected-tier decision logic, including the
+intersection-union test and the co-required simultaneous max-T lower-bound rule
+in section 4.2, rather than multiplying marginal powers. An IUT-only
+approximation is not admissible. The decision-log amendment freezes the
+following design inputs before the run:
 
 - behavioral H1-T and both mandatory H2-T planning alternatives are absolute
   risk differences of `0.10` in the favorable direction;
 - all true utility differences are zero and every bounded rate or normalized
   severity non-inferiority margin is an absolute `0.05`;
-- the prior-predictive grid is the Cartesian product of base harm rate
-  `{0.20, 0.35, 0.50}`, paired discordance
-  `{0.10, 0.15, 0.20, 0.30, 0.40}`, highest-lineage ICC
-  `{0.05, 0.15, 0.30}`, cross-component correlation
-  `{0.25, 0.50, 0.75}`, and three joint nuisance-quality profiles:
+- the base-harm support is derived by the frozen adapter-anchor and recurrence-
+  bridge rule below. Paired discordance has support and weights
+  `{0.15: 0.15, 0.20: 0.35, 0.30: 0.35, 0.40: 0.15}`; the algebraic
+  `0.10` boundary receives no prior mass. Highest-lineage ICC has support
+  `{0.05, 0.15, 0.30}`, cross-component correlation has support
+  `{0.25, 0.50, 0.75}`, and the three joint nuisance-quality profiles
   `(attrition, evaluator error, utility event rate, utility discordance)` equal
   to `(0.00, 0.00, 0.05, 0.05)`, `(0.025, 0.05, 0.15, 0.15)`, or
-  `(0.05, 0.10, 0.30, 0.30)`. The 405 grid cells have equal prior weight;
-  effect/discordance-incompatible or non-positive-semidefinite cells are rejected
-  by frozen rules and the surviving weights are renormalized;
+  `(0.05, 0.10, 0.30, 0.30)`. ICC, correlation, and nuisance profiles have
+  equal within-dimension weights. The 324 pre-rejection cells receive the
+  product of their dimension weights; effect/discordance-incompatible or
+  non-positive-semidefinite cells are rejected by frozen rules and surviving
+  weights are renormalized;
 - because the concrete registry is not built before P0, P0 uses the deliberately
   optimistic ceilings of 96 distinct behavioral lineages and 48 distinct clamp
   lineages and repeats the screen at behavioral ceilings `{48, 64, 80, 96}`;
@@ -190,6 +196,60 @@ decision-log amendment freezes the following design inputs before the run:
   Monte Carlo interval intersects the `0.80` boundary. It emits Monte Carlo
   uncertainty, code/config digests, per-component marginal power, conjunction
   power, and the component most often responsible for failure.
+
+#### Frozen adapter anchor and recurrence bridge
+
+The external adapters do not measure Suite-A `repeat_harm`. They expose
+dataset-specific observed `resolved` labels produced by other agents, scaffolds,
+or verifiers; notably, the OpenHands-Verifier label is not asserted to be a
+joined task outcome. Using their unresolved rate directly as Pneuma's base-harm
+rate would be false precision. They are therefore allowed to anchor only broad
+failure-like prevalence, followed by an explicit transport bridge.
+
+`prior_anchor.py` consumes canonical, hash-verified adapter reports produced by
+exactly these outcome-bearing adapters:
+
+- `src/pneuma_lab/adapters/open_swe_traces.py`;
+- `src/pneuma_lab/adapters/openhands_sampled.py`; and
+- `src/pneuma_lab/adapters/openhands_verifier.py`.
+
+`src/pneuma_lab/adapters/swe_gym_lite.py` is excluded because it is task-only
+and has no observed agent outcome. For each included adapter `j`, compute
+`f_j = resolved_false_j / (resolved_true_j + resolved_false_j)` over valid rows
+after that adapter's frozen skip/quarantine policy. The generic failure anchor
+is the median of the three `f_j` values, so each dataset family receives one
+vote regardless of row count. Raw rows are never pooled across adapters. The
+verifier stratum's documented missing-join and label-semantics caveats remain in
+the receipt; its equal vote broadens external heterogeneity and is not evidence
+that its label is endpoint-equivalent.
+
+Inputs resolve under the read-only `data.input_root`/`PNEUMA_DATA_ROOT` from
+section 2 at exactly:
+
+- `processed/open-swe-traces/pneuma-trace/adapter_report.json`;
+- `processed/swe-gym/openhands-sampled/adapter_report.json`; and
+- `processed/swe-gym/openhands-verifier/adapter_report.json`.
+
+The source revisions and expected adapter identities come from
+`docs/data/registry/open-swe-traces.json`,
+`docs/data/registry/openhands-sampled.json`, and the verifier entry in
+`docs/data/training-readiness/dataset-registry.json`; report content must agree
+with them before its label counts are read.
+
+Let `f_anchor` be that median. The conditional recurrence bridge has support and
+weights `{0.25: 0.25, 0.50: 0.50, 0.75: 0.25}` and induces three base-harm
+values `p_harm = f_anchor * recurrence_share`. If two canonical decimal values
+coincide, their weights are summed. This bridge is transport uncertainty, not a
+claim that generic failure and repeated harm are equivalent.
+
+The immutable `prior-anchor.json` receipt records every adapter/report/source
+digest, adapter version, valid/skipped/quarantined counts, the three `f_j`
+values, `f_anchor`, bridge support and weights, induced base-harm support, code
+digest, and canonical serializer digest. Missing reports, a hash or schema
+mismatch, a zero valid-label denominator, a non-finite rate, or an unavailable
+included adapter produces **P0 no-run**. There is no uniform-grid fallback and
+no substitution of fixture labels, task-only rows, prose heuristics, or
+selection/pilot/discovery/confirmation outcomes.
 
 P0 evaluates both precommitted utility scopes on the same surviving grid cells,
 simulation draws, and common random numbers. `U0` is the seven-component vector
@@ -236,10 +296,11 @@ gate, use `SE = sqrt((discordance - Delta^2) / 96)` and pass threshold
 | 0.30 | 0.569 | 0.185 |
 | 0.40 | 0.470 | 0.104 |
 
-This is not the locked result: it omits the lineage opportunity averages,
-cross-component dependence, utility gates, H2-T, and the 48-sequence clamp
-ceiling. It is an auditable warning that a complete conjunction can fail even
-when a marginal contrast looks conventional.
+The `0.10` row is retained only as the mathematical boundary stress check; it
+has zero weight in the official prior. This is not the locked result: it omits
+the lineage opportunity averages, cross-component dependence, utility gates,
+H2-T, and the 48-sequence clamp ceiling. It is an auditable warning that a
+complete conjunction can fail even when a marginal contrast looks conventional.
 
 #### P0-T candidate-graph time plausibility gate
 
@@ -754,9 +815,12 @@ dependence condition is justified and remain labeled exploratory/descriptive.
   `provenance.py` supply paired-intervention and receipt primitives. The live
   experiment layer extends these primitives rather than changing their archived
   internal-harness claim boundary.
-- `src/pneuma_lab/adapters/trajectory.py`, `envelope.py`, and the governed
-  Open-SWE/OpenHands/SWE-Gym adapters supply typed trajectory extraction and
-  offline validation inputs.
+- `src/pneuma_lab/adapters/trajectory.py`, `envelope.py`,
+  `open_swe_traces.py`, `openhands_sampled.py`, and
+  `openhands_verifier.py` supply typed trajectory extraction, hash-bound
+  generic outcome counts, and offline validation inputs. Their only P0 role is
+  the limited failure-prevalence anchor in section 4.0; SWE-Gym-Lite remains
+  task-only and contributes no outcome.
 - `src/pneuma_lab/foundation/memory.py` may supply storage mechanics only; it
   does not authorize training or import a foundation-model result.
 - `src/pneuma_lab/schemas/`, `training/`, and `status.py` supply schema,
@@ -833,7 +897,7 @@ disposition. Subagent count never appears in a throughput or wall-time formula.
 
 | Gate | Required artifact | Pass consequence | Failure consequence |
 | --- | --- | --- | --- |
-| P0 power plausibility | locked U0/U1 prior-predictive `P(core)/P(floor)/P(no-go)` bundles, utility-scope receipt, Delta sensitivity, simulator/tests digest | seal U0 if its no-go probability is at most `0.40`, else U1 if its is; permit determinism contracts and P0-T | negotiate roster or choose feasibility-boundary paper if both exceed `0.40`; no kernel build |
+| P0 power plausibility | hash-verified `prior-anchor.json`, locked U0/U1 prior-predictive `P(core)/P(floor)/P(no-go)` bundles, utility-scope receipt, Delta sensitivity, simulator/tests digest | seal U0 if its no-go probability is at most `0.40`, else U1 if its is; permit determinism contracts and P0-T | P0 no-run on anchor failure; otherwise negotiate roster or choose feasibility-boundary paper if both scopes exceed `0.40`; no kernel build |
 | Baseline Integrity | dual-run baseline receipt and fast-suite result | permit the next authorized gate | repair baseline only; attempts are unbounded before registration but every attempt is logged and no later gate opens until clean |
 | Determinism contract | reviewed failing contract tests and one-writer-per-group ownership ledger | permit P0-T slice, then disjoint parallel authorship | no parallel implementation |
 | P0-T time plausibility | context-graph receipt plus hard-cap and p95 wall-time projections | build remaining kernel only if hard-cap path fits 2026-08-03 | execute frozen pre-P0-T descope ladder or feasibility-boundary route |
@@ -888,11 +952,15 @@ features, digests, and explicit provenance.
 - **P0 unavailable (current state):** no powered tier is claimed and no empirical
   kernel build begins. The analytic table is a warning, not a replacement power
   result.
-- **P0 no-go:** report the prior grid, both U0/U1
-  `P(core)/P(floor)/P(no-go)` bundles, Delta sensitivity, support ceilings, and
-  failure-driving components. Negotiate the roster before any empirical
-  implementation or publish the planned feasibility boundary; do not widen
-  margins or select an unregistered third utility subset.
+- **P0 anchor no-run:** report the missing or invalid adapter receipt and stop.
+  Do not replace real outcome reports with task-only data, fixtures, or a
+  uniform prior.
+- **P0 no-go:** report `prior-anchor.json`, the transported base-harm support,
+  the weighted prior grid, both U0/U1 `P(core)/P(floor)/P(no-go)` bundles,
+  Delta sensitivity, support ceilings, and failure-driving components.
+  Negotiate the roster before any empirical implementation or publish the
+  planned feasibility boundary; do not widen margins or select an unregistered
+  third utility subset.
 - **U1 selected:** every positive result is qualified as aggregate utility
   non-inferiority only. Report all demoted components and adverse subtypes so an
   offsetting tradeoff remains visible; none receives a confirmatory p-value.
