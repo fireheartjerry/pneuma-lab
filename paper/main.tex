@@ -1,0 +1,135 @@
+% =====================================================================
+% NeurIPS 2026 workshop submission (double-blind, non-archival).
+% Workshop: "Who Verifies the Agents? Toward Reliable Agent Development"
+% Page limit: 4-9 pages of body, EXCLUDING references and appendices.
+% Deadline: 2026-08-29, 23:59 AoE. Submission via OpenReview.
+%
+% Body page budget for this draft: ~7.0 pages (see per-section notes below).
+% Prose is authored in a separate pass; this file carries structure only.
+% =====================================================================
+
+\documentclass{article}
+
+% Style file: neurips_2026.sty, unmodified upstream copy.
+% Provenance and SHA-256 are recorded in README.md. Do not edit the .sty.
+\usepackage[dblblindworkshop]{neurips_2026}
+
+% The workshop title is what appears in the first-page footer notice.
+\workshoptitle{Who Verifies the Agents? Toward Reliable Agent Development}
+
+\usepackage[utf8]{inputenc}     % allow utf-8 input
+\usepackage[T1]{fontenc}        % use 8-bit T1 fonts (keeps fonts embeddable)
+\usepackage{hyperref}           % hyperlinks
+\usepackage{url}                % simple URL typesetting
+\usepackage{booktabs}           % professional-quality tables
+\usepackage{amsfonts}           % blackboard math symbols
+\usepackage{amsmath}            % math environments (patched for lineno by the .sty)
+\usepackage{nicefrac}           % compact symbols for 1/2, etc.
+\usepackage{microtype}          % microtypography
+\usepackage{xcolor}             % colors (also required by the checklist macros)
+
+% Double-blind hygiene: keep identifying strings out of the PDF metadata.
+% Re-verify after every build; see the pre-submission checklist in README.md.
+\hypersetup{
+    pdfauthor={},
+    pdfsubject={},
+    pdfkeywords={},
+    pdfcreator={},
+    pdfproducer={}
+}
+
+\title{Ten Conversations, Two Thousand Questions: What Agent-Memory
+Evaluations Could Actually Have Detected}
+
+% Authors are anonymized by the dblblindworkshop option; the style file
+% prints "Anonymous Author(s)" and ignores \author. Restore the real author
+% block only for a camera-ready or preprint build.
+%
+% \author{%
+%     First Author \\
+%     Affiliation \\
+%     Address \\
+%     \texttt{email} \\
+%     \And
+%     Second Author \\
+%     Affiliation \\
+%     Address \\
+%     \texttt{email} \\
+% }
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+    % [~0.15 pg] One-paragraph statement of the claim, the evidence base, and
+    % what the detectability analysis shows. Written last, after Sections 2-5
+    % are stable.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:introduction}
+% [~0.8 pg] Motivate the gap: agent-memory systems are evaluated in ways that
+% cannot distinguish the mechanism from its confounds. State the contribution
+% list and forward-reference Sections 3 and 5.
+
+\section{What the literature reports}
+\label{sec:literature}
+% [~1.4 pg] Survey of what published agent-memory evaluations actually measure
+% and report, organized by claim type. Every factual assertion here must trace
+% to a verified primary source in refs.bib.
+
+\section{Three kinds of dependence}
+\label{sec:dependence}
+% [~1.0 pg] Taxonomy separating the distinct dependence structures that get
+% conflated under "memory helps": define each kind and give a discriminating
+% observable for each.
+
+\section{What a credible claim requires}
+\label{sec:credible-claim}
+% [~0.9 pg] The evidentiary standard: which controls, ablations, and null
+% conditions a claim of each dependence kind must satisfy before it is
+% supportable.
+
+\section{The detectability surface}
+\label{sec:detectability}
+% [~1.2 pg] The central analysis: given a study design, which effects are
+% detectable and at what scale. Carries the paper's main figure/table.
+
+\section{Related work}
+\label{sec:related-work}
+% [~0.6 pg] Position against prior evaluation-methodology and agent-benchmark
+% critiques; state precisely what is new here.
+
+\section{Limitations}
+\label{sec:limitations}
+% [~0.6 pg] Scope limits, threats to validity, and the claims this analysis
+% explicitly does not license.
+
+\section{Conclusion}
+\label{sec:conclusion}
+% [~0.2 pg] Restate the finding and the concrete recommendation for evaluation
+% design. No new claims.
+
+\section*{Reproducibility Statement}
+\label{sec:reproducibility}
+% [~0.15 pg] Unnumbered. Point to the anonymized artifact, state what is
+% released, and state which results are recomputable from it end to end.
+% Must not name the repository or any hosting account.
+
+% ---------------------------------------------------------------------
+% References do NOT count against the 4-9 page body limit.
+% Entries arrive from the separate verified-bibliography pass; see refs.bib.
+% ---------------------------------------------------------------------
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+% ---------------------------------------------------------------------
+% Appendices do NOT count against the 4-9 page body limit.
+% Uncomment when supplementary material exists.
+% ---------------------------------------------------------------------
+% \appendix
+% \section{Supplementary material}
+% \label{app:supplementary}
+
+\end{document}
