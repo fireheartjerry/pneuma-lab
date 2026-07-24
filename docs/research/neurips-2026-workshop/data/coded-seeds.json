@@ -1,0 +1,279 @@
+{
+    "schema_version": "pneuma-audit-coding/2.0.0",
+    "supersedes": [
+        "coded-systems.json (dialect 1)",
+        "coded-benchmarks.json (dialect 1)",
+        "coded-self.json (dialect 1)"
+    ],
+    "rubric": "docs/research/neurips-2026-workshop/22-audit-rubric.md",
+    "coded_on": "2026-07-24",
+    "contract_note": "One dialect. claimed_effect_pp is populated ONLY where verified in the DL-65 pass and is always in ABSOLUTE percentage points. claimed_effect_verified=false means no verdict may be computed for that row. Null f2_clusters or f2_clusters==1 means NON-IDENTIFIABLE and must never be imputed.",
+    "papers": [
+        {
+            "label": "Reflexion",
+            "arxiv": "2303.11366",
+            "stratum": "system",
+            "f1_reported_n": 134,
+            "f1_unit": "AlfWorld environments",
+            "f2_clusters": 134,
+            "f2_rule": 2,
+            "f3_ratio": 1.0,
+            "f4_uncertainty": "sd_over_runs",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "budget_reported_unequal",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": 22.0,
+            "claimed_effect_verified": true,
+            "claimed_effect_quote": "Reflexion agents improve on decision-making AlfWorld tasks over strong baseline approaches by an absolute 22%",
+            "paired": "paired",
+            "flags": [
+                "Headline 22.0 not reproducible from locatable raw numbers; 130/134=97.0% vs a baseline read off Figure 3a near 108/134=80.6% implies 16.4. See DL-70.",
+                "F2=6 task-types is a defensible alternative; verdict flips from about rho=0.15. See DL-69."
+            ],
+            "notes": ""
+        },
+        {
+            "label": "Generative Agents",
+            "arxiv": "2304.03442",
+            "stratum": "system",
+            "f1_reported_n": 100,
+            "f1_unit": "rankings from one simulation",
+            "f2_clusters": 1,
+            "f2_rule": 1,
+            "f3_ratio": 100.0,
+            "f4_uncertainty": "se_unspecified",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "completion_rate"
+            ],
+            "f7_budget": "budget_not_reported",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "claimed_effect_quote": "",
+            "paired": "paired",
+            "flags": [
+                "NON-IDENTIFIABLE: single cluster. Between-simulation variance unestimable.",
+                "F5 borderline: ablated arms answered from a memory stream populated by the full architecture and held constant."
+            ],
+            "notes": ""
+        },
+        {
+            "label": "MemGPT",
+            "arxiv": "2310.08560",
+            "stratum": "system",
+            "f1_reported_n": 50,
+            "f1_unit": "questions (document QA)",
+            "f2_clusters": 50,
+            "f2_rule": 4,
+            "f3_ratio": 1.0,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "none",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "budget_reported_unequal",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "counted_adverse",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "claimed_effect_quote": "",
+            "paired": "paired",
+            "flags": [
+                "Headline memory result (DMR, Table 2) states NO sample size anywhere. F1 taken from the document-QA task instead."
+            ],
+            "notes": ""
+        },
+        {
+            "label": "ExpeL",
+            "arxiv": "2308.10144",
+            "stratum": "system",
+            "f1_reported_n": 134,
+            "f1_unit": "domains",
+            "f2_clusters": 3,
+            "f2_rule": 2,
+            "f3_ratio": 44.7,
+            "f4_uncertainty": "se_unspecified",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "completion_rate"
+            ],
+            "f7_budget": "budget_reported_unequal",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": 19.0,
+            "claimed_effect_verified": true,
+            "claimed_effect_quote": "DERIVED BY US from Table 3 (59.0 vs 40.0); the paper states no numeric ALFWorld gain in prose",
+            "paired": "paired",
+            "flags": [
+                "claimed_effect is OUR subtraction, not an authors' claim. Must be labelled derived. See DL-65."
+            ],
+            "notes": ""
+        },
+        {
+            "label": "Voyager",
+            "arxiv": "2305.16291",
+            "stratum": "system",
+            "f1_reported_n": 3,
+            "f1_unit": "trials in one environment",
+            "f2_clusters": 1,
+            "f2_rule": 2,
+            "f3_ratio": 3.0,
+            "f4_uncertainty": "sd_over_runs",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "equal_budget_enforced",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "claimed_effect_quote": "",
+            "paired": "paired",
+            "flags": [
+                "NON-IDENTIFIABLE: no world seed count stated anywhere; 'seed' occurs only as in-game wheat_seeds.",
+                "The +- in Tables 1-2 is never defined in the paper."
+            ],
+            "notes": ""
+        },
+        {
+            "label": "A-MEM",
+            "arxiv": "2502.12110",
+            "stratum": "system",
+            "f1_reported_n": 7512,
+            "f1_unit": "QA pairs",
+            "f2_clusters": null,
+            "f2_rule": 1,
+            "f3_ratio": null,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "abstention_measured"
+            ],
+            "f7_budget": "budget_reported_unequal",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "claimed_effect_quote": "",
+            "paired": "paired",
+            "flags": [
+                "NOT AUDITABLE: never states LoCoMo's conversation count. LoCoMo itself reports 50."
+            ],
+            "notes": ""
+        },
+        {
+            "label": "Mem0",
+            "arxiv": "2504.19413",
+            "stratum": "system",
+            "f1_reported_n": 2000,
+            "f1_unit": "questions",
+            "f2_clusters": 10,
+            "f2_rule": 1,
+            "f3_ratio": 200.0,
+            "f4_uncertainty": "sd_over_runs",
+            "f5_inert_null": "none",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "budget_reported_unequal",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "claimed_effect_quote": "",
+            "paired": "paired",
+            "flags": [
+                "+-0.65 is over 10 repeated judge runs of the SAME 10 conversations; smaller than the rho=0 sampling floor of +-1.05.",
+                "F1 derived as 10 x '200 questions on average'; the paper states no total."
+            ],
+            "notes": ""
+        },
+        {
+            "label": "Agent Workflow Memory",
+            "arxiv": "2409.07429",
+            "stratum": "system",
+            "f1_reported_n": 812,
+            "f1_unit": "websites (WebArena arm)",
+            "f2_clusters": 5,
+            "f2_rule": 2,
+            "f3_ratio": 162.4,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "budget_not_reported",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": 12.0,
+            "claimed_effect_verified": true,
+            "claimed_effect_quote": "surpassing the BrowserGym baseline by 12.0 absolute points and 51.1% relative increase",
+            "paired": "paired",
+            "flags": [
+                "Paper explicitly disambiguates absolute vs relative in the same sentence. Verified DL-65."
+            ],
+            "notes": ""
+        },
+        {
+            "label": "SWE-Exp",
+            "arxiv": "2507.23361",
+            "stratum": "system",
+            "f1_reported_n": 500,
+            "f1_unit": "verified GitHub issues",
+            "f2_clusters": null,
+            "f2_rule": 2,
+            "f3_ratio": null,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "budget_reported_unequal",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "claimed_effect_quote": "",
+            "paired": "unpaired",
+            "flags": [
+                "NOT AUDITABLE: excludes experiences by repository but never states the repository count.",
+                "Baselines compared as 'reported' numbers rather than re-run."
+            ],
+            "notes": ""
+        },
+        {
+            "label": "LongMemEval",
+            "arxiv": "2410.10813",
+            "stratum": "benchmark",
+            "f1_reported_n": 500,
+            "f1_unit": "user attributes",
+            "f2_clusters": 164,
+            "f2_rule": 3,
+            "f3_ratio": 3.0,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "none",
+            "f6_engagement": [
+                "abstention_measured"
+            ],
+            "f7_budget": "budget_reported_unequal",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "counted_adverse",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "claimed_effect_quote": "",
+            "paired": "n/a",
+            "flags": [
+                "F2 required rule-order judgment: each question has its OWN compiled history, so rule 1 does not bind; rule 3 selects the 164-attribute ontology.",
+                "F9 splits: adverse on 470 non-ABS items, credited on the 30 ABS items."
+            ],
+            "notes": ""
+        }
+    ]
+}
