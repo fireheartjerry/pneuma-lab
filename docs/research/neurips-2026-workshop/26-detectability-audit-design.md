@@ -123,22 +123,41 @@ about a study's true power.
 | Work                                                                                                                                              | Status                                | What it owns                                                                                                                                                                   | What it leaves                                                                                                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Siska, Marazopoulou, Ailem & Bono**, _Examining the robustness of LLM evaluation to the distributional assumptions of benchmarks_, **ACL 2024** | **VERIFIED by fetch**                 | The closest peer-reviewed precedent for the core insight: correlation across test prompts is non-random, and accounting for it **changes model rankings** on major benchmarks. | Test-prompt correlation within a benchmark, not hierarchical nesting in conversations, repositories, or simulations. Concerns model _rankings_, not what a study could detect. No design effects, no ICC, no MDE. Does not audit published claims. |
-| **TMLS AI Research (2026)**, _eval sample complexity_ — benchmark MDE atlas with explicit DEFF treatment for templates and conversations          | **UNVERIFIED — URL returns HTTP 403** | Described as the closest exact precedent.                                                                                                                                      | Unknown.                                                                                                                                                                                                                                           |
+| **TMLS AI Research**, _The Sample Complexity of LLM Evaluation: Confidence Intervals and the Minimum Detectable Effect of a Benchmark_, 2026-07-08 | **VERIFIED** (content retrieved; corporate authorship, no arXiv mirror; TMLS = The Machine Learning Society at tmls.nyc, **not** Toronto Machine Learning Summit) | An MDE atlas for HumanEval, GPQA Diamond, SWE-bench Verified, GSM8K, MMLU, AIME; explicit Kish design effect for template variants and multi-turn conversations; cluster-robust SE and cluster-bootstrap recommendations. | **Its atlas is explicitly best-case IID.** It does not estimate ICC and publish cluster-corrected MDEs for those benchmarks; the clustering treatment is analytical plus worked hypotheticals. Not an empirical clustered-MDE atlas, and not an audit of any published claim. |
+| **Kotawala**, _Resolution Diagnostics for Paired LLM Evaluation_, arXiv:2605.30315, 2026-05-28 | **VERIFIED by fetch** | The closest precedent for the actual move. Inverts level-alpha power tests into a per-pair resolution ratio q = N/N*; performs a **real** ICC-based clustering correction on MMLU-Pro using its 14 subject categories; unresolved adjacent-rank pairs rise **4/9 to 6/9** under clustering, holding at 5-6/9 in 99.9% of category bootstraps. | Analyzes **pairwise model rankings on two public leaderboards** (Open LLM Leaderboard v1, MMLU-Pro). Confirmed by fetch that it does **not** audit published papers' claimed effects and does **not** cover agent evaluation or agent memory. |
 
 **Siska must be cited in the introduction's first paragraph.** Failing to cite the ACL paper
 that established non-independence in LLM benchmarks would, on its own, justify rejection.
 
-**The TMLS report is an open risk and a blocking obligation.** Per this project's standing
-rule an unverifiable citation is dropped rather than softened — but a 403 is not evidence of
-absence. It must be resolved before submission by another route (direct contact, a mirror, or
-a search for a published version). If it does what it is described as doing, our contribution
-narrows to the agent-memory corpus and the claimed-effect-versus-MDE comparison, and the paper
-must say so plainly.
+**BLOCKING OBLIGATION DISCHARGED, 2026-07-24.** The TMLS report was retrieved by an alternate
+route and confirmed. A third precedent, Kotawala, surfaced during that check and was verified
+by direct fetch. Nothing in this section rests on an unverified source.
 
-**Revised air gap, stated honestly:** no _peer-reviewed_ work systematically reanalyzes
-published **agent-memory** claims with ICC-sensitivity MDEs at the conversation, repository, or
-simulation level, and none compares a paper's claimed effect against what its own design could
-have detected. Novelty must not be overstated relative to Siska or to the TMLS report.
+**Revised air gap, stated honestly.** Three works now sit adjacent:
+
+- **Siska (ACL 2024)** established that LLM benchmark items are not independent and that
+  correcting for it changes model rankings. That insight is not ours.
+- **TMLS (2026)** built an MDE atlas for benchmarks and supplied the design-effect framework —
+  but its atlas is best-case IID, with clustering handled analytically and by worked
+  hypotheticals rather than estimated on real data.
+- **Kotawala (arXiv:2605.30315)** performed a real ICC-based clustering correction on MMLU-Pro
+  and showed unresolved adjacent-rank pairs rise 4/9 to 6/9. That is the closest execution of
+  the method, on **leaderboard rank comparisons**.
+
+What is left, and it is narrower than this project first assumed:
+
+> No work applies detectability analysis to **published agent-memory claims** — comparing a
+> paper's own reported effect against what its own design could have detected, under the
+> hierarchical nesting specific to agent benchmarks (questions in conversations, tasks in
+> repositories, ratings in simulation runs).
+
+Kotawala asks whether a *leaderboard* can resolve two models. We ask whether a *paper* could
+have detected the effect it published. Related instruments, different objects.
+
+**This is an application paper.** The statistical machinery belongs to Card, Miller, Siska,
+TMLS, and Kotawala. Ours is the corpus, the object of study, and the nesting structure. The
+introduction must say so in those words. Any draft implying we invented detectability analysis
+or discovered benchmark non-independence is dishonest and will be caught.
 
 ## 3. What each paper contributes to the table
 
