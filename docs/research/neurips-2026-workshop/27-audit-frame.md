@@ -4,7 +4,7 @@
 **Status:** FROZEN. Membership fixed by the procedure in `22-audit-rubric.md` §1.
 Amendments require a dated entry in `15-decision-log.md`.
 
-**Frame size: N = 29 + self-inclusion = 30.** Cap raised from 25 to 30 by DL-55; nothing truncated,
+**Frame size: N = 28 + self-inclusion = 29.** RET-LLM removed by DL-57. Cap raised from 25 to 30 by DL-55; nothing truncated,
 therefore no ordering dependency.
 
 ---
@@ -13,7 +13,7 @@ therefore no ordering dependency.
 
 The frame contains two different objects and they are analyzed separately.
 
-**System papers (24).** Propose a memory mechanism and claim it improves performance.
+**System papers (23).** Propose a memory mechanism and claim it improves performance.
 The claimed effect is theirs to defend.
 
 **Benchmark papers (5).** Define a measurement. They make no claim that their own memory
@@ -41,7 +41,7 @@ without mitigation. Mandatory per `22-audit-rubric.md` §1.
 | 10  | Think-in-Memory       | 2311.08719 | system    | in progress |
 | 11  | Mem0                  | 2504.19413 | system    | yes         |
 | 12  | Agent Workflow Memory | 2409.07429 | system    | yes         |
-| 13  | RET-LLM               | 2305.14322 | system    | in progress |
+| --  | ~~RET-LLM~~           | 2305.14322 | REMOVED   | DL-57: exclusion 2, no quantitative evaluation |
 | 14  | Zep                   | 2501.13956 | system    | in progress |
 | 15  | SWE-Exp               | 2507.23361 | system    | yes         |
 | 16  | MemLLM                | 2404.11672 | system    | in progress |
