@@ -27,11 +27,11 @@ The task-success version of this experiment is **occupied**. Mehmet Iscan has th
 preregistered, placebo-controlled, derangement-assigned studies on self-repair in frozen
 small code models, on HumanEval+ / MBPP+, with length-matched and SHA-deranged placebos:
 
-| arXiv | Title | Verified |
-| --- | --- | --- |
-| 2606.06454 | Scaffold, Not Vocabulary? A Controlled, Two-Tier, Pre-Registered Study of a Popperian Code-Generation Skill | fetched |
-| 2606.31511 | Falsification, Not Exposure: An Internally Preregistered Placebo-Controlled Decomposition of Self-Repair Feedback in Frozen Small Code Models | fetched |
-| 2607.12962 | Form, Not Content? A Preregistered, Placebo-Controlled Evaluation of Learned Error-Conditioned Self-Repair Through Prompts and Weights in Frozen Small Code Models | fetched |
+| arXiv      | Title                                                                                                                                                              | Verified |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| 2606.06454 | Scaffold, Not Vocabulary? A Controlled, Two-Tier, Pre-Registered Study of a Popperian Code-Generation Skill                                                        | fetched  |
+| 2606.31511 | Falsification, Not Exposure: An Internally Preregistered Placebo-Controlled Decomposition of Self-Repair Feedback in Frozen Small Code Models                      | fetched  |
+| 2607.12962 | Form, Not Content? A Preregistered, Placebo-Controlled Evaluation of Learned Error-Conditioned Self-Repair Through Prompts and Weights in Frozen Small Code Models | fetched  |
 
 A fourth entry in that cell is a replication and will be rejected as one.
 
@@ -48,9 +48,11 @@ The repair-rate decomposition is retained as a **powered, two-family extension o
 
 For each contrast, on each outcome:
 
-$$\Delta_C = \text{Real} - \text{Placebo}, \qquad
+$$
+\Delta_C = \text{Real} - \text{Placebo}, \qquad
 \Delta_A = \text{Placebo} - \text{None}, \qquad
-\Delta_T = \text{Real} - \text{None}$$
+\Delta_T = \text{Real} - \text{None}
+$$
 
 **These three differences are the primary reported estimands**, with simultaneous
 cluster-resampled intervals. The confirmatory question is whether $\Delta_C$ is meaningfully
@@ -73,8 +75,8 @@ Accordingly:
   $H_0: \Delta_C - q\,\Delta_T = 0$ — not from percentiles of a bootstrapped ratio.
 - Unbounded or disconnected confidence sets are **reported as they come**. That is
   information, not a software failure.
-- When the gate fails we print: *"content-to-total ratio not interpretable because total gain
-  is weakly identified"*, and still report $\Delta_C$. The content analysis is never gated on
+- When the gate fails we print: _"content-to-total ratio not interpretable because total gain
+  is weakly identified"_, and still report $\Delta_C$. The content analysis is never gated on
   the total effect.
 - It is named the **content-to-total gain ratio**, not "content fraction". "Fraction"
   promises a stable partition the design cannot guarantee.
@@ -106,19 +108,19 @@ in every arm, so it cannot confound the payload contrast)**, PAYLOAD SLOT, fixed
 
 **Family R — post-failure reflection**
 
-| Arm | Payload |
-| --- | --- |
-| `R0 NONE` | length-matched, task-irrelevant neutral prose, token-exact to that tuple's real reflection. The real reflection is still generated and discarded, so call counts match. |
-| `R1 PLACEBO-RANDOM` | a genuine reflection the same model wrote about a uniformly random *other* failed problem |
-| `R2 PLACEBO-MATCHED` | a genuine reflection about the TF-IDF nearest *other* failed problem, selected on task text only |
-| `R3 REAL` | the model's own reflection on its own failure |
+| Arm                  | Payload                                                                                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `R0 NONE`            | length-matched, task-irrelevant neutral prose, token-exact to that tuple's real reflection. The real reflection is still generated and discarded, so call counts match. |
+| `R1 PLACEBO-RANDOM`  | a genuine reflection the same model wrote about a uniformly random _other_ failed problem                                                                               |
+| `R2 PLACEBO-MATCHED` | a genuine reflection about the TF-IDF nearest _other_ failed problem, selected on task text only                                                                        |
+| `R3 REAL`            | the model's own reflection on its own failure                                                                                                                           |
 
 **Family C — graded positive control**
 
-| Arm | Payload |
-| --- | --- |
-| `C1 ORACLE-FULL` | reflection generated with hidden failing-test stderr visible — known-informative, high dose |
-| `C2 ORACLE-REDACTED` | same, with assertion values and expected outputs masked — known-informative, low dose |
+| Arm                  | Payload                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------- |
+| `C1 ORACLE-FULL`     | reflection generated with hidden failing-test stderr visible — known-informative, high dose |
+| `C2 ORACLE-REDACTED` | same, with assertion values and expected outputs masked — known-informative, low dose       |
 
 Two doses rather than one pass/fail gate, so an all-null result is distinguishable from a
 silent harness bug and we can report **the minimum content dose our instrument resolves**.
@@ -190,13 +192,13 @@ estimates as **lower bounds** wherever PLACEBO-RANDOM exceeds NONE.
 
 **Verbatim distinguishing sentences, for the related-work section:**
 
-> *Versus Stechly et al. (arXiv:2310.12397):* Stechly et al. corrupt the **correctness** of a
+> _Versus Stechly et al. (arXiv:2310.12397):_ Stechly et al. corrupt the **correctness** of a
 > critique on symbolic planning puzzles and ask whether the agent still improves; we hold the
 > apparatus exactly fixed, swap in **uncorrupted content about a different problem**, anchor
 > the contrast with graded known-informative doses, and ask what fraction of the gain and of
 > the agent's **own stated confidence and escalation decision** survives.
 
-> *Versus Min et al. (2022):* Min et al. show in-context **demonstrations** survive randomized
+> _Versus Min et al. (2022):_ Min et al. show in-context **demonstrations** survive randomized
 > labels in classification, a statement about how models read few-shot exemplars; we intervene
 > on an agent's **post-failure feedback channel** with real content about a different episode's
 > failure, and measure the effect not only on task success but on the agent's self-reported
@@ -204,13 +206,13 @@ estimates as **lower bounds** wherever PLACEBO-RANDOM exceeds NONE.
 
 ## 9. Schedule and the hard gate
 
-| Week | Dates | Work |
-| --- | --- | --- |
-| 1 | Jul 24 – Aug 1 | Grader, backend, attempt-1 sweep, payload builders, donor machinery, parity asserts. 60-problem calibration preflight. Select the study model. |
-| 2 | Aug 2 – Aug 8 | 40-tuple pilot on all 11 arms, drawn from the calibration slice only. Validate analysis on synthetic ground truth. **Preregistration frozen to a commit hash by Aug 7.** |
-| 3 | Aug 9 – Aug 15 | Confirmatory batch A: families R and C, four overnight batches. |
-| 4 | Aug 16 – Aug 22 | Confirmatory batch B: family M and RESAMPLE. Analysis script run **exactly once**. |
-| 5 | Aug 23 – Aug 29 | Draft Aug 25, red-team Aug 26, anonymized artifact Aug 27, **submit Aug 28**. |
+| Week | Dates           | Work                                                                                                                                                                     |
+| ---- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | Jul 24 – Aug 1  | Grader, backend, attempt-1 sweep, payload builders, donor machinery, parity asserts. 60-problem calibration preflight. Select the study model.                           |
+| 2    | Aug 2 – Aug 8   | 40-tuple pilot on all 11 arms, drawn from the calibration slice only. Validate analysis on synthetic ground truth. **Preregistration frozen to a commit hash by Aug 7.** |
+| 3    | Aug 9 – Aug 15  | Confirmatory batch A: families R and C, four overnight batches.                                                                                                          |
+| 4    | Aug 16 – Aug 22 | Confirmatory batch B: family M and RESAMPLE. Analysis script run **exactly once**.                                                                                       |
+| 5    | Aug 23 – Aug 29 | Draft Aug 25, red-team Aug 26, anonymized artifact Aug 27, **submit Aug 28**.                                                                                            |
 
 ### HARD GATE — 2026-08-08, three criteria, all measured on the pilot
 
@@ -226,17 +228,95 @@ run launches.
 **If (a) fails:** drop to the next preflight model, re-run attempt 1. Costs one day; budget
 exists.
 **If (c) fails:** confidence is saturated. Drop it from the primary family, promote escalation
-+ repair-rate decomposition, and state plainly that verbalized confidence at this scale has no
-variance to decompose — itself a reportable result.
-**If the gate fails outright and is unrepaired by Aug 12:** ship the 10-system audit, the
-parity protocol and checklist, the released harness, and the measured minimum detectable
-content dose from pilot data. Four pages, no confirmatory claim. A weaker paper that is still
-submitted.
+
+- repair-rate decomposition, and state plainly that verbalized confidence at this scale has no
+  variance to decompose — itself a reportable result.
+  **If the gate fails outright and is unrepaired by Aug 12:** ship the 10-system audit, the
+  parity protocol and checklist, the released harness, and the measured minimum detectable
+  content dose from pilot data. Four pages, no confirmatory claim. A weaker paper that is still
+  submitted.
 
 **Preregistered descope order, fixed now, applied without deliberation:** drop C2 →
 drop M1 → drop the third seed. Never drop R3/R2/R0, never drop S, never drop C1.
 
-## 10. Standing obligation
+## 10. Model selection — a deterministic capability band
+
+Selecting the model on anything downstream of the arms would be tuning on the result. The
+rule below fixes the model **before any real or placebo reflection is ever generated.**
+
+**Ladder, frozen in advance, same family so capability is the only varying factor:**
+Qwen2.5-Coder 1.5B, 3B, 7B (Q4_K_M).
+
+**Calibration set:** 96–120 executable Python problems, disjoint from the study roster, same
+task and verifier format. For each candidate, run **only** three things:
+
+1. initial attempt,
+2. plain retry after failure,
+3. retry with an **oracle bug hint** derived from the verifier.
+
+**Real and placebo reflections are never generated during model selection.**
+
+Measure $f_m$ (initial failure rate), $r_m$ (plain-retry success among failures), $o_m$
+(oracle-hint success on the same failures), $u_m = o_m - r_m$ (paired oracle responsiveness),
+plus output validity, timeout rate, tokens, and throughput.
+
+**Eligibility** — a model qualifies only if all hold:
+
+- projected usable failures satisfy
+  $N_{\text{main}} \cdot L_{90}(f_m) \cdot (1 - \text{attrition}) \ge n_{\min}$
+- oracle uplift has $\hat u_m \ge 0.15$ and $L_{90}(u_m) > 0$
+- plain retry does not exhaust the available headroom
+- format and execution validity clear a preregistered threshold
+- the complete run fits the compute deadline
+
+**Then select the LARGEST eligible model — not the one with the largest estimated uplift.**
+That yields a band: strong enough to use diagnostic information, weak enough to leave the
+required failure roster, and chosen without observing any of $\Delta_C$, $\Delta_A$,
+$\Delta_T$.
+
+If none qualifies, expand a roster frozen in advance or declare a feasibility no-go.
+**Do not descend to a toy model just to grow $n$.** "Weaker means more correctable" is not
+safe — intrinsic self-correction can fail or actively degrade performance at small scale.
+
+After selection, run the frozen initial-attempt census on the study roster. If the realized
+eligible count falls below $n_{\min}$, apply the preregistered expansion-or-no-go rule
+**before any arm outcomes exist**. Never switch models because the real reflection effect
+looked disappointing.
+
+## 11. Corrections to sections 7 and 9
+
+These supersede the corresponding text above.
+
+**One frozen initial attempt per problem**, deterministic or under a single preregistered
+seed. Clone only failed prefixes across arms. Do **not** generate several initial attempts
+and keep whichever seeds happened to fail — that is regression-to-the-mean soup.
+
+**Problem is the independent unit, after cross-benchmark duplicate and lineage checking.**
+Seeds are nested replicates, aggregated within problem _before_ cluster resampling. They buy
+measurement precision; they do not manufacture $n$. Pool with equal problem weights,
+stratify randomization and bootstrap by benchmark, and report both benchmarks separately.
+
+**The population, stated honestly:** _problems in the frozen, deduplicated
+HumanEval+ / MBPP+ roster failed by the selected checkpoint under the frozen initial-attempt
+policy._ The claim is about that 542-task roster, not about coding tasks in general.
+(MBPP+ is 378 — EvalPlus reduced it from 399 after removing broken tasks.)
+
+**Prompt-template library.** A single handcrafted prompt makes the result a property of that
+prompt. Freeze **three** meaning-preserving attempt-2 templates, randomize template
+assignment across problems, define the primary estimand as the average over that finite
+library, and report template-specific contrasts plus the template-by-arm interaction. Each
+problem still runs once per arm — the existing experiment is distributed across variants
+rather than tripled. It generalizes only to those three templates, which is far stronger than
+one incantation.
+
+**Power, stated without optimism.** ~270 problems detects roughly 8–10 points under
+favourable paired discordance; simultaneous intervals and worse discordance push the
+effective MDE above 10. **Five points is out of reach and we will not claim otherwise.**
+And published reflection gains are estimates of exactly the confounded total contrast we are
+criticising — they are a **ceiling, not a prior** for $\Delta_C$. This is another reason
+self-report is the primary outcome.
+
+## 12. Standing obligation
 
 Weekly arXiv sweep on `placebo AND (self-repair OR agent OR retrieval)` through Aug 20. Six
 adjacent papers appeared between March and July 2026 and the rate has not slowed. If a fourth
