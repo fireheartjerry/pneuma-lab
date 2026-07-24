@@ -1127,11 +1127,62 @@ Before any paid action, a local dry run must produce:
 - an append-only cost-ledger balance proving
   `settled + reserved + proposed worst case <= USD 50`.
 
+The `USD 50` bound is the pre-credit, self-funded cap. If conditional external
+credits in section 9.3 are redeemed, each action's explicit approval sets its
+operative ceiling against the then-current redeemed balance; it does not
+authorize any other action or remove this gate.
+
 The user must explicitly approve the exact plan hash and reservation. Approval
 is one-use; price, image, GPU, bundle, manifest, or balance drift invalidates it.
 The first paid action is a bounded throughput/parity spike. The full reservation
 is released only after parity and artifact-copy verification pass. No experiment
 run authorizes training, model promotion, or a larger cloud program.
+
+### 9.3 Conditional external credit resources (YC AI Student Starter Pack)
+
+**Status: conditional and pending redemption.** No plan, schedule, gate, or
+downstream artifact may assume these credits are secured. As checked on
+2026-07-24, the available-credit record is:
+
+- AWS: USD 10,000, pending redemption and confirmed on the YC deals page;
+- Microsoft Azure: USD 10,000, pending redemption and confirmed on the YC
+  deals page;
+- OpenAI: USD 2,500, pending redemption and confirmed;
+- Anthropic: USD 500, pending redemption and confirmed; and
+- xAI/Grok: approximately USD 2,500, reported but unconfirmed.
+
+Eligibility is attendance at a YC university event in Fall 2025 or later.
+Redemption uses a Hacker News login, and credits are valid for one year from the
+qualifying event. The public [YC AI Stack
+announcement](https://www.ycombinator.com/blog/the-yc-ai-student-starter-pack)
+confirms event-based eligibility and the aggregate cloud/API-credit program;
+the exact deal receipts remain the authority for provider balances, expiry, and
+terms.
+
+Only the approximately USD 20,000 AWS-plus-Azure cloud-GPU balance is eligible
+to carry experiment load. It may host the same frozen
+Qwen2.5-Coder-7B checkpoint and quantization to scale stochastic agent inference
+for the sealed kernel, pilot, discovery, and confirmation. The model/API credits
+are not eligible to serve as the experiment subject: substituting a hosted model
+would violate the frozen-checkpoint, determinism, standalone, and
+`training_weight: 0.0` invariants. Those credits may support only optional,
+non-load-bearing surfaces such as PneumaVoice v0.1 elaboration/judging or
+registered-secondary descriptive tooling, strictly outside the behavioral and
+scoring paths.
+
+Governance is unchanged. Section 9.2 applies to every credited action. Credits
+raise the financial ceiling only to the redeemed provider balance recorded in
+that action's one-use approval; they do not remove the gate. The reproducibility
+and cost ledger records the true GPU-hour cost even when credits pay the bill.
+Deterministic-claimed artifacts remain CPU-pinned and local. Only stochastic
+agent inference may move to a credited cloud GPU, and only after section 9.2's
+bounded throughput/parity spike and artifact-copy verification pass.
+
+The credits most directly relax the P0-T time-feasibility constraint. They do
+not change P0 statistical power, which remains bounded by independent lineage
+support. Before any schedule relies on AWS or Azure, the action owner must
+verify that the redeemed offer's current terms permit GPU research workloads
+and record that verification in the approval receipt.
 
 ## 10. Acceptance boundary
 

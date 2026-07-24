@@ -18,6 +18,9 @@
     promoted.
 6. **Claims last** -- learned-subject delivery does not import the legacy scorer
     or establish phenomenal consciousness.
+7. **Conditional compute stays gated** -- NeurIPS external-credit context is in
+    `docs/superpowers/specs/2026-07-22-neurips-execution-discovery-design.md`
+    §9.3; pending credits never bypass the §9.2 per-action approval gate.
 
 ## Commands
 

@@ -8,7 +8,9 @@ amendment history, `17-implementation-plan-v2.md` is the executable backlog, and
 software guarantees in reviewer-readable notation. `20-rigor-traceability-and-gaps.md`
 is the claim-to-proof audit and execution-blocking gap register.
 Local implementation, fixture tests, and explicitly authorized local data/model
-runs may proceed. Paid compute remains separately approval-gated.
+runs may proceed. Paid compute remains separately approval-gated; conditional,
+pending-redemption external credits are governed by the execution-discovery
+specification §9.3 and never bypass its §9.2 action-level gate.
 
 This package converts Pneuma Lab from a broad artificial-psyche research system
 into a rigorous, falsifiable empirical study for a NeurIPS 2026 workshop

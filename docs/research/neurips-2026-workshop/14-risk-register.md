@@ -70,6 +70,12 @@ after each stage gate.
 | O-02 | Dataset/model licenses or environment versions block reproducibility. | medium | high | Redistribution prohibited; model quantization/source unclear; auto-installed packages drift. | License/model/data cards; hashes; lockfiles/container; disable automatic package install for official builds; publish transforms rather than restricted data. | Provide acquisition scripts and manifests; substitute only before preregistration. |
 | O-03 | Standalone boundary with 9to5 is violated. | low | critical | Import path, file write, remote, or artifact references 9to5. | Static import/path scan; workspace-root allowlist; isolated worktree/sandboxes; official gate. | Invalidate affected artifacts and rebuild standalone. |
 
+**Conditional compute note.** The compute/time-feasibility risk may be mitigated
+by up to approximately USD 20,000 in AWS and Azure GPU credits, subject to
+redemption, one-year expiry, provider workload terms, and the unchanged
+execution-discovery §9.2 paid-compute gate. Until redeemed, the credits provide
+no schedule assurance.
+
 ## 5. Current top-ten watchlist
 
 1. **M-02** — treatment/outcome label leakage.
