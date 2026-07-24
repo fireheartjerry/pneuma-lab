@@ -31,6 +31,49 @@ Verified examples, quoted from the papers themselves:
 | Generative Agents     | 100 rankings     | **1 simulation**              |
 | ExpeL                 | 134 tasks        | **3 environments**            |
 
+## 1b. The self-induced dependence claim
+
+The audit measures two categorically different kinds of dependence, and only one of them
+is inherited.
+
+**Substrate dependence.** Questions nest in conversations, tasks nest in repositories,
+ratings nest in a simulation run. This is a property of the benchmark. It exists whether or
+not anything is being tested, and every system evaluated on that benchmark inherits it.
+LoCoMo imposes 50 clusters on everyone who uses it, permanently.
+
+**Self-induced dependence.** An agent-memory system accumulates a memory pool across the
+evaluation. Memento: *"we initialise memory from scratch and iteratively store both
+successful and failed trajectories in the case bank over three iterations."* ReasoningBank:
+*"a sequence of task queries arrives in a streaming fashion, i.e., each query is revealed and
+must be completed sequentially without access to future ones."*
+
+Under those designs, task $k$ is conditioned on tasks $1 \ldots k-1$ through the pool. The
+observations are not exchangeable, and the coupling is created by **the intervention under
+test**, not by the benchmark.
+
+The consequence is not a technicality:
+
+> **A memory system is, by construction, the mechanism that destroys the independence of its
+> own evaluation.** The two propositions *"memory carries information across tasks"* and
+> *"tasks are independent evaluation samples"* cannot both be true. They are the same
+> quantity, asserted in one direction as the contribution and denied in the other as a
+> statistical assumption. **The stronger the claimed memory effect, the more severe the
+> violation of the assumption used to test it.**
+
+This is the paper's one genuinely novel conceptual contribution and it is not downstream of
+Card, Miller, Siska, TMLS, or Kotawala, all of whom treat dependence as a property of the
+data. It is stated as a claim about study design, not a claim that any system fails.
+
+**How it is handled in the coding.** F2 is coded under the frozen four-rule procedure exactly
+as written, and a separate per-paper flag `shared_memory_lifetime` is recorded alongside it.
+Papers carrying the flag have their $F_3$ reported with an explicit note that the four-rule
+value is an **upper bound on independence**, because the procedure cannot see coupling the
+system itself creates. Memento is the clearest instance: it codes $F_3 = 1.0$, the cleanest
+ratio in the frame, for a design whose dependence is total.
+
+Adding a fifth F2 rule was rejected: the rubric header makes any amendment force a full
+recode, and the flag records the same information auditably.
+
 ## 2. Why this is not bookkeeping
 
 The distinction the paper lives or dies on. **We do not compute effective sample size.**
