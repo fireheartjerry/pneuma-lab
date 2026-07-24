@@ -180,12 +180,20 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
 Useful commands:
 
 ```txt
-python -m pytest tests/ -q
+python -m pytest -q                      # fast NeurIPS loop (excludes the foundation program)
+python -m pytest -m "not qwen_smoke" -q  # full suite (includes foundation; 26 Windows CRLF shard tests xfail)
+python -m pytest -m foundation -q        # foundation program only
 pip install -e ".[dev]"
 python -m pneuma_lab.status --check
 python -m pytest tests/test_schema_loads.py -q
 git diff --check
 ```
+
+The default `pytest` excludes the `foundation` local-Qwen program (auto-marked by
+filename in `tests/conftest.py`, ~52% of the suite and filesystem-heavy) so the
+daily loop stays fast; it is off the NeurIPS paper critical path. On Windows the
+foundation shard-digest tests fail on a CRLF checkout and are xfailed (env
+artifact, not a regression); run the full suite before milestones.
 
 ## Schema Rules
 

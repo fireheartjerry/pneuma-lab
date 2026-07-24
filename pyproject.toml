@@ -38,7 +38,12 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = '-m "not qwen_smoke"'
+# Fast-by-default: the daily NeurIPS loop excludes the `foundation` local-Qwen
+# program (~52% of the suite, filesystem-heavy, and not imported by the paper).
+# Full run: `pytest -m "not qwen_smoke"` (CLI -m overrides this). Foundation only:
+# `pytest -m foundation`.
+addopts = '-m "not qwen_smoke and not foundation"'
 markers = [
     "qwen_smoke: opt-in smoke test that loads the real pinned Qwen 2B snapshot",
+    "foundation: local-Qwen foundation program; frozen and off the NeurIPS paper critical path (auto-applied to test_foundation_*.py, excluded from the default fast loop)",
 ]
