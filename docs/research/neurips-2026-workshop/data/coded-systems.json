@@ -1,0 +1,209 @@
+{
+    "schema_version": "pneuma-audit-coding/1.0.0",
+    "rubric": "docs/research/neurips-2026-workshop/22-audit-rubric.md",
+    "stratum": "system",
+    "coded_on": "2026-07-24",
+    "coding_note": "Every non-numeric cell backed by a verbatim quote with a locator in the coding sheet. not_stated is never inferred. One agent caught and discarded a fabricated abstract sentence from an LLM summarizer and recoded from raw HTML.",
+    "papers": [
+        {
+            "label": "LongMem",
+            "arxiv": "2306.07174",
+            "f1": 500,
+            "f1_unit": "documents",
+            "f2": 500,
+            "f2_unit": "documents",
+            "f2_rule": 4,
+            "f3": 1.0,
+            "f4": "sd_over_seeds",
+            "f4_note": "ICL tables only; headline ChapterBreak and perplexity claims carry no dispersion",
+            "f5": "none",
+            "f6": [
+                "none"
+            ],
+            "f7": "budget_reported_unequal",
+            "f8": "none",
+            "f9": "not_specified",
+            "claimed": "-1.38 to -1.62 perplexity; 40.5% ChapterBreak identification accuracy",
+            "paired": "dataset-level; item-level pairing not stated",
+            "flags": [
+                "Headline ChapterBreak claim has NO stated N; F1/F2 both not_stated for it, F3 not computable.",
+                "F1 comes from a dataset-statistics table, not the abstract or a results caption; stricter reading gives not_stated.",
+                "F2 rule 2 is a coin-flip: PG-22 is one website (Project Gutenberg), ChapterBreak one (AO3). Read literally, F2=1-3 and F3>=500."
+            ]
+        },
+        {
+            "label": "MemoryBank",
+            "arxiv": "2305.10250",
+            "f1": 194,
+            "f1_unit": "probing questions",
+            "f2": 15,
+            "f2_unit": "virtual users",
+            "f2_rule": 1,
+            "f3": 12.9,
+            "f4": "none",
+            "f5": "none",
+            "f6": [
+                "none"
+            ],
+            "f7": "budget_not_reported",
+            "f8": "none",
+            "f9": "not_specified",
+            "claimed": "NO MAGNITUDE STATED IN PROSE",
+            "paired": "paired",
+            "flags": [
+                "All three quantitative arms are MemoryBank-equipped; the table contains no memory-free comparator, so its differences are attributable to base LLM, not to MemoryBank.",
+                "A memory-forgetting-ablation capability is claimed in the contributions but no such arm is reported anywhere; 'ablat' does not occur in the paper.",
+                "F2 could be 30 if the English and Chinese storages use disjoint user sets; the paper does not say."
+            ]
+        },
+        {
+            "label": "ChatDB",
+            "arxiv": "2306.03901",
+            "f1": 50,
+            "f1_unit": "questions",
+            "f2": 1,
+            "f2_unit": "synthesized record history",
+            "f2_rule": 1,
+            "f3": 50.0,
+            "f4": "none",
+            "f5": "none",
+            "f6": [
+                "none"
+            ],
+            "f7": "budget_reported_unequal",
+            "f8": "none",
+            "f9": "not_specified",
+            "claimed": "82% vs 22%, +60 percentage points; hard questions 28/35 vs 1/35",
+            "paired": "paired",
+            "flags": [
+                "NO metric definition exists anywhere in the paper. Whether grading is exact-match, human, or LLM-judged is never stated.",
+                "All F2 readings (rules 1, 2, and 3) yield a count of 1, so F3=50.0 regardless of rule choice.",
+                "The paper states an explicit extrapolation beyond its evidence: 'if ChatDB outperforms ChatGPT when the dataset is small, it indicates that ChatDB is also superior to memory-augmented ChatGPT when the dataset is large.' No such condition is run."
+            ]
+        },
+        {
+            "label": "Think-in-Memory",
+            "arxiv": "2311.08719",
+            "f1": 194,
+            "f1_unit": "query questions",
+            "f2": 15,
+            "f2_unit": "virtual users",
+            "f2_rule": 1,
+            "f3": 12.9,
+            "f4": "none",
+            "f5": "none",
+            "f6": [
+                "none"
+            ],
+            "f7": "budget_not_reported",
+            "f8": "none",
+            "f9": "not_specified",
+            "claimed": "NO MAGNITUDE STATED IN PROSE",
+            "paired": "dataset-level; item-level pairing not stated",
+            "flags": [
+                "Its GVD SiliconFriend baseline row is numerically identical to MemoryBank's own published table (0.809/0.438/0.680 and 0.840/0.418/0.428), suggesting the baseline was cited rather than re-run. The paper never states which.",
+                "Retrieval accuracy is undefined ('-') for the no-memory arm on KdConv/RMD, so that comparison has only one condition."
+            ]
+        },
+        {
+            "label": "MemLLM",
+            "arxiv": "2404.11672",
+            "f1": 1000,
+            "f1_unit": "sequential edits",
+            "f2": null,
+            "f2_unit": "see DL-58 range",
+            "f2_rule": 4,
+            "f3": null,
+            "f3_range": [
+                1.0,
+                1000.0
+            ],
+            "f4": "none",
+            "f5": "ablation_only",
+            "f6": [
+                "none"
+            ],
+            "f7": "budget_not_reported",
+            "f8": "none",
+            "f9": "not_specified",
+            "claimed": "TARGET PPL improves by .524 (2.986 vs 3.510); editing AVG .84",
+            "paired": "paired by items but never stated as such; editing baselines copied from prior work",
+            "flags": [
+                "F2 carried as a range per DL-58: 1 under the sequential-lifetime clause, 1000 if that clause covers only agent trajectories.",
+                "F1 sits on a secondary results table. The primary result is perplexity (Table 2), which reports no N at all."
+            ]
+        },
+        {
+            "label": "Zep (DMR arm)",
+            "arxiv": "2501.13956",
+            "f1": 500,
+            "f1_unit": "multi-session conversations",
+            "f2": 500,
+            "f2_unit": "conversations",
+            "f2_rule": 1,
+            "f3": 1.0,
+            "f4": "none",
+            "f4_note": "IQR is reported for latency only, not for the headline accuracy",
+            "f5": "none",
+            "f6": [
+                "none"
+            ],
+            "f7": "budget_reported_unequal",
+            "f8": "none",
+            "f9": "not_specified",
+            "claimed": "94.8% vs 93.4%",
+            "paired": "UNPAIRED against MemGPT (cited, not re-run); paired against the authors' own baseline at 94.4%",
+            "flags": [
+                "The abstract's comparator is MemGPT's published number; the authors state they could not reproduce it.",
+                "Their own paired full-context baseline scores 94.4%, a 0.4-point difference, roughly 2 items in 500, about a fifth of the headline gap."
+            ]
+        },
+        {
+            "label": "Zep (LongMemEval arm)",
+            "arxiv": "2501.13956",
+            "f1": null,
+            "f1_unit": "not stated",
+            "f2": null,
+            "f2_unit": "not stated",
+            "f2_rule": null,
+            "f3": null,
+            "f4": "none",
+            "f5": "none",
+            "f6": [
+                "none"
+            ],
+            "f7": "budget_reported_unequal",
+            "f8": "none",
+            "f9": "not_specified",
+            "claimed": "accuracy improvements of up to 18.5%",
+            "paired": "no MemGPT comparison exists; authors could not get successful responses",
+            "flags": [
+                "Carries the larger headline but the paper states no question count, deferring distribution details to the LongMemEval paper. F3 not computable."
+            ]
+        },
+        {
+            "label": "AgeMem",
+            "arxiv": "2601.01885",
+            "f1": null,
+            "f1_unit": "no evaluation-instance count anywhere",
+            "f2": null,
+            "f2_unit": "environments, count not stated",
+            "f2_rule": 2,
+            "f3": null,
+            "f4": "none",
+            "f5": "ablation_only",
+            "f6": [
+                "none"
+            ],
+            "f7": "budget_reported_unequal",
+            "f8": "none",
+            "f9": "not_specified",
+            "claimed": "41.96% and 54.31% average; +4.82 and +8.57 points over best baselines",
+            "paired": "not_stated; no sentence asserts both conditions saw the same items",
+            "flags": [
+                "Reports no evaluation-instance count in main text or any appendix; only training-side counts exist.",
+                "Its only non-answer text sits in the RL training reward ('optionally applying a penalty when no answer is produced'), not the evaluation metric."
+            ]
+        }
+    ]
+}
