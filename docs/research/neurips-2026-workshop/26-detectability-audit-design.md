@@ -31,7 +31,7 @@ Verified examples, quoted from the papers themselves:
 | Generative Agents     | 100 rankings     | **1 simulation**              |
 | ExpeL                 | 134 tasks        | **3 environments**            |
 
-## 1b. The self-induced dependence claim
+## 1b. The endogenous dependence claim
 
 The audit measures two categorically different kinds of dependence, and only one of them
 is inherited.
@@ -41,7 +41,7 @@ ratings nest in a simulation run. This is a property of the benchmark. It exists
 not anything is being tested, and every system evaluated on that benchmark inherits it.
 LoCoMo imposes 50 clusters on everyone who uses it, permanently.
 
-**Self-induced dependence.** An agent-memory system accumulates a memory pool across the
+**Endogenous dependence.** An agent-memory system accumulates a memory pool across the
 evaluation. Memento: *"we initialise memory from scratch and iteratively store both
 successful and failed trajectories in the case bank over three iterations."* ReasoningBank:
 *"a sequence of task queries arrives in a streaming fashion, i.e., each query is revealed and
