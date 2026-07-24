@@ -13,10 +13,10 @@ therefore no ordering dependency.
 
 The frame contains two different objects and they are analyzed separately.
 
-**System papers (14).** Propose a memory mechanism and claim it improves performance.
+**System papers (24).** Propose a memory mechanism and claim it improves performance.
 The claimed effect is theirs to defend.
 
-**Benchmark papers (8).** Define a measurement. They make no claim that their own memory
+**Benchmark papers (5).** Define a measurement. They make no claim that their own memory
 helps — but **every system evaluated on them inherits their sample structure.** A benchmark
 built from ten conversations imposes ten clusters on every downstream user, forever. This
 stratum is arguably the more consequential of the two.
@@ -51,7 +51,16 @@ without mitigation. Mandatory per `22-audit-rubric.md` §1.
 | 20  | MemoryAgentBench      | 2507.05257 | benchmark | in progress |
 | 21  | MemBench              | 2506.21605 | benchmark | in progress |
 | 22  | MemoryArena           | 2602.16313 | benchmark | in progress |
-| 23  | **E-0 (ours)**        | —          | self      | pending     |
+| 23  | ReasoningBank         | 2509.25140 | system    | queued      |
+| 24  | Memento               | 2508.16153 | system    | queued      |
+| 25  | Trace2Skill           | 2603.25158 | system    | queued      |
+| 26  | G-Memory              | 2506.07398 | system    | queued      |
+| 27  | Agent Skill Induction | 2504.06821 | system    | queued      |
+| 28  | MemoryOS              | 2506.06326 | system    | queued      |
+| 29  | AgentCL               | 2606.02461 | system    | queued      |
+| 30  | **E-0 (ours)**        | —          | self      | pending     |
+
+Rows 23–29 admitted by DL-55; see §4.
 
 ## 3. Named exclusions, with the deciding rule
 
