@@ -15,7 +15,7 @@ license = { text = "UNLICENSED" }
 # any violation. The psyche math itself is stdlib-only.
 # Phase 3 adapters read parquet sources (swe_gym_lite imports pyarrow at module
 # scope), so pyarrow is a runtime dependency too.
-dependencies = ["jsonschema>=4.20", "pyarrow>=15"]
+dependencies = ["jsonschema>=4.20", "numpy>=2.0", "pyarrow>=15"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "jsonschema>=4.20", "pyarrow>=15"]
