@@ -1,0 +1,43 @@
+{
+    "schema_version": "pneuma-audit-coding/1.0.0",
+    "rubric": "docs/research/neurips-2026-workshop/22-audit-rubric.md",
+    "stratum": "self",
+    "coded_on": "2026-07-24",
+    "coding_note": "Mandatory self-inclusion per rubric section 1. Coded under the identical rubric and reported without mitigation. Source: build/e0/report.json and docs/research/experiments/e0-preregistration.md.",
+    "papers": [
+        {
+            "label": "E-0 reference-psyche transfer (ours)",
+            "arxiv": null,
+            "source": "build/e0/report.json",
+            "f1_reported_n": 3141,
+            "f1_unit": "evaluation instances",
+            "f1_quote": "counts.eval = 3141",
+            "f2_clusters": 4,
+            "f2_unit": "repositories",
+            "f2_rule": 2,
+            "f2_quote": "counts.eval_repos = 4",
+            "f3_ratio": 785.2,
+            "f3_note": "WORST overstatement ratio in the entire frame, ours. Mem0's is 200.0.",
+            "f4_uncertainty": "ci_unclustered",
+            "f4_note": "H1 reports z = -16.03 and p_one_sided = 1.0 over 3141 items. Clustering by the 4 repositories deflates |z| by sqrt(DEFF): to 2.53 at rho=0.05, 1.04 at rho=0.3, and 0.57 at rho=1. Our own inference is computed over items, not repositories. We commit the exact error we document.",
+            "f5_inert_null": "none",
+            "f5_note": "The comparator was a retry-count controller, a different system. No condition populated the psyche state and blocked its influence.",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "budget_not_reported",
+            "f8_decision_rule": "preregistered",
+            "f8_quote": "preregistration = docs/research/experiments/e0-preregistration.md; H1 criterion 'delta>=0.02 and p<0.01', H2 criterion '>=0.54', H3 criterion '>0.52' all fixed in advance",
+            "f8_note": "Possibly the only paper in the frame coding preregistered on F8. This is the one dimension where we outperform the audited literature.",
+            "f9_non_engagement": "counted_adverse",
+            "f9_note": "37 instances excluded as error_eval_or_timeout out of 6018 replayed; the exclusion is recorded rather than silent.",
+            "claimed_effect": "H1 delta = -0.367 AUC (0.339 vs 0.705); verdict FAIL on all three hypotheses",
+            "paired": "paired; same evaluation instances under both conditions",
+            "flags": [
+                "The clustering error worked AGAINST us. E-0's conclusion was negative - the psyche lost to a retry-count baseline - so item-level inference inflated confidence in a FAILURE. At proper clustering we could not have concluded that either. We over-claimed a null.",
+                "This is reported because the same statistical error inflates negative claims as readily as positive ones, and an audit that applied its critique only to favourable results would be dishonest.",
+                "Determinism was verified: all traces byte-identical across two replays. That is a real strength and is reported alongside the failure."
+            ]
+        }
+    ]
+}
