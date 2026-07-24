@@ -3,7 +3,7 @@
 **Status:** canonical, Protocol v2, revised 2026-07-22. Every downstream
 document MUST agree with Section 8. Changes to a locked constant require a row
 in `15-decision-log.md`. `16-protocol-v2-hardening.md` records the red-team that
-motivated DL-16–DL-44; this file incorporates those decisions and is now the
+motivated DL-16–DL-45; this file incorporates those decisions and is now the
 canonical statement of the study. `18-mathematical-formalism.md` is its
 subordinate mathematical companion; it adds notation and conditional proofs but
 cannot amend a locked constant.
@@ -19,17 +19,20 @@ to the 9to5 repository.
 ## 1. One-sentence description
 
 We test whether giving a software-engineering agent a **persistent, causally
-active, machine-addressable internal state** helps it notice its own recurring
-failure patterns, avoid repeating them, and accurately attribute why its
-behaviour changed—against no-memory, retrieval-memory, written-reflection, and
-strong heuristic controls that are identical in model, tools, ex-ante budgets,
-retry caps, task order, and environment distribution.
+active, machine-addressable internal state** reduces fixed-denominator repeated
+harm after a standardized prior failure under the DL-45 selected-tier
+comparison and causal-intervention rule. Notice and explanation are
+registered-secondary descriptive outputs in this gate-first study; they cannot
+gate or rescue the tier-primary claim.
 
 ## 2. Anchor question—do not drift
 
-> Does giving a software agent a persistent internal state help it notice its
-> own recurring failure patterns, avoid repeating them, and accurately explain
-> why its behaviour changed?
+> Does giving a software agent a persistent, causally active internal state
+> reduce repeated harm after a standardized prior failure, and by how much?
+
+The inert notice readout and post-behaviour explanation program remain
+registered-secondary/descriptive under DL-45. They test recognition and
+attribution without entering selected-tier power or confirmatory continuation.
 
 The study is a controlled behavioural comparison plus randomized state-level
 interventions. It is **not** a consciousness or sentience demonstration.

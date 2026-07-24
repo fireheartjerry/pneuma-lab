@@ -10,7 +10,7 @@ them, and accurately attribute behaviour changes. No phenomenal claim is made.
 
 No confirmatory run may start until the canonical thesis, task backlog, schemas,
 power simulation, and preregistration all agree with this addendum. Changes to
-locked constants are recorded as DL-16–DL-44 in `15-decision-log.md`.
+locked constants are recorded as DL-16–DL-45 in `15-decision-log.md`.
 
 ## 1. Why protocol v1 is no-go
 
@@ -173,8 +173,10 @@ environment diagnostics; no confirmatory/test-set threshold or calibration
 retuning is allowed. Four variables and H3's nine labels are locked. If `r_m`
 cannot pass its non-circularity and causal-activity development checks,
 development stops; removing it requires a new decision-log amendment before
-pilot and a synchronized three-variable/seven-label protocol change. There is
-no automatic fallback.
+pilot and a synchronized three-variable/seven-label protocol change. Study
+scope follows the approved DL-45 monotone rule: run core if powered, otherwise
+floor if powered, otherwise no-go, using only the frozen nuisance/power receipt.
+That rule does not authorize automatic deletion of `r_m` or relabeling H3.
 
 ### 4.2 Pressure, not commands
 

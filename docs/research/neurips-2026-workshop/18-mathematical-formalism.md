@@ -3,7 +3,7 @@
 **Status:** Protocol-v2 mathematical companion and proof appendix, rigor freeze
 2026-07-22. This document is
 subordinate to the locked scientific contract in `02-research-thesis.md`.
-DL-42 hardens only the executable baseline-evidence trust boundary; DL-43–DL-44 bind
+DL-42 hardens only the executable baseline-evidence trust boundary; DL-43–DL-45 bind
 the mathematical corrections and exact pre-pilot freeze obligations below.
 This appendix supplies notation, estimands, identification assumptions, and
 small conditional proofs for implementation and review. It contains no
@@ -944,23 +944,31 @@ H1/H5 co-gates.
 
 ---
 
-## 6. H1 decision vector, IUT, and four-slot Holm procedure
+## 6. Selected-tier and registered-secondary IUTs
 
 Orient every registered component so a larger value favours the claimed
-direction. Define the index sets
+direction. Let $T\in\{\mathrm{core},\mathrm{floor}\}$ be the tier selected by
+the frozen DL-45 rule, and let $\mathcal A_T$ be its comparator set. Core uses
+Base, Retrieval, and the selected scalar; floor uses Base. Reflection and
+Retry-count remain registered-secondary arms. Define
 
 $$
 \mathcal H_N=\{(N,a):a\in\mathcal A_{H1}\},\quad
-\mathcal H_B=\{(B,a):a\in\mathcal A_{H1}\},\quad
-\mathcal H_U=\{u:u\text{ is a frozen metric--comparator co-gate}\},
-\quad \mathcal H_1=\mathcal H_N\cup\mathcal H_B\cup\mathcal H_U.
+\mathcal H_{B,T}=\{(B,a):a\in\mathcal A_T\},\quad
+\mathcal H_{U,T}=\{u:u\text{ is a frozen selected-scope metric--comparator
+co-gate for }a\in\mathcal A_T\},
+\quad \mathcal H_{1T}=\mathcal H_{B,T}\cup\mathcal H_{U,T}.
 $$
 
-Then
+After P0 selects U0 or U1, write $\mathcal H_U=\mathcal H_{U,T}$ for the
+chosen tier-primary utility set. The tier-primary and registered-secondary
+notice vectors are
 
 $$
-\Theta_{H1}=(\theta_h)_{h\in\mathcal H_1}
-=\bigl((\Delta_a^N)_a,(\Delta_a^B)_a,(\eta_u)_u\bigr). \tag{13}
+\Theta_{H1T}=(\theta_h)_{h\in\mathcal H_{1T}}
+=\bigl((\Delta_a^B)_{a\in\mathcal A_T},(\eta_u)_{u\in\mathcal H_{U,T}}\bigr),
+\qquad
+\Theta_N=(\Delta_a^N)_{a\in\mathcal A_{H1}}. \tag{13}
 $$
 
 Here $\eta_u$ is the corresponding utility/anti-gaming non-inferiority
@@ -977,22 +985,29 @@ algebraically equivalent opposite orientation. With the component p-values
 defined in §8.1,
 
 $$
-p_{H1}=\max_{h\in\mathcal H_1}p_h. \tag{14}
+p_{H1T}=\max_{h\in\mathcal H_{1T}}p_h,
+\qquad
+p_N=\max_{h\in\mathcal H_N}p_h. \tag{14}
 $$
 
-This is an intersection–union test: H1 can pass only if every one of the five
-notice contrasts, five behavioural contrasts, and all co-gates reject in their
-registered direction. In addition, every $\widehat\Delta_a^B\geq0.05$, every
-simultaneous one-sided lower bound for $\Delta_a^B$ exceeds zero, every
-simultaneous one-sided lower bound for $\Delta_a^N$ exceeds zero, and all
-frozen notice discrimination/calibration/coverage and validity gates pass. There
-is no observed 0.05 magnitude gate for notice. The behavioural 0.05 point-
-estimate rule is not a claim that the true behavioural effect is at least 0.05.
+H1-T is an intersection–union test: it passes only if every tier-required
+behavioural contrast and selected U0/U1 co-gate rejects in its registered
+direction, every $\widehat\Delta_a^B\geq0.05$, and every simultaneous
+one-sided lower bound for $\Delta_a^B$ exceeds zero. The behavioural 0.05
+point-estimate rule is not a claim that the true behavioural effect is at least
+0.05.
 
-For H2, let
+The five notice contrasts retain their own IUT $p_N$, simultaneous lower
+bounds, and frozen discrimination/calibration/coverage and validity gates.
+There is no observed 0.05 magnitude gate for notice. Under DL-45 the notice
+family is registered-secondary/descriptive: $p_N$, its bounds, and its validity
+outcomes never enter H1-T, H2-T, selected-tier power, continuation, or the
+headline finding.
+
+For H2-T, retain the frozen causal index set and machinery:
 
 $$
-\mathcal H_2=\{\mathrm{off},\mathrm{reset}\}
+\mathcal H_{2T}=\{\mathrm{off},\mathrm{reset}\}
 \cup\{(C,d),(D,d):d\in\mathcal D\}
 \cup\{(L,j),(U,j):j\in\mathcal J_0\}, \tag{14a}
 $$
@@ -1001,7 +1016,7 @@ with oriented effects $\delta_{\mathrm{off}},\delta_{\mathrm{reset}},
 \delta_d^C,\delta_d^D,\theta_{j,L},\theta_{j,U}$ from (7f)–(7h), and define
 
 $$
-p_{H2}=\max_{h\in\mathcal H_2}p_h. \tag{14b}
+p_{H2T}=\max_{h\in\mathcal H_{2T}}p_h. \tag{14b}
 $$
 
 Thus every registered component/dose direction is an IUT requirement; none may
@@ -1019,24 +1034,28 @@ $$
 
 using the four oriented effects in (7k). The absolute frozen criteria and every
 nine-class support/symmetry/no-leak gate must also pass. Surface- and repository-
-holdout analyses each rerun the complete H1 index set and gates on their fixed
-known-motif roster; if their IUT p-values are $p_{H4,S}$ and $p_{H4,R}$,
+holdout analyses each rerun the registered-secondary H1-T-like index set and
+gates on their fixed known-motif roster; if their IUT p-values are
+$p_{H4,S}$ and $p_{H4,R}$,
 
 $$
 p_{H4}=\max(p_{H4,S},p_{H4,R}). \tag{14d}
 $$
 
-An unavailable, invalid, or inconclusive family receives $p=1$. Sort the
-four labeled values as $p_{(1)}\leq\cdots\leq p_{(4)}$, breaking exact ties by
-frozen hypothesis id. Holm rejects sequentially while
+An unavailable, invalid, or inconclusive tier-primary family receives $p=1$.
+The selected-tier claim is the single intersection
 
 $$
-p_{(k)}\leq{0.05\over 5-k},\qquad k=1,\ldots,4, \tag{15}
+p_{\mathrm{selected}}=\max(p_{H1T},p_{H2T}). \tag{15}
 $$
 
-and stops at the first failure. Logical interpretation is stricter: H2 requires
-H1, H3 requires H1 and H2, and H4 requires H1. H5 remains inside (13) and is not
-a fifth Holm slot.
+It passes only when both H1-T and H2-T and every associated hard gate pass; an
+IUT does not divide alpha across required components. Notice, H3, and H4 retain
+their registered estimands, Fisher outputs, bootstrap estimates, simultaneous
+bounds, and IUT summaries, but DL-45 makes them registered-secondary/
+descriptive. They have no primary Holm slot, cannot rescue
+$p_{\mathrm{selected}}$, and cannot gate whether confirmation runs. H5 remains
+inside H1-T through $\mathcal H_{U,T}$ rather than becoming a separate family.
 
 ---
 
@@ -1130,9 +1149,12 @@ $$
 The sign in (19) approximates
 $\max_h(\widehat\theta_h-\theta_h)/\widehat\sigma_h$; reversing it would use
 the wrong bootstrap tail except under an unregistered symmetry assumption.
-For H1,
-$\mathcal H_{\mathrm{sim}}=\mathcal H_N\cup\mathcal H_B$; each other family
-binds its own simultaneous set before pilot.
+For tier-primary H1-T,
+$\mathcal H_{\mathrm{sim},H1T}=\mathcal H_{B,T}$. The registered-secondary
+notice family separately uses
+$\mathcal H_{\mathrm{sim},N}=\mathcal H_N$; each other family binds its own
+simultaneous set before pilot. Both use the same max-T construction, but only
+the H1-T bounds enter the selected-tier decision.
 
 ### 8.1 Component nulls and population p-values
 
@@ -1180,7 +1202,7 @@ a finite-roster point estimand and the assignment-exact sharp-null analysis;
 bootstrap intervals/p-values may be shown only as model-based stability
 summaries, not population-generalization evidence.
 
-### 8.2 Validity of pairing, max-T, IUT, Holm, and exploratory BH
+### 8.2 Validity of pairing, max-T, IUT, optional Holm, and exploratory BH
 
 The current protocol's primary bootstrap unit is the highest dependency
 lineage, not the seed or sequence. “Paired” means that a sampled lineage carries
@@ -1248,9 +1270,9 @@ a nonsmooth functional, its component is an explicit validity gap and the
 family receives $p=1$; the Fisher test cannot be substituted because it targets
 a different null.
 
-**Lemma 3 (four-family FWER).** If $p_{H1},\ldots,p_{H4}$ are
-super-uniform under their respective nulls, Holm's rule (15) controls strong
-familywise error at $0.05$ under arbitrary dependence.
+**Lemma 3 (optional four-family FWER).** If four prespecified family p-values
+are super-uniform under their respective nulls, the standard Holm rule controls
+strong familywise error at $0.05$ under arbitrary dependence.
 
 **Proof.** Let $m_0$ true family nulls remain and let $p^\circ$ be their
 smallest p-value. Any false rejection implies
@@ -1258,6 +1280,11 @@ $p^\circ\leq0.05/m_0$: before the first true null is rejected, at least $m_0$
 hypotheses remain. By the union bound,
 $\Pr(p^\circ\leq0.05/m_0)\leq
 \sum_{j\in H_0}\Pr(p_j\leq0.05/m_0)\leq0.05$. ∎
+
+The lemma remains mathematically valid, but DL-45 does not invoke a four-family
+Holm claim for this gate-first study: notice, H3, and H4 are registered-
+secondary/descriptive. Its presence preserves the proved machinery for a future
+fresh preregistration; it does not promote current secondary outputs.
 
 The exploratory Benjamini–Hochberg family controls FDR at its frozen level only
 if its valid p-values are independent or satisfy the positive-regression-
@@ -1269,48 +1296,52 @@ H1–H5 decision.
 
 ---
 
-## 9. Complete-H1 joint power
+## 9. Complete selected-tier joint power
 
-Let $\mathcal D_{0.10}(G)$ be the single development-frozen joint data-
-generating process for a planned lineage allocation $G=(G_m)_{m\in\mathcal
-M_0}$. It sets every H1 notice- and behaviour-superiority component to the
-declared design alternative $\Delta_{\mathrm{power}}=0.10$, sets true utility
-differences to zero, and uses the preregistered non-inferiority margins and
-blinded-pilot nuisance quantities. Let $\mathscr R_{H1}(D)\in\{0,1\}$ rerun
-the *entire* frozen H1 analysis and decision logic on simulated dataset $D$.
-Joint power is
-
-$$
-\pi_{H1}(G)=
-\Pr_{D\sim\mathcal D_{0.10}(G)}\{\mathscr R_{H1}(D)=1\}. \tag{21}
-$$
-
-DL-44 fixes 30 pilot lineages and the nominal Suite-A roster at 96 sequences,
-six motifs, three challenges, seven arms, and two decoding seeds. Within that
-roster, the selected independent-lineage allocation is
+For selected tier $T$, let $\mathcal D_T(G)$ be the single
+development-frozen joint data-generating process for a planned lineage
+allocation $G=(G_m)_{m\in\mathcal M_0}$. It sets every tier-required H1-T
+repeat-harm superiority component to the declared design alternative
+$\Delta_{\mathrm{power}}=0.10$, sets true utility differences to zero, applies
+the frozen H2-T planning alternatives, and uses the preregistered
+non-inferiority margins and blinded-pilot nuisance quantities. Notice, H3, H4,
+Reflection, and Retry-count components are absent from this DGP's tier-power
+event. Let $\mathscr R_T(D)\in\{0,1\}$ rerun the *entire* frozen H1-T $\cap$
+H2-T analysis and decision logic on simulated dataset $D$. Joint power is
 
 $$
-G^\star=\arg\min_G\left\{\sum_mG_m:
-\pi_{H1}(G)\geq0.80,\ G\text{ is feasible in the fixed registry}\right\}.
+\pi_T(G)=
+\Pr_{D\sim\mathcal D_T(G)}\{\mathscr R_T(D)=1\}. \tag{21}
+$$
+
+DL-45 fixes 30 pilot lineages, roster A's 48 independent lineages nested into
+96 Suite-A sequences, full 96-sequence clamp coverage, and the monotone
+core-to-floor-to-no-go rule. For each candidate tier, the required
+independent-lineage allocation is
+
+$$
+G_T^\star=\arg\min_G\left\{\sum_mG_m:
+\pi_T(G)\geq0.80,\ G\text{ is feasible in the fixed registry}\right\}.
 \tag{21a}
 $$
 
-The selected allocation must satisfy $\pi_{H1}(G^\star)\geq0.80$ under the frozen
-Monte Carlo decision rule. Each simulation includes all five notice tests, all
-five behavioural tests, all co-gates, simultaneous inference, point-estimate
-thresholds, attrition model, and exact estimator hierarchy. Report simulation
-draw count, seed, Monte Carlo standard error, the full joint-DGP artifact, and
-the fraction failing each component. Tasks, surfaces, challenges, and seeds do
-not count as independent lineages. This is power at 0.10, not at the observed
-behavioural 0.05 magnitude rule.
+The selected allocation must satisfy $\pi_T(G_T^\star)\geq0.80$ under the
+frozen Monte Carlo decision rule. Each simulation includes every
+tier-required repeat-harm contrast, utility co-gate, and H2-T component,
+simultaneous inference, point-estimate thresholds, attrition model, and exact
+estimator hierarchy. Report simulation draw count, seed, Monte Carlo standard
+error, the full joint-DGP artifact, and the fraction failing each component.
+Tasks, surfaces, challenges, nested sequences, and decoding seeds do not count
+as independent lineages. This is power at 0.10, not at the observed behavioral
+0.05 magnitude rule.
 
-At this planning checkpoint $G^\star$ is not numerically identified: the locked
+At this planning checkpoint $G_T^\star$ is not numerically identified: the locked
 DGP requires blinded-pilot nuisance quantities that do not yet exist, and this
 pass is forbidden to run a pilot or simulation. The fixed 96-sequence roster is
-therefore a capacity, not a proof of power and not 96 independent units. If the
-feasible set in (21a) is empty, the confirmatory run is no-go or invokes the
-already-preregistered scope-narrowing rule. This is an explicit unresolved
-execution blocker, not permission to add nested replicates or change the method.
+therefore 48 independent lineages, not 96 independent units. If the core
+feasible set in (21a) is empty, the rule evaluates floor; if floor is empty,
+confirmation is no-go. This is an explicit unresolved execution blocker, not
+permission to add nested replicates or change the method.
 
 ---
 
@@ -1402,41 +1433,60 @@ decision requirements. “Practically refuted” always means that the frozen
 smallest-effect/equivalence region supports the adverse conclusion. Mere
 non-rejection is inconclusive.
 
-**H1 proposition (recognition plus repeat-harm reduction).**
+**H1-T proposition (selected-tier repeat-harm reduction plus utility).**
 
 - **Null and alternative:**
-  $H_{01}=\bigcup_{h\in\mathcal H_1}\{\theta_h\leq0\}$ and
-  $H_{11}=\bigcap_{h\in\mathcal H_1}\{\theta_h>0\}$, where
-  $\mathcal H_1$ contains exactly the five notice, five repeat-harm, and frozen
-  H5 co-gate components in (13).
+  $H_{01T}=\bigcup_{h\in\mathcal H_{1T}}\{\theta_h\leq0\}$ and
+  $H_{11T}=\bigcap_{h\in\mathcal H_{1T}}\{\theta_h>0\}$, where
+  $\mathcal H_{1T}$ contains exactly the selected tier's repeat-harm
+  superiority and frozen utility/H5 co-gate components in (13).
 - **Statistic:** the registered component studentized statistics and
   simultaneous max-T bounds, summarized for testing by
-  $p_{H1}=\max_{h\in\mathcal H_1}p_h$.
-- **Decision rule:** support H1 only if Holm rejects its permanent family slot,
-  all five behavioural point estimates are at least $0.05$, all ten
-  superiority lower bounds exceed zero, and every frozen notice and utility
-  gate passes.
-- **Proof obligation:** Theorem 1, the notice construct/oracle assumptions,
-  Lemmas 1–3, and all assignment, isolation, support, and version gates
+  $p_{H1T}=\max_{h\in\mathcal H_{1T}}p_h$.
+- **Decision rule:** support H1-T only if every tier-required behavioral point
+  estimate is at least $0.05$, every required superiority lower bound exceeds
+  zero, and every frozen utility gate passes. The selected-tier claim
+  additionally requires H2-T under (15).
+- **Proof obligation:** Theorem 1, Lemmas 1–3, and all assignment, isolation,
+  support, and version gates
   must hold. These prove identification and error control conditional on the
-  assumptions; they do not prove $H_{11}$ true.
-- **Falsification condition:** H1 is practically refuted when a frozen
-  recognition practical region fails or a simultaneous interval excludes the
-  required benefit for any locked comparator. Otherwise a failed decision is
-  inconclusive.
+  assumptions; they do not prove $H_{11T}$ true.
+- **Falsification condition:** H1-T is practically refuted when a simultaneous
+  interval excludes the required benefit for any tier-required comparator or a
+  utility co-gate fails its frozen practical region. Otherwise a failed
+  decision is inconclusive.
 
-**H2 proposition (registered causal state influence).**
+**Registered-secondary notice proposition.**
 
 - **Null and alternative:**
-  $H_{02}=\bigcup_{h\in\mathcal H_2}\{\theta_h\leq0\}$ and
-  $H_{12}=\bigcap_{h\in\mathcal H_2}\{\theta_h>0\}$, with the exact full-path,
+  $H_{0N}=\bigcup_{h\in\mathcal H_N}\{\theta_h^N\leq0\}$ and
+  $H_{1N}=\bigcap_{h\in\mathcal H_N}\{\theta_h^N>0\}$ for the five frozen
+  notice contrasts in (13).
+- **Statistic:** the unchanged Fisher/randomization component p-values,
+  lineage-bootstrap estimates, simultaneous max-T bounds, and
+  $p_N=\max_{h\in\mathcal H_N}p_h$.
+- **Decision rule:** report the notice IUT and its component estimates as
+  registered-secondary/descriptive. It has no selected-tier power role, no
+  primary multiplicity slot, and cannot rescue or block H1-T, H2-T, or the
+  selected-tier claim.
+- **Proof obligation:** the notice construct/oracle assumptions, timing,
+  carrier allowlist, report noninterference, and Lemmas 1–2 must hold for a
+  valid descriptive notice result.
+
+**H2-T proposition (registered causal state influence).**
+
+- **Null and alternative:**
+  $H_{02T}=\bigcup_{h\in\mathcal H_{2T}}\{\theta_h\leq0\}$ and
+  $H_{12T}=\bigcap_{h\in\mathcal H_{2T}}\{\theta_h>0\}$, with the exact full-path,
   persistence-reset, controlled-clamp, dose, and two-sided equivalence
   components in (14a).
 - **Statistic:** paired eligible-prefix component statistics, their frozen
-  family simultaneous bounds, and $p_{H2}=\max_{h\in\mathcal H_2}p_h$.
-- **Decision rule:** support H2 only if Holm rejects its slot, H1 has passed,
-  every component passes, exact restore and persistence-reset evidence passes,
-  and all intervention/support/wiring-null hard gates pass.
+  family simultaneous bounds, and
+  $p_{H2T}=\max_{h\in\mathcal H_{2T}}p_h$.
+- **Decision rule:** support H2-T only if every component passes, exact restore
+  and persistence-reset evidence passes, and all
+  intervention/support/wiring-null hard gates pass. The selected-tier claim
+  requires both H1-T and H2-T under (15).
 - **Proof obligation:** Theorem 2, intervention positivity, concealed
   pre-outcome assignment, SUTVA/consistency, surgical intervention integrity,
   and Lemmas 1–3. Clamp results prove only controlled-coordinate
@@ -1457,9 +1507,10 @@ non-rejection is inconclusive.
   no-change specificity, and risk–coverage components in (7k).
 - **Statistic:** the paired nine-label report component statistics and
   $p_{H3}=\max_{h\in\mathcal H_3}p_h$.
-- **Decision rule:** support H3 only if Holm rejects its slot after H1 and H2
-  pass and every frozen absolute criterion, nine-class support, packet symmetry,
-  timing, same-checkpoint, and no-leak gate passes.
+- **Decision rule:** report H3 as registered-secondary/descriptive only when
+  every frozen absolute criterion, nine-class support, packet symmetry, timing,
+  same-checkpoint, and no-leak gate passes. It has no primary Holm slot and
+  cannot alter the selected-tier claim.
 - **Proof obligation:** Theorem 3 plus valid verifier labels, equal paired
   packets, report noninterference, estimator regularity, and Lemmas 1–3.
 - **Falsification condition:** a frozen practical interval favouring any locked
@@ -1473,12 +1524,14 @@ non-rejection is inconclusive.
 
 - **Null and alternative:**
   $H_{04}=H_{04,S}\cup H_{04,R}$ and
-  $H_{14}=H_{14,S}\cap H_{14,R}$, where each axis repeats the complete H1
-  component alternative on its preregistered known-motif holdout roster.
-- **Statistic:** the two H1-like family statistics and
+  $H_{14}=H_{14,S}\cap H_{14,R}$, where each axis repeats the
+  registered-secondary H1-T-like component alternative on its preregistered
+  known-motif holdout roster.
+- **Statistic:** the two H1-T-like family statistics and
   $p_{H4}=\max(p_{H4,S},p_{H4,R})$.
-- **Decision rule:** support H4 only if Holm rejects its slot, H1 passes, and
-  both surface and repository holdout IUTs and all their H1 gates pass.
+- **Decision rule:** report H4 as registered-secondary/descriptive only if both
+  surface and repository holdout IUTs and all their H1-T-like gates pass. It has
+  no primary Holm slot and cannot alter the selected-tier claim.
 - **Proof obligation:** Theorem 1 and Lemmas 1–3 on each leakage-controlled
   roster, plus immutable split ancestry and adequate independent-lineage
   support.
@@ -1489,11 +1542,12 @@ non-rejection is inconclusive.
 
 **H5 proposition (utility and anti-gaming co-gate).**
 
-- **Null and alternative:** for the frozen set $\mathcal H_U$,
-  $H_{05}=\bigcup_{u\in\mathcal H_U}\{\eta_u\leq0\}$ and
-  $H_{15}=\bigcap_{u\in\mathcal H_U}\{\eta_u>0\}$.
+- **Null and alternative:** for the selected tier's frozen set
+  $\mathcal H_{U,T}$,
+  $H_{05}=\bigcup_{u\in\mathcal H_{U,T}}\{\eta_u\leq0\}$ and
+  $H_{15}=\bigcap_{u\in\mathcal H_{U,T}}\{\eta_u>0\}$.
 - **Statistic:** the registered utility/non-inferiority component statistics
-  already included in $\Theta_{H1}$; there is no fifth family p-value.
+  already included in $\Theta_{H1T}$; there is no fifth family p-value.
 - **Decision rule:** H5 passes only when every co-gate rejects in its registered
   direction and all fixed-denominator attempt, completion, success,
   total/new-family failure, false-avoidance, and resource criteria pass as
@@ -1558,8 +1612,8 @@ reproducibility bundle must include:
 | (8)–(12) hierarchy | hand-calculated fixtures, adverse branch-local missing slots, common-mask symmetry, fixed lineage ancestry/digests |
 | (16)–(18) assignment | exhaustive one-block `7!` audit, mapping/order independence test, receipt roundtrip, known-null p-value tests |
 | (19)–(20) bootstrap | seeded ≥10,000-draw reproducibility, whole-lineage resampling, all-arm pairing, zero-support failure test |
-| (14)–(15) decisions | boundary tests for every H1 component, four permanent Holm slots, invalid family `p=1`, logical-gate tests |
-| (21) power | full-pipeline simulation receipt proving complete-H1 rather than marginal-component power |
+| (14)–(15) decisions | boundary tests for every H1-T and H2-T component, selected-claim IUT, separate registered-secondary notice IUT, invalid primary family `p=1`, logical-gate tests |
+| (21) power | full-pipeline simulation receipt proving complete selected-tier H1-T $\cap$ H2-T power rather than marginal-component power |
 | (22)–(23) diagnostic | frozen feature/dose digests, paired lineage analysis, explicit `secondary` provenance tag |
 
 The paper should place the state/head equations, SCM, estimand hierarchy, and

@@ -20,12 +20,11 @@ Australia**; IAB is the secondary fallback).
 ## The one-sentence claim
 
 We test whether giving a software-engineering agent a **persistent, causally
-active internal state** helps it notice its own recurring failure patterns,
-avoid repeating them, and accurately explain why its behaviour changed —
-measured against no-memory, retrieved-memory, and written-reflection agents
-identical in every other respect, plus mandatory retry-count and persistent
-scalar-controller falsifiers selected from a last-bit/count/EWMA/Beta grid, with
-the causal contribution isolated by clamp/ablation interventions.
+active internal state** reduces fixed-denominator repeated harm after a
+standardized prior failure, with causal contribution identified by the
+registered InfluenceOff/clamp interventions. Notice and explanation remain
+registered-secondary descriptive outputs under this gate-first study and cannot
+gate the tier-primary claim.
 
 ## What the audit established (see `01` and `16`)
 
@@ -57,7 +56,7 @@ subset in isolated sandboxes.
 | 12  | `12-implementation-plan.md`              | Historical v1 39-task backlog; do not execute                                                       |
 | 13  | `13-publication-plan.md`                 | Verify-Agents target, 9/4-page plans, figures, anonymous reproducibility/PDF gates                   |
 | 14  | `14-risk-register.md`                    | Live ranked risks with validity gates, mitigation, and honest contingencies                          |
-| 15  | `15-decision-log.md`                     | DL-01…DL-44 with supersessions, rejected alternatives, and rationale                                 |
+| 15  | `15-decision-log.md`                     | DL-01…DL-45 with supersessions, rejected alternatives, and rationale                                 |
 | 16  | `16-protocol-v2-hardening.md`            | Protocol-v1 red-team, hardening rationale, and amendment history                                    |
 | 17  | `17-implementation-plan-v2.md`           | **Executable Protocol-v2 backlog:** dependency order, tests, gates, and old-task mapping            |
 | 18  | `18-mathematical-formalism.md`           | State/action equations, SCM and do-interventions, exact estimands/inference, and testable propositions |
@@ -72,7 +71,7 @@ subset in isolated sandboxes.
 | --- | --- | --- |
 | Central claim, H1–H5, seven arms, endpoint definitions, design constants, roster, and power rule | `02-research-thesis.md` §§2–8 | Overrides incompatible detail anywhere else |
 | Mathematical notation, probability model, SCM/DAG, do-interventions, estimands, identification, estimators, and validity proofs | `18-mathematical-formalism.md` | Must instantiate, never expand, the scientific contract in `02` |
-| Binding decisions and supersession history | `15-decision-log.md` | Latest applicable DL row controls; DL-16–DL-44 supersede named v1 choices |
+| Binding decisions and supersession history | `15-decision-log.md` | Latest applicable DL row controls; DL-16–DL-45 supersede named v1 choices |
 | Executable task order, dependencies, acceptance tests, and gates | `17-implementation-plan-v2.md` | Controls execution; cannot redefine the science or mathematics |
 | Red-team rationale and why Protocol v2 replaced v1 | `16-protocol-v2-hardening.md` | Explanatory only when `02`, `15`, `17`, or `18` is more specific |
 | Current repository maturity | `01-current-state-audit.md` plus `docs/project-status.json` | The status manifest wins if dated prose disagrees |
@@ -118,5 +117,5 @@ cannot substitute for live treatment evidence.
 
 Built from 15 parallel read-only code-tracing audits of the repository (working
 notes in the session scratchpad under `audit/`) plus a verified related-work and
-on-disk-data survey. Protocol-v2 hardening amendments, including DL-24–DL-44,
+on-disk-data survey. Protocol-v2 hardening amendments, including DL-24–DL-45,
 are recorded in `15`; no confirmatory result is claimed by this blueprint.
