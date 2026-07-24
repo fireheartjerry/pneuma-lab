@@ -22,7 +22,9 @@
             "f4_uncertainty": "none",
             "f4_quote": "We report results from a single inference run for each model in our experiments [Appendix C.2]",
             "f5_inert_null": "not_applicable",
-            "f6_engagement": ["abstention_measured"],
+            "f6_engagement": [
+                "abstention_measured"
+            ],
             "f6_caveat": "Per-category accuracy on adversarial items, not a refusal rate over the benchmark. A stricter coder would record none.",
             "f7_budget": "budget_reported_unequal",
             "f8_decision_rule": "none",
@@ -50,7 +52,9 @@
             "f3_note": "Not computable from a foregrounded F1. Conditional readings: 8.3 or 9.7.",
             "f4_uncertainty": "none",
             "f5_inert_null": "not_applicable",
-            "f6_engagement": ["none"],
+            "f6_engagement": [
+                "none"
+            ],
             "f7_budget": "budget_not_reported",
             "f8_decision_rule": "none",
             "f9_non_engagement": "not_specified",
@@ -77,7 +81,9 @@
             "f3_note": "Full-dataset ratio. NOT computable for the reported experiments: the paper evaluates 1039 items and never states how many of the 500 graphs they come from.",
             "f4_uncertainty": "none",
             "f5_inert_null": "not_applicable",
-            "f6_engagement": ["none"],
+            "f6_engagement": [
+                "none"
+            ],
             "f7_budget": "budget_not_reported",
             "f7_note": "Memory Efficiency concerns processing time costs, but that is a reported outcome, not an enforced parity constraint.",
             "f8_decision_rule": "none",
@@ -100,10 +106,16 @@
             "f2_rule": 2,
             "f2_alternative": "5 is defensible if Math and Physics formal reasoning count as separate environments per Table 2.",
             "f3_ratio": 191.5,
-            "f3_alternatives": [184.0, 153.2, 147.2],
+            "f3_alternatives": [
+                184.0,
+                153.2,
+                147.2
+            ],
             "f4_uncertainty": "none",
             "f5_inert_null": "not_applicable",
-            "f6_engagement": ["none"],
+            "f6_engagement": [
+                "none"
+            ],
             "f6_caveat": "Progress Score measures subtask completion but is a graded success metric, not a separately reported engagement or refusal rate. It does not distinguish an agent that attempted and failed from one that never attempted.",
             "f7_budget": "budget_not_reported",
             "f8_decision_rule": "none",
@@ -113,6 +125,14 @@
                 "766 in prose versus 736 in Table 2.",
                 "4 domains versus 5 table rows.",
                 "Human annotators confirmed but annotator count not stated."
+            ],
+            "f2_alternatives": [
+                {
+                    "f2_clusters": 5,
+                    "f2_unit": "domains incl. split formal reasoning",
+                    "f2_rule": 2,
+                    "reason": "Table 2 lists Math and Physics formal reasoning as separate rows."
+                }
             ]
         }
     ],

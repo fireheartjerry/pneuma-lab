@@ -34,7 +34,15 @@
                 "Headline 22.0 not reproducible from locatable raw numbers; 130/134=97.0% vs a baseline read off Figure 3a near 108/134=80.6% implies 16.4. See DL-70.",
                 "F2=6 task-types is a defensible alternative; verdict flips from about rho=0.15. See DL-69."
             ],
-            "notes": ""
+            "notes": "",
+            "f2_alternatives": [
+                {
+                    "f2_clusters": 6,
+                    "f2_unit": "task types",
+                    "f2_rule": 3,
+                    "reason": "DL-69: '134 AlfWorld environments across six different tasks'. Rule 2 fires first on 'environments'; rule 3 would return 6."
+                }
+            ]
         },
         {
             "label": "Generative Agents",
@@ -219,7 +227,21 @@
             "flags": [
                 "Paper explicitly disambiguates absolute vs relative in the same sentence. Verified DL-65."
             ],
-            "notes": ""
+            "notes": "",
+            "f2_alternatives": [
+                {
+                    "f2_clusters": 200,
+                    "f2_unit": "domains (Mind2Web arm)",
+                    "f2_rule": 2,
+                    "reason": "Mind2Web arm draws on 200+ domains; the coded 5 is the WebArena arm. The two differ by roughly 40x."
+                },
+                {
+                    "f2_clusters": 205,
+                    "f2_unit": "pooled sites and domains",
+                    "f2_rule": 2,
+                    "reason": "Pooling both arms' groupings."
+                }
+            ]
         },
         {
             "label": "SWE-Exp",

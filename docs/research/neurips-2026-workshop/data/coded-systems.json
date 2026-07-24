@@ -29,6 +29,14 @@
                 "Headline ChapterBreak claim has NO stated N; F1/F2 both not_stated for it, F3 not computable.",
                 "F1 comes from a dataset-statistics table, not the abstract or a results caption; stricter reading gives not_stated.",
                 "F2 rule 2 is a coin-flip: PG-22 is one website (Project Gutenberg), ChapterBreak one (AO3). Read literally, F2=1-3 and F3>=500."
+            ],
+            "f2_alternatives": [
+                {
+                    "f2_clusters": 2,
+                    "f2_unit": "websites",
+                    "f2_rule": 2,
+                    "reason": "PG-22 is Project Gutenberg and ChapterBreak is AO3. Read literally as websites, rule 2 fires and F3 exceeds 250. The coder flagged this as a genuine coin-flip."
+                }
             ]
         },
         {
@@ -156,7 +164,10 @@
             "flags": [
                 "The abstract's comparator is MemGPT's published number; the authors state they could not reproduce it.",
                 "Their own paired full-context baseline scores 94.4%, a 0.4-point difference, roughly 2 items in 500, about a fifth of the headline gap."
-            ]
+            ],
+            "claimed_effect_pp": 0.4,
+            "claimed_effect_verified": true,
+            "claimed_effect_note": "Verified DL-65: 94.8 vs the authors own re-run full-context baseline at 94.4 on gpt-4-turbo. NOT the 93.4 cited from MemGPT, which the authors state they could not reproduce. At gpt-4o-mini the same contrast is 0.2."
         },
         {
             "label": "Zep (LongMemEval arm)",
@@ -205,5 +216,6 @@
                 "Its only non-answer text sits in the RL training reward ('optionally applying a penalty when no answer is produced'), not the evaluation metric."
             ]
         }
-    ]
+    ],
+    "amendment_note": "claimed_effect_pp and claimed_effect_verified were added to the Zep DMR row after the DL-65 verification pass; those fields did not exist when this file was written. No coded rubric field was altered."
 }
