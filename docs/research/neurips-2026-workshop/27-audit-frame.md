@@ -57,7 +57,12 @@ without mitigation. Mandatory per `22-audit-rubric.md` §1.
 | 26  | G-Memory              | 2506.07398 | system    | queued      |
 | 27  | Agent Skill Induction | 2504.06821 | system    | queued      |
 | 28  | MemoryOS              | 2506.06326 | system    | queued      |
-| 29  | AgentCL               | 2606.02461 | system    | queued      |
+| 29  | AgentCL               | 2606.02461 | system    | yes         |
+| 30  | JARVIS-1              | 2311.05997 | system    | yes         |
+| 31  | GITM                  | 2305.17144 | system    | yes         |
+
+Rows 30-31 admitted by DL-67 after the survey bibliography was hand-verified; both are
+survey-cited and meet criterion 1, and the original automated extraction dropped them.
 | 30  | **E-0 (ours)**        | —          | self      | pending     |
 
 Rows 23–29 admitted by DL-55; see §4.

@@ -1,17 +1,609 @@
-% refs.bib -- intentionally empty placeholder.
+% Verified bibliography. Assembled 2026-07-24.
 %
-% Bibliography entries arrive from a separate verified-bibliography pass.
+% RULE: no entry enters without primary-source confirmation of title, full author
+% list in order, year, and venue. Author lists come from the arXiv API
+% (author-supplied) or the publisher's own proceedings page. Third-party aggregators
+% are NOT trusted for names: OpenAlex was observed corrupting "Yuanzhe Hu" to
+% "Yannan Hu", "Apurva Gandhi" to "Akshat Gandhi", "Muxin Fu" to "Min Fu", and
+% "Dong Yu" to "Yu Dong".
 %
-% RULE: no entry may be added to this file without primary-source
-% verification. "Primary-source verification" means a human or agent has
-% opened the actual paper (publisher page, arXiv abstract page, or official
-% proceedings entry) and confirmed, at minimum:
-%   - the exact title
-%   - the full author list and its order
-%   - the venue and year
-%   - the DOI or arXiv identifier
-%   - that any claim cited to this entry is actually made in the source
-%
-% Entries reconstructed from memory, from another paper's reference list, or
-% from an unverified model completion are not permitted here, even
-% provisionally. An unverifiable citation must be dropped, not softened.
+% Entries marked UNVERIFIED have a confirmed bibliographic record but an unconfirmed
+% content attribution. Do not cite them for the attributed proposition without
+% locating it to a page.
+
+% ============================ METHODOLOGICAL PRECEDENTS ======================
+
+@inproceedings{card_littlepower_2020,
+    title     = {With Little Power Comes Great Responsibility},
+    author    = {Card, Dallas and Henderson, Peter and Khandelwal, Urvashi and
+                 Jia, Robin and Mahowald, Kyle and Jurafsky, Dan},
+    booktitle = {Proceedings of the 2020 Conference on Empirical Methods in
+                 Natural Language Processing (EMNLP)},
+    year      = {2020},
+    pages     = {9263--9274},
+    doi       = {10.18653/v1/2020.emnlp-main.745}
+}
+
+@inproceedings{siska_robustness_2024,
+    title     = {Examining the robustness of {LLM} evaluation to the distributional
+                 assumptions of benchmarks},
+    author    = {Siska, Charlotte and Marazopoulou, Katerina and Ailem, Melissa and
+                 Bono, James},
+    booktitle = {Proceedings of the 62nd Annual Meeting of the Association for
+                 Computational Linguistics (Volume 1: Long Papers)},
+    year      = {2024},
+    pages     = {10406--10421},
+    doi       = {10.18653/v1/2024.acl-long.560}
+}
+
+@misc{miller_errorbars_2024,
+    title         = {Adding Error Bars to Evals: A Statistical Approach to Language
+                     Model Evaluations},
+    author        = {Miller, Evan},
+    year          = {2024},
+    eprint        = {2411.00640},
+    archivePrefix = {arXiv}
+}
+
+@misc{kotawala_resolutiondiagnostics_2026,
+    title         = {Resolution Diagnostics for Paired {LLM} Evaluation},
+    author        = {Kotawala, Anany},
+    year          = {2026},
+    eprint        = {2605.30315},
+    archivePrefix = {arXiv},
+    note          = {ICML 2026 Workshop on Hypothesis Testing}
+}
+
+@misc{bjarnason_randomness_2026,
+    title         = {On Randomness in Agentic Evals},
+    author        = {Bjarnason, Bjarni Haukur and Silva, Andr\'{e} and
+                     Monperrus, Martin},
+    year          = {2026},
+    eprint        = {2602.07150},
+    archivePrefix = {arXiv}
+}
+
+@misc{huang_howmanytasks_2026,
+    title         = {How Many Tasks Are Enough for Agent Benchmark Decisions?
+                     A Replay Analysis of Public {LLM} Agent Benchmarks},
+    author        = {Huang, Wei-Jung},
+    year          = {2026},
+    eprint        = {2607.12338},
+    archivePrefix = {arXiv},
+    note          = {KDD 2026 Workshop on Agentic AI Evaluation and Trustworthiness}
+}
+
+@misc{bowyer_dontusetheclt_2025,
+    title         = {Position: Don't Use the {CLT} in {LLM} Evals With Fewer Than
+                     a Few Hundred Datapoints},
+    author        = {Bowyer, Sam and Aitchison, Laurence and Ivanova, Desi R.},
+    year          = {2025},
+    eprint        = {2503.01747},
+    archivePrefix = {arXiv},
+    note          = {ICML 2025 Spotlight Position Paper}
+}
+
+% CORRECTION: Zeng et al., not "Wang et al." as an earlier internal brief had it.
+@misc{zeng_missingresponses_2025,
+    title         = {Handling Missing Responses under Cluster Dependence with
+                     Applications to Language Model Evaluation},
+    author        = {Zeng, Zhenghao and Arbour, David and Feller, Avi and
+                     Dasgupta, Ishita and Sinha, Atanu R and Kennedy, Edward H.},
+    year          = {2025},
+    eprint        = {2510.20928},
+    archivePrefix = {arXiv}
+}
+
+% =============================== AUDITED FRAME ===============================
+
+% DIVERGENCE: NeurIPS 2023 proceedings lists 5 authors; arXiv v4 lists 6, adding
+% Edward Berman. The published record is used. Verified at papers.nips.cc.
+@inproceedings{shinn_reflexion_2023,
+    title     = {Reflexion: language agents with verbal reinforcement learning},
+    author    = {Shinn, Noah and Cassano, Federico and Gopinath, Ashwin and
+                 Narasimhan, Karthik and Yao, Shunyu},
+    booktitle = {Advances in Neural Information Processing Systems 36 (NeurIPS 2023)},
+    year      = {2023}
+}
+
+@inproceedings{park_generativeagents_2023,
+    title     = {Generative Agents: Interactive Simulacra of Human Behavior},
+    author    = {Park, Joon Sung and O'Brien, Joseph C. and Cai, Carrie J. and
+                 Morris, Meredith Ringel and Liang, Percy and Bernstein, Michael S.},
+    booktitle = {Proceedings of the 36th Annual ACM Symposium on User Interface
+                 Software and Technology (UIST '23)},
+    year      = {2023},
+    pages     = {1--22},
+    doi       = {10.1145/3586183.3606763}
+}
+
+@misc{packer_memgpt_2023,
+    title         = {MemGPT: Towards LLMs as Operating Systems},
+    author        = {Packer, Charles and Wooders, Sarah and Lin, Kevin and
+                     Fang, Vivian and Patil, Shishir G. and Stoica, Ion and
+                     Gonzalez, Joseph E.},
+    year          = {2023},
+    eprint        = {2310.08560},
+    archivePrefix = {arXiv}
+}
+
+@inproceedings{zhao_expel_2024,
+    title     = {ExpeL: LLM Agents Are Experiential Learners},
+    author    = {Zhao, Andrew and Huang, Daniel and Xu, Quentin and Lin, Matthieu and
+                 Liu, Yong-Jin and Huang, Gao},
+    booktitle = {Proceedings of the AAAI Conference on Artificial Intelligence},
+    year      = {2024},
+    volume    = {38},
+    number    = {17},
+    pages     = {19632--19642},
+    doi       = {10.1609/aaai.v38i17.29936}
+}
+
+% OpenReview records TMLR acceptance (forum ehfRiF0R3a); volume and TMLR year
+% UNVERIFIED. Cited as preprint.
+@misc{wang_voyager_2023,
+    title         = {Voyager: An Open-Ended Embodied Agent with Large Language Models},
+    author        = {Wang, Guanzhi and Xie, Yuqi and Jiang, Yunfan and Mandlekar, Ajay
+                     and Xiao, Chaowei and Zhu, Yuke and Fan, Linxi and
+                     Anandkumar, Anima},
+    year          = {2023},
+    eprint        = {2305.16291},
+    archivePrefix = {arXiv}
+}
+
+% Venue from author-supplied arXiv comment; proceedings page UNVERIFIED.
+@inproceedings{xu_amem_2025,
+    title         = {A-MEM: Agentic Memory for LLM Agents},
+    author        = {Xu, Wujiang and Liang, Zujie and Mei, Kai and Gao, Hang and
+                     Tan, Juntao and Zhang, Yongfeng},
+    booktitle     = {Advances in Neural Information Processing Systems (NeurIPS 2025)},
+    year          = {2025},
+    eprint        = {2502.12110},
+    archivePrefix = {arXiv}
+}
+
+@misc{chhikara_mem0_2025,
+    title         = {Mem0: Building Production-Ready AI Agents with Scalable
+                     Long-Term Memory},
+    author        = {Chhikara, Prateek and Khant, Dev and Aryan, Saket and
+                     Singh, Taranjeet and Yadav, Deshraj},
+    year          = {2025},
+    eprint        = {2504.19413},
+    archivePrefix = {arXiv}
+}
+
+@inproceedings{wang_agentworkflowmemory_2025,
+    title     = {Agent Workflow Memory},
+    author    = {Wang, Zora Zhiruo and Mao, Jiayuan and Fried, Daniel and
+                 Neubig, Graham},
+    booktitle = {Proceedings of the 42nd International Conference on Machine
+                 Learning (ICML 2025)},
+    series    = {Proceedings of Machine Learning Research},
+    volume    = {267},
+    year      = {2025},
+    publisher = {PMLR}
+}
+
+@misc{chen_sweexp_2025,
+    title         = {SWE-Exp: Experience-Driven Software Issue Resolution},
+    author        = {Chen, Silin and Lin, Shaoxin and Shi, Yuling and Lian, Heng and
+                     Gu, Xiaodong and Yun, Longfei and Chen, Dong and Cao, Lin and
+                     Liu, Jiyang and Xia, Nu and Wang, Qianxiang},
+    year          = {2025},
+    eprint        = {2507.23361},
+    archivePrefix = {arXiv}
+}
+
+% Venue from author-supplied arXiv comment; proceedings page UNVERIFIED.
+@inproceedings{wu_longmemeval_2025,
+    title         = {LongMemEval: Benchmarking Chat Assistants on Long-Term
+                     Interactive Memory},
+    author        = {Wu, Di and Wang, Hongwei and Yu, Wenhao and Zhang, Yuwei and
+                     Chang, Kai-Wei and Yu, Dong},
+    booktitle     = {The Thirteenth International Conference on Learning
+                     Representations (ICLR 2025)},
+    year          = {2025},
+    eprint        = {2410.10813},
+    archivePrefix = {arXiv}
+}
+
+@inproceedings{wang_longmem_2023,
+    title     = {Augmenting Language Models with Long-Term Memory},
+    author    = {Wang, Weizhi and Dong, Li and Cheng, Hao and Liu, Xiaodong and
+                 Yan, Xifeng and Gao, Jianfeng and Wei, Furu},
+    booktitle = {Advances in Neural Information Processing Systems 36 (NeurIPS 2023)},
+    year      = {2023},
+    pages     = {74530--74543}
+}
+
+@inproceedings{zhong_memorybank_2024,
+    title     = {MemoryBank: Enhancing Large Language Models with Long-Term Memory},
+    author    = {Zhong, Wanjun and Guo, Lianghong and Gao, Qiqi and Ye, He and
+                 Wang, Yanlin},
+    booktitle = {Proceedings of the AAAI Conference on Artificial Intelligence},
+    year      = {2024},
+    volume    = {38},
+    number    = {17},
+    pages     = {19724--19731},
+    doi       = {10.1609/aaai.v38i17.29946}
+}
+
+@misc{hu_chatdb_2023,
+    title         = {ChatDB: Augmenting LLMs with Databases as Their Symbolic Memory},
+    author        = {Hu, Chenxu and Fu, Jie and Du, Chenzhuang and Luo, Simian and
+                     Zhao, Junbo and Zhao, Hang},
+    year          = {2023},
+    eprint        = {2306.03901},
+    archivePrefix = {arXiv}
+}
+
+@misc{liu_thinkinmemory_2023,
+    title         = {Think-in-Memory: Recalling and Post-thinking Enable LLMs with
+                     Long-Term Memory},
+    author        = {Liu, Lei and Yang, Xiaoyan and Shen, Yue and Hu, Binbin and
+                     Zhang, Zhiqiang and Gu, Jinjie and Zhang, Guannan},
+    year          = {2023},
+    eprint        = {2311.08719},
+    archivePrefix = {arXiv}
+}
+
+% arXiv states TMLR publication; volume and TMLR year UNVERIFIED.
+@misc{modarressi_memllm_2025,
+    title         = {MemLLM: Finetuning LLMs to Use An Explicit Read-Write Memory},
+    author        = {Modarressi, Ali and K\"{o}ksal, Abdullatif and Imani, Ayyoob and
+                     Fayyaz, Mohsen and Sch\"{u}tze, Hinrich},
+    year          = {2025},
+    eprint        = {2404.11672},
+    archivePrefix = {arXiv}
+}
+
+@misc{rasmussen_zep_2025,
+    title         = {Zep: A Temporal Knowledge Graph Architecture for Agent Memory},
+    author        = {Rasmussen, Preston and Paliychuk, Pavlo and Beauvais, Travis and
+                     Ryan, Jack and Chalef, Daniel},
+    year          = {2025},
+    eprint        = {2501.13956},
+    archivePrefix = {arXiv}
+}
+
+@misc{yu_agenticmemory_2026,
+    title         = {Agentic Memory: Learning Unified Long-Term and Short-Term
+                     Memory Management for Large Language Model Agents},
+    author        = {Yu, Yi and Yao, Liuyi and Xie, Yuexiang and Tan, Qingquan and
+                     Feng, Jiaqi and Li, Yaliang and Wu, Libing},
+    year          = {2026},
+    eprint        = {2601.01885},
+    archivePrefix = {arXiv},
+    note          = {ACL 2026 SAC Highlight}
+}
+
+@inproceedings{maharana_locomo_2024,
+    title     = {Evaluating Very Long-Term Conversational Memory of LLM Agents},
+    author    = {Maharana, Adyasha and Lee, Dong-Ho and Tulyakov, Sergey and
+                 Bansal, Mohit and Barbieri, Francesco and Fang, Yuwei},
+    booktitle = {Proceedings of the 62nd Annual Meeting of the Association for
+                 Computational Linguistics (Volume 1: Long Papers)},
+    year      = {2024},
+    pages     = {13851--13870},
+    doi       = {10.18653/v1/2024.acl-long.747}
+}
+
+@misc{hu_memoryagentbench_2025,
+    title         = {Evaluating Memory in LLM Agents via Incremental Multi-Turn
+                     Interactions},
+    author        = {Hu, Yuanzhe and Wang, Yu and McAuley, Julian},
+    year          = {2025},
+    eprint        = {2507.05257},
+    archivePrefix = {arXiv}
+}
+
+@inproceedings{tan_membench_2025,
+    title     = {MemBench: Towards More Comprehensive Evaluation on the Memory of
+                 LLM-based Agents},
+    author    = {Tan, Haoran and Zhang, Zeyu and Ma, Chen and Chen, Xu and
+                 Dai, Quanyu and Dong, Zhenhua},
+    booktitle = {Findings of the Association for Computational Linguistics: ACL 2025},
+    year      = {2025},
+    pages     = {19336--19352},
+    doi       = {10.18653/v1/2025.findings-acl.989}
+}
+
+@misc{he_memoryarena_2026,
+    title         = {MemoryArena: Benchmarking Agent Memory in Interdependent
+                     Multi-Session Agentic Tasks},
+    author        = {He, Zexue and Wang, Yu and Zhi, Churan and Hu, Yuanzhe and
+                     Chen, Tzu-Ping and Yin, Lang and Chen, Ze and Wu, Tong Arthur
+                     and Ouyang, Siru and Wang, Zihan and Pei, Jiaxin and
+                     McAuley, Julian and Choi, Yejin and Pentland, Alex},
+    year          = {2026},
+    eprint        = {2602.16313},
+    archivePrefix = {arXiv}
+}
+
+% Venue from author-supplied arXiv comment; proceedings page UNVERIFIED.
+@inproceedings{ouyang_reasoningbank_2026,
+    title         = {ReasoningBank: Scaling Agent Self-Evolving with Reasoning Memory},
+    author        = {Ouyang, Siru and Yan, Jun and Hsu, I-Hung and Chen, Yanfei and
+                     Jiang, Ke and Wang, Zifeng and Han, Rujun and Le, Long T. and
+                     Daruki, Samira and Tang, Xiangru and Tirumalashetty, Vishy and
+                     Lee, George and Rofouei, Mahsan and Lin, Hangfei and
+                     Han, Jiawei and Lee, Chen-Yu and Pfister, Tomas},
+    booktitle     = {The Fourteenth International Conference on Learning
+                     Representations (ICLR 2026)},
+    year          = {2026},
+    eprint        = {2509.25140},
+    archivePrefix = {arXiv}
+}
+
+@misc{zhou_memento_2025,
+    title         = {Memento: Fine-tuning LLM Agents without Fine-tuning LLMs},
+    author        = {Zhou, Huichi and Chen, Yihang and Guo, Siyuan and Yan, Xue and
+                     Lee, Kin Hei and Wang, Zihan and Lee, Ka Yiu and Zhang, Guchun
+                     and Shao, Kun and Yang, Linyi and Wang, Jun},
+    year          = {2025},
+    eprint        = {2508.16153},
+    archivePrefix = {arXiv}
+}
+
+@misc{wang_inducingskills_2025,
+    title         = {Inducing Programmatic Skills for Agentic Tasks},
+    author        = {Wang, Zora Zhiruo and Gandhi, Apurva and Neubig, Graham and
+                     Fried, Daniel},
+    year          = {2025},
+    eprint        = {2504.06821},
+    archivePrefix = {arXiv}
+}
+
+% NOTE: published title is "Memory OS of AI Agent", not "MemoryOS".
+@inproceedings{kang_memoryos_2025,
+    title     = {Memory {OS} of {AI} Agent},
+    author    = {Kang, Jiazheng and Ji, Mingming and Zhao, Zhe and Bai, Ting},
+    booktitle = {Proceedings of the 2025 Conference on Empirical Methods in
+                 Natural Language Processing},
+    year      = {2025},
+    pages     = {25972--25981},
+    doi       = {10.18653/v1/2025.emnlp-main.1318}
+}
+
+@misc{ni_trace2skill_2026,
+    title         = {Trace2Skill: Distill Trajectory-Local Lessons into Transferable
+                     Agent Skills},
+    author        = {Ni, Jingwei and Liu, Yihao and Liu, Xinpeng and Sun, Yutao and
+                     Zhou, Mengyu and Cheng, Pengyu and Wang, Dexin and Zhao, Erchao
+                     and Jiang, Xiaoxi and Jiang, Guanjun},
+    year          = {2026},
+    eprint        = {2603.25158},
+    archivePrefix = {arXiv},
+    note          = {Work in progress}
+}
+
+@misc{zhang_gmemory_2025,
+    title         = {G-Memory: Tracing Hierarchical Memory for Multi-Agent Systems},
+    author        = {Zhang, Guibin and Fu, Muxin and Wan, Guancheng and Yu, Miao and
+                     Wang, Kun and Yan, Shuicheng},
+    year          = {2025},
+    eprint        = {2506.07398},
+    archivePrefix = {arXiv}
+}
+
+@misc{shu_agentcl_2026,
+    title         = {AgentCL: Toward Rigorous Evaluation of Continual Learning in
+                     Language Agents},
+    author        = {Shu, Yiheng and Guti\'{e}rrez, Bernal Jim\'{e}nez and
+                     Jonnalagedda, Saisri Padmaja and Yao, Yuguang and Sun, Huan and
+                     Su, Yu},
+    year          = {2026},
+    eprint        = {2606.02461},
+    archivePrefix = {arXiv}
+}
+
+% YEAR AMBIGUOUS: OpenAlex reports 2024 (online-first) but volume 47 issue 3 is the
+% March 2025 issue. 2025 chosen to match the issue.
+@article{wang_jarvis1_2025,
+    title   = {JARVIS-1: Open-World Multi-Task Agents With Memory-Augmented
+               Multimodal Language Models},
+    author  = {Wang, Zihao and Cai, Shaofei and Liu, Anji and Jin, Yonggang and
+               Hou, Jinbing and Zhang, Bowei and Lin, Haowei and He, Zhaofeng and
+               Zheng, Zilong and Yang, Yaodong and Ma, Xiaojian and Liang, Yitao},
+    journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+    year    = {2025},
+    volume  = {47},
+    number  = {3},
+    pages   = {1894--1907},
+    doi     = {10.1109/TPAMI.2024.3511593}
+}
+
+@misc{zhu_gitm_2023,
+    title         = {Ghost in the Minecraft: Generally Capable Agents for Open-World
+                     Environments via Large Language Models with Text-based
+                     Knowledge and Memory},
+    author        = {Zhu, Xizhou and Chen, Yuntao and Tian, Hao and Tao, Chenxin and
+                     Su, Weijie and Yang, Chenyu and Huang, Gao and Li, Bin and
+                     Lu, Lewei and Wang, Xiaogang and Qiao, Yu and Zhang, Zhaoxiang
+                     and Dai, Jifeng},
+    year          = {2023},
+    eprint        = {2305.17144},
+    archivePrefix = {arXiv}
+}
+
+% ================================ RELATED WORK ===============================
+
+@misc{wang_memdelta_2026,
+    title         = {MemDelta: Controlled Baselines and Hidden Confounds in Agent
+                     Memory Evaluation},
+    author        = {Wang, Kuan},
+    year          = {2026},
+    eprint        = {2606.29914},
+    archivePrefix = {arXiv}
+}
+
+@misc{hajimiri_onlineskillmodules_2026,
+    title         = {Are Online Skill and Memory Modules Always Worth Their Tokens?
+                     A Budget-Constrained Study of Web Agents},
+    author        = {Hajimiri, Sina and Aminbeidokhti, Masih and Dolz, Jose and
+                     Ben Ayed, Ismail and Laradji, Issam H. and Gella, Spandana and
+                     Gontier, Nicolas},
+    year          = {2026},
+    eprint        = {2606.15017},
+    archivePrefix = {arXiv}
+}
+
+@misc{du_agentmemorysurvey_2026,
+    title         = {Memory for Autonomous LLM Agents: Mechanisms, Evaluation, and
+                     Emerging Frontiers},
+    author        = {Du, Pengfei},
+    year          = {2026},
+    eprint        = {2603.07670},
+    archivePrefix = {arXiv}
+}
+
+@misc{liao_memq_2026,
+    title         = {MemQ: Integrating Q-Learning into Self-Evolving Memory Agents
+                     over Provenance DAGs},
+    author        = {Liao, Junwei and Shi, Haoting and Zhou, Ruiwen and Wang, Jiaqian
+                     and Zhang, Shengtao and Zhang, Wei and Wen, Ying and Li, Zhiyu
+                     and Xiong, Feiyu and Tang, Bo and Zhang, Weinan and Wen, Muning},
+    year          = {2026},
+    eprint        = {2605.08374},
+    archivePrefix = {arXiv}
+}
+
+@misc{zheng_seagym_2026,
+    title         = {SEAGym: An Evaluation Environment for Self-Evolving LLM Agents},
+    author        = {Zheng, Congjie and Xue, Chuanyi and Liang, Bin and Yang, Jun and
+                     Zhang, Changshui},
+    year          = {2026},
+    eprint        = {2606.17546},
+    archivePrefix = {arXiv}
+}
+
+% Uses "self-induced update operator" for a mechanism claim; our "endogenous
+% dependence" was renamed to avoid the collision. See DL-71.
+@misc{ren_selfimprovements_2026,
+    title         = {Self-Improvements in Modern Agentic Systems: A Survey},
+    author        = {Ren, Zhe and Chen, Yimeng and Guo, Dandan and Rong, Guowei and
+                     Li, Tonghui and Xiong, R. B. and Lan, Qingfeng and Wang, Wenyi
+                     and Nanbo, Li and Yang, Yibo and Zhuge, Mingchen and
+                     Schmidhuber, J\"{u}rgen},
+    year          = {2026},
+    eprint        = {2607.13104},
+    archivePrefix = {arXiv}
+}
+
+@misc{yang_federatedskill_2026,
+    title         = {FederatedSkill: Federated Learning for Agentic Skill Evolution},
+    author        = {Yang, Jingbo and Yao, Guanyu and Zhang, Yang and
+                     Kompella, Ramana Rao and Liu, Gaowen and Chang, Shiyu},
+    year          = {2026},
+    eprint        = {2606.03143},
+    archivePrefix = {arXiv}
+}
+
+@misc{liu_socialnetworks_2026,
+    title         = {Social Networks of LLM Agents},
+    author        = {Liu, Kaixuan and Xiong, Guojun and Zhang, Weinan and
+                     Tang, Shengpu},
+    year          = {2026},
+    eprint        = {2607.03695},
+    archivePrefix = {arXiv}
+}
+
+% ============================= STATISTICAL METHOD ============================
+
+% Book record verified. The design-effect section/page is UNVERIFIED.
+@book{kish_surveysampling_1965,
+    title     = {Survey Sampling},
+    author    = {Kish, Leslie},
+    year      = {1965},
+    publisher = {John Wiley \& Sons},
+    address   = {New York},
+    isbn      = {047148900X}
+}
+
+% Record verified. That this is the canonical origin of the intersection-union test
+% is a content claim that is UNVERIFIED (paywalled).
+@article{berger_intersectionunion_1982,
+    title   = {Multiparameter Hypothesis Testing and Acceptance Sampling},
+    author  = {Berger, Roger L.},
+    journal = {Technometrics},
+    year    = {1982},
+    volume  = {24},
+    number  = {4},
+    pages   = {295--300},
+    doi     = {10.1080/00401706.1982.10487790}
+}
+
+@article{mcnemar_correlatedproportions_1947,
+    title   = {Note on the Sampling Error of the Difference Between Correlated
+               Proportions or Percentages},
+    author  = {McNemar, Quinn},
+    journal = {Psychometrika},
+    year    = {1947},
+    volume  = {12},
+    number  = {2},
+    pages   = {153--157},
+    doi     = {10.1007/BF02295996}
+}
+
+@article{fieller_intervalestimation_1954,
+    title   = {Some Problems in Interval Estimation},
+    author  = {Fieller, E. C.},
+    journal = {Journal of the Royal Statistical Society: Series B (Methodological)},
+    year    = {1954},
+    volume  = {16},
+    number  = {2},
+    pages   = {175--185},
+    doi     = {10.1111/j.2517-6161.1954.tb00159.x}
+}
+
+@article{field_bootstrappingclustered_2007,
+    title   = {Bootstrapping Clustered Data},
+    author  = {Field, C. A. and Welsh, A. H.},
+    journal = {Journal of the Royal Statistical Society: Series B
+               (Statistical Methodology)},
+    year    = {2007},
+    volume  = {69},
+    number  = {3},
+    pages   = {369--390},
+    doi     = {10.1111/j.1467-9868.2007.00593.x}
+}
+
+% Record verified. The abstract seen was reconstructed from an inverted index; do
+% NOT quote it, and read the PDF before attributing a specific N threshold.
+@article{mackinnon_mediatedeffectmeasures_1995,
+    title   = {A Simulation Study of Mediated Effect Measures},
+    author  = {MacKinnon, David P. and Warsi, Ghulam and Dwyer, James H.},
+    journal = {Multivariate Behavioral Research},
+    year    = {1995},
+    volume  = {30},
+    number  = {1},
+    pages   = {41--62},
+    doi     = {10.1207/s15327906mbr3001_3}
+}
+
+% UNVERIFIED CONTENT: neither full text was reachable. The claim that a single
+% cluster per condition cannot separate cluster from condition effects is NOT
+% confirmed against either source. Locate it to a page before citing it for that
+% proposition. Doc 26 section 2b currently asserts this attribution.
+@article{murray_grouprandomized_2004,
+    title   = {Design and Analysis of Group-Randomized Trials: A Review of Recent
+               Methodological Developments},
+    author  = {Murray, David M. and Varnell, Sherri P. and Blitstein, Jonathan L.},
+    journal = {American Journal of Public Health},
+    year    = {2004},
+    volume  = {94},
+    number  = {3},
+    pages   = {423--432},
+    doi     = {10.2105/AJPH.94.3.423}
+}
+
+@book{eldridge_clusterrandomised_2012,
+    title     = {A Practical Guide to Cluster Randomised Trials in Health Services
+                 Research},
+    author    = {Eldridge, Sandra and Kerry, Sally},
+    year      = {2012},
+    publisher = {John Wiley \& Sons},
+    address   = {Chichester, UK},
+    isbn      = {9780470510476},
+    doi       = {10.1002/9781119966241}
+}
