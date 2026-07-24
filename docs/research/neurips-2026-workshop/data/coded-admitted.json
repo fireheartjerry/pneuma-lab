@@ -1,0 +1,262 @@
+{
+    "schema_version": "pneuma-audit-coding/2.0.0",
+    "rubric": "docs/research/neurips-2026-workshop/22-audit-rubric.md",
+    "coded_on": "2026-07-24",
+    "contract_note": "Same v2 contract as coded-seeds.json. claimed_effect_pp is ABSOLUTE percentage points and populated only where verified in the DL-65 pass. f2_clusters null or 1 means NON-IDENTIFIABLE and must never be imputed. f2_alternatives carries adjudicated alternative units per DL-69.",
+    "papers": [
+        {
+            "label": "ReasoningBank",
+            "arxiv": "2509.25140",
+            "stratum": "system",
+            "f1_reported_n": 684,
+            "f1_unit": "WebArena domains",
+            "f2_clusters": 4,
+            "f2_rule": 2,
+            "f3_ratio": 171.0,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "none",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "equal_budget_enforced",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": 8.3,
+            "claimed_effect_verified": true,
+            "f2_alternatives": [
+                {
+                    "f2_clusters": 5,
+                    "f2_unit": "domains incl. cross-site Multi",
+                    "f2_rule": 2,
+                    "reason": "Multi (29) may count as its own grouping"
+                }
+            ],
+            "shared_memory_lifetime": true,
+            "flags": [
+                "Three verified backbone deltas: +8.3 flash, +7.2 pro, +4.6 claude. Only the first is carried as claimed_effect_pp; see DL-65.",
+                "Streaming task order; memory accumulates across the evaluation."
+            ]
+        },
+        {
+            "label": "Memento",
+            "arxiv": "2508.16153",
+            "stratum": "system",
+            "f1_reported_n": 4330,
+            "f1_unit": "fact-seeking questions",
+            "f2_clusters": 4330,
+            "f2_rule": 4,
+            "f3_ratio": 1.0,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "budget_not_reported",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "f2_alternatives": [],
+            "shared_memory_lifetime": true,
+            "flags": [
+                "F3=1.0 under rule 4, but the case bank grows across the whole validation set. Cleanest ratio in the frame for a design whose dependence is total. See DL-61.",
+                "Title differs across versions: v1 renders as AgentFly, v2 and the abs page as Memento."
+            ]
+        },
+        {
+            "label": "Agent Skill Induction",
+            "arxiv": "2504.06821",
+            "stratum": "system",
+            "f1_reported_n": 812,
+            "f1_unit": "web activity domains",
+            "f2_clusters": 5,
+            "f2_rule": 2,
+            "f3_ratio": 162.4,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "equal_budget_enforced",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": 7.7,
+            "claimed_effect_verified": true,
+            "f2_alternatives": [],
+            "shared_memory_lifetime": true,
+            "flags": [
+                "Headline 23.5 and 11.3 are RELATIVE; absolute values are 7.7 and 4.1. Corrected in DL-65.",
+                "Title is 'Inducing Programmatic Skills for Agentic Tasks'; ASI is the method name.",
+                "Nearest inert-null in the frame: verified-text arm prevents calling skills but they still enter context."
+            ]
+        },
+        {
+            "label": "MemoryOS",
+            "arxiv": "2506.06326",
+            "stratum": "system",
+            "f1_reported_n": null,
+            "f1_unit": "not stated",
+            "f2_clusters": null,
+            "f2_rule": 1,
+            "f3_ratio": null,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "budget_reported_unequal",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "f2_alternatives": [],
+            "shared_memory_lifetime": false,
+            "flags": [
+                "NOT AUDITABLE: states no evaluation sample size anywhere across three retrievals of the only version.",
+                "Claims 49.11% F1 and 46.18% BLEU-1 improvement with no denominator."
+            ]
+        },
+        {
+            "label": "Trace2Skill",
+            "arxiv": "2603.25158",
+            "stratum": "system",
+            "f1_reported_n": 2649,
+            "f1_unit": "instances",
+            "f2_clusters": 2649,
+            "f2_rule": 4,
+            "f3_ratio": 1.0,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "equal_budget_enforced",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "f2_alternatives": [],
+            "shared_memory_lifetime": false,
+            "flags": [
+                "TREATMENT-ARTIFACT dependence: every test item in a cell scored under ONE evolved skill document from ONE evolving set. See DL-63.",
+                "Headline benchmark (WikiTQ, 57.65pp) has no stated evaluation size."
+            ]
+        },
+        {
+            "label": "G-Memory",
+            "arxiv": "2506.07398",
+            "stratum": "system",
+            "f1_reported_n": 5,
+            "f1_unit": "benchmarks",
+            "f2_clusters": 5,
+            "f2_rule": 2,
+            "f3_ratio": 1.0,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "budget_reported_unequal",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "f2_alternatives": [],
+            "shared_memory_lifetime": true,
+            "flags": [
+                "NOT AUDITABLE: reports no task, query, trial or instance count for any of its five benchmarks.",
+                "F3=1.0 is DEGENERATE, produced by reporting no unit count at all. Must never be read as a clean design. See DL-64."
+            ]
+        },
+        {
+            "label": "AgentCL",
+            "arxiv": "2606.02461",
+            "stratum": "system",
+            "f1_reported_n": 1138,
+            "f1_unit": "task streams",
+            "f2_clusters": 8,
+            "f2_rule": 1,
+            "f3_ratio": 142.2,
+            "f4_uncertainty": "ci_unclustered",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "budget_reported_unequal",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "f2_alternatives": [
+                {
+                    "f2_clusters": 5,
+                    "f2_unit": "environments",
+                    "f2_rule": 2,
+                    "reason": "Literal rule-2 reading; F3 becomes 227.6"
+                }
+            ],
+            "shared_memory_lifetime": true,
+            "flags": [
+                "Only paper in the frame reporting any interval, but each CI sits inside one stream cell so it structurally cannot resample the stream unit.",
+                "F1 1138 is our sum of Table 1; the paper states no total."
+            ]
+        },
+        {
+            "label": "JARVIS-1",
+            "arxiv": "2311.05997",
+            "stratum": "system",
+            "f1_reported_n": 200,
+            "f1_unit": "tasks",
+            "f2_clusters": null,
+            "f2_rule": 2,
+            "f3_ratio": null,
+            "f4_uncertainty": "se_unspecified",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "budget_reported_unequal",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": null,
+            "claimed_effect_verified": false,
+            "f2_alternatives": [],
+            "shared_memory_lifetime": true,
+            "flags": [
+                "NOT AUDITABLE: no world or seed count stated. See DL-75.",
+                "Headline 5x is BUDGET-MISMATCHED: 60-min treatment vs 20-min baseline. Matched is 4.17x or 2.49x. See DL-72.",
+                "Own Figure 1 states a 2.4x version of the same claim.",
+                "Table 1 per-group counts sum to 190, not the stated 200.",
+                "F4 enum gap: the +- is task-to-task SD within a group. See DL-76."
+            ]
+        },
+        {
+            "label": "GITM",
+            "arxiv": "2305.17144",
+            "stratum": "system",
+            "f1_reported_n": 262,
+            "f1_unit": "tasks",
+            "f2_clusters": null,
+            "f2_rule": 2,
+            "f3_ratio": null,
+            "f4_uncertainty": "none",
+            "f5_inert_null": "ablation_only",
+            "f6_engagement": [
+                "none"
+            ],
+            "f7_budget": "equal_budget_enforced",
+            "f8_decision_rule": "none",
+            "f9_non_engagement": "not_specified",
+            "claimed_effect_pp": 47.5,
+            "claimed_effect_verified": true,
+            "f2_alternatives": [],
+            "shared_memory_lifetime": true,
+            "flags": [
+                "NOT AUDITABLE: no world or seed count stated; 'seed' occurs only in item names. See DL-75.",
+                "Outcome-dependent stopping rule; per-item denominators unreported. See DL-74.",
+                "Its 262-item table and its headline were produced under incomparable budget regimes.",
+                "+47.5 verified ABSOLUTE (67.5 - 20.0); the paper states the ratio separately as 3.5 times. See DL-73."
+            ]
+        }
+    ]
+}
