@@ -1,0 +1,37 @@
+study pool: 502  (calibration slice held out: 40)
+model: qwen2.5-coder:1.5b  seed: 20260724  temperature: 0
+    50/502  failures= 31 (62.0%)    115s elapsed  eta  1035s
+   100/502  failures= 41 (41.0%)    216s elapsed  eta   867s
+   150/502  failures= 55 (36.7%)    319s elapsed  eta   748s
+   200/502  failures= 71 (35.5%)    399s elapsed  eta   602s
+   250/502  failures= 94 (37.6%)    469s elapsed  eta   472s
+   300/502  failures=107 (35.7%)    528s elapsed  eta   356s
+   350/502  failures=122 (34.9%)    600s elapsed  eta   261s
+   400/502  failures=133 (33.2%)    674s elapsed  eta   172s
+   450/502  failures=150 (33.3%)    766s elapsed  eta    88s
+   500/502  failures=161 (32.2%)    835s elapsed  eta     3s
+
+=== ATTEMPT-1 COMPLETE ===
+  study problems : 502
+  failures       : 161  (32.1%)
+  pool digest    : 40a9cc915dd6c121
+  wall clock     : 836s
+
+by source: {
+  "HumanEval+": {
+    "n": 164,
+    "failures": 63,
+    "failure_rate": 0.3841,
+    "timeouts": 0,
+    "syntax_errors": 3
+  },
+  "MBPP+": {
+    "n": 338,
+    "failures": 98,
+    "failure_rate": 0.2899,
+    "timeouts": 1,
+    "syntax_errors": 1
+  }
+}
+
+GATE (a) supply: need >= 110 clusters -> 161 PASS
