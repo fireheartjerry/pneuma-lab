@@ -1,0 +1,55 @@
+{
+    "candidates": [
+        {
+            "eligible": true,
+            "ineligibility_reasons": [],
+            "initial_failures": 14,
+            "initial_pass_rate": 0.65,
+            "mean_latency_s": 1.51,
+            "model": "qwen2.5-coder:1.5b",
+            "n_calibration": 40,
+            "oracle_rate": 0.7143,
+            "oracle_successes": 10,
+            "oracle_uplift": 0.4286,
+            "oracle_uplift_lower_90": 0.2755,
+            "parse_failures": 0,
+            "plain_retry_rate": 0.2857,
+            "plain_retry_successes": 4,
+            "tokens_per_second": 188.6
+        },
+        {
+            "eligible": false,
+            "ineligibility_reasons": [
+                "projected yield 90 below n_min 110",
+                "oracle uplift 0.125 below 0.15"
+            ],
+            "initial_failures": 8,
+            "initial_pass_rate": 0.8,
+            "mean_latency_s": 6.26,
+            "model": "qwen2.5-coder:7b",
+            "n_calibration": 40,
+            "oracle_rate": 0.375,
+            "oracle_successes": 3,
+            "oracle_uplift": 0.125,
+            "oracle_uplift_lower_90": 0.0382,
+            "parse_failures": 0,
+            "plain_retry_rate": 0.25,
+            "plain_retry_successes": 2,
+            "tokens_per_second": 45.8
+        }
+    ],
+    "decode_seed": 42,
+    "greedy_pass_band": [
+        0.25,
+        0.75
+    ],
+    "ladder": [
+        "qwen2.5-coder:1.5b",
+        "qwen2.5-coder:7b"
+    ],
+    "note": "Real and placebo reflections were not generated during selection. Only the initial attempt, a plain retry, and an oracle-hint retry ran.",
+    "oracle_uplift_min": 0.15,
+    "schema_version": "pneuma-placebo-preflight/1.0.0",
+    "selected_model": "qwen2.5-coder:1.5b",
+    "selection_rationale": "largest eligible on the frozen ladder; pass rate 0.65, oracle uplift 0.4286"
+}

@@ -1,0 +1,25 @@
+calibration slice: 40 MBPP+ problems, disjoint from the study pool
+
+=== qwen2.5-coder:1.5b ===
+  pass rate      0.65
+  failures       14/40
+  plain retry    0.2857
+  oracle rate    0.7143
+  oracle uplift  0.4286  (L90 0.2755)
+  tok/s          188.6
+  ELIGIBLE       True  []
+  wall           141s
+
+=== qwen2.5-coder:7b ===
+  pass rate      0.8
+  failures       8/40
+  plain retry    0.25
+  oracle rate    0.375
+  oracle uplift  0.125  (L90 0.0382)
+  tok/s          45.8
+  ELIGIBLE       False  ['projected yield 90 below n_min 110', 'oracle uplift 0.125 below 0.15']
+  wall           423s
+
+=== SELECTED: qwen2.5-coder:1.5b ===
+  largest eligible on the frozen ladder; pass rate 0.65, oracle uplift 0.4286
+receipt written
