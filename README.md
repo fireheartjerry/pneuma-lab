@@ -18,6 +18,30 @@ Verify it with `python -m pneuma_lab.status --check`.
 > Learned-subject artifacts report capability, causal, governance,
 > memory-integrity, and precautionary-welfare profiles only.
 
+## Gauge cards — measurement-system analysis for elicited LLM metrics
+
+Any number produced by _prompting a model_ — self-reported confidence, an
+LLM-as-judge score, an elicited rating — is an instrument reading, and instrument
+readings are not admissible until someone shows the instrument can resolve what it
+is pointed at. That check is a variance decomposition, it is **prior to
+calibration**, and every mature measuring field already requires it (AIAG MSA,
+ISO 5725, ICH Q2(R2), COSMIN).
+
+```bash
+python -m pneuma_lab.gauge selftest                  # validate the estimator itself, offline
+python -m pneuma_lab.gauge analyze --cube <cube>     # re-analyze existing data, no model calls
+python -m pneuma_lab.gauge run --config configs/g1.json
+```
+
+The tool reports `%GRR`, `ndc`, `ICC`, a discrimination index, effective support,
+the hard ceilings that reliability places on any achievable validity, and the five
+standard remedies each falsified with its own error bar. Exit code `2` on an
+uninterpretable channel, so CI can gate on it. See
+[`docs/gauge-card-standard.md`](docs/gauge-card-standard.md) for the reporting
+standard and
+[`docs/research/experiments/g1-gauge-preregistration.md`](docs/research/experiments/g1-gauge-preregistration.md)
+for the pre-registered study.
+
 ## Local-first foundation
 
 The active foundation direction is a laptop-scale `Qwen/Qwen3.5-2B` research

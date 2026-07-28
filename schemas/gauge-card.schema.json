@@ -1,0 +1,462 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/gauge-card.schema.json",
+    "title": "GaugeCard",
+    "description": "A measurement-system analysis (MSA) of one elicited LLM metric channel: self-reported confidence, an LLM-as-judge score, or any other number produced by prompting a model. The card answers the question that is PRIOR to calibration -- can this gauge tell two items apart at all? -- by decomposing observed variance into part (item) variance and gauge variance, and reporting the resolution statistics that follow. A card is descriptive metrology, not a quality claim about the model: a DEGENERATE or UNINTERPRETABLE verdict is a statement about a channel-plus-protocol, not about the model's internal states. Precedent: AIAG MSA 4th ed., ISO 5725, ICH Q2(R2), COSMIN.",
+    "type": "object",
+    "x-pneuma-schema-kind": "gauge_card",
+    "x-pneuma-version": "0.1.0",
+    "properties": {
+        "manifest_kind": {
+            "type": "string",
+            "const": "gauge_card"
+        },
+        "schema_version": {
+            "type": "string",
+            "const": "0.1.0"
+        },
+        "card_id": {
+            "type": "string",
+            "description": "Stable identifier for this card, typically the facet cell it describes."
+        },
+        "channel": {
+            "type": "object",
+            "description": "Identity of the measured channel. Two cards are comparable only when these match.",
+            "properties": {
+                "model": {
+                    "type": "string"
+                },
+                "provenance": {
+                    "type": "string",
+                    "description": "Whether the model authored the artifact it is rating. 'foreign' is the LLM-as-judge condition."
+                },
+                "temperature": {
+                    "type": "number"
+                },
+                "scales": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "wordings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "arms": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "prompt_digest": {
+                    "type": "string",
+                    "description": "Digest of the exact prompt shape, so a card cannot be silently reused for a different prompt."
+                }
+            },
+            "required": [
+                "model",
+                "provenance",
+                "temperature",
+                "scales",
+                "wordings",
+                "prompt_digest"
+            ],
+            "additionalProperties": true
+        },
+        "design": {
+            "type": "object",
+            "description": "The measurement design. A card whose design is too small to identify repeatability is not a card.",
+            "properties": {
+                "n_items": {
+                    "type": "integer",
+                    "minimum": 2
+                },
+                "n_conditions": {
+                    "type": "integer",
+                    "minimum": 2
+                },
+                "n_replicates": {
+                    "type": "integer",
+                    "minimum": 2
+                },
+                "condition_facets": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "total_observations": {
+                    "type": "integer",
+                    "minimum": 8
+                },
+                "parse_failure_rate": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "dropped_items": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "n_items",
+                "n_conditions",
+                "n_replicates",
+                "condition_facets",
+                "total_observations",
+                "parse_failure_rate"
+            ],
+            "additionalProperties": true
+        },
+        "variance_components": {
+            "type": "object",
+            "description": "ANOVA method-of-moments variance decomposition. 'truncated' lists components whose raw estimate was negative and was clipped to zero; a truncated item component is a finding, not a technicality.",
+            "properties": {
+                "var_item": {
+                    "type": "number",
+                    "minimum": 0.0
+                },
+                "var_condition": {
+                    "type": "number",
+                    "minimum": 0.0
+                },
+                "var_interaction": {
+                    "type": "number",
+                    "minimum": 0.0
+                },
+                "var_repeatability": {
+                    "type": "number",
+                    "minimum": 0.0
+                },
+                "var_reproducibility": {
+                    "type": "number",
+                    "minimum": 0.0
+                },
+                "var_grr": {
+                    "type": "number",
+                    "minimum": 0.0
+                },
+                "var_total": {
+                    "type": "number",
+                    "minimum": 0.0
+                },
+                "truncated": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "var_item",
+                "var_condition",
+                "var_interaction",
+                "var_repeatability",
+                "var_grr",
+                "var_total",
+                "truncated"
+            ],
+            "additionalProperties": true
+        },
+        "resolution": {
+            "type": "object",
+            "description": "Resolution statistics. ndc < 2 means the gauge cannot separate any two items, which makes contrasts measured on it uninterpretable rather than merely underpowered.",
+            "properties": {
+                "pct_grr": {
+                    "type": "number",
+                    "minimum": 0.0
+                },
+                "ndc": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "icc": {
+                    "type": "number"
+                },
+                "icc_ci": {
+                    "$ref": "#/$defs/interval"
+                },
+                "d": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "d_ci": {
+                    "$ref": "#/$defs/interval"
+                },
+                "resolving_power": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "s_eff": {
+                    "type": "number",
+                    "minimum": 0.0
+                }
+            },
+            "required": [
+                "pct_grr",
+                "ndc",
+                "icc",
+                "d",
+                "resolving_power",
+                "s_eff"
+            ],
+            "additionalProperties": true
+        },
+        "ceilings": {
+            "type": "object",
+            "description": "Hard upper bounds on any validity this channel can attain, at any sample size, implied by its reliability alone.",
+            "properties": {
+                "icc": {
+                    "type": "number"
+                },
+                "validity_r": {
+                    "type": "number"
+                },
+                "auroc": {
+                    "type": "number"
+                },
+                "base_rate": {
+                    "type": "number",
+                    "exclusiveMinimum": 0.0,
+                    "exclusiveMaximum": 1.0
+                },
+                "assumptions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "validity_r",
+                "auroc",
+                "base_rate",
+                "assumptions"
+            ],
+            "additionalProperties": true
+        },
+        "remedies": {
+            "type": "array",
+            "description": "The standard fixes, each re-analysed on the collected data and each reported with its own error bar. A remedy that could not be evaluated is recorded as SKIPPED with a reason; it is never omitted.",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "statistic": {
+                        "type": "string"
+                    },
+                    "value": {
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "ci": {
+                        "$ref": "#/$defs/interval"
+                    },
+                    "baseline": {
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "floor": {
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "verdict": {
+                        "type": "string",
+                        "enum": [
+                            "HELPS",
+                            "FAILS",
+                            "INDETERMINATE",
+                            "SKIPPED"
+                        ]
+                    },
+                    "note": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name",
+                    "statistic",
+                    "value",
+                    "verdict",
+                    "note"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "placebo": {
+            "type": [
+                "object",
+                "null"
+            ],
+            "description": "Response to a known-inert, length-matched context block. 'pi' is the placebo-dominance ratio: variance explained by the sham manipulation divided by variance explained by item identity. pi > 1 means the channel responds more to a placebo than to the thing it claims to measure.",
+            "properties": {
+                "pi": {
+                    "type": [
+                        "number",
+                        "string"
+                    ]
+                },
+                "contrast": {
+                    "type": "number"
+                },
+                "p_value": {
+                    "type": "number"
+                },
+                "cohens_d": {
+                    "type": [
+                        "number",
+                        "string"
+                    ]
+                },
+                "mde": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "pi",
+                "contrast",
+                "p_value"
+            ],
+            "additionalProperties": true
+        },
+        "verdict": {
+            "type": "string",
+            "enum": [
+                "USABLE",
+                "MARGINAL",
+                "UNINTERPRETABLE",
+                "DEGENERATE"
+            ]
+        },
+        "verdict_rule": {
+            "type": "string",
+            "description": "The literal threshold rule applied, so a reader never has to trust the label alone."
+        },
+        "reproduction": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "cube_digest": {
+                    "type": "string"
+                },
+                "tool_version": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "command",
+                "cube_digest",
+                "tool_version"
+            ],
+            "additionalProperties": true
+        },
+        "prescription": {
+            "type": [
+                "object",
+                "null"
+            ],
+            "description": "What it would take to make this channel usable, derived from its own variance components. A card that only diagnoses is easy to ignore; this states the price. 'null' fields mean the target is unreachable at any k because the condition-locked variance floor sits above it.",
+            "properties": {
+                "target_icc": {
+                    "type": "number"
+                },
+                "required_replicates": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "required_wordings": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "asymptote": {
+                    "type": "number",
+                    "description": "Reliability as replicates -> infinity at a fixed wording."
+                },
+                "estimated_calls_per_item": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "note": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "target_icc",
+                "asymptote",
+                "note"
+            ],
+            "additionalProperties": true
+        }
+    },
+    "required": [
+        "manifest_kind",
+        "schema_version",
+        "card_id",
+        "channel",
+        "design",
+        "variance_components",
+        "resolution",
+        "ceilings",
+        "remedies",
+        "verdict",
+        "verdict_rule",
+        "reproduction"
+    ],
+    "additionalProperties": false,
+    "$defs": {
+        "interval": {
+            "type": "object",
+            "properties": {
+                "point": {
+                    "type": [
+                        "number",
+                        "null"
+                    ]
+                },
+                "low": {
+                    "type": [
+                        "number",
+                        "null"
+                    ]
+                },
+                "high": {
+                    "type": [
+                        "number",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "point",
+                "low",
+                "high"
+            ],
+            "additionalProperties": false
+        }
+    }
+}

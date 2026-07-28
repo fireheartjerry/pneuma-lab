@@ -17,6 +17,9 @@ EXPECTED_EXPRESSIVE_VIEW_COUNT = 1
 EXPECTED_TRAINING_COUNT = 4
 EXPECTED_MANIFEST_COUNT = 1
 EXPECTED_FOUNDATION_COUNT = 6
+# Measurement-system analysis of an elicited metric channel (gauge card).
+EXPECTED_GAUGE_COUNT = 1
+
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
 }
@@ -36,6 +39,7 @@ def test_expected_counts() -> None:
     assert len(pls.TRAINING_SCHEMA_FILES) == EXPECTED_TRAINING_COUNT
     assert len(pls.MANIFEST_SCHEMA_FILES) == EXPECTED_MANIFEST_COUNT
     assert len(pls.FOUNDATION_SCHEMA_FILES) == EXPECTED_FOUNDATION_COUNT
+    assert len(pls.GAUGE_SCHEMA_FILES) == EXPECTED_GAUGE_COUNT
     assert (
         len(pls.ALL_SCHEMA_FILES)
         == EXPECTED_INPUT_COUNT
@@ -47,6 +51,7 @@ def test_expected_counts() -> None:
         + EXPECTED_TRAINING_COUNT
         + EXPECTED_MANIFEST_COUNT
         + EXPECTED_FOUNDATION_COUNT
+        + EXPECTED_GAUGE_COUNT
     )
 
 
