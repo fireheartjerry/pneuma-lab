@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError, fields
+from dataclasses import FrozenInstanceError, asdict, fields
+import json
 from math import inf, nan
+from typing import get_type_hints
 
 import pytest
 
@@ -123,6 +125,17 @@ def test_task_spec_rejects_empty_identifiers(field: str) -> None:
         TaskSpec(**values)
 
 
+def test_task_spec_rejects_wrong_identifier_types_with_type_error() -> None:
+    with pytest.raises(TypeError):
+        TaskSpec(
+            None,  # type: ignore[arg-type]
+            "bench",
+            "stratum",
+            "lineage",
+            (GroupLabel(GroupKind.LANGUAGE, "python"),),
+        )
+
+
 def test_task_spec_requires_immutable_nonempty_distinct_sensitivity_groups() -> None:
     groups = (GroupLabel(GroupKind.LANGUAGE, "python"), GroupLabel(GroupKind.DOMAIN, "security"))
     assert TaskSpec("task", "bench", "stratum", "lineage", groups).sensitivity_groups == groups
@@ -185,6 +198,14 @@ def test_branch_outcome_rejects_nonfinite_partial_reward(value: float) -> None:
         outcome(partial_reward=value)
 
 
+def test_branch_outcome_canonicalizes_equivalent_zero_rewards_for_serialization() -> None:
+    outcomes = [outcome(partial_reward=value) for value in (0, 0.0, -0.0)]
+    assert all(type(value.partial_reward) is float for value in outcomes)
+    assert all(value.partial_reward.hex() == "0x0.0p+0" for value in outcomes)
+    serialized = [json.dumps(asdict(value), sort_keys=True, separators=(",", ":")) for value in outcomes]
+    assert len(set(serialized)) == 1
+
+
 @pytest.mark.parametrize("digest", ["A" * 64, "g" * 64, "a" * 63, "a" * 65])
 def test_branch_outcome_requires_an_artifact_ref_with_exact_lowercase_sha256(digest: str) -> None:
     with pytest.raises(ValueError):
@@ -214,12 +235,28 @@ def test_branch_slot_set_rejects_a_mutable_outer_list() -> None:
         BranchSlotSet(slots)  # type: ignore[arg-type]
 
 
+def test_branch_slot_set_annotation_is_an_exact_four_tuple() -> None:
+    assert get_type_hints(BranchSlotSet)["slots"] == tuple[BranchSlot, BranchSlot, BranchSlot, BranchSlot]
+
+
 def test_artifact_ref_accepts_a_normalized_posix_relative_reference() -> None:
     artifact = ArtifactRef("receipt", "receipts/task-1.json", "b" * 64, 0, "application/json")
     assert artifact.relative_path == "receipts/task-1.json"
 
 
-@pytest.mark.parametrize("path", ["", "/receipt.json", "C:/receipt.json", "dir/../receipt.json", "./receipt.json", "dir//receipt.json", "dir\\receipt.json"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "",
+        "/receipt.json",
+        "C:/receipt.json",
+        "dir/../receipt.json",
+        "./receipt.json",
+        "dir//receipt.json",
+        "dir\\receipt.json",
+        "dir/\0receipt.json",
+    ],
+)
 def test_artifact_ref_rejects_non_normalized_or_unsafe_paths(path: str) -> None:
     with pytest.raises((TypeError, ValueError)):
         ArtifactRef("receipt", path, "b" * 64, 0, "application/json")

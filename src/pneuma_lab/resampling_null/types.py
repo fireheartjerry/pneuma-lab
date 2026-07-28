@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from math import isfinite
 from pathlib import PurePosixPath
+from typing import cast
 
 
 class Arm(str, Enum):
@@ -45,28 +46,45 @@ class Verdict(str, Enum):
     FEASIBILITY_NO_GO = "FEASIBILITY_NO_GO"
 
 
-def _require_nonempty_string(value: object, name: str) -> None:
-    if not isinstance(value, str) or not value:
-        raise ValueError(f"{name} must be a non-empty string")
+def _require_nonempty_string(value: object, name: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string")
+    validated = value
+    if not validated:
+        raise ValueError(f"{name} must be non-empty")
+    return validated
 
 
-def _require_exact_nonnegative_int(value: object, name: str) -> None:
+def _require_exact_nonnegative_int(value: object, name: str) -> int:
     if type(value) is not int:
         raise TypeError(f"{name} must be an exact int")
-    if value < 0:
+    validated = cast(int, value)
+    if validated < 0:
         raise ValueError(f"{name} must be non-negative")
+    return validated
 
 
-def _require_sha256(value: object, name: str) -> None:
-    _require_nonempty_string(value, name)
-    if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
+def _require_sha256(value: object, name: str) -> str:
+    validated = _require_nonempty_string(value, name)
+    if len(validated) != 64 or any(char not in "0123456789abcdef" for char in validated):
         raise ValueError(f"{name} must be 64 lowercase hexadecimal characters")
+    return validated
 
 
-def _require_seed(value: object, name: str) -> None:
-    _require_exact_nonnegative_int(value, name)
-    if value >= 2**64:
+def _require_seed(value: object, name: str) -> int:
+    validated = _require_exact_nonnegative_int(value, name)
+    if validated >= 2**64:
         raise ValueError(f"{name} must be smaller than 2**64")
+    return validated
+
+
+def _require_finite_float(value: object, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"{name} must be numeric")
+    validated = float(value)
+    if not isfinite(validated):
+        raise ValueError(f"{name} must be finite")
+    return 0.0 if validated == 0.0 else validated
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,10 +167,8 @@ class BranchOutcome:
                 raise TypeError(f"{name} must be an exact int")
             if value not in (0, 1):
                 raise ValueError(f"{name} must be 0 or 1")
-        if not isinstance(self.partial_reward, (int, float)) or isinstance(self.partial_reward, bool):
-            raise TypeError("partial_reward must be numeric")
-        if not isfinite(self.partial_reward):
-            raise ValueError("partial_reward must be finite")
+        partial_reward = _require_finite_float(self.partial_reward, "partial_reward")
+        object.__setattr__(self, "partial_reward", partial_reward)
         if type(self.infrastructure_failure) is not bool:
             raise TypeError("infrastructure_failure must be bool")
         if self.infrastructure_failure and self.success != 0:
@@ -173,15 +189,16 @@ class ArtifactRef:
 
     def __post_init__(self) -> None:
         _require_nonempty_string(self.role, "role")
-        _require_nonempty_string(self.relative_path, "relative_path")
+        relative_path = _require_nonempty_string(self.relative_path, "relative_path")
         if (
-            "\\" in self.relative_path
-            or self.relative_path.startswith("/")
-            or (len(self.relative_path) >= 2 and self.relative_path[0].isalpha() and self.relative_path[1] == ":")
+            "\0" in relative_path
+            or "\\" in relative_path
+            or relative_path.startswith("/")
+            or (len(relative_path) >= 2 and relative_path[0].isalpha() and relative_path[1] == ":")
         ):
             raise ValueError("relative_path must be a normalized POSIX-relative path")
-        path = PurePosixPath(self.relative_path)
-        if ".." in path.parts or path.as_posix() != self.relative_path or self.relative_path == ".":
+        path = PurePosixPath(relative_path)
+        if ".." in path.parts or path.as_posix() != relative_path or relative_path == ".":
             raise ValueError("relative_path must be a normalized POSIX-relative path")
         _require_sha256(self.sha256, "sha256")
         _require_exact_nonnegative_int(self.byte_count, "byte_count")
@@ -192,7 +209,7 @@ class ArtifactRef:
 class BranchSlotSet:
     """The four execution slots used for one paired resampling comparison."""
 
-    slots: tuple[BranchSlot, ...]
+    slots: tuple[BranchSlot, BranchSlot, BranchSlot, BranchSlot]
 
     def __post_init__(self) -> None:
         if not isinstance(self.slots, tuple):
