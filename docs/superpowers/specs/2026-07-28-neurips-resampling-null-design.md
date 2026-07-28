@@ -267,7 +267,11 @@ manifest/schedule HKDF context, exposes only the five derived subkeys through a
 context manager, and best-effort zeroes mutable buffers on exit. The provider
 has no method that returns the master key. A confirmation verifier that cannot
 open `K_allocation`, `K_orientation`, and `K_capability` through that provider
-cannot claim to reconstruct the keyed ledger.
+cannot claim to reconstruct the keyed ledger. The unblind transaction itself
+opens `K_unblind` through the same provider and recomputes the framed permit
+HMAC before parsing the clear assignment ledger. It never accepts a generic
+secret callback or caller-implemented `PermitVerifier`; accepting an object
+whose `verify()` method may be a no-op is not an authority boundary.
 
 For all bounded draws:
 
@@ -1526,8 +1530,82 @@ the eligible registry freezes exact C120/C160 membership plus every SWE
 language, τ³ domain, and telecom issue-family label, and it executes all
 corresponding leave-one-group gates. The powered alternative is frozen at
 full-roster ITT effects
-`(tau_content, tau_excess) = (0.15, 0.15)` in each benchmark. For each benchmark,
-the nuisance tuple is:
+`(tau_content, tau_excess) = (0.15, 0.15)` in each benchmark.
+
+Power authority is never a caller-selected string. Before a screen, a trusted
+controller writes one closed canonical
+`application/vnd.pneuma.power-authority+json` blob. It is a referenced blob,
+not a thirteenth scientific record kind, and has exactly one of these arms:
+
+```json
+{
+  "authority_kind": "synthetic_validation",
+  "manifest_ref": {"byte_count": 1, "media_type": "application/json", "relative_path": "<relative>", "role": "study_manifest", "sha256": "<sha256>"},
+  "roster_ref": {"byte_count": 1, "media_type": "application/json", "relative_path": "<relative>", "role": "power_roster", "sha256": "<sha256>"},
+  "schema_version": "1",
+  "tier_membership_sha256": "<sha256>"
+}
+```
+
+or:
+
+```json
+{
+  "authority_kind": "roster_bound_selection",
+  "eligibility_manifest_ref": {"byte_count": 1, "media_type": "application/json", "relative_path": "<relative>", "role": "eligibility_manifest", "sha256": "<sha256>"},
+  "manifest_ref": {"byte_count": 1, "media_type": "application/json", "relative_path": "<relative>", "role": "study_manifest", "sha256": "<sha256>"},
+  "roster_ref": {"byte_count": 1, "media_type": "application/json", "relative_path": "<relative>", "role": "power_roster", "sha256": "<sha256>"},
+  "schema_version": "1",
+  "tier_membership_sha256": "<sha256>"
+}
+```
+
+The displayed positive byte counts are illustrative; every object uses the
+shared closed `ArtifactRef`. Both arms require the roster ref to equal the
+study manifest's roster ref. From the referenced roster bytes they reconstruct
+exactly this digest payload:
+
+```json
+{
+  "rows": [
+    {
+      "benchmark": "<SWE-or-TAU>",
+      "groups": [{"kind": "<language-domain-or-issue_family>", "value": "<value>"}],
+      "task_id": "<canonical-id>",
+      "tiers": [120, 160]
+    }
+  ],
+  "schema_version": "1"
+}
+```
+
+Rows are unique and sorted by strict UTF-8 `(benchmark, task_id)`, `tiers` is a
+strictly increasing non-empty subset of `[120, 160]`, and groups are unique in
+the section-9.1 kind/value order. The exact field set is closed.
+`tier_membership_sha256` is
+`SHA256(canonical_json_bytes(payload, indent=None))`; the authority blob's value
+must equal this recomputation. The synthetic arm
+additionally requires the roster's closed `roster_kind` to be
+`synthetic_fixture` and forbids an eligibility ref. The roster-bound arm
+requires `roster_kind = "eligible_confirmation"`, reloads the base-commit
+eligibility manifest, verifies its study/manifest/roster ancestry, and proves
+that its accepted-task set and nested C120/C160 membership reproduce the roster
+and every registered group label exactly. A caller cannot convert one arm to
+the other by changing `authority_kind`: the required references and their
+closed payloads would fail.
+
+Every `screen`, `shard`, `selection`, `validation`, and `final` power report
+parents this authority ArtifactRef plus the exact grid ArtifactRef and the exact
+screen-topology ArtifactRef. Its displayed `decision_authority`, `roster_ref`,
+and tier-membership digest are derived mirrors and must be reproduced from the
+authority blob at every stage. The grid and screen topology are copied and
+content-addressed into the study manifest before the first screen; every power
+stage requires its refs to equal the manifest's `power_grid_ref` and
+`power_screen_topology_ref`. Downstream producers reload them through those refs
+and require byte equality with every parent. No CLI or library call accepts a
+free decision-authority or roster label.
+
+For each benchmark, the nuisance tuple is:
 
 - no-feedback success `p0` in `{0.10, 0.40, 0.70}`;
 - exact trigger opportunity `gamma` in `{0.60, 0.75, 0.90}`; and
@@ -1568,8 +1646,10 @@ Validation passes only if every selected cell's absolute difference between
 Gaussian-max and full-multiplier gate-pass rates is at most 0.01 and both
 methods choose the same roster tier. Otherwise P0 runs the full multiplier
 routine on every cell under a separately screened
-`full_multiplier_fallback` phase or records `FEASIBILITY_NO_GO`. Failed and
-superseded attempts remain in the final report's ancestry. A successful
+`full_multiplier_fallback` phase or records the authority-appropriate terminal
+arm: roster-bound `FEASIBILITY_NO_GO` or nondecisive synthetic
+`synthetic_validation_failed`. Failed and superseded attempts remain in the
+final report's ancestry. A successful
 fallback emits a phase-specific validation receipt that checks full ordered
 cell coverage, raw counts, numeric receipts, and tier decision directly; it
 does not fabricate or reuse a Gaussian worst-five selection.
@@ -1595,30 +1675,42 @@ P0 first screens 200 datasets per cell on the declared CPU topology. The
 projected full-grid wall time must be at most 12 hours and the screen must
 reproduce numeric fixture digests before the 20,000-dataset run starts.
 Otherwise the implementation is vectorized/partitioned and re-screened under
-an incremented immutable generation, or the study records
-`FEASIBILITY_NO_GO`. Every power artifact records its decision authority,
-phase, generation, stage, and, for shards, shard index. The complete
-power/type-I report parents every attempt. Its closed finalization is either a
-completed selected chain with worst-cell validation or a terminal
-`FEASIBILITY_NO_GO` naming the failed attempt/stage and reason without
-fabricated downstream refs.
+an incremented immutable generation. If a roster-bound attempt remains
+infeasible, the study records `FEASIBILITY_NO_GO`; if a synthetic-validation
+attempt remains infeasible, it records the distinct nondecisive
+`synthetic_validation_failed` finalization described below. Every power
+artifact records its authority ref, derived decision authority, derived roster
+and membership digest, grid ref, screen-topology ref, phase, generation, stage,
+and, for shards, shard index. The complete power/type-I report parents every
+attempt. Its closed finalization is a phase-specific completed chain, a
+roster-bound terminal feasibility no-go, or a synthetic-only terminal
+validation failure, always without fabricated downstream refs.
 
 Finalization is authority-discriminated. A roster-bound completed chain has
 `selected_tier` 120 or 160 and `decision = "GO"`. A synthetic-validation
 completed chain has `selected_tier = null` and
-`decision = "CONDITIONAL_ONLY"`. A feasibility no-go has
-`selected_tier = null` and `decision = "NO_GO"`; synthetic authority cannot
-emit that arm. The final report's authority and the selected validation receipt
-must reproduce these fields exactly.
+`decision = "CONDITIONAL_ONLY"`. A `feasibility_no_go` has
+`selected_tier = null` and `decision = "NO_GO"` and is legal only for
+`roster_bound_selection`. A `synthetic_validation_failed` finalization has
+`selected_tier = null`, `decision = "CONDITIONAL_ONLY"`, a terminal
+attempt/stage, and a closed nondecisive failure reason; it is legal only for
+`synthetic_validation`. The final report's authority blob and every selected
+parent must reproduce these fields exactly.
 
 The terminal reason enum is closed to
 `gaussian_screen_exhausted`, `full_multiplier_screen_exhausted`,
 `numeric_fixture_failed`, `runtime_bound_exceeded`, `attempt_incomplete`, and
-`power_or_type_i_gate_failed`. `attempt_incomplete` is reserved for an attempt
-whose required stage never completed. A completed, schema-valid roster-bound
-validation with decision `NO_GO` and no selected tier must finalize at stage
-`validation` with `power_or_type_i_gate_failed`; it may not misdescribe a
-completed power/type-I rejection as incomplete.
+`power_or_type_i_gate_failed`; the synthetic-only arm additionally permits
+`synthetic_validation_gate_failed`. `attempt_incomplete` is reserved for an
+attempt whose required next stage never completed. A persisted, schema-valid
+`validation` record is definitionally completed and can never be described as
+`attempt_incomplete`; an incomplete validation attempt names the last completed
+pre-validation stage instead. A completed, schema-valid roster-bound validation
+with decision `NO_GO` and no selected tier must finalize at stage `validation`
+with `power_or_type_i_gate_failed`. A completed synthetic validation that fails
+its registered machinery/approximation checks uses
+`synthetic_validation_failed` at stage `validation` with
+`synthetic_validation_gate_failed`.
 
 The type-I audit uses the same 729 nuisance pairs for each of three boundaries:
 
@@ -1817,6 +1909,7 @@ a `0.1.0` pre-release correction, not a second record family. The closed
 payload contract requires:
 
 - `resampling_study_manifest`: all frozen source ArtifactRefs plus
+  the exact P0 grid and declared screen-topology ArtifactRefs,
   `commitment_scheme = "resampling-null-key-ceremony-v1"` and the three
   separately named roster/schedule/assignment-master commitment digests;
 - `resampling_prefix_schedule`: only `manifest_ref`, verified
@@ -1854,6 +1947,9 @@ follow every nested ArtifactRef. Its candidate rows are closed schema
 definitions; the synthetic
 algorithm/mode pair and confirmation algorithm/mode pair cannot cross. Prefix
 receipts likewise have `minItems: 1` and exact schedule-roster coverage.
+The power-authority blob is handled identically: its media type selects the
+closed section-9.5 two-arm grammar, it is recursively followed from every power
+stage, and it is never registered as a scientific record kind.
 
 Raw model/tool streams, snapshots, patches, logs, and binary blobs are not
 standalone records; a schema-valid parent carries their digest, size, media
@@ -1877,7 +1973,12 @@ emits canonical, hash-linked coverage for:
 complete pair/no-intervention receipts and encrypted artifact refs; `sealed`
 parents the candidate and adds the passed audit gates. Branches accept only
 `sealed`. `resampling-power-report` likewise uses closed stages
-`screen`, `shard`, `selection`, `validation`, and `final`.
+`screen`, `shard`, `selection`, `validation`, and `final`. Every stage requires
+`authority_ref`, the derived decision-authority/roster/membership mirrors,
+`grid_ref`, and `screen_topology_ref`, and reloads all four sources. The final
+stage has a closed four-arm finalization:
+Gaussian completed, full-multiplier completed, roster-only
+`feasibility_no_go`, or synthetic-only `synthetic_validation_failed`.
 
 A triggered task block embeds every chronological attempt and all terminal
 receipts completed within it, including superseded first attempts and partial
@@ -1887,6 +1988,17 @@ validity-event references. Those embedded records carry final-snapshot, grade,
 provider-event, adverse-event, and provider-cost ArtifactRefs. A no-trigger
 block uses a distinct closed schema arm with no branch receipts and four copied
 `Y_0` outcomes.
+
+The blinded projection never embeds `BranchOutcome`. Its closed
+`BlindedOutcome` contains only binary success/prefix success, finite partial
+reward, infrastructure-failure bit, and exact nonnegative model-call,
+tool-call, generated-token, and wall-clock counters. ArtifactRefs, paths,
+packet/grade/source receipts, arm/donor/key fields, and hidden source identities
+are forbidden. The projection also carries
+`projection_candidate_sha256`, which validators recompute from its typed
+schedule/task-block ancestry and the stripping rule; it is not a free digest.
+Every projected slot outcome's prefix-success value must equal the row-level
+prefix value reconstructed from that same task block.
 
 Scientific records receive one injected `frozen_created_at` from the study
 manifest; code never reads the wall clock while constructing their digest.
@@ -1922,7 +2034,8 @@ study manifest
 -> sealed packet index
 -> analysis freeze
 -> task blocks
--> blinded projection/completeness
+-> capability-minimal blinded-projection candidate (ephemeral, non-scientific)
+-> trusted ancestry-validated blinded-projection seal
 -> unblind receipt
 -> analysis
 -> artifact root
@@ -1932,24 +2045,37 @@ No candidate/sealed packet, analysis freeze, task block, projection, unblind,
 analysis, or other branch-derived scientific record may be created before the
 assignment ledger exists and validates. A task block additionally requires the
 sealed packet index and analysis freeze. The power chain may run pre-outcome in
-parallel, but it descends from the same manifest and never consumes endpoint
-bytes. A file timestamp does not establish order; typed hash ancestry and
-fail-closed transaction prerequisites do.
+parallel, but it descends from the same manifest through its typed authority
+blob and never consumes endpoint bytes. A file timestamp does not establish
+order; typed hash ancestry and fail-closed transaction prerequisites do.
+
+```text
+study manifest with roster/grid/topology refs
+-> typed power-authority blob
+-> screen
+-> immutable shards
+-> phase-appropriate selection/validation
+-> authority-discriminated final report
+```
 
 Manifest, schedule, prefix-index, assignment,
 projection, freeze, analysis, and unblind kinds are singleton. Packet indexes
 have exactly one candidate and one sealed identity; task blocks are unique by
 task ID with exact roster coverage. A power chain has one screen, selection,
 validation, and shard set per append-only
-`(decision_authority, phase, generation)` attempt, where phase is
+`(power_authority_ref, phase, generation)` attempt, where phase is
 `gaussian_approximation` or `full_multiplier_fallback`. Duplicate identities
 within an attempt fail closed, but failed attempts remain immutable and later
 generations are retained. Exactly one final report per authority parents every
 attempt and closes as a phase-discriminated Gaussian completed chain,
-full-multiplier completed chain, or terminal feasibility no-go. The Gaussian
-arm requires its worst-five selection/approximation validation. The
-full-multiplier arm instead requires its fallback trigger and full-grid
+full-multiplier completed chain, roster-only terminal feasibility no-go, or
+synthetic-only terminal validation failure. The authority identity is the
+power-authority ArtifactRef, not the mirrored string. The Gaussian arm requires
+its worst-five selection/approximation validation. The full-multiplier arm
+instead requires its fallback trigger and full-grid
 completeness/numeric/tier-validation receipt and forbids a Gaussian selection.
+A persisted validation stage is completed; no final arm may call it
+`attempt_incomplete`.
 Determinism probes and nested artifact roots never share the result-of-record
 root.
 
@@ -1993,14 +2119,29 @@ de-identified, license-compliant release bundle is promoted intentionally.
   capability, its frozen snapshot/seed/caps, and at most one generically named
   subject-guidance artifact; it cannot read arm names, donor mappings,
   packet-pair receipts, the clear ledger, or other branches.
-- The outcome projection builder receives task/slot capabilities and outcomes
-  only; it cannot load the clear assignment ledger. It exposes opaque A/B/C/D
-  labels.
+- Projection is two-phase. A capability-minimal projector receives only an
+  opaque schedule view plus stripped task/slot outcomes. Each outcome is a
+  closed analysis-visible primitive containing success, prefix success, finite
+  partial reward, infrastructure-failure bit, and exact nonnegative resource
+  counters; it contains no ArtifactRef/path, packet/grade/source ref, arm,
+  donor, key, or hidden source identity. The projector has no `run_root`,
+  ArtifactRef resolver, assignment/outcome source type, key provider, packet
+  type, or clear assignment ref and emits only an ephemeral closed
+  `BlindedProjectionCandidate` with A/B/C/D labels. The trusted controller's
+  `seal_blinded_projection` transaction separately reloads the schedule,
+  freeze, original task blocks, clear assignment ledger, packet seal, and every
+  nested parent through its encrypted plaintext `Path`; proves complete
+  semantic ancestry; reconstructs the same stripped view; byte-compares the
+  candidate; and only then writes the singleton scientific blinded projection.
+  The candidate is never a scientific record and is never stored under the run
+  root. The analysis author receives only the sealed projection.
 - Only the hash-gated unblinder receives both opaque projection and clear
-  ledger. Through the same provider boundary it derives `K_unblind` in memory
-  and signs/verifies a framed permit binding study ID, manifest, schedule,
-  prefix, assignment ledger, projection, analysis freeze, and expected task
-  count; no raw-key API or generic `secret` HMAC is used.
+  ledger. The entry point accepts the section-4.0 `AssignmentKeyProvider`,
+  derives `K_unblind` in memory, and internally recomputes the framed permit
+  HMAC binding study ID, manifest, schedule, prefix, assignment ledger,
+  projection, analysis freeze, and expected task count before it parses the
+  ledger. It accepts no caller-provided verifier, raw-key API, or generic
+  `secret` HMAC.
 - The analysis author cannot access the unblinding key until source and
   synthetic expected outputs are sealed.
 - A context that reads confirmation outcome bytes is outcome-tainted and cannot

@@ -317,14 +317,16 @@ Test:
   and unblind kinds are singleton; packet-index identities are exactly one
   candidate and one sealed record; task-block identities are unique by
   `task_id` with exact roster coverage; and append-only power-attempt
-  identities are unique by authority, phase, generation, stage, and shard
-  index while exactly one final report parents every attempt and closes as
-  either a completed selected chain or a terminal feasibility no-go;
+  identities are unique by power-authority ref, phase, generation, stage, and
+  shard index while exactly one final report parents every attempt and closes
+  as a completed selected chain, a roster-only terminal feasibility no-go, or a
+  synthetic-only nondecisive validation failure;
 - scientific builders remain byte-identical when the wall clock is monkeypatched;
 - study-manifest sealing copies external task/roster, assignment/provider,
-  tokenizer/template/policy/pad-set, revision, and required-kind sources under
-  the study root, requires three separately named commitment digests, and
-  refuses any scientific record before that manifest exists;
+  power-grid/screen-topology, tokenizer/template/policy/pad-set, revision, and
+  required-kind sources under the study root, requires three separately named
+  commitment digests, and refuses any scientific record before that manifest
+  exists;
 - the schedule loads assignment/provider assets only through `manifest_ref`;
   assignment loads the schedule only through `schedule_ref`;
 - prefix, assignment, and matching/allocation arrays are non-empty; assignment
@@ -335,6 +337,11 @@ Test:
 - no packet, analysis freeze, task block, projection, unblind, or analysis
   record can be written before a valid assignment ledger, while task blocks
   additionally require the sealed packet index and analysis freeze; and
+- every power stage follows a closed power-authority blob, derives rather than
+  trusts its authority/roster/tier fields, and rechecks the same exact grid and
+  screen-topology ArtifactRefs; and
+- a persisted validation-stage power record is completed and can never be the
+  target of `attempt_incomplete`; and
 - resampling schemas do not enter `INPUT_SCHEMA_FILES` or
   `OUTPUT_SCHEMA_FILES`.
 
@@ -407,16 +414,16 @@ Every schema has one closed `payload` with these required keys (stage-specific
 
 | record kind | required payload keys |
 | --- | --- |
-| `resampling_study_manifest` | `task_registry_ref`, `roster_ref`, `assignment_program_ref`, `provider_lane_plan_ref`, `tokenizer_ref`, `packet_template_ref`, `packet_policy_ref`, `pad_unit_set_ref`, `source_revision_refs`, `commitment_scheme`, `roster_seed_commitment_sha256`, `schedule_seed_commitment_sha256`, `assignment_master_key_commitment_sha256`, `required_document_kinds_ref` |
+| `resampling_study_manifest` | `task_registry_ref`, `roster_ref`, `assignment_program_ref`, `provider_lane_plan_ref`, `power_grid_ref`, `power_screen_topology_ref`, `tokenizer_ref`, `packet_template_ref`, `packet_policy_ref`, `pad_unit_set_ref`, `source_revision_refs`, `commitment_scheme`, `roster_seed_commitment_sha256`, `schedule_seed_commitment_sha256`, `assignment_master_key_commitment_sha256`, `required_document_kinds_ref` |
 | `resampling_prefix_schedule` | `manifest_ref`, `schedule_seed`, `tasks` |
 | `resampling_prefix_receipt` | `schedule_ref`, non-empty `task_receipts` |
 | `resampling_assignment_ledger` | `manifest_ref`, `schedule_ref`, `prefix_index_ref`, `matching_program_ref`, `assignment_master_key_commitment_sha256`, `assignment_prefix_view_sha256`, closed `assignment_mode`, `matching_proof_refs`, non-empty `assignments`, `allocation_receipts`, `donor_match_receipts` |
 | `resampling_packet_index` | `stage`; candidate: `assignment_ref`, `prefix_index_ref`, `tokenizer_ref`, `packet_template_ref`, `packet_policy_ref`, `pad_unit_set_ref`, `entries`; sealed: `candidate_ref`, the same six parent refs, `audit_gates` |
 | `resampling_task_block` | every field of `TaskBlock`, with exactly four opaque `slot_outcomes` |
-| `resampling_blinded_projection` | `schedule_ref`, `analysis_freeze_ref`, `task_block_refs`, `rows`, `expected_task_count`, `complete` |
+| `resampling_blinded_projection` | `schedule_ref`, `analysis_freeze_ref`, `task_block_refs`, recomputable `projection_candidate_sha256`, `rows`, `expected_task_count`, `complete` |
 | `resampling_analysis_freeze` | `source_refs`, `config_ref`, `projection_schema_ref`, `packet_index_ref` |
 | `resampling_analysis` | `analysis_freeze_ref`, `projection_ref`, `unblind_receipt_ref`, `config_ref`, `row_count`, `result`, `numeric_receipt` |
-| `resampling_power_report` | `stage`, `decision_authority`, `phase`, `generation`, `roster_ref`, `grid_ref`, `parent_refs`; stage-specific numeric/topology/cell/count/interval/decision payload; `validation` is phase-discriminated; final additionally requires `all_attempt_refs` and a closed `finalization` `oneOf` (Gaussian completed chain, full-multiplier completed chain, or `feasibility_no_go`) |
+| `resampling_power_report` | `stage`, `authority_ref`, derived `decision_authority`, `phase`, `generation`, derived `roster_ref`, derived `tier_membership_sha256`, exact `grid_ref`, exact `screen_topology_ref`, and `parent_refs`; stage-specific numeric/topology/cell/count/interval/decision payload; `validation` is phase-discriminated and definitionally completed; final additionally requires `all_attempt_refs` and a closed `finalization` `oneOf` (Gaussian completed chain, full-multiplier completed chain, roster-only `feasibility_no_go`, or synthetic-only `synthetic_validation_failed`) |
 | `resampling_unblind_receipt` | every field of `UnblindReceipt` |
 | `resampling_artifact_root` | `code_sha256`, `design_sha256`, `entries`, `root_sha256`, `required_document_kinds` |
 
@@ -434,6 +441,17 @@ frozen dataclasses. A schema cannot replace an ArtifactRef with a naked digest.
 `task_assignment` is also a closed `oneOf`: `donor_match_kind == "matched"`
 requires non-null distinct donor ID/lineage, while
 `not_applicable_no_trigger` requires both donor fields null.
+
+The blinded-projection schema's row outcome is the closed `BlindedOutcome`
+primitive: binary success/prefix-success, finite partial reward,
+infrastructure-failure boolean, and four exact nonnegative resource counters.
+It has `additionalProperties: false` and contains no ArtifactRef, path, opaque
+source receipt, packet/grade ref, arm, donor, or key. Its
+`projection_candidate_sha256` is a lowercase digest that semantic validation
+must reproduce from the schedule and stripped authoritative task-block values;
+the digest alone never replaces those typed parents. Every slot outcome's
+`prefix_success` must equal the row-level prefix value reconstructed from the
+same task block.
 
 Every referenced blob uses one shared `$defs.artifact_ref` with a
 root-relative POSIX name, SHA-256, byte size, and media type. Absolute paths are
@@ -464,7 +482,19 @@ contains complete pair receipts and encrypted/synthetic packet references; a
 candidate digest. Branch execution accepts only `stage == "sealed"`. The
 power-report schema similarly discriminates `screen`, `shard`, `selection`,
 `validation`, and `final`; no persisted simulator phase is an unvalidated ad
-hoc JSON file.
+hoc JSON file. Its shared `authority_ref` selects a strict canonical
+`application/vnd.pneuma.power-authority+json` two-arm blob. The
+`synthetic_validation` arm contains only manifest/fixture-roster authority;
+the `roster_bound_selection` arm additionally contains a base-eligibility
+manifest ref that exactly binds the manifest roster and nested tier/group
+membership. The blob is recursively validated and followed but is not a new
+scientific record kind. Every stage reloads it, recomputes the displayed
+authority/roster/membership mirrors, and requires the same grid and
+screen-topology refs as its parents. A caller-selected string or a naked digest
+has no authority. The final schema's reason/stage `oneOf` makes
+`attempt_incomplete` incompatible with `terminal_stage = "validation"`; semantic
+validation additionally rejects any such finalization that points to a
+persisted validation record.
 
 All scientific builders receive `frozen_created_at` explicitly from the study
 manifest. Unit tests monkeypatch the wall clock to raise if any scientific
@@ -554,6 +584,8 @@ def seal_study_manifest(
     roster_source: Path,
     assignment_program_source: Path,
     provider_lane_plan_source: Path,
+    power_grid_source: Path,
+    power_screen_topology_source: Path,
     tokenizer_source: Path,
     packet_template_source: Path,
     packet_policy_source: Path,
@@ -618,12 +650,17 @@ verifies nested roster coverage, and enforces:
 ```text
 manifest -> schedule -> prefix receipt -> assignment
 -> packet candidate -> packet sealed -> analysis freeze
--> task blocks -> projection -> unblind -> analysis -> artifact root
+-> task blocks -> ephemeral capability-minimal projection candidate
+-> trusted ancestry-validated projection seal -> unblind -> analysis
+-> artifact root
 ```
 
 No packet or later branch-derived record exists without assignment; a task
 block additionally requires the sealed packet index and analysis freeze. Power
-reports form a separately typed pre-outcome chain descending from the manifest.
+reports form a separately typed pre-outcome chain:
+`manifest-with-roster/grid/topology -> power-authority blob -> screen ->
+shards -> phase-appropriate selection/validation -> authority-discriminated
+final`. They never consume endpoint bytes.
 Both write helpers resolve `path`
 inside `run_root`, refuse any existing destination, and return the actual
 root-relative digest/size/media-type/role reference. JSONL rows are materialized
@@ -633,8 +670,8 @@ publish. `seal_study_manifest` validates the external study template, requires
 digests, copies
 and references the exact task registry, roster/group manifest, revision
 receipts, assignment program, provider-lane plan, tokenizer receipt, packet
-template, packet policy, neutral pad-unit set, and required-kind manifest under
-`run_root`, and writes the first
+template, packet policy, neutral pad-unit set, exact P0 grid, exact declared
+screen topology, and required-kind manifest under `run_root`, and writes the first
 scientific root. Revision sources are non-empty, sorted by normalized source
 name, and copied by content digest. It injects the one frozen timestamp used by
 all descendants.
@@ -648,22 +685,32 @@ an unreferenced scientific root, and a raw file presented as a scientific
 record. It reruns `validate_record_ancestry` for every scientific record and
 reconstructs exact manifest-roster coverage across schedule, prefix,
 assignment, matching/allocation, packet, task, and analysis descendants.
+For a blinded projection it reconstructs the stripped opaque schedule/block
+view from validated parents and recomputes `projection_candidate_sha256`. For a
+power report it parses the authority blob under its closed media grammar,
+rechecks manifest/eligibility/roster/tier ancestry, and proves authority, grid,
+and screen-topology equality across the complete attempt.
 Manifest, schedule, prefix-index, assignment, projection, freeze,
 analysis, and unblind kinds are singleton. Packet-index identity is
 `(record_kind, stage)` and requires exactly one candidate plus one sealed
 record. Task-block identity is `(record_kind, task_id)` and requires exactly one
 block for every manifest-roster task. A non-final power-attempt identity is
-`(decision_authority, phase, generation, stage, shard_index_or_null)`, where
+`(power_authority_ref.sha256, phase, generation, stage, shard_index_or_null)`,
+where
 `phase` is `gaussian_approximation` or `full_multiplier_fallback` and generation
 is a nonnegative append-only retry number. Duplicate identities are rejected,
 but later immutable generations are retained. Exactly one final power report
 per authority parents every attempted screen/shard/selection/validation record
 and has a closed finalization arm: `completed_chain` names its selected
-phase/generation and phase-appropriate downstream refs, while
-`feasibility_no_go` names the terminal failed attempt/stage and reason with no
-fictitious downstream refs. A completed roster-bound validation with no
-passing tier uses `power_or_type_i_gate_failed`; `attempt_incomplete` is valid
-only when a required stage never completed. A Gaussian completed chain requires its worst-five
+phase/generation and phase-appropriate downstream refs,
+roster-only `feasibility_no_go` names the terminal failed attempt/stage and
+reason, and synthetic-only `synthetic_validation_failed` records a nondecisive
+conditional failure. Neither terminal arm may invent downstream refs. A
+completed roster-bound validation with no passing tier uses
+`power_or_type_i_gate_failed`; a completed synthetic validation failure uses
+`synthetic_validation_gate_failed`. `attempt_incomplete` is valid only when a
+required next stage never completed: a persisted validation record is completed
+and can never be named or described by that reason. A Gaussian completed chain requires its worst-five
 selection and approximation-validation receipt; a full-multiplier completed
 chain instead requires its fallback trigger and full-grid
 completeness/numeric/tier-validation receipt and forbids a Gaussian selection.
@@ -2516,9 +2563,13 @@ git commit -m "feat(resampling-null): run snapshot-paired blocks"
 **Files:**
 
 - Create: `src/pneuma_lab/resampling_null/freeze.py`
+- Create: `src/pneuma_lab/resampling_null/projection_candidate.py`
 - Create: `src/pneuma_lab/resampling_null/blinding.py`
 - Create: `tests/resampling_null/test_freeze.py`
 - Create: `tests/resampling_null/test_blinding.py`
+- Modify: `schemas/resampling-blinded-projection.schema.json`
+- Modify: `src/pneuma_lab/resampling_null/artifacts.py`
+- Modify: `tests/resampling_null/test_artifacts.py`
 
 ### Step 1: Write failing freeze and blinding tests
 
@@ -2533,14 +2584,28 @@ Test:
 - projection contains only opaque A/B/C/D capabilities;
 - arm names, treatment names, packets, donor IDs, and master/subkey bytes are absent
   from serialized projection;
-- projection is constructible in a process that has no ledger, key, `Arm`,
-  or packet capability;
+- projected outcomes use the closed primitive `BlindedOutcome` only and contain
+  no ArtifactRef/path, packet/grade ref, opaque source receipt, arm, donor, key,
+  or hidden source identity;
+- the capability-minimal candidate builder accepts only stripped opaque
+  schedule/block values, has no path/resolver/key/ledger/`Arm`/packet import,
+  and produces identical bytes in a subprocess with no run-root mount;
+- a candidate cannot be published directly: the trusted seal transaction
+  reloads the clear ledger and every task-block parent, reconstructs the
+  stripped view, rejects any candidate difference, and only then writes the
+  schema-valid scientific projection;
+- projection-candidate bytes are ephemeral and absent from the scientific root,
+  while the sealed projection's recomputable candidate digest survives
+  artifact-root verification;
 - A/B/C/D follow preregistered slot order, not outcome or execution order;
 - projection covers the complete frozen roster and acts as the pre-unblind
   artifact-completeness receipt;
 - task order is deterministic;
 - a permit with the wrong HMAC, ledger digest, projection digest, or freeze
-  digest fails before the clear ledger is parsed;
+  digest fails before the clear ledger is parsed, proven with a ledger-loader
+  spy;
+- `unblind_projection` accepts `AssignmentKeyProvider`, not a caller-supplied
+  verifier, and independently recomputes `K_unblind` HMAC before ledger parsing;
 - current analysis-source mismatch blocks unblinding;
 - first successful unblind appends a receipt;
 - a second unblind cannot overwrite that receipt; and
@@ -2549,7 +2614,7 @@ Test:
 ### Step 2: Prove red
 
 ```powershell
-python -m pytest tests/resampling_null/test_freeze.py tests/resampling_null/test_blinding.py -q
+python -m pytest tests/resampling_null/test_freeze.py tests/resampling_null/test_blinding.py tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q
 ```
 
 Expected: import failure.
@@ -2620,7 +2685,8 @@ schedule
 -> packet audit/final packet index
 -> analysis freeze
 -> branches
--> blinded projection/completeness
+-> ephemeral capability-minimal blinded-projection candidate
+-> trusted ancestry-validated blinded-projection seal/completeness
 -> unblind and analysis
 -> artifact-root seal
 ```
@@ -2629,10 +2695,27 @@ schedule
 
 ```python
 @dataclass(frozen=True, slots=True)
+class BlindedResourceCounters:
+    generated_tokens: int
+    model_calls: int
+    tool_calls: int
+    wall_clock_ms: int
+
+
+@dataclass(frozen=True, slots=True)
+class BlindedOutcome:
+    success: Literal[0, 1]
+    prefix_success: Literal[0, 1]
+    partial_reward: float
+    infrastructure_failure: bool
+    counters: BlindedResourceCounters
+
+
+@dataclass(frozen=True, slots=True)
 class BlindedSlot:
     label: Literal["A", "B", "C", "D"]
     slot_id: str
-    outcome: BranchOutcome
+    outcome: BlindedOutcome
 
 
 @dataclass(frozen=True, slots=True)
@@ -2649,10 +2732,64 @@ class BlindedRow:
     validity_codes: tuple[str, ...]
 
 
-def project_blinded(
+@dataclass(frozen=True, slots=True)
+class OpaqueProjectionSlot:
+    slot_ordinal: Literal[0, 1, 2, 3]
+    slot_id: str
+    outcome: BlindedOutcome
+
+
+@dataclass(frozen=True, slots=True)
+class OpaqueProjectionBlock:
+    task_id: str
+    benchmark: str
+    stratum: str
+    lineage: str
+    sensitivity_groups: tuple[GroupLabel, ...]
+    prefix_success: int
+    triggered: bool
+    slots: tuple[
+        OpaqueProjectionSlot,
+        OpaqueProjectionSlot,
+        OpaqueProjectionSlot,
+        OpaqueProjectionSlot,
+    ]
+    pipeline_valid: bool
+    validity_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class OpaqueProjectionSchedule:
+    study_id: str
+    schedule_sha256: str
+    ordered_task_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class BlindedProjectionCandidate:
+    study_id: str
+    schedule_sha256: str
+    analysis_freeze_sha256: str
+    rows: tuple[BlindedRow, ...]
+    expected_task_count: int
+    complete: Literal[True]
+
+
+def build_blinded_projection_candidate(
+    schedule: OpaqueProjectionSchedule,
+    blocks: Sequence[OpaqueProjectionBlock],
+    *,
+    analysis_freeze_sha256: str,
+) -> BlindedProjectionCandidate:
+    ...
+
+
+def seal_blinded_projection(
     block_refs: Sequence[ArtifactRef],
     schedule_ref: ArtifactRef,
     analysis_freeze_ref: ArtifactRef,
+    candidate: BlindedProjectionCandidate,
+    *,
     run_root: Path,
     out: Path,
 ) -> ArtifactRef:
@@ -2682,21 +2819,6 @@ class UnblindReceipt:
     permit_hmac_sha256: str
 
 
-class PermitVerifier(Protocol):
-    def verify(
-        self,
-        permit: UnblindPermit,
-        *,
-        manifest_ref: ArtifactRef,
-        schedule_ref: ArtifactRef,
-        prefix_index_ref: ArtifactRef,
-        projection_ref: ArtifactRef,
-        assignment_ledger_ref: ArtifactRef,
-        analysis_freeze_ref: ArtifactRef,
-    ) -> None:
-        ...
-
-
 def issue_unblind_permit(
     *,
     assignment_key_provider: AssignmentKeyProvider,
@@ -2717,21 +2839,53 @@ def unblind_projection(
     projection_ref: ArtifactRef,
     assignment_ledger_ref: ArtifactRef,
     permit: UnblindPermit,
-    permit_verifier: PermitVerifier,
     analysis_freeze_ref: ArtifactRef,
     current: CurrentAnalysisInputs,
     *,
+    assignment_key_provider: AssignmentKeyProvider,
     run_root: Path,
     receipt_path: Path,
 ) -> tuple[tuple["AnalysisRow", ...], ArtifactRef]:
     ...
 ```
 
-`project_blinded` has no ledger/key parameter and its module does not import
-`Arm` or packet types. It loads only opaque task-block refs plus the prefix
-schedule and maps each task's frozen slot order to A/B/C/D. It verifies complete
-task coverage and all block parents, then writes the schema-valid projection.
-Persist neither key material nor clear arm map in that projection.
+`projection_candidate.py` contains only the closed stripped input/output types
+through `BlindedProjectionCandidate` and
+`build_blinded_projection_candidate`. The trusted
+`seal_blinded_projection`, unblind types, and unblind transactions live in
+`blinding.py`; the shared code block above shows the boundary's combined public
+surface, not one module's imports.
+
+`build_blinded_projection_candidate` is a capability-minimal pure builder. Its
+module does not import `Path`, `ArtifactRef`, artifact loaders, assignment
+records, `BranchOutcome`, `Arm`, key providers, or packet types. It receives
+only the stripped values above. `BlindedOutcome` is a closed analysis-visible
+primitive containing binary success/prefix success, finite partial reward,
+infrastructure-failure bit, and nonnegative generated-token/model-call/tool-call/
+wall-clock counters. It has no ArtifactRef/path, packet/grade/source receipt,
+arm, donor, key, or hidden source identity. The builder sorts by the schedule's
+frozen task order, maps slot ordinals
+`0..3` to A/B/C/D, requires every outcome's `prefix_success` to equal its
+row-level prefix value, and returns a closed candidate. In the production test it
+runs in an isolated subprocess with an empty allowlisted environment, an
+unrelated empty working directory, canonical JSON on stdin/stdout, and no
+run-root mount. Candidate bytes are held in controller memory or an operational
+temporary location outside `run_root`; they are never a scientific record or a
+referenced blob.
+
+`seal_blinded_projection` is the trusted controller transaction. Before writing
+anything it reloads the schedule and analysis freeze, reloads every original
+task block, follows each block's assignment/packet/freeze/prefix ancestry through
+the encrypted controller `Path`, verifies exact roster coverage, and constructs
+the `OpaqueProjectionSchedule`, `OpaqueProjectionBlock`, and
+`BlindedOutcome` values field by field from the authoritative outcome while
+dropping its task/benchmark/opaque-arm/source ArtifactRef fields. It recomputes
+the expected candidate and requires canonical byte equality with the supplied
+candidate. Only then does it add the original task-block
+ArtifactRefs, store `projection_candidate_sha256`, and atomically write the
+schema-valid singleton scientific projection. Artifact-root verification
+reconstructs and rehashes the candidate from the same parents. Persist neither
+key material nor clear arm map in the projection.
 
 Only an unblinding entry point may load both the projection and clear assignment
 ledger. Through the same authority-bounded `AssignmentKeyProvider`, it opens
@@ -2742,18 +2896,21 @@ Compute its HMAC over `FRAME("unblind-permit-v1", ...)` binding study,
 manifest, schedule, prefix, assignment ledger, projection, analysis freeze,
 and expected task count. No public function accepts raw master/subkey bytes;
 the master/subkey never enters the permit, argv value, environment, stdout,
-log, worker, or scientific record. A separately configured key-provider-backed
-`PermitVerifier` independently recomputes the framed HMAC. Verify that HMAC,
-projection completeness, current sources/config/projection schema/sealed
-packet index against the analysis freeze, and every parent digest before
-parsing slot-to-arm mappings.
+log, worker, or scientific record. `unblind_projection` derives the public
+manifest/schedule/prefix context from the sealed projection and task-block
+parents, opens `K_unblind` through its `AssignmentKeyProvider`, and internally
+recomputes the framed HMAC. It accepts no `PermitVerifier` or other caller-
+supplied verification callback. Verify that HMAC, projection completeness,
+current sources/config/projection schema/sealed packet index against the
+analysis freeze, and every parent digest before invoking the clear-ledger
+loader or parsing slot-to-arm mappings.
 Write the unblind receipt through the ancestry-bound atomic helper and refuse an
 existing target.
 
 ### Step 5: Prove green
 
 ```powershell
-python -m pytest tests/resampling_null/test_freeze.py tests/resampling_null/test_blinding.py -q
+python -m pytest tests/resampling_null/test_freeze.py tests/resampling_null/test_blinding.py tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q
 ```
 
 Expected: pass.
@@ -2761,7 +2918,7 @@ Expected: pass.
 ### Step 6: Commit
 
 ```powershell
-git add src/pneuma_lab/resampling_null/freeze.py src/pneuma_lab/resampling_null/blinding.py tests/resampling_null/test_freeze.py tests/resampling_null/test_blinding.py
+git add src/pneuma_lab/resampling_null/freeze.py src/pneuma_lab/resampling_null/projection_candidate.py src/pneuma_lab/resampling_null/blinding.py src/pneuma_lab/resampling_null/artifacts.py schemas/resampling-blinded-projection.schema.json tests/resampling_null/test_freeze.py tests/resampling_null/test_blinding.py tests/resampling_null/test_artifacts.py
 git commit -m "feat(resampling-null): freeze analysis and enforce blinding"
 ```
 
@@ -3229,6 +3386,10 @@ git commit -m "feat(resampling-null): implement registered inference"
 - Create: `tests/resampling_null/test_power.py`
 - Create: `fixtures/resampling_null/p0-power-grid.json`
 - Create: `fixtures/resampling_null/p0-roster-synthetic.json`
+- Modify: `schemas/resampling-power-report.schema.json`
+- Modify: `schemas/resampling-artifact-root.schema.json`
+- Modify: `src/pneuma_lab/resampling_null/artifacts.py`
+- Modify: `tests/resampling_null/test_artifacts.py`
 
 ### Step 1: Write failing simulator tests
 
@@ -3257,6 +3418,21 @@ Test:
   exact C120/C160 tier membership, and group counts;
 - trigger allocation is a uniform exact-size subset of each benchmark roster
   and preserves joint-cell counts for leave-one-group gates;
+- the closed synthetic power-authority blob accepts only a manifest-equal
+  `synthetic_fixture` roster and forbids an eligibility ref;
+- the closed roster-bound power-authority blob requires manifest-equal
+  `eligible_confirmation` roster bytes plus a base-eligibility manifest whose
+  accepted set, nested tier membership, and group labels reproduce the roster;
+- swapping either authority arm, changing any authority/manifest/eligibility/
+  roster byte, or relabeling a synthetic roster as roster-bound fails before a
+  screen;
+- no public config, simulator, finalizer, or CLI accepts a free
+  `decision_authority` or roster ref; every stage derives both from
+  `authority_ref`;
+- every stage binds and rechecks the exact grid and screen-topology ArtifactRefs,
+  and changing either ref/byte breaks the chain;
+- every numeric `PowerConfig` field is reconstructed from the referenced grid
+  and a caller-constructed config with one changed value is rejected;
 - a synthetic roster report is labeled conditional/non-decisive and cannot
   select a confirmation tier: its completed chain requires
   `selected_tier = None` and `decision = "CONDITIONAL_ONLY"`;
@@ -3283,11 +3459,16 @@ Test:
   `resampling_power_report`; and
 - the one final report parents every failed/passing attempt and uses exactly
   one closed finalization arm; exhausted Gaussian-screen retries and exhausted
-  full-multiplier-fallback screening both emit `feasibility_no_go` with no
-  fabricated shard/selection/validation refs; and
+  full-multiplier-fallback screening emit roster-only `feasibility_no_go` or
+  synthetic-only `synthetic_validation_failed`, according to the referenced
+  authority, with no fabricated shard/selection/validation refs; and
 - a completed roster-bound `NO_GO` validation uses
   `power_or_type_i_gate_failed`, while `attempt_incomplete` is rejected for a
-  completed validation; and
+  completed persisted validation and cannot name terminal stage `validation`;
+  and
+- a failed completed synthetic validation uses
+  `synthetic_validation_gate_failed`, null tier, and
+  `decision = "CONDITIONAL_ONLY"`; and
 - a successful all-cell full-multiplier fallback validates complete
   cells/counts/numeric/tier receipts, finalizes without a Gaussian selection,
   and survives artifact sealing.
@@ -3295,7 +3476,7 @@ Test:
 ### Step 2: Prove red
 
 ```powershell
-python -m pytest tests/resampling_null/test_power.py -q
+python -m pytest tests/resampling_null/test_power.py tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q
 ```
 
 Expected: import failure.
@@ -3341,12 +3522,59 @@ PowerPhase = Literal[
 
 
 @dataclass(frozen=True, slots=True)
-class PowerConfig:
+class SyntheticPowerAuthority:
+    schema_version: Literal["1"]
+    authority_kind: Literal["synthetic_validation"]
+    manifest_ref: ArtifactRef
     roster_ref: ArtifactRef
-    decision_authority: Literal[
-        "synthetic_validation",
-        "roster_bound_selection",
-    ]
+    tier_membership_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class RosterBoundPowerAuthority:
+    schema_version: Literal["1"]
+    authority_kind: Literal["roster_bound_selection"]
+    manifest_ref: ArtifactRef
+    eligibility_manifest_ref: ArtifactRef
+    roster_ref: ArtifactRef
+    tier_membership_sha256: str
+
+
+PowerAuthority = SyntheticPowerAuthority | RosterBoundPowerAuthority
+
+
+def seal_synthetic_power_authority(
+    manifest_ref: ArtifactRef,
+    *,
+    run_root: Path,
+    out: Path,
+) -> ArtifactRef:
+    ...
+
+
+def seal_roster_bound_power_authority(
+    manifest_ref: ArtifactRef,
+    eligibility_manifest_ref: ArtifactRef,
+    *,
+    run_root: Path,
+    out: Path,
+) -> ArtifactRef:
+    ...
+
+
+def load_power_authority(
+    authority_ref: ArtifactRef,
+    *,
+    run_root: Path,
+) -> PowerAuthority:
+    ...
+
+
+@dataclass(frozen=True, slots=True)
+class PowerConfig:
+    authority_ref: ArtifactRef
+    grid_ref: ArtifactRef
+    screen_topology_ref: ArtifactRef
     benchmark_tiers: tuple[int, int] = (120, 160)
     datasets_per_cell: int = 20_000
     screen_datasets_per_cell: int = 200
@@ -3422,6 +3650,7 @@ def simulate_power_grid(
 def select_validation_cells(
     screen_ref: ArtifactRef,
     shard_refs: Sequence[ArtifactRef],
+    config: PowerConfig,
     *,
     run_root: Path,
     out: Path,
@@ -3496,22 +3725,74 @@ class FeasibilityNoGoFinalization:
     decision: Literal["NO_GO"]
 
 
+@dataclass(frozen=True, slots=True)
+class SyntheticValidationFailedFinalization:
+    kind: Literal["synthetic_validation_failed"]
+    terminal_attempt_ref: ArtifactRef
+    terminal_stage: Literal["screen", "shard", "selection", "validation"]
+    reason: Literal[
+        "gaussian_screen_exhausted",
+        "full_multiplier_screen_exhausted",
+        "numeric_fixture_failed",
+        "runtime_bound_exceeded",
+        "attempt_incomplete",
+        "synthetic_validation_gate_failed",
+    ]
+    selected_tier: None
+    decision: Literal["CONDITIONAL_ONLY"]
+
+
 PowerFinalization = (
     GaussianApproximationCompletedChain
     | FullMultiplierCompletedChain
     | FeasibilityNoGoFinalization
+    | SyntheticValidationFailedFinalization
 )
 
 
 def finalize_power_report(
     all_attempt_refs: Sequence[ArtifactRef],
     *,
+    config: PowerConfig,
     finalization: PowerFinalization,
     run_root: Path,
     out: Path,
 ) -> ArtifactRef:
     ...
 ```
+
+Power-authority blobs use
+`application/vnd.pneuma.power-authority+json`,
+`canonical_json_bytes(value, indent=None)`, the shared closed ArtifactRef, and
+exactly the two dataclass shapes above. They are referenced blobs, not a new
+scientific record kind. `seal_synthetic_power_authority` reloads the manifest's
+roster ref, requires a closed `roster_kind = "synthetic_fixture"` roster, and
+recomputes its ordered tier/task/group membership digest. The digest preimage
+has exactly the closed shape illustrated by
+`{"rows":[{"benchmark":"SWE","groups":[{"kind":"language","value":"C"}],
+"task_id":"swe-001","tiers":[120,160]}],"schema_version":"1"}`: rows are unique
+and strict-UTF-8 sorted by `(benchmark, task_id)`, tiers are a strictly
+increasing non-empty subset of `[120, 160]`, groups are unique in the frozen
+kind/value order, and
+`tier_membership_sha256 = SHA256(canonical_json_bytes(preimage, indent=None))`.
+`seal_roster_bound_power_authority` additionally reloads the base-commit
+eligibility manifest, requires
+`roster_kind = "eligible_confirmation"`, proves study/manifest/roster ancestry,
+and exactly reproduces its accepted set, nested C120/C160 membership, and joint
+group labels. Both reject caller-provided roster refs, authority strings, or
+membership digests. `load_power_authority` parses/re-serializes canonical bytes,
+repeats those proofs, and returns the discriminated typed arm.
+
+`PowerConfig` is created only after resolving those three ArtifactRefs under
+`run_root`. Every report producer calls `load_power_authority`, reloads the grid
+and screen topology, requires both refs to equal the authority's study
+manifest `power_grid_ref`/`power_screen_topology_ref`, and stores/rechecks their
+exact refs. The numeric fields shown on `PowerConfig` are parsed mirrors of the
+closed grid bytes; each producer reconstructs them and rejects a caller-created
+object whose value differs. Its
+`decision_authority`, `roster_ref`, and `tier_membership_sha256` report fields
+are derived mirrors. No producer accepts them as parameters, and a downstream
+stage rejects any mismatch with the authority, grid, topology, or parent stage.
 
 Use `numpy.random.Philox` and deterministic cell/replicate counter mapping.
 Implement exact-binomial interval inversion with a bounded bisection over the
@@ -3528,8 +3809,8 @@ for a `1e-12` numerical-boundary tolerance. Every report binds
 these constants, NumPy version, ordered cell manifest, source/config digests,
 and numeric-fixture digest.
 
-The roster ref is immutable and gives every task's benchmark, tier membership,
-and joint set of language/domain/issue-family labels. The production grid
+The authority-derived roster ref is immutable and gives every task's benchmark,
+tier membership, and joint set of language/domain/issue-family labels. The production grid
 evaluates `n_b in {120, 160}` and 20,000 datasets per cell. For each benchmark,
 set `m_b = gamma * n_b` exactly and choose a uniform size-`m_b` subset of its
 frozen roster through deterministic multivariate-hypergeometric counts over the
@@ -3539,13 +3820,15 @@ from `Multinomial(m_cell, pi_trigger)`. For its nontrigger tasks draw
 the remainder to `0000`. Aggregate those same joint-cell counts for benchmark
 and every overlapping leave-one-group gate.
 
-The committed synthetic roster validates machinery and performance only and
-sets `decision_authority == "synthetic_validation"`. Its final report must say
-`CONDITIONAL_ONLY`; it cannot select C120/C160 or emit the study's feasibility
-no-go. After the actual eligible registry freezes exact C120/C160 membership and
-all group labels, rerun the complete grid with
-`decision_authority == "roster_bound_selection"` before any confirmation
-outcome. Only that report may select a tier or emit `FEASIBILITY_NO_GO`.
+The committed synthetic roster validates machinery and performance only. Its
+sealed synthetic authority blob derives
+`decision_authority == "synthetic_validation"`; its final report must say
+`CONDITIONAL_ONLY`, cannot select C120/C160, and cannot emit the study's
+feasibility no-go. After the actual eligible registry freezes exact C120/C160
+membership and all group labels, seal the roster-bound authority blob against
+the study and base-eligibility manifests and rerun the complete grid before any
+confirmation outcome. Only that referenced authority may select a tier or emit
+`FEASIBILITY_NO_GO`.
 
 Before production, `mode="screen"` runs exactly 200 datasets for every one of
 the 729 alternative and 2,187 null cells on the declared CPU topology. It must
@@ -3554,7 +3837,8 @@ reproduce the committed numeric fixture digest and project the complete
 vectorization/partitioning and another sealed screen under the same authority
 and phase with `generation += 1`; it never overwrites the failed generation or
 permits a smaller grid. If the bound still fails, finalize
-`FEASIBILITY_NO_GO`.
+roster-bound authority as `feasibility_no_go`; finalize synthetic authority as
+`synthetic_validation_failed` with the applicable nondecisive reason.
 
 Production calls `evaluate_binary_gate_batch` from `analysis.py` over
 read-only sufficient-statistics arrays; it does not create per-dataset row
@@ -3572,28 +3856,39 @@ canonical report bytes.
 Every persisted phase is a schema-valid `resampling_power_report`: `screen`,
 `shard`, `selection`, `validation`, or `final`. Each later stage parents the
 earlier ArtifactRefs and rejects the wrong stage. The envelope records
-decision authority, `phase`, and nonnegative `generation`; shards additionally
-record a unique zero-based shard index. A full-multiplier fallback uses phase
-`full_multiplier_fallback`, never a disguised extra Gaussian generation. The
-single final record parents every immutable attempt, including failures. Its
-closed `completed_chain` arm names the selected passing phase/generation and
-phase-appropriate downstream refs. A Gaussian chain requires the frozen
-worst-five selection and approximation validation. A full-multiplier chain
-requires the failed-Gaussian trigger plus
+the authority ref, authority-derived decision/roster/membership mirrors, exact
+grid ref, exact screen-topology ref, `phase`, and nonnegative `generation`;
+shards additionally record a unique zero-based shard index. A
+full-multiplier fallback uses phase `full_multiplier_fallback`, never a
+disguised extra Gaussian generation. The single final record parents every
+immutable attempt, including failures. Its closed `completed_chain` arm names
+the selected passing phase/generation and phase-appropriate downstream refs. A
+Gaussian chain requires the frozen worst-five selection and approximation
+validation. A full-multiplier chain requires the failed-Gaussian trigger plus
 `validate_full_multiplier_fallback`, which verifies full ordered-cell coverage,
 raw counts, numeric receipts, and the tier decision directly and has no
-Gaussian selection. Its `feasibility_no_go` arm instead names the terminal
-failed attempt/stage and frozen reason and forbids downstream refs that do not
-exist. Finalization is authority-discriminated: a roster-bound completed chain
-requires `selected_tier` 120 or 160 and `decision = "GO"`; a synthetic
-completed chain requires `selected_tier = None` and
-`decision = "CONDITIONAL_ONLY"`; a feasibility no-go requires
-`selected_tier = None` and `decision = "NO_GO"`. `attempt_incomplete` is
-reserved for a terminal attempt whose required stage never completed and may
-not describe a schema-valid completed validation. A completed roster-bound
-validation whose decision is `NO_GO` because neither tier passes the
-registered power/type-I gates must finalize at stage `validation` with
-`reason = "power_or_type_i_gate_failed"`.
+Gaussian selection. Its roster-only `feasibility_no_go` arm instead names the
+terminal failed attempt/stage and frozen reason with
+`selected_tier = None`, `decision = "NO_GO"`, and no nonexistent downstream
+refs. Its synthetic-only `synthetic_validation_failed` arm similarly names the
+terminal attempt/stage but requires `selected_tier = None`,
+`decision = "CONDITIONAL_ONLY"`, and a nondecisive synthetic reason.
+Finalization reloads the authority blob; a roster-bound completed chain requires
+selected tier 120 or 160 and `GO`, while a synthetic completed chain requires
+null tier and `CONDITIONAL_ONLY`. Cross-authority arms fail schema plus semantic
+validation.
+
+`attempt_incomplete` is reserved for a terminal attempt whose required next
+stage never produced a scientific record. A persisted schema-valid
+`validation` record is completed, so neither final arm may pair that reason
+with terminal stage `validation` or point it at a validation ref; an interrupted
+validation names the last completed pre-validation stage. A completed
+roster-bound validation whose decision is `NO_GO` because neither tier passes
+the registered power/type-I gates must finalize at stage `validation` with
+`reason = "power_or_type_i_gate_failed"`. A completed synthetic validation that
+fails its registered approximation/machinery checks finalizes at stage
+`validation` as `synthetic_validation_failed` with
+`reason = "synthetic_validation_gate_failed"`.
 
 For P0 only, use the two-dimensional Gaussian-max critical value derived from
 the estimated contrast correlation. Select the five lowest-power alternative
@@ -3601,8 +3896,9 @@ cells before validation and rerun 2,000 outer datasets through the full
 99,999-draw multiplier routine. Freeze and write that selection before
 validation outputs. Every selected cell must have an absolute gate-pass-rate
 difference at most 0.01 and both methods must choose the same roster tier. On
-failure, run the full multiplier routine for every cell or emit
-`FEASIBILITY_NO_GO`.
+failure, run the full multiplier routine for every cell or emit the
+authority-appropriate terminal arm: roster-bound `feasibility_no_go` or
+nondecisive synthetic `synthetic_validation_failed`.
 
 For the roster-bound run, the tier passes only if every Bonferroni
 Clopper-Pearson lower bound across 729
@@ -3616,12 +3912,13 @@ ordered manifest. On those cells, 2,000 datasets use the full registered
 be `<= 0.01`, and replacing those five approximate rates with their full-
 multiplier rates must leave the roster-tier decision unchanged. Otherwise,
 screen the all-cell full-multiplier fallback against the same 12-hour bound and
-either run it for every alternative/null cell or emit `FEASIBILITY_NO_GO`.
+either run it for every alternative/null cell or emit the
+authority-appropriate terminal arm.
 
 ### Step 4: Prove the unit suite green
 
 ```powershell
-python -m pytest tests/resampling_null/test_power.py -q
+python -m pytest tests/resampling_null/test_power.py tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q
 ```
 
 Expected: pass using a tiny fixture grid; the 20,000 × full-grid run is not a
@@ -3630,7 +3927,7 @@ unit test.
 ### Step 5: Commit
 
 ```powershell
-git add src/pneuma_lab/resampling_null/power.py tests/resampling_null/test_power.py fixtures/resampling_null/p0-power-grid.json fixtures/resampling_null/p0-roster-synthetic.json
+git add src/pneuma_lab/resampling_null/power.py src/pneuma_lab/resampling_null/artifacts.py schemas/resampling-power-report.schema.json schemas/resampling-artifact-root.schema.json tests/resampling_null/test_power.py tests/resampling_null/test_artifacts.py fixtures/resampling_null/p0-power-grid.json fixtures/resampling_null/p0-roster-synthetic.json
 git commit -m "feat(resampling-null): add joint P0 simulator"
 ```
 
@@ -3663,8 +3960,9 @@ Call `main(argv)` directly and test:
 - `packets audit`;
 - `analysis freeze`;
 - `synthetic branches`;
-- `project`;
+- trusted `project seal`, including the isolated opaque-candidate subprocess;
 - `analyze`;
+- `power authority synthetic` and `power authority roster-bound`;
 - `power screen`, `simulate`, `select-validation`, `validate`,
   `validate-fallback`, and `finalize`;
 - `artifacts seal` and `artifacts verify`;
@@ -3675,6 +3973,8 @@ Call `main(argv)` directly and test:
   parenting every attempt;
 - every scientific command requires one global study root and rejects an output
   or scientific input outside it;
+- power commands reject `--decision-authority` and `--roster`; they accept only
+  an authority ref plus manifest-frozen grid and screen-topology refs;
 - JSON stdout contains status, digest, and output path;
 - no command accepts an arm name where an opaque capability is required; and
 - two self-tests produce identical scientific artifacts.
@@ -3691,7 +3991,7 @@ Expected: import failure.
 
 ```text
 python -m pneuma_lab.resampling_null --run-root <dir> selftest [--defer-artifact-root] [--defer-power]
-python -m pneuma_lab.resampling_null --run-root <dir> study seal --study-source <json> --tasks-source <jsonl> --roster-source <json> --assignment-program-source <path> --provider-lane-plan-source <json> --tokenizer-source <json> --packet-template-source <text> --packet-policy-source <json> --pad-unit-set-source <json> --revision-source <path> [--revision-source <path> ...] --required-kinds-source <json> --out study-manifest.json
+python -m pneuma_lab.resampling_null --run-root <dir> study seal --study-source <json> --tasks-source <jsonl> --roster-source <json> --assignment-program-source <path> --provider-lane-plan-source <json> --power-grid-source <json> --power-screen-topology-source <json> --tokenizer-source <json> --packet-template-source <text> --packet-policy-source <json> --pad-unit-set-source <json> --revision-source <path> [--revision-source <path> ...] --required-kinds-source <json> --out study-manifest.json
 python -m pneuma_lab.resampling_null --run-root <dir> schedule seal --study study-manifest.json --schedule-seed-file <outside-root-path> --out prefix-schedule.json
 python -m pneuma_lab.resampling_null --run-root <dir> synthetic prefixes --study study-manifest.json --schedule prefix-schedule.json --out prefix-index.json
 python -m pneuma_lab.resampling_null --run-root <dir> assignment seal --schedule prefix-schedule.json --prefix-index prefix-index.json --assignment-key-file <outside-root-path> --out assignment-ledger.json
@@ -3699,16 +3999,19 @@ python -m pneuma_lab.resampling_null --run-root <dir> packets build --study stud
 python -m pneuma_lab.resampling_null --run-root <dir> packets audit --study study-manifest.json --candidate packet-candidate.json --schedule prefix-schedule.json --assignment assignment-ledger.json --prefix-index prefix-index.json --out-index packet-index.json
 python -m pneuma_lab.resampling_null --run-root <dir> analysis freeze --source-root <path> --source <relative-path> --config <path> --projection-schema <path> --packet-index packet-index.json --out analysis-freeze.json
 python -m pneuma_lab.resampling_null --run-root <dir> synthetic branches --study study-manifest.json --schedule prefix-schedule.json --assignment assignment-ledger.json --prefix-index prefix-index.json --packet-index packet-index.json --analysis-freeze analysis-freeze.json --out-prefix task-blocks
-python -m pneuma_lab.resampling_null --run-root <dir> project --schedule prefix-schedule.json --analysis-freeze analysis-freeze.json --task-block-prefix task-blocks --out blinded-projection.json
+python -m pneuma_lab.resampling_null --run-root <dir> project seal --schedule prefix-schedule.json --analysis-freeze analysis-freeze.json --task-block-prefix task-blocks --out blinded-projection.json
 python -m pneuma_lab.resampling_null --run-root <dir> analyze --study study-manifest.json --projection blinded-projection.json --assignment assignment-ledger.json --analysis-freeze analysis-freeze.json --source-root <path> --source <relative-path> --config <path> --projection-schema <path> --packet-index packet-index.json --assignment-key-file <outside-root-path> --unblind-receipt unblind-receipt.json --out analysis.json
-python -m pneuma_lab.resampling_null --run-root <dir> power screen --grid <path> --roster <relative-json> --decision-authority <synthetic_validation|roster_bound_selection> --phase <gaussian_approximation|full_multiplier_fallback> --generation <int> --topology <path> --out power-screen.json
-python -m pneuma_lab.resampling_null --run-root <dir> power simulate --grid <path> --roster <relative-json> --screen power-screen.json --mode <production|full_multiplier> --shard-index <int> --shard-count <int> --out <relative-json>
-python -m pneuma_lab.resampling_null --run-root <dir> power select-validation --screen power-screen.json --shard-prefix <relative-prefix> --out validation-selection.json
-python -m pneuma_lab.resampling_null --run-root <dir> power validate --grid <path> --roster <relative-json> --shard-prefix <relative-prefix> --selection validation-selection.json --out validation.json
-python -m pneuma_lab.resampling_null --run-root <dir> power validate-fallback --grid <path> --roster <relative-json> --screen power-screen.json --shard-prefix <relative-prefix> --fallback-trigger <relative-json> --out fallback-validation.json
-python -m pneuma_lab.resampling_null --run-root <dir> power finalize --attempt-prefix <relative-directory> --completed-gaussian --selected-screen power-screen.json --selected-shard-prefix <relative-prefix> --selected-selection validation-selection.json --selected-validation validation.json --out p0-power-report.json
-python -m pneuma_lab.resampling_null --run-root <dir> power finalize --attempt-prefix <relative-directory> --completed-full-multiplier --fallback-trigger <relative-json> --selected-screen power-screen.json --selected-shard-prefix <relative-prefix> --fallback-validation fallback-validation.json --out p0-power-report.json
-python -m pneuma_lab.resampling_null --run-root <dir> power finalize --attempt-prefix <relative-directory> --feasibility-no-go --terminal-attempt <relative-json> --terminal-stage <screen|shard|selection|validation> --reason <closed-reason> --out p0-power-report.json
+python -m pneuma_lab.resampling_null --run-root <dir> power authority synthetic --study study-manifest.json --out power-authority.json
+python -m pneuma_lab.resampling_null --run-root <dir> power authority roster-bound --study study-manifest.json --eligibility-manifest-source <json> --out power-authority.json
+python -m pneuma_lab.resampling_null --run-root <dir> power screen --authority power-authority.json --grid-ref inputs/p0-power-grid.json --screen-topology-ref inputs/p0-power-screen-topology.json --phase <gaussian_approximation|full_multiplier_fallback> --generation <int> --out power-screen.json
+python -m pneuma_lab.resampling_null --run-root <dir> power simulate --authority power-authority.json --grid-ref inputs/p0-power-grid.json --screen-topology-ref inputs/p0-power-screen-topology.json --screen power-screen.json --mode <production|full_multiplier> --shard-index <int> --shard-count <int> --out <relative-json>
+python -m pneuma_lab.resampling_null --run-root <dir> power select-validation --authority power-authority.json --grid-ref inputs/p0-power-grid.json --screen-topology-ref inputs/p0-power-screen-topology.json --screen power-screen.json --shard-prefix <relative-prefix> --out validation-selection.json
+python -m pneuma_lab.resampling_null --run-root <dir> power validate --authority power-authority.json --grid-ref inputs/p0-power-grid.json --screen-topology-ref inputs/p0-power-screen-topology.json --shard-prefix <relative-prefix> --selection validation-selection.json --out validation.json
+python -m pneuma_lab.resampling_null --run-root <dir> power validate-fallback --authority power-authority.json --grid-ref inputs/p0-power-grid.json --screen-topology-ref inputs/p0-power-screen-topology.json --screen power-screen.json --shard-prefix <relative-prefix> --fallback-trigger <relative-json> --out fallback-validation.json
+python -m pneuma_lab.resampling_null --run-root <dir> power finalize --authority power-authority.json --grid-ref inputs/p0-power-grid.json --screen-topology-ref inputs/p0-power-screen-topology.json --attempt-prefix <relative-directory> --completed-gaussian --selected-screen power-screen.json --selected-shard-prefix <relative-prefix> --selected-selection validation-selection.json --selected-validation validation.json --out p0-power-report.json
+python -m pneuma_lab.resampling_null --run-root <dir> power finalize --authority power-authority.json --grid-ref inputs/p0-power-grid.json --screen-topology-ref inputs/p0-power-screen-topology.json --attempt-prefix <relative-directory> --completed-full-multiplier --fallback-trigger <relative-json> --selected-screen power-screen.json --selected-shard-prefix <relative-prefix> --fallback-validation fallback-validation.json --out p0-power-report.json
+python -m pneuma_lab.resampling_null --run-root <dir> power finalize --authority power-authority.json --grid-ref inputs/p0-power-grid.json --screen-topology-ref inputs/p0-power-screen-topology.json --attempt-prefix <relative-directory> --feasibility-no-go --terminal-attempt <relative-json> --terminal-stage <screen|shard|selection|validation> --reason <closed-roster-reason> --out p0-power-report.json
+python -m pneuma_lab.resampling_null --run-root <dir> power finalize --authority power-authority.json --grid-ref inputs/p0-power-grid.json --screen-topology-ref inputs/p0-power-screen-topology.json --attempt-prefix <relative-directory> --synthetic-validation-failed --terminal-attempt <relative-json> --terminal-stage <screen|shard|selection|validation> --reason <closed-synthetic-reason> --out p0-power-report.json
 python -m pneuma_lab.resampling_null --run-root <dir> artifacts seal --required-kinds <path> --out p0-core-receipt.json
 python -m pneuma_lab.resampling_null --run-root <dir> artifacts verify --receipt p0-core-receipt.json --required-kinds <path>
 ```
@@ -3716,12 +4019,15 @@ python -m pneuma_lab.resampling_null --run-root <dir> artifacts verify --receipt
 `--run-root` is required once before every subcommand. Every scientific input
 and output argument is a normalized root-relative POSIX name; external inputs
 are explicitly named `*-source`, `--source-root`/`--source`, `--config`,
-`--projection-schema`, `--grid`, `--topology`, or `--required-kinds` and are
-copied/content-addressed into the root before use. `study seal` creates the
-first schema-valid manifest and copies the task/roster inputs plus the exact
-tokenizer receipt, packet template, packet policy, and pad-unit set used by all
-packet commands. Its study source must contain the ceremony constant and three
-named commitment digests. `schedule seal` reads the public schedule-seed reveal,
+`--projection-schema`, `--eligibility-manifest-source`, or
+`--required-kinds` and are copied/content-addressed into the root before use.
+`study seal` creates the first schema-valid manifest and copies the task/roster
+inputs plus the exact power grid, declared screen topology, tokenizer receipt,
+packet template, packet policy, and pad-unit set used by descendants. Later
+power commands receive their root-relative ArtifactRef paths through
+`--grid-ref` and `--screen-topology-ref`; neither is a fresh external input.
+The study source must contain the ceremony constant and three named commitment
+digests. `schedule seal` reads the public schedule-seed reveal,
 verifies its commitment, and loads assignment/provider assets only through the
 manifest; there is no override option. `assignment seal` loads only schedule
 and prefix ArtifactRefs, verifies the 32-byte master-key commitment in memory,
@@ -3743,23 +4049,40 @@ current source/config/schema/sealed-packet inputs. `packets build` writes a
 schema-valid candidate-stage index and referenced packet artifacts;
 only `packets audit` may create a sealed-stage packet index. `synthetic
 branches` refuses absent, schema-invalid, or digest-mismatched packet-index and
-analysis-freeze parents. `project` has no assignment or key option.
+analysis-freeze parents. `project seal` is the trusted controller transaction:
+it sends only stripped `OpaqueProjectionSchedule`/`OpaqueProjectionBlock`
+canonical bytes to an isolated candidate subprocess with no run-root mount,
+then reloads the original blocks and clear assignment ancestry itself,
+reconstructs the stripped values, and seals only an exact candidate. It exposes
+no CLI assignment or key option because those parents are resolved internally
+under the trusted controller identity.
 `analyze` verifies the current frozen sources, loads the roster ref only through
 the validated study manifest, verifies that the assignment schedule descends
 from that manifest, and requires exact row/task/group coverage. It then creates
-an in-memory HMAC permit, unblinds only in memory, atomically writes the unblind
-receipt and analysis, and refuses either existing target.
+an in-memory HMAC permit, passes the authority-bounded key provider—not a
+caller-supplied verifier—to `unblind_projection`, internally recomputes the
+`K_unblind` HMAC before clear-ledger parsing, unblinds only in memory, atomically
+writes the unblind receipt and analysis, and refuses either existing target.
 
-`power simulate` accepts only a passing, digest-matched screen receipt. Shard
+`power authority synthetic` derives its roster only from the study manifest and
+requires the closed fixture marker. `power authority roster-bound` copies and
+binds the exact eligibility source, then proves accepted-set/tier/group equality
+with the manifest roster. The CLI exposes no `--decision-authority` or
+`--roster`; every later power command takes the authority, grid, and topology
+refs and rejects a mismatch with its parents. `power simulate` accepts only a
+passing, digest-matched screen receipt. Shard
 indexing is zero-based and the output records its exact closed cell set.
 `select-validation` refuses incomplete production coverage and freezes its
 output before `validate` runs. `finalize` always returns one schema-valid power
 report whose mutually exclusive CLI argument groups construct either
-`GaussianApproximationCompletedChain`, `FullMultiplierCompletedChain`, or
-`FeasibilityNoGoFinalization`; every arm parents every attempt. Synthetic
-authority ends `CONDITIONAL_ONLY`; roster-bound authority selects a tier,
-executes the registered full-multiplier fallback, or records
-`FEASIBILITY_NO_GO`. It cannot silently weaken the grid.
+`GaussianApproximationCompletedChain`, `FullMultiplierCompletedChain`,
+`FeasibilityNoGoFinalization`, or
+`SyntheticValidationFailedFinalization`; every arm parents every attempt.
+Synthetic authority ends `CONDITIONAL_ONLY` through a completed or
+synthetic-failed arm; roster-bound authority selects a tier, executes the
+registered full-multiplier fallback, or records `FEASIBILITY_NO_GO`. A
+persisted validation cannot be finalized as `attempt_incomplete`. The CLI
+cannot silently weaken the grid or cross authority arms.
 
 `selftest` executes the complete chronology with separate sealed artifacts,
 runs 24 task blocks across two fake benchmarks, seals, reloads, and verifies
@@ -3775,8 +4098,9 @@ runs 24 task blocks across two fake benchmarks, seals, reloads, and verifies
 With `--defer-artifact-root` alone, it performs the same upstream work but
 deliberately omits only the final seal/verify. `--defer-power` is accepted only
 together with `--defer-artifact-root`; it omits the entire power
-screen/shard/selection/validation/final chain while still creating every other
-required singleton scientific record. This is the canonical-bootstrap mode:
+authority/screen/shard/selection/validation/final chain while still creating
+every other required singleton scientific record. This is the
+canonical-bootstrap mode:
 the explicit Task-10 power commands then create the root's only authoritative
 power chain before one immutable artifact seal. Both modes refuse a root that
 already contains a receipt.
@@ -3844,18 +4168,25 @@ be added after the eventual root seal.
 
 Use a fixed local topology receipt and a deterministic shard count chosen before
 the screen. The example below uses 16 shards; changing it requires a new screen
-receipt, not a reinterpretation of partial results.
+receipt, not a reinterpretation of partial results. The deferred selftest's
+study seal has already copied the exact fixture grid and topology to
+`inputs/p0-power-grid.json` and
+`inputs/p0-power-screen-topology.json` and bound both refs in the manifest.
 
 ```powershell
 $powerRoot = 'power'
-python -m pneuma_lab.resampling_null --run-root $canonicalRoot power screen --grid fixtures/resampling_null/p0-power-grid.json --roster inputs/p0-roster-synthetic.json --decision-authority synthetic_validation --phase gaussian_approximation --generation 0 --topology fixtures/resampling_null/p0-local-topology.json --out "$powerRoot/screen.json"
+$powerAuthority = "$powerRoot/power-authority.json"
+$powerGridRef = 'inputs/p0-power-grid.json'
+$screenTopologyRef = 'inputs/p0-power-screen-topology.json'
+python -m pneuma_lab.resampling_null --run-root $canonicalRoot power authority synthetic --study study-manifest.json --out $powerAuthority
+python -m pneuma_lab.resampling_null --run-root $canonicalRoot power screen --authority $powerAuthority --grid-ref $powerGridRef --screen-topology-ref $screenTopologyRef --phase gaussian_approximation --generation 0 --out "$powerRoot/screen.json"
 0..15 | ForEach-Object {
-    python -m pneuma_lab.resampling_null --run-root $canonicalRoot power simulate --grid fixtures/resampling_null/p0-power-grid.json --roster inputs/p0-roster-synthetic.json --screen "$powerRoot/screen.json" --mode production --shard-index $_ --shard-count 16 --out "$powerRoot/shard-$_.json"
+    python -m pneuma_lab.resampling_null --run-root $canonicalRoot power simulate --authority $powerAuthority --grid-ref $powerGridRef --screen-topology-ref $screenTopologyRef --screen "$powerRoot/screen.json" --mode production --shard-index $_ --shard-count 16 --out "$powerRoot/shard-$_.json"
     if ($LASTEXITCODE -ne 0) { throw "power shard $_ failed" }
 }
-python -m pneuma_lab.resampling_null --run-root $canonicalRoot power select-validation --screen "$powerRoot/screen.json" --shard-prefix "$powerRoot/shard-" --out "$powerRoot/validation-selection.json"
-python -m pneuma_lab.resampling_null --run-root $canonicalRoot power validate --grid fixtures/resampling_null/p0-power-grid.json --roster inputs/p0-roster-synthetic.json --shard-prefix "$powerRoot/shard-" --selection "$powerRoot/validation-selection.json" --out "$powerRoot/validation.json"
-python -m pneuma_lab.resampling_null --run-root $canonicalRoot power finalize --attempt-prefix "$powerRoot/" --completed-gaussian --selected-screen "$powerRoot/screen.json" --selected-shard-prefix "$powerRoot/shard-" --selected-selection "$powerRoot/validation-selection.json" --selected-validation "$powerRoot/validation.json" --out "$powerRoot/p0-power-report.json"
+python -m pneuma_lab.resampling_null --run-root $canonicalRoot power select-validation --authority $powerAuthority --grid-ref $powerGridRef --screen-topology-ref $screenTopologyRef --screen "$powerRoot/screen.json" --shard-prefix "$powerRoot/shard-" --out "$powerRoot/validation-selection.json"
+python -m pneuma_lab.resampling_null --run-root $canonicalRoot power validate --authority $powerAuthority --grid-ref $powerGridRef --screen-topology-ref $screenTopologyRef --shard-prefix "$powerRoot/shard-" --selection "$powerRoot/validation-selection.json" --out "$powerRoot/validation.json"
+python -m pneuma_lab.resampling_null --run-root $canonicalRoot power finalize --authority $powerAuthority --grid-ref $powerGridRef --screen-topology-ref $screenTopologyRef --attempt-prefix "$powerRoot/" --completed-gaussian --selected-screen "$powerRoot/screen.json" --selected-shard-prefix "$powerRoot/shard-" --selected-selection "$powerRoot/validation-selection.json" --selected-validation "$powerRoot/validation.json" --out "$powerRoot/p0-power-report.json"
 ```
 
 Expected: the screen reproduces numeric fixtures and projects `<= 12` hours;
@@ -3863,8 +4194,10 @@ all 20,000 datasets for every alternative/null cell and both tiers are present;
 the five-cell multiplier validation is complete; and the final schema-valid
 report states `CONDITIONAL_ONLY`. Resume only digest-matched completed shards.
 It validates code/runtime but cannot start confirmation or select a tier. The
-same full command sequence reruns later with the actual frozen roster and
-`roster_bound_selection`.
+same full command sequence reruns later only after
+`power authority roster-bound` seals an authority blob from the actual study
+manifest plus frozen base-eligibility manifest. No literal authority or roster
+argument can substitute for that blob.
 
 ### Step 4: Run deterministic end-to-end verification twice outside the root
 
