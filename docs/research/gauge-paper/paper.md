@@ -107,8 +107,9 @@ This paper does three things.
   far as introducing a real bug does, using paraphrases a practitioner would treat as
   interchangeable.
 - **A pre-registration that changed our conclusion.** We registered that no technique would
-  repair the channel; two do. We report the price instead, and the surviving claim — a
-  diagnostic gap in how the field validates every elicited metric — is the larger one.
+  repair the channel. Greedy decoding lifts it a tier for free, and wording-averaging reaches
+  the reliability floor at three wordings. We report the price instead — and the surviving
+  claim, a diagnostic gap in how the field validates every elicited metric, is the larger one.
 
 ---
 
