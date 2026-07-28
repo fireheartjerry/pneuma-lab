@@ -1941,6 +1941,30 @@ def test_task_block_triggered_and_no_trigger_arms_are_closed() -> None:
         validate_record(triggered)
 
 
+def test_no_trigger_task_block_rejects_forged_positive_y0_outcomes() -> None:
+    refs = {
+        name: _ref(f"parents/{name}.json", role=name)
+        for name in (
+            "schedule_ref",
+            "prefix_index_ref",
+            "assignment_ref",
+            "packet_index_ref",
+            "analysis_freeze_ref",
+        )
+    }
+    payload = _no_trigger_task_block_payload(refs)
+    for outcome in payload["slot_outcomes"]:  # type: ignore[union-attr]
+        outcome["success"] = 1
+        outcome["prefix_success"] = 1
+        outcome["partial_reward"] = 1.0
+
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(prefix|Y_0|outcome|success)",
+    ):
+        validate_record(_record("resampling_task_block", payload))
+
+
 def _triggered_task_block_payload(
     refs: dict[str, dict[str, object]],
 ) -> dict[str, object]:
@@ -2008,6 +2032,28 @@ def _triggered_task_block_payload(
         for index in range(4)
     ]
     return payload
+
+
+def test_triggered_task_block_binds_outcome_prefix_to_frozen_prefix() -> None:
+    refs = {
+        name: _ref(f"parents/{name}.json", role=name)
+        for name in (
+            "schedule_ref",
+            "prefix_index_ref",
+            "assignment_ref",
+            "packet_index_ref",
+            "analysis_freeze_ref",
+        )
+    }
+    payload = _triggered_task_block_payload(refs)
+    payload["slot_outcomes"][0]["prefix_success"] = 1  # type: ignore[index]
+    payload["execution_receipts"][0]["outcome"]["prefix_success"] = 1  # type: ignore[index]
+
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(prefix|outcome|success)",
+    ):
+        validate_record(_record("resampling_task_block", payload))
 
 
 @pytest.mark.parametrize(
@@ -2758,6 +2804,30 @@ def test_power_no_go_rejects_reason_that_narrates_another_terminal(
     with pytest.raises(
         RecordValidationError,
         match="(?i)(reason|stage|phase|terminal)",
+    ):
+        seal_artifact_root(
+            root,
+            FROZEN_UPSTREAM_KINDS,
+            root / "p0-core-receipt.json",
+            study_id="study-1",
+            frozen_created_at=FROZEN,
+            provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
+        )
+
+
+def test_persisted_validation_cannot_finalize_as_attempt_incomplete(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "persisted-validation-attempt-incomplete"
+    _build_full_study(
+        root,
+        no_go_stage="validation",
+        no_go_reason="attempt_incomplete",
+        decision_authority="roster_bound_selection",
+    )
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(validation|completed|reason|attempt.incomplete)",
     ):
         seal_artifact_root(
             root,

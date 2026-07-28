@@ -241,6 +241,11 @@ def _validate_semantics(value: dict[str, object]) -> None:
                 raise RecordValidationError(
                     "infrastructure-failure outcomes must have success == 0"
                 )
+            if outcome.get("prefix_success") != payload["prefix_success"]:
+                raise RecordValidationError(
+                    "slot outcome prefix_success must equal the task block's "
+                    "frozen prefix_success"
+                )
         attempts = payload.get("attempts")
         if isinstance(attempts, list):
             indices = [
@@ -477,6 +482,14 @@ def _validate_semantics(value: dict[str, object]) -> None:
                 list[dict[str, object]],
                 payload["slot_outcomes"],
             )
+            if any(
+                outcome.get("success") != payload["prefix_success"]
+                for outcome in no_trigger_outcomes
+            ):
+                raise RecordValidationError(
+                    "no-trigger slot outcomes must copy frozen Y_0 success "
+                    "from task-block prefix_success"
+                )
             copied_fields = (
                 "success",
                 "prefix_success",
@@ -2456,10 +2469,7 @@ def _validate_power_identities(
                     "runtime_bound_exceeded",
                 }
             elif terminal_stage == "validation":
-                allowed_reasons = {
-                    "attempt_incomplete",
-                    "power_or_type_i_gate_failed",
-                }
+                allowed_reasons = {"power_or_type_i_gate_failed"}
             else:
                 allowed_reasons = {"attempt_incomplete"}
             if reason not in allowed_reasons:
