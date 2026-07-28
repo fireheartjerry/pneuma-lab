@@ -355,14 +355,24 @@ def _validate_semantics(value: dict[str, object]) -> None:
                     )
                     for receipt in attempt_receipts
                 ]
+                canonical_positions = {
+                    identity: index
+                    for index, identity in enumerate(selected_slot_identities)
+                }
+                attempt_positions = [
+                    canonical_positions.get(identity)
+                    for identity in attempt_identities
+                ]
                 if (
                     len(attempt_identities) != len(set(attempt_identities))
-                    or attempt_identities
-                    != selected_slot_identities[: len(attempt_identities)]
+                    or any(position is None for position in attempt_positions)
+                    or attempt_positions != sorted(
+                        cast(list[int], attempt_positions)
+                    )
                 ):
                     raise RecordValidationError(
-                        "attempt terminal receipts do not preserve canonical "
-                        f"slot identities at attempt {attempt_index}"
+                        "attempt terminal receipts must be a unique canonical-"
+                        f"order subset of slot identities at attempt {attempt_index}"
                     )
             if len(attempt_ref_signatures) != len(set(attempt_ref_signatures)):
                 raise RecordValidationError(
@@ -551,7 +561,47 @@ def _validate_semantics(value: dict[str, object]) -> None:
             )
     elif kind == "resampling_power_report":
         stage = payload["stage"]
-        if stage == "selection":
+        if stage == "shard":
+            dataset_count = payload["dataset_count"]
+            if type(dataset_count) is not int:
+                raise RecordValidationError(
+                    "power shard dataset_count must be an exact integer"
+                )
+            count_fields = (
+                "alternative_pass_count",
+                "alternative_trial_count",
+                "null_pass_count",
+                "null_trial_count",
+            )
+            for index, result in enumerate(
+                cast(list[Mapping[str, object]], payload["cell_results"])
+            ):
+                if any(type(result.get(field)) is not int for field in count_fields):
+                    raise RecordValidationError(
+                        f"power shard cell_results[{index}] counts must be "
+                        "exact integers"
+                    )
+                alternative_pass = cast(int, result["alternative_pass_count"])
+                alternative_trial = cast(int, result["alternative_trial_count"])
+                null_pass = cast(int, result["null_pass_count"])
+                null_trial = cast(int, result["null_trial_count"])
+                if not (
+                    0 <= alternative_pass <= alternative_trial
+                    and 0 <= null_pass <= null_trial
+                ):
+                    raise RecordValidationError(
+                        f"power shard cell_results[{index}] pass counts must "
+                        "be bounded by trial counts"
+                    )
+                if (
+                    alternative_trial != dataset_count
+                    or null_trial != dataset_count
+                ):
+                    raise RecordValidationError(
+                        f"power shard cell_results[{index}] trial counts must "
+                        "equal shard dataset_count"
+                    )
+        elif stage == "selection":
             selected = cast(list[object], payload["selected_cells"])
             if (
                 payload["selection_count"] != len(selected)
@@ -779,6 +829,18 @@ def write_record(
     validated = validate_record(value)
     if validated["record_kind"] != "resampling_study_manifest":
         _require_manifest_ancestry(validated, run_root=run_root)
+    target, _relative = _resolve_inside(
+        path,
+        run_root,
+        require_exists=False,
+    )
+    if target.exists():
+        raise FileExistsError(target)
+    if validated["record_kind"] == "resampling_task_block":
+        _validate_task_write_ancestry(
+            validated,
+            run_root=run_root,
+        )
     target, _relative = _prepare_destination(path, run_root)
     write_atomic_json(target, validated)
     return _artifact_ref_for_path(target, run_root, role, "application/json")
@@ -1194,6 +1256,136 @@ def _read_ref(
     return path, payload
 
 
+def _load_direct_scientific_parent(
+    value: object,
+    *,
+    run_root: Path,
+    field: str,
+    expected_kind: str,
+    expected_stage: str | None = None,
+) -> _ScientificDocument:
+    if not isinstance(value, Mapping):
+        raise RecordValidationError(f"{field} must be an ArtifactRef")
+    try:
+        ref = ArtifactRef(**cast(dict[str, Any], dict(value)))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RecordValidationError(f"{field} is malformed: {exc}") from exc
+    if ref.media_type != "application/json":
+        raise RecordValidationError(f"{field} must reference application/json")
+    path, raw = _read_ref(ref, run_root=run_root)
+    decoded = _load_json_bytes(raw, source=path)
+    if not isinstance(decoded, Mapping):
+        raise RecordValidationError(f"{field} must reference a JSON object")
+    validated = validate_record(cast(Mapping[str, object], decoded))
+    if validated["record_kind"] != expected_kind:
+        raise RecordValidationError(
+            f"{field} must reference {expected_kind}, got "
+            f"{validated['record_kind']}"
+        )
+    payload = cast(Mapping[str, object], validated["payload"])
+    if expected_stage is not None and payload.get("stage") != expected_stage:
+        raise RecordValidationError(
+            f"{field} must reference {expected_kind} stage {expected_stage!r}"
+        )
+    return _ScientificDocument(
+        path=path,
+        relative_path=ref.relative_path,
+        value=validated,
+        sha256=ref.sha256,
+        byte_count=ref.byte_count,
+    )
+
+
+def _validate_task_write_ancestry(
+    record: Mapping[str, object],
+    *,
+    run_root: Path,
+) -> None:
+    task_payload = cast(Mapping[str, object], record["payload"])
+    schedule = _load_direct_scientific_parent(
+        task_payload["schedule_ref"],
+        run_root=run_root,
+        field="task block schedule_ref",
+        expected_kind="resampling_prefix_schedule",
+    )
+    prefix = _load_direct_scientific_parent(
+        task_payload["prefix_index_ref"],
+        run_root=run_root,
+        field="task block prefix_index_ref",
+        expected_kind="resampling_prefix_receipt",
+    )
+    assignment = _load_direct_scientific_parent(
+        task_payload["assignment_ref"],
+        run_root=run_root,
+        field="task block assignment_ref",
+        expected_kind="resampling_assignment_ledger",
+    )
+    sealed_packet = _load_direct_scientific_parent(
+        task_payload["packet_index_ref"],
+        run_root=run_root,
+        field="task block packet_index_ref",
+        expected_kind="resampling_packet_index",
+        expected_stage="sealed",
+    )
+    freeze = _load_direct_scientific_parent(
+        task_payload["analysis_freeze_ref"],
+        run_root=run_root,
+        field="task block analysis_freeze_ref",
+        expected_kind="resampling_analysis_freeze",
+    )
+    sealed_payload = cast(Mapping[str, object], sealed_packet.value["payload"])
+    candidate = _load_direct_scientific_parent(
+        sealed_payload["candidate_ref"],
+        run_root=run_root,
+        field="sealed packet candidate_ref",
+        expected_kind="resampling_packet_index",
+        expected_stage="candidate",
+    )
+    schedule_payload = cast(Mapping[str, object], schedule.value["payload"])
+    manifest = _load_direct_scientific_parent(
+        schedule_payload["manifest_ref"],
+        run_root=run_root,
+        field="schedule manifest_ref",
+        expected_kind="resampling_study_manifest",
+    )
+
+    direct_parents = (
+        manifest,
+        schedule,
+        prefix,
+        assignment,
+        candidate,
+        sealed_packet,
+        freeze,
+    )
+    for parent in direct_parents:
+        for field in ("study_id", "frozen_created_at", "provenance"):
+            if parent.value[field] != record[field]:
+                raise RecordValidationError(
+                    f"task block {field} differs from direct parent "
+                    f"{parent.value['record_kind']}"
+                )
+    task_bytes = canonical_json_bytes(record, indent=2)
+    pending_task = _ScientificDocument(
+        path=_run_root(run_root) / "pending-task.json",
+        relative_path="pending-task.json",
+        value=cast(dict[str, object], dict(record)),
+        sha256=hashlib.sha256(task_bytes).hexdigest(),
+        byte_count=len(task_bytes),
+    )
+    _validate_scientific_ancestry(
+        {
+            "resampling_study_manifest": [manifest],
+            "resampling_prefix_schedule": [schedule],
+            "resampling_prefix_receipt": [prefix],
+            "resampling_assignment_ledger": [assignment],
+            "resampling_packet_index": [candidate, sealed_packet],
+            "resampling_analysis_freeze": [freeze],
+            "resampling_task_block": [pending_task],
+        }
+    )
+
+
 def _extract_task_ids(value: object) -> set[str] | None:
     if isinstance(value, list):
         task_ids: list[str] = []
@@ -1308,6 +1500,36 @@ def _validate_kind_identities(
                 "sealed packet index does not parent the unique candidate"
             )
 
+    manifest_documents = by_kind.get("resampling_study_manifest", [])
+    schedule_documents = by_kind.get("resampling_prefix_schedule", [])
+    roster_task_ids: set[str] | None = None
+    if schedule_documents:
+        if len(manifest_documents) != 1:
+            raise RecordValidationError(
+                "schedule coverage requires the singleton study manifest"
+            )
+        roster_task_ids = _manifest_roster_task_ids(
+            manifest_documents[0],
+            run_root=run_root,
+        )
+        schedule_task_ids = {
+            cast(
+                str,
+                cast(Mapping[str, object], entry["task"])["task_id"],
+            )
+            for entry in cast(
+                list[Mapping[str, object]],
+                cast(
+                    Mapping[str, object],
+                    schedule_documents[0].value["payload"],
+                )["tasks"],
+            )
+        }
+        if schedule_task_ids != roster_task_ids:
+            raise RecordValidationError(
+                "schedule task identities must exactly cover the manifest roster"
+            )
+
     task_documents = by_kind.get("resampling_task_block", [])
     if task_documents:
         task_ids = [
@@ -1319,15 +1541,10 @@ def _validate_kind_identities(
         ]
         if len(task_ids) != len(set(task_ids)):
             raise RecordValidationError("duplicate task-block task_id identity")
-        manifest_documents = by_kind.get("resampling_study_manifest", [])
-        if len(manifest_documents) != 1:
+        if roster_task_ids is None:
             raise RecordValidationError(
                 "task-block coverage requires the singleton study manifest"
             )
-        roster_task_ids = _manifest_roster_task_ids(
-            manifest_documents[0],
-            run_root=run_root,
-        )
         if set(task_ids) != roster_task_ids:
             raise RecordValidationError(
                 "task-block task_id identities do not exactly cover the roster"
@@ -1395,6 +1612,177 @@ def _singleton_document(
     if len(documents) != 1:
         raise RecordValidationError(f"{kind} must be singleton")
     return documents[0]
+
+
+def _validate_task_chain_semantics(
+    task_payload: Mapping[str, object],
+    *,
+    schedule_entry: Mapping[str, object],
+    prefix_receipt: Mapping[str, object],
+    assignment_row: Mapping[str, object],
+    allocation: Mapping[str, object],
+) -> None:
+    task_id = cast(str, task_payload["task_id"])
+    task_spec = cast(Mapping[str, object], schedule_entry["task"])
+    for field in (
+        "task_id",
+        "benchmark",
+        "stratum",
+        "sensitivity_groups",
+    ):
+        if task_payload[field] != task_spec[field]:
+            raise RecordValidationError(
+                f"task block {task_id!r} {field} differs from the frozen schedule"
+            )
+
+    prefix_verifier = cast(
+        Mapping[str, object],
+        prefix_receipt["verifier_receipt"],
+    )
+    if prefix_verifier["task_id"] != task_id:
+        raise RecordValidationError(
+            f"prefix verifier task_id differs for task {task_id!r}"
+        )
+    y0_grade = cast(
+        Mapping[str, object],
+        prefix_receipt["y0_grade"],
+    )
+    if task_payload["prefix_success"] != y0_grade["success"]:
+        raise RecordValidationError(
+            f"task block {task_id!r} prefix_success differs from the frozen "
+            "prefix Y_0 grade"
+        )
+    expected_triggered = (
+        prefix_receipt["trigger_reason"] != "no_intervention_opportunity"
+    )
+    if task_payload["triggered"] is not expected_triggered:
+        raise RecordValidationError(
+            f"task block {task_id!r} triggered state differs from the frozen "
+            "prefix trigger"
+        )
+
+    outcomes = cast(
+        list[Mapping[str, object]],
+        task_payload["slot_outcomes"],
+    )
+    schedule_slot_ids = [
+        cast(str, slot["slot_id"])
+        for slot in cast(
+            list[Mapping[str, object]],
+            schedule_entry["slots"],
+        )
+    ]
+    assignment_slot_ids = [
+        cast(str, row[0])
+        for row in cast(list[list[object]], assignment_row["slot_arms"])
+    ]
+    capability_rows = cast(
+        list[list[object]],
+        allocation["slot_capabilities"],
+    )
+    allocation_slot_ids = [cast(str, row[0]) for row in capability_rows]
+    capability_ids = [cast(str, row[1]) for row in capability_rows]
+    if (
+        assignment_slot_ids != schedule_slot_ids
+        or allocation_slot_ids != schedule_slot_ids
+    ):
+        raise RecordValidationError(
+            f"task assignment/allocation slots differ from the frozen schedule "
+            f"for task {task_id!r}"
+        )
+    expected_slot_identities = list(
+        zip(schedule_slot_ids, capability_ids, strict=True)
+    )
+    if [outcome["opaque_arm_id"] for outcome in outcomes] != capability_ids:
+        raise RecordValidationError(
+            f"task outcomes differ from allocated capabilities for task "
+            f"{task_id!r}"
+        )
+
+    terminal_receipts = task_payload["terminal_slot_receipts"]
+    if isinstance(terminal_receipts, list):
+        terminal_identities = [
+            (
+                cast(Mapping[str, object], receipt)["slot_id"],
+                cast(Mapping[str, object], receipt)["opaque_capability_id"],
+            )
+            for receipt in terminal_receipts
+        ]
+        if terminal_identities != expected_slot_identities:
+            raise RecordValidationError(
+                f"task terminal slot identities differ from the "
+                f"schedule/assignment for task {task_id!r}"
+            )
+
+    expected_positions = {
+        identity: index for index, identity in enumerate(expected_slot_identities)
+    }
+    attempts = task_payload["attempts"]
+    if isinstance(attempts, list):
+        for attempt_index, attempt in enumerate(attempts):
+            attempt_receipts = cast(
+                list[Mapping[str, object]],
+                cast(Mapping[str, object], attempt)["terminal_receipts"],
+            )
+            attempt_identities = [
+                (
+                    cast(str, receipt["slot_id"]),
+                    cast(str, receipt["opaque_capability_id"]),
+                )
+                for receipt in attempt_receipts
+            ]
+            attempt_positions = [
+                expected_positions.get(identity) for identity in attempt_identities
+            ]
+            if (
+                len(attempt_identities) != len(set(attempt_identities))
+                or any(position is None for position in attempt_positions)
+                or attempt_positions
+                != sorted(cast(list[int], attempt_positions))
+            ):
+                raise RecordValidationError(
+                    f"task attempt {attempt_index} slot identities must be a "
+                    f"unique canonical-order subset of the schedule/assignment "
+                    f"for task {task_id!r}"
+                )
+
+    if not expected_triggered:
+        expected_y0 = {
+            "success": y0_grade["success"],
+            "prefix_success": y0_grade["success"],
+            "partial_reward": y0_grade["partial_reward"],
+            "infrastructure_failure": y0_grade["infrastructure_failure"],
+            "counters": prefix_receipt["counters"],
+            "artifact_ref": y0_grade["artifact_ref"],
+        }
+        for outcome in outcomes:
+            if {
+                field: outcome[field] for field in expected_y0
+            } != expected_y0:
+                raise RecordValidationError(
+                    f"no-trigger task {task_id!r} does not copy the complete "
+                    "frozen prefix Y_0 outcome"
+                )
+
+
+def _validate_packet_entry_trigger_semantics(
+    entry: Mapping[str, object],
+    *,
+    prefix_receipt: Mapping[str, object],
+) -> None:
+    task_id = cast(str, entry["task_id"])
+    if prefix_receipt["task_id"] != task_id:
+        raise RecordValidationError(
+            f"packet entry {task_id!r} differs from its frozen prefix task"
+        )
+    expected_pair = (
+        prefix_receipt["trigger_reason"] != "no_intervention_opportunity"
+    )
+    if ("real_ref" in entry) is not expected_pair:
+        raise RecordValidationError(
+            f"packet entry {task_id!r} must be a pair exactly when its "
+            "frozen prefix triggers intervention"
+        )
 
 
 def _validate_scientific_ancestry(
@@ -1567,14 +1955,23 @@ def _validate_scientific_ancestry(
                     "assignment ledger"
                 )
             for index, entry in enumerate(entries):
+                task_id = cast(str, entry["task_id"])
                 if prefix is not None:
                     _require_digest_equal(
                         entry.get("prefix_index_sha256"),
                         prefix,
                         field=f"packet entries[{index}].prefix_index_sha256",
                     )
+                    prefix_receipt = prefix_receipts_by_task.get(task_id)
+                    if prefix_receipt is None:
+                        raise RecordValidationError(
+                            f"packet entry {task_id!r} lacks frozen prefix coverage"
+                        )
+                    _validate_packet_entry_trigger_semantics(
+                        entry,
+                        prefix_receipt=prefix_receipt,
+                    )
                 if "real_ref" in entry:
-                    task_id = cast(str, entry["task_id"])
                     donor_task_id = cast(str, entry["donor_task_id"])
                     assignment_row = assignments_by_task.get(task_id)
                     if (
@@ -1674,6 +2071,226 @@ def _validate_scientific_ancestry(
                     field=f"task block {field}",
                 )
 
+    schedule_entries: list[Mapping[str, object]] = []
+    schedule_task_ids: list[str] = []
+    schedule_by_task: dict[str, Mapping[str, object]] = {}
+    allocation_by_task: dict[str, Mapping[str, object]] = {}
+    if schedule is not None:
+        schedule_entries = cast(
+            list[Mapping[str, object]],
+            _power_payload(schedule)["tasks"],
+        )
+        schedule_task_ids = [
+            cast(str, cast(Mapping[str, object], entry["task"])["task_id"])
+            for entry in schedule_entries
+        ]
+        schedule_by_task = dict(
+            zip(schedule_task_ids, schedule_entries, strict=True)
+        )
+        if prefix is not None:
+            prefix_task_ids = [
+                cast(str, receipt["task_id"])
+                for receipt in cast(
+                    list[Mapping[str, object]],
+                    _power_payload(prefix)["task_receipts"],
+                )
+            ]
+            if prefix_task_ids != schedule_task_ids:
+                raise RecordValidationError(
+                    "prefix receipts must exactly cover frozen schedule task "
+                    "IDs in order"
+                )
+        if assignment is not None:
+            assignment_payload = _power_payload(assignment)
+            assignment_task_ids = [
+                cast(str, row["task_id"])
+                for row in cast(
+                    list[Mapping[str, object]],
+                    assignment_payload["assignments"],
+                )
+            ]
+            allocation_receipts = cast(
+                list[Mapping[str, object]],
+                assignment_payload["allocation_receipts"],
+            )
+            allocation_task_ids = [
+                cast(str, receipt["task_id"])
+                for receipt in allocation_receipts
+            ]
+            if (
+                assignment_task_ids != schedule_task_ids
+                or allocation_task_ids != schedule_task_ids
+            ):
+                raise RecordValidationError(
+                    "assignment rows and allocations must exactly cover "
+                    "frozen schedule task IDs in order"
+                )
+            allocation_by_task = {
+                cast(str, receipt["task_id"]): receipt
+                for receipt in allocation_receipts
+            }
+            for task_id in schedule_task_ids:
+                schedule_entry = schedule_by_task[task_id]
+                task_spec = cast(
+                    Mapping[str, object],
+                    schedule_entry["task"],
+                )
+                assignment_row = assignments_by_task[task_id]
+                if assignment_row["task_lineage"] != task_spec["lineage"]:
+                    raise RecordValidationError(
+                        f"assignment lineage differs for task {task_id!r}"
+                    )
+                donor_id = cast(str, assignment_row["donor_task_id"])
+                donor_entry = schedule_by_task.get(donor_id)
+                if donor_entry is None:
+                    raise RecordValidationError(
+                        f"assignment donor {donor_id!r} is not scheduled"
+                    )
+                donor_spec = cast(
+                    Mapping[str, object],
+                    donor_entry["task"],
+                )
+                if assignment_row["donor_lineage"] != donor_spec["lineage"]:
+                    raise RecordValidationError(
+                        f"assignment donor lineage differs for task {task_id!r}"
+                    )
+                schedule_slot_ids = [
+                    cast(str, slot["slot_id"])
+                    for slot in cast(
+                        list[Mapping[str, object]],
+                        schedule_entry["slots"],
+                    )
+                ]
+                assignment_slot_ids = [
+                    cast(str, row[0])
+                    for row in cast(
+                        list[list[object]],
+                        assignment_row["slot_arms"],
+                    )
+                ]
+                capability_rows = cast(
+                    list[list[object]],
+                    allocation_by_task[task_id]["slot_capabilities"],
+                )
+                capability_slot_ids = [
+                    cast(str, row[0]) for row in capability_rows
+                ]
+                capability_ids = [
+                    cast(str, row[1]) for row in capability_rows
+                ]
+                if (
+                    assignment_slot_ids != schedule_slot_ids
+                    or capability_slot_ids != schedule_slot_ids
+                    or len(capability_ids) != len(set(capability_ids))
+                ):
+                    raise RecordValidationError(
+                        f"assignment slot/capability order differs for task "
+                        f"{task_id!r}"
+                    )
+
+    if schedule is not None and prefix is not None and assignment is not None:
+        for task_document in task_documents:
+            task_payload = _power_payload(task_document)
+            task_id = cast(str, task_payload["task_id"])
+            task_schedule_entry = schedule_by_task.get(task_id)
+            task_prefix_receipt = prefix_receipts_by_task.get(task_id)
+            task_allocation = allocation_by_task.get(task_id)
+            if (
+                task_schedule_entry is None
+                or task_prefix_receipt is None
+                or task_id not in assignments_by_task
+                or task_allocation is None
+            ):
+                raise RecordValidationError(
+                    f"task block {task_id!r} lacks exact schedule, prefix, "
+                    "or assignment ancestry"
+                )
+            _validate_task_chain_semantics(
+                task_payload,
+                schedule_entry=task_schedule_entry,
+                prefix_receipt=task_prefix_receipt,
+                assignment_row=assignments_by_task[task_id],
+                allocation=task_allocation,
+            )
+
+    if schedule is not None and projection is not None:
+        projection_payload = _power_payload(projection)
+        projection_rows = cast(
+            list[Mapping[str, object]],
+            projection_payload["rows"],
+        )
+        task_by_id = {
+            cast(str, _power_payload(document)["task_id"]): document
+            for document in task_documents
+        }
+        projection_task_ids = [
+            cast(str, row["task_id"]) for row in projection_rows
+        ]
+        if (
+            set(task_by_id) != set(schedule_task_ids)
+            or projection_task_ids != schedule_task_ids
+        ):
+            raise RecordValidationError(
+                "projection rows and task blocks must exactly cover frozen "
+                "schedule task IDs in order"
+            )
+        ordered_task_refs = cast(
+            list[object],
+            projection_payload["task_block_refs"],
+        )
+        if len(ordered_task_refs) != len(schedule_task_ids):
+            raise RecordValidationError(
+                "projection task_block_refs must follow frozen schedule order"
+            )
+        for index, task_id in enumerate(schedule_task_ids):
+            _require_ref_matches(
+                ordered_task_refs[index],
+                task_by_id[task_id],
+                field=f"projection task_block_refs[{index}]",
+            )
+
+        for index, task_id in enumerate(schedule_task_ids):
+            schedule_entry = schedule_by_task[task_id]
+            task_spec = cast(Mapping[str, object], schedule_entry["task"])
+            task_document = task_by_id[task_id]
+            task_payload = _power_payload(task_document)
+            schedule_slots = cast(
+                list[Mapping[str, object]],
+                schedule_entry["slots"],
+            )
+            schedule_slot_ids = [
+                cast(str, slot["slot_id"]) for slot in schedule_slots
+            ]
+            outcomes = cast(
+                list[Mapping[str, object]],
+                task_payload["slot_outcomes"],
+            )
+
+            expected_row = {
+                "task_id": task_id,
+                "benchmark": task_payload["benchmark"],
+                "stratum": task_payload["stratum"],
+                "lineage": task_spec["lineage"],
+                "sensitivity_groups": task_payload["sensitivity_groups"],
+                "prefix_success": task_payload["prefix_success"],
+                "triggered": task_payload["triggered"],
+                "slots": [
+                    {
+                        "label": label,
+                        "slot_id": schedule_slot_ids[slot_index],
+                        "outcome": outcomes[slot_index],
+                    }
+                    for slot_index, label in enumerate(("A", "B", "C", "D"))
+                ],
+                "pipeline_valid": task_payload["pipeline_valid"],
+                "validity_codes": task_payload["validity_codes"],
+            }
+            if projection_rows[index] != expected_row:
+                raise RecordValidationError(
+                    f"projection row {index} is not the exact frozen "
+                    f"reconstruction of task block {task_id!r}"
+                )
+
     if projection is not None:
         projection_payload = _power_payload(projection)
         if schedule is not None:
@@ -1711,6 +2328,14 @@ def _validate_scientific_ancestry(
                     parent,
                     field=f"unblind {field}",
                 )
+        if (
+            projection is not None
+            and unblind_payload["expected_task_count"]
+            != _power_payload(projection)["expected_task_count"]
+        ):
+            raise RecordValidationError(
+                "unblind expected_task_count differs from the frozen projection"
+            )
     if analysis is not None:
         analysis_payload = _power_payload(analysis)
         for field, parent in (
@@ -1729,6 +2354,14 @@ def _validate_scientific_ancestry(
                 analysis_payload["config_ref"],
                 _power_payload(freeze)["config_ref"],
                 field="analysis config_ref",
+            )
+        if (
+            projection is not None
+            and analysis_payload["row_count"]
+            != _power_payload(projection)["expected_task_count"]
+        ):
+            raise RecordValidationError(
+                "analysis row_count differs from the frozen projection"
             )
 
     if manifest is not None:
@@ -2012,6 +2645,14 @@ def _validate_power_attempt_topology(
                 raise RecordValidationError(
                     "power shard_count must be identical across the shard set"
                 )
+            dataset_counts = {
+                cast(int, _power_payload(shard)["dataset_count"])
+                for shard in shards
+            }
+            if len(dataset_counts) != 1:
+                raise RecordValidationError(
+                    "power dataset_count must be identical across the shard set"
+                )
             shard_count = next(iter(shard_counts))
             shard_indices = [
                 cast(int, _power_payload(shard)["shard_index"])
@@ -2192,20 +2833,47 @@ def _validate_power_identities(
                 cast(int, payload["generation"]),
             )
 
-        def is_successful_validation(document: _ScientificDocument) -> bool:
+        def is_terminal_validation(document: _ScientificDocument) -> bool:
             payload = _power_payload(document)
             if payload["stage"] != "validation":
                 return False
             if payload["phase"] == "full_multiplier_fallback":
-                return payload["decision"] != "NO_GO"
+                return True
             approximation = cast(
                 Mapping[str, object],
                 payload["approximation_receipt"],
             )
-            return (
-                approximation["passed"] is True
-                and approximation["gaussian_tier_decision"]
-                != "FEASIBILITY_NO_GO"
+            return approximation["passed"] is True
+
+        for validation in nonfinal:
+            validation_payload = _power_payload(validation)
+            if validation_payload["stage"] != "validation":
+                continue
+            validation_order = attempt_order(validation)
+            later_documents = [
+                document
+                for document in nonfinal
+                if attempt_order(document) > validation_order
+            ]
+            if not later_documents:
+                continue
+            if (
+                validation_payload["phase"] == "gaussian_approximation"
+                and not is_terminal_validation(validation)
+            ):
+                if any(
+                    _power_payload(document)["phase"]
+                    != "full_multiplier_fallback"
+                    for document in later_documents
+                ):
+                    raise RecordValidationError(
+                        "a failed Gaussian approximation validation may "
+                        "transition only to full-multiplier fallback"
+                    )
+                continue
+            raise RecordValidationError(
+                "a persisted terminal power validation cannot be superseded "
+                "by a later phase or generation"
             )
 
         if finalization["kind"] == "completed_chain":
@@ -2225,12 +2893,13 @@ def _validate_power_identities(
                 )
             if any(
                 attempt_order(document) < selected_attempt_order
-                and is_successful_validation(document)
+                and is_terminal_validation(document)
                 for document in nonfinal
             ):
                 raise RecordValidationError(
-                    "a completed power attempt cannot be superseded; only an "
-                    "earlier partial or failed attempt may precede finalization"
+                    "a terminal power validation cannot be superseded; only "
+                    "an earlier incomplete attempt or failed Gaussian "
+                    "approximation transition may precede finalization"
                 )
             selected_tier = finalization["selected_tier"]
             decision = finalization["decision"]
@@ -2573,12 +3242,12 @@ def _validate_power_identities(
                 )
             if any(
                 attempt_order(document) < terminal_attempt_order
-                and is_successful_validation(document)
+                and is_terminal_validation(document)
                 for document in nonfinal
             ):
                 raise RecordValidationError(
-                    "feasibility no-go cannot supersede an earlier completed "
-                    "power attempt"
+                    "feasibility no-go cannot supersede an earlier terminal "
+                    "power validation"
                 )
         if (
             final_payload["phase"] != phase

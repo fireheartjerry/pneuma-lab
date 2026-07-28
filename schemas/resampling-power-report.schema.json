@@ -145,7 +145,11 @@
                 "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
                 "projected_wall_seconds": { "type": "integer", "minimum": 0 },
                 "cell_count": { "type": "integer", "minimum": 1 },
-                "dataset_count": { "type": "integer", "minimum": 1 }
+                "dataset_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                }
             },
             "additionalProperties": false
         },
@@ -196,7 +200,11 @@
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/cell_result" }
                 },
-                "dataset_count": { "type": "integer", "minimum": 1 }
+                "dataset_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                }
             },
             "additionalProperties": false
         },
@@ -211,10 +219,26 @@
             ],
             "properties": {
                 "cell_id": { "$ref": "#/$defs/nonempty" },
-                "alternative_pass_count": { "type": "integer", "minimum": 0 },
-                "alternative_trial_count": { "type": "integer", "minimum": 1 },
-                "null_pass_count": { "type": "integer", "minimum": 0 },
-                "null_trial_count": { "type": "integer", "minimum": 1 }
+                "alternative_pass_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "not": { "type": "boolean" }
+                },
+                "alternative_trial_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                },
+                "null_pass_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "not": { "type": "boolean" }
+                },
+                "null_trial_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                }
             },
             "additionalProperties": false
         },
