@@ -301,18 +301,27 @@ def renderCard(card: dict) -> str:
         "",
         "## Variance decomposition",
         "",
-        "| component | variance | share of total |",
+        "| component | variance | share of total variance |",
         "| --- | ---: | ---: |",
     ]
     total = vc["var_total"] or 1.0
     for label, key in (
         ("item (signal)", "var_item"),
-        ("repeatability", "var_repeatability"),
+        ("repeatability (re-ask)", "var_repeatability"),
+        ("condition main effect (shift)", "var_condition"),
+        ("item x condition (reorder)", "var_interaction"),
         ("reproducibility", "var_reproducibility"),
         ("gauge (GRR)", "var_grr"),
     ):
         value = vc.get(key) or 0.0
         lines.append(f"| {label} | {value:.6f} | {100.0 * value / total:.1f}% |")
+    lines.append("")
+    lines.append(
+        "The `item x condition` term is the one that matters for ranking: a condition *main "
+        "effect* shifts every reading and cancels in any ranking, while the interaction "
+        "reorders items and does not. Neither greedy decoding nor replicate averaging removes "
+        "it."
+    )
     if vc.get("truncated"):
         lines.append("")
         lines.append(f"Truncated to zero: `{', '.join(vc['truncated'])}`.")
@@ -323,7 +332,7 @@ def renderCard(card: dict) -> str:
         "",
         "| statistic | value | 95% CI |",
         "| --- | ---: | --- |",
-        f"| %GRR | {res['pct_grr']:.1f}% | — |",
+        f"| %GRR (ratio of SDs, AIAG bar 30%) | {res['pct_grr']:.1f}% | — |",
         f"| ndc (distinct categories) | {res['ndc']} | — |",
         f"| ICC | {_fmt(res['icc'])} | {_ci(res.get('icc_ci'))} |",
         f"| discrimination index D | {_fmt(res['d'])} | {_ci(res.get('d_ci'))} |",
