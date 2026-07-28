@@ -36,6 +36,14 @@ correct code** — least precise exactly where a verification pipeline needs it.
 readings are pinned to the top of the scale, censored and unable to order each other. Against
 that, rephrasing the question moves the reading **54% as far as introducing a real bug does**.
 
+Across six models the channel's quality spans **three resolution categories** (`ndc` 0 to 3)
+on identical items, while the same 7B model at F16 and Q4_K_M differs by 0.006 — so the
+instrument depends on model choice far more than on numerical precision, and there is no way
+to know which instrument you have without running the analysis. That, more than any single
+verdict, is why the check needs to be standard. Rating code the model never wrote gives an
+indistinguishable gauge from rating its own ($D$ 0.567 vs 0.562), so the result is not about
+introspection and transfers to every LLM-as-judge score.
+
 We prove that post-hoc calibration cannot help: every standard calibrator is weakly
 increasing, so it leaves rank-based resolution and AUROC exactly invariant. Empirically Platt
 scaling cut ECE by 0.3106 while changing discrimination by 0.00e+00. We evaluate five
@@ -538,9 +546,59 @@ this table should be read against §6.2 rather than on their own. Notably the wi
 result from §6.3 reappears here independently: restricted to a single correctness class, the
 channel resolves nothing at all.
 
-### 6.10 Model families, sizes, arithmetic precision
+### 6.10 Model families, sizes, arithmetic precision — the result that makes the standard necessary
 
-⟦PENDING — `families` stage, including the F16-vs-Q4_K_M pair of the same 7B model.⟧
+Six models, two families, two sizes, two arithmetic precisions; identical items, wordings,
+scale and temperature.
+
+| model | family | size | precision | ndc | ICC | $D$ | %GRR | parse-fail | AUROC | verdict |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `qwen2.5:7b` | qwen2 | 7.6B | Q4_K_M | **3** | 0.856 | 0.850 | 38.0 | 0.000 | 0.880 | **MARGINAL** |
+| `qwen2.5-coder:7b` | qwen2 | 7.6B | Q4_K_M | 1 | 0.570 | 0.703 | 65.6 | 0.010 | 0.816 | UNINTERPRETABLE |
+| `qwen2.5-coder:7b-instruct-fp16` | qwen2 | 7.6B | **F16** | 1 | 0.511 | 0.697 | 69.9 | 0.002 | 0.809 | UNINTERPRETABLE |
+| `llama3.1:8b` | llama | 8.0B | Q4_K_M | 0 | 0.333 | 0.641 | 81.7 | 0.073 | 0.672 | UNINTERPRETABLE |
+| `qwen2.5-coder:1.5b` | qwen2 | 1.5B | Q4_K_M | 0 | 0.130 | 0.527 | 93.3 | **0.278** | 0.504 | UNINTERPRETABLE |
+| `qwen2.5:1.5b` | qwen2 | 1.5B | Q4_K_M | 0 | 0.008 | 0.556 | 99.6 | 0.002 | 0.518 | UNINTERPRETABLE |
+
+**G1-H3 is confirmed on both clauses.** No model cell reaches `USABLE`; the best reaches
+`MARGINAL`. The arithmetic-precision pair — the *same* 7B model at F16 and Q4_K_M — differs by
+$|\Delta D| = 0.006$, far inside the pre-registered 0.10 band. Quantization is not the story.
+
+The spread across models is the story:
+
+- **`ndc` ranges from 0 to 3** on identical items.
+- Both 1.5B models are **at chance as detectors** (AUROC 0.504, 0.518) and near-total gauge
+  noise (%GRR 93.3, 99.6). `qwen2.5:1.5b` has ICC 0.008 — essentially no item information.
+- `qwen2.5-coder:1.5b` violated the requested response scale on **27.8%** of calls.
+  Parse-failure rate is itself a measurement property and belongs on the card.
+- The **general** model beats the **code-specialized** model of the same size and quantization
+  on a code-rating task (ndc 3 vs 1). We offer no explanation; we report it because it is the
+  kind of thing an MSA surfaces and an accuracy number does not.
+
+This is what makes the standard necessary rather than merely tidy. If every model were equally
+unusable the advice would be "do not use this channel". Instead the channel's quality **spans
+three resolution categories across models one might plausibly choose**, with no way to know
+which you have without running the analysis. A paper reporting an elicited metric without a
+gauge card has not told the reader whether its instrument was `qwen2.5:7b` or `qwen2.5:1.5b` —
+and those are different *instruments*, not different accuracies.
+
+**Model as a third reproducibility facet.** Treating model as a facet — what a pipeline
+experiences under version drift, provider routing, or an A/B test — changes the remedy
+conclusions:
+
+| remedy | single-model channel | pooled multi-model channel |
+| --- | --- | --- |
+| second model | n/a | $D$ 0.641 [0.581, 0.696] — **FAILS**; cross-model ICC 0.720 |
+| thresholding | $\kappa$ 0.727 — INDETERMINATE | $\kappa$ 0.713 [0.333, 1.000] — INDETERMINATE |
+| calibration | $D$ 0.684 — **FAILS (proved)** | $D$ 0.704 — **FAILS (proved)** |
+| wording-averaging | ICC 0.900 — **HELPS** (3 wordings) | ICC 0.467 — **FAILS** (7 needed) |
+| self-consistency | ICC 0.760, asymptote 0.870 | ICC 0.609, asymptote **0.6995 — unreachable at any $k$** |
+
+The last row matters most. On a pinned model, resampling has an asymptote of 0.870 and ICC
+0.70 costs 3 samples. Once the model can vary, the condition-locked floor rises above the
+usability threshold and **no number of samples reaches ICC 0.70 at all**. A reliability
+argument that assumes a pinned model does not survive the model being unpinned — which is the
+normal state of a deployed pipeline, and the motivation for `⟦CLOUD-EXP-8⟧`.
 
 ### 6.11 The five remedies
 
@@ -549,9 +607,12 @@ additional model calls. Verdicts are decided by the **interval**, not the point 
 straddling the floor is `INDETERMINATE`, because a remedy not shown to work has also not been
 shown to fail.
 
+On the single-model channel — what a pipeline actually deploys; see §6.10 for the pooled
+multi-model channel, where the conclusions are stricter:
+
 | remedy | statistic | value | 95% CI | floor | verdict |
 | --- | --- | ---: | --- | ---: | --- |
-| second model | $D$ of the judge model | §6.10 | | 0.80 | §6.10 |
+| second model | $D$ of the judge model | 0.641 | [0.581, 0.696] | 0.80 | **FAILS** (pooled) |
 | thresholding | split-half $\kappa$ at the best cut | 0.727 | [0.623, 0.821] | 0.70 | **INDETERMINATE** |
 | calibration | $D$ after Platt | 0.684 | [0.636, 0.715] | 0.80 | **FAILS (proved)** |
 | wording-averaging | ICC(1,1) of the averaged score | 0.900 | [0.761, 0.953] | 0.70 | **HELPS** |
@@ -682,7 +743,7 @@ Reported in full, including against us.
 | ---------- | -------------------------------------------------------------- | ------------------------------------ | ----------------------- |
 | G1-H1      | `ndc <= 1` **and** `D < 0.65`                                  | `ndc = 1`, `D = 0.684`               | **partially falsified** |
 | G1-H2      | foreign not better than self-authored                          | $\Delta D = 0.003$, both `ndc = 0`  | **confirmed**           |
-| G1-H3      | no model cell reaches `USABLE`                                 | ⟦PENDING⟧                            | ⟦PENDING⟧               |
+| G1-H3      | no model cell reaches `USABLE`                                 | best is MARGINAL; F16 vs Q4 dD=0.006 | **confirmed**           |
 | G1-H4      | neither temperature reaches `ndc >= 2`; $S_{eff} < 2$ at `T=0` | `ndc = 2` at `T=0`, $S_{eff} = 4.07$ | **falsified**           |
 | G1-H5      | all five remedies stay below the floor                         | wording-averaging reaches ICC 0.900  | **partially falsified** |
 | G1-H6      | $\Pi > 1$ with significant sham contrast                       | $\Pi = 0.000$, sham $p = 0.72$       | **falsified**           |

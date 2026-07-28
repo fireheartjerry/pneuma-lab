@@ -352,27 +352,28 @@ def main() -> int:
 
     # --- 4. remedy battery (G1-H5) -------------------------------------------
     print("\n=== 4. remedy battery (G1-H5) ===")
-    remedy_cube = core
-    judge = None
+    # Two different measurement systems, reported separately because they are not
+    # the same channel. `single_model` is what a pipeline actually deploys.
+    # `pooled_multi_model` adds MODEL as a third reproducibility facet, which is
+    # what a pipeline experiences under version drift or provider routing.
+    batteries = {"single_model": runRemedies(core, truth=truth, draws=draws)}
     if "families" in available:
-        remedy_cube = core.filter(wording_id=("w1", "w2", "w3")).merge(
-            available["families"]
+        pooled = core.filter(wording_id=("w1", "w2", "w3")).merge(available["families"])
+        judge = "llama3.1:8b" if "llama3.1:8b" in pooled.values("model") else None
+        batteries["pooled_multi_model"] = runRemedies(
+            pooled, truth=truth, primary="qwen2.5-coder:7b", judge=judge, draws=draws
         )
-        judge = "llama3.1:8b" if "llama3.1:8b" in remedy_cube.values("model") else None
-    remedies = runRemedies(
-        remedy_cube,
-        truth=truth,
-        primary="qwen2.5-coder:7b",
-        judge=judge,
-        draws=draws,
-    )
-    summary["remedies"] = [r.asDict() for r in remedies]
-    for r in remedies:
-        print(
-            f"{r.name:<20} {r.statistic:<34} {_f(r.value)} "
-            f"[{_f(r.ci.low)}, {_f(r.ci.high)}] floor={_f(r.floor)} -> {r.verdict}"
-        )
-        print(f"    {r.note}")
+    summary["remedies"] = {k: [r.asDict() for r in v] for k, v in batteries.items()}
+    remedies = batteries["single_model"]
+    for channel, results in batteries.items():
+        print("")
+        print(f"-- channel: {channel} --")
+        for r in results:
+            print(
+                f"{r.name:<20} {r.statistic:<34} {_f(r.value)} "
+                f"[{_f(r.ci.low)}, {_f(r.ci.high)}] floor={_f(r.floor)} -> {r.verdict}"
+            )
+            print(f"    {r.note}")
 
     # --- 5. placebo (G1-H6) --------------------------------------------------
     print("\n=== 5. placebo (G1-H6) ===")

@@ -219,9 +219,63 @@ symmetric so the comparison is fair, but the absolute numbers should be read aga
 rather than on their own. The within-class result reappears here independently: restricted to
 a single correctness class, the channel resolves nothing at all.
 
-## 8. Model families, sizes, and arithmetic precision (G1-H3)
+## 8. Model families, sizes, and arithmetic precision (G1-H3, CONFIRMED)
 
-_Pending._
+Six models, two families, two sizes, two arithmetic precisions. Same items, same three
+wordings, same scale, same temperature.
+
+| model | family | size | precision | ndc | ICC | D | %GRR | parse-fail | AUROC | verdict |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `qwen2.5:7b` | qwen2 | 7.6B | Q4_K_M | **3** | 0.856 | 0.850 | 38.0 | 0.000 | 0.880 | **MARGINAL** |
+| `qwen2.5-coder:7b` | qwen2 | 7.6B | Q4_K_M | 1 | 0.570 | 0.703 | 65.6 | 0.010 | 0.816 | UNINTERPRETABLE |
+| `qwen2.5-coder:7b-instruct-fp16` | qwen2 | 7.6B | **F16** | 1 | 0.511 | 0.697 | 69.9 | 0.002 | 0.809 | UNINTERPRETABLE |
+| `llama3.1:8b` | llama | 8.0B | Q4_K_M | 0 | 0.333 | 0.641 | 81.7 | 0.073 | 0.672 | UNINTERPRETABLE |
+| `qwen2.5-coder:1.5b` | qwen2 | 1.5B | Q4_K_M | 0 | 0.130 | 0.527 | 93.3 | **0.278** | 0.504 | UNINTERPRETABLE |
+| `qwen2.5:1.5b` | qwen2 | 1.5B | Q4_K_M | 0 | 0.008 | 0.556 | 99.6 | 0.002 | 0.518 | UNINTERPRETABLE |
+
+**G1-H3 is confirmed on both its clauses.** No model cell reaches `USABLE`; the best reaches
+`MARGINAL`. And the arithmetic-precision pair — the *same* 7B model at F16 and Q4_K_M —
+differs by |ΔD| = **0.006**, far inside the pre-registered 0.10 band. Quantization is not the
+story.
+
+But the spread across models is the story, and it is large:
+
+- **`ndc` ranges from 0 to 3** across six models on identical items.
+- The two 1.5B models are **at chance as detectors** (AUROC 0.504 and 0.518) and near-total
+  gauge noise (%GRR 93.3 and 99.6). `qwen2.5:1.5b` has ICC 0.008 — it is emitting essentially
+  no item information at all.
+- `qwen2.5-coder:1.5b` failed to comply with the requested response scale on **27.8%** of
+  calls. Parse-failure rate is itself a measurement property and belongs on the card.
+- The **general** model beats the **code-specialized** model of the same size and quantization
+  on this code-rating task (ndc 3 vs 1, ICC 0.856 vs 0.570). We do not have an explanation and
+  do not offer one; we report it because it is the kind of thing an MSA surfaces and an
+  accuracy number does not.
+
+This is the result that makes the standard necessary rather than merely nice. If every model
+were equally unusable, the advice would be "do not use this channel." Instead the channel's
+quality **spans three resolution categories across models you might plausibly choose**, and
+there is no way to know which one you have without running the analysis. A paper that reports
+an elicited metric without a gauge card has not told the reader whether its instrument was
+`qwen2.5:7b` or `qwen2.5:1.5b` — and those are different instruments, not different accuracies.
+
+### 8b. Model as a third reproducibility facet
+
+Treating model as a facet — which is what a pipeline experiences under version drift, provider
+routing, or an A/B test — changes the remedy conclusions materially:
+
+| remedy | single-model channel | pooled multi-model channel |
+| --- | --- | --- |
+| second model | n/a (single model) | D 0.641 [0.581, 0.696] — **FAILS**; cross-model ICC 0.720 |
+| thresholding | kappa 0.727 [0.625, 0.822] — INDETERMINATE | kappa 0.713 [0.333, 1.000] — INDETERMINATE |
+| calibration | D 0.684 — **FAILS (proved)** | D 0.704 — **FAILS (proved)** |
+| wording-averaging | ICC 0.900 — **HELPS**, 3 wordings | ICC 0.467 — **FAILS**, 7 wordings needed |
+| self-consistency | ICC 0.760, asymptote 0.870 | ICC 0.609, asymptote **0.6995 — unreachable at any k** |
+
+The last row is the important one. On a single fixed model, resampling has an asymptote of
+0.870 and reaching ICC 0.70 costs 3 samples. Once the model itself can vary, the
+condition-locked variance floor rises above the usability threshold and **no number of samples
+reaches ICC 0.70 at all**. A reliability argument that assumes a pinned model does not survive
+the model being unpinned — which is the normal state of a deployed pipeline.
 
 ## 9. The five remedies (G1-H5) — one works, one is provably dead, two are indeterminate
 
