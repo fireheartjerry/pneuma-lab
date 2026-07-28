@@ -30,7 +30,9 @@ a separate measurement property that the ML evaluation literature does not repor
 The two are not independent. Reliability _bounds_ validity:
 
 $$
-|ho_{	ext{score},	ext{criterion}}| \;\le\; \sqrt{ho_{xx}}
+|
+ho_{	ext{score},	ext{criterion}}| \;\le\; \sqrt{
+ho_{xx}}
 $$
 
 so a channel with reliability $0.05$ can never exceed $|\rho| = 0.22$ against any
@@ -76,16 +78,23 @@ measurement theory; it is the application of a settled one.
    gauge (GRR), total. Components whose raw estimate was negative are listed as
    truncated; a truncated item component is a finding, not a footnote.
 4. **Resolution** — `%GRR`, `ndc`, `ICC` with CI, discrimination index `D` with CI,
-   resolving power, effective support.
+   resolving power, effective support, and the two selection-stability statistics
+   below.
 5. **Ceilings** — the maximum $|r|$ and AUROC this reliability permits against any
    criterion, at any sample size.
-6. **Remedies** — the five standard fixes, each re-analysed on the collected data
-   with its own error bar, each verdicted `HELPS` / `FAILS` / `SKIPPED`. A remedy
-   that could not be evaluated is recorded with a reason; it is never omitted.
-7. **Placebo response** — the channel's reaction to a known-inert, length-matched
+6. **Prescription** — what it would cost to make this channel usable: how many
+   replicates or distinct wordings reach the floor, or a statement that the target
+   is unreachable at any $k$. A card that only diagnoses is easy to ignore.
+7. **Remedies** — the five standard fixes, each re-analysed on the collected data
+   with its own error bar, each verdicted `HELPS` / `FAILS` / `INDETERMINATE` /
+   `SKIPPED`. Verdicts are decided by the interval, not the point estimate: a CI
+   straddling the floor is `INDETERMINATE`, because a remedy that has not been shown
+   to work has also not been shown to fail. A remedy that could not be evaluated is
+   recorded with a reason; it is never omitted.
+8. **Placebo response** — the channel's reaction to a known-inert, length-matched
    context block, reported as the placebo-dominance ratio.
-8. **Verdict** plus the literal threshold rule, so nobody has to trust the label.
-9. **Reproduction** — the exact command and the data digest.
+9. **Verdict** plus the literal threshold rule, so nobody has to trust the label.
+10. **Reproduction** — the exact command and the data digest.
 
 ## The statistics, defined
 
@@ -123,6 +132,25 @@ statistics carry the load:
   can only lower it.
 - **Effective support** $S_{eff} = \exp(H)$ — how many levels the channel actually
   emits, regardless of how many it was offered.
+
+Two statistics translate all of that into the decision a pipeline actually makes.
+A pipeline does not consume the mean of a confidence channel; it ranks items and
+verifies the least-confident fraction $q$. So:
+
+- **Selection stability** — expected Jaccard overlap between the bottom-$q$ sets
+  chosen by two independent passes that **re-ask the same question**. Ties are
+  broken by per-pass jitter, because that is what a real pipeline does when many
+  items report the same number; a stable tie-break would manufacture agreement out
+  of the ties themselves. The random-selection floor is $q/(2-q)$.
+- **Cross-condition selection stability** — the same overlap when the second pass
+  **rephrases** the question instead of re-asking it.
+
+The gap between those two is the practical meaning of the repeatability /
+reproducibility split, and it is the single most important pair of numbers on the
+card. Setting `temperature=0` can drive the first to nearly 1.0 while leaving the
+second untouched — a channel whose _numbers_ reproduce perfectly and whose
+_measurement_ does not. Reporting only the first is how a metric passes the only
+check most authors run.
 
 ## Verdict tiers
 
