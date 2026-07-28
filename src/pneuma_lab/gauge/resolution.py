@@ -156,6 +156,34 @@ def effectiveSupport(values: Sequence[float], *, quantum: float = 1e-9) -> float
     return math.exp(shannonEntropy(list(counts.values())))
 
 
+def onewayIcc(groups: Mapping[str, Sequence[float]]) -> float:
+    """ICC(1,1) from a balanced one-way random-effects design (item -> k measurements).
+
+    Used by the remedy battery, where each remedy produces a *derived* score per
+    item and the question is how reliable that derived score is.
+    """
+    items = sorted(groups)
+    if len(items) < 2:
+        return float("nan")
+    ks = {len(groups[i]) for i in items}
+    if len(ks) != 1:
+        raise ValueError(f"onewayIcc requires balanced groups, got sizes {sorted(ks)}")
+    k = ks.pop()
+    if k < 2:
+        return float("nan")
+    n = len(items)
+    means = {i: math.fsum(groups[i]) / k for i in items}
+    grand = math.fsum(means.values()) / n
+    ms_between = k * math.fsum((means[i] - grand) ** 2 for i in items) / (n - 1)
+    ms_within = math.fsum(
+        math.fsum((v - means[i]) ** 2 for v in groups[i]) for i in items
+    ) / (n * (k - 1))
+    denom = ms_between + (k - 1) * ms_within
+    if denom <= 0.0:
+        return 0.0
+    return max(0.0, (ms_between - ms_within) / denom)
+
+
 def gaugeVerdict(
     *, pct_grr: float, ndc_value: int, icc_value: float, d: float, s_eff: float
 ) -> str:

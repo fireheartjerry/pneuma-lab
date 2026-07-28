@@ -1,0 +1,87 @@
+{
+    "run_id": "g1",
+    "out": "build/gauge/g1",
+    "host": "http://localhost:11434",
+    "workers": 8,
+    "note": "G-1 fractional design. The full factorial is ~3.5M elicitations; each stage varies one facet against the fixed core (qwen2.5-coder:7b, foreign provenance, base arm, p2 scale, T=0.7). See docs/research/experiments/g1-gauge-preregistration.md section 4.",
+    "stages": [
+        {
+            "name": "core",
+            "models": ["qwen2.5-coder:7b"],
+            "wordings": ["w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8"],
+            "scales": ["p2"],
+            "arms": ["base"],
+            "provenances": ["foreign"],
+            "temperatures": [0.7],
+            "replicates": 8
+        },
+        {
+            "name": "scales",
+            "models": ["qwen2.5-coder:7b"],
+            "wordings": ["w1", "w2"],
+            "scales": ["p2", "pct", "ten", "five"],
+            "arms": ["base"],
+            "provenances": ["foreign"],
+            "temperatures": [0.7],
+            "replicates": 6
+        },
+        {
+            "name": "temperature0",
+            "models": ["qwen2.5-coder:7b"],
+            "wordings": ["w1", "w2", "w3", "w4"],
+            "scales": ["p2"],
+            "arms": ["base"],
+            "provenances": ["foreign"],
+            "temperatures": [0.0],
+            "replicates": 8
+        },
+        {
+            "name": "placebo",
+            "models": ["qwen2.5-coder:7b"],
+            "wordings": ["w1", "w2"],
+            "scales": ["p2"],
+            "arms": ["base", "sham", "treated"],
+            "provenances": ["foreign"],
+            "temperatures": [0.7],
+            "replicates": 8
+        },
+        {
+            "name": "provenance_self",
+            "models": ["qwen2.5-coder:7b"],
+            "variants": ["correct"],
+            "wordings": ["w1", "w2", "w3", "w4"],
+            "scales": ["p2"],
+            "arms": ["base"],
+            "provenances": ["self_authored"],
+            "temperatures": [0.7],
+            "replicates": 8
+        },
+        {
+            "name": "provenance_foreign",
+            "models": ["qwen2.5-coder:7b"],
+            "variants": ["correct"],
+            "wordings": ["w1", "w2", "w3", "w4"],
+            "scales": ["p2"],
+            "arms": ["base"],
+            "provenances": ["foreign"],
+            "temperatures": [0.7],
+            "replicates": 8
+        },
+        {
+            "name": "families",
+            "models": [
+                "qwen2.5-coder:7b-instruct-fp16",
+                "qwen2.5-coder:1.5b",
+                "qwen2.5:7b",
+                "qwen2.5:1.5b",
+                "llama3.1:8b"
+            ],
+            "wordings": ["w1", "w2", "w3"],
+            "scales": ["p2"],
+            "arms": ["base"],
+            "provenances": ["foreign"],
+            "temperatures": [0.7],
+            "replicates": 4
+        }
+    ]
+}

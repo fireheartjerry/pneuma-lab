@@ -64,6 +64,11 @@ TRAINING_SCHEMA_FILES = (
 
 MANIFEST_SCHEMA_FILES = ("project-status.schema.json",)
 
+# Measurement-system analysis of an elicited metric channel. Descriptive
+# metrology about a measurement procedure, not a cognition frame and not
+# consciousness evidence: validated via ``gauge.card.validateCard``.
+GAUGE_SCHEMA_FILES = ("gauge-card.schema.json",)
+
 FOUNDATION_SCHEMA_FILES = (
     "foundation-training-authorization.schema.json",
     "foundation-run-manifest.schema.json",
@@ -83,6 +88,7 @@ ALL_SCHEMA_FILES = (
     + TRAINING_SCHEMA_FILES
     + MANIFEST_SCHEMA_FILES
     + FOUNDATION_SCHEMA_FILES
+    + GAUGE_SCHEMA_FILES
 )
 
 
@@ -113,6 +119,7 @@ __all__ = [
     "TRAINING_SCHEMA_FILES",
     "MANIFEST_SCHEMA_FILES",
     "FOUNDATION_SCHEMA_FILES",
+    "GAUGE_SCHEMA_FILES",
     "ALL_SCHEMA_FILES",
     "schema_path",
     "load_schema",
