@@ -39,9 +39,19 @@
                 },
                 "root_sha256": { "$ref": "#/$defs/sha256" },
                 "required_document_kinds": {
-                    "type": "array",
-                    "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/upstream_kind" }
+                    "const": [
+                        "resampling_analysis",
+                        "resampling_analysis_freeze",
+                        "resampling_assignment_ledger",
+                        "resampling_blinded_projection",
+                        "resampling_packet_index",
+                        "resampling_power_report",
+                        "resampling_prefix_receipt",
+                        "resampling_prefix_schedule",
+                        "resampling_study_manifest",
+                        "resampling_task_block",
+                        "resampling_unblind_receipt"
+                    ]
                 }
             },
             "additionalProperties": false

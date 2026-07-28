@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict
+from decimal import Decimal
 import hashlib
 import json
 import math
@@ -42,6 +43,9 @@ KINDS = (
     "resampling_power_report",
     "resampling_unblind_receipt",
     "resampling_artifact_root",
+)
+FROZEN_UPSTREAM_KINDS = tuple(
+    sorted(kind for kind in KINDS if kind != "resampling_artifact_root")
 )
 SHA_A = "a" * 64
 SHA_B = "b" * 64
@@ -220,7 +224,7 @@ def _minimal_payload(kind: str) -> dict[str, object]:
             "design_sha256": SHA_A,
             "entries": [],
             "root_sha256": SHA_A,
-            "required_document_kinds": [],
+            "required_document_kinds": list(FROZEN_UPSTREAM_KINDS),
         },
     }
     return payloads[kind]
@@ -407,6 +411,73 @@ def test_unknown_properties_and_malformed_digests_fail_closed() -> None:
         validate_record(value)
 
 
+@pytest.mark.parametrize(
+    "required_kinds",
+    [
+        [],
+        ["resampling_study_manifest"],
+        [*FROZEN_UPSTREAM_KINDS, "resampling_artifact_root"],
+        [
+            *FROZEN_UPSTREAM_KINDS,
+            FROZEN_UPSTREAM_KINDS[-1],
+        ],
+    ],
+)
+def test_artifact_root_schema_requires_exact_frozen_upstream_kinds(
+    required_kinds: list[str],
+) -> None:
+    value = _record(
+        "resampling_artifact_root",
+        _minimal_payload("resampling_artifact_root"),
+    )
+    value["payload"]["required_document_kinds"] = required_kinds  # type: ignore[index]
+    with pytest.raises(RecordValidationError, match="required_document_kinds"):
+        validate_record(value)
+
+
+@pytest.mark.parametrize(
+    "nonfinite",
+    [
+        Decimal("NaN"),
+        Decimal("Infinity"),
+        pytest.param(
+            __import__("numpy").float32("nan"),
+            id="numpy-float32-nan",
+        ),
+        pytest.param(
+            __import__("numpy").float64("inf"),
+            id="numpy-float64-infinity",
+        ),
+    ],
+)
+def test_non_builtin_nonfinite_numbers_fail_closed(nonfinite: object) -> None:
+    value = _record(
+        "resampling_analysis",
+        _minimal_payload("resampling_analysis"),
+    )
+    value["payload"]["result"]["continuation"] = nonfinite  # type: ignore[index]
+    with pytest.raises(RecordValidationError, match="non-finite"):
+        validate_record(value)
+
+
+@pytest.mark.parametrize(
+    "number",
+    [
+        Decimal("0.5"),
+        pytest.param(__import__("numpy").float32(0.5), id="numpy-float32"),
+        pytest.param(__import__("numpy").int64(1), id="numpy-int64"),
+    ],
+)
+def test_non_builtin_finite_numbers_are_not_plain_json(number: object) -> None:
+    value = _record(
+        "resampling_analysis",
+        _minimal_payload("resampling_analysis"),
+    )
+    value["payload"]["result"]["continuation"] = number  # type: ignore[index]
+    with pytest.raises(RecordValidationError, match="plain JSON number"):
+        validate_record(value)
+
+
 def test_duplicate_keys_nan_and_bom_fail_closed(tmp_path: Path) -> None:
     duplicate = tmp_path / "duplicate.json"
     duplicate.write_text(
@@ -492,6 +563,7 @@ def test_packet_and_power_stage_payloads_are_discriminated() -> None:
     del full_validation["selected_cells"]
     del full_validation["interval_receipts"]
     del full_validation["validation_dataset_count"]
+    del full_validation["approximation_receipt"]
     full_validation.update(
         fallback_trigger_ref=_ref("power/gaussian-trigger.json"),
         complete_cell_ids=["cell-1"],
@@ -521,6 +593,610 @@ def test_packet_and_power_stage_payloads_are_discriminated() -> None:
     no_go["finalization"]["selected_validation_ref"] = _ref("fabricated.json")  # type: ignore[index]
     with pytest.raises(RecordValidationError):
         validate_record(_record("resampling_power_report", no_go))
+
+
+def _write_test_record(
+    root: Path,
+    relative_path: str,
+    kind: str,
+    payload: dict[str, object],
+) -> dict[str, object]:
+    return _artifact_mapping(
+        write_record(
+            root / relative_path,
+            _record(kind, payload),
+            run_root=root,
+            role=kind,
+        )
+    )
+
+
+def _cell_result(cell_id: str) -> dict[str, object]:
+    return {
+        "cell_id": cell_id,
+        "alternative_pass_count": 16_000,
+        "alternative_trial_count": 20_000,
+        "null_pass_count": 1_000,
+        "null_trial_count": 20_000,
+    }
+
+
+def _build_full_study(
+    root: Path,
+    *,
+    variant: str | None = None,
+    fallback: bool = False,
+    omit_kind: str | None = None,
+) -> dict[str, object]:
+    root.mkdir()
+
+    def raw(name: str, value: object) -> dict[str, object]:
+        payload = (
+            value
+            if isinstance(value, bytes)
+            else json.dumps(
+                value,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        )
+        return _write_blob(root, f"raw/{name}", payload)
+
+    raws = {
+        "tasks": raw("tasks.json", {"tasks": [{"task_id": "task-1"}]}),
+        "roster": raw("roster.json", {"tasks": [{"task_id": "task-1"}]}),
+        "assignment": raw("assignment.py", b"assignment"),
+        "provider": raw("provider.json", {"lane": "lane-a"}),
+        "tokenizer": raw("tokenizer.json", {"name": "tokenizer"}),
+        "template": raw("template.json", {"name": "template"}),
+        "policy": raw("policy.json", {"name": "policy"}),
+        "pads": raw("pads.json", {"units": []}),
+        "revision": raw("revision.md", b"revision"),
+        "required": raw("required.json", list(FROZEN_UPSTREAM_KINDS)),
+        "shared": raw("shared.bin", b"shared"),
+        "analysis_config": raw("analysis-config.json", {"alpha": 0.05}),
+        "projection_schema": raw("projection-schema.json", {"version": 1}),
+        "power_grid": raw(
+            "power-grid.json",
+            {"cells": [{"cell_id": f"cell-{index}"} for index in range(5)]},
+        ),
+        "topology": raw("topology.json", {"cpu_count": 1}),
+        "power_config": raw("power-config.json", {"datasets": 20_000}),
+        "numeric_fixture": raw("numeric-fixture.json", {"digest": SHA_A}),
+        "alternate": raw("alternate.bin", b"alternate"),
+    }
+
+    manifest_payload = {
+        "task_registry_ref": raws["tasks"],
+        "roster_ref": raws["roster"],
+        "assignment_program_ref": raws["assignment"],
+        "provider_lane_plan_ref": raws["provider"],
+        "tokenizer_ref": raws["tokenizer"],
+        "packet_template_ref": raws["template"],
+        "packet_policy_ref": raws["policy"],
+        "pad_unit_set_ref": raws["pads"],
+        "source_revision_refs": [raws["revision"]],
+        "seed_commitment_sha256": SHA_A,
+        "required_document_kinds_ref": raws["required"],
+    }
+    manifest_ref = _write_test_record(
+        root,
+        "study-manifest.json",
+        "resampling_study_manifest",
+        manifest_payload,
+    )
+
+    schedule_payload = _minimal_payload("resampling_prefix_schedule")
+    schedule_payload["manifest_ref"] = manifest_ref
+    schedule_payload["assignment_program_ref"] = (
+        raws["alternate"]
+        if variant == "schedule-assignment-program"
+        else raws["assignment"]
+    )
+    schedule_payload["provider_lane_plan_ref"] = (
+        raws["alternate"]
+        if variant == "schedule-provider-lane"
+        else raws["provider"]
+    )
+    schedule_ref = _write_test_record(
+        root,
+        "prefix-schedule.json",
+        "resampling_prefix_schedule",
+        schedule_payload,
+    )
+
+    prefix_schedule_sha = cast(str, schedule_ref["sha256"])
+    if variant == "prefix-schedule-hash":
+        prefix_schedule_sha = SHA_A
+    verifier_schedule_sha = cast(str, schedule_ref["sha256"])
+    if variant == "prefix-verifier-schedule-hash":
+        verifier_schedule_sha = SHA_A
+    prefix_task_receipt = {
+        "task_id": "task-1",
+        "schedule_sha256": prefix_schedule_sha,
+        "snapshot_ref": raws["shared"],
+        "visible_context_ref": (
+            {**raws["shared"], "role": "frankenstein"}
+            if variant == "conflicting-ref"
+            else raws["shared"]
+        ),
+        "visible_sha256": SHA_A,
+        "token_ids_sha256": SHA_B,
+        "pending_tool_calls": [],
+        "trigger_reason": "no_intervention_opportunity",
+        "y0_grade": {
+            "success": 0,
+            "partial_reward": 0.0,
+            "infrastructure_failure": False,
+            "artifact_ref": raws["shared"],
+        },
+        "verifier_receipt": {
+            "task_id": "task-1",
+            "schedule_sha256": verifier_schedule_sha,
+            "snapshot_ref": raws["shared"],
+            "verifier_artifact_ref": raws["shared"],
+            "finding_count": 0,
+        },
+        "counters": {
+            "generated_tokens": 0,
+            "model_calls": 0,
+            "tool_calls": 0,
+            "wall_clock_ms": 0,
+        },
+        "call_seeds": [],
+        "provider_cost_ref": (
+            _ref(
+                "raw/missing.bin",
+                byte_count=3,
+                media_type="application/octet-stream",
+            )
+            if variant == "dangling-ref"
+            else raws["shared"]
+        ),
+    }
+    prefix_ref = _write_test_record(
+        root,
+        "prefix-receipt.json",
+        "resampling_prefix_receipt",
+        {
+            "schedule_ref": schedule_ref,
+            "task_receipts": [prefix_task_receipt],
+        },
+    )
+
+    assignment_schedule_sha = cast(str, schedule_ref["sha256"])
+    if variant == "assignment-schedule-hash":
+        assignment_schedule_sha = SHA_A
+    assignment_prefix_sha = cast(str, prefix_ref["sha256"])
+    if variant == "assignment-prefix-hash":
+        assignment_prefix_sha = SHA_A
+    assignment_payload = {
+        "schedule_ref": schedule_ref,
+        "prefix_index_ref": prefix_ref,
+        "assignment_mode": "uniform_12",
+        "assignments": [
+            {
+                "task_id": "task-1",
+                "task_lineage": "repo-1",
+                "donor_task_id": "task-donor",
+                "donor_lineage": "repo-donor",
+                "slot_arms": [
+                    ["slot-0", "REAL"],
+                    ["slot-1", "SHAM"],
+                    ["slot-2", "NONE"],
+                    ["slot-3", "RESAMPLE"],
+                ],
+                "schedule_sha256": assignment_schedule_sha,
+                "prefix_index_sha256": assignment_prefix_sha,
+            }
+        ],
+        "allocation_receipts": [
+            {
+                "task_id": "task-1",
+                "treatment_allocation_index": 0,
+                "no_packet_orientation_bit": 0,
+                "slot_capabilities": [
+                    [f"slot-{index}", hashlib.sha256(f"cap-{index}".encode()).hexdigest()]
+                    for index in range(4)
+                ],
+            }
+        ],
+    }
+    assignment_ref = _write_test_record(
+        root,
+        "assignment-ledger.json",
+        "resampling_assignment_ledger",
+        assignment_payload,
+    )
+
+    candidate_payload = {
+        "stage": "candidate",
+        "assignment_ref": assignment_ref,
+        "prefix_index_ref": prefix_ref,
+        "tokenizer_ref": (
+            raws["alternate"]
+            if variant == "packet-tokenizer"
+            else raws["tokenizer"]
+        ),
+        "packet_template_ref": raws["template"],
+        "packet_policy_ref": raws["policy"],
+        "pad_unit_set_ref": raws["pads"],
+        "entries": [
+            {
+                "task_id": "task-1",
+                "prefix_index_sha256": cast(str, prefix_ref["sha256"]),
+                "trigger_reason": "no_intervention_opportunity",
+            }
+        ],
+    }
+    candidate_ref = _write_test_record(
+        root,
+        "packet-candidate.json",
+        "resampling_packet_index",
+        candidate_payload,
+    )
+    sealed_payload = {
+        "stage": "sealed",
+        "candidate_ref": candidate_ref,
+        "assignment_ref": assignment_ref,
+        "prefix_index_ref": prefix_ref,
+        "tokenizer_ref": candidate_payload["tokenizer_ref"],
+        "packet_template_ref": raws["template"],
+        "packet_policy_ref": (
+            raws["alternate"]
+            if variant == "sealed-packet-policy"
+            else raws["policy"]
+        ),
+        "pad_unit_set_ref": raws["pads"],
+        "audit_gates": {
+            "roster_complete": True,
+            "ancestry_valid": True,
+            "token_parity": True,
+            "schema_parity": True,
+            "field_parity": True,
+            "severity_parity": True,
+            "rewrites_complete": True,
+            "identifier_collision_free": True,
+            "artifact_bytes_verified": True,
+        },
+    }
+    sealed_ref = _write_test_record(
+        root,
+        "packet-sealed.json",
+        "resampling_packet_index",
+        sealed_payload,
+    )
+
+    freeze_ref = _write_test_record(
+        root,
+        "analysis-freeze.json",
+        "resampling_analysis_freeze",
+        {
+            "source_refs": [raws["shared"]],
+            "config_ref": raws["analysis_config"],
+            "projection_schema_ref": raws["projection_schema"],
+            "packet_index_ref": sealed_ref,
+        },
+    )
+    task_parent_refs = {
+        "schedule_ref": schedule_ref,
+        "prefix_index_ref": prefix_ref,
+        "assignment_ref": assignment_ref,
+        "packet_index_ref": sealed_ref,
+        "analysis_freeze_ref": freeze_ref,
+    }
+    task_payload = _no_trigger_task_block_payload(task_parent_refs)
+    for outcome in cast(list[dict[str, object]], task_payload["slot_outcomes"]):
+        outcome["artifact_ref"] = raws["shared"]
+    task_ref = _write_test_record(
+        root,
+        "task-1.json",
+        "resampling_task_block",
+        task_payload,
+    )
+    if variant == "extra-task":
+        extra_payload = deepcopy(task_payload)
+        extra_payload["task_id"] = "task-2"
+        for outcome in cast(
+            list[dict[str, object]],
+            extra_payload["slot_outcomes"],
+        ):
+            outcome["task_id"] = "task-2"
+        _write_test_record(
+            root,
+            "task-2.json",
+            "resampling_task_block",
+            extra_payload,
+        )
+
+    projection_payload = {
+        "schedule_ref": schedule_ref,
+        "analysis_freeze_ref": freeze_ref,
+        "task_block_refs": [task_ref],
+        "rows": [
+            {
+                "task_id": "task-1",
+                "benchmark": "swe",
+                "stratum": "python",
+                "lineage": "repo-1",
+                "sensitivity_groups": [
+                    {"kind": "language", "value": "python"}
+                ],
+                "prefix_success": 0,
+                "triggered": False,
+                "slots": [
+                    {
+                        "label": label,
+                        "slot_id": f"slot-{index}",
+                        "outcome": deepcopy(task_payload["slot_outcomes"][index]),  # type: ignore[index]
+                    }
+                    for index, label in enumerate(("A", "B", "C", "D"))
+                ],
+                "pipeline_valid": True,
+                "validity_codes": [],
+            }
+        ],
+        "expected_task_count": 1,
+        "complete": True,
+    }
+    projection_ref = _write_test_record(
+        root,
+        "projection.json",
+        "resampling_blinded_projection",
+        projection_payload,
+    )
+    unblind_ref = _write_test_record(
+        root,
+        "unblind.json",
+        "resampling_unblind_receipt",
+        {
+            "projection_ref": projection_ref,
+            "assignment_ledger_ref": assignment_ref,
+            "analysis_freeze_ref": freeze_ref,
+            "expected_task_count": 1,
+            "permit_hmac_sha256": SHA_A,
+        },
+    )
+    if omit_kind != "resampling_analysis":
+        _write_test_record(
+            root,
+            "analysis.json",
+            "resampling_analysis",
+            {
+                "analysis_freeze_ref": freeze_ref,
+                "projection_ref": projection_ref,
+                "unblind_receipt_ref": unblind_ref,
+                "config_ref": (
+                    raws["alternate"]
+                    if variant == "analysis-config"
+                    else raws["analysis_config"]
+                ),
+                "row_count": 1,
+                "result": _analysis_result(),
+                "numeric_receipt": {"finite": True},
+            },
+        )
+
+    common_power = {
+        "roster_ref": raws["roster"],
+        "grid_ref": raws["power_grid"],
+        "topology_ref": raws["topology"],
+        "config_ref": raws["power_config"],
+        "numeric_fixture_ref": raws["numeric_fixture"],
+        "numeric_contract": _numeric_contract(),
+    }
+
+    def bind_power(
+        payload: dict[str, object],
+        *,
+        phase: str = "gaussian_approximation",
+    ) -> None:
+        payload.update(deepcopy(common_power))
+        payload["phase"] = phase
+
+    gaussian_screen = _power_payload("screen")
+    bind_power(gaussian_screen)
+    gaussian_screen["cell_count"] = 5
+    screen_ref = _write_test_record(
+        root,
+        "power/gaussian-screen.json",
+        "resampling_power_report",
+        gaussian_screen,
+    )
+    gaussian_shard_refs: list[dict[str, object]] = []
+    gaussian_shard_payloads: list[dict[str, object]] = []
+    partitions = [
+        ["cell-0", "cell-1", "cell-2"],
+        ["cell-3", "cell-4"],
+    ]
+    if variant == "power-cell-gap":
+        partitions[1] = ["cell-3"]
+    elif variant == "power-cell-overlap":
+        partitions[1] = ["cell-2", "cell-3", "cell-4"]
+    for shard_position in range(2):
+        shard_payload = _power_payload("shard", shard_index=shard_position)
+        bind_power(shard_payload)
+        shard_payload["parent_refs"] = [screen_ref]
+        shard_payload["cell_results"] = [
+            _cell_result(cell_id) for cell_id in partitions[shard_position]
+        ]
+        if variant == "power-shard-gap" and shard_position == 1:
+            shard_payload["shard_index"] = 2
+            shard_payload["shard_count"] = 3
+        elif variant == "power-shard-count" and shard_position == 1:
+            shard_payload["shard_count"] = 3
+        if variant == "power-shard-parent" and shard_position == 1:
+            shard_payload["parent_refs"] = [raws["alternate"]]
+        gaussian_shard_payloads.append(shard_payload)
+        gaussian_shard_refs.append(
+            _write_test_record(
+                root,
+                f"power/gaussian-shard-{shard_position}.json",
+                "resampling_power_report",
+                shard_payload,
+            )
+        )
+    selection_payload = _power_payload("selection")
+    bind_power(selection_payload)
+    selection_payload["parent_refs"] = [screen_ref, *gaussian_shard_refs]
+    if variant == "power-selection-parent":
+        selection_payload["parent_refs"] = [screen_ref, gaussian_shard_refs[0]]
+    selection_ref = _write_test_record(
+        root,
+        "power/gaussian-selection.json",
+        "resampling_power_report",
+        selection_payload,
+    )
+    gaussian_validation = _power_payload("validation")
+    bind_power(gaussian_validation)
+    gaussian_validation["parent_refs"] = [
+        screen_ref,
+        *gaussian_shard_refs,
+        selection_ref,
+    ]
+    if fallback:
+        gaussian_validation["approximation_receipt"] = {
+            "max_absolute_gate_pass_rate_difference": 0.02,
+            "gaussian_tier_decision": "C160",
+            "full_multiplier_tier_decision": "C120",
+            "tier_decision_unchanged": False,
+            "passed": False,
+        }
+    if variant == "power-validation-parent":
+        gaussian_validation["parent_refs"] = [
+            screen_ref,
+            *gaussian_shard_refs,
+        ]
+    if variant == "power-common-grid":
+        gaussian_validation["grid_ref"] = raws["alternate"]
+    gaussian_validation_ref = _write_test_record(
+        root,
+        "power/gaussian-validation.json",
+        "resampling_power_report",
+        gaussian_validation,
+    )
+
+    attempt_refs = [
+        screen_ref,
+        *gaussian_shard_refs,
+        selection_ref,
+        gaussian_validation_ref,
+    ]
+    selected_phase = "gaussian_approximation"
+    selected_generation = 0
+    finalization: dict[str, object] = {
+        "kind": "completed_chain",
+        "selected_phase": "gaussian_approximation",
+        "selected_generation": 0,
+        "selected_screen_ref": screen_ref,
+        "selected_shard_refs": (
+            [gaussian_shard_refs[0]]
+            if variant == "power-finalization-shard-gap"
+            else gaussian_shard_refs
+        ),
+        "selected_selection_ref": selection_ref,
+        "selected_validation_ref": gaussian_validation_ref,
+    }
+
+    if fallback:
+        fallback_trigger = gaussian_validation_ref
+        if variant == "fallback-trigger-screen":
+            fallback_trigger = screen_ref
+        full_screen = _power_payload("screen")
+        bind_power(full_screen, phase="full_multiplier_fallback")
+        full_screen["cell_count"] = 5
+        full_screen["parent_refs"] = [fallback_trigger]
+        full_screen_ref = _write_test_record(
+            root,
+            "power/full-screen.json",
+            "resampling_power_report",
+            full_screen,
+        )
+        full_shard_refs: list[dict[str, object]] = []
+        for shard_index, cell_ids in enumerate(partitions):
+            shard_payload = _power_payload("shard", shard_index=shard_index)
+            bind_power(shard_payload, phase="full_multiplier_fallback")
+            shard_payload["parent_refs"] = [full_screen_ref]
+            shard_payload["cell_results"] = [
+                _cell_result(cell_id) for cell_id in cell_ids
+            ]
+            full_shard_refs.append(
+                _write_test_record(
+                    root,
+                    f"power/full-shard-{shard_index}.json",
+                    "resampling_power_report",
+                    shard_payload,
+                )
+            )
+        full_validation = _power_payload("validation")
+        bind_power(full_validation, phase="full_multiplier_fallback")
+        for field in (
+            "selected_cells",
+            "interval_receipts",
+            "validation_dataset_count",
+            "approximation_receipt",
+        ):
+            del full_validation[field]
+        full_validation.update(
+            parent_refs=[
+                fallback_trigger,
+                full_screen_ref,
+                *full_shard_refs,
+            ],
+            fallback_trigger_ref=fallback_trigger,
+            complete_cell_ids=[f"cell-{index}" for index in range(5)],
+            expected_cell_count=5,
+            observed_cell_count=5,
+            raw_counts_ref=raws["shared"],
+            numeric_receipt_ref=raws["numeric_fixture"],
+            selected_tier=None,
+            decision="CONDITIONAL_ONLY",
+        )
+        full_validation_ref = _write_test_record(
+            root,
+            "power/full-validation.json",
+            "resampling_power_report",
+            full_validation,
+        )
+        attempt_refs.extend(
+            [full_screen_ref, *full_shard_refs, full_validation_ref]
+        )
+        selected_phase = "full_multiplier_fallback"
+        finalization = {
+            "kind": "completed_chain",
+            "selected_phase": selected_phase,
+            "selected_generation": 0,
+            "fallback_trigger_ref": fallback_trigger,
+            "selected_screen_ref": full_screen_ref,
+            "selected_shard_refs": full_shard_refs,
+            "full_grid_validation_ref": full_validation_ref,
+        }
+
+    final_payload = _power_payload("final")
+    bind_power(final_payload, phase=selected_phase)
+    final_payload["generation"] = selected_generation
+    final_payload["parent_refs"] = attempt_refs
+    final_payload["all_attempt_refs"] = attempt_refs
+    final_payload["finalization"] = finalization
+    _write_test_record(
+        root,
+        "power/final.json",
+        "resampling_power_report",
+        final_payload,
+    )
+    if variant == "duplicate-power-shard":
+        duplicate = deepcopy(gaussian_shard_payloads[1])
+        _write_test_record(
+            root,
+            "power/gaussian-shard-duplicate.json",
+            "resampling_power_report",
+            duplicate,
+        )
+    return {
+        "raws": raws,
+        "task_parent_refs": task_parent_refs,
+        "manifest_ref": manifest_ref,
+    }
 
 
 def _numeric_contract() -> dict[str, object]:
@@ -583,6 +1259,13 @@ def _power_payload(stage: str, *, shard_index: int | None = None) -> dict[str, o
                 for cell in cells
             ],
             validation_dataset_count=2_000,
+            approximation_receipt={
+                "max_absolute_gate_pass_rate_difference": 0.01,
+                "gaussian_tier_decision": "C160",
+                "full_multiplier_tier_decision": "C160",
+                "tier_decision_unchanged": True,
+                "passed": True,
+            },
         )
     elif stage == "final":
         attempt_refs = [
@@ -599,6 +1282,26 @@ def _power_payload(stage: str, *, shard_index: int | None = None) -> dict[str, o
             },
         )
     return base
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("max_absolute_gate_pass_rate_difference", 0.0100001),
+        ("full_multiplier_tier_decision", "C120"),
+        ("tier_decision_unchanged", False),
+        ("passed", False),
+    ],
+)
+def test_gaussian_validation_receipt_enforces_frozen_acceptance_gate(
+    field: str,
+    value: object,
+) -> None:
+    payload = _power_payload("validation")
+    validate_record(_record("resampling_power_report", payload))
+    payload["approximation_receipt"][field] = value  # type: ignore[index]
+    with pytest.raises(RecordValidationError, match="(?i)approximation"):
+        validate_record(_record("resampling_power_report", payload))
 
 
 def _bind_power_sources(
@@ -703,7 +1406,7 @@ def test_study_manifest_seal_copies_all_sources_without_reading_clock(
         source.write_text(json.dumps({"name": name}), encoding="utf-8")
         sources[name] = source
     sources["required"].write_text(
-        json.dumps(["resampling_study_manifest"]),
+        json.dumps(FROZEN_UPSTREAM_KINDS),
         encoding="utf-8",
     )
     study = external / "study.json"
@@ -798,26 +1501,10 @@ def test_source_revisions_must_be_nonempty_and_sorted(tmp_path: Path) -> None:
 
 def test_artifact_root_follows_raw_refs_and_detects_byte_changes(tmp_path: Path) -> None:
     root = tmp_path / "run"
-    root.mkdir()
-    raw_ref = _write_blob(root, "raw/snapshot.bin", b"snapshot")
-    required_ref = _write_blob(
-        root,
-        "raw/required.json",
-        json.dumps(["resampling_study_manifest"]).encode(),
-    )
-    manifest = _record(
-        "resampling_study_manifest",
-        _minimal_payload("resampling_study_manifest"),
-    )
-    for key in tuple(manifest["payload"]):  # type: ignore[arg-type]
-        if key.endswith("_ref"):
-            manifest["payload"][key] = raw_ref  # type: ignore[index]
-    manifest["payload"]["required_document_kinds_ref"] = required_ref  # type: ignore[index]
-    manifest["payload"]["source_revision_refs"] = [raw_ref]  # type: ignore[index]
-    write_record(root / "manifest.json", manifest, run_root=root, role="manifest")
+    built = _build_full_study(root)
     receipt = seal_artifact_root(
         root,
-        ["resampling_study_manifest"],
+        FROZEN_UPSTREAM_KINDS,
         root / "p0-core-receipt.json",
         study_id="study-1",
         frozen_created_at=FROZEN,
@@ -827,65 +1514,40 @@ def test_artifact_root_follows_raw_refs_and_detects_byte_changes(tmp_path: Path)
     paths = [entry["relative_path"] for entry in root_record["payload"]["entries"]]  # type: ignore[index]
     assert paths == sorted(paths)
     assert "p0-core-receipt.json" not in paths
-    assert "raw/snapshot.bin" in paths
+    assert "raw/shared.bin" in paths
     verify_artifact_root(
         root / "p0-core-receipt.json",
         root,
-        required_document_kinds=["resampling_study_manifest"],
+        required_document_kinds=FROZEN_UPSTREAM_KINDS,
     )
-    (root / "raw/snapshot.bin").write_bytes(b"changed")
+    shared_ref = built["raws"]["shared"]  # type: ignore[index]
+    (root / cast(str, shared_ref["relative_path"])).write_bytes(b"changed")
     with pytest.raises(RecordValidationError):
         verify_artifact_root(
             root / "p0-core-receipt.json",
             root,
-            required_document_kinds=["resampling_study_manifest"],
+            required_document_kinds=FROZEN_UPSTREAM_KINDS,
         )
 
 
-def test_artifact_root_rejects_dangling_and_conflicting_refs(tmp_path: Path) -> None:
-    root = tmp_path / "run"
-    root.mkdir()
-    manifest = _record(
-        "resampling_study_manifest",
-        _minimal_payload("resampling_study_manifest"),
-    )
-    valid_ref = _write_blob(root, "raw/valid.bin", b"valid")
-    required_ref = _write_blob(
-        root,
-        "raw/required.json",
-        json.dumps(["resampling_study_manifest"]).encode(),
-    )
-    for key in tuple(manifest["payload"]):  # type: ignore[arg-type]
-        if key.endswith("_ref"):
-            manifest["payload"][key] = valid_ref  # type: ignore[index]
-    manifest["payload"]["required_document_kinds_ref"] = required_ref  # type: ignore[index]
-    manifest["payload"]["source_revision_refs"] = [  # type: ignore[index]
-        _ref("raw/missing.bin", byte_count=3, media_type="application/octet-stream")
-    ]
-    write_record(root / "manifest.json", manifest, run_root=root, role="manifest")
-    with pytest.raises(RecordValidationError, match="dangling"):
+@pytest.mark.parametrize(
+    ("variant", "message"),
+    [
+        ("dangling-ref", "dangling"),
+        ("conflicting-ref", "conflicting"),
+    ],
+)
+def test_artifact_root_rejects_dangling_and_conflicting_refs(
+    tmp_path: Path,
+    variant: str,
+    message: str,
+) -> None:
+    root = tmp_path / variant
+    _build_full_study(root, variant=variant)
+    with pytest.raises(RecordValidationError, match=message):
         seal_artifact_root(
             root,
-            ["resampling_study_manifest"],
-            root / "p0-core-receipt.json",
-            study_id="study-1",
-            frozen_created_at=FROZEN,
-            provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
-        )
-
-    (root / "raw").mkdir(exist_ok=True)
-    (root / "raw/missing.bin").write_bytes(b"x")
-    shared = _write_blob(root, "raw/shared.bin", b"shared")
-    manifest["payload"]["source_revision_refs"] = [  # type: ignore[index]
-        shared,
-        {**shared, "role": "different"},
-    ]
-    (root / "manifest.json").unlink()
-    write_record(root / "manifest.json", manifest, run_root=root, role="manifest")
-    with pytest.raises(RecordValidationError, match="conflicting"):
-        seal_artifact_root(
-            root,
-            ["resampling_study_manifest"],
+            FROZEN_UPSTREAM_KINDS,
             root / "p0-core-receipt.json",
             study_id="study-1",
             frozen_created_at=FROZEN,
@@ -968,10 +1630,10 @@ def _triggered_task_block_payload(
         }
     ]
     payload["selected_attempt_index"] = 0
-    payload["terminal_slot_receipts"] = terminal_receipts
+    payload["terminal_slot_receipts"] = deepcopy(terminal_receipts)
     payload["execution_receipts"] = [
         {
-            "source_receipt_sha256": SHA_A,
+            "source_receipt_sha256": canonical_digest(terminal_receipts[index]),
             "source_kind": "graded_unscored",
             "grade_receipt": {
                 "success": 0,
@@ -979,42 +1641,27 @@ def _triggered_task_block_payload(
                 "infrastructure_failure": False,
                 "artifact_ref": _ref(f"grades/{index}.json"),
             },
-            "outcome": _outcome(index),
+            "outcome": deepcopy(payload["slot_outcomes"][index]),  # type: ignore[index]
         }
         for index in range(4)
     ]
     return payload
 
 
-def test_artifact_root_requires_exact_roster_unique_task_blocks(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "selected-terminal",
+        "source-digest",
+        "execution-outcome",
+        "slot-identity",
+    ],
+)
+def test_triggered_task_block_rejects_frankenstein_causal_chains(
+    mutation: str,
 ) -> None:
-    root = tmp_path / "run"
-    root.mkdir()
-    shared = _write_blob(root, "raw/shared.json", b"{}")
-    roster = _write_blob(
-        root,
-        "raw/roster.json",
-        json.dumps({"tasks": [{"task_id": "task-1"}]}).encode(),
-    )
-    required = _write_blob(
-        root,
-        "raw/required.json",
-        json.dumps(
-            ["resampling_study_manifest", "resampling_task_block"]
-        ).encode(),
-    )
-    manifest = _record(
-        "resampling_study_manifest",
-        _minimal_payload("resampling_study_manifest"),
-    )
-    _replace_artifact_refs(manifest["payload"], shared)
-    manifest["payload"]["roster_ref"] = roster  # type: ignore[index]
-    manifest["payload"]["required_document_kinds_ref"] = required  # type: ignore[index]
-    write_record(root / "manifest.json", manifest, run_root=root, role="manifest")
-
-    parent_refs = {
-        name: shared
+    refs = {
+        name: _ref(f"parents/{name}.json", role=name)
         for name in (
             "schedule_ref",
             "prefix_index_ref",
@@ -1023,17 +1670,123 @@ def test_artifact_root_requires_exact_roster_unique_task_blocks(
             "analysis_freeze_ref",
         )
     }
-    task_payload = _no_trigger_task_block_payload(parent_refs)
-    _replace_artifact_refs(task_payload, shared)
-    write_record(
-        root / "task-1.json",
-        _record("resampling_task_block", task_payload),
-        run_root=root,
-        role="task_block",
+    payload = _triggered_task_block_payload(refs)
+    validate_record(_record("resampling_task_block", payload))
+
+    if mutation == "selected-terminal":
+        payload["attempts"][0]["terminal_receipts"][0][  # type: ignore[index]
+            "pre_injection_visible_sha256"
+        ] = SHA_B
+    elif mutation == "source-digest":
+        payload["execution_receipts"][0]["source_receipt_sha256"] = SHA_A  # type: ignore[index]
+    elif mutation == "execution-outcome":
+        payload["execution_receipts"][0]["outcome"]["success"] = 1  # type: ignore[index]
+    else:
+        payload["terminal_slot_receipts"][0][  # type: ignore[index]
+            "opaque_capability_id"
+        ] = "opaque-frankenstein"
+
+    with pytest.raises(RecordValidationError, match="(?i)(causal|receipt|outcome|slot)"):
+        validate_record(_record("resampling_task_block", payload))
+
+
+def _outage_task_block_payload(
+    refs: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    payload = _triggered_task_block_payload(refs)
+    second_attempt = deepcopy(payload["attempts"][0])  # type: ignore[index]
+    second_attempt["attempt_index"] = 1
+    second_attempt["attempt_ref"] = _ref("attempts/attempt-1.json")
+    first_attempt = deepcopy(payload["attempts"][0])  # type: ignore[index]
+    first_attempt["terminal_receipts"] = first_attempt["terminal_receipts"][:2]
+    first_attempt["complete"] = False
+    payload["attempts"] = [first_attempt, second_attempt]
+    payload["selected_attempt_index"] = 1
+    payload["terminal_slot_receipts"] = deepcopy(
+        second_attempt["terminal_receipts"]
     )
+    payload["execution_receipts"] = [
+        {
+            **deepcopy(receipt),
+            "source_receipt_sha256": canonical_digest(
+                second_attempt["terminal_receipts"][index]
+            ),
+        }
+        for index, receipt in enumerate(payload["execution_receipts"])  # type: ignore[arg-type]
+    ]
+    payload["outage_receipt"] = {
+        "task_id": "task-1",
+        "provider_event_ref": _ref("events/provider-outage.json"),
+        "first_attempt": deepcopy(first_attempt),
+        "detected_before_endpoint_readable": True,
+        "work_order_sha256s": deepcopy(first_attempt["work_order_sha256s"]),
+        "rerun_index": 1,
+    }
+    return payload
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "first-attempt",
+        "work-orders",
+        "task-id",
+        "first-attempt-slot",
+        "first-attempt-capability",
+        "rerun-work-orders",
+    ],
+)
+def test_outage_receipt_is_bound_to_the_actual_first_attempt(
+    mutation: str,
+) -> None:
+    refs = {
+        name: _ref(f"parents/{name}.json", role=name)
+        for name in (
+            "schedule_ref",
+            "prefix_index_ref",
+            "assignment_ref",
+            "packet_index_ref",
+            "analysis_freeze_ref",
+        )
+    }
+    payload = _outage_task_block_payload(refs)
+    validate_record(_record("resampling_task_block", payload))
+    outage = payload["outage_receipt"]  # type: ignore[assignment]
+    if mutation == "first-attempt":
+        outage["first_attempt"]["terminal_receipts"] = []  # type: ignore[index]
+    elif mutation == "work-orders":
+        outage["work_order_sha256s"][0] = SHA_A  # type: ignore[index]
+    elif mutation == "task-id":
+        outage["task_id"] = "task-frankenstein"  # type: ignore[index]
+    elif mutation == "first-attempt-slot":
+        payload["attempts"][0]["terminal_receipts"][0]["slot_id"] = "slot-x"  # type: ignore[index]
+        outage["first_attempt"] = deepcopy(payload["attempts"][0])  # type: ignore[index]
+    elif mutation == "first-attempt-capability":
+        payload["attempts"][0]["terminal_receipts"][0][  # type: ignore[index]
+            "opaque_capability_id"
+        ] = "opaque-x"
+        outage["first_attempt"] = deepcopy(payload["attempts"][0])  # type: ignore[index]
+    else:
+        payload["attempts"][0]["work_order_sha256s"][0] = SHA_A  # type: ignore[index]
+        outage["first_attempt"] = deepcopy(payload["attempts"][0])  # type: ignore[index]
+        outage["work_order_sha256s"] = deepcopy(  # type: ignore[index]
+            payload["attempts"][0]["work_order_sha256s"]  # type: ignore[index]
+        )
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(outage|attempt|slot|work.order)",
+    ):
+        validate_record(_record("resampling_task_block", payload))
+
+
+def test_artifact_root_requires_exact_roster_unique_task_blocks(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "run"
+    _build_full_study(root)
     receipt = seal_artifact_root(
         root,
-        ["resampling_study_manifest", "resampling_task_block"],
+        FROZEN_UPSTREAM_KINDS,
         root / "p0-core-receipt.json",
         study_id="study-1",
         frozen_created_at=FROZEN,
@@ -1042,21 +1795,13 @@ def test_artifact_root_requires_exact_roster_unique_task_blocks(
     assert (root / receipt.relative_path).is_file()
 
     (root / receipt.relative_path).unlink()
-    extra_payload = deepcopy(task_payload)
-    extra_payload["task_id"] = "task-2"
-    for outcome in extra_payload["slot_outcomes"]:
-        outcome["task_id"] = "task-2"
-    write_record(
-        root / "task-2.json",
-        _record("resampling_task_block", extra_payload),
-        run_root=root,
-        role="task_block",
-    )
+    other = tmp_path / "extra-task"
+    _build_full_study(other, variant="extra-task")
     with pytest.raises(RecordValidationError, match="cover the roster"):
         seal_artifact_root(
-            root,
-            ["resampling_study_manifest", "resampling_task_block"],
-            root / "p0-core-receipt.json",
+            other,
+            FROZEN_UPSTREAM_KINDS,
+            other / "p0-core-receipt.json",
             study_id="study-1",
             frozen_created_at=FROZEN,
             provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
@@ -1064,129 +1809,26 @@ def test_artifact_root_requires_exact_roster_unique_task_blocks(
 
 
 def test_artifact_root_document_coverage_and_power_identities(tmp_path: Path) -> None:
-    root = tmp_path / "run"
-    root.mkdir()
-    manifest = _record(
-        "resampling_study_manifest",
-        _minimal_payload("resampling_study_manifest"),
+    missing_root = tmp_path / "missing"
+    _build_full_study(
+        missing_root,
+        omit_kind="resampling_analysis",
     )
-    # Make every manifest ref resolve to one shared raw blob.
-    raw = _write_blob(root, "raw/shared.json", b"{}")
-    required_ref = _write_blob(
-        root,
-        "raw/required.json",
-        json.dumps(
-            ["resampling_power_report", "resampling_study_manifest"]
-        ).encode(),
-    )
-    for key, value in list(manifest["payload"].items()):  # type: ignore[union-attr]
-        if key.endswith("_ref"):
-            manifest["payload"][key] = raw  # type: ignore[index]
-        elif key == "source_revision_refs":
-            manifest["payload"][key] = [raw]  # type: ignore[index]
-    manifest["payload"]["required_document_kinds_ref"] = required_ref  # type: ignore[index]
-    write_record(root / "manifest.json", manifest, run_root=root, role="manifest")
     with pytest.raises(RecordValidationError, match="missing"):
         seal_artifact_root(
-            root,
-            ["resampling_study_manifest", "resampling_power_report"],
-            root / "p0-core-receipt.json",
+            missing_root,
+            FROZEN_UPSTREAM_KINDS,
+            missing_root / "p0-core-receipt.json",
             study_id="study-1",
             frozen_created_at=FROZEN,
             provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
         )
 
-    screen_payload = _power_payload("screen")
-    _bind_power_sources(screen_payload, raw)
-    screen_ref = _artifact_mapping(
-        write_record(
-            root / "power-screen.json",
-            _record("resampling_power_report", screen_payload),
-            run_root=root,
-            role="power_screen",
-        )
-    )
-    retry_screen_payload = _power_payload("screen")
-    retry_screen_payload["generation"] = 1
-    _bind_power_sources(retry_screen_payload, raw)
-    retry_screen_ref = _artifact_mapping(
-        write_record(
-            root / "power-screen-generation-1.json",
-            _record("resampling_power_report", retry_screen_payload),
-            run_root=root,
-            role="power_screen",
-        )
-    )
-    shard_refs: list[dict[str, object]] = []
-    for shard_index in (0, 1):
-        shard_payload = _power_payload("shard", shard_index=shard_index)
-        _bind_power_sources(shard_payload, raw)
-        shard_payload["parent_refs"] = [screen_ref]
-        shard_refs.append(
-            _artifact_mapping(
-                write_record(
-                    root / f"power-shard-{shard_index}.json",
-                    _record("resampling_power_report", shard_payload),
-                    run_root=root,
-                    role="power_shard",
-                )
-            )
-        )
-    selection_payload = _power_payload("selection")
-    _bind_power_sources(selection_payload, raw)
-    selection_payload["parent_refs"] = [screen_ref, *shard_refs]
-    selection_ref = _artifact_mapping(
-        write_record(
-            root / "power-selection.json",
-            _record("resampling_power_report", selection_payload),
-            run_root=root,
-            role="power_selection",
-        )
-    )
-    validation_payload = _power_payload("validation")
-    _bind_power_sources(validation_payload, raw)
-    validation_payload["parent_refs"] = [
-        screen_ref,
-        *shard_refs,
-        selection_ref,
-    ]
-    validation_ref = _artifact_mapping(
-        write_record(
-            root / "power-validation.json",
-            _record("resampling_power_report", validation_payload),
-            run_root=root,
-            role="power_validation",
-        )
-    )
-    all_attempt_refs = [
-        screen_ref,
-        retry_screen_ref,
-        *shard_refs,
-        selection_ref,
-        validation_ref,
-    ]
-    final_payload = _power_payload("final")
-    _bind_power_sources(final_payload, raw)
-    final_payload["parent_refs"] = all_attempt_refs
-    final_payload["all_attempt_refs"] = all_attempt_refs
-    final_payload["finalization"] = {
-        "kind": "completed_chain",
-        "selected_phase": "gaussian_approximation",
-        "selected_generation": 0,
-        "selected_screen_ref": screen_ref,
-        "selected_shard_refs": shard_refs,
-        "selected_selection_ref": selection_ref,
-        "selected_validation_ref": validation_ref,
-    }
-    write_record(
-        root / "power-final.json",
-        _record("resampling_power_report", final_payload),
-        run_root=root,
-        role="power_final",
-    )
+    root = tmp_path / "valid"
+    _build_full_study(root)
     receipt = seal_artifact_root(
         root,
-        ["resampling_study_manifest", "resampling_power_report"],
+        FROZEN_UPSTREAM_KINDS,
         root / "p0-core-receipt.json",
         study_id="study-1",
         frozen_created_at=FROZEN,
@@ -1194,21 +1836,113 @@ def test_artifact_root_document_coverage_and_power_identities(tmp_path: Path) ->
     )
     assert (root / receipt.relative_path).is_file()
 
-    (root / "p0-core-receipt.json").unlink()
-    duplicate_payload = _power_payload("shard", shard_index=1)
-    _bind_power_sources(duplicate_payload, raw)
-    duplicate_payload["parent_refs"] = [screen_ref]
-    write_record(
-        root / "power-shard-duplicate.json",
-        _record("resampling_power_report", duplicate_payload),
-        run_root=root,
-        role="power_shard",
-    )
-    with pytest.raises(RecordValidationError, match="duplicate"):
+    duplicate_root = tmp_path / "duplicate"
+    _build_full_study(duplicate_root, variant="duplicate-power-shard")
+    with pytest.raises(RecordValidationError, match="duplicate|zero-based"):
+        seal_artifact_root(
+            duplicate_root,
+            FROZEN_UPSTREAM_KINDS,
+            duplicate_root / "p0-core-receipt.json",
+            study_id="study-1",
+            frozen_created_at=FROZEN,
+            provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
+        )
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "schedule-assignment-program",
+        "schedule-provider-lane",
+        "prefix-schedule-hash",
+        "prefix-verifier-schedule-hash",
+        "assignment-schedule-hash",
+        "assignment-prefix-hash",
+        "packet-tokenizer",
+        "sealed-packet-policy",
+        "analysis-config",
+        "power-common-grid",
+    ],
+)
+def test_artifact_root_rejects_frankenstein_scientific_ancestry(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    root = tmp_path / variant
+    _build_full_study(root, variant=variant)
+    with pytest.raises(RecordValidationError, match="(?i)(ancestry|ref|hash|source)"):
         seal_artifact_root(
             root,
-            ["resampling_study_manifest", "resampling_power_report"],
+            FROZEN_UPSTREAM_KINDS,
             root / "p0-core-receipt.json",
+            study_id="study-1",
+            frozen_created_at=FROZEN,
+            provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
+        )
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "power-shard-parent",
+        "power-shard-gap",
+        "power-shard-count",
+        "power-cell-gap",
+        "power-cell-overlap",
+        "power-selection-parent",
+        "power-validation-parent",
+        "power-finalization-shard-gap",
+    ],
+)
+def test_power_chain_rejects_incomplete_or_frankenstein_topology(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    root = tmp_path / variant
+    _build_full_study(root, variant=variant)
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(power|parent|shard|cell|coverage)",
+    ):
+        seal_artifact_root(
+            root,
+            FROZEN_UPSTREAM_KINDS,
+            root / "p0-core-receipt.json",
+            study_id="study-1",
+            frozen_created_at=FROZEN,
+            provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
+        )
+
+
+def test_full_multiplier_fallback_requires_terminal_failed_gaussian_validation(
+    tmp_path: Path,
+) -> None:
+    valid_root = tmp_path / "fallback-valid"
+    _build_full_study(valid_root, fallback=True)
+    receipt = seal_artifact_root(
+        valid_root,
+        FROZEN_UPSTREAM_KINDS,
+        valid_root / "p0-core-receipt.json",
+        study_id="study-1",
+        frozen_created_at=FROZEN,
+        provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
+    )
+    assert (valid_root / receipt.relative_path).is_file()
+
+    invalid_root = tmp_path / "fallback-screen-trigger"
+    _build_full_study(
+        invalid_root,
+        variant="fallback-trigger-screen",
+        fallback=True,
+    )
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(fallback|Gaussian|validation)",
+    ):
+        seal_artifact_root(
+            invalid_root,
+            FROZEN_UPSTREAM_KINDS,
+            invalid_root / "p0-core-receipt.json",
             study_id="study-1",
             frozen_created_at=FROZEN,
             provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},

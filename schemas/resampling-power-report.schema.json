@@ -281,6 +281,31 @@
             },
             "additionalProperties": false
         },
+        "approximation_receipt": {
+            "type": "object",
+            "required": [
+                "max_absolute_gate_pass_rate_difference",
+                "gaussian_tier_decision",
+                "full_multiplier_tier_decision",
+                "tier_decision_unchanged",
+                "passed"
+            ],
+            "properties": {
+                "max_absolute_gate_pass_rate_difference": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "gaussian_tier_decision": {
+                    "enum": ["C120", "C160", "FEASIBILITY_NO_GO", "CONDITIONAL_ONLY"]
+                },
+                "full_multiplier_tier_decision": {
+                    "enum": ["C120", "C160", "FEASIBILITY_NO_GO", "CONDITIONAL_ONLY"]
+                },
+                "tier_decision_unchanged": { "type": "boolean" },
+                "passed": { "type": "boolean" }
+            },
+            "additionalProperties": false
+        },
         "gaussian_validation_payload": {
             "type": "object",
             "required": [
@@ -297,7 +322,8 @@
                 "numeric_contract",
                 "selected_cells",
                 "interval_receipts",
-                "validation_dataset_count"
+                "validation_dataset_count",
+                "approximation_receipt"
             ],
             "properties": {
                 "stage": { "const": "validation" },
@@ -331,6 +357,9 @@
                 "validation_dataset_count": {
                     "type": "integer",
                     "minimum": 1
+                },
+                "approximation_receipt": {
+                    "$ref": "#/$defs/approximation_receipt"
                 }
             },
             "additionalProperties": false
