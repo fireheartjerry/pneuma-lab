@@ -29,7 +29,9 @@ a separate measurement property that the ML evaluation literature does not repor
 
 The two are not independent. Reliability _bounds_ validity:
 
-$$ |\rho*{\text{score},\text{criterion}}| \;\le\; \sqrt{\rho*{xx}} $$
+$$
+|ho_{	ext{score},	ext{criterion}}| \;\le\; \sqrt{ho_{xx}}
+$$
 
 so a channel with reliability $0.05$ can never exceed $|\rho| = 0.22$ against any
 criterion, at any sample size, forever. If you have not measured $\rho_{xx}$ you do
@@ -90,7 +92,9 @@ measurement theory; it is the application of a settled one.
 For item $i$ (random), condition $o$ (random — a wording x scale combination),
 replicate $r$:
 
-$$ y*{ior} = \mu + \alpha_i + \beta_o + (\alpha\beta)*{io} + \varepsilon\_{ior} $$
+$$
+y_{ior} = \mu + lpha_i + eta_o + (lphaeta)_{io} + arepsilon_{ior}
+$$
 
 - **Repeatability** $\sigma_\varepsilon^2$ — ask the same question again.
 - **Reproducibility** $\sigma_O^2 + \sigma_{IO}^2$ — ask it differently.
@@ -189,3 +193,9 @@ If the answer is that reliability was never estimated, that is the same situatio
 as a chemistry paper reporting concentrations from an unvalidated assay. The fix is
 cheap. The cost of not asking is a literature of significant differences measured
 in undefined units.
+
+---
+
+Current implementation and blocker state for this subsystem is tracked in
+[docs/project-status.json](project-status.json) under the `pneuma_gauge_msa`
+system id.

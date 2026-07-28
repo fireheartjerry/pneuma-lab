@@ -135,7 +135,9 @@ def test_shannon_entropy_of_uniform_three():
 
 Model, for item $i \in 1..I$ (random), condition $o \in 1..O$ (random), replicate $r \in 1..R$:
 
-$$ y*{ior} = \mu + \alpha_i + \beta_o + (\alpha\beta)*{io} + \varepsilon\_{ior} $$
+$$
+y_{ior} = \mu + lpha_i + eta_o + (lphaeta)_{io} + arepsilon_{ior}
+$$
 
 Mean squares (balanced design):
 
@@ -224,7 +226,8 @@ Two statistics that stay defined when $\sigma_I \to 0$ (where `ndc` degenerates)
 order the same item pair the same way, ties counted as 0.5:
 
 $$
-D = \operatorname*{mean}_{i \neq j}\; \Pr\!\big[\operatorname{sign}(y^{(a)}_i - y^{(a)}_j)
+D = \operatorname{mean}_{i 
+eq j}\; \Pr\!ig[\operatorname{sign}(y^{(a)}_i - y^{(a)}_j)
    = \operatorname{sign}(y^{(b)}_i - y^{(b)}_j)\big]
 $$
 
@@ -341,7 +344,9 @@ def test_self_consistency_asymptote_below_floor_when_item_variance_is_zero():
 
 **Placebo-dominance ratio** — the headline number:
 
-$$ \Pi = \frac{\hat\sigma^2*{\text{sham}}}{\hat\sigma^2*{\text{item}}} $$
+$$
+\Pi = rac{\hat\sigma^2_{	ext{sham}}}{\hat\sigma^2_{	ext{item}}}
+$$
 
 where $\hat\sigma^2_{\text{sham}}$ is the variance the channel shows in response to a
 _known-inert_ prompt manipulation (a token-length-matched irrelevant context block) and

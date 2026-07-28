@@ -306,3 +306,10 @@ We commit to publishing, prominently, any of:
 - Reproduction: `python -m pneuma_lab.gauge run --config configs/g1.json`.
 - Results: `docs/research/experiments/g1-gauge-results.md`, written after the run,
   containing every pre-registered number including those that refute us.
+
+---
+
+Repo-level implementation and blocker state is tracked in
+[docs/project-status.json](../../project-status.json); this study is registered
+under the `pneuma_gauge_msa` system id. Nothing in this pre-registration alters
+the training-authorization or evidence-ladder state recorded there.

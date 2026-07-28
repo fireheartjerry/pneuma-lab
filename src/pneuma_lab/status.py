@@ -69,6 +69,7 @@ _CURRENT_SYSTEM_STATE = {
     "pneuma_local_foundation_tooling": ("implemented", "offline_research"),
     "pneuma_local_memory_store": ("implemented", "offline_research"),
     "pneuma_local_action_guard": ("implemented", "standalone"),
+    "pneuma_gauge_msa": ("implemented", "offline_research"),
 }
 
 _CURRENT_NEGATIVE_RESULTS = {

@@ -36,7 +36,10 @@
         },
         "real_subject_level4": {
             "status": "not_implemented",
-            "blockers": ["B-EVID-REAL-SUBJECT", "B-EVID-LONGITUDINAL"]
+            "blockers": [
+                "B-EVID-REAL-SUBJECT",
+                "B-EVID-LONGITUDINAL"
+            ]
         },
         "level5": {
             "status": "blocked",
@@ -52,7 +55,9 @@
             "status": "boundary_only",
             "roadmap_milestone": false,
             "evidence_exists": false,
-            "evidence_refs": ["docs/research/03-level6-boundary.md"],
+            "evidence_refs": [
+                "docs/research/03-level6-boundary.md"
+            ],
             "blockers": []
         },
         "negative_results": [
@@ -285,6 +290,25 @@
                 "tests/test_foundation_action_policy.py"
             ],
             "blockers": []
+        },
+        {
+            "id": "pneuma_gauge_msa",
+            "status": "implemented",
+            "scope": "offline_research",
+            "evidence_refs": [
+                "src/pneuma_lab/gauge/__main__.py",
+                "src/pneuma_lab/gauge/anova.py",
+                "src/pneuma_lab/gauge/resolution.py",
+                "src/pneuma_lab/gauge/remedies.py",
+                "src/pneuma_lab/gauge/placebo.py",
+                "schemas/gauge-card.schema.json",
+                "docs/gauge-card-standard.md",
+                "docs/research/experiments/g1-gauge-preregistration.md",
+                "tests/test_gauge_core.py",
+                "tests/test_gauge_remedies.py",
+                "tests/test_gauge_card.py"
+            ],
+            "blockers": []
         }
     ],
     "nine_to_five": {
@@ -302,38 +326,52 @@
             {
                 "id": "nine_to_five_snapshot_to_pneuma_trace",
                 "status": "specified",
-                "evidence_refs": ["docs/research/05-rsi-loop.md"],
-                "blockers": ["B-9TO5-EXPORTER"]
+                "evidence_refs": [
+                    "docs/research/05-rsi-loop.md"
+                ],
+                "blockers": [
+                    "B-9TO5-EXPORTER"
+                ]
             },
             {
                 "id": "pneuma_trace_to_replay",
                 "status": "implemented",
-                "evidence_refs": ["src/pneuma_lab/replay/bridge.py"],
+                "evidence_refs": [
+                    "src/pneuma_lab/replay/bridge.py"
+                ],
                 "blockers": []
             },
             {
                 "id": "replay_outputs_to_shadow_log",
                 "status": "not_implemented",
                 "evidence_refs": [],
-                "blockers": ["B-9TO5-SHADOW"]
+                "blockers": [
+                    "B-9TO5-SHADOW"
+                ]
             },
             {
                 "id": "shadow_log_to_advisory_pressure",
                 "status": "not_implemented",
                 "evidence_refs": [],
-                "blockers": ["B-9TO5-SHADOW"]
+                "blockers": [
+                    "B-9TO5-SHADOW"
+                ]
             },
             {
                 "id": "advisory_pressure_to_authority_gated_action",
                 "status": "not_implemented",
                 "evidence_refs": [],
-                "blockers": ["B-9TO5-ACTUATION"]
+                "blockers": [
+                    "B-9TO5-ACTUATION"
+                ]
             },
             {
                 "id": "realized_outcome_to_pneuma_feedback",
                 "status": "not_implemented",
                 "evidence_refs": [],
-                "blockers": ["B-9TO5-FEEDBACK"]
+                "blockers": [
+                    "B-9TO5-FEEDBACK"
+                ]
             }
         ]
     },
@@ -353,17 +391,25 @@
         "black_gray_box_workspace_probes": {
             "status": "not_implemented",
             "evidence_refs": [],
-            "blockers": ["B-JSPACE-DESIGN", "B-JSPACE-PROBE-CONTRACT"]
+            "blockers": [
+                "B-JSPACE-DESIGN",
+                "B-JSPACE-PROBE-CONTRACT"
+            ]
         },
         "white_box_jlens": {
             "status": "not_implemented",
             "evidence_refs": [],
-            "blockers": ["B-JSPACE-DESIGN", "B-JSPACE-MODEL-ACCESS"]
+            "blockers": [
+                "B-JSPACE-DESIGN",
+                "B-JSPACE-MODEL-ACCESS"
+            ]
         },
         "causal_negative_controls": {
             "status": "not_implemented",
             "evidence_refs": [],
-            "blockers": ["B-JSPACE-PROBE-CONTRACT"]
+            "blockers": [
+                "B-JSPACE-PROBE-CONTRACT"
+            ]
         }
     },
     "training_and_rsi": {
@@ -462,7 +508,9 @@
         "docs/research/00-program-overview.md",
         "docs/research/10-anti-fake-progress.md",
         "docs/research/jspace-readiness.md",
-        "docs/vision.md"
+        "docs/vision.md",
+        "docs/gauge-card-standard.md",
+        "docs/research/experiments/g1-gauge-preregistration.md"
     ],
     "historical_snapshots": [
         "docs/research/01-ambition-to-evidence-audit.md",
