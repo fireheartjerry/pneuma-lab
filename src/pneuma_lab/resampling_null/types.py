@@ -25,6 +25,14 @@ class Treatment(str, Enum):
     NO_PACKET = "NO_PACKET"
 
 
+class GroupKind(str, Enum):
+    """Registered sensitivity-label dimensions."""
+
+    LANGUAGE = "language"
+    DOMAIN = "domain"
+    ISSUE_FAMILY = "issue_family"
+
+
 class Verdict(str, Enum):
     """Closed interpretation vocabulary for a completed comparison."""
 
@@ -62,15 +70,36 @@ def _require_seed(value: object, name: str) -> None:
 
 
 @dataclass(frozen=True, slots=True)
+class GroupLabel:
+    kind: GroupKind
+    value: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.kind, GroupKind):
+            raise TypeError("kind must be GroupKind")
+        _require_nonempty_string(self.value, "value")
+
+
+@dataclass(frozen=True, slots=True)
 class TaskSpec:
     task_id: str
     benchmark: str
     stratum: str
     lineage: str
+    sensitivity_groups: tuple[GroupLabel, ...]
 
     def __post_init__(self) -> None:
         for name in ("task_id", "benchmark", "stratum", "lineage"):
             _require_nonempty_string(getattr(self, name), name)
+        if not isinstance(self.sensitivity_groups, tuple):
+            raise TypeError("sensitivity_groups must be a tuple")
+        if not self.sensitivity_groups:
+            raise ValueError("sensitivity_groups must not be empty")
+        if not all(isinstance(group, GroupLabel) for group in self.sensitivity_groups):
+            raise TypeError("sensitivity_groups must contain GroupLabel records")
+        kinds = [group.kind for group in self.sensitivity_groups]
+        if len(kinds) != len(set(kinds)):
+            raise ValueError("sensitivity_groups must not repeat a GroupKind")
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,7 +249,7 @@ class TaskAssignment:
     donor_lineage: str
     slot_arms: tuple[tuple[str, Arm], ...]
     schedule_sha256: str
-    verifier_index_sha256: str
+    prefix_index_sha256: str
 
     def __post_init__(self) -> None:
         for name in ("task_id", "task_lineage", "donor_task_id", "donor_lineage"):
@@ -249,4 +278,4 @@ class TaskAssignment:
         if set(arms) != set(Arm) or len(arms) != len(set(arms)):
             raise ValueError("slot_arms must assign every Arm exactly once")
         _require_sha256(self.schedule_sha256, "schedule_sha256")
-        _require_sha256(self.verifier_index_sha256, "verifier_index_sha256")
+        _require_sha256(self.prefix_index_sha256, "prefix_index_sha256")

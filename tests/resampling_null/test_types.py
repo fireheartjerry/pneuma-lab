@@ -14,6 +14,8 @@ from pneuma_lab.resampling_null import (
     BranchSlot,
     BranchSlotSet,
     FrozenVerifierReceipt,
+    GroupKind,
+    GroupLabel,
     ResourceCounters,
     TaskAssignment,
     TaskSchedule,
@@ -24,7 +26,13 @@ from pneuma_lab.resampling_null import (
 
 
 def task() -> TaskSpec:
-    return TaskSpec("task-1", "benchmark-a", "stratum-a", "lineage-a")
+    return TaskSpec(
+        "task-1",
+        "benchmark-a",
+        "stratum-a",
+        "lineage-a",
+        (GroupLabel(GroupKind.LANGUAGE, "python"),),
+    )
 
 
 def slot(slot_id: str = "slot-1", seed: int = 1, execution_order: int = 0) -> BranchSlot:
@@ -64,6 +72,22 @@ def test_treatment_order_is_pre_orientation_canonical() -> None:
     assert list(Treatment) == [Treatment.REAL, Treatment.SHAM, Treatment.NO_PACKET]
 
 
+def test_group_kind_order_and_values_are_canonical() -> None:
+    assert list(GroupKind) == [GroupKind.LANGUAGE, GroupKind.DOMAIN, GroupKind.ISSUE_FAMILY]
+    assert [kind.value for kind in GroupKind] == ["language", "domain", "issue_family"]
+
+
+def test_group_label_is_frozen_slotted_and_requires_a_nonempty_value() -> None:
+    label = GroupLabel(GroupKind.LANGUAGE, "python")
+    with pytest.raises(FrozenInstanceError):
+        label.value = "rust"
+    assert not hasattr(label, "__dict__")
+    with pytest.raises(ValueError):
+        GroupLabel(GroupKind.LANGUAGE, "")
+    with pytest.raises(TypeError):
+        GroupLabel("language", "python")  # type: ignore[arg-type]
+
+
 def test_verdict_values_are_closed_and_apparatus_only_is_absent() -> None:
     assert [member.value for member in Verdict] == [
         "CAUSAL_CONTENT",
@@ -87,10 +111,35 @@ def test_records_are_frozen_and_slotted(factory: object) -> None:
 
 @pytest.mark.parametrize("field", ["task_id", "benchmark", "stratum", "lineage"])
 def test_task_spec_rejects_empty_identifiers(field: str) -> None:
-    values = {"task_id": "task", "benchmark": "bench", "stratum": "stratum", "lineage": "lineage"}
+    values = {
+        "task_id": "task",
+        "benchmark": "bench",
+        "stratum": "stratum",
+        "lineage": "lineage",
+        "sensitivity_groups": (GroupLabel(GroupKind.LANGUAGE, "python"),),
+    }
     values[field] = ""
     with pytest.raises(ValueError):
         TaskSpec(**values)
+
+
+def test_task_spec_requires_immutable_nonempty_distinct_sensitivity_groups() -> None:
+    groups = (GroupLabel(GroupKind.LANGUAGE, "python"), GroupLabel(GroupKind.DOMAIN, "security"))
+    assert TaskSpec("task", "bench", "stratum", "lineage", groups).sensitivity_groups == groups
+    with pytest.raises(ValueError):
+        TaskSpec("task", "bench", "stratum", "lineage", ())
+    with pytest.raises(TypeError):
+        TaskSpec("task", "bench", "stratum", "lineage", list(groups))  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        TaskSpec(
+            "task",
+            "bench",
+            "stratum",
+            "lineage",
+            (GroupLabel(GroupKind.LANGUAGE, "python"), GroupLabel(GroupKind.LANGUAGE, "rust")),
+        )
+    with pytest.raises(TypeError):
+        TaskSpec("task", "bench", "stratum", "lineage", ("language",))  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("seed", [-1, 2**64, True, 1.0])
@@ -232,7 +281,7 @@ def assignment(**overrides: object) -> TaskAssignment:
         "donor_lineage": "lineage-2",
         "slot_arms": tuple((f"slot-{index}", arm) for index, arm in enumerate(Arm)),
         "schedule_sha256": "e" * 64,
-        "verifier_index_sha256": "f" * 64,
+        "prefix_index_sha256": "f" * 64,
     }
     values.update(overrides)
     return TaskAssignment(**values)  # type: ignore[arg-type]
@@ -247,6 +296,10 @@ def test_task_assignment_maps_every_arm_once_across_four_unique_slots() -> None:
         assignment(slot_arms=(("slot-0", Arm.REAL), ("slot-1", Arm.SHAM), ("slot-2", Arm.NONE), ("slot-3", Arm.NONE)))
 
 
+def test_task_assignment_uses_the_prefix_index_ancestry_digest_name() -> None:
+    assert tuple(field.name for field in fields(TaskAssignment))[-1] == "prefix_index_sha256"
+
+
 def test_task_assignment_rejects_a_mutable_outer_list() -> None:
     with pytest.raises(TypeError):
         assignment(slot_arms=[("slot-0", Arm.REAL), ("slot-1", Arm.SHAM), ("slot-2", Arm.NONE), ("slot-3", Arm.RESAMPLE)])  # type: ignore[arg-type]
@@ -258,7 +311,7 @@ def test_task_assignment_rejects_a_mutable_outer_list() -> None:
         {"donor_task_id": "task-1"},
         {"donor_lineage": "lineage-1"},
         {"schedule_sha256": "E" * 64},
-        {"verifier_index_sha256": "f" * 63},
+        {"prefix_index_sha256": "f" * 63},
     ],
 )
 def test_task_assignment_rejects_shared_ancestry_or_invalid_digests(overrides: dict[str, object]) -> None:
