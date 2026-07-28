@@ -65,9 +65,21 @@ class RemedyResult:
         }
 
 
-def _verdict(value: float, floor: float) -> str:
+def _verdict(value: float, floor: float, ci: Interval | None = None) -> str:
+    """Decide by the interval, not the point estimate.
+
+    A remedy whose CI straddles the usability floor has not been shown to work and
+    has not been shown to fail; calling that FAILS would overstate the evidence in
+    exactly the direction this study is motivated to overstate it.
+    """
     if value is None or not math.isfinite(value):
         return "FAILS"
+    if ci is not None and math.isfinite(ci.low) and math.isfinite(ci.high):
+        if ci.low >= floor:
+            return "HELPS"
+        if ci.high < floor:
+            return "FAILS"
+        return "INDETERMINATE"
     return "HELPS" if value >= floor else "FAILS"
 
 
@@ -138,7 +150,7 @@ def secondModel(
         ci=ci,
         baseline=baseline,
         floor=floor,
-        verdict=_verdict(ci.point, floor),
+        verdict=_verdict(ci.point, floor, ci),
         note=(
             f"judge={judge}; cross-model ICC(1,1)={cross:.4f}. A second rater adds its own "
             "reproducibility variance; it cannot subtract the first rater's."
@@ -211,7 +223,7 @@ def thresholding(
         ci=ci,
         baseline=best_kappa,
         floor=floor,
-        verdict=_verdict(ci.point, floor),
+        verdict=_verdict(ci.point, floor, ci),
         note=(
             f"best of {len(cuts)} candidate cuts (cut={best_cut:.4f}, chosen post hoc in the "
             f"remedy's favour); label flip rate between measurement passes = {flip_rate:.3f}"
@@ -364,7 +376,7 @@ def calibration(
         ci=ci,
         baseline=before["d"],
         floor=floor,
-        verdict=_verdict(ci.point, floor),
+        verdict=_verdict(ci.point, floor, ci),
         note=(
             f"T2: Platt is strictly increasing, so D and AUROC are invariant by construction "
             f"(observed change {abs(after['platt']['d'] - before['d']):.2e}). ECE fell by "
@@ -423,7 +435,7 @@ def wordingAveraging(
         if n_reps >= 2
         else float("nan"),
         floor=floor,
-        verdict=_verdict(ci.point, floor),
+        verdict=_verdict(ci.point, floor, ci),
         note=(
             f"asymptote as wordings -> infinity = {curve['asymptote']:.4f}; "
             + (
@@ -501,7 +513,7 @@ def selfConsistency(
         ci=ci,
         baseline=curve_empirical[0]["reliability"] if curve_empirical else float("nan"),
         floor=floor,
-        verdict=_verdict(ci.point, floor),
+        verdict=_verdict(ci.point, floor, ci),
         note=(
             f"rho_inf={asymptote:.4f} (condition-locked variance never averages out); "
             + (

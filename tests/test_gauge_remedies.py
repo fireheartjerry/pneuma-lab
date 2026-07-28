@@ -147,14 +147,14 @@ def test_self_consistency_helps_on_a_gauge_that_is_merely_noisy():
 
 def test_wording_averaging_reports_its_asymptote_and_required_k():
     result = wordingAveraging(_cube(), draws=120)
-    assert result.verdict == "FAILS"
+    assert result.verdict in {"FAILS", "INDETERMINATE"}
     assert "asymptote" in result.note
     assert result.ci.low <= result.value <= result.ci.high
 
 
 def test_thresholding_reports_the_best_cut_and_the_flip_rate():
     result = thresholding(_cube(), draws=120)
-    assert result.verdict == "FAILS"
+    assert result.verdict in {"FAILS", "INDETERMINATE"}
     assert 0.0 <= result.detail["flip_rate"] <= 1.0
     assert result.detail["n_cuts"] >= 1
 
@@ -251,3 +251,15 @@ def test_mde_shrinks_below_the_placebo_effect_it_would_certify():
 def test_placebo_requires_both_arms():
     with pytest.raises(ValueError):
         placeboReport(_cube(), draws=50)
+
+
+def test_verdict_is_decided_by_the_interval_not_the_point():
+    """A CI straddling the floor is INDETERMINATE, not a FAIL in our favour."""
+    from pneuma_lab.gauge.remedies import _verdict
+    from pneuma_lab.gauge.stats import Interval
+
+    assert _verdict(0.75, 0.70, Interval(0.75, 0.72, 0.80)) == "HELPS"
+    assert _verdict(0.40, 0.70, Interval(0.40, 0.30, 0.55)) == "FAILS"
+    assert _verdict(0.697, 0.70, Interval(0.697, 0.591, 0.778)) == "INDETERMINATE"
+    assert _verdict(0.72, 0.70, Interval(0.72, 0.60, 0.85)) == "INDETERMINATE"
+    assert _verdict(float("nan"), 0.70, None) == "FAILS"

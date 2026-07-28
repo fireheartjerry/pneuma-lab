@@ -282,6 +282,7 @@
                         "enum": [
                             "HELPS",
                             "FAILS",
+                            "INDETERMINATE",
                             "SKIPPED"
                         ]
                     },
