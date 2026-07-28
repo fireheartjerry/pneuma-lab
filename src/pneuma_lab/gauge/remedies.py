@@ -26,7 +26,13 @@ from dataclasses import dataclass
 
 from .anova import varianceComponents
 from .cube import ResponseCube
-from .resolution import USABLE_D, discriminationIndex, onewayIcc, resolvingPower
+from .resolution import (
+    USABLE_D,
+    discriminationIndex,
+    onewayIcc,
+    resolvingPower,
+    selectionStability,
+)
 from .stats import Interval, auroc, bootstrapCi, cohenKappa, expectedCalibrationError
 from .theory import USABILITY_FLOOR, aggregationAsymptote, aggregationCurve, requiredK
 
@@ -426,7 +432,12 @@ def wordingAveraging(
                 else f"unreachable at any number of wordings (item variance = {vc.var_item:.2e})"
             )
         ),
-        detail={"curve": curve, "required_k": k_needed, "n_wordings": vc.n_conditions},
+        detail={
+            "curve": curve,
+            "required_k": k_needed,
+            "n_wordings": vc.n_conditions,
+            "selection_stability": _remediedSelection(averaged),
+        },
     )
 
 
@@ -504,6 +515,7 @@ def selfConsistency(
             "theoretical_curve": theory,
             "asymptote": asymptote,
             "required_k": k_needed,
+            "selection_stability": _remediedSelection(top),
         },
     )
 
@@ -542,6 +554,19 @@ def runRemedies(
     results.append(wordingAveraging(cube, draws=draws, seed=seed))
     results.append(selfConsistency(cube, draws=draws, seed=seed))
     return results
+
+
+def _remediedSelection(per_item: Mapping[str, Sequence[float]], *, q: float = 0.2) -> dict:
+    """Selection stability of a remedied score.
+
+    A remedy that lifts ICC above the floor has fixed the statistic papers report.
+    Whether it fixed the *decision* — which items a pipeline sends for verification
+    — is a separate question, and this is the answer to it.
+    """
+    cells = {(item, ("remedied",)): list(values) for item, values in per_item.items()}
+    if len(cells) < 2:
+        return {"jaccard": float("nan"), "q": q}
+    return selectionStability(cells, q=q)
 
 
 def _skipped(name: str, why: str) -> RemedyResult:
