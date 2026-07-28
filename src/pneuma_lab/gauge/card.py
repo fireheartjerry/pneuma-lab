@@ -192,6 +192,7 @@ def buildCard(
             "d_ci": d_ci.asDict(),
             "resolving_power": resolution.resolving_power,
             "s_eff": resolution.s_eff,
+            "selection_stability": resolution.selection_stability,
         },
         "ceilings": ceiling.asDict(),
         "remedies": [r.asDict() for r in remedies],
@@ -290,6 +291,7 @@ def renderCard(card: dict) -> str:
         f"| discrimination index D | {_fmt(res['d'])} | {_ci(res.get('d_ci'))} |",
         f"| resolving power | {_fmt(res['resolving_power'])} | — |",
         f"| effective support | {_fmt(res['s_eff'])} levels | — |",
+        _selectionRow(res),
         "",
         "## Ceilings implied by this reliability",
         "",
@@ -333,6 +335,17 @@ def renderCard(card: dict) -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+def _selectionRow(res: dict) -> str:
+    """Triage-queue reproducibility: what a pipeline that ranks and verifies actually gets."""
+    sel = res.get("selection_stability")
+    if not sel or sel.get("jaccard") is None:
+        return "| selection stability | n/a | — |"
+    return (
+        f"| selection stability (bottom {sel['q']:.0%}) | {_fmt(sel['jaccard'])} "
+        f"| random floor {_fmt(sel['random_floor'])} |"
+    )
 
 
 def _fmt(value) -> str:

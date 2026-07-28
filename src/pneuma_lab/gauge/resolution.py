@@ -22,6 +22,7 @@ often the whole story on its own.
 from __future__ import annotations
 
 import math
+import random
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -55,6 +56,7 @@ class GaugeResolution:
     s_eff: float
     verdict: str
     components: VarianceComponents
+    selection_stability: dict | None = None
 
     def asDict(self) -> dict:
         return {
@@ -65,6 +67,7 @@ class GaugeResolution:
             "resolving_power": self.resolving_power,
             "s_eff": self.s_eff,
             "verdict": self.verdict,
+            "selection_stability": self.selection_stability,
         }
 
 
@@ -156,6 +159,73 @@ def effectiveSupport(values: Sequence[float], *, quantum: float = 1e-9) -> float
     return math.exp(shannonEntropy(list(counts.values())))
 
 
+def selectionStability(
+    matrix: Mapping[tuple, Sequence[float]] | BalancedMatrix,
+    *,
+    q: float = 0.2,
+    draws: int = 32,
+    seed: int = 20260728,
+) -> dict:
+    """How reproducible is the *triage queue* a pipeline builds from this channel?
+
+    A verification pipeline does not consume the mean of a confidence channel; it
+    ranks items and verifies the least-confident fraction `q`. This measures the
+    expected Jaccard overlap between the bottom-`q` sets chosen by two independent
+    measurement passes.
+
+    Ties are broken by seeded jitter drawn independently per pass, because that is
+    what a real pipeline does when many items report the same number. Breaking ties
+    by a stable key instead would manufacture agreement out of the ties themselves
+    and inflate the statistic, which is precisely the failure mode being measured.
+
+    The random-selection floor for two independent q-subsets is q / (2 - q).
+    """
+    cells = matrix.cells if isinstance(matrix, BalancedMatrix) else dict(matrix)
+    items = sorted({k[0] for k in cells})
+    conditions = sorted({k[1] for k in cells}, key=str)
+    n_sel = max(1, int(math.ceil(q * len(items))))
+    if len(items) < 2:
+        return {
+            "q": q,
+            "jaccard": float("nan"),
+            "random_floor": q / (2.0 - q),
+            "n_selected": n_sel,
+        }
+
+    rng_a = random.Random(seed)
+    rng_b = random.Random(seed + 977)
+    overlaps: list[float] = []
+    for cond in conditions:
+        first: dict[str, float] = {}
+        second: dict[str, float] = {}
+        for item in items:
+            series = cells.get((item, cond))
+            if not series or len(series) < 2:
+                continue
+            a, b = series[0::2], series[1::2]
+            first[item] = math.fsum(a) / len(a)
+            second[item] = math.fsum(b) / len(b)
+        shared = sorted(set(first) & set(second))
+        if len(shared) < n_sel + 1:
+            continue
+        for _ in range(draws):
+            pick_a = set(
+                sorted(shared, key=lambda i: (first[i], rng_a.random()))[:n_sel]
+            )
+            pick_b = set(
+                sorted(shared, key=lambda i: (second[i], rng_b.random()))[:n_sel]
+            )
+            union = pick_a | pick_b
+            overlaps.append(len(pick_a & pick_b) / len(union) if union else 0.0)
+    return {
+        "q": q,
+        "jaccard": (math.fsum(overlaps) / len(overlaps)) if overlaps else float("nan"),
+        "random_floor": q / (2.0 - q),
+        "n_selected": n_sel,
+        "n_items": len(items),
+    }
+
+
 def onewayIcc(groups: Mapping[str, Sequence[float]]) -> float:
     """ICC(1,1) from a balanced one-way random-effects design (item -> k measurements).
 
@@ -220,6 +290,7 @@ def gaugeResolution(matrix: BalancedMatrix) -> GaugeResolution:
         s_eff=s_eff,
         verdict=gaugeVerdict(pct_grr=g, ndc_value=n, icc_value=i, d=d, s_eff=s_eff),
         components=vc,
+        selection_stability=selectionStability(matrix),
     )
 
 
@@ -249,4 +320,5 @@ __all__ = [
     "ndc",
     "pctGrr",
     "resolvingPower",
+    "selectionStability",
 ]

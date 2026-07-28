@@ -18,6 +18,7 @@ from pneuma_lab.gauge.resolution import (
     ndc,
     pctGrr,
     resolvingPower,
+    selectionStability,
 )
 from pneuma_lab.gauge.stats import (
     auroc,
@@ -255,6 +256,21 @@ def test_constant_channel_scores_exactly_one_half_and_is_degenerate():
 def test_resolving_power_never_exceeds_discrimination():
     m = _matrix(0.1, 0.05, 0.02, 0.15)
     assert resolvingPower(m) <= discriminationIndex(m) + 1e-12
+
+
+def test_selection_stability_brackets_a_good_gauge_and_pure_noise():
+    """A verification pipeline ranks and verifies the bottom q; is that queue reproducible?"""
+    good = selectionStability(_matrix(0.30, 0.01, 0.005, 0.02), q=0.2)
+    noise = selectionStability(_matrix(0.0, 0.05, 0.02, 0.20), q=0.2)
+    assert good["jaccard"] > 0.8
+    assert noise["jaccard"] == pytest.approx(noise["random_floor"], abs=0.05)
+    assert good["random_floor"] == pytest.approx(0.2 / 1.8)
+    assert good["n_selected"] == 10
+
+
+def test_selection_stability_is_deterministic():
+    m = _matrix(0.1, 0.05, 0.02, 0.15)
+    assert selectionStability(m, q=0.25) == selectionStability(m, q=0.25)
 
 
 def test_effective_support_counts_levels_not_range():
