@@ -486,14 +486,15 @@ model writes the solution and is asked about it **in the same conversation**, so
 a genuine self-report rather than role-play; in `foreign` it rates bank code it has never
 seen, which is exactly an LLM-as-judge setup.
 
-| arm                      | items |   ndc |   ICC |       $D$ | %GRR | $S_{eff}$ |  mean | verdict         |
-| ------------------------ | ----: | ----: | ----: | --------: | ---: | --------: | ----: | --------------- |
-| self-authored (own code) |    24 | **0** | 0.069 | **0.562** | 96.5 |      2.71 | 0.961 | UNINTERPRETABLE |
-| foreign, matched         |    23 | **0** | 0.139 | **0.566** | 92.8 |      3.05 | 0.970 | UNINTERPRETABLE |
+| arm | items | ndc | ICC | $D$ (95% CI) | %GRR | $S_{eff}$ | mean | verdict |
+| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- |
+| self-authored (own code) | 24 | **0** | 0.069 | **0.562** [0.538, 0.582] | 96.5 | 2.71 | 0.961 | UNINTERPRETABLE |
+| foreign (never wrote it) | 24 | **0** | 0.137 | **0.567** [0.532, 0.597] | 92.9 | 3.07 | 0.970 | UNINTERPRETABLE |
 
-The two arms are indistinguishable: $D$ differs by **0.003**, both resolve `ndc = 0`
-categories, both are >90% gauge variance. There is also **no self-enhancement** — the model
-is if anything marginally _less_ confident about its own code ($-0.009$).
+The two arms are indistinguishable: $D$ differs by **0.004** with heavily overlapping
+intervals, both resolve `ndc = 0` categories, both exceed 92% gauge variance, and both sit a
+few hundredths above the 0.5 coin-flip floor. There is also **no self-enhancement** — the
+model is if anything marginally _less_ confident about its own code ($-0.010$).
 
 **G1-H2 is confirmed.** The collapse is not a fact about self-knowledge; it is a fact about
 elicitation as a measurement modality. That is what carries the result out of the
