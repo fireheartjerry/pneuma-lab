@@ -170,9 +170,31 @@ This is a strong positive control for the whole apparatus, and it relocates the 
 failure is metrological, not credulity. The same stage's base arm scores `ndc = 1`,
 ICC 0.549, D 0.690, `UNINTERPRETABLE`.
 
-## 7. Provenance — is this about introspection? (G1-H2)
+## 7. Provenance — the failure is not about introspection (G1-H2, CONFIRMED)
 
-_Pending._
+In `self_authored` the model writes the solution and is asked about it **in the same
+conversation**, so the report is a genuine self-report rather than role-play. In `foreign` it
+rates bank code it has never seen — which is exactly an LLM-as-judge setup.
+
+| arm | items | ndc | ICC | D (95% CI) | %GRR | S_eff | mean | verdict |
+| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- |
+| self-authored (own code) | 24 | **0** | 0.069 | **0.5624** [0.5383, 0.5818] | 96.5 | 2.71 | 0.961 | UNINTERPRETABLE |
+| foreign (never wrote it) | 24 | **0** | 0.137 | **0.5668** [0.5322, 0.5971] | 92.9 | 3.07 | 0.970 | UNINTERPRETABLE |
+
+Indistinguishable: D differs by 0.004 with heavily overlapping intervals, both resolve
+`ndc = 0`, both exceed 92% gauge variance, both sit a few hundredths above the 0.5 coin-flip
+floor. **No self-enhancement** — the model is marginally *less* confident about its own code
+(-0.010).
+
+**G1-H2 is confirmed.** The collapse is not about self-knowledge; it is about elicitation as a
+measurement modality, and it therefore transfers to every LLM-as-judge score and elicited eval
+rating, independent of any introspection question.
+
+Both arms are range-restricted by construction (foreign = correct-variant items only;
+self-authored = the model's own solutions), which inflates %GRR in both. The restriction is
+symmetric so the comparison is fair, but the absolute numbers should be read against section 3
+rather than on their own. The within-class result reappears here independently: restricted to
+a single correctness class, the channel resolves nothing at all.
 
 ## 8. Model families, sizes, and arithmetic precision (G1-H3)
 
