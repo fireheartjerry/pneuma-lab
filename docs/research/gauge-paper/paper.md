@@ -38,9 +38,9 @@ that, rephrasing the question moves the reading **54% as far as introducing a re
 
 We prove that post-hoc calibration cannot help: every standard calibrator is weakly
 increasing, so it leaves rank-based resolution and AUROC exactly invariant. Empirically Platt
-scaling cut ECE by 0.30 while changing discrimination by 0.00e+00. We evaluate five standard
-remedies with error bars; two work at a measurable price, one is provably powerless, one is
-indeterminate, one adds variance. We ship the analysis as a one-command, dependency-free tool
+scaling cut ECE by 0.3106 while changing discrimination by 0.00e+00. We evaluate five
+standard remedies with error bars: one works at a measurable price (3 wordings), one is
+provably powerless, two are indeterminate. We ship the analysis as a one-command, dependency-free tool
 and a schema-validated **gauge card**, and argue that MSA should be a precondition for
 publishing an elicited LLM metric.
 
@@ -543,24 +543,54 @@ channel resolves nothing at all.
 
 ### 6.11 The five remedies
 
-| remedy            | statistic                           |     value | verdict                |
-| ----------------- | ----------------------------------- | --------: | ---------------------- |
-| second model      | $D$ of the judge model              | ⟦PENDING⟧ | ⟦PENDING⟧              |
-| thresholding      | split-half $\kappa$ at the best cut | ⟦PENDING⟧ | ⟦PENDING⟧              |
-| calibration       | $D$ after Platt / isotonic          |         — | **FAILS (proved, T2)** |
-| wording-averaging | ICC of the averaged score           | ⟦PENDING⟧ | ⟦PENDING⟧              |
-| self-consistency  | ICC of the $k$-sample mean          | ⟦PENDING⟧ | ⟦PENDING⟧              |
+Every remedy is a re-analysis of the already-collected cube, so falsifying them cost zero
+additional model calls. Verdicts are decided by the **interval**, not the point estimate: a CI
+straddling the floor is `INDETERMINATE`, because a remedy not shown to work has also not been
+shown to fail.
 
-The calibration row is settled analytically and confirmed numerically on real elicitations:
-Platt scaling changed $D$ by **0.00e+00** while cutting ECE by **0.3013**. That gap is the
-illusion the standard is designed to expose — the improvement is entirely in the statistic
-papers report and entirely absent from the instrument's resolution.
+| remedy | statistic | value | 95% CI | floor | verdict |
+| --- | --- | ---: | --- | ---: | --- |
+| second model | $D$ of the judge model | §6.10 | | 0.80 | §6.10 |
+| thresholding | split-half $\kappa$ at the best cut | 0.727 | [0.623, 0.821] | 0.70 | **INDETERMINATE** |
+| calibration | $D$ after Platt | 0.684 | [0.636, 0.715] | 0.80 | **FAILS (proved)** |
+| wording-averaging | ICC(1,1) of the averaged score | 0.900 | [0.761, 0.953] | 0.70 | **HELPS** |
+| self-consistency | ICC(1,1) of the 4-sample mean | 0.760 | [0.535, 0.863] | 0.70 | **INDETERMINATE** |
 
-Aggregation remedies work at a price. The tool reports it: reaching ICC 0.70 needs ~3
-replicates or ~3 distinct wordings; the fully wording-averaged score (24 calls per item) attains
-ICC **0.910** and $D$ **0.881**. But the decision does not improve proportionally — the q=0.2
-queue moves only from 0.568 to 0.667. **The remedies fix the statistic faster than they fix
-the decision.**
+**Calibration is settled analytically (T2); the run confirms the implementation, not the
+claim.** Platt scaling changed the discrimination index by **0.00e+00** — exactly zero, to
+machine precision — while cutting ECE by **0.3106**. That gap is the entire illusion: the
+number papers report improved substantially and the instrument's resolution did not move.
+
+**Thresholding is indeterminate and brittle.** The best of 36 candidate cuts, chosen post hoc
+in the remedy's own favour, gives $\kappa = 0.727$ with a CI straddling the floor, and the
+label flip rate between two measurement passes is **12.2%** — roughly one item in eight
+changes side of the threshold when you simply ask again.
+
+**Aggregation works, and the tool prices it.** Wording-averaging reaches ICC 0.900 and needs
+**3 distinct wordings**; self-consistency reaches 0.760 at $k=4$, needs 3 samples for a point
+estimate above the floor, and has an asymptote of **0.870** — condition-locked variance never
+averages out, so no number of samples at a fixed wording reaches ICC 0.90.
+
+**But the remedies fix the statistic faster than they fix the decision:**
+
+| $k$ | ICC | ndc | $D$ | %GRR | queue overlap (q=0.2) | verdict |
+| ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 0.539 | 1 | 0.694 | 67.9 | 0.448 | UNINTERPRETABLE |
+| 2 | 0.664 | 1 | 0.754 | 58.0 | 0.512 | UNINTERPRETABLE |
+| 3 | 0.701 | 2 | 0.798 | 54.7 | 0.536 | MARGINAL |
+
+ICC rises 30% and crosses the usability floor; queue reproducibility rises from 0.448 to
+0.536. Even the fully wording-averaged score (24 calls per item, ICC 0.900) reaches only 0.667.
+**Reliability is repairable; the ranking is much less so** — because the component that
+survives aggregation is the item-by-wording interaction, which reorders items rather than
+shifting them.
+
+### 6.12 Wide pooled analysis
+
+Crossing both reproducibility facets at once (2 wordings x 4 scales, 6 replicates):
+`ndc = 1`, ICC 0.480, $D$ 0.699, %GRR 72.1, effective support 9.96. Same verdict, with more
+gauge variance than either facet alone, exactly as the variance model predicts.
+
 
 ---
 
@@ -653,7 +683,7 @@ Reported in full, including against us.
 | G1-H2      | foreign not better than self-authored                          | $\Delta D = 0.003$, both `ndc = 0`  | **confirmed**           |
 | G1-H3      | no model cell reaches `USABLE`                                 | ⟦PENDING⟧                            | ⟦PENDING⟧               |
 | G1-H4      | neither temperature reaches `ndc >= 2`; $S_{eff} < 2$ at `T=0` | `ndc = 2` at `T=0`, $S_{eff} = 4.07$ | **falsified**           |
-| G1-H5      | all five remedies stay below the floor                         | wording-averaging reaches ICC 0.910  | **partially falsified** |
+| G1-H5      | all five remedies stay below the floor                         | wording-averaging reaches ICC 0.900  | **partially falsified** |
 | G1-H6      | $\Pi > 1$ with significant sham contrast                       | $\Pi = 0.000$, sham $p = 0.72$       | **falsified**           |
 
 Three registered hypotheses did not survive. The channel is better behaved than we

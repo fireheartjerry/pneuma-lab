@@ -223,9 +223,55 @@ a single correctness class, the channel resolves nothing at all.
 
 _Pending._
 
-## 9. The five remedies (G1-H5)
+## 9. The five remedies (G1-H5) — one works, one is provably dead, two are indeterminate
 
-_Pending final numbers; the analytic result for calibration is already fixed._
+Every remedy is a re-analysis of the already-collected cube, so falsifying them cost zero
+additional model calls. Verdicts are decided by the **interval**, not the point estimate.
+
+| remedy | statistic | value | 95% CI | floor | verdict |
+| --- | --- | ---: | --- | ---: | --- |
+| second model | D of the judge model | see section 8 | | 0.80 | see section 8 |
+| thresholding | split-half Cohen's kappa at the best cut | 0.727 | [0.623, 0.821] | 0.70 | **INDETERMINATE** |
+| calibration | D after Platt | 0.684 | [0.636, 0.715] | 0.80 | **FAILS (proved)** |
+| wording-averaging | ICC(1,1) of the averaged score | 0.900 | [0.761, 0.953] | 0.70 | **HELPS** |
+| self-consistency | ICC(1,1) of the 4-sample mean | 0.760 | [0.535, 0.863] | 0.70 | **INDETERMINATE** |
+
+**Calibration is dead analytically (T2) and the run confirms the implementation, not the
+claim.** Platt scaling is strictly increasing, so it changed the discrimination index by
+**0.00e+00** — exactly zero, to machine precision — while cutting ECE by **0.3106**. That gap
+is the entire illusion this standard exists to expose: the number papers report improved
+substantially and the instrument's resolution did not move at all.
+
+**Thresholding is indeterminate and expensive.** The best of 36 candidate cuts, chosen post
+hoc in the remedy's own favour, gives kappa 0.727 with a CI straddling the floor. The label
+flip rate between two measurement passes is **12.2%**: roughly one item in eight changes side
+of the threshold when you simply ask again.
+
+**Aggregation works, and the tool prices it.** Wording-averaging reaches ICC 0.900 and needs
+**3 distinct wordings**; self-consistency reaches 0.760 at k=4 with a CI straddling the floor
+and needs **3 samples** for a point estimate above it. The asymptote for self-consistency is
+**0.870** — condition-locked variance never averages out, so no number of samples at a fixed
+wording reaches ICC 0.90.
+
+**But the remedies fix the statistic faster than they fix the decision.** The cost curve:
+
+| k | ICC | ndc | D | %GRR | queue overlap (q=0.2) | verdict |
+| ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 0.539 | 1 | 0.694 | 67.9 | 0.448 | UNINTERPRETABLE |
+| 2 | 0.664 | 1 | 0.754 | 58.0 | 0.512 | UNINTERPRETABLE |
+| 3 | 0.701 | 2 | 0.798 | 54.7 | 0.536 | MARGINAL |
+
+ICC rises 30% from k=1 to k=3 and crosses the usability floor; the reproducibility of the
+verification queue rises from 0.448 to 0.536. Even the fully wording-averaged score (24 calls
+per item, ICC 0.900) only reaches a q=0.2 queue overlap of 0.667. **Reliability is repairable;
+the ranking is much less so**, because the component that survives aggregation is the
+item-by-wording interaction, which reorders items rather than shifting them.
+
+## 9b. Wide pooled analysis (wording x scale)
+
+Crossing both reproducibility facets at once (2 wordings x 4 scales, 6 replicates) gives
+`ndc = 1`, ICC 0.480, D 0.699, %GRR 72.1, effective support 9.96 — the same verdict, with more
+gauge variance than either facet alone, as the model predicts.
 
 ## 10. Deviations from pre-registration
 
