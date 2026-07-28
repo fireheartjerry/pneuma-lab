@@ -1,0 +1,130 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/resampling-artifact-root.schema.json",
+    "title": "Resampling-Null Artifact Root",
+    "description": "Sorted recursive scientific and referenced-blob closure for one study root.",
+    "type": "object",
+    "x-pneuma-schema-kind": "resampling-study",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "record_kind",
+        "schema_version",
+        "study_id",
+        "frozen_created_at",
+        "provenance",
+        "payload"
+    ],
+    "properties": {
+        "record_kind": { "const": "resampling_artifact_root" },
+        "schema_version": { "const": "0.1.0" },
+        "study_id": { "$ref": "#/$defs/nonempty" },
+        "frozen_created_at": { "$ref": "#/$defs/frozen_timestamp" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "payload": {
+            "type": "object",
+            "required": [
+                "code_sha256",
+                "design_sha256",
+                "entries",
+                "root_sha256",
+                "required_document_kinds"
+            ],
+            "properties": {
+                "code_sha256": { "$ref": "#/$defs/sha256" },
+                "design_sha256": { "$ref": "#/$defs/sha256" },
+                "entries": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/artifact_entry" }
+                },
+                "root_sha256": { "$ref": "#/$defs/sha256" },
+                "required_document_kinds": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/upstream_kind" }
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "nonempty": { "type": "string", "minLength": 1 },
+        "frozen_timestamp": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+        },
+        "provenance": {
+            "type": "object",
+            "required": ["design_sha256", "code_sha256"],
+            "properties": {
+                "design_sha256": { "$ref": "#/$defs/sha256" },
+                "code_sha256": { "$ref": "#/$defs/sha256" }
+            },
+            "additionalProperties": false
+        },
+        "upstream_kind": {
+            "enum": [
+                "resampling_study_manifest",
+                "resampling_prefix_schedule",
+                "resampling_prefix_receipt",
+                "resampling_assignment_ledger",
+                "resampling_packet_index",
+                "resampling_task_block",
+                "resampling_blinded_projection",
+                "resampling_analysis_freeze",
+                "resampling_analysis",
+                "resampling_power_report",
+                "resampling_unblind_receipt"
+            ]
+        },
+        "artifact_entry": {
+            "type": "object",
+            "required": [
+                "relative_path",
+                "sha256",
+                "byte_count",
+                "entry_kind",
+                "document_kind",
+                "role",
+                "media_type"
+            ],
+            "properties": {
+                "relative_path": {
+                    "type": "string",
+                    "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"
+                },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "byte_count": { "type": "integer", "minimum": 0 },
+                "entry_kind": {
+                    "enum": ["scientific_record", "referenced_blob"]
+                },
+                "document_kind": {
+                    "oneOf": [
+                        { "type": "null" },
+                        { "$ref": "#/$defs/upstream_kind" }
+                    ]
+                },
+                "role": { "$ref": "#/$defs/nonempty" },
+                "media_type": { "$ref": "#/$defs/nonempty" }
+            },
+            "additionalProperties": false
+        },
+        "artifact_ref": {
+            "type": "object",
+            "required": ["role", "relative_path", "sha256", "byte_count", "media_type"],
+            "properties": {
+                "role": { "$ref": "#/$defs/nonempty" },
+                "relative_path": {
+                    "type": "string",
+                    "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"
+                },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "byte_count": { "type": "integer", "minimum": 0 },
+                "media_type": { "$ref": "#/$defs/nonempty" }
+            },
+            "additionalProperties": false
+        }
+    }
+}

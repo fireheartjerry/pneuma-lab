@@ -1,0 +1,75 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/resampling-unblind-receipt.schema.json",
+    "title": "Resampling-Null Unblind Receipt",
+    "description": "Capability-authorized ancestry receipt for the first clear projection.",
+    "type": "object",
+    "x-pneuma-schema-kind": "resampling-study",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "record_kind",
+        "schema_version",
+        "study_id",
+        "frozen_created_at",
+        "provenance",
+        "payload"
+    ],
+    "properties": {
+        "record_kind": { "const": "resampling_unblind_receipt" },
+        "schema_version": { "const": "0.1.0" },
+        "study_id": { "$ref": "#/$defs/nonempty" },
+        "frozen_created_at": { "$ref": "#/$defs/frozen_timestamp" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "payload": {
+            "type": "object",
+            "required": [
+                "projection_ref",
+                "assignment_ledger_ref",
+                "analysis_freeze_ref",
+                "expected_task_count",
+                "permit_hmac_sha256"
+            ],
+            "properties": {
+                "projection_ref": { "$ref": "#/$defs/artifact_ref" },
+                "assignment_ledger_ref": { "$ref": "#/$defs/artifact_ref" },
+                "analysis_freeze_ref": { "$ref": "#/$defs/artifact_ref" },
+                "expected_task_count": { "type": "integer", "minimum": 0 },
+                "permit_hmac_sha256": { "$ref": "#/$defs/sha256" }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "nonempty": { "type": "string", "minLength": 1 },
+        "frozen_timestamp": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+        },
+        "provenance": {
+            "type": "object",
+            "required": ["design_sha256", "code_sha256"],
+            "properties": {
+                "design_sha256": { "$ref": "#/$defs/sha256" },
+                "code_sha256": { "$ref": "#/$defs/sha256" }
+            },
+            "additionalProperties": false
+        },
+        "artifact_ref": {
+            "type": "object",
+            "required": ["role", "relative_path", "sha256", "byte_count", "media_type"],
+            "properties": {
+                "role": { "$ref": "#/$defs/nonempty" },
+                "relative_path": {
+                    "type": "string",
+                    "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"
+                },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "byte_count": { "type": "integer", "minimum": 0 },
+                "media_type": { "$ref": "#/$defs/nonempty" }
+            },
+            "additionalProperties": false
+        }
+    }
+}

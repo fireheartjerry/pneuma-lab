@@ -78,6 +78,21 @@ FOUNDATION_SCHEMA_FILES = (
     "foundation-suite-report.schema.json",
 )
 
+RESAMPLING_SCHEMA_FILES = (
+    "resampling-study-manifest.schema.json",
+    "resampling-prefix-schedule.schema.json",
+    "resampling-prefix-receipt.schema.json",
+    "resampling-assignment-ledger.schema.json",
+    "resampling-packet-index.schema.json",
+    "resampling-task-block.schema.json",
+    "resampling-blinded-projection.schema.json",
+    "resampling-analysis-freeze.schema.json",
+    "resampling-analysis.schema.json",
+    "resampling-power-report.schema.json",
+    "resampling-unblind-receipt.schema.json",
+    "resampling-artifact-root.schema.json",
+)
+
 ALL_SCHEMA_FILES = (
     INPUT_SCHEMA_FILES
     + OUTPUT_SCHEMA_FILES
@@ -89,6 +104,7 @@ ALL_SCHEMA_FILES = (
     + MANIFEST_SCHEMA_FILES
     + FOUNDATION_SCHEMA_FILES
     + GAUGE_SCHEMA_FILES
+    + RESAMPLING_SCHEMA_FILES
 )
 
 
@@ -120,6 +136,7 @@ __all__ = [
     "MANIFEST_SCHEMA_FILES",
     "FOUNDATION_SCHEMA_FILES",
     "GAUGE_SCHEMA_FILES",
+    "RESAMPLING_SCHEMA_FILES",
     "ALL_SCHEMA_FILES",
     "schema_path",
     "load_schema",

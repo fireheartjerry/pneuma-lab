@@ -1,0 +1,432 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/resampling-task-block.schema.json",
+    "title": "Resampling-Null Task Block",
+    "description": "One opaque four-slot terminal task block with complete branch-attempt closure.",
+    "type": "object",
+    "x-pneuma-schema-kind": "resampling-study",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "record_kind",
+        "schema_version",
+        "study_id",
+        "frozen_created_at",
+        "provenance",
+        "payload"
+    ],
+    "properties": {
+        "record_kind": { "const": "resampling_task_block" },
+        "schema_version": { "const": "0.1.0" },
+        "study_id": { "$ref": "#/$defs/nonempty" },
+        "frozen_created_at": { "$ref": "#/$defs/frozen_timestamp" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "payload": {
+            "type": "object",
+            "required": [
+                "task_id",
+                "benchmark",
+                "stratum",
+                "sensitivity_groups",
+                "triggered",
+                "prefix_success",
+                "slot_outcomes",
+                "schedule_ref",
+                "prefix_index_ref",
+                "assignment_ref",
+                "packet_index_ref",
+                "analysis_freeze_ref",
+                "attempts",
+                "selected_attempt_index",
+                "terminal_slot_receipts",
+                "execution_receipts",
+                "outage_receipt",
+                "validity_event_refs",
+                "pipeline_valid",
+                "validity_codes"
+            ],
+            "properties": {
+                "task_id": { "$ref": "#/$defs/nonempty" },
+                "benchmark": { "$ref": "#/$defs/nonempty" },
+                "stratum": { "$ref": "#/$defs/nonempty" },
+                "sensitivity_groups": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/group_label" }
+                },
+                "triggered": { "type": "boolean" },
+                "prefix_success": { "enum": [0, 1] },
+                "slot_outcomes": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/branch_outcome" }
+                },
+                "schedule_ref": { "$ref": "#/$defs/artifact_ref" },
+                "prefix_index_ref": { "$ref": "#/$defs/artifact_ref" },
+                "assignment_ref": { "$ref": "#/$defs/artifact_ref" },
+                "packet_index_ref": { "$ref": "#/$defs/artifact_ref" },
+                "analysis_freeze_ref": { "$ref": "#/$defs/artifact_ref" },
+                "attempts": {},
+                "selected_attempt_index": {},
+                "terminal_slot_receipts": {},
+                "execution_receipts": {},
+                "outage_receipt": {},
+                "validity_event_refs": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/artifact_ref" }
+                },
+                "pipeline_valid": { "type": "boolean" },
+                "validity_codes": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/nonempty" }
+                }
+            },
+            "oneOf": [
+                {
+                    "properties": {
+                        "triggered": { "const": false },
+                        "attempts": { "type": "null" },
+                        "selected_attempt_index": { "type": "null" },
+                        "terminal_slot_receipts": { "type": "null" },
+                        "execution_receipts": { "type": "null" },
+                        "outage_receipt": { "type": "null" }
+                    }
+                },
+                {
+                    "properties": {
+                        "triggered": { "const": true },
+                        "attempts": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 2,
+                            "uniqueItems": true,
+                            "items": { "$ref": "#/$defs/attempt_receipt" }
+                        },
+                        "selected_attempt_index": { "enum": [0, 1] },
+                        "terminal_slot_receipts": {
+                            "type": "array",
+                            "minItems": 4,
+                            "maxItems": 4,
+                            "uniqueItems": true,
+                            "items": { "$ref": "#/$defs/terminal_slot_receipt" }
+                        },
+                        "execution_receipts": {
+                            "type": "array",
+                            "minItems": 4,
+                            "maxItems": 4,
+                            "uniqueItems": true,
+                            "items": { "$ref": "#/$defs/execution_receipt" }
+                        },
+                        "outage_receipt": {
+                            "oneOf": [
+                                { "type": "null" },
+                                { "$ref": "#/$defs/outage_receipt" }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "nonempty": { "type": "string", "minLength": 1 },
+        "frozen_timestamp": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+        },
+        "seed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 18446744073709551615
+        },
+        "provenance": {
+            "type": "object",
+            "required": ["design_sha256", "code_sha256"],
+            "properties": {
+                "design_sha256": { "$ref": "#/$defs/sha256" },
+                "code_sha256": { "$ref": "#/$defs/sha256" }
+            },
+            "additionalProperties": false
+        },
+        "artifact_ref": {
+            "type": "object",
+            "required": ["role", "relative_path", "sha256", "byte_count", "media_type"],
+            "properties": {
+                "role": { "$ref": "#/$defs/nonempty" },
+                "relative_path": {
+                    "type": "string",
+                    "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"
+                },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "byte_count": { "type": "integer", "minimum": 0 },
+                "media_type": { "$ref": "#/$defs/nonempty" }
+            },
+            "additionalProperties": false
+        },
+        "group_label": {
+            "type": "object",
+            "required": ["kind", "value"],
+            "properties": {
+                "kind": { "enum": ["language", "domain", "issue_family"] },
+                "value": { "$ref": "#/$defs/nonempty" }
+            },
+            "additionalProperties": false
+        },
+        "resource_counters": {
+            "type": "object",
+            "required": ["generated_tokens", "model_calls", "tool_calls", "wall_clock_ms"],
+            "properties": {
+                "generated_tokens": { "type": "integer", "minimum": 0 },
+                "model_calls": { "type": "integer", "minimum": 0 },
+                "tool_calls": { "type": "integer", "minimum": 0 },
+                "wall_clock_ms": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+        },
+        "call_seed_receipt": {
+            "type": "object",
+            "required": ["subject_role", "call_index", "seed"],
+            "properties": {
+                "subject_role": { "enum": ["primary_subject", "user_simulator"] },
+                "call_index": { "type": "integer", "minimum": 0 },
+                "seed": { "$ref": "#/$defs/seed" }
+            },
+            "additionalProperties": false
+        },
+        "grade_receipt": {
+            "type": "object",
+            "required": [
+                "success",
+                "partial_reward",
+                "infrastructure_failure",
+                "artifact_ref"
+            ],
+            "properties": {
+                "success": { "enum": [0, 1] },
+                "partial_reward": { "type": "number" },
+                "infrastructure_failure": { "type": "boolean" },
+                "artifact_ref": { "$ref": "#/$defs/artifact_ref" }
+            },
+            "additionalProperties": false
+        },
+        "branch_outcome": {
+            "type": "object",
+            "required": [
+                "task_id",
+                "benchmark",
+                "opaque_arm_id",
+                "success",
+                "prefix_success",
+                "partial_reward",
+                "infrastructure_failure",
+                "counters",
+                "artifact_ref"
+            ],
+            "properties": {
+                "task_id": { "$ref": "#/$defs/nonempty" },
+                "benchmark": { "$ref": "#/$defs/nonempty" },
+                "opaque_arm_id": { "$ref": "#/$defs/nonempty" },
+                "success": { "enum": [0, 1] },
+                "prefix_success": { "enum": [0, 1] },
+                "partial_reward": { "type": "number" },
+                "infrastructure_failure": { "type": "boolean" },
+                "counters": { "$ref": "#/$defs/resource_counters" },
+                "artifact_ref": { "$ref": "#/$defs/artifact_ref" }
+            },
+            "additionalProperties": false
+        },
+        "unscored_slot_receipt": {
+            "type": "object",
+            "required": [
+                "slot_id",
+                "opaque_capability_id",
+                "pre_injection_visible_sha256",
+                "pre_injection_token_ids_sha256",
+                "final_snapshot_ref",
+                "counters",
+                "call_seeds",
+                "failure_kind",
+                "provider_cost_ref",
+                "endpoint_readable"
+            ],
+            "properties": {
+                "slot_id": { "$ref": "#/$defs/nonempty" },
+                "opaque_capability_id": { "$ref": "#/$defs/nonempty" },
+                "pre_injection_visible_sha256": { "$ref": "#/$defs/sha256" },
+                "pre_injection_token_ids_sha256": { "$ref": "#/$defs/sha256" },
+                "final_snapshot_ref": { "$ref": "#/$defs/artifact_ref" },
+                "counters": { "$ref": "#/$defs/resource_counters" },
+                "call_seeds": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/call_seed_receipt" }
+                },
+                "failure_kind": {
+                    "enum": [
+                        "none",
+                        "model",
+                        "malformed_action",
+                        "token_cap",
+                        "tool_cap",
+                        "timeout",
+                        "infrastructure"
+                    ]
+                },
+                "provider_cost_ref": { "$ref": "#/$defs/artifact_ref" },
+                "endpoint_readable": { "const": false }
+            },
+            "additionalProperties": false
+        },
+        "attempt_receipt": {
+            "type": "object",
+            "required": [
+                "attempt_index",
+                "attempt_ref",
+                "work_order_sha256s",
+                "terminal_receipts",
+                "complete",
+                "endpoint_readable"
+            ],
+            "properties": {
+                "attempt_index": { "enum": [0, 1] },
+                "attempt_ref": { "$ref": "#/$defs/artifact_ref" },
+                "work_order_sha256s": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/sha256" }
+                },
+                "terminal_receipts": {
+                    "type": "array",
+                    "maxItems": 4,
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/unscored_slot_receipt" }
+                },
+                "complete": { "type": "boolean" },
+                "endpoint_readable": { "const": false }
+            },
+            "oneOf": [
+                {
+                    "properties": {
+                        "complete": { "const": true },
+                        "terminal_receipts": {
+                            "type": "array",
+                            "minItems": 4,
+                            "maxItems": 4
+                        }
+                    }
+                },
+                {
+                    "properties": {
+                        "complete": { "const": false },
+                        "terminal_receipts": {
+                            "type": "array",
+                            "maxItems": 3
+                        }
+                    }
+                }
+            ],
+            "additionalProperties": false
+        },
+        "failed_slot_receipt": {
+            "type": "object",
+            "required": [
+                "slot_id",
+                "opaque_capability_id",
+                "failed_attempt_ref",
+                "adverse_event_ref",
+                "provider_cost_ref",
+                "failure_kind",
+                "endpoint_readable"
+            ],
+            "properties": {
+                "slot_id": { "$ref": "#/$defs/nonempty" },
+                "opaque_capability_id": { "$ref": "#/$defs/nonempty" },
+                "failed_attempt_ref": { "$ref": "#/$defs/artifact_ref" },
+                "adverse_event_ref": { "$ref": "#/$defs/artifact_ref" },
+                "provider_cost_ref": { "$ref": "#/$defs/artifact_ref" },
+                "failure_kind": { "const": "infrastructure" },
+                "endpoint_readable": { "const": false }
+            },
+            "additionalProperties": false
+        },
+        "terminal_slot_receipt": {
+            "oneOf": [
+                { "$ref": "#/$defs/unscored_slot_receipt" },
+                { "$ref": "#/$defs/failed_slot_receipt" }
+            ]
+        },
+        "execution_receipt": {
+            "type": "object",
+            "required": [
+                "source_receipt_sha256",
+                "source_kind",
+                "grade_receipt",
+                "outcome"
+            ],
+            "properties": {
+                "source_receipt_sha256": { "$ref": "#/$defs/sha256" },
+                "source_kind": {
+                    "enum": ["graded_unscored", "failed_second_attempt"]
+                },
+                "grade_receipt": {
+                    "oneOf": [
+                        { "type": "null" },
+                        { "$ref": "#/$defs/grade_receipt" }
+                    ]
+                },
+                "outcome": { "$ref": "#/$defs/branch_outcome" }
+            },
+            "oneOf": [
+                {
+                    "properties": {
+                        "source_kind": { "const": "graded_unscored" },
+                        "grade_receipt": { "$ref": "#/$defs/grade_receipt" }
+                    }
+                },
+                {
+                    "properties": {
+                        "source_kind": { "const": "failed_second_attempt" },
+                        "grade_receipt": { "type": "null" }
+                    }
+                }
+            ],
+            "additionalProperties": false
+        },
+        "outage_receipt": {
+            "type": "object",
+            "required": [
+                "task_id",
+                "provider_event_ref",
+                "first_attempt",
+                "detected_before_endpoint_readable",
+                "work_order_sha256s",
+                "rerun_index"
+            ],
+            "properties": {
+                "task_id": { "$ref": "#/$defs/nonempty" },
+                "provider_event_ref": { "$ref": "#/$defs/artifact_ref" },
+                "first_attempt": { "$ref": "#/$defs/attempt_receipt" },
+                "detected_before_endpoint_readable": { "const": true },
+                "work_order_sha256s": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/sha256" }
+                },
+                "rerun_index": { "const": 1 }
+            },
+            "additionalProperties": false
+        }
+    }
+}

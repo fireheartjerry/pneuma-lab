@@ -1,0 +1,300 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/resampling-packet-index.schema.json",
+    "title": "Resampling-Null Packet Index",
+    "description": "Candidate or sealed index of parity-matched real and sham packet artifacts.",
+    "type": "object",
+    "x-pneuma-schema-kind": "resampling-study",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "record_kind",
+        "schema_version",
+        "study_id",
+        "frozen_created_at",
+        "provenance",
+        "payload"
+    ],
+    "properties": {
+        "record_kind": { "const": "resampling_packet_index" },
+        "schema_version": { "const": "0.1.0" },
+        "study_id": { "$ref": "#/$defs/nonempty" },
+        "frozen_created_at": { "$ref": "#/$defs/frozen_timestamp" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "payload": {
+            "oneOf": [
+                { "$ref": "#/$defs/candidate_payload" },
+                { "$ref": "#/$defs/sealed_payload" }
+            ]
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "nonempty": { "type": "string", "minLength": 1 },
+        "frozen_timestamp": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+        },
+        "provenance": {
+            "type": "object",
+            "required": ["design_sha256", "code_sha256"],
+            "properties": {
+                "design_sha256": { "$ref": "#/$defs/sha256" },
+                "code_sha256": { "$ref": "#/$defs/sha256" }
+            },
+            "additionalProperties": false
+        },
+        "artifact_ref": {
+            "type": "object",
+            "required": ["role", "relative_path", "sha256", "byte_count", "media_type"],
+            "properties": {
+                "role": { "$ref": "#/$defs/nonempty" },
+                "relative_path": {
+                    "type": "string",
+                    "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"
+                },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "byte_count": { "type": "integer", "minimum": 0 },
+                "media_type": { "$ref": "#/$defs/nonempty" }
+            },
+            "additionalProperties": false
+        },
+        "truncation_receipt": {
+            "type": "object",
+            "required": [
+                "finding_id",
+                "original_sha256",
+                "retained_sha256",
+                "original_chars",
+                "retained_chars",
+                "original_tokens",
+                "retained_tokens",
+                "omitted_atom_count",
+                "rule"
+            ],
+            "properties": {
+                "finding_id": { "$ref": "#/$defs/nonempty" },
+                "original_sha256": { "$ref": "#/$defs/sha256" },
+                "retained_sha256": { "$ref": "#/$defs/sha256" },
+                "original_chars": { "type": "integer", "minimum": 0 },
+                "retained_chars": { "type": "integer", "minimum": 0 },
+                "original_tokens": { "type": "integer", "minimum": 0 },
+                "retained_tokens": { "type": "integer", "minimum": 0 },
+                "omitted_atom_count": { "type": "integer", "minimum": 0 },
+                "rule": { "$ref": "#/$defs/nonempty" }
+            },
+            "additionalProperties": false
+        },
+        "unit_count": {
+            "type": "array",
+            "prefixItems": [
+                { "$ref": "#/$defs/nonempty" },
+                { "type": "integer", "minimum": 0 }
+            ],
+            "items": false,
+            "minItems": 2,
+            "maxItems": 2
+        },
+        "padding_search": {
+            "type": "object",
+            "required": [
+                "pad_unit_set_sha256",
+                "target_token_count",
+                "states_explored",
+                "selected_unit_counts",
+                "search_algorithm"
+            ],
+            "properties": {
+                "pad_unit_set_sha256": { "$ref": "#/$defs/sha256" },
+                "target_token_count": { "type": "integer", "minimum": 0 },
+                "states_explored": { "type": "integer", "minimum": 0 },
+                "selected_unit_counts": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/unit_count" }
+                },
+                "search_algorithm": { "const": "exact_dynamic_program_v1" }
+            },
+            "additionalProperties": false
+        },
+        "packet_pair": {
+            "type": "object",
+            "required": [
+                "task_id",
+                "donor_task_id",
+                "prefix_index_sha256",
+                "real_ref",
+                "sham_ref",
+                "real_token_count",
+                "sham_token_count",
+                "focal_verifier_ref",
+                "donor_verifier_ref",
+                "assignment_ref",
+                "identifier_map_ref",
+                "tokenizer_ref",
+                "packet_template_ref",
+                "normalized_real_ref",
+                "normalized_sham_ref",
+                "packet_policy_ref",
+                "pad_unit_set_ref",
+                "padding_search",
+                "field_order",
+                "severity_multiset",
+                "schema_parity",
+                "field_parity",
+                "severity_parity",
+                "focal_collision_count",
+                "rewrite_expected",
+                "rewrite_completed",
+                "unmapped_identifiers",
+                "donor_literal_collisions",
+                "truncation_receipts"
+            ],
+            "properties": {
+                "task_id": { "$ref": "#/$defs/nonempty" },
+                "donor_task_id": { "$ref": "#/$defs/nonempty" },
+                "prefix_index_sha256": { "$ref": "#/$defs/sha256" },
+                "real_ref": { "$ref": "#/$defs/artifact_ref" },
+                "sham_ref": { "$ref": "#/$defs/artifact_ref" },
+                "real_token_count": { "type": "integer", "minimum": 0 },
+                "sham_token_count": { "type": "integer", "minimum": 0 },
+                "focal_verifier_ref": { "$ref": "#/$defs/artifact_ref" },
+                "donor_verifier_ref": { "$ref": "#/$defs/artifact_ref" },
+                "assignment_ref": { "$ref": "#/$defs/artifact_ref" },
+                "identifier_map_ref": { "$ref": "#/$defs/artifact_ref" },
+                "tokenizer_ref": { "$ref": "#/$defs/artifact_ref" },
+                "packet_template_ref": { "$ref": "#/$defs/artifact_ref" },
+                "normalized_real_ref": { "$ref": "#/$defs/artifact_ref" },
+                "normalized_sham_ref": { "$ref": "#/$defs/artifact_ref" },
+                "packet_policy_ref": { "$ref": "#/$defs/artifact_ref" },
+                "pad_unit_set_ref": { "$ref": "#/$defs/artifact_ref" },
+                "padding_search": { "$ref": "#/$defs/padding_search" },
+                "field_order": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/nonempty" }
+                },
+                "severity_multiset": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/nonempty" }
+                },
+                "schema_parity": { "const": true },
+                "field_parity": { "const": true },
+                "severity_parity": { "const": true },
+                "focal_collision_count": { "const": 0 },
+                "rewrite_expected": { "type": "integer", "minimum": 0 },
+                "rewrite_completed": { "type": "integer", "minimum": 0 },
+                "unmapped_identifiers": {
+                    "type": "array",
+                    "maxItems": 0,
+                    "items": { "$ref": "#/$defs/nonempty" }
+                },
+                "donor_literal_collisions": {
+                    "type": "array",
+                    "maxItems": 0,
+                    "items": { "$ref": "#/$defs/nonempty" }
+                },
+                "truncation_receipts": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/truncation_receipt" }
+                }
+            },
+            "additionalProperties": false
+        },
+        "no_intervention_marker": {
+            "type": "object",
+            "required": ["task_id", "prefix_index_sha256", "trigger_reason"],
+            "properties": {
+                "task_id": { "$ref": "#/$defs/nonempty" },
+                "prefix_index_sha256": { "$ref": "#/$defs/sha256" },
+                "trigger_reason": { "const": "no_intervention_opportunity" }
+            },
+            "additionalProperties": false
+        },
+        "packet_entry": {
+            "oneOf": [
+                { "$ref": "#/$defs/packet_pair" },
+                { "$ref": "#/$defs/no_intervention_marker" }
+            ]
+        },
+        "candidate_payload": {
+            "type": "object",
+            "required": [
+                "stage",
+                "assignment_ref",
+                "prefix_index_ref",
+                "tokenizer_ref",
+                "packet_template_ref",
+                "packet_policy_ref",
+                "pad_unit_set_ref",
+                "entries"
+            ],
+            "properties": {
+                "stage": { "const": "candidate" },
+                "assignment_ref": { "$ref": "#/$defs/artifact_ref" },
+                "prefix_index_ref": { "$ref": "#/$defs/artifact_ref" },
+                "tokenizer_ref": { "$ref": "#/$defs/artifact_ref" },
+                "packet_template_ref": { "$ref": "#/$defs/artifact_ref" },
+                "packet_policy_ref": { "$ref": "#/$defs/artifact_ref" },
+                "pad_unit_set_ref": { "$ref": "#/$defs/artifact_ref" },
+                "entries": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/packet_entry" }
+                }
+            },
+            "additionalProperties": false
+        },
+        "audit_gates": {
+            "type": "object",
+            "required": [
+                "roster_complete",
+                "ancestry_valid",
+                "token_parity",
+                "schema_parity",
+                "field_parity",
+                "severity_parity",
+                "rewrites_complete",
+                "identifier_collision_free",
+                "artifact_bytes_verified"
+            ],
+            "properties": {
+                "roster_complete": { "const": true },
+                "ancestry_valid": { "const": true },
+                "token_parity": { "const": true },
+                "schema_parity": { "const": true },
+                "field_parity": { "const": true },
+                "severity_parity": { "const": true },
+                "rewrites_complete": { "const": true },
+                "identifier_collision_free": { "const": true },
+                "artifact_bytes_verified": { "const": true }
+            },
+            "additionalProperties": false
+        },
+        "sealed_payload": {
+            "type": "object",
+            "required": [
+                "stage",
+                "candidate_ref",
+                "assignment_ref",
+                "prefix_index_ref",
+                "tokenizer_ref",
+                "packet_template_ref",
+                "packet_policy_ref",
+                "pad_unit_set_ref",
+                "audit_gates"
+            ],
+            "properties": {
+                "stage": { "const": "sealed" },
+                "candidate_ref": { "$ref": "#/$defs/artifact_ref" },
+                "assignment_ref": { "$ref": "#/$defs/artifact_ref" },
+                "prefix_index_ref": { "$ref": "#/$defs/artifact_ref" },
+                "tokenizer_ref": { "$ref": "#/$defs/artifact_ref" },
+                "packet_template_ref": { "$ref": "#/$defs/artifact_ref" },
+                "packet_policy_ref": { "$ref": "#/$defs/artifact_ref" },
+                "pad_unit_set_ref": { "$ref": "#/$defs/artifact_ref" },
+                "audit_gates": { "$ref": "#/$defs/audit_gates" }
+            },
+            "additionalProperties": false
+        }
+    }
+}

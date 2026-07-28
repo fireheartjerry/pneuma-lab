@@ -1,0 +1,187 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/resampling-prefix-receipt.schema.json",
+    "title": "Resampling-Null Prefix Receipt Index",
+    "description": "Complete frozen-prefix, Y0, verifier, seed, cost, and snapshot index.",
+    "type": "object",
+    "x-pneuma-schema-kind": "resampling-study",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "record_kind",
+        "schema_version",
+        "study_id",
+        "frozen_created_at",
+        "provenance",
+        "payload"
+    ],
+    "properties": {
+        "record_kind": { "const": "resampling_prefix_receipt" },
+        "schema_version": { "const": "0.1.0" },
+        "study_id": { "$ref": "#/$defs/nonempty" },
+        "frozen_created_at": { "$ref": "#/$defs/frozen_timestamp" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "payload": {
+            "type": "object",
+            "required": ["schedule_ref", "task_receipts"],
+            "properties": {
+                "schedule_ref": { "$ref": "#/$defs/artifact_ref" },
+                "task_receipts": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/frozen_prefix_receipt" }
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "nonempty": { "type": "string", "minLength": 1 },
+        "frozen_timestamp": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+        },
+        "seed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 18446744073709551615
+        },
+        "provenance": {
+            "type": "object",
+            "required": ["design_sha256", "code_sha256"],
+            "properties": {
+                "design_sha256": { "$ref": "#/$defs/sha256" },
+                "code_sha256": { "$ref": "#/$defs/sha256" }
+            },
+            "additionalProperties": false
+        },
+        "artifact_ref": {
+            "type": "object",
+            "required": ["role", "relative_path", "sha256", "byte_count", "media_type"],
+            "properties": {
+                "role": { "$ref": "#/$defs/nonempty" },
+                "relative_path": {
+                    "type": "string",
+                    "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"
+                },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "byte_count": { "type": "integer", "minimum": 0 },
+                "media_type": { "$ref": "#/$defs/nonempty" }
+            },
+            "additionalProperties": false
+        },
+        "resource_counters": {
+            "type": "object",
+            "required": ["generated_tokens", "model_calls", "tool_calls", "wall_clock_ms"],
+            "properties": {
+                "generated_tokens": { "type": "integer", "minimum": 0 },
+                "model_calls": { "type": "integer", "minimum": 0 },
+                "tool_calls": { "type": "integer", "minimum": 0 },
+                "wall_clock_ms": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+        },
+        "tool_call": {
+            "type": "object",
+            "required": ["call_id", "name", "canonical_arguments_json"],
+            "properties": {
+                "call_id": { "$ref": "#/$defs/nonempty" },
+                "name": { "$ref": "#/$defs/nonempty" },
+                "canonical_arguments_json": { "type": "string" }
+            },
+            "additionalProperties": false
+        },
+        "grade_receipt": {
+            "type": "object",
+            "required": [
+                "success",
+                "partial_reward",
+                "infrastructure_failure",
+                "artifact_ref"
+            ],
+            "properties": {
+                "success": { "enum": [0, 1] },
+                "partial_reward": { "type": "number" },
+                "infrastructure_failure": { "type": "boolean" },
+                "artifact_ref": { "$ref": "#/$defs/artifact_ref" }
+            },
+            "additionalProperties": false
+        },
+        "call_seed_receipt": {
+            "type": "object",
+            "required": ["subject_role", "call_index", "seed"],
+            "properties": {
+                "subject_role": { "enum": ["primary_subject", "user_simulator"] },
+                "call_index": { "type": "integer", "minimum": 0 },
+                "seed": { "$ref": "#/$defs/seed" }
+            },
+            "additionalProperties": false
+        },
+        "verifier_receipt": {
+            "type": "object",
+            "required": [
+                "task_id",
+                "schedule_sha256",
+                "snapshot_ref",
+                "verifier_artifact_ref",
+                "finding_count"
+            ],
+            "properties": {
+                "task_id": { "$ref": "#/$defs/nonempty" },
+                "schedule_sha256": { "$ref": "#/$defs/sha256" },
+                "snapshot_ref": { "$ref": "#/$defs/artifact_ref" },
+                "verifier_artifact_ref": { "$ref": "#/$defs/artifact_ref" },
+                "finding_count": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+        },
+        "frozen_prefix_receipt": {
+            "type": "object",
+            "required": [
+                "task_id",
+                "schedule_sha256",
+                "snapshot_ref",
+                "visible_context_ref",
+                "visible_sha256",
+                "token_ids_sha256",
+                "pending_tool_calls",
+                "trigger_reason",
+                "y0_grade",
+                "verifier_receipt",
+                "counters",
+                "call_seeds",
+                "provider_cost_ref"
+            ],
+            "properties": {
+                "task_id": { "$ref": "#/$defs/nonempty" },
+                "schedule_sha256": { "$ref": "#/$defs/sha256" },
+                "snapshot_ref": { "$ref": "#/$defs/artifact_ref" },
+                "visible_context_ref": { "$ref": "#/$defs/artifact_ref" },
+                "visible_sha256": { "$ref": "#/$defs/sha256" },
+                "token_ids_sha256": { "$ref": "#/$defs/sha256" },
+                "pending_tool_calls": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/tool_call" }
+                },
+                "trigger_reason": {
+                    "enum": [
+                        "first_eligible_mutation",
+                        "fourth_tool_call",
+                        "no_intervention_opportunity"
+                    ]
+                },
+                "y0_grade": { "$ref": "#/$defs/grade_receipt" },
+                "verifier_receipt": { "$ref": "#/$defs/verifier_receipt" },
+                "counters": { "$ref": "#/$defs/resource_counters" },
+                "call_seeds": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/call_seed_receipt" }
+                },
+                "provider_cost_ref": { "$ref": "#/$defs/artifact_ref" }
+            },
+            "additionalProperties": false
+        }
+    }
+}

@@ -19,6 +19,7 @@ EXPECTED_MANIFEST_COUNT = 1
 EXPECTED_FOUNDATION_COUNT = 6
 # Measurement-system analysis of an elicited metric channel (gauge card).
 EXPECTED_GAUGE_COUNT = 1
+EXPECTED_RESAMPLING_COUNT = 12
 
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
@@ -40,6 +41,7 @@ def test_expected_counts() -> None:
     assert len(pls.MANIFEST_SCHEMA_FILES) == EXPECTED_MANIFEST_COUNT
     assert len(pls.FOUNDATION_SCHEMA_FILES) == EXPECTED_FOUNDATION_COUNT
     assert len(pls.GAUGE_SCHEMA_FILES) == EXPECTED_GAUGE_COUNT
+    assert len(pls.RESAMPLING_SCHEMA_FILES) == EXPECTED_RESAMPLING_COUNT
     assert (
         len(pls.ALL_SCHEMA_FILES)
         == EXPECTED_INPUT_COUNT
@@ -52,6 +54,7 @@ def test_expected_counts() -> None:
         + EXPECTED_MANIFEST_COUNT
         + EXPECTED_FOUNDATION_COUNT
         + EXPECTED_GAUGE_COUNT
+        + EXPECTED_RESAMPLING_COUNT
     )
 
 
@@ -165,6 +168,26 @@ def test_foundation_schema_bucket_registered() -> None:
         "foundation-suite-report.schema.json",
     )
     assert set(pls.FOUNDATION_SCHEMA_FILES).issubset(pls.ALL_SCHEMA_FILES)
+
+
+def test_resampling_schema_bucket_registered() -> None:
+    assert pls.RESAMPLING_SCHEMA_FILES == (
+        "resampling-study-manifest.schema.json",
+        "resampling-prefix-schedule.schema.json",
+        "resampling-prefix-receipt.schema.json",
+        "resampling-assignment-ledger.schema.json",
+        "resampling-packet-index.schema.json",
+        "resampling-task-block.schema.json",
+        "resampling-blinded-projection.schema.json",
+        "resampling-analysis-freeze.schema.json",
+        "resampling-analysis.schema.json",
+        "resampling-power-report.schema.json",
+        "resampling-unblind-receipt.schema.json",
+        "resampling-artifact-root.schema.json",
+    )
+    assert set(pls.RESAMPLING_SCHEMA_FILES).issubset(pls.ALL_SCHEMA_FILES)
+    assert set(pls.RESAMPLING_SCHEMA_FILES).isdisjoint(pls.INPUT_SCHEMA_FILES)
+    assert set(pls.RESAMPLING_SCHEMA_FILES).isdisjoint(pls.OUTPUT_SCHEMA_FILES)
 
 
 def test_envelope_schema_shape() -> None:
