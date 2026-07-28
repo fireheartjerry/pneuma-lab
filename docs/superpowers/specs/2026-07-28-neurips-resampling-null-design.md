@@ -211,9 +211,11 @@ Primary model:
   byte-identical responses under the frozen seed contract.
 
 The container image, CUDA, driver, PyTorch, vLLM source/wheel digest, tokenizer,
-chat template, and tool parser are frozen after a no-cost or bounded parity
-test. A package version without an image/source digest is not a reproducibility
-receipt.
+chat template, tool parser, packet template, packet normalization/truncation
+policy, and neutral pad-unit set are frozen after a no-cost or bounded parity
+test. Their byte-level references are sealed in the study manifest before
+packet construction. A package version without an image/source digest is not a
+reproducibility receipt.
 
 The topology and context cap are deliberately not frozen before the memory
 pilot. The official FP8 blobs occupy about 34.9 GiB, leaving a tight margin on a
@@ -321,6 +323,12 @@ SWE uses a committed filesystem/container layer plus a clean checkout receipt.
 Model KV state is not treated as portable state; each branch reconstructs the
 same tokenized context and the receipt records exact token IDs.
 
+If a pre-trigger response queued multiple tool calls, the snapshot includes
+those pending calls. Each branch executes them in the same frozen order before
+the first packet-visible model call. They count against the post-trigger
+tool-call and wall-clock caps. The four post-pending/pre-injection visible-state
+and token-ID digests must still match.
+
 Prefix scoring and verifier execution happen on disposable clones. Their cache,
 filesystem, timing, and output cannot flow back into any focal branch.
 
@@ -344,6 +352,15 @@ NO_PACKET}` over its 12 possible slot allocations, then a fair coin labels the
 two no-packet slots NONE and RESAMPLE solely for the resampling audit. Both
 draws occur before any continuation. The allocation is sealed and never
 depends on a branch outcome.
+
+Every primary-subject and τ³ user-simulator call derives its seed from the
+scheduled prefix root or continuation-slot root, role, and call index through
+the frozen domain-separated SHA-256 program.
+The ordered per-call seed receipt is persisted. Both prefix and continuation
+loops invoke the simulator through an explicit controller-owned seeded
+interface; environment adapters may expose simulator context and apply a
+returned turn but may not call a simulator internally. Adapters and serving
+processes cannot choose replacement seeds.
 
 `NONE` and `RESAMPLE` are exchangeable no-treatment replicates. Their mean is
 the no-feedback continuation condition; their paired disagreement is the
@@ -410,7 +427,7 @@ creates a primary verifier finding.
 ### 7.3 Sham donor
 
 A deterministic minimum-cost matching algorithm selects one donor from another
-highest lineage:
+eligible lineage:
 
 - SWE: same language, check runner/failure class, failure-count band, and log
   length band; different repository.
@@ -418,15 +435,24 @@ highest lineage:
   length band; different task and, for telecom, different issue family where
   possible.
 
-Task-specific identifiers are replaced through a type-preserving map before
-injection. The donor assignment is a derangement: no task donates to itself, no
-two-task reciprocal pair is allowed within a block, and the map is frozen
-before subject outcomes.
+Task-specific identifiers are represented as typed references—repository/file,
+symbol, test/check, database entity, policy/action, or task record—and replaced
+only by the same reference type before injection. The donor assignment is a
+derangement: no task donates to itself, no two-task reciprocal pair is allowed
+within a block, and the map is frozen before branch outcomes.
 
 The packet builder truncates bounded evidence and uses deterministic neutral
 padding to make REAL and SHAM exactly equal in tokenizer length. Both packets
-receive the same formatting and padding algorithm. Raw real and donor packets
-remain encrypted until unblinding.
+receive the same formatting and padding algorithm. Every truncation records the
+original digest/token count, retained token count, rule ID, and omitted count;
+nothing is silently dropped. Each packet-pair receipt binds focal/donor
+verifier digests, assignment digest, identifier-map digest, tokenizer digest,
+normalized findings, padding search, and collision result. All packet-pair
+receipts are sealed into one packet-index digest before any branch starts. Raw
+real and donor packets remain encrypted at rest. A branch worker may decrypt
+only its opaque slot's packet inside the isolated subject-only guidance
+boundary; packet text and the decryption capability remain unavailable to the
+analysis author until unblinding.
 
 ### 7.4 Manipulation and detectability gates
 
@@ -458,7 +484,24 @@ All allocated blocks remain in ITT. An arm-specific infrastructure or model
 failure is zero. A preregistered, arm-blind provider-outage receipt created
 before any endpoint is readable may trigger one full four-arm rerun with the
 identical snapshot, seeds, and allocation. If that rerun cannot complete, all
-four outcomes are zero. No allocated task is excluded or replaced.
+four outcomes are zero through a fail-closed finalizer that validates both
+attempts and the original pre-endpoint outage, emits four adverse-zero
+execution receipts, and never calls the endpoint grader. No allocated task is
+excluded or replaced.
+
+Workers therefore stop at sealed unscored terminal snapshots. The controller
+seals every completed terminal receipt in its chronological attempt; no
+superseded or partial-attempt receipt is discarded. It seals four final
+completion/failure receipts and any one-time outage/rerun decision before a
+grader may read an endpoint. No rerun interface accepts a graded receipt. A
+no-intervention prefix launches no branch worker and records four copies of
+`Y_0`.
+
+For arm `a`, let
+`f_a = 1/2 * (mean_i failure_SWE,i,a + mean_i failure_TAU,i,a)`.
+The registered differential-failure gate is
+`max_(a,a') |f_a - f_a'| <= 0.02`. Larger imbalance marks the pipeline invalid;
+it never licenses task deletion.
 
 ### 8.2 Primary estimands
 
@@ -551,6 +594,11 @@ ITT analysis with zero contrast. Trigger-eligible effects are secondary.
 Provider placement is not randomized into the primary effect; a different
 kernel, precision, or provider is a separate replication block.
 
+The analysis loads the immutable roster only through study-manifest ancestry
+and rejects missing/extra task rows or changed benchmark, language/domain, or
+issue-family membership before computing any statistic. A claimed roster
+digest without the referenced bytes has no authority.
+
 ### 9.2 Finite-sample sharp-null tests
 
 Exact Fisher tests are reported for sharp unit-level nulls; they are not called
@@ -611,8 +659,10 @@ Z*_k = G*_k / se_k
 M*   = max(Z*_content, Z*_excess)
 ```
 
-With conservative empirical 0.95 quantile `c_0.95`, the simultaneous one-sided
-bounds are `L_k = hat_tau_k - c_0.95 * se_k`. These bounds are
+Sort the `B = 99,999` realized max statistics and take the 1-based order
+`min(B, ceil((B + 1) * 0.95))`, without interpolation, as `c_0.95`. The
+simultaneous one-sided bounds are
+`L_k = hat_tau_k - c_0.95 * se_k`. These bounds are
 asymptotically valid/Neyman-conservative under independent randomized task
 blocks; they are not finite-sample exact. A zero/non-finite standard error or a
 failed no-interference receipt blocks a positive claim.
@@ -625,9 +675,12 @@ The positive claim requires:
 - both point estimates at least the practical screen `delta_star = 0.05`;
 - both point estimates strictly above `r95`;
 - non-negative point estimates in each benchmark separately; and
-- for every co-primary contrast `k` and preregistered language/domain `h`, the
-  equal-benchmark estimator recomputed after deleting `h` and renormalizing
-  within that benchmark satisfies `hat_tau_k^(-h) >= -0.05`.
+- for every co-primary contrast `k` and preregistered sensitivity group `h`
+  (SWE language; τ³ domain and telecom issue family), the equal-benchmark
+  estimator recomputed after deleting `h` and renormalizing within that
+  benchmark satisfies `hat_tau_k^(-h) >= -0.05`; and
+- the maximum pairwise difference among equal-benchmark-weighted arm-specific
+  infrastructure-failure rates is at most 0.02.
 
 `delta_star` is a preregistered observed-effect screen, not a confidence claim
 that either effect is at least five percentage points. The paper may say the
@@ -635,7 +688,12 @@ effects were positive and large enough to resolve under this design; it may not
 say a five-point minimum was established unless both simultaneous lower bounds
 themselves exceed 0.05.
 
-Benchmark-specific and secondary families use Holm correction. Confidence
+The secondary endpoint family is exactly
+`(sham_packet, continuation, total)`. The same task-cluster Rademacher draws
+produce marginal one-sided add-one multiplier p-values, Holm-adjusted across
+these three, and a separate three-contrast single-step max-t 95% lower-bound
+family. Holm adjusts p-values, not bounds. Benchmark-specific families use Holm
+correction separately. Confidence
 intervals, exact discordant-pair counts, and all estimates are reported
 regardless of significance.
 
@@ -676,7 +734,12 @@ conventional p-value for REAL is small.
 
 Before any confirmation outcome exists, deterministic P0 evaluates C120 and
 C160 with the production assignment, local sharp tests, `q0/r95`, point gates,
-and verdict logic. The powered alternative is frozen at full-roster ITT effects
+and verdict logic. A synthetic roster may validate code/runtime conditionally,
+but it has no tier-selection authority. The decisive P0 run occurs only after
+the eligible registry freezes exact C120/C160 membership plus every SWE
+language, τ³ domain, and telecom issue-family label, and it executes all
+corresponding leave-one-group gates. The powered alternative is frozen at
+full-roster ITT effects
 `(tau_content, tau_excess) = (0.15, 0.15)` in each benchmark. For each benchmark,
 the nuisance tuple is:
 
@@ -697,23 +760,62 @@ p_S = p_N = p_Z = p0
 These choices keep every probability in `[0.10, 0.95]` and make each
 benchmark's expected ITT content and excess effects exactly 0.15. For each
 benchmark, set `m_b = gamma * n_b` exactly; every registered combination makes
-`m_b` integral. A digest-pinned deterministic normal-rectangle implementation
-precomputes the 16 triggered Bernoulli-pattern probabilities and draws their
-counts as `Multinomial(m_b, pi_trigger)`. For the `n_b - m_b` no-trigger tasks,
-draw `U_b ~ Binomial(n_b - m_b, p0)`, assign `U_b` to pattern `1111`, and assign
-the remainder to `0000`. P0 uses a counter-based PRNG and 20,000 datasets per
-cell.
+`m_b` integral. Uniformly select an exact-size triggered subset through
+deterministic multivariate-hypergeometric counts over the roster's joint
+sensitivity-group cells. A digest-pinned deterministic normal-rectangle
+implementation precomputes the 16 triggered Bernoulli-pattern probabilities
+and draws each cell's counts as `Multinomial(m_cell, pi_trigger)`. For that
+cell's no-trigger tasks, draw
+`U_cell ~ Binomial(n_cell - m_cell, p0)`, assign `U_cell` to pattern `1111`, and
+assign the remainder to `0000`. These cell counts feed the same scalar/
+vectorized sufficient-statistics gate kernel used by final analysis. P0 uses a
+counter-based PRNG and 20,000 datasets per cell.
 
 For power simulation only, the 99,999-draw multiplier critical value is
 replaced with its deterministic two-dimensional Gaussian-max analogue:
 `r = V_hat_CE / (se_C se_E)` and `c` solves
-`Phi_2(c, c; r) = 0.95`. The worst five cells, selected by the lowest
-unrounded power estimate before any confirmation outcome, must validate this
+`Phi_2(c, c; r) = 0.95`. The worst five C160 cells, selected by the lowest
+unrounded alternative gate-pass estimate (ties by frozen cell order) before
+any confirmation outcome, must validate this
 approximation against the full multiplier routine on 2,000 outer datasets.
 Validation passes only if every selected cell's absolute difference between
 Gaussian-max and full-multiplier gate-pass rates is at most 0.01 and both
 methods choose the same roster tier. Otherwise P0 runs the full multiplier
-routine on every cell or records `FEASIBILITY_NO_GO`.
+routine on every cell under a separately screened
+`full_multiplier_fallback` phase or records `FEASIBILITY_NO_GO`. Failed and
+superseded attempts remain in the final report's ancestry. A successful
+fallback emits a phase-specific validation receipt that checks full ordered
+cell coverage, raw counts, numeric receipts, and tier decision directly; it
+does not fabricate or reuse a Gaussian worst-five selection.
+
+The numeric contract is frozen:
+
+- `rho` is latent-Gaussian equicorrelation, not observed Bernoulli
+  correlation;
+- triggered 16-pattern probabilities use the one-factor representation and
+  96-point Gauss-Hermite quadrature;
+- probability sum and every recovered marginal must be within `1e-10`;
+- the bivariate-normal CDF uses 128-point Gauss-Legendre quadrature over
+  Plackett's correlation integral;
+- Gaussian-max correlations `+1` and `-1` use the analytic one-sided-normal and
+  two-sided-normal limits, respectively;
+- the Gaussian-max root uses bisection tolerance `1e-10` and at most 200
+  iterations; and
+- separate one-sided Clopper-Pearson lower/upper inversions receive the full
+  registered tail probability, use binomial-tail bisection tolerance `1e-12`,
+  and use at most 200 iterations.
+
+P0 first screens 200 datasets per cell on the declared CPU topology. The
+projected full-grid wall time must be at most 12 hours and the screen must
+reproduce numeric fixture digests before the 20,000-dataset run starts.
+Otherwise the implementation is vectorized/partitioned and re-screened under
+an incremented immutable generation, or the study records
+`FEASIBILITY_NO_GO`. Every power artifact records its decision authority,
+phase, generation, stage, and, for shards, shard index. The complete
+power/type-I report parents every attempt. Its closed finalization is either a
+completed selected chain with worst-cell validation or a terminal
+`FEASIBILITY_NO_GO` naming the failed attempt/stage and reason without
+fabricated downstream refs.
 
 The type-I audit uses the same 729 nuisance pairs for each of three boundaries:
 
@@ -768,15 +870,24 @@ arm efficacy.
 
 ### 9.6 Verdict taxonomy
 
+Let `hat_tau_sham = SHAM - no_feedback`. It receives the registered one-sided
+task-cluster multiplier lower bound `L_sham` from the three-contrast secondary
+max-t family and a separately Holm-adjusted one-sided multiplier p-value. Let
+`U_content` and `U_excess` be simultaneous
+one-sided 95% upper bounds constructed by the same task-cluster max-t method.
+Verdicts execute in the order below; `FEASIBILITY_NO_GO` is emitted only by
+pre-outcome power/roster/runtime checks, never as a fallback from observed
+outcomes.
+
 | verdict | definition |
 | --- | --- |
-| `CAUSAL_CONTENT` | both co-primary contrasts and every resolution/admissibility gate pass |
-| `SHAM_PACKET_ONLY` | SHAM improves over no-feedback but REAL does not clear SHAM |
-| `RESAMPLING_CONSISTENT` | REAL does not clear the observed no-feedback/resampling controls |
-| `HARMFUL_OR_MISDIRECTING` | REAL is materially worse than a registered control |
-| `UNRESOLVED_RESAMPLING` | a co-primary effect does not clear the registered no-feedback resolution scale |
-| `PIPELINE_INVALID` | packet, snapshot, assignment, grader, or differential-failure gate fails |
-| `FEASIBILITY_NO_GO` | the minimum powered roster cannot be completed before the deadline |
+| `FEASIBILITY_NO_GO` | before outcomes, the powered roster/runtime cannot be completed |
+| `PIPELINE_INVALID` | packet, snapshot, assignment, no-interference, grader, or differential-failure gate fails |
+| `HARMFUL_OR_MISDIRECTING` | for content or excess, the point estimate is at most -0.05 and its simultaneous upper bound is below zero |
+| `CAUSAL_CONTENT` | both co-primary contrasts and every registered statistical/resolution/admissibility gate pass |
+| `SHAM_PACKET_ONLY` | CAUSAL_CONTENT fails; `hat_tau_sham >= 0.05`, `hat_tau_sham > r95`, the three-family Holm-adjusted sham p-value is at most 0.05, `L_sham > 0`, and content fails at least one of its registered finite-SE/sharp/lower/materiality/resolution/benchmark/sensitivity gates |
+| `UNRESOLVED_RESAMPLING` | no earlier outcome verdict applies and a primary SE is invalid or a co-primary point estimate fails `delta_star`/`r95` |
+| `RESAMPLING_CONSISTENT` | the valid, resolved remainder: observed REAL gains do not clear the registered inferential controls |
 
 Every verdict is publishable. None authorizes changing endpoints or deleting
 failed blocks.
@@ -816,9 +927,11 @@ After pilot validation, a fresh context seals:
 Confirmation then runs and seals every common prefix and verifier artifact
 without exposing branch endpoints. The already-sealed program mechanically
 materializes the donor ledger, 12-way arm allocations, and N/Z coins from those
-receipts and freezes their digest before any branch continuation. A human may
-inspect only completeness/validity receipts during that transition, not prefix
-scores, verifier content, packet text, allocation, or branch outcome.
+receipts, constructs and audits every token-matched packet pair, seals the final
+packet-index digest, and seals the already-frozen analysis source/config/
+projection-schema digest before any branch continuation. A human may inspect
+only completeness/validity receipts during that transition, not prefix scores,
+verifier content, packet text, allocation, or branch outcome.
 
 Confirmation bytes remain encrypted and unavailable to analysis authors until
 the analysis hash and artifact completeness receipt are sealed.
@@ -852,7 +965,27 @@ Judge results are secondary and cannot rescue a failed objective claim.
 
 ### 12.1 Required records
 
-Every task block emits canonical, hash-linked records for:
+Every scientific JSON root is validated by one registered schema:
+
+```text
+resampling-study-manifest.schema.json
+resampling-prefix-schedule.schema.json
+resampling-prefix-receipt.schema.json
+resampling-assignment-ledger.schema.json
+resampling-packet-index.schema.json
+resampling-task-block.schema.json
+resampling-blinded-projection.schema.json
+resampling-analysis-freeze.schema.json
+resampling-analysis.schema.json
+resampling-power-report.schema.json
+resampling-unblind-receipt.schema.json
+resampling-artifact-root.schema.json
+```
+
+Raw model/tool streams, snapshots, patches, logs, and binary blobs are not
+standalone records; a schema-valid parent carries their digest, size, media
+type, and relative artifact name. Every task block and study envelope therefore
+emits canonical, hash-linked coverage for:
 
 - study manifest;
 - external revision/license receipt;
@@ -867,15 +1000,68 @@ Every task block emits canonical, hash-linked records for:
 - provider cost receipt; and
 - analysis projection.
 
+`resampling-packet-index` is a closed staged record: `candidate` contains
+complete pair/no-intervention receipts and encrypted artifact refs; `sealed`
+parents the candidate and adds the passed audit gates. Branches accept only
+`sealed`. `resampling-power-report` likewise uses closed stages
+`screen`, `shard`, `selection`, `validation`, and `final`.
+
+A triggered task block embeds every chronological attempt and all terminal
+receipts completed within it, including superseded first attempts and partial
+failed second attempts. It also embeds four outcome-source terminal receipts,
+four execution receipts, the chosen-attempt index, optional outage receipt, and
+validity-event references. Those embedded records carry final-snapshot, grade,
+provider-event, adverse-event, and provider-cost ArtifactRefs. A no-trigger
+block uses a distinct closed schema arm with no branch receipts and four copied
+`Y_0` outcomes.
+
+Scientific records receive one injected `frozen_created_at` from the study
+manifest; code never reads the wall clock while constructing their digest.
+Operational event timestamps live in a separate non-scientific receipt chain.
+Only artifact-root-relative POSIX names may enter scientific records; absolute
+paths and output directories are excluded. Two self-tests with the same frozen
+clock must therefore hash identically.
+
+The artifact root recursively follows every ArtifactRef from every scientific
+record, verifies the referenced raw bytes/size/media metadata, and hashes the
+union of scientific records and referenced blobs. Dangling, conflicting, or
+unlisted refs fail closed, including the deepest blob referenced only through
+an embedded task-block receipt. Manifest, schedule, prefix-index, assignment,
+projection, freeze, analysis, and unblind kinds are singleton. Packet indexes
+have exactly one candidate and one sealed identity; task blocks are unique by
+task ID with exact roster coverage. A power chain has one screen, selection,
+validation, and shard set per append-only
+`(decision_authority, phase, generation)` attempt, where phase is
+`gaussian_approximation` or `full_multiplier_fallback`. Duplicate identities
+within an attempt fail closed, but failed attempts remain immutable and later
+generations are retained. Exactly one final report per authority parents every
+attempt and closes as a phase-discriminated Gaussian completed chain,
+full-multiplier completed chain, or terminal feasibility no-go. The Gaussian
+arm requires its worst-five selection/approximation validation. The
+full-multiplier arm instead requires its fallback trigger and full-grid
+completeness/numeric/tier-validation receipt and forbids a Gaussian selection.
+Determinism probes and nested artifact roots never share the result-of-record
+root.
+
 Large raw artifacts remain under ignored `build/research/` roots. A reviewed,
 de-identified, license-compliant release bundle is promoted intentionally.
 
 ### 12.2 Capability separation
 
-- The assignment controller can map arm IDs but cannot read endpoint outcomes.
-- The run workers can execute one opaque arm but cannot read donor mappings or
-  other branches.
-- The outcome projection exposes opaque A/B/C/D labels.
+- The schedule controller cannot read verifier artifacts, arm IDs, or endpoint
+  outcomes.
+- The assignment controller can map arm IDs after prefix/verifier freeze but
+  cannot read branch endpoint outcomes.
+- A trusted preparer may resolve the clear ledger and packet index into four
+  one-slot work orders. Each run worker receives only one opaque slot
+  capability, its frozen snapshot/seed/caps, and at most one generically named
+  subject-guidance artifact; it cannot read arm names, donor mappings,
+  packet-pair receipts, the clear ledger, or other branches.
+- The outcome projection builder receives task/slot capabilities and outcomes
+  only; it cannot load the clear assignment ledger. It exposes opaque A/B/C/D
+  labels.
+- Only the hash-gated unblinder receives both opaque projection and clear
+  ledger.
 - The analysis author cannot access the unblinding key until source and
   synthetic expected outputs are sealed.
 - A context that reads confirmation outcome bytes is outcome-tainted and cannot
@@ -900,7 +1086,22 @@ The hour and cost model is valid only if Tier 1 proves:
    boundary; and
 6. projected content-addressed durable bytes, p99 boundary delta, upload time,
    object requests, and attached GB-hours at C160 and Tier 3 fit the 2,000
-   GB-month and fixed request/infrastructure allowances.
+   GB-month and fixed request/infrastructure allowances;
+7. the independent AWS and Azure lease-expiry kill drills remove every tagged
+   compute, pool, disk, endpoint/IP, and sibling container without relying on
+   the study controller;
+8. the exact AWS private/public network path and all endpoint/NAT charges pass
+   bootstrap and metering;
+9. the exact Azure VNet/subnet, node-communication mode, public-IP
+   configuration, outbound/endpoints, DNS/firewall, and charges pass bootstrap
+   and metering;
+10. benchmark containers fail negative probes for IMDS, node credentials,
+   managed identity, and Docker-socket access;
+11. Azure seals SKU/image/node-agent/allocation/quota receipts and successfully
+    allocates one exact node of every requested family;
+12. the A10 simulator passes realistic-context OOM and throughput gates; and
+13. every storage/network/log/registry/API billing dimension has an admission
+    meter whose in-flight worst case fits the frozen cap.
 
 Failure of any item invalidates the topology, hour table, and cost table. It
 requires a newly priced and hashed manifest before confirmation.
@@ -913,7 +1114,15 @@ Services:
 
 - AWS Batch managed EC2 compute environment, min vCPU 0, with a custom GPU AMI
   pinned by AMI ID and root-snapshot ID plus a bootstrap SHA-256, one-instance
-  maximum, and one whole-instance job per node;
+  maximum, and one whole-instance job per node. The On-Demand environment pins
+  `instanceTypes=[g6e.12xlarge]`, `maxvCpus=48`, and
+  `allocationStrategy=BEST_FIT`; exactly one runnable controller job requests
+  48 vCPUs, all four GPUs, and allocatable memory. Any Spot environment also
+  pins the exact type/max-vCPU/job shape, seals its allocation strategy, and
+  proves and independently guards one-node behavior in a separately
+  hash-approved Tier-3 preflight whose hours debit the Tier-3 cap. Tier 1
+  remains On-Demand only. Any future non-`BEST_FIT` On-Demand environment
+  reserves the documented possible one-instance `maxvCpus` overshoot;
 - EC2 `g6e.12xlarge`, 4 × L40S 48 GB and 384 GiB host RAM, reserved as one
   privileged controller allocation requesting all four GPUs, allocatable
   vCPUs, and allocatable memory so no unrelated Batch job can share the node;
@@ -926,28 +1135,52 @@ Services:
   approximately 3.8 TB total local NVMe;
 - unique names, networks, work directories, and cleanup receipts for every
   benchmark container, with no provider credential exposed inside it;
+- benchmark containers receive neither the Docker socket nor cloud
+  credentials, and their network namespaces block IMDS. The controller uses a
+  minimal per-run role restricted to its content-addressed storage prefix plus
+  consistent `GetItem` on the exact run lease key/table; it cannot renew the
+  lease. The independent watcher has a separate write/termination identity. A
+  negative IMDS/credential/socket and least-privilege probe is part of Tier 1;
 - ECR for digest-pinned controller, model-server, simulator, and harness
   images;
+- one-AZ private networking with an action-manifested endpoint set for ECR API,
+  ECR DKR, S3, DynamoDB lease reads, ECS control/agent/telemetry, CloudWatch
+  Logs, and whichever of STS/EC2 the measured bootstrap requires; alternatively,
+  a newly priced public/NAT path. Gateway/interface endpoint policies restrict
+  the study role to its exact resources. Endpoint hourly and data-processing
+  charges are explicit meters, never hidden inside “no NAT”;
 - S3 Standard for durable manifests, checkpoints, provider-local OCI archives,
-  and final artifacts;
+  and final artifacts, with a manifest-bound lifecycle-policy ID, absolute
+  deletion date, and abort-incomplete-multipart rule. Any intermediate
+  transition additionally freezes the destination price, minimum duration,
+  retrieval charges, and final deletion date;
 - content-addressed local NVMe caches, with bounded gp3 only when a measured
   image working set exceeds instance storage;
 - CloudWatch Logs with fixed retention; and
-- AWS Budgets alarms plus a controller-enforced instance-hour, uploaded-byte,
-  object-request, attached-GB-hour, and API-token watchdog and a Batch job
-  timeout at the action stop.
+- AWS Budgets alarms plus a controller-enforced multi-resource watchdog;
+- an independently deployed EventBridge Scheduler + Lambda stop path with a
+  DynamoDB lease and a minimal termination role. On expiry or a missing fresh
+  lease it cancels/terminates Batch work, disables and drains the queue/
+  compute environment, terminates every tagged study instance, removes tagged
+  volumes/endpoints after artifact recovery, deletes the compute environment,
+  and verifies zero tagged billable resources; and
+- node boot sweepers and exit traps that kill every study sibling container.
+  No fresh watchdog lease means no new model or API call.
 
 Every model, package, and benchmark-image byte is staged provider-locally by
-digest before a no-NAT confirmation job. If preflight proves that impossible,
-the `no NAT gateway` assumption is removed and its hourly/data-processing cost
-is added to a newly hashed manifest.
+digest before confirmation. A no-NAT job is eligible only after the exact
+endpoint set above passes a measured bootstrap; otherwise public/NAT
+networking and all hourly/data-processing charges enter a newly hashed
+manifest.
 
 Current rates:
 
 - `g6e.12xlarge`: $10.49264/hour On-Demand;
-- Spot planning snapshot: $4.467/hour;
+- historical Spot planning observation: $4.467/hour, currently non-authoritative
+  because its AZ, UTC query response, product description, and digest were not
+  retained;
 - S3 Standard: $0.023/GB-month;
-- gp3: $0.08/GB-month.
+- gp3: $0.08/GiB-month.
 
 The admission controller reads each task's declared and observed cgroup memory
 and disk use. It starts a branch only when the admitted set plus a 20% reserve
@@ -956,8 +1189,17 @@ use remains inside that reserve. Sustainable four-/three-way concurrency is a
 Tier-1 measurement, never assumed for repositories near the reported 50 GB task
 requirement.
 
+Although each L40S is marketed as 48 GB, AWS documents roughly 44 GiB usable
+per GPU on G6e. The Tier-1 OOM receipt therefore measures against usable
+device memory, not nominal capacity. The 32K/65K ladder is a deliberate
+deadline/budget compromise below Qwen's recommended 128K context and must be
+reported as such if selected.
+
 Confirmation is On-Demand. Spot is eligible only for a Tier-3 expansion after
-the forced-interruption gate passes.
+the forced-interruption gate passes and a fresh AZ-specific
+`DescribeSpotPriceHistory` response (UTC timestamp, product description, raw
+response, and digest) is sealed. Until then all AWS Tier-3 expected and
+reserved planning uses On-Demand.
 
 No SageMaker endpoint, EKS cluster, marketplace model image, persistent idle
 GPU, or cross-AZ artifact path is planned.
@@ -968,11 +1210,21 @@ Region: `East US`.
 
 Services:
 
-- Azure Batch pool with scale-to-zero, dedicated nodes, and at most one
-  whole-node study allocation per VM;
-- a pool-scope elevated start task that installs/validates the pinned host
-  Docker/runtime/driver stack, mounts local NVMe as its data root, hydrates
-  provider-local caches, and emits the machine receipt;
+- separate Azure Batch pools: dedicated Tier-1/precision pools and Tier-3 Spot
+  pools, each scale-to-zero with one task slot and at most one whole-node study
+  allocation per VM. Dedicated and Spot target-node counts are explicit and
+  never mixed behind one price;
+- an action-manifested VNet/subnet, simplified node-communication mode,
+  `publicIPAddressConfiguration`, and exact outbound path to Batch, ACR,
+  Blob/lease, and required control planes. NAT versus service/private
+  endpoints, DNS/firewall rules, hourly/data charges, and measured bootstrap
+  receipts are frozen before use;
+- a pool-scope elevated, idempotent start task that installs/validates the
+  pinned host Docker/runtime/driver stack, preserves
+  `AZ_BATCH_NODE_ROOT_DIR`, inspects `lsblk`/`findmnt`, and mounts only
+  positively identified unclaimed temporary devices. It never generically
+  formats “the NVMe disk”; the before/after device, filesystem, and mount
+  receipt is sealed;
 - non-container, pool-administrator Batch study tasks that launch only
   digest-pinned sibling host containers, avoiding Docker inside a Batch
   container or nested virtualization;
@@ -981,18 +1233,44 @@ Services:
   labeled BF16 precision replication;
 - `Standard_NV36ads_A10_v5` for the Qwen3.5-9B τ³ user simulator whenever a
   τ³ H100 or A100 subject block runs;
-- Azure Container Registry Basic for digest-pinned images;
-- Blob Storage Hot LRS for manifests/checkpoints/artifacts;
+- Azure Container Registry Basic for digest-pinned images, with a
+  watcher-owned explicit repository/registry deletion action, absolute
+  deadline, and receipt (Basic has no native untagged-manifest retention
+  policy);
+- flat-namespace (`HNS=false`) Blob Storage Hot LRS for
+  manifests/checkpoints/artifacts, with manifest-bound lifecycle policy,
+  absolute deletion date, and explicit version/soft-delete retention. Any
+  intermediate tier transition freezes its destination/minimum-duration/
+  retrieval pricing through final deletion;
 - ephemeral/local disk for replaceable cache; and
-- Cost Management budgets at the action and provider hard stops.
+- Cost Management advisory thresholds aligned with the action/provider hard
+  stops enforced by the independent watcher;
+- a separate pool/start-task `AcrPull` identity or short-lived repository-scoped
+  pull token used only to hydrate digest-pinned images. Its digest/pull/revocation
+  receipt is sealed before benchmark siblings start, and those siblings cannot
+  reach the credential;
+- a least-privileged controller identity restricted to the exact run
+  container/prefix plus read-only access to the exact Storage lease; it cannot
+  renew the lease, and sibling containers cannot reach its token/IMDS path;
+- an independently deployed Function or Automation stop path with a Storage
+  lease and termination-only managed identity. On expiry or missing lease it
+  terminates tasks/jobs, sets both dedicated and Spot targets to zero, deletes
+  every manifest-listed immutable pool/backing-resource ID, and verifies that
+  exact node/disk/IP/endpoint set is gone. It never assumes backing-resource
+  tag propagation; if resource tags are used for discovery, the manifest must
+  prove `poolAllocationMode=UserSubscription`; and
+- benchmark containers with no Docker socket, managed identity, IMDS access, or
+  provider credential, proven by a recorded negative probe.
 
 Current rates:
 
 - H100 NVL 94 GB: $6.98/hour On-Demand, $1.40298/hour Spot;
 - 2 × A100 80 GB: $7.346/hour On-Demand, $1.357541/hour Spot;
-- A10 24 GB: $3.20/hour On-Demand, $0.59136/hour Spot,
-  $0.64/hour Batch Low Priority;
-- Blob Hot LRS: $0.0208/GB-month.
+- A10 24 GB: $3.20/hour On-Demand, $0.59136/hour Spot; and
+- flat-namespace Blob Hot LRS: $0.0208/GB-month.
+
+The retired Batch Low Priority label/rate is not an execution option; Tier 3
+uses explicit Spot pools.
 
 H100 parity is substitute-only for Tier 2 when AWS primary capacity is
 unavailable. In Tier 3 it is an optional additive, preregistered parity slice
@@ -1001,6 +1279,18 @@ distinct replication block.
 The simulator VM is costed for the same τ³ wall time as its subject VM; if it is
 unavailable, τ³ is omitted from that replication rather than silently sharing
 or changing the user model.
+
+Before the first Azure action, a read-only gate seals the current East-US
+`list-skus` response, exact `imageReference`, `nodeAgentSkuId`, Batch allocation
+mode, and regional/family dedicated/Spot quotas. Quota is not treated as
+capacity. A separately priced, hash-approved Tier-1 reservation then allocates
+one exact node of each requested family and seals its allocation receipt.
+Those receipts are mandatory before any Tier-2/Tier-3 Azure reservation. NCads
+A100 v4 is a material availability risk for net-new deployments; inability to
+allocate the exact NC48 node drops the BF16 block unless a separately priced,
+hashed, and approved substitute topology passes Tier 1. The A10 simulator also
+has an explicit realistic-context OOM/throughput gate because its 24 GB device
+margin is tight.
 
 Azure is a parity/precision slice, not an automatic full-confirmation fallback.
 At the registered wall-clock caps, a full C120 Azure replacement would reserve:
@@ -1031,6 +1321,22 @@ content-addressed checkpoint containing:
 - τ³ databases, simulator state, transcript, and RNG state;
 - runtime, container, image, model, and tokenizer digests; and
 - cumulative token, call, wall-clock, and cost counters.
+
+The reservation/watchdog meter covers instance/node hours, attached
+GiB-hours, durable byte-hours, snapshot/version/soft-delete byte-hours,
+incomplete multipart-upload bytes, ECR/ACR byte-hours, object operations,
+log-ingest bytes, egress bytes, interface-endpoint/public-IP hours, and every
+API billing dimension. Fixed miscellaneous allowances are worst-case
+reservations, not enforceable caps by themselves. Provider budget alerts are
+delayed advisory signals and never substitute for the independent stop path.
+Storage and supported registry/log lifecycle-policy IDs, absolute expiry
+dates, abort-incomplete-multipart rules, and version/soft-delete retention are
+frozen before upload. ACR Basic instead uses the watcher-owned explicit delete
+action and deadline above. The storage reservation and watcher stay active
+until a verified final-deletion receipt, unless the remaining retention horizon
+is fully reserved. A storage-class transition alone never releases a
+reservation; destination-tier and minimum-duration costs remain reserved
+through verified final deletion.
 
 The checkpoint is uploaded to S3 or Blob, verified by hash, and followed by an
 atomic completion marker before the next boundary starts. A local marker is
@@ -1063,6 +1369,20 @@ Planning models and standard input/output rates per million tokens:
   2026-08-31.
 
 Only de-identified, license-permitted excerpts may leave the compute account.
+
+Each API action manifest also freezes cache-read/write charging,
+long-context/tool/regional premiums, retry count, and per-request input/output
+ceilings. Admission enforces:
+
+```text
+charged
++ reserved_worst_case_cost_of_every_in_flight_request
++ proposed_request_worst_case
+    <= action_cap
+```
+
+A post-response check is insufficient because it can discover an overrun only
+after billing.
 
 ## 14. Costed execution tiers
 
@@ -1097,15 +1417,18 @@ reserved_total =
     + API_caps
 ```
 
-Tier-3 planning expected prices use Spot only after the interruption gate
-passes; its reservation remains all-On-Demand.
+Tier-3 AWS planning expected uses On-Demand until the interruption gate and a
+sealed current AZ-specific Spot query both pass. Azure planning expected uses
+the current official Retail Spot observations but remains conditional on
+capacity/eligibility. Every reservation uses all-On-Demand; a lower
+all-eligible-Spot scenario is reported separately and never used for admission.
 
 ### 14.2 Fixed allowances
 
 ```text
 Tier-2 AWS:
-2,000 GB-month S3  = 2,000 * 0.023 = $46.00
-2,000 GB-month gp3 = 2,000 * 0.08  = $160.00
+2,000 GB-month S3   = 2,000 * 0.023 = $46.00
+2,000 GiB-month gp3 = 2,000 * 0.08  = $160.00
 ECR/log/request/egress cap                  = $200.00
 AWS infrastructure allowance               = $406.00
 
@@ -1127,7 +1450,7 @@ Tier 1 uses $20 AWS and $30 Azure infrastructure allowances.
 | 1 | AWS 12 h g6e OD; Azure 8 h H100 OD, 8 h NC48 A100 OD, and 16 h A10 OD; $50 infrastructure | $341.72 | **$487.58** |
 | 2-C120 | AWS C120, 250 g6e OD hours; $406 AWS infrastructure; OpenAI cap $200; Anthropic cap $50 | $3,279.16 | **$4,590.74** |
 | 2-C160 | AWS C160, 333.3333 g6e OD hours; same infrastructure and API caps | $4,153.55 | **$5,902.32** |
-| 3 | one disjoint 80-task-per-benchmark expansion roster on AWS; Azure H100 and BF16 reuse the same fixed 24-task-per-benchmark subset of that roster; OpenAI $1,500; Anthropic $350 | $4,009.96 with eligible Spot | **$9,764.78** |
+| 3 | one disjoint 80-task-per-benchmark expansion roster on AWS; Azure H100 and BF16 reuse the same fixed 24-task-per-benchmark subset of that roster; OpenAI $1,500; Anthropic $350 | **$5,014.23** with AWS OD and current Azure planned Spot; $4,009.96 conditional all-eligible-Spot scenario | **$9,764.78** |
 
 Arithmetic of record:
 
@@ -1168,17 +1491,18 @@ C160 reserved =
 Tier 3 freezes one 80-task-per-benchmark roster disjoint from pilot and
 confirmation. AWS runs that roster. H100 and BF16 both reuse the same fixed
 24-task-per-benchmark subset of those 80 tasks, so the provider/precision
-slices consume no additional task definitions. Tier 3 uses 166.6667 AWS g6e
-instance-hours; each Azure subject slice uses 180 VM-hours, and their τ³ slices
+slices consume no additional task definitions. Tier 3 uses exactly `500 / 3`
+AWS g6e instance-hours (166.6667 when displayed); each Azure subject slice uses
+180 VM-hours, and their τ³ slices
 jointly use 120 A10 simulator hours:
 
 ```text
 Tier-3 AWS expected =
-    166.6667 * 4.467 + 506
-    = $1,250.50
+    (500 / 3) * 10.49264 + 506
+    = $2,254.773333...
 
 Tier-3 AWS reserved =
-    1.5 * (166.6667 * 10.49264) + 506
+    1.5 * ((500 / 3) * 10.49264) + 506
     = $3,129.16
 
 Tier-3 Azure expected =
@@ -1198,7 +1522,12 @@ Tier-3 Azure reserved =
     = $4,785.62
 
 Tier-3 total expected =
-    1,250.50 + 909.45698 + 1,500 + 350
+    2,254.773333... + 909.45698 + 1,500 + 350
+    = $5,014.230313...
+
+Conditional eligible-Spot scenario =
+    ((500 / 3) * 4.467 + 506)
+    + 909.45698 + 1,500 + 350
     = $4,009.95698
 
 Tier-3 total reserved =
@@ -1213,17 +1542,17 @@ cannot be merged into the original confirmatory test.
 
 ### 14.4 Cumulative planning stops
 
-| completed scope | cumulative expected | exact cumulative worst | rounded kill cap |
+| completed scope | cumulative expected | cumulative worst (rounded cents) | rounded kill cap |
 | --- | ---: | ---: | ---: |
 | Tier 1 | $341.72 | $487.58 | **$500** |
 | Tier 1 + C120 | $3,620.88 | $5,078.32 | **$5,100** |
 | Tier 1 + C160 | $4,495.27 | $6,389.90 | **$6,400** |
-| Tier 1 + C120 + Tier 3 | $7,630.84 | $14,843.10 | **$14,900** |
-| Tier 1 + C160 + Tier 3 | $8,505.22 | $16,154.68 | **$16,200** |
+| Tier 1 + C120 + Tier 3 | $8,635.11 | $14,843.10 | **$14,900** |
+| Tier 1 + C160 + Tier 3 | $9,509.50 | $16,154.68 | **$16,200** |
 
 Full-plan provider-local ceilings, using C160, are:
 
-| provider | exact full-plan worst | provider kill cap |
+| provider | full-plan worst (rounded cents) | provider kill cap |
 | --- | ---: | ---: |
 | AWS | $8,990.35 | **$9,100** |
 | Azure | $5,064.33 | **$5,100** |
@@ -1239,14 +1568,22 @@ pending, have spendable value zero, and are not fungible across providers.
 Before every currency-bearing provider action:
 
 1. verify portal balance, expiry, eligible services, Spot/Batch eligibility,
-   and region;
-2. read quotas and capacity without mutation;
+   region, billing currency, applicable tax/fees, and whether credits cover
+   those tax/fees;
+2. read quotas and published availability signals without mutation; capacity
+   is proved only by a separately reserved, approved Tier-1 allocation receipt;
 3. re-query every unit price;
 4. freeze provider, region, SKU, pool/instance count, maximum instance-hours,
    API input/output tokens, uploaded bytes, object requests, attached GB-hours,
-   job timeout, AMI/root-snapshot/bootstrap and image/model/dataset digests,
-   output prefix, checkpoint cadence, retry ceiling, and independent stop
-   watcher;
+   actual billing currency, FX source/timestamp/buffer, tax/fee treatment and
+   uncovered-cash amount, durable/snapshot/version/soft-delete/multipart bytes, registry bytes,
+   log-ingest and egress bytes, endpoint/public-IP hours, job timeout,
+   AMI/root-snapshot/bootstrap and image/model/dataset digests, output prefix,
+   checkpoint cadence, supported lifecycle-policy IDs, explicit ACR-deletion
+   action, absolute retention/expiry/deletion dates, multipart-abort and
+   version/soft-delete rules, retry ceiling, API
+   cache/context/tool/region premiums, and the independent lease-based stop
+   watcher plus teardown verification;
 5. calculate expected, all-On-Demand reserved worst case, provider cumulative
    worst, and project cumulative worst;
 6. prove both invariants:
@@ -1263,21 +1600,32 @@ project_settled
     <= applicable_cumulative_tier_stop
 ```
 
+All invariant terms use the frozen conservative USD-equivalent conversion.
+Any tax, fee, or FX exposure not covered by credits enters both the
+provider/project worst-case reservation and an explicit cash-liability field;
+nominal credit coverage alone is insufficient.
+
 7. verify the spend-ledger digest;
 8. hash the exact action manifest;
 9. obtain the repository's one-use approval for that exact hash;
 10. append the reservation before resource creation;
-11. start the independent multi-resource watchdog, which refuses new work after
-    any frozen instance-hour, API-token, upload-byte/request, or attached
-    GB-hour cap; and
+11. start the independent multi-resource watchdog, which refuses admission when
+    current usage plus all in-flight worst cases plus proposed work would cross
+    any frozen compute, storage, network, log, endpoint, request, or API billing
+    cap; and
 12. append settlement and release the unused reservation only after
-    artifact-copy and teardown receipts pass.
+    artifact-copy, compute/network teardown, and final storage-deletion
+    receipts pass, or after the remaining frozen retention horizon is fully
+    reserved.
 
-Budget alerts do not enforce a stop. Batch timeout, pool/compute-environment
-maximum, and the independent watchdog do. A Spot eviction, capacity
-substitution, TP/context change, extra retry, added node, or provider
-substitution is not an implicit retry unless its exact behavior was already
-frozen; otherwise it needs a newly priced, hashed, and approved action.
+Budget alerts do not enforce a stop. Batch timeouts and pool/compute-environment
+maxima are defense in depth, not the hard-stop authority: provider timeout
+termination can be best-effort and does not prove detached sibling cleanup.
+The independent lease watcher plus provider teardown verification is the
+hard-stop path. A Spot eviction, capacity substitution, TP/context change,
+extra retry, added node, or provider substitution is not an implicit retry
+unless its exact behavior was already frozen; otherwise it needs a newly
+priced, hashed, and approved action.
 
 The current state is:
 
@@ -1350,3 +1698,26 @@ primary because the unit ceiling and frontier saturation weaken power.
   `https://www.tbench.ai/news/terminal-bench-2-1`
 - Current pricing sources and observations:
   `docs/research/neurips-2026-workshop/32-cloud-spend-ledger.md`
+- AWS EC2 Spot price-history contract:
+  `https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSpotPriceHistory.html`
+- AWS ECR private-endpoint requirements and PrivateLink pricing:
+  `https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html`;
+  `https://aws.amazon.com/privatelink/pricing/`
+- AWS Batch compute-environment terminal-state behavior:
+  `https://docs.aws.amazon.com/cli/latest/reference/batch/describe-compute-environments.html`
+- AWS Batch timeout best-effort behavior:
+  `https://docs.aws.amazon.com/batch/latest/userguide/job_timeouts.html`
+- AWS Budgets delay/advisory behavior:
+  `https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html`
+- Azure Batch NVMe/start-task contracts:
+  `https://learn.microsoft.com/en-us/azure/batch/batch-nvme-temporary`;
+  `https://learn.microsoft.com/en-us/python/api/azure-batch/azure.batch.models.starttask`
+- Azure Batch Spot, capacity, and VM-size contracts:
+  `https://learn.microsoft.com/en-us/azure/batch/batch-spot-vms`;
+  `https://learn.microsoft.com/en-us/azure/batch/batch-capacity-planning`;
+  `https://learn.microsoft.com/en-us/azure/batch/batch-pool-vm-sizes`
+- Azure NCads A100 v4 availability notice:
+  `https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/gpu-accelerated/nca100v4-series`
+- Azure Container Registry SKU/retention limits:
+  `https://learn.microsoft.com/en-us/azure/container-registry/container-registry-skus`;
+  `https://learn.microsoft.com/en-us/azure/container-registry/container-registry-retention-policy`
