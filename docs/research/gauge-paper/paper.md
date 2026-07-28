@@ -434,9 +434,40 @@ Invariant to response precision. Offering two decimal places buys 7.2 effective 
 the 0–10 and 0.00–1.00 scales. That is the instrument's zero point moving, not the model's
 mind.
 
-### 6.7 Placebo arm
+### 6.7 The placebo arm: the channel ignores irrelevant content and obeys irrelevant form
 
-⟦PENDING — placebo stage numbers, filled from `build/gauge/g1/summary.json`.⟧
+We pre-registered that the channel would be **placebo-dominated** — that a known-inert,
+length-matched context block would move it at least as much as item identity does
+($\Pi > 1$). It does not. This is the study's cleanest falsification of its own hypothesis
+and it is a strong positive control for everything else.
+
+| arm       | context block                                        |   mean | contrast vs base |         $p$ |
+| --------- | ---------------------------------------------------- | -----: | ---------------: | ----------: |
+| `base`    | none                                                 | 0.8587 |                — |           — |
+| `sham`    | 297 chars, task-irrelevant (a CI-migration note)     | 0.8632 |      **+0.0044** |    **0.72** |
+| `treated` | 293 chars, genuinely relevant (a prior-failure memo) | 0.7735 |      **−0.0876** | **2.2e-10** |
+
+**Placebo-dominance ratio $\Pi = 0.000$, CI $[0.000, 0.011]$** — the sham main effect is
+statistically indistinguishable from zero, against an item variance of 0.041. The minimum
+detectable effect at this design is 0.0235, so the study had ample power to see a placebo
+effect roughly five times smaller than the treated effect it did detect.
+
+The channel is therefore **not suggestible**: pad the prompt with plausible but irrelevant
+repository chatter and it does not budge; give it information that genuinely bears on
+correctness and it moves sharply, in the right direction, with a very large effect.
+
+Set that against §6.6, where merely _rephrasing the question_ shifts the reading by 0.098 —
+more than the 0.088 that a real prior-failure memo achieves. The precise finding is:
+
+> **The channel ignores irrelevant content and obeys irrelevant form.** It is robust to what
+> you put in the prompt and highly sensitive to how you ask the question.
+
+This is why the failure is a _metrological_ one rather than a credulity one, and why the
+remedy is a measurement protocol rather than better prompting hygiene. The same data that
+shows the channel responding sensibly to meaning ($p = 2 \times 10^{-10}$) scores
+`UNINTERPRETABLE` with `ndc = 1` on this stage's base arm. A channel can be semantically
+well-behaved and metrologically useless at the same time, and only one of those two
+properties is ever measured.
 
 ### 6.8 Confound control
 
@@ -564,10 +595,11 @@ Reported in full, including against us.
 | G1-H3      | no model cell reaches `USABLE`                                 | ⟦PENDING⟧                            | ⟦PENDING⟧               |
 | G1-H4      | neither temperature reaches `ndc >= 2`; $S_{eff} < 2$ at `T=0` | `ndc = 2` at `T=0`, $S_{eff} = 4.07$ | **falsified**           |
 | G1-H5      | all five remedies stay below the floor                         | wording-averaging reaches ICC 0.910  | **partially falsified** |
-| G1-H6      | $\Pi > 1$ with significant sham contrast                       | ⟦PENDING⟧                            | ⟦PENDING⟧               |
+| G1-H6      | $\Pi > 1$ with significant sham contrast                       | $\Pi = 0.000$, sham $p = 0.72$       | **falsified**           |
 
-The hypothesis we registered — that no known technique repairs the channel — is **not
-supported**. Greedy decoding and wording-averaging both help, measurably.
+Three registered hypotheses did not survive. The channel is better behaved than we
+predicted on two axes — it is repairable at a price (H5), and it is not placebo-driven at all
+(H6) — and the failure that remains is narrower and better localized because of it.
 
 We regard this as the pre-registration doing its job. The interesting result is the one the
 experiment found, not the one it was built to look for: the channel is a low-resolution

@@ -138,10 +138,31 @@ This is the study's sharpest practical finding. A `temperature=0` elicited metri
 airtight under the only check anyone runs (re-run it, get the same answer) while 54% of its
 variance is still coming from a prompt-wording choice nobody logged.
 
-## 6. Placebo arm (G1-H6)
+## 6. Placebo arm (G1-H6) — falsified, and it matters
 
-_Pending: the placebo stage was still eliciting when this section was drafted; numbers are
-filled in from `build/gauge/g1/summary.json` before this document is final._
+| arm | context block | mean | contrast vs base | p |
+| --- | --- | ---: | ---: | ---: |
+| `base` | none | 0.8587 | — | — |
+| `sham` | 297 chars, task-irrelevant | 0.8632 | **+0.0044** | **0.72** |
+| `treated` | 293 chars, genuinely relevant | 0.7735 | **-0.0876** | **2.2e-10** |
+
+Placebo-dominance ratio **Pi = 0.000**, CI [0.000, 0.011], against an item variance of 0.041.
+The minimum detectable effect at this design is 0.0235, so the study could comfortably have
+seen a placebo effect a fifth the size of the treated effect it did detect.
+
+**G1-H6 is falsified.** We pre-registered that the channel would be placebo-dominated. It is
+not suggestible at all: irrelevant repository chatter does not move it, and a genuinely
+relevant prior-failure memo moves it sharply in the correct direction.
+
+Set against section 4 — where merely rephrasing the question shifts the reading by 0.098,
+*more* than the 0.088 a real prior-failure memo achieves — the precise statement is:
+
+> The channel **ignores irrelevant content and obeys irrelevant form**. It is robust to what
+> you put in the prompt and highly sensitive to how you ask the question.
+
+This is a strong positive control for the whole apparatus, and it relocates the finding: the
+failure is metrological, not credulity. The same stage's base arm scores `ndc = 1`,
+ICC 0.549, D 0.690, `UNINTERPRETABLE`.
 
 ## 7. Provenance — is this about introspection? (G1-H2)
 
