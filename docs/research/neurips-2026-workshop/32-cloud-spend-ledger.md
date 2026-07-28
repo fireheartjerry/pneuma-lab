@@ -1,0 +1,53 @@
+# 32 — Cloud Spend Ledger
+
+Status: **append-only planning ledger; no provider action authorized**
+
+This ledger records economic cost even when credits eventually settle an invoice.
+Amounts are USD. A credit's face value is not available balance until its provider
+portal, expiry, workload eligibility, and terms have been verified.
+
+## Credit registry
+
+| provider | stated face value | verified spendable | state | expiry | workload terms | verified at |
+| --- | ---: | ---: | --- | --- | --- | --- |
+| AWS | 10,000.00 | 0.00 | user reports pending; no matching award email located | unknown | unknown | mailbox checked 2026-07-28 |
+| Azure | 10,000.00 | 0.00 | new application declined because the account previously received sponsorship; Microsoft says adjusted additional credits may be requested by support ticket from the prior account | unknown | amount will be adjusted for prior usage; GPU eligibility unknown | Microsoft email received 2026-07-27 |
+| OpenAI | 2,500.00 | 0.00 | user reports pending; no matching award email located | unknown | unknown | mailbox checked 2026-07-28 |
+| Anthropic | 500.00 | 0.00 | user reports pending; no matching API-credit award email located | unknown | unknown | mailbox checked 2026-07-28; unrelated consumer-plan refunds excluded |
+
+## Balance invariant
+
+For every currency-bearing provider action:
+
+```text
+settled economic cost + active worst-case reservations + proposed worst case
+    <= verified eligible balance
+```
+
+The action also needs a frozen plan hash, current-price receipt, balance digest,
+one-use approval identifier, retry ceiling, artifact-copy plan, and automatic
+stop condition. Pending credits cannot satisfy the inequality.
+
+## Action ledger
+
+| entry | UTC time | provider | action | plan hash | approval | source | reserved worst case | settled economic cost | credit applied | state | receipt / note |
+| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | --- | --- |
+| CL-000 | 2026-07-28T00:00:00Z | all | Ledger opened; public documentation and local planning only | n/a | n/a | none | 0.00 | 0.00 | 0.00 | settled | No API call, resource creation, model inference, storage allocation, or purchase. |
+| CL-001 | 2026-07-28T10:36:14Z | all | Read-only mailbox verification of stated credit status | n/a | user research mandate | none | 0.00 | 0.00 | 0.00 | settled | Azure status corrected from generically pending to support-ticket-dependent and usage-adjusted; no AWS/OpenAI/Anthropic award message located in bounded searches. |
+| CL-002 | 2026-07-28T10:38:24Z | AWS / Azure / OpenAI / Anthropic | Read-only official pricing and service research | n/a | user research mandate | none | 0.00 | 0.00 | 0.00 | settled | Candidate tiers modeled from current list/Spot/API prices; estimates are not reservations and must be re-quoted at each action freeze. |
+| CL-003 | 2026-07-28T10:55:00Z | all | Selected provider-independent execution architecture and bounded tiers | n/a | user research mandate | none | 0.00 | 0.00 | 0.00 | settled | Design pins AWS Batch + `g6e.12xlarge` as primary, Azure Batch + H100/A100 as parity/precision paths, and APIs as secondary-only. This initial planning envelope was superseded by CL-004 after hostile capacity review. Planning entries are not reservations. |
+| CL-004 | 2026-07-28T11:11:28Z | all | Corrected architecture, capacity, and cumulative planning stops after independent red-team review | n/a | user research mandate | none | 0.00 | 0.00 | 0.00 | settled | Added whole-instance host-Docker execution, τ³ simulator capacity, memory-aware admission, boundary-durable Spot recovery, measured topology gates, and exact cap-derived schedule arithmetic. Cumulative kill caps are $500, $5,100 for C120 or $6,400 for C160, and $14,900/$16,200 after the respective eligible expansion. No resource was provisioned or reserved. |
+| CL-005 | 2026-07-28T11:32:10Z | all | Frozen zero-spend core plan and reconciled final planning architecture | n/a | user research mandate | none | 0.00 | 0.00 | 0.00 | settled | Independent recomputation reproduced every displayed cloud total. Added durable-byte/request/upload and multi-resource watchdog gates, fixed task-roster reuse, and made any concurrency fallback require recosting/re-hashing. This entry records design work only; no resource, API inference, or reservation exists. |
+| CL-006 | 2026-07-28T11:40:52Z | local | Pre-implementation source baseline and artifact-prerequisite diagnosis | n/a | user research mandate | none | 0.00 | 0.00 | 0.00 | settled | Full pytest plus focused diagnosis used local CPU/filesystem only. Five non-passes are frozen missing ignored historical artifacts; 1,282 tests passed. No provider resource, model API, reservation, or economic cost. |
+
+## Totals
+
+| measure | amount |
+| --- | ---: |
+| Settled economic cost | 0.00 |
+| Active worst-case reservations | 0.00 |
+| Verified eligible credit balance | 0.00 |
+| Cash charged | 0.00 |
+
+Planning estimates belong in the execution design, not in settled totals. Each
+estimate becomes a reservation only after its exact action gate is satisfied.
