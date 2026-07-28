@@ -441,6 +441,116 @@ And published reflection gains are estimates of exactly the confounded total con
 criticising — they are a **ceiling, not a prior** for $\Delta_C$. This is another reason
 self-report is the primary outcome.
 
+## 11b. Corrections from instrument validation (2026-07-27)
+
+These supersede sections 4, 7 and 10 where they conflict. All were measured
+**before any arm, real reflection, or placebo existed**, on canonical solutions
+and the held-out calibration slice. Artifacts and their limits:
+`build/research/placebo/instrument/`. Decisions: DL-81 through DL-85.
+
+**The outcome is read from logits, and the probe is polarity-symmetrized.** The
+model is asked a binary question and the answer is normalized probability mass on
+YES against NO over a single greedy token, aggregated over a **token set** (`YES`,
+`Yes`, `yes`, ` YES`, `TRUE` against `NO`, `No`, `no`) because the raw API spreads
+the answer across case and whitespace variants. Both polarities are asked and
+averaged, `p = [P(yes|pass) + (1 - P(yes|fail))] / 2`: on identical programs the
+single-polarity readout differs from the symmetrized one by a mean of **0.1030**,
+which is larger than any arm effect this study is powered to detect. The stated
+0-100 integer is retained as a **secondary** outcome, since the stated-versus-
+internal contrast is itself informative.
+
+**The checkpoint changes to `qwen2.5-coder:7b`.** On 50 canonical/mutant pairs the
+1.5B rung returns P(YES) in a 0.49-0.67 band, separation +0.013, AUROC 0.580; the
+7B rung returns 0.008-0.986, separation +0.300, AUROC 0.769. Section 10's
+eligibility rule gains a fourth criterion -- **outcome-channel validity** -- because
+the first three never asked whether the quantity to be scored is measurable on the
+candidate. 7B still fails the yield floor at 90 projected failures against 110,
+which is why the roster is enlarged rather than the checkpoint downgraded.
+
+**Section 7's 502-problem roster is retired.** Cluster count is the only quantity
+that moves the minimum detectable effect; seeds and arms buy precision and cannot
+manufacture `n`. Enlarging and hardening the roster restores the yield a stronger
+checkpoint destroys and is the only purchase that changes what the study can
+detect. Both benchmarks stay separate strata.
+
+**Section 4's validity gate fails as written, and the gate is amended.** With the
+model judging its own graded output: separation +0.0705, AUROC 0.713, Brier
+0.1930 against a constant-base-rate Brier of 0.1875. Three criteria pass; the
+Brier-improvement criterion fails. The diagnosis is a **discrimination/calibration
+dissociation** -- ranking signal is stable at AUROC ~0.70 across three probe
+designs while the attached probability is worse than a constant. A program passing
+**0 of 105** tests drew P(YES) = 0.922. Discrimination therefore becomes the
+primary self-report quality metric and the proper scoring rule is retained as a
+secondary, because the estimand is a _contrast between arms_ and uniformly
+miscalibrated arms still support a valid difference, whereas the gate as written
+tested an absolute calibration the estimand never required. The calibration
+failure is promoted to a reported result.
+
+**Two reproducibility holes, found by trying to reproduce the pool.** The
+attempt-1 prompt is not in the repository -- the pool digest binds outputs while
+nothing binds the input that produced them -- and `evalplus` is declared in neither
+`pyproject.toml` nor `uv.lock`, so a clean checkout cannot grade. Both are blocking
+fixes; the replacement sweep ships its prompt builder as committed code.
+
+**Stated limits.** n = 40 with 10 failures; the calibration slice is MBPP-only, so
+HumanEval+ (the harder stratum at 38.4%) is untested; first-probe mutants are
+broken by construction rather than verified by execution; the Platt recalibration
+in the probe script did not converge and is excluded from every conclusion.
+
+## 11c. The measurement-system reframe (2026-07-27)
+
+This supersedes the novelty framing in 11b. Artifacts:
+`build/research/placebo/instrument/floor_metrology.json`. Decision: DL-91.
+
+**The gate mechanism is not ours and the paper stops implying it is.** A
+prior-art sweep found the construct standardised in four mature fields, each
+with published acceptance thresholds: Currie's detection paradigm (IUPAC 1995,
+ISO 11843, CLSI EP17-A2), minimal detectable change in clinimetrics
+(`SEM = SD*sqrt(1-ICC)`, `SDC95 = 1.96*sqrt(2)*SEM`, COSMIN), assay sensitivity
+in clinical trials (ICH E10), and gauge R&R in industrial metrology (AIAG MSA).
+ISO/IEC 17025:2017 clause 7.8.6 makes a documented decision rule with a guard
+band mandatory for accredited laboratories. In-domain the idea is also taken:
+arXiv:2606.20695 is a *paired noise-floor protocol* for multi-agent benchmarks,
+and arXiv:2607.06001 preregisters a three-valued verdict whose CAP category is
+our UNRESOLVABLE. **The contribution is transfer and demonstration.**
+
+**A measurement error was corrected.** The floor had been reported as the range
+over six phrasings. An intervention effect is a difference between *two*
+conditions and the expectation of a range grows with sample count, so the
+reported floor was the wrong comparator. Arity-matched, the mean pairwise
+2-phrasing gap is **0.0716** against the previously reported mean 6-phrasing
+range of **0.1514** -- an inflation factor of **2.11x**. The 95th-percentile
+pairwise gap is **0.2415**.
+
+**The instrument was then assessed by the standard procedure.** Phrasings are
+appraisers, the 40 frozen execution-graded programs are parts, one trial per
+cell because the readout is deterministic at temperature zero:
+
+| Quantity   | Value      | Standard                                  |
+| ---------- | ---------- | ----------------------------------------- |
+| ICC(2,1)   | 0.7100     | --                                        |
+| SEM        | 0.0804     | --                                        |
+| `SDC95`    | **0.2227** | effects below this are unresolvable       |
+| `%GRR`     | **53.9%**  | AIAG: <10 good, 10-30 marginal, >30 fails |
+| `ndc`      | **2.21**   | AIAG requires >= 5                        |
+
+**The readout fails both AIAG criteria, and `SDC95` exceeds any effect this
+study could plausibly produce.** That is the paper's result. It is a negative
+result about an instrument, obtained with procedures four fields already
+mandate, on a channel that verification pipelines are being built on.
+
+**Consequences for the confirmatory design.** The intervention arms are now
+expected to return UNRESOLVABLE on the primary outcome, and that is reported as
+the finding rather than as a failed study. Two obligations follow. First, an
+**assay-sensitivity positive control** is required and does not yet exist: every
+one of the four fields demands evidence that the instrument detects a *planted*
+effect of known size before a null is interpretable. The canonical-versus-mutant
+probe (AUROC 0.769 on 7B) is the embryo of one and must be expressed as a
+detectable-effect-size statement. Second, the resolving power of the elicitation
+methods the literature actually uses -- verbalized integers above all -- must be
+measured on the same parts and appraisers, because a finding that *our* readout
+fails says nothing about *theirs*.
+
 ## 12. Standing obligation
 
 Weekly arXiv sweep on `placebo AND (self-repair OR agent OR retrieval)` through Aug 20. Six

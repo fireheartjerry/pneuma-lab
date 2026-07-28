@@ -67,15 +67,33 @@ ARM_P_TASK_BLIND: str = "P_TASK_BLIND"
 ARM_C1_ORACLE_FULL: str = "C1_ORACLE_FULL"
 ARM_C2_ORACLE_REDACTED: str = "C2_ORACLE_REDACTED"
 
+# Shared -- compute control. No payload content; the runner draws ONE ADDITIONAL
+# independent attempt-2 sample at matched decoding and matched compute.
+#
+# Without it the nonspecific-helper term is confounded with "the arm simply got
+# another draw." Note the precondition, which is not optional and is enforced by
+# `assertResampleIsMeaningful`: under greedy decoding a second draw at the same
+# prompt is BYTE-IDENTICAL, so this arm measures exactly nothing at temperature
+# zero and its inclusion there would be decorative.
+ARM_S_RESAMPLE: str = "S_RESAMPLE"
+
+# The confirmatory roster, in reporting order. Seven arms: `C2_ORACLE_REDACTED`
+# was dropped as descope item one and `S_RESAMPLE` took the budget, so the count
+# is unchanged and the compute control is bought with the second oracle dose.
 ARM_ORDER: tuple[str, ...] = (
     ARM_R0_NONE,
     ARM_P_TASK_BLIND,
     ARM_R1_PLACEBO_RANDOM,
     ARM_R2_PLACEBO_MATCHED,
     ARM_R3_REAL,
+    ARM_S_RESAMPLE,
     ARM_C1_ORACLE_FULL,
-    ARM_C2_ORACLE_REDACTED,
 )
+
+# Every arm this module can build, including the descoped one. Kept so a parity
+# record over an opt-in roster still orders its rows, and so restoring C2 is a
+# flag rather than a rebuild.
+ARM_ORDER_ALL: tuple[str, ...] = ARM_ORDER + (ARM_C2_ORACLE_REDACTED,)
 
 # The arm whose realized token count defines the parity target for the tuple.
 REFERENCE_ARM: str = ARM_R3_REAL
@@ -92,6 +110,15 @@ PLACEBO_ARMS: tuple[str, ...] = (
 ORACLE_DOSE_FULL: str = "full"
 ORACLE_DOSE_REDACTED: str = "redacted"
 ORACLE_DOSES: tuple[str, ...] = (ORACLE_DOSE_FULL, ORACLE_DOSE_REDACTED)
+
+# The confirmatory roster carries the FULL dose only. `C2_ORACLE_REDACTED` is
+# item one of the preregistered descope order, and it is dropped so the budget
+# it consumed goes to the perturbation floor instead. What is given up is stated
+# rather than quietly lost: with one dose the positive control can still show
+# that the injection path works, but it can no longer report the MINIMUM content
+# dose the instrument resolves. The builder is retained and tested so the arm can
+# be restored without rebuilding it.
+CONFIRMATORY_ORACLE_DOSES: tuple[str, ...] = (ORACLE_DOSE_FULL,)
 
 # ---------------------------------------------------------------------------
 # Fixed payload structure. Structural parity is defined against these constants;
@@ -898,7 +925,17 @@ def buildDonorReflection(
     )
 
 
-def _neutralSections(counts: Sequence[int]) -> dict[str, list[str]]:
+def _neutralSections(
+    counts: Sequence[int], sentences: Sequence[str] = NEUTRAL_SENTENCES
+) -> dict[str, list[str]]:
+    """Lay a bank of inert sentences into the fixed schema.
+
+    ``sentences`` is a parameter so that ``surface_floor.py`` can build lexically
+    distinct but semantically identical variants of the same inert block. It
+    defaults to the committed bank, so every existing caller is unaffected.
+    """
+    if not sentences:
+        raise ValueError("sentence bank must not be empty")
     sections: dict[str, list[str]] = {}
     cursor = 0
     for name, count in zip(SCHEMA_SECTIONS, counts):
@@ -906,7 +943,7 @@ def _neutralSections(counts: Sequence[int]) -> dict[str, list[str]]:
             raise ValueError(f"bullet count for {name} must be >= 1, got {count}")
         bullets: list[str] = []
         for _ in range(count):
-            bullets.append(NEUTRAL_SENTENCES[cursor % len(NEUTRAL_SENTENCES)])
+            bullets.append(sentences[cursor % len(sentences)])
             cursor += 1
         sections[name] = bullets
     return sections
@@ -939,6 +976,8 @@ def buildNeutralFiller(
     bullets_per_section: int = DEFAULT_BULLETS_PER_SECTION,
     prompt_slot_index: int = DEFAULT_PROMPT_SLOT_INDEX,
     tokenizer: Tokenizer = countTokens,
+    sentences: Sequence[str] = NEUTRAL_SENTENCES,
+    arm: str = ARM_R0_NONE,
 ) -> PayloadBlock:
     """Arm ``R0_NONE`` -- a LENGTH-MATCHED NEUTRAL BLOCK, never an empty string.
 
@@ -958,7 +997,7 @@ def buildNeutralFiller(
         if bullet_counts is not None
         else [bullets_per_section] * len(SCHEMA_SECTIONS)
     )
-    floor_sections = _neutralSections(counts)
+    floor_sections = _neutralSections(counts, sentences)
     while tokenizer(renderPayloadText(floor_sections)) > target_tokens:
         if not _dropTrailingSentence(floor_sections):
             break
@@ -975,7 +1014,7 @@ def buildNeutralFiller(
         floor_sections, target_tokens, tokenizer=tokenizer
     )
     block = _assembleBlock(
-        arm=ARM_R0_NONE,
+        arm=arm,
         sections=fitted,
         prompt_slot_index=prompt_slot_index,
         tokenizer=tokenizer,
@@ -1075,6 +1114,45 @@ def buildOracleReflection(
     )
 
 
+class ResamplePreconditionError(ValueError):
+    """The RESAMPLE arm was configured where a second draw cannot differ."""
+
+
+def assertResampleIsMeaningful(
+    *, temperature: float, top_p: float = 1.0, seeds: Sequence[int] = ()
+) -> None:
+    """Refuse a RESAMPLE arm that cannot possibly measure anything.
+
+    The arm exists to separate the nonspecific-helper effect from "the arm got
+    an extra draw." That separation requires the extra draw to be able to differ
+    from the first. Under greedy decoding it cannot: temperature zero makes a
+    second generation on the same prompt byte-identical, and the seed is inert
+    because nothing is sampled.
+
+    Raising here rather than warning is deliberate. A silently-included RESAMPLE
+    arm at temperature zero produces a clean-looking null that would be read as
+    "extra compute does not matter" when it actually reads "we ran the same
+    prompt twice and got the same string."
+    """
+    if temperature <= 0.0:
+        raise ResamplePreconditionError(
+            f"RESAMPLE requires stochastic decoding; temperature={temperature} "
+            "makes the second draw byte-identical to the first, so the arm "
+            "measures nothing. Either raise the temperature for the resample "
+            "track or drop the arm and state that the nonspecific-helper term "
+            "is not separated from extra sampled compute."
+        )
+    if top_p <= 0.0:
+        raise ResamplePreconditionError(
+            f"top_p={top_p} collapses the sampling distribution to a point"
+        )
+    distinct = len({int(s) for s in seeds})
+    if seeds and distinct < 2:
+        raise ResamplePreconditionError(
+            f"RESAMPLE needs at least two distinct seeds, got {distinct}"
+        )
+
+
 def buildPayloadSet(
     failure: FailureTuple,
     *,
@@ -1086,6 +1164,8 @@ def buildPayloadSet(
     prompt_slot_index: int = DEFAULT_PROMPT_SLOT_INDEX,
     tokenizer: Tokenizer = countTokens,
     include_oracle: bool = True,
+    include_redacted_dose: bool = False,
+    include_resample: bool = True,
 ) -> dict[str, PayloadBlock]:
     """Build every arm for one failure tuple, parity-targeted on ``R3_REAL``.
 
@@ -1140,8 +1220,26 @@ def buildPayloadSet(
             prompt_slot_index=prompt_slot_index,
             tokenizer=tokenizer,
         )
+    if include_resample:
+        payloads[ARM_S_RESAMPLE] = buildNeutralFiller(
+            target_tokens=target_tokens,
+            bullet_counts=counts,
+            bullets_per_section=bullets_per_section,
+            prompt_slot_index=prompt_slot_index,
+            tokenizer=tokenizer,
+            arm=ARM_S_RESAMPLE,
+        )
+        payloads[ARM_S_RESAMPLE].provenance.update(
+            {
+                "requires_independent_resample": True,
+                "resample_index": 1,
+                "neutral_filler": True,
+            }
+        )
+
+    doses = ORACLE_DOSES if include_redacted_dose else CONFIRMATORY_ORACLE_DOSES
     if include_oracle:
-        for dose in ORACLE_DOSES:
+        for dose in doses:
             block = buildOracleReflection(
                 failure,
                 dose=dose,
@@ -1500,7 +1598,7 @@ def buildParityRecord(
     return ParityRecord(
         problem_id=problem_id,
         seed=seed,
-        arms=tuple(arm for arm in ARM_ORDER if arm in payloads),
+        arms=tuple(arm for arm in ARM_ORDER_ALL if arm in payloads),
         token=token,
         structural=structural,
         item=item,

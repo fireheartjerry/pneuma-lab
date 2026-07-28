@@ -15,7 +15,7 @@ ARTIFACTS = $(foreach ext,$(ARTIFACT_EXTS),$(JOB).$(ext))
 # Strings that must never appear in a submitted double-blind PDF.
 BLIND_FORBIDDEN = Pneuma
 
-.PHONY: all clean distclean blindcheck
+.PHONY: all clean distclean blindcheck preflight
 
 all: $(JOB).pdf
 
@@ -38,3 +38,12 @@ blindcheck: $(JOB).pdf
 	    echo "blindcheck OK: no forbidden string in $(JOB).pdf text layer"; \
 	    rm -f $(JOB).blindcheck.txt; \
 	fi
+
+# Mechanical pre-submission checks against the BUILT pdf and its source.
+# Supersedes blindcheck, which only looked for one forbidden string in the text
+# layer. preflight additionally catches silently mangled control sequences
+# (a stray tab turns 	extbf into literal "extbf{...}" and LaTeX exits 0),
+# unfilled placeholders, Type 3 fonts, unembedded fonts, populated metadata,
+# and identifying strings in the raw stream as well as the text layer.
+preflight: $(JOB).pdf
+	@JOB=$(JOB) ./preflight.sh

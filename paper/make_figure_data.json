@@ -1,0 +1,21 @@
+{
+    "d_by_phrasing": {
+        "committed-default": 0.2395842746895716,
+        "terse": 0.19339915830336657,
+        "third-person": 0.2464684660883879,
+        "verdict-framed": 0.22314837263576923,
+        "review-framed": 0.21044561729344036,
+        "code-first": 0.06431052100340062
+    },
+    "se_by_phrasing": {
+        "committed-default": 0.040395440025550816,
+        "terse": 0.03833871401411311,
+        "third-person": 0.039174718593838996,
+        "verdict-framed": 0.039680238338495086,
+        "review-framed": 0.037192973149084374,
+        "code-first": 0.019133738889374374
+    },
+    "sdc95": 0.2775876734328702,
+    "n_pairs": 37,
+    "sdc95_provenance": "gauge_verified_qwen2_5-coder_7b.json: effects, ratio and SDC95 all computed on the SAME 37 execution-verified pairs through the same six wordings. Supersedes (a) 0.2227, from a different task under a different question wording, and (b) 0.2737, which was the right instrument but a different set of parts."
+}

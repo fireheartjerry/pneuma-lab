@@ -6,12 +6,16 @@
 #     ./build.sh clean    remove LaTeX build artifacts (keeps the PDF)
 #     ./build.sh distclean  remove build artifacts and the PDF
 #
+#     JOB=placebo ./build.sh    build the placebo study draft instead
+#
 # Prefers latexmk (handles the bibtex/rerun loop). Falls back to a manual
 # pdflatex/bibtex/pdflatex/pdflatex sequence when latexmk is unavailable.
 
 set -eu
 
-JOB="main"
+# Which document to build. Override to build a sibling document that shares
+# refs.bib and the style file, e.g. JOB=placebo ./build.sh
+JOB="${JOB:-main}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
 

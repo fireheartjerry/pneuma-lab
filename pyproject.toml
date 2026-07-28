@@ -19,6 +19,14 @@ dependencies = ["jsonschema>=4.20", "numpy>=2.0", "pyarrow>=15"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "jsonschema>=4.20", "pyarrow>=15"]
+# Grading for the placebo study. `grader.py` imports evalplus lazily, so the rest
+# of the package installs and tests without it, but a checkout that has not
+# installed this extra CANNOT grade a candidate solution. It was undeclared while
+# the attempt-1 sweep ran, which is recorded as a reproducibility defect in
+# 15-decision-log.md DL-84. Warm the dataset and ground-truth caches once with:
+#   python -c "from evalplus.data import get_human_eval_plus, get_mbpp_plus; \
+#              get_human_eval_plus(); get_mbpp_plus()"
+placebo = ["evalplus>=0.3"]
 foundation = [
     "torch==2.13.0",
     "torchvision==0.28.0",

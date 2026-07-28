@@ -16,6 +16,10 @@ import pytest
 from pneuma_lab.placebo.blocks import (
     ARM_C1_ORACLE_FULL,
     ARM_C2_ORACLE_REDACTED,
+    ARM_ORDER_ALL,
+    ARM_S_RESAMPLE,
+    ResamplePreconditionError,
+    assertResampleIsMeaningful,
     ARM_P_TASK_BLIND,
     ARM_R0_NONE,
     ARM_R1_PLACEBO_RANDOM,
@@ -555,6 +559,11 @@ def test_payloadSetIsDeterministic() -> None:
 
 
 def test_allSevenArmsAreBuilt() -> None:
+    """The confirmatory roster: C2 dropped as descope item one, RESAMPLE added.
+
+    Still seven arms. The compute control is bought with the second oracle dose
+    rather than with extra budget, which is the trade the descope order makes.
+    """
     payloads = buildSet()
     assert set(payloads) == {
         ARM_R0_NONE,
@@ -562,9 +571,39 @@ def test_allSevenArmsAreBuilt() -> None:
         ARM_R1_PLACEBO_RANDOM,
         ARM_R2_PLACEBO_MATCHED,
         ARM_R3_REAL,
+        ARM_S_RESAMPLE,
         ARM_C1_ORACLE_FULL,
-        ARM_C2_ORACLE_REDACTED,
     }
+    assert ARM_C2_ORACLE_REDACTED not in payloads
+
+
+def test_theRedactedDoseIsRestorableByFlagNotByRebuild() -> None:
+    payloads = buildSet(include_redacted_dose=True)
+    assert ARM_C2_ORACLE_REDACTED in payloads
+    assert set(payloads) == set(ARM_ORDER_ALL)
+
+
+def test_resampleCarriesNoContentButDemandsAnExtraDraw() -> None:
+    block = buildSet()[ARM_S_RESAMPLE]
+    assert block.provenance["requires_independent_resample"] is True
+    assert block.provenance["model_call"] is False
+    assert block.provenance["saw_problem_statement"] is False
+    # Token-exact and structurally identical to every other arm.
+    assert block.token_count == buildSet()[ARM_R3_REAL].token_count
+
+
+def test_resampleRefusesGreedyDecodingBecauseASecondDrawWouldBeIdentical() -> None:
+    with pytest.raises(ResamplePreconditionError, match="byte-identical"):
+        assertResampleIsMeaningful(temperature=0.0)
+
+
+def test_resampleAcceptsStochasticDecoding() -> None:
+    assertResampleIsMeaningful(temperature=0.7, top_p=0.95, seeds=(1, 2, 3))
+
+
+def test_resampleRefusesASingleSeed() -> None:
+    with pytest.raises(ResamplePreconditionError, match="two distinct seeds"):
+        assertResampleIsMeaningful(temperature=0.7, seeds=(4, 4, 4))
 
 
 def test_buildersDoNotImportTheBackendWhenAReflectorIsSupplied() -> None:

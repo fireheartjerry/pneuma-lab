@@ -1,0 +1,1107 @@
+% =====================================================================
+% NeurIPS 2026 workshop submission (double-blind, non-archival).
+% Workshop: "Who Verifies the Agents? Toward Reliable Agent Development"
+% Page limit: 4-9 pages of body, EXCLUDING references and appendices.
+% Deadline: 2026-08-29, 23:59 AoE. Submission via OpenReview.
+%
+% Pre-results draft of the self-report study. The INSTRUMENT results
+% (Section 3) are measured and real; the ARM results are not yet run.
+% Design source:
+%     docs/research/neurips-2026-workshop/25-placebo-selfreport-design.md
+% Decisions: DL-49..DL-52, DL-77..DL-90 in 15-decision-log.md.
+%
+% NUMBERS POLICY.
+%   * Quantities describing the FROZEN POOL, MODEL SELECTION and the
+%     INSTRUMENT (polarity bias, phrasing floor, dissociation) are real and
+%     come from build/research/placebo/{failure_pool,preflight}.json and
+%     build/research/placebo/instrument/. They may be checked today.
+%   * Every quantity describing an ARM OUTCOME does not exist yet. No arm has
+%     been run. Those slots are \result{...} and render visibly in red.
+%   * When the confirmatory batch lands, each \result{} is replaced by a value
+%     emitted by the analysis script, never hand-entered.
+%
+% PLACEHOLDERS are \TODO{...} (missing prose/asset) and \result{...} (missing
+% number). Both must be zero before submission; \draftnotice must be deleted.
+%
+% PAGE BUDGET. Measured 2026-07-27 against the SUBMISSION form (\draftnotice
+% commented out), by locating section starts in the built PDF.
+%
+%   state            body ends   References   body chars on p10
+%   start of day     p10          p11          --
+%   after cuts       p10          p10          1584 of 3675  (43%)
+%
+% One page was recovered. The paper is still OVER by roughly 0.4 page: page 10
+% now holds the Conclusion and nothing else, so page 9 is full and the Conclusion
+% has nowhere to go.
+%
+% Cuts taken: the "How this section reads under each outcome" preregistration
+% section; a stale Brier-decomposition paragraph in the introduction (it promised
+% a primary outcome the paper does not deliver, calibration being unresolvable at
+% this n); the self-defect narrative consolidated from four tellings to one plus a
+% release note; Related work's three intervention-study paragraphs merged into one
+% (priority concession retained, and also stated in the intro); the third
+% restatement of "we claim no new decision rule"; the Reproducibility statement
+% moved to an appendix, which the venue excludes; and Table 1 replaced by prose --
+% it displayed a RETRACTED effect in the paper's most prominent format while the
+% following paragraphs establish the spread is not significant (p = 0.178) and the
+% ranking does not reproduce (Spearman +0.029).
+%
+% MEASURED, not assumed: removing \draftnotice does NOT by itself flip the page.
+%
+% THE REMAINING ~0.4 PAGE IS A JUDGEMENT CALL, NOT A MECHANICAL ONE. Everything
+% cheap is spent. The two candidates large enough to close it are:
+%     1. The introduction's five-standard enumeration (~1100 chars). This is the
+%        paper's thesis setup -- the argument that four mature fields already
+%        require this check -- and cutting it weakens the opening.
+%     2. The Conclusion's opening framing paragraph (~350 chars) plus further
+%        compression of the remaining three. This is the rhetorical payoff.
+% Both trade content a reader values for a page. Decide deliberately rather than
+% by salami-slicing, which is how the previous 0.6 page was found and is now
+% exhausted.
+%
+% Do NOT trim by dropping the parity, interpretation-licence, or limitations
+% material; those are the sections that make the design defensible.
+%
+% BUILD:  JOB=placebo ./build.sh     or     make JOB=placebo
+% =====================================================================
+
+\documentclass{article}
+
+% Style file: neurips_2026.sty, unmodified upstream copy.
+% Provenance and SHA-256 are recorded in README.md. Do not edit the .sty.
+\usepackage[dblblindworkshop]{neurips_2026}
+
+\workshoptitle{Who Verifies the Agents? Toward Reliable Agent Development}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage[normalem]{ulem}
+\usepackage{graphicx}     % \sout, for the forbidden-sentence box only
+
+% Placeholder markers. Both render visibly on purpose so they cannot ship
+% unnoticed. \TODO is a missing asset or a missing sentence; \result is a
+% number that the experiment has not yet produced.
+\newcommand{\TODO}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
+\newcommand{\result}[1]{\textcolor{red}{\textbf{[#1]}}}
+
+% Draft banner. DELETE before any build that leaves this machine.
+\newcommand{\draftnotice}{%
+    \begin{center}
+    \fcolorbox{red}{white}{\parbox{0.92\linewidth}{\small\textcolor{red}{%
+    \textbf{PRE-RESULTS DRAFT.} No arm of this experiment has been run. The
+    frozen failure pool and the model-selection preflight are real and
+    reproducible from committed artifacts; every outcome quantity is a
+    placeholder of the form \texttt{[NAME]}. This banner and every placeholder
+    must be gone before submission.}}}
+    \end{center}
+}
+
+% Double-blind hygiene: keep identifying strings out of the PDF metadata.
+\hypersetup{
+    pdfauthor={},
+    pdfsubject={},
+    pdfkeywords={},
+    pdfcreator={},
+    pdfproducer={}
+}
+
+\title{No Method Passes:\\
+A Gauge Study of Agent Self-Report as a Measurement Instrument}
+
+\author{%
+    Anonymous Author(s) \\
+    Affiliation \\
+    Address \\
+    \texttt{email} \\
+}
+
+\begin{document}
+
+\maketitle
+
+\draftnotice
+
+\begin{abstract}
+Verification pipelines for coding agents increasingly read the agent's own
+report -- a stated confidence, a request for review -- to decide what a human
+must look at. We plant a content effect of known sign in 46 programs -- each verified by
+execution, so the mutated variant provably fails a test the original passes
+-- hold
+everything else fixed, and measure it six times using six semantically identical
+wordings of one question. \textbf{The same effect measures $4.17\times$ larger
+under one wording than another} ($d = +0.0621$ to $+0.2588$, standard errors
+around 0.03; bootstrap 95\% CI on the ratio $[3.1\times, 6.8\times]$, so at least
+threefold). Two laboratories running the identical experiment on the identical
+programs and reporting the identical estimand would differ several-fold for no
+reason but how they asked, and neither would report the phrasing, because no
+convention requires it.
+
+Before an instrument is used to detect an effect, four mature fields require it
+first be shown capable of resolving one: analytical chemistry has detection
+limits, clinimetrics minimal detectable change, clinical trials assay
+sensitivity, industrial metrology gauge repeatability and reproducibility, each
+with published acceptance thresholds. We run them. Treating wordings as
+appraisers and 120 frozen execution-graded programs as parts, we run the same
+gauge study over the four elicitation methods in common use and \textbf{all four
+are rejected}: \textbf{\%GRR from $37.9\%$ to $61.7\%$} against a rejection
+threshold of 30\%, and \textbf{ndc from $1.80$ to $3.45$} resolvable categories
+against a required five. The verbalized integer this literature reports most
+often is among the weakest, and no format clears either criterion. And
+the positive control fails: on a second verified sample, whose floor is measured
+over its own parts, a difference planted by construction and confirmed by
+execution ($+0.1962$) falls below that instrument's own smallest detectable
+change ($0.2776$), and \textbf{no wording resolves it},
+so by ICH E10 logic \textbf{a null from this instrument is uninterpretable}
+rather than evidence of no effect -- including nulls from the intervention study
+our own harness was built to run.
+
+What survives is narrow and we state it as such: the readout \emph{ranks}
+correct above incorrect (AUROC 0.717, CI [0.608, 0.819]) while its calibration is
+simply unmeasured at this sample size. Even that surviving use is expensive to
+leave undocumented -- routing the least-confident $20\%$ of work to a human,
+changing nothing but the wording of the question, moves the share of genuine
+failures reaching that human from $26.5\%$ to $41.2\%$. And the usual remedy does
+not apply: on self-assessed code two unrelated model families are overconfident about the \emph{same}
+failing programs ($8$ of $11$ shared, $p = 0.001$) -- three of which pass
+\emph{zero} of their $112$, $116$ and $150$ tests -- so a second model is not an
+independent second opinion, and agreement is where the danger concentrates. We claim no new decision rule -- the rule
+is Currie's, and we name the standard we import. What is new is that the check
+has an answer here, and the answer is negative. Elicitation code, frozen
+programs, and every artifact are released.
+\end{abstract}
+
+% ---------------------------------------------------------------------
+\section{Introduction}
+% ---------------------------------------------------------------------
+
+A verification pipeline decides what a human must look at. Increasingly it decides
+partly by asking the agent: report a confidence, flag work you are unsure about,
+escalate when you think you are stuck. Routing, autonomy limits and review budgets
+are being built on that answer.
+
+Every field that routes decisions through an instrument first asks whether the
+instrument can resolve the thing it is being asked about. Analytical chemistry
+will not report a detection below its critical
+value~\citep{currie_detection_1995, iso11843_1997}; clinimetrics will not claim a
+change smaller than the smallest detectable change~\citep{devet_sdc_2006}; a
+clinical trial that cannot recover a known effect is deemed to lack \emph{assay
+sensitivity}, and its null is treated as uninterpretable rather than as evidence of
+no effect~\citep{ich_e10_2000}; an accredited laboratory must document a decision
+rule with a guard band before reporting at all~\citep{iso17025_2017, jcgm106_2012};
+and manufacturing rejects a gauge whose measurement variation exceeds thirty per
+cent of study variation, or that cannot resolve five distinct
+categories~\citep{aiag_msa_2010}. Old, boring, well-specified procedures with
+published acceptance thresholds, and they disagree about almost nothing.
+
+None of them has been run on agent self-report. We run them, and the channel
+fails: not one of the four elicitation methods in common use passes either
+industrial criterion, and the verbalized integer that this literature reports
+most often is the weakest of the four. \textbf{We claim no new decision rule --
+the rule is Currie's, and we name the standard we import.} What is new is that
+the check has an answer here, and that the answer is negative.
+
+Placebo control is the standard fix and, in this setting, no longer novel: three
+preregistered, derangement-assigned studies of self-repair in frozen small code
+models already exist on exactly these
+benchmarks~\cite{iscan_scaffoldnotvocabulary_2026, iscan_falsificationnotexposure_2026,
+iscan_formnotcontent_2026}. We claim priority over none of it, and say so here
+rather than in a related-work section on page four. What those studies measure is
+whether the agent still \emph{succeeds}; none measures whether it still
+\emph{knows} whether it succeeded. That gap is the subject of this paper, and
+the answer is worse than a weak signal: the channel fails every acceptance
+criterion we can import, every standard remedy for an unreliable channel fails
+with it, and two unrelated model families are confidently wrong about the same
+programs -- so a second opinion is not independent.
+
+The obvious version of this measurement is a trap, and we avoid it. Stated
+confidence on its own is a generated string, and there is direct evidence
+against trusting it at this scale: a 0.5B self-judge has been reported to
+perform no better than random while concentrating 60\% of its choices on a
+single index~\cite{iscan_scaffoldnotvocabulary_2026}. We therefore do not read a
+number out of prose. The readout is the normalized probability mass the model
+places on \textsc{yes} against \textsc{no}, asked in both polarities and scored
+against the realized hidden-test outcome. What that readout supports turns out to
+be narrow, and we report it as such: it ranks correct work above incorrect, while
+its calibration is not resolvable at this sample size.
+
+\paragraph{Contributions.} All four are measurements of an instrument, and none
+depends on an intervention producing a significant effect. That was deliberate: a
+study whose contribution requires its treatment to work reports nothing when it
+does not.
+
+\begin{enumerate}
+    \item \textbf{The first gauge study of an agent self-report channel, and all
+        four elicitation methods in common use fail it.} On 120 frozen
+        execution-graded programs judged through six semantically identical
+        wordings, \%GRR runs $37.9$--$61.7\%$ against a $30\%$ rejection threshold
+        and ndc $1.80$--$3.45$ against a required five. The same wordings on code
+        the model did \emph{not} write fail by an indistinguishable margin, so this
+        does not look like a fact about introspection
+        (Section~\ref{sec:resolving}).
+    \item \textbf{A planted effect whose measured size moves several-fold with
+        wording alone}, $3.83\times$ on 37 execution-verified pairs and
+        $4.17\times$ on an independent 46-pair sample, with a failed
+        assay-sensitivity check: the effect ($+0.1962$) falls below the same
+        instrument's own $SDC_{95}$ ($0.2776$) on the same parts, and no individual
+        wording resolves it (Section~\ref{sec:surfacefloor}).
+    \item \textbf{What that costs, and what fixing it costs.} Routing the
+        least-confident $20\%$ of work to a human, changing only the wording, moves
+        the share of genuine failures reaching that human from $26.5\%$ to
+        $41.2\%$. Averaging $k$ wordings buys acceptance at $k{=}3$ for a logit
+        readout and $k{=}7$ for a verbalized one -- but whether that also fixes the
+        routing decision is unresolved at this sample size, and we say so rather
+        than recommend the fix on the index alone (Section~\ref{sec:resolving}).
+    \item \textbf{A released harness, and a record of what the check cost us.}
+        The elicitation module, the frozen population, every measurement with the
+        script that produced it, and checks that fail the build. Four headline
+        numbers of our own were retracted by tests we ran against ourselves, and
+        preparing this paper produced repeated instances of one defect -- comparing
+        quantities whose measurements differed -- most found only once a guard for
+        a previous one existed (Appendix~\ref{sec:repro}).
+\end{enumerate}
+
+Refusing to report an effect smaller than a measured floor is, in the four
+fields named above, the ordinary rule rather than a strict one; for an accredited
+laboratory it is mandatory and must be documented before any result is
+reported~\citep{iso17025_2017}. Our contribution is that the check has an answer
+in this domain, and what the answer is.
+
+\paragraph{What we do not claim.} Not priority on placebo control for code
+self-repair; that belongs to prior work cited above. Not that the placebo is
+inert -- it cannot be proven inert, and Section~\ref{sec:interpretation} fixes
+the exact sentences the design licenses. Not anything about frontier models,
+multi-turn trajectories, tool use, repository-scale tasks, or cross-episode
+memory: the tasks here are single-turn function repair on one frozen roster
+with one frozen checkpoint. Not anything about consciousness, sentience, or
+machine experience.
+
+% ---------------------------------------------------------------------
+\section{Related work}
+\label{sec:related}
+% ---------------------------------------------------------------------
+
+\paragraph{Placebo control and nonspecific gains.} Prior art for the intervention
+study we do not run, recorded because the apparatus is released and priority is not
+ours. Three preregistered studies decompose self-repair feedback in frozen small
+code models on HumanEval+ and MBPP+ with length-matched, derangement-assigned
+placebos~\cite{iscan_scaffoldnotvocabulary_2026, iscan_falsificationnotexposure_2026,
+iscan_formnotcontent_2026}; they own the task-success version of this experiment.
+Corrupting a critique's correctness~\cite{stechly_gpt4doesntknow_2023}, randomizing
+in-context labels~\cite{min_rethinkingdemonstrations_2022}, unrelated execution
+feedback~\cite{gehring_rlef_2024}, irrelevant retrieved
+documents~\cite{cuconasu_powerofnoise_2024}, token-matched vanilla
+agents~\cite{hajimiri_onlineskillmodules_2026} and random-content retrieval
+arms~\cite{wang_memdelta_2026} point the same way across adjacent subfields,
+consistently enough that we treat an apparatus effect as expected rather than
+surprising.
+
+\paragraph{Elicitation and perturbation sensitivity.} Both artifacts we measure
+have close neighbours, and the contribution lives entirely in the distinction, so
+we draw it precisely. \citet{protocolsensitivity_2026} vary four measurement-protocol
+axes with the elicitation prompt held fixed and report that the shift they induce
+is comparable to the shift between model families -- noise as large as signal, in
+numeric form. They then decline the next step: their limitations call the shifts
+``sensitivity measurements, not estimates of how much each choice causally
+contributes,'' and their ethics section disclaims deployable thresholds outright.
+\citet{rescalingconfidence_2026} vary the response \emph{scale} rather than the
+wording, and find verbalized confidence collapsed onto a handful of round numbers.
+\citet{surfacevssemantic_2026} measure semantic against surface perturbation of
+agent inputs at scale, and come nearest of anyone to our move: they subtract a
+surface-perturbation inconsistency rate from the semantic one. Finally, averaging
+a score across both presentation orders is already routine against ordering bias;
+our polarity averaging is that correction on a new axis and we claim nothing for
+it.
+
+Two distinctions matter. First, \textbf{netting a noise level out of a point
+estimate is not the same act as refusing to claim an effect that falls inside it.}
+Subtraction yields a smaller number and still reports it; a gate can return
+\emph{no claim}. Second, \textbf{none of this work constrains what may be
+concluded}: we searched the full texts and found no admissibility rule, no
+precondition, no effect withheld for being smaller than a measured floor. The gap
+is not rhetorical -- \citet{rescalingconfidence_2026} report a scale effect whose
+magnitude equals their own separately measured prompt-variation movement, and
+comparing the two is simply not a step the field takes.
+
+
+\paragraph{Floors already at work in agent evaluation.} Two 2026 papers put a
+measured floor to use in this domain and are the closest prior art to what we do.
+\citet{kaliyev_noisefloor_2026} measure a paired noise floor from a null
+condition on multi-agent benchmarks and rule reported gains inadmissible against
+it. \citet{qian_informationlimits_2026} preregister a three-valued verdict in
+which effects inside a measured noise bar are declared not formally resolvable,
+and hold to it against their own hypothesis. We do not compete with either for
+the term; the difference is where the floor comes from. Both derive theirs from
+\emph{sampling} variance -- seeds, replicates, runs -- which shrinks as
+$\sqrt{n}$ and which a test-retest design can see. Ours comes from a
+\emph{deterministic elicitation axis}: at temperature zero, re-running a phrasing
+reproduces its answer exactly, so no replicate design can observe it and no
+amount of additional data reduces it. That is a different variance component, and
+it is the one a paired contrast cannot average away.
+
+% ---------------------------------------------------------------------
+\section{Measuring the readout before measuring the intervention}
+\label{sec:floors}
+% ---------------------------------------------------------------------
+
+Every result below this line is about the instrument, not about reflection. All
+of it is measured on frozen programs with frozen ground truth, so the code and
+the correct answer are held constant and only the question varies. It is
+reported first because it bounds everything after it.
+
+\subsection{Elicitation}
+
+The model is asked a binary question and the answer is read as normalized
+probability mass on YES against NO over a single greedy token, rather than
+parsed from a stated integer. Two details are not optional.
+
+Mass must be summed over a \emph{token set}. The serving layer spreads the
+answer across case and whitespace variants -- on one live call, \texttt{YES} at
+0.977, \texttt{Yes} at 0.012, \texttt{" YES"} at 0.0007, against \texttt{NO} at
+0.0093 -- so reading the single exact token reports a different number from the
+one the model expressed. We sum over an allowlisted set, normalize over the
+decisive mass, and report what fell outside it. Across the 40 readouts whose
+per-call mass we persisted, the probability landing on neither answer -- an
+upper bound on what escaped the requested top-$k$ -- stays below
+$6\times10^{-4}$.
+
+A readout with no mass on either answer is a refusal, not a coin flip. The
+implementation raises rather than returning $0.5$, because a substituted $0.5$
+is indistinguishable in the analysis from a genuine one.
+
+\subsection{Polarity bias}
+
+Asking "will this PASS?" and asking "will this FAIL?" are the same question. On
+identical programs, with everything else held fixed, the two answers do not
+agree. Averaging a polarity and its complement,
+\begin{equation}
+    p = \tfrac{1}{2}\left[\,P(\textsc{yes}\mid\text{will it pass})
+        + \bigl(1 - P(\textsc{yes}\mid\text{will it fail})\bigr)\right],
+\end{equation}
+moves the readout by a mean of \textbf{0.103} against the single-polarity
+version. That displacement is a property of the question. It also improves the
+readout on every axis we measure: separation between correct and incorrect
+programs rises from $+0.040$ to $+0.0705$, AUROC from 0.693 to 0.713, and Brier
+falls from 0.2455 to 0.1930. These are the $n{=}40$ self-assessment
+sample; the larger replication of Section~\ref{sec:floors} reports the same
+readout at $n{=}120$.
+
+The consequence for prior work is direct. A single-polarity probe carries this
+bias into every condition it measures, and 0.103 is larger than the effects such
+studies report.
+
+\subsection{The phrasing floor}
+
+Polarity is one axis of variation. The general version asks how far the readout
+moves under \emph{any} semantically empty change to the question. We hold the
+programs and the ground truth frozen and vary only the wording,
+across six phrasings that ask the identical question with the identical
+answer space -- including the one this paper otherwise uses, so our own
+configuration sits inside its own floor rather than being privileged.
+
+Over 120 frozen, execution-graded programs spanning both benchmarks, with the
+same model, seed and decoding, the six phrasings return AUROCs from 0.6091 to
+0.7370 (spread 0.1279) and Brier scores from 0.1878 to 0.2342 (spread 0.0464). On
+an independent 40-program sample the same six return 0.6967 to 0.8067 (spread
+0.1100). We report the second sample because the two do not agree, and we present
+these as text rather than as a table because -- as the next three paragraphs
+establish -- the spread is not a measured effect and the ranking does not
+reproduce. Per-phrasing values are in the released artifact.
+
+These figures are where an earlier version of this paper went wrong, and the
+correction is instructive enough to keep in the body.
+
+\textbf{The aggregate spread is not significant, at either sample size.} A
+within-item permutation null -- shuffling phrasing labels within each program,
+which preserves every program's score profile and destroys only the alignment of
+phrasings across programs -- gives, at $n{=}120$, a null median of 0.0954 against
+an observed 0.1279, $p = 0.178$. Per benchmark: HumanEval+ observed 0.1457
+against null 0.1538 ($p = 0.555$), MBPP+ observed 0.0806 against null 0.1258
+($p = 0.883$). At $n{=}40$ the observed spread sat \emph{below} its null median
+entirely. We previously reported the spread as a measured phrasing effect. It is
+not one.
+
+\textbf{The per-phrasing ranking is a draw, and that is the sharper evidence.}
+Spearman $\rho$ between the two samples' orderings is $+0.029$. The
+\texttt{code-first} phrasing is best at $n{=}40$ (0.8067) and worst at $n{=}120$
+(0.6091). A ranking that does not reproduce between two samples of the same
+population is not a property of the phrasings, and a paper reporting one such
+ordering -- ours included -- reports a draw from a distribution it does not
+characterise.
+
+\textbf{Can you tune the wording on a held-out set?} Not measurably: choosing
+the best-discriminating wording on 60 held-out problems identifies the best on
+the remaining 60 no more often than guessing, and the interval on that is wide
+enough that the study cannot tell whether tuning helps at all
+(Appendix~\ref{sec:extra}).
+
+\textbf{What does survive gets stronger with data.} Pooled discrimination is
+AUROC \textbf{0.7172} with a bootstrap interval of \textbf{[0.608, 0.819]},
+excluding chance and tighter than at $n{=}40$. The Brier gap against a constant
+predictor is $+0.0029$, interval $[-0.023, +0.030]$: at triple the sample,
+calibration remains \emph{unmeasured} rather than shown to be poor.
+
+\textbf{The reconciliation is the finding.} Per-item, the readout is unstable --
+standard deviation 0.0497 across phrasings, maximum range 0.5207 on identical
+programs. Aggregate, it is steady. Both are true because aggregate AUROC averages
+over items, and the variance decomposition puts the dominant component in the
+item\,$\times$\,phrasing interaction (0.0046) rather than the phrasing main
+effect (0.0018). Averaging over items averages the interaction away.
+\textbf{A paired contrast does not.} So a study reporting aggregate
+discrimination on this channel would see nothing wrong with it, while a study
+reporting a paired intervention effect on the same channel is exposed --
+which is why the gauge indices of Section~\ref{sec:resolving}, and not this
+table, carry the paper.
+
+\subsection{Discrimination without calibration}
+\label{sec:dissociation}
+
+On its own graded output -- the model writes a program, the EvalPlus harness
+grades it, and the model is then asked about that program -- the readout
+separates correct from incorrect at \textbf{AUROC 0.747} on 40 programs, with
+a bootstrap interval of \textbf{[0.555, 0.913]} that excludes chance; the
+$n{=}120$ replication of Section~\ref{sec:floors} returns 0.717 with a
+tighter interval. Its calibration is a
+different matter: the Brier gap against a constant-base-rate predictor is
+$+0.0066$ with an interval of $[-0.029, +0.046]$ and $P(\text{worse}) = 0.62$.
+\textbf{We therefore claim that the readout ranks, and we claim nothing about
+whether it estimates} -- at this sample size the calibration question is simply
+unanswered, and an earlier draft of this paper overstated it as a demonstrated
+failure.
+
+Individual cases show what the ranking is made of. A program passing
+\textbf{0 of 105} hidden tests drew $P(\textsc{yes}) = 0.922$; one passing 9 of
+110 drew 0.969. In the other direction, two programs that passed every test drew
+0.016 and 0.037. These are illustrative rather than inferential.
+
+The operational consequence follows from the part that is established. A pipeline
+that \emph{ranks} by agent-stated confidence -- review the least confident decile
+-- is consuming a signal that demonstrably exists. A pipeline that
+\emph{thresholds} on it -- escalate below 0.8, proceed above -- depends on
+calibration these data cannot support, and on an absolute scale whose position
+moves with the wording of the question. Those two uses are routinely treated as
+one capability, and only the first is warranted here. Binning by stated confidence shows
+both halves at once. Accuracy does rise with confidence in both families
+(Appendix~\ref{sec:extra}), so ordering by confidence orders by risk within a
+model. \textbf{But the two scales do not overlap at all.} One
+family's bins average $0.688$ to $0.929$ and the other's $0.289$ to $0.523$:
+the \emph{least} confident programs of the first score higher than the
+\emph{most} confident of the second. Any threshold between those ranges marks
+every program from one model safe and every program from the other risky,
+whatever their correctness.
+
+\textbf{What the warranted use costs.} Ranking survives, so we priced it. Send
+the least-confident $20\%$ of programs to a human and change nothing but the
+wording of the question: the share of genuine failures that reaches that human
+moves from $26.5\%$ to $41.2\%$ -- \textbf{one wording delivers half again as
+many real defects to review as another, at identical cost} -- and the two
+wordings agree on only half the programs they send. The spread is $14.7$ points
+with a bootstrap interval of $[6.1, 33.3]$ over programs, excluding zero, and it
+holds at $10\%$ and $30\%$ budgets too. This is the gauge failure denominated in
+the currency a verification pipeline actually spends, and the choice driving it
+is one no reporting convention asks anyone to write down.
+
+\subsection{One planted effect, measured six ways}
+\label{sec:surfacefloor}
+
+The results so far concern the readout in isolation. The question that decides
+whether any of it matters is different: does the measured \emph{size of a real
+effect} depend on how the question is worded? A phrasing main effect would not
+matter, because it is common-mode and cancels exactly in a paired contrast. An
+interaction with the arm would matter, because it does not.
+
+We plant an effect rather than hoping to find one. Each problem contributes two
+variants -- the canonical solution and a deterministically mutated version -- and
+\textbf{both are graded by the execution harness}, so a pair enters the study only
+when the canonical passes every hidden test and the mutant genuinely fails one.
+That verification matters, and we ran it on two independently drawn samples: 4 of
+50 candidate mutants still passed in one (8.0\%) and 3 of 40 in the other
+(7.5\%). Three of the four are comparison-boundary rewrites, where $\ge$ to
+$>$ changed nothing because the hidden tests never exercise the boundary; the
+fourth narrows a loop range and is a different failure, which is why we report
+the rule alongside every dropped pair rather than a single explanation. Those pairs
+would have contrasted programs that behave identically. We report the 46 and 37
+survivors respectively: the larger sample gives the wording spread, and the
+smaller one additionally carries its own $SDC_{95}$ over the same parts, which is
+what an assay-sensitivity comparison requires and the larger sample cannot supply.
+Each variant is judged under all six phrasings, and the estimand is the paired
+difference
+$d = \overline{P(\textsc{yes}\mid\text{correct}) - P(\textsc{yes}\mid\text{mutated})}$,
+which is exactly the shape of quantity a placebo-controlled study reports.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.86\linewidth]{fig_planted_effect.pdf}
+    \caption{One planted effect, measured six ways, over the 37
+    execution-verified pairs that also carry their own floor. Each point is the
+    paired difference $d$ between the correct and
+    mutated variants of the same programs under one wording; bars are standard
+    errors over problems. Programs, ground truth, model, seed and decoding are
+    identical across rows -- only the wording differs. The shaded band is
+    $SDC_{95}$ measured on \emph{these} parts through \emph{these} wordings, so
+    points inside it are effects this instrument cannot resolve. \textbf{All six
+    are inside it.} An earlier version of this figure drew the band from a floor
+    measured on a different task under a different question wording, against which
+    four of the six appeared to clear it.}
+    \label{fig:planted}
+\end{figure}
+
+\textbf{How big is the wording effect next to the choice everyone already
+controls for?} Smaller, and we report that. Two wordings of one model agree
+across the 120 programs at $r = 0.863$; two model families on the \emph{same}
+wording agree at $0.536$, a difference of $0.33$ with interval
+$[0.25, 0.40]$. The model is decisively the larger source of variation.
+\textbf{The asymmetry is in what gets written down.} Every paper reports which
+model it used; none reports the wording. A smaller source of variation that no
+convention controls for is the worse problem, not the lesser one.
+
+\textbf{Figure~\ref{fig:planted} is the paper's central claim about
+consequences.} The identical effect measures $3.83\times$ larger under one
+wording than another, against standard errors an order of magnitude too small to
+account for it. Two laboratories running the same experiment on the same
+programs and reporting the same estimand would differ several-fold for no reason
+but how they asked the question -- and neither would report the phrasing, because
+no convention requires it. The failure does not depend on averaging: across the
+six wordings the effect runs from $+0.0643$ to $+0.2465$ and \emph{every one}
+falls below the $SDC_{95}$ of $0.2776$ measured on those same verified parts, so no
+choice of question would have resolved this effect.
+
+\textbf{How precisely is that ratio known?} Not to three significant figures. A
+max/min over six wordings takes both ends from extreme order statistics and
+compounds their noise -- exactly the statistic a paper about overstated
+resolution should distrust in its own results. Resampling items and recomputing
+both extremes per draw gives a 95\% CI of $[2.71\times, 7.51\times]$ here, and
+$[3.09\times, 6.83\times]$ on the independently drawn 46-pair sample that supplies
+the wording-spread figure quoted in the abstract. Neither interval is narrow, both
+exclude $1\times$ by a wide margin, and they overlap almost entirely -- which is
+the claim that matters: the distortion is multiplicative, at least threefold, and
+it replicates across samples. We report both rather than the larger.
+
+\textbf{Assay sensitivity fails on a matched comparison.} A
+smallest-detectable-change is only a comparator for an effect measured by
+\emph{the same instrument} on \emph{the same parts}, so we report the two together
+from one run. Over 37 canonical/mutant pairs whose mutants were confirmed broken by
+the execution harness, read out through six wordings, qwen2.5-coder:7b returns
+$SDC_{95} = 0.2776$ against a planted effect of $+0.1962$: the instrument cannot
+resolve a content difference that execution establishes by construction. The
+second model family agrees, at a tenth the effect size
+($+0.0188$ against $SDC_{95} = 0.1171$), though we hold that corroboration to a
+weaker standard and say so: its mutants were not put through the execution harness,
+and grading the qwen pairs the same way removed 3 of 40 as still passing. By the standard logic of ICH
+E10~\citep{ich_e10_2000} a null from such an instrument is
+\emph{uninterpretable} -- it does not separate ``no effect'' from ``no
+sensitivity'' -- and that verdict binds the intervention study this harness was
+built to run exactly as it binds anyone else's.
+
+\textbf{We arrived at this comparison by failing to make it correctly first.} An earlier draft judged this effect against a floor measured on a different task, invisible to every review and to a traceability audit that passed at $109/109$; the borrowed floor was the lower of the two, so the error favoured us. Seven instances of that one defect surfaced while preparing this paper, and the checks that now fail the build on it are in Appendix~\ref{sec:repro}.
+
+\textbf{Verification moved the numbers in the direction it had to, and changed no conclusion} (Appendix~\ref{sec:extra}).
+
+\textbf{The interaction is real, and we report its size honestly:} phrasing is $8.7\%$ of paired-effect variance, a modest share of a total dominated by between-problem heterogeneity yet large against the effects anyone is trying to estimate (Appendix~\ref{sec:extra}).
+
+\subsection{Which elicitation method resolves anything?}
+\label{sec:resolving}
+
+The verdict above is about one readout. The field uses several, and papers choose
+between them on convenience rather than on resolving power, because resolving
+power has not been reported for any of them. Everything in this subsection is
+measured on the \textbf{self-assessment} task -- the model judging code it wrote
+itself, with correctness established by the execution harness -- because that is
+the task a verification pipeline actually consumes. We therefore run the identical gauge
+study over four: the verbalized integer that dominates the literature, a
+verbalized five-level ordinal, and the single-polarity and symmetrized logit
+readouts. Same parts, same appraisers, same programs, same ground truth; only the
+question format changes.
+
+\begin{table}[t]
+    \centering
+    \caption{Gauge study over four elicitation methods, on the
+    \textbf{self-assessment} task: the model judges programs it generated itself,
+    graded by the execution harness. 120 execution-graded programs as parts, six
+    semantically identical phrasings as appraisers, one trial per cell. AIAG
+    rejects a measurement system above 30\% GRR and requires at least five
+    distinct resolvable categories. \textbf{No method passes either criterion.}
+    These figures are not comparable with a gauge study run on other-code
+    judging, which is the easier task (AUROC 0.776 against 0.734 on this
+    checkpoint, both scored the same way over the same six wordings). Bold marks the best value in each column. All four rows come from
+    one run under one appraiser set; an earlier 40-part version of this table
+    stitched the symmetrized row in from a separate measurement after we found
+    our pipeline had filled it by reusing an artifact produced with a different
+    appraiser set, and no verdict changed at either size.}
+    \label{tab:resolving}
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        Elicitation method & ICC & SEM & $SDC_{95}$ & \%GRR & ndc & AUROC \\
+        \midrule
+        Verbalized integer 0--100   & 0.657 & 0.0693 & 0.1922 & 58.5 & 1.95 & 0.670 \\
+        Verbalized ordinal (5-level)& 0.619 & 0.0989 & 0.2741 & 61.7 & 1.80 & 0.656 \\
+        Logit, single polarity      & \textbf{0.857} & 0.0596 & 0.1652 & \textbf{37.9} & \textbf{3.45} & 0.726 \\
+        Logit, symmetrized          & 0.819 & \textbf{0.0527} & \textbf{0.1461} & 42.5 & 3.00 & \textbf{0.734} \\
+        \midrule
+        \multicolumn{4}{l}{\emph{AIAG acceptance}} & $<30$ & $\ge 5$ & \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Table~\ref{tab:resolving} is the paper's central result. Three things follow.
+
+\textbf{Nothing passes.} Every method is rejected on both criteria, and not
+narrowly: the best resolves about 3.5 distinct categories of the quantity it is
+supposed to measure, the worst 1.80, against a required five. Parse failures were
+zero throughout, so this is not an artifact of malformed output.
+
+\textbf{And it is not, so far as we can tell, a fact about introspection.}
+Running the same six wordings over code the model did \emph{not} write --
+canonical against mutated programs, correctness fixed by execution -- returns
+the same verdict at the same magnitude: \%GRR $42.9$ against $42.5$, ndc $2.97$
+against $3.00$, $ICC$ $0.816$ against $0.819$. Every difference is
+indistinguishable from zero. We are careful about what that licenses: the
+intervals are wide -- the \%GRR difference is $[-8.7, +8.3]$ -- so a moderate
+gap would go undetected, and this bounds how special self-report could be rather
+than showing the two are identical. It is enough to say the failure does not
+look like a property of self-knowledge, and that a verifier consuming any binary
+LLM judgement about code inherits it.
+
+\textbf{The channel the field reports is the weaker one.} At this sample the
+verbalized integer is worse than both logit readouts on all six axes -- \%GRR
+58.5 against 37.9 and 42.5, ndc 1.95 against 3.45 and 3.00, $SDC_{95}$ 0.192
+against 0.165 and 0.146, AUROC 0.670 against 0.726 and 0.734 -- and the ordinal
+variant is worse still, at 61.7\% GRR. We flag that this was not true at
+$n{=}40$, where the integer's compressed scale gave it the smaller absolute
+error while it lost everywhere else; verbalized confidence collapses onto a
+handful of round values~\citep{rescalingconfidence_2026}, and compressing a
+scale shrinks absolute spread and the capacity to separate parts together. A
+study that elicits confidence as a number in prose is choosing the least
+resolving option available to it, and nothing in the literature would have told
+it so. Nor does prose capture what the logits miss: the channels are far from
+redundant yet combining them adds nothing measurable
+(Appendix~\ref{sec:extra}).
+
+\textbf{The two logit readouts split by criterion, and the split is not stable.}
+Single-polarity takes the ratio indices (\%GRR 37.9 against 42.5, ndc 3.45
+against 3.00); symmetrized takes absolute resolution ($SEM$ 0.0527 against
+0.0596, $SDC_{95}$ 0.146 against 0.165) and, at this sample, discrimination
+(AUROC 0.734 against 0.726). The disagreement is structural rather than
+contradictory: symmetrizing removes a polarity bias that inflates between-part
+spread, and the ratio indices divide by exactly that spread, so a method can
+shrink its own measurement error and still lose ground on \%GRR. The AUROC
+ordering reversed between $n{=}40$ and $n{=}120$, which is worth reporting rather
+than smoothing: a ranking that moves between samples of the same population is
+the thing this paper argues nobody should treat as a stable property.
+
+\textbf{What would it take to pass?} The failure is driven by variance across
+wordings, so averaging $k$ wordings per judgement divides measurement variance
+by $k$ while leaving between-part variance alone, and both indices improve. The
+smallest $k$ clearing both is $3$ for either logit readout against $7$ and $8$
+for the verbalized integer and ordinal. Since $k$ counts \emph{wordings} and the
+symmetrized readout asks both polarities of each, the cost in model calls is $3$,
+$6$, $7$ and $8$ respectively. \textbf{Single-polarity logit reaches acceptance
+for three calls per judgement; the verbalized integer needs seven.} Symmetrizing
+doubles the per-wording cost to land within one call of the prose readout it is
+meant to dominate, and it already trailed single-polarity on both ratio indices,
+so the cheap route to acceptance is the single-polarity readout. Held at a fixed call budget the same answer appears, and buying wordings
+rather than polarities is what improves the indices (Appendix~\ref{sec:extra}).
+
+\textbf{A second model family: the verdict replicates, the price does not.}
+Running the identical gauge over llama3.1:8b rejects all four methods again
+(\%GRR $60.4$--$93.5$, ndc $0.54$--$1.86$) and preserves the ordering, so
+preferring logits is not an artifact of one model. The design cost is another
+matter: $88$ calls per judgement for the verbalized integer against $7$ for the
+same readout on qwen, $28$ against $8$ for the ordinal, $8$ against $3$ for
+single-polarity logit. \textbf{Between $2.7\times$ and $12.6\times$ apart for
+the same method, so $k$ cannot be read out of this paper and applied} -- it is a
+property of a deployment and has to be measured there, which makes the design
+cost a procedure rather than a recommendation. On the format this literature
+reports most often, that second model returns AUROC $0.514$ and $ICC$ $0.126$:
+ranking at chance, and a readout that would need $88$ calls to become
+admissible.
+
+\textbf{And the two families are wrong about the same programs.} The
+standard remedy for an unreliable verifier is a second opinion -- run two
+models, escalate on disagreement -- which assumes the errors are independent.
+They are not. Restricting to the 34 failures, where every program is equally
+wrong so the label cannot manufacture agreement, the two families' readouts
+still correlate at $+0.63$: they agree on which failures \emph{look} correct.
+Of each family's eleven most-overconfident failures, eight are the same
+programs, against $3.56$ expected by chance ($p = 0.001$; Jaccard $0.571$,
+bootstrap interval $[0.333, 0.778]$, excluding the chance value $0.193$).
+\textbf{On this task a second model is not an independent second opinion.} Agreement reads as
+corroboration and is exactly where both models are confidently wrong, which
+leaves disagreement-based escalation blind precisely where it is needed.
+
+\textbf{Every standard remedy we could test fails, and they fail
+differently.} A second model does not help, because the families are
+overconfident about the same programs. A threshold does not help, because the
+two scales do not overlap. \textbf{Calibration does not help either}: a Platt
+or isotonic map fitted on half the programs and applied to the other half does
+not beat predicting the base rate, in either family (base rate minus
+calibrated Brier, $+0.022$ with interval $[-0.014, +0.037]$ and $+0.005$ with
+$[-0.021, +0.014]$). For the second family the uncalibrated readout is worse
+than a constant outright, Brier $0.296$ against $0.208$ -- using that
+confidence as a probability is worse than ignoring it. Averaging wordings is
+the one remedy that moves an acceptance index, and its effect on the routing
+decision is unresolved. What survives is ranking within a model, which we now
+report with the alternatives eliminated rather than merely unexamined.
+
+\textbf{And the remedy that works does not reach the failure that matters.}
+Averaging wordings repairs the acceptance indices, so it is natural to hope it
+also disperses the shared blind spot -- if which failures look correct depended
+on the wording, averaging would scramble it. It does not. Across every subset
+of every size, the cross-family overlap does not fall as wordings are averaged;
+it runs from $6.5$ of $11$ at $k{=}1$ to $8$ at $k{=}6$, against a chance level
+of $3.6$, and the overlap after averaging all six remains above chance
+($[+1.2, +3.9]$). We do not claim averaging makes it \emph{worse}: the
+increase itself is not established ($+0.70$, interval $[-0.33, +1.83]$).
+\textbf{The claim is that averaging does not disperse it}, which is enough --
+the one remedy that repairs the measurement leaves the danger exactly where it
+was. A mechanism would explain the direction, since wording noise is the only
+source of disagreement between the families about which failures look correct,
+so averaging it away can only leave the shared component; we note it as a
+possibility rather than a result. The obvious
+explanation is the near-miss -- a program failing one test of a hundred looks
+correct -- and grading every failure against its hidden tests rules it out. The
+eight shared blind spots pass a mean $0.317$ of their tests against $0.471$ for
+the failures both families correctly doubted, a difference in the wrong
+direction for that story and not significant either ($p = 0.34$). What remains
+is descriptive, needs no test, and is stronger than the mean suggests. Not one
+of the eight fails a single test -- the profile a flaky or over-strict
+assertion would produce, and the reading that would make the models right and
+the harness wrong. Seven of eight fail more than three. \textbf{Three of them
+pass zero tests out of $112$, $116$ and $150$, and a fourth passes one of
+$106$.} Two architectures trained on different data both rank programs that
+pass \emph{none} of their tests among the most likely to pass all of them, and
+rank the same ones. We verified this rather than extrapolating it: building the
+averaged design from every disjoint partition of our six wordings reproduces the
+predicted medians. \textbf{And it carries the paper's own warning.} Whether
+$k{=}3$ actually passes depends on which three wordings were grouped -- \%GRR
+spans $[17.6, 37.4]$ across the ten partitions, straddling the threshold, with
+only $60\%$ of groupings clearing it. The remedy inherits the instability it is
+meant to remove, and a single reported $k$ would hide that.
+
+\textbf{And the index is not the decision.} At $k{=}3$ the gauge indices cross
+into acceptance, so the natural reading is that three calls solve the problem.
+Repeating the routing analysis over averaged readouts does not support that: the
+spread in genuine-failure recall falls from $14.7$ points to $8.8$, but paired
+within bootstrap worlds that reduction is $+0.039$ with a $95\%$ interval of
+$[-0.083, +0.182]$ and $P(\text{reduction}) = 0.65$. \textbf{Averaging fixes the
+index; whether it fixes the decision is unresolved at this sample size.} We note
+that comparing the two marginal intervals would have misled in both directions --
+they overlap almost entirely, inviting \emph{no difference}, while the point
+estimates invite \emph{$40\%$ better} -- and only the paired difference answers
+it, both statistics being computed on the same programs. This is the paper's own
+finding one level up: the study that would tell you whether the remedy works is
+underpowered in the same way as the study it is meant to rescue.
+
+% ---------------------------------------------------------------------
+\section{The study this instrument cannot support}
+\label{sec:population}
+\label{sec:arms}
+\label{sec:placebo}
+\label{sec:interpretation}
+\label{sec:placebo3}
+% ---------------------------------------------------------------------
+
+This work began as a placebo-controlled decomposition of post-failure
+reflection. The apparatus is built, tested and released; reporting what happened to
+it is more useful than reporting the study.
+
+\textbf{What was built.} A seven-arm, parity-asserted design over EvalPlus repair
+tasks~\citep{liu_evalplus_2023}, built, tested and released; the arm roster, the
+parity classes and the frozen pool are in Appendix~\ref{sec:design}.
+
+\textbf{Why it is not the paper.} The estimand is a paired difference between
+arms on the self-report channel, and Section~\ref{sec:surfacefloor} shows the
+instrument does not resolve an effect planted by construction on the easier task.
+Published reflection effects are smaller still. A null here would not distinguish
+``the placebo and the real reflection do the same thing'' from ``the instrument
+cannot tell them apart'' -- a lack of assay sensitivity~\citep{ich_e10_2000} --
+and we record that before running the arms rather than afterwards to explain a
+null.
+
+\textbf{What would have to change first.} Three things, in order of how much they
+buy. A readout whose $SDC_{95}$ is smaller than the effect of interest -- none of
+the four we measured qualifies, so this means a new elicitation method rather
+than a different question. A positive control that passes, since without one no
+null is interpretable. And an estimand chosen with the interaction in mind:
+because the phrasing main effect cancels in a paired contrast while the
+arm\,$\times$\,phrasing interaction does not, a design that randomises phrasing
+across items and reports the interaction is strictly better than one that fixes a
+single wording and does not mention it.
+
+\textbf{What is released.} The arm builders and their parity asserters, the
+frozen pool and its digest, the donor machinery and leakage audit, the
+subprocess-isolated grader, the elicitation module, and every measurement in this
+paper with the script that produced it. A study wanting to run this design does
+not have to rebuild it -- but should first measure whether its own readout can
+resolve what it intends to claim.
+
+\section{Limitations}
+% ---------------------------------------------------------------------
+
+\textbf{One model.} Every number is Qwen2.5-Coder-7B-Instruct~\citep{hui_qwen25coder_2024} at Q4\_K\_M under
+greedy decoding. A gauge verdict is a property of a measurement system, and this
+is one measurement system. We report a cross-family replication where available
+and treat the single-model result as a hypothesis about the channel rather than
+a fact about it. Quantization is unexamined: all four elicitation methods were
+measured at the same 4-bit precision, and whether the readout's dispersion is a
+property of the model or of its quantization is untested.
+
+\textbf{Sample size, and what it does and does not bound.} The gauge study uses
+40 parts and the floor replication 120. Variance components are estimable at that
+size; the aggregate significance tests are not powerful, and we say so where it
+matters -- the phrasing spread is reported as \emph{not demonstrated} rather than
+as absent, and the calibration gap as \emph{unmeasured} rather than as zero.
+
+\textbf{One trial per cell.} Repeating a probe shows only the \emph{first} call for a prompt differs; the rest are bit-identical and the seed is inert, so \%GRR is reproducibility plus interaction with no repeatability term. Call order contributes $0.8\%$ of the appraiser variance (Appendix~\ref{sec:extra}).
+
+\textbf{Six phrasings, authored not sampled.} The appraiser facet is a convenience set written by us, not a draw from any defined population of reasonable wordings, so it estimates phrasing dispersion and does not bound it. We characterise it rather than only disclaiming it: mean pairwise content-word overlap is $0.18$ (range $0.06$--$0.43$) across a $2.55$-fold length ratio, so these are substantially different wordings rather than near-clones. That reading is the one against us. Near-clones would have made the measured spread a lower bound with the true exposure worse than shown; a diverse set instead models what independent authors at different labs would write, and a single lab nudging its own wording should expect less.
+
+\textbf{Mutant validity is measured, not assumed.} Both variants of every pair
+are graded by the execution harness, and a pair is used only when the canonical
+passes and the mutant genuinely fails. Across two independently drawn samples
+4 of 50 candidate mutants still passed and 3 of 40 did, 8.0\% and 7.5\% --
+close enough to read as a property of the mutation rules rather than of one
+draw. The residual risk is the reverse case -- a mutant that fails
+for a reason unrelated to the planted change -- which grading cannot distinguish
+and which we do not claim to exclude.
+
+\textbf{The blind spot is demonstrated for self-assessed code, and only partly
+beyond it.} The 120 programs were generated by the first model, so one family is
+assessing its own output while the other judges code it did not write. We ran the
+clean version on 37 execution-verified canonical/mutant pairs, which neither
+model produced. Half of it replicates: on mutants alone, where every program is
+equally broken, the two families' readouts still correlate at $+0.475$ against
+$+0.63$ on the self-assessed set. Half does not: the overlap of most-convincing
+mutants is $5$ of $12$ against $3.9$ expected, $p = 0.32$. \textbf{So the sharp
+form of the result belongs to self-assessment}; on code neither model wrote the
+agreement survives as a correlation while the tail overlap is unresolved at this
+sample size.
+
+\textbf{The cross-model comparison is the easier task.} To hold part variance
+constant across models, every model judges the same fixed programs rather than its
+own output. Our own measurements put other-code judging at AUROC 0.776 against
+0.734 for self-assessment on the same checkpoint, each scored as the mean readout
+over the same six wordings. Failures measured that way are a
+\emph{lower bound} on what the self-report channel would show.
+
+\textbf{Two claims were retracted during this work and the paper is their record.}
+An earlier draft reported the study-level AUROC spread across phrasings as a
+measured effect, and reported the readout as worse-calibrated than a constant.
+A within-item permutation test ($p = 0.178$ at $n{=}120$, with the $n{=}40$
+observation below its own null median) and a bootstrap interval spanning zero
+retired both. We state this in the body rather than silently correcting it,
+because a paper arguing that instruments overstate has no standing to quietly
+restate its own numbers.
+
+\textbf{What the gauge verdict does not establish.} That a channel fails \%GRR and
+ndc means it cannot resolve differences of the size those indices imply. It does
+not mean the underlying quantity is absent, that no elicitation method could
+resolve it, or that a larger model would fail identically. It is a statement about
+what can be concluded from this instrument, which is the only kind of statement a
+gauge study makes.
+
+\textbf{The intervention study is not run.} The placebo decomposition described in
+Sections~\ref{sec:arms}--\ref{sec:placebo} is specified and its harness is built
+and tested, but no arm has been executed. Every quantity attached to it is a
+placeholder. Given $SDC_{95} = 0.22$, we expect it to return \textsc{unresolvable}
+on the primary outcome, and that expectation is recorded before the fact rather
+than offered afterwards as an explanation.
+
+\textbf{Two implementation limits, recorded rather than papered over.} The grading
+child runs candidate programs without a hardened sandbox, in a temporary working
+directory with ordinary process privileges; acceptable for model-generated repairs
+to these benchmarks, unsafe for adversarial input. The parent timeout backstop is
+heuristic and could false-timeout a problem with many genuinely slow passing tests.
+
+\section{Conclusion}
+% ---------------------------------------------------------------------
+
+A common answer to who verifies the agents is that the agent helps: it reports a
+confidence, it asks for review when unsure. That answer assumes the report is a
+window onto the agent's state rather than an output of the apparatus that elicited
+it. We did not test whether the window is clean. We tested whether it is a window
+at all, using procedures four fields already require and none had applied here.
+This channel does not meet the entry criteria those fields set: it is rejected by
+both industrial gauge indices in every elicitation format we tried; it cannot
+resolve a content effect handed to it by construction; and the measured size of
+that effect moves at least threefold with the wording of the question alone. The
+last has the teeth, because wording is exactly the design choice no reporting
+convention asks anyone to disclose.
+
+None of this shows that agents lack self-knowledge, and we are careful not to say
+so. There is mechanistic evidence the other way: verbal confidence is computed at
+answer-adjacent positions and cached before it is verbalized, and those
+representations explain variance beyond token
+log-probabilities~\citep{kumaran_verbalconfidence_2026}. That is what makes an
+unresolving instrument worth reporting rather than expected -- something is there,
+and the instrument used to look for it cannot resolve differences of the size being
+claimed, which makes the existing evidence -- ours included -- weaker than it
+appears rather than wrong. The remedy is a better instrument, and a
+habit of measuring it before trusting it.
+
+We started this work intending to run a placebo-controlled intervention on this
+channel. The instrument check said the result would be uninterpretable, so we
+are reporting the check instead. That is the smaller paper, and it is the one the
+evidence supports.
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\appendix
+\section{Reproducibility statement}
+\label{sec:repro}
+% ---------------------------------------------------------------------
+
+The failure pool is frozen and digest-bound before any arm exists, and nothing
+downstream may add to it. Model selection ran only an initial attempt, a plain
+retry, and an oracle-hint retry on a disjoint calibration slice; no real or
+placebo reflection was generated during selection, and the selection rule
+(largest eligible, never largest uplift) was fixed in advance. Donor assignment
+is a published seeded derangement with a manifest digest that fails on any
+post-hoc edit. Parity asserters return measured records rather than silently
+repairing defects. No LLM judge appears in grading, in any outcome, or in any
+validity check, and the constant recording this is asserted by test and
+serialized into every record. The analysis script is run exactly once, after
+the preregistration is frozen to a commit hash. Harness, pool, manifests, and
+the \textsc{Placebo-3} implementation are released.
+
+\paragraph{Checks released with the paper, and why there are five.}
+Preparing this paper produced seven instances of a single defect: two quantities
+compared as commensurable when the measurements behind them differed. They appeared
+in the abstract, the contributions list, the body, the central gauge table, the
+central figure, and twice in a limitation. Four were found only after a mechanical
+guard for a previous one existed, which is the argument for having built them. All
+five checks run in the pre-submission gate and each is stated with what it does not
+catch, because a guard advertising coverage it lacks is how the earlier instances
+survived review.
+
+\begin{enumerate}[itemsep=1pt, topsep=3pt]
+    \item \textbf{Prompt fingerprints.} Every elicited measurement carries a digest
+        of the exact templates that produced it, and a comparison across differing
+        digests raises rather than warns. Deliberately brittle: it does not
+        normalise case or whitespace, because this paper's own result is that such
+        differences move the readout, so a fingerprint that forgave them would
+        certify the comparisons most likely to be unsound.
+    \item \textbf{Cross-artifact reuse.} Any value repeated across artifacts to full
+        floating-point precision is a copy, not a second measurement: two runs of
+        one quantity agree to a few decimal places, never to seventeen. Legitimate
+        sharing is declared with a reason and each declaration is narrow -- it does
+        not excuse the same value appearing in a third artifact.
+    \item \textbf{Floor bindings.} Each detection floor is bound to the artifact it
+        must come from and the two are required to match exactly. A floor is the
+        one quantity whose provenance changes a verdict, since an effect is
+        resolvable or not depending on what it is judged against.
+    \item \textbf{Unmatched comparisons.} If the text says $X$ falls below $Y$, some
+        artifact should contain both; when none does, the sentence asserts a
+        relationship nothing measured. Cross-model, cross-task and before/after
+        comparisons are exempt by construction, and every exemption is a blind spot
+        we name rather than hide.
+    \item \textbf{Numeric traceability.} Every number in the built PDF must appear
+        in a persisted artifact. This check is the weakest of the five and we say
+        why: it passed on a draft in which an AUROC was attributed to a task it had
+        never been measured on, because the value had been added to the allowlist of
+        externally-sourced constants. No measured value may sit in that list, and
+        the audit now runs with none.
+\end{enumerate}
+\TODO{anonymous artifact identifier and bundle hash}
+
+
+\section{Additional measurements}
+\label{sec:extra}
+% ---------------------------------------------------------------------
+
+Each of these answers a question a reader may reasonably ask of the main
+result. None carries a step of the argument, which is why they are here.
+
+\paragraph{Tuning the wording on a held-out set.} An unstable ranking licenses
+someone to try exactly this, and it is where the result becomes a decision
+rather than a correlation. Re-analysing the same 120
+readouts: choosing the best-discriminating wording on 60 held-out problems
+identifies the genuinely best wording on the remaining 60 in $15.5\%$ of splits,
+against $16.7\%$ by guessing, and gains $+0.015$ AUROC over picking one at
+random. Both numbers invite the conclusion that selection is worthless, and
+\emph{neither survives its own interval}: resampling programs rather than splits
+-- splits reuse one fixed program set and are not independent observations --
+gives $[0.015, 0.800]$ for the hit rate and $[-0.010, +0.059]$ for the gain. The
+correct statement is the weaker and more useful one: at this sample size the
+study cannot tell whether tuning the wording helps at all -- the same resolution
+failure the paper measures elsewhere, arriving at a decision someone makes on a
+Tuesday.
+
+\paragraph{Do the channels carry different information?} The two
+families are far from redundant -- verbalized ordinal correlates with
+single-polarity logit at $\rho = 0.16$, against $0.83$ between the two logit
+readouts -- yet the best combination of channels beats the best single channel
+by $+0.002$ AUROC, $95\%$ CI $[-0.052, +0.062]$. The prose channel carries
+something different; it does not carry something that predicts correctness.
+
+\paragraph{We arrived at this comparison by failing to make it correctly first, and
+the failure is worth more than the fix.} An earlier draft judged this effect
+against a floor measured on the self-assessment task under a different question
+wording. Both were labelled with the same six phrasing names, so the mismatch was
+invisible to every review we ran and to a traceability audit that passed at
+$109/109$ -- a copied number traces perfectly, because it really is in an
+artifact. The borrowed floor was the \emph{lower} of the two, so the error had
+been working in our favour. Seven instances of this one defect surfaced while
+preparing the paper; the five checks that now fail the build on it, and what each
+of them still misses, are in Appendix~\ref{sec:repro}.
+
+\paragraph{Verification moved the numbers in the direction it had to, and changed
+no conclusion.} Dropping the four mislabelled pairs raises every phrasing's effect,
+as noise centred on zero should: the mean rises from $+0.1917$ to $+0.2075$, the
+ratio is unchanged at $4.18\times$ against $4.17\times$, and the effect stays below
+$SDC_{95}$. The headline is not an artifact of mislabelled mutants, which was the
+most obvious objection to it.
+
+\paragraph{The interaction is real, and we report its size honestly.} Decomposing
+the paired effect's variance after main effects cancel: item heterogeneity 0.0410,
+arm\,$\times$\,phrasing 0.0046 (sd 0.0678), residual 0.0075. Phrasing is
+\textbf{8.7\%} of paired-effect variance -- a modest share of a total dominated by
+genuine between-problem heterogeneity, yet large against the effect sizes anyone is
+trying to estimate. Quoting only the second half would overstate the case.
+
+\paragraph{Repeatability, the cold path, and call order.} We measured it rather than assuming the usual confound. Repeating a probe 16 times on each of six programs, only the \emph{first} call for a given prompt differs: the remaining 15 are bit-identical, and the seed is inert. So there is no repeatability term in the ordinary sense; \%GRR is reproducibility plus interaction with nothing else hiding in it. What exists instead is a cold-path effect -- a first evaluation differs from every later one by a median of $0.0009$ and at most $0.0115$, which is $0.6\%$ and $7.9\%$ of $SDC_{95}$. Every cell here was measured once and therefore cold, consistently, so the gauge is unbiased by it, but the reported values are cold-prefill values and a pipeline re-querying a cached prompt would see slightly different ones. Single- and repeated-trial designs are not sampling the same quantity. That raises a threat we then tested: the six wordings for a program are called in sequence and share a long prefix, so a cached prefix could make the first cold and the rest warm, and the gauge would book that as appraiser variance. Measuring all six forward and then in reverse -- which moves every wording to a different position -- does shift the readout, by at most $0.0153$. Bounded against what it threatens, the order-induced $SD$ is $0.0015$ against a within-program wording $SD$ of $0.0565$, so it accounts for $0.8\%$ of the appraiser variance. Real, and too small to matter.
+
+\paragraph{Does accuracy rise with stated confidence?} Binning by
+confidence, accuracy runs $0.50, 0.63, 0.83, 0.90$ for the first family and
+$0.57, 0.70, 0.83, 0.77$ for the second, Spearman $+0.98$ and $+0.83$. The
+second's top-bin dip is well inside chance ($p = 0.56$), so the readout is
+monotonic in both: ordering by confidence orders by risk within a model.
+
+\paragraph{Wordings or polarities, at a fixed call budget?} The two axes
+disagree. Six wordings at one polarity against three at both, matched exactly on
+calls and averaged over every choice of subset,
+gives \%GRR $37.9$ against $43.9$ and ndc $3.45$ against $2.89$ -- wordings buy
+resolution -- while AUROC runs $0.726$ against $0.735$ the other way, a
+difference whose interval $[-0.062, +0.047]$ contains zero. Buy wordings, not
+polarities, unless ranking is all you need.
+
+\section{Design of the study that was not run}
+\label{sec:design}
+% ---------------------------------------------------------------------
+
+The apparatus below is built, tested and released; no arm was executed, for
+the reason given in Section~\ref{sec:population}.
+
+A seven-arm design over EvalPlus repair
+tasks~\citep{liu_evalplus_2023} on HumanEval~\citep{chen_codex_2021} and
+MBPP~\citep{austin_mbpp_2021}: a length-matched inert floor, a \emph{task-blind
+procedural} placebo generated by the same frozen reflector with every
+task-specific field structurally unreachable, two donor-reflection arms, the real
+reflection, a compute-matched resample arm, and a known-informative oracle
+control. Arms share a byte-identical prompt skeleton; token, item, structural,
+call and decoding parity are asserted per item and reported as data rather than
+silently repaired; donor assignment is a seeded derangement with a published
+manifest; no LLM judge appears anywhere; and the 161-tuple failure pool was frozen
+under a single preregistered attempt policy so it could not be redrawn.
+
+
+\end{document}

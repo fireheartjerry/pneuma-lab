@@ -1,10 +1,25 @@
 # NeurIPS 2026 workshop submission
 
-Skeleton for a submission to **"Who Verifies the Agents? Toward Reliable Agent
-Development"** at NeurIPS 2026.
+Two candidate submissions to **"Who Verifies the Agents? Toward Reliable Agent
+Development"** at NeurIPS 2026 live in this directory. They share
+`refs.bib`, `neurips_2026.sty`, and the pre-submission checklist below.
 
-Working title: _Ten Conversations, Two Thousand Questions: What Agent-Memory
-Evaluations Could Actually Have Detected_
+| Document      | Working title                                                                                          | State                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `main.tex`    | _Ten Conversations, Two Thousand Questions: What Agent-Memory Evaluations Could Actually Have Detected_ | Drafted end to end. Numbers from the coded corpus; two figures outstanding.       |
+| `placebo.tex` | _No Method Passes: A Gauge Study of Agent Self-Report as a Measurement Instrument_                     | **Body complete at 9 pages, zero result placeholders.** All numbers are measured. |
+
+`placebo.tex` reports a measurement-system study of the agent self-report
+channel: no elicitation method in common use passes AIAG gauge acceptance, and
+the measured size of a planted content effect varies 4.18x with the wording of
+the question alone. Its numbers come from
+`build/research/placebo/instrument/`, each with the script that produced it. The
+placebo intervention it was originally built to run is described in one section
+and deliberately not run -- the instrument fails assay sensitivity, so its null
+would be uninterpretable. Decisions DL-77 through DL-96.
+
+**Decide before submission which document ships.** The CFP permits one primary
+submission at a time.
 
 ## Venue facts
 
@@ -56,13 +71,14 @@ sha256sum neurips_2026.sty
 
 ## Files
 
-- `main.tex` -- the paper. Section stubs with per-section page budgets only;
-  no prose (prose is authored in a separate pass).
-- `refs.bib` -- empty placeholder. Entries arrive from a separate
-  verified-bibliography pass. **No entry may be added without primary-source
-  verification.**
+- `main.tex` -- the detectability-audit paper, drafted end to end.
+- `placebo.tex` -- the placebo self-report study, pre-results first draft.
+- `refs.bib` -- shared verified bibliography. **No entry may be added without
+  primary-source verification.** Entries carrying an `UNVERIFIED` comment have
+  a confirmed record but an unconfirmed author list or content attribution and
+  must be re-checked before camera-ready.
 - `build.sh` -- POSIX build script (`./build.sh`, `./build.sh clean`,
-  `./build.sh distclean`).
+  `./build.sh distclean`); `JOB=placebo ./build.sh` builds the other document.
 - `Makefile` -- same targets plus `make blindcheck`. Requires GNU make.
 - `.gitignore` -- LaTeX build artifacts and the compiled PDF.
 
@@ -75,14 +91,21 @@ sha256sum neurips_2026.sty
 
 make                # same, if GNU make is available
 make blindcheck     # fail if a forbidden string survives into main.pdf
+
+JOB=placebo ./build.sh      # -> placebo.pdf
+make JOB=placebo            # same
+make JOB=placebo blindcheck # blind check the placebo draft
+
+JOB=placebo ./preflight.sh  # full mechanical pre-submission check
+make JOB=placebo preflight  # same, via make
 ```
 
 Requires `latexmk` + `pdflatex` (TeX Live or MiKTeX). `build.sh` falls back to
 a manual `pdflatex`/`bibtex`/`pdflatex`/`pdflatex` sequence if `latexmk` is
 missing, and exits 127 with a clear message if no LaTeX toolchain is present.
 
-`bibtex` emits an "Empty `thebibliography' environment" warning while
-`refs.bib` is still empty. That is expected and disappears once entries land.
+Both documents currently build clean: no undefined citations, no overfull
+boxes, and `pdftotext | grep -i pneuma` returns nothing.
 
 ### Note on the first-page footer
 
@@ -91,6 +114,54 @@ Neural Information Processing Systems (NeurIPS 2026). Do not distribute."_ The
 workshop name set via `\workshoptitle{}` only appears in the footer for a
 `final` (camera-ready) build. This is upstream behavior, not a configuration
 error -- `\workshoptitle{}` is nonetheless required and is already set.
+
+
+## Preflight
+
+`preflight.sh` runs the mechanically checkable half of the pre-submission
+checklist against the **built PDF and its source**, and exits non-zero on any
+failure. Prefer it over `blindcheck`, which only grepped the text layer for one
+forbidden string.
+
+It exists because of a defect class the LaTeX build cannot catch. An editing
+accident replaced the backslash in `\textbf` with a literal tab, and the
+backslash in `\ref` with a carriage return, leaving the bare words `extbf`
+and `ef` in the source. Both are valid LaTeX input, so `latexmk` exited 0
+with a clean log while the PDF printed `extbf{...}` and `ef{sec:...}` as body
+text. Three instances shipped undetected until someone read the output.
+
+The cause is worth naming: patch scripts passed through a shell heredoc lose
+one level of backslash escaping. Write patch scripts to a file and execute the
+file. This very paragraph was corrupted that way on its first attempt.
+
+**That warning was then violated twice more, in one session, by the person who
+wrote it.** Both times the damage reached the PDF. `\ref` is the dangerous case,
+because `\r` is a valid escape and becomes a carriage return, whereas `\section`
+and `\TODO` survive as literal text and look fine. The two live instances were:
+
+    Section~<CR>ef{sec:population}      printed "Section efsec:population."
+    Section~<CRLF>ef{sec:floors}        printed "Section efsec:floors"
+
+The second is the nastier form: the carriage return lands in line-terminator
+position, so it is indistinguishable from an ordinary Windows line ending and the
+remnant becomes the start of the next line.
+
+Do not restate the rule more firmly. `check_source_integrity.py` now fails the
+build on both forms, and on all seven escapes that a lost backslash can produce
+(`\r \t \f \v \b \a` and line feed). It is tested against the real damage
+rather than trusted.
+
+Checks: injected control characters in source, in Python against raw bytes --
+the previous `grep -c $'\r'` could never fire, because Git Bash normalises CRLF
+before matching, and it reported 0 on a file containing 898 carriage returns AND
+on a live injection; undefined references;
+overfull boxes; mangled control sequences leaking into the text layer; unfilled
+placeholders; identifying strings in **both** the text layer and the raw PDF
+stream; Type 3 fonts; unembedded fonts; populated identifying metadata.
+
+A failing `unfilled placeholders` check is expected while the draft banner and
+the anonymous-artifact TODO are still present -- it should fail until they are
+gone.
 
 ## Pre-submission checklist
 
@@ -108,9 +179,9 @@ build. Do not check anything off from memory.
       table cells, code listings, file paths in screenshots, URLs, the
       reproducibility statement, and the PDF metadata.
       `sh
-    pdftotext main.pdf - | grep -i pneuma        # must print nothing
-    make blindcheck                              # same check, exits 1 on hit
-    `
+pdftotext main.pdf - | grep -i pneuma        # must print nothing
+make blindcheck                              # same check, exits 1 on hit
+`
 - [ ] No institution, funder, grant number, or acknowledgments section. The
       style file suppresses the `ack` environment in submission mode, but do
       not rely on that -- verify in the rendered PDF.
@@ -131,21 +202,21 @@ build. Do not check anything off from memory.
       non-identifying. `main.tex` already sets these to empty via
       `\hypersetup`. Verify:
       `sh
-    pdfinfo main.pdf
-    exiftool main.pdf        # if available; checks XMP too
-    `
+pdfinfo main.pdf
+exiftool main.pdf        # if available; checks XMP too
+`
 - [ ] No XMP metadata stream leaks a username or a local file path
       (`pdfinfo` reports `Metadata Stream: no` for the current build).
 - [ ] No local filesystem paths from the build machine are embedded (these can
       contain a real name or the repository name). Grep the raw PDF:
       `sh
-    grep -a -i -e pneuma -e "C:/Users" -e "/home/" main.pdf
-    `
+grep -a -i -e pneuma -e "C:/Users" -e "/home/" main.pdf
+`
 - [ ] If anything identifying is found and cannot be removed at the LaTeX
       level, scrub it before upload:
       `sh
-    exiftool -all:all= -overwrite_original main.pdf
-    `
+exiftool -all:all= -overwrite_original main.pdf
+`
       Then re-run `pdffonts` and `pdftotext` to confirm nothing else broke.
 
 ### Fonts and rendering
@@ -154,8 +225,8 @@ build. Do not check anything off from memory.
       `emb = yes`. The current build embeds four Type 1 faces
       (NimbusRomNo9L Medi/Regu, SFTT1000, NimbusSanL Regu), all `yes`.
       `sh
-    pdffonts main.pdf
-    `
+pdffonts main.pdf
+`
 - [ ] No Type 3 bitmap fonts (these come from bitmap `cm` fonts and render
       badly). If any appear, rebuild with `cm-super` / Type 1 fonts available.
 - [ ] Page size is US Letter, 612 x 792 pt (`pdfinfo`). The style file sets

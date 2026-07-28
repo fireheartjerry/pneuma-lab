@@ -4,8 +4,12 @@
 % Page limit: 4-9 pages of body, EXCLUDING references and appendices.
 % Deadline: 2026-08-29, 23:59 AoE. Submission via OpenReview.
 %
-% Body page budget for this draft: ~7.0 pages (see per-section notes below).
-% Prose is authored in a separate pass; this file carries structure only.
+% NUMBERS POLICY: every quantity in this paper is produced by
+% src/pneuma_lab/audit/table.py from the coded corpus and pinned by
+% regression tests in tests/research/test_audit_table.py. If a number here
+% disagrees with the generator, the generator is right. Do not hand-edit.
+%
+% PLACEHOLDERS are marked \TODO{...} and must be zero before submission.
 % =====================================================================
 
 \documentclass{article}
@@ -14,22 +18,23 @@
 % Provenance and SHA-256 are recorded in README.md. Do not edit the .sty.
 \usepackage[dblblindworkshop]{neurips_2026}
 
-% The workshop title is what appears in the first-page footer notice.
 \workshoptitle{Who Verifies the Agents? Toward Reliable Agent Development}
 
-\usepackage[utf8]{inputenc}     % allow utf-8 input
-\usepackage[T1]{fontenc}        % use 8-bit T1 fonts (keeps fonts embeddable)
-\usepackage{hyperref}           % hyperlinks
-\usepackage{url}                % simple URL typesetting
-\usepackage{booktabs}           % professional-quality tables
-\usepackage{amsfonts}           % blackboard math symbols
-\usepackage{amsmath}            % math environments (patched for lineno by the .sty)
-\usepackage{nicefrac}           % compact symbols for 1/2, etc.
-\usepackage{microtype}          % microtypography
-\usepackage{xcolor}             % colors (also required by the checklist macros)
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+
+% Placeholder marker. Renders visibly on purpose so it cannot ship unnoticed.
+\newcommand{\TODO}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
 
 % Double-blind hygiene: keep identifying strings out of the PDF metadata.
-% Re-verify after every build; see the pre-submission checklist in README.md.
 \hypersetup{
     pdfauthor={},
     pdfsubject={},
@@ -38,98 +43,418 @@
     pdfproducer={}
 }
 
-\title{Ten Conversations, Two Thousand Questions: What Agent-Memory
-Evaluations Could Actually Have Detected}
+\title{Ten Conversations, Two Thousand Questions:\\
+What Agent-Memory Evaluations Could Actually Have Detected}
 
-% Authors are anonymized by the dblblindworkshop option; the style file
-% prints "Anonymous Author(s)" and ignores \author. Restore the real author
-% block only for a camera-ready or preprint build.
-%
-% \author{%
-%     First Author \\
-%     Affiliation \\
-%     Address \\
-%     \texttt{email} \\
-%     \And
-%     Second Author \\
-%     Affiliation \\
-%     Address \\
-%     \texttt{email} \\
-% }
+\author{%
+    Anonymous Author(s) \\
+    Affiliation \\
+    Address \\
+    \texttt{email} \\
+}
 
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
-    % [~0.15 pg] One-paragraph statement of the claim, the evidence base, and
-    % what the detectability analysis shows. Written last, after Sections 2-5
-    % are stable.
+Papers reporting that persistent memory improves an LLM agent describe their
+evaluations in terms of items: two thousand questions, a thousand tasks, a hundred
+human ratings. Those items are not independent. The two thousand questions are drawn
+from ten conversations; the thousand tasks from five websites; the hundred ratings
+from a single simulation run. We audit thirty published agent-memory systems and
+benchmarks against a rubric frozen before coding, and compute what effect size each
+design could have detected across a range of clustering assumptions. Thirteen of
+thirty-two coded rows cannot be bounded at all, because the paper does not state the
+count of its own coarsest grouping. Only six state an effect precisely enough to
+compare against any threshold, and five of those six fall below it at every
+clustering assumption we report. We further distinguish two kinds of dependence that
+the existing power literature does not model, because they are created by the
+intervention rather than by the data: a memory pool that accumulates across an
+evaluation couples every task to its predecessors, and a single induced artifact
+scored on thousands of items provides one replication of the claim about that
+artifact, not thousands. We report our own prior work under the identical rubric,
+where it records the worst overstatement ratio in the frame.
 \end{abstract}
 
+% ---------------------------------------------------------------------
 \section{Introduction}
-\label{sec:introduction}
-% [~0.8 pg] Motivate the gap: agent-memory systems are evaluated in ways that
-% cannot distinguish the mechanism from its confounds. State the contribution
-% list and forward-reference Sections 3 and 5.
+% ---------------------------------------------------------------------
 
+An agent-memory paper reports how much it evaluated on. Mem0 reports two thousand
+questions~\cite{chhikara_mem0_2025}. Agent Workflow Memory reports over a thousand
+tasks~\cite{wang_agentworkflowmemory_2025}. Generative Agents reports a hundred human
+rankings~\cite{park_generativeagents_2023}. These numbers establish that a result is
+solid, and every confidence interval, significance test, and implicit power
+calculation in the literature is computed against them.
+
+The two thousand questions come from ten conversations. The thousand tasks come from
+five websites. The hundred rankings all come from a single two-day simulation.
+
+That benchmark items are correlated rather than independent is known, and correcting
+for it changes model rankings~\cite{siska_robustness_2024}. That evaluation intervals
+are often computed over the wrong quantity is known~\cite{miller_errorbars_2024,
+bowyer_dontusetheclt_2025}. That a literature can be audited for what its designs
+could detect is known---it is the shape of~\cite{card_littlepower_2020}, which found
+NLP experiments broadly underpowered, and it has since been applied to leaderboard
+rank resolution~\cite{kotawala_resolutiondiagnostics_2026} and to benchmark sample
+complexity~\cite{huang_howmanytasks_2026}. None of that is ours, and we say so here
+rather than in a related-work section on page four.
+
+What has not been done is to point that instrument at \emph{agent memory}, where the
+problem has a structural cause that does not exist in the literatures where these
+methods were developed. In NLP benchmarking, item dependence is a property of how the
+data was built. In agent memory it is additionally a property of \emph{the thing
+being tested}.
+
+Consider what a memory system claims. It claims that information acquired while
+solving task $k-1$ improves performance on task $k$. That is the contribution. But
+the standard inferential treatment of the same evaluation asserts that tasks are
+independent samples. Both cannot hold. If memory transfers information across tasks
+then the observations are coupled, and the coupling is proportional to how well the
+memory works. \textbf{The stronger the claimed effect, the more severe the violation
+of the assumption used to test it.}
+
+A second case has the same character. Several systems induce a single artifact---a
+skill document, a workflow library, a distilled experience set---and then score it on
+thousands of items. Trace2Skill evolves one skill document from one evolving set and
+reports up to 57.65 points from it across 2{,}649 test
+instances~\cite{ni_trace2skill_2026}. For the claim \emph{this skill document works},
+the number of independent replications is one.
+
+We therefore distinguish three kinds of dependence, and only the first is what the
+existing literature models:
+
+\begin{enumerate}
+    \item \textbf{Substrate dependence}---imposed by the benchmark, inherited by
+        every system evaluated on it. LoCoMo's fifty conversations become fifty
+        clusters for everyone who uses it, permanently~\cite{maharana_locomo_2024}.
+    \item \textbf{Endogenous dependence}---created by a memory pool accumulating
+        across the evaluation, so that task $k$ is conditioned on tasks
+        $1 \ldots k-1$.
+    \item \textbf{Treatment-artifact dependence}---where all scored observations
+        share one induced artifact, so the effective replication count for the claim
+        about that artifact is the number of artifacts.
+\end{enumerate}
+
+We audit thirty agent-memory systems and benchmarks against a rubric frozen before
+any paper was read, compute what effect each design could have detected across a
+range of clustering assumptions, and compare that to what each paper claims. The
+result is less about power than we expected. \textbf{Only six of thirty-two coded
+rows state an effect precisely enough to compare against any threshold at all.}
+Thirteen cannot be bounded because the paper never states the count of its own
+coarsest grouping. Of the six that can be checked, five fall below their own
+detection threshold at every clustering assumption we report.
+
+Our contributions are the audit, the taxonomy, a detectability surface reported as a
+range rather than a point, and a released tool. \textbf{We do not claim that any
+audited system fails to work.} We claim that most of these studies could not have
+detected the effects they report, and that a majority do not report enough for a
+reader to check. We include our own prior work in the audit under the identical
+rubric, where it records the worst overstatement ratio in the frame.
+
+% ---------------------------------------------------------------------
 \section{What the literature reports}
-\label{sec:literature}
-% [~1.4 pg] Survey of what published agent-memory evaluations actually measure
-% and report, organized by claim type. Every factual assertion here must trace
-% to a verified primary source in refs.bib.
+% ---------------------------------------------------------------------
 
+\subsection{Frame}
+
+Thirty systems and benchmarks, selected by a procedure fixed before any paper was
+read: ten seeds, plus every system a seed compares against, plus every system cited
+by a recent agent-memory survey~\cite{du_agentmemorysurvey_2026}. Two systems were
+admitted by a recorded amendment after the original procedure was found to have
+under-reached them; that amendment, and every other adjudication in this paper, is
+dated and published with its rejected alternatives.
+
+The frame stratifies into \textbf{system papers}, which claim a memory mechanism
+helps, and \textbf{benchmark papers}, which claim nothing about their own memory but
+impose their sample structure on everyone who evaluates against them. A benchmark
+built from fifty conversations imposes fifty clusters on every downstream user,
+permanently. We report the strata separately. We include our own prior work as a
+third stratum of one.
+
+\subsection{Coding}
+
+Nine fields per paper, coded against a rubric frozen before the first paper was read.
+Every non-numeric cell is backed by a verbatim quoted passage with a section locator,
+and the full coding sheet is released.
+
+\textbf{We report no inter-rater reliability coefficient.} Coding was performed by
+one author with LLM assistance, and two instances of one model are not independent
+raters. Printing an agreement statistic between them, in a paper about statistics
+that do not mean what they appear to, would be self-refuting. Quote-backing is
+offered instead and is stronger: a reader can check any cell against its source
+rather than trusting a coefficient. Where a paper does not state something, the cell
+reads \texttt{not\_stated}. It is never inferred, including where the intended value
+seems obvious.
+
+\subsection{What the coding found}
+
+Reporting practice across the frame, scoped to these thirty papers and this date
+range: \textbf{31 of 32 rows pre-specify no decision rule}, the exception being ours,
+which was preregistered; \textbf{28 of 32 have no inert-content null arm}, so
+comparisons confound the content of a memory with the apparatus that delivers it; and
+\textbf{0 of 32 report uncertainty over their own coarsest grouping}. One paper
+reports confidence intervals at all~\cite{shu_agentcl_2026}, and each interval sits
+inside a single task stream, so it structurally cannot resample the unit that would
+matter.
+
+% ---------------------------------------------------------------------
 \section{Three kinds of dependence}
-\label{sec:dependence}
-% [~1.0 pg] Taxonomy separating the distinct dependence structures that get
-% conflated under "memory helps": define each kind and give a discriminating
-% observable for each.
+% ---------------------------------------------------------------------
 
+\paragraph{Substrate.} Benchmark items nest. LoCoMo compiles 7{,}512 questions from
+50 dialogues~\cite{maharana_locomo_2024}. MemBench generates 53{,}000 questions from
+500 relation graphs~\cite{tan_membench_2025}. MemoryAgentBench states the design
+choice outright: ``we deliberately design scenarios where multiple questions follow a
+single context''~\cite{hu_memoryagentbench_2025}. This is the kind the existing
+literature models. It is a property of the measurement substrate, it exists whether
+or not anything is being tested, and it propagates.
+
+\paragraph{Endogenous.} An agent-memory system accumulates a pool across the
+evaluation. Memento initialises memory from scratch and stores trajectories into a
+case bank across its validation set~\cite{zhou_memento_2025}. ReasoningBank evaluates
+on a task stream where each query ``must be completed sequentially without access to
+future ones''~\cite{ouyang_reasoningbank_2026}. Under such designs task $k$ is
+conditioned on tasks $1 \ldots k-1$ through the pool, and the coupling is created by
+the intervention under test. This produces a specific awkwardness: Memento's design
+codes an overstatement ratio of $1.0$---the cleanest in the frame---for an evaluation
+whose dependence is total, because a procedure that counts observations cannot see
+coupling the system itself creates.
+
+The general statement: \emph{``memory carries information across tasks'' and ``tasks
+are independent evaluation samples'' are the same quantity, asserted in one direction
+as the contribution and denied in the other as a statistical premise.}
+
+\paragraph{Treatment-artifact.} Trace2Skill evolves one skill document from a
+200-sample evolving set, then scores it across 2{,}649 held-out instances and reports
+up to 57.65 points~\cite{ni_trace2skill_2026}. Every scored item shares that one
+artifact. For the claim \emph{this document works}, $n = 1$. The analogy is a drug
+trial that manufactures a single batch, administers it to 2{,}649 patients, and
+reports 2{,}649 independent tests of the manufacturing process. The patients are
+independent; the batch is not.
+
+The three are independent of one another and can co-occur. Seven of the coded rows
+carry a shared memory lifetime; several of those also draw from a clustered
+substrate. We report each separately and do not combine them into a single corrected
+number, because the data required to do so is not published.
+
+% ---------------------------------------------------------------------
 \section{What a credible claim requires}
-\label{sec:credible-claim}
-% [~0.9 pg] The evidentiary standard: which controls, ablations, and null
-% conditions a claim of each dependence kind must satisfy before it is
-% supportable.
+% ---------------------------------------------------------------------
 
-\section{The detectability surface}
-\label{sec:detectability}
-% [~1.2 pg] The central analysis: given a study design, which effects are
-% detectable and at what scale. Carries the paper's main figure/table.
+\subsection{We bound, we do not estimate}
 
+The design effect is $\mathrm{DEFF} = 1 + (m-1)\rho$, giving
+$n_{\mathrm{eff}} = n / \mathrm{DEFF}$~\cite{kish_surveysampling_1965}. Published
+reports state $n$ and the cluster count, hence $m$---but never $\rho$.
+\textbf{Substituting the cluster count for the observation count silently assumes
+$\rho = 1$}, which is a worst-case bound rather than a correction.
+
+We therefore report the minimum detectable effect across a grid,
+$\rho \in \{0.05, 0.1, 0.3, 0.5, 1.0\}$ crossed with paired discordance
+$d \in \{0.15, 0.25, 0.40\}$, as a range. No point estimate of effective sample size
+appears anywhere in this paper. For a paired comparison on binary-scored items---the
+usual case, since these papers compare a system against its own ablation on identical
+items---with $D_i \in \{-1,0,1\}$ and discordance $d = P(D_i \neq 0)$:
+\begin{equation}
+    \mathrm{MDE}(\rho_D) \approx
+    \left(z_{1-\alpha/2}+z_{1-\beta}\right)
+    \sqrt{\frac{d \cdot \mathrm{DEFF}_D(\rho_D)}{n}}
+\end{equation}
+The binding quantity is the discordance rate, not either system's accuracy, because
+McNemar analyses only discordant pairs~\cite{mcnemar_correlatedproportions_1947}. We
+use two-sided $\alpha = 0.05$ and $80\%$ power; one-sided would be defensible only
+for a precommitted directional question, and 31 of 32 papers pre-specify no decision
+rule at all.
+
+\subsection{Non-identifiable designs}
+
+Where all observations derive from one cluster, between-cluster variance and $\rho$
+are not estimable. There is no identified design effect, no cluster-robust standard
+error, and no minimum detectable effect for a claim generalizing beyond that
+cluster~\cite{murray_grouprandomized_2004, eldridge_clusterrandomised_2012}. Such
+designs are reported as \textbf{non-identifiable with their reason}, never assigned a
+number. Generative Agents is the clearest case: 100 rankings, one simulation. The
+honest statement is not that its effective sample size is one; it is that
+population-level uncertainty cannot be estimated from these data.
+
+\subsection{Verdict stability}
+
+A verdict computed at one assumed $\rho$ and one assumed $d$ is a rendering of those
+assumptions. We therefore report, for every checkable claim, whether its verdict
+holds across the entire two-dimensional surface or flips somewhere, and where.
+
+% ---------------------------------------------------------------------
+\section{Results}
+% ---------------------------------------------------------------------
+
+\subsection{Most claims cannot be checked at all}
+
+Of 32 coded rows, 13 are non-identifiable---no stated grouping count, or a single
+cluster---13 are identifiable but state no verifiable absolute effect, and 6 are
+verdict-eligible. We observed four distinct reasons a row is not checkable.
+\textbf{No magnitude stated}: MemoryBank~\cite{zhong_memorybank_2024} and
+Think-in-Memory~\cite{liu_thinkinmemory_2023} both assert improvement in prose
+without giving a number. \textbf{No unit count stated}: seven papers never report the
+count of their own coarsest grouping. \textbf{Relative stated as absolute}: one
+paper reports ``23.5\% and 11.3\% in success rate''~\cite{wang_inducingskills_2025};
+the arithmetic identifies these as relative, and the absolute values are 7.7 and 4.1.
+\textbf{Magnitude not recomputable}: Reflexion states ``an absolute
+22\%''~\cite{shinn_reflexion_2023}, which two independent attempts could not
+reproduce from the paper's own reported quantities.
+
+A fifth is distinct from all four: \textbf{budget-mismatched comparison}. JARVIS-1's
+``5 times'' pairs its own 60-minute result against a baseline's 20-minute
+result~\cite{wang_jarvis1_2025}. The paper reports that baseline at 60 minutes
+itself, where the ratio is 4.17.
+
+\subsection{Of the claims that can be checked, most fall below their own threshold}
+
+\begin{table}[t]
+    \centering
+    \caption{Verdict-eligible rows. MDE range spans the full
+    $(\rho, d)$ grid. A verdict is \emph{stable} when it holds across the entire
+    surface. Generated by \texttt{audit/table.py}; see the reproducibility statement.}
+    \label{tab:verdicts}
+    \begin{tabular}{lrlc}
+        \toprule
+        Paper & Claim (pp) & MDE range (pp) & Verdict \\
+        \midrule
+        Zep (DMR arm)         &  0.4 & 4.8--7.9    & stable below \\
+        Agent Skill Induction &  7.7 & 11.5--79.2  & stable below \\
+        ReasoningBank         &  8.3 & 12.8--88.6  & stable below \\
+        Agent Workflow Memory & 12.0 & 11.5--79.2  & flips \\
+        ExpeL                 & 19.0 & 16.7--102.3 & flips \\
+        Reflexion             & 22.0 & 9.4--15.3   & stable above \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Table~\ref{tab:verdicts} gives the result. At the reference discordance, five of six
+fall below their own detection threshold at every intraclass correlation on the grid;
+three of those hold across the entire two-dimensional surface. The single claim that
+clears its threshold everywhere is also the only one of the six whose design has no
+clustering at all---its 134 tasks come from 134 environments. That is what the
+taxonomy predicts.
+
+\TODO{Figure 1: MDE surface over $(\rho, d)$ per paper, with claimed effects
+overlaid. Data exists in build/research/audit/audit-table.json.}
+
+\TODO{Figure 2: overstatement ratio distribution across the frame, strata separated.}
+
+\subsection{Our own result, under the identical rubric}
+
+E-0 reports 3{,}141 evaluation instances drawn from 4 repositories---an overstatement
+ratio of \textbf{785.2, the highest in the frame}, nearly four times the next. Its
+reported statistic, $z = -16.03$, is computed over items; clustering by repository
+deflates it to 2.53 at $\rho=0.05$ and 0.57 at $\rho=1$.
+
+The direction matters. E-0's verdict was a failure---our own system lost to a
+retry-count controller---so item-level inference inflated our confidence in a
+\emph{negative} result. At defensible clustering we could not have concluded that
+either. The same error inflates nulls as readily as positives, and an audit applying
+its critique only to favourable findings would be practising the selective rigour it
+documents.
+
+% ---------------------------------------------------------------------
 \section{Related work}
-\label{sec:related-work}
-% [~0.6 pg] Position against prior evaluation-methodology and agent-benchmark
-% critiques; state precisely what is new here.
+% ---------------------------------------------------------------------
 
+\textbf{Power audits of a literature.} \cite{card_littlepower_2020} established this
+paper's shape: harvest reported designs, compute what they could detect, report how
+often the literature falls short. It treats items as independent, which is correct
+for the single-endpoint NLP comparisons it studies and is precisely the assumption
+that fails here.
+
+\textbf{Non-independence in LLM evaluation.} \cite{siska_robustness_2024} showed that
+correlation across test prompts is non-random and that accounting for it changes
+model rankings. That is the closest peer-reviewed ancestor of our core observation.
+It concerns correlation among prompts within a benchmark rather than hierarchical
+nesting, and rankings rather than detectability.
+
+\textbf{Clustered inference for evaluation.} \cite{miller_errorbars_2024} supplies
+the statistical treatment; \cite{bowyer_dontusetheclt_2025} shows naive intervals
+understate uncertainty in small evaluations; \cite{zeng_missingresponses_2025} applies
+cluster-robust inference to multi-turn LLM evaluation.
+\cite{kotawala_resolutiondiagnostics_2026} performs the closest execution of the
+method we use, computing a real ICC correction and reporting that unresolved
+adjacent-rank comparisons rise from four of nine to six of nine under clustering. It
+analyses leaderboard rank comparisons, not published claims, and does not cover agent
+evaluation.
+
+\textbf{Variance in agent evaluation.} \cite{bjarnason_randomness_2026} measured
+run-to-run variance over sixty thousand trajectories, finding single-run pass@1
+varies by 2.2 to 6.0 points depending on which run is selected, and recommends power
+analysis without performing one. \cite{huang_howmanytasks_2026} asks how many tasks
+reproduce a benchmark decision, a reproduction question rather than a detectability
+one.
+
+\textbf{Controls in agent-memory evaluation.} \cite{wang_memdelta_2026} audits one
+system with controlled baselines including a random-content retrieval arm, and
+\cite{hajimiri_onlineskillmodules_2026} shows that several skill and memory modules do
+not beat a token-matched vanilla agent. Both are direct prior art for the concern that
+motivates this audit; neither computes detectability.
+
+% ---------------------------------------------------------------------
 \section{Limitations}
-\label{sec:limitations}
-% [~0.6 pg] Scope limits, threats to validity, and the claims this analysis
-% explicitly does not license.
+% ---------------------------------------------------------------------
 
+\textbf{The method is not ours.} Detectability analysis
+is~\cite{card_littlepower_2020}; clustered inference for evaluation
+is~\cite{miller_errorbars_2024}; non-independence in LLM benchmarks
+is~\cite{siska_robustness_2024}; the closest execution on real data
+is~\cite{kotawala_resolutiondiagnostics_2026}. Our contribution is the corpus, the
+taxonomy, and the observation that two of the three dependence kinds arise from the
+intervention.
+
+\textbf{The frame is thirty papers and one date range.} Every count describes that
+frame. None is a claim about agent-memory research in general, and the sampling
+procedure is published so a reader can disagree with a known quantity.
+
+\textbf{The independent unit is a judgment.} Our rubric fixes a four-rule decision
+procedure applied mechanically rather than by preference. Six rows carry a defensible
+alternative unit; we publish both and report the verdict under each.
+
+\textbf{$\rho$ is unobserved.} We bound rather than estimate, and the bound is wide.
+For several papers the MDE range spans an order of magnitude. That width is honest
+reporting of what public information supports; it is not precision.
+
+\textbf{Six of thirty-two.} Most of the frame yields no verdict. This limits any
+quantitative summary of the literature's detectability, and we resist reporting a
+rate over the six as though it characterised the thirty.
+
+\textbf{We are in the frame and we score worst.} Our own prior result carries the
+highest overstatement ratio here, and its item-level inference inflated confidence in
+a negative finding.
+
+% ---------------------------------------------------------------------
 \section{Conclusion}
-\label{sec:conclusion}
-% [~0.2 pg] Restate the finding and the concrete recommendation for evaluation
-% design. No new claims.
+% ---------------------------------------------------------------------
 
-\section*{Reproducibility Statement}
-\label{sec:reproducibility}
-% [~0.15 pg] Unnumbered. Point to the anonymized artifact, state what is
-% released, and state which results are recomputable from it end to end.
-% Must not name the repository or any hosting account.
+The question is not whether agent memory works. It is whether the published record
+can tell us. On the evidence of thirty papers: mostly not---not because the field is
+careless, but because the standard reporting conventions were built for evaluations
+whose items are independent, and agent memory is the case where the intervention
+itself makes them not.
+
+A memory system that works is a memory system whose evaluation violates the
+assumption used to test it. That is not a flaw anyone introduced. It is a structural
+feature of testing something whose entire purpose is to carry information between the
+things you are counting as independent.
 
 % ---------------------------------------------------------------------
-% References do NOT count against the 4-9 page body limit.
-% Entries arrive from the separate verified-bibliography pass; see refs.bib.
+\section*{Reproducibility statement}
 % ---------------------------------------------------------------------
+
+Every quantity in this paper is generated from the released coding sheet by a tool
+released with it, and is pinned by regression tests so the prose cannot drift from
+the data. The coding rubric was frozen before the first paper was read; the sampling
+frame, every adjudication, and every rejected alternative are dated and published.
+Non-numeric cells are backed by verbatim quotations with locators.
+\TODO{Anonymous artifact identifier and bundle hash.}
+
 \bibliographystyle{plainnat}
 \bibliography{refs}
-
-% ---------------------------------------------------------------------
-% Appendices do NOT count against the 4-9 page body limit.
-% Uncomment when supplementary material exists.
-% ---------------------------------------------------------------------
-% \appendix
-% \section{Supplementary material}
-% \label{app:supplementary}
 
 \end{document}

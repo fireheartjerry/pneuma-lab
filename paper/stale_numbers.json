@@ -1,0 +1,166 @@
+{
+    "_comment": [
+        "Values this paper superseded, and how many times each may still legitimately",
+        "appear. Traceability auditing cannot catch this: a superseded number and its",
+        "replacement both exist in the artifacts, so both 'trace' while the paper",
+        "contradicts itself. That happened twice -- once when the abstract was corrected",
+        "and the body was not, and once in reverse when the body moved to",
+        "execution-verified pairs and the abstract and contributions list did not.",
+        "",
+        "'allowed' is the number of occurrences that are deliberate, normally because",
+        "the paper reports a before/after comparison. Exceeding it means a stale value",
+        "survived an edit somewhere."
+    ],
+    "superseded": [
+        {
+            "value": "4.18",
+            "allowed": 1,
+            "replaced_by": "4.17",
+            "why": "planted-effect ratio recomputed on 46 execution-verified pairs (DL-97); one mention remains in the before/after sentence"
+        },
+        {
+            "value": "0.1917",
+            "allowed": 1,
+            "replaced_by": "0.2075",
+            "why": "mean planted effect on verified pairs (DL-97); one mention in the before/after sentence"
+        },
+        {
+            "value": "0.1823",
+            "allowed": 0,
+            "replaced_by": "0.1968",
+            "why": "planted-effect spread on verified pairs (DL-97); one mention in the before/after sentence"
+        },
+        {
+            "value": "0.0572",
+            "allowed": 0,
+            "replaced_by": "0.0621",
+            "why": "code-first effect on verified pairs (DL-97)"
+        },
+        {
+            "value": "0.2395",
+            "allowed": 0,
+            "replaced_by": "0.2588",
+            "why": "third-person effect on verified pairs (DL-97)"
+        },
+        {
+            "value": "0.1100",
+            "allowed": 1,
+            "replaced_by": "0.1279",
+            "why": "AUROC spread at n=120 supersedes n=40 (DL-94); the n=40 value is retained in the comparison table on purpose"
+        },
+        {
+            "value": "0.1930",
+            "allowed": 1,
+            "replaced_by": "0.0029",
+            "why": "n=40 symmetrized Brier, legitimately reported in the polarity-bias comparison; NOT the retracted worse-than-constant claim. The check flagged it as ambiguous rather than stale, and the sentence now states its sample size."
+        },
+        {
+            "value": "0.2227",
+            "allowed": 0,
+            "replaced_by": "0.2737",
+            "why": "Retired AS AN ASSAY-SENSITIVITY FLOOR (DL-98/DL-99): it was measured on the self-assessment task under a different question wording than the planted effect it was compared against. The matched floor is 0.2737. The value itself remains valid as the self-assessment channel's own SDC95 and is still reported that way, so the allowance is the count of those legitimate mentions -- any increase means the cross-instrument comparison has returned."
+        },
+        {
+            "value": "0.2737",
+            "allowed": 0,
+            "replaced_by": "0.2776",
+            "why": "The matched floor from the 40-problem gauge, superseded by the 37-pair VERIFIED gauge (DL-102). Right instrument, wrong parts: its mutants were never graded and 3 of 40 still passed."
+        },
+        {
+            "value": "0.1828",
+            "allowed": 0,
+            "replaced_by": "0.1962",
+            "why": "Mean planted effect on the unverified 40-problem gauge; superseded by the 37 execution-verified pairs (DL-102)."
+        },
+        {
+            "value": "0.769",
+            "allowed": 0,
+            "replaced_by": "0.776",
+            "why": "Attributed to other-code judging but never measured on it; the only 0.769 in any artifact is a self-assessment per-phrasing AUROC (DL-103). The verified other-code value is 0.7765."
+        },
+        {
+            "value": "0.2419",
+            "allowed": 0,
+            "replaced_by": "0.1922",
+            "why": "verbalized-integer SDC95 at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "0.3311",
+            "allowed": 0,
+            "replaced_by": "0.2741",
+            "why": "verbalized-ordinal SDC95 at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "0.2638",
+            "allowed": 0,
+            "replaced_by": "0.1652",
+            "why": "single-polarity SDC95 at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "0.1937",
+            "allowed": 0,
+            "replaced_by": "0.1461",
+            "why": "symmetrized SDC95 at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "0.0873",
+            "allowed": 0,
+            "replaced_by": "0.0693",
+            "why": "verbalized-integer SEM at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "0.1194",
+            "allowed": 0,
+            "replaced_by": "0.0989",
+            "why": "verbalized-ordinal SEM at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "0.0952",
+            "allowed": 0,
+            "replaced_by": "0.0596",
+            "why": "single-polarity SEM at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "0.0699",
+            "allowed": 0,
+            "replaced_by": "0.0527",
+            "why": "symmetrized SEM at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "72.4",
+            "allowed": 0,
+            "replaced_by": "61.7",
+            "why": "verbalized-ordinal %GRR at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "47.3",
+            "allowed": 0,
+            "replaced_by": "37.9",
+            "why": "single-polarity %GRR at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "48.3",
+            "allowed": 0,
+            "replaced_by": "42.5",
+            "why": "symmetrized %GRR at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "2.63",
+            "allowed": 0,
+            "replaced_by": "3.45",
+            "why": "single-polarity ndc at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "2.56",
+            "allowed": 0,
+            "replaced_by": "3.00",
+            "why": "symmetrized ndc at n=40, superseded by the n=120 gauge study (resolving_power_120.json), which measures all four methods in one run under one appraiser set. Allowance is the count that survives where the paper narrates the change."
+        },
+        {
+            "value": "0.713",
+            "allowed": 1,
+            "replaced_by": "0.734",
+            "why": "n=40 symmetrized AUROC, superseded by the n=120 gauge study for the other-code comparison. The surviving mention is the polarity-bias section, a different quantity that equals it only by coincidence (both 214/300 on the same labels)."
+        }
+    ]
+}
