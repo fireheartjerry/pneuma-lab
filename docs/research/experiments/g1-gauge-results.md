@@ -206,8 +206,55 @@ _Pending final numbers; the analytic result for calibration is already fixed._
 
 ## 10. Deviations from pre-registration
 
-_Pending._
+The pre-registration (`g1-gauge-preregistration.md`) is preserved **unedited**. Deviations are
+listed here rather than by amending it.
+
+1. **Design is fractional, not full factorial.** The registered constants (I=48, W=8, S=4,
+   R=8, 2 temperatures, 3 arms, 2 provenances, 6 models) describe a ~3.5M-elicitation
+   factorial. We ran a fractional design of 13,632 elicitations in which each stage varies one
+   facet against a fixed core. Every registered facet is exercised; no facet is dropped. This
+   was a compute decision, not an analytic one, and it costs interaction terms between facets
+   that the registered design would have identified.
+2. **Replicate depth is chosen to maximize retained observations.** The registered analysis
+   implied truncating to the minimum common replicate count; a handful of unparseable replies
+   would then have cost every item 25% of its data. We instead pick the depth maximizing
+   items x replicates and report the dropped items. On the core stage this retains 2,632
+   observations instead of 2,304 and moves ICC from 0.502 to 0.512 — i.e. the choice is not
+   load-bearing for any conclusion.
+3. **Remedy verdicts are decided by the interval, not the point estimate.** The registration
+   implied comparing a point estimate to the floor. A CI straddling the floor is now reported
+   `INDETERMINATE`, because a remedy not shown to work has also not been shown to fail, and
+   the point-estimate rule would have resolved that ambiguity in our own favour.
+4. **Four statistics were added after the registration**, all reported as additions rather
+   than as registered tests: selection stability, cross-condition selection stability,
+   saturation, and the outcome-stratified gauge study. They were added because the registered
+   statistics could not express what the data was showing — specifically that `ndc = 1`
+   coexists with a good classifier. They are descriptive; no hypothesis is tested on them.
+5. **The self-authored and matched-foreign arms use 24 items, not 48**, since a
+   self-authored item is one model solution per spec.
 
 ## 11. Caveats
 
-_Pending._
+- **Six local open-weight models, 1.5B-8B.** No claim is made about frontier models. The
+  method transfers; the numbers may not.
+- **48 short pure functions.** Real patches are longer, more heterogeneous, and reviewed with
+  more context. See the paper's `CLOUD-EXP-3`.
+- **Range restriction in the provenance arms** inflates %GRR in both; the restriction is
+  symmetric, so the between-arm comparison is fair while the absolute values are not
+  comparable to section 3.
+- **Eight hand-authored wordings are not a sample from the population of wordings a
+  practitioner would use**, and they are close paraphrases rather than pure syntactic
+  variants, so part of the 0.098 spread may reflect genuine differences in what was asked.
+  The sham/treated contrast is clean; the form claim is stated as "sensitive to how the
+  question is asked."
+- **Verdict thresholds are imported** from AIAG and clinimetrics rather than derived for this
+  domain. They are pre-registered, and every raw statistic is reported alongside so a reader
+  can apply their own.
+- **This studies elicited numeric self-report only.** Logit-based and internal-probe
+  confidence are different channels and may card as `USABLE`; a failing elicited card is an
+  argument for preferring them.
+- **A card describes a channel plus a protocol, not a model.** `UNINTERPRETABLE` is not a
+  claim that the model lacks calibrated internal states.
+- **Nothing here authorizes training, promotion, or any consciousness-evidence claim.** This
+  study is measurement methodology and sits outside the repository's Level-0..4 evidence
+  ladder.
