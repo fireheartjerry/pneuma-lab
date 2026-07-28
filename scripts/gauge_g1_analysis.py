@@ -129,6 +129,58 @@ def _asMatrix(cells: dict, template) -> object:
     )
 
 
+def _confoundCheck(cube: ResponseCube, facets=("wording_id",)) -> dict:
+    """Is the item signal about correctness, or about how long the code is?
+
+    E-0 in this repo died of a length confound, so the same trap is checked here
+    explicitly. The bank's paired design is the strong control: each spec has a
+    correct and a single-fault sibling with near-identical length and identical
+    task, so the within-spec contrast cannot be produced by length or topic.
+    """
+    bank = {i["item_id"]: i for i in loadItems()}
+    matrix = cube.balancedMatrix(facets)
+    rows = matrix.itemRows()
+    items = sorted(rows)
+    conf = {
+        i: math.fsum(v for c in rows[i] for v in rows[i][c])
+        / sum(len(rows[i][c]) for c in rows[i])
+        for i in items
+    }
+    chars = [float(len(bank[i]["source"])) for i in items]
+    labels = [float(bank[i]["label"]) for i in items]
+    values = [conf[i] for i in items]
+
+    specs = sorted({bank[i]["spec_id"] for i in items})
+    pairs = [
+        (conf[f"{s}__correct"], conf[f"{s}__buggy"])
+        for s in specs
+        if f"{s}__correct" in conf and f"{s}__buggy" in conf
+    ]
+    diffs = [a - b for a, b in pairs]
+    return {
+        "corr_confidence_length": _pearson(values, chars),
+        "corr_confidence_correctness": _pearson(values, labels),
+        "corr_length_correctness": _pearson(chars, labels),
+        "within_spec_pairs": len(pairs),
+        "within_spec_mean_diff": (math.fsum(diffs) / len(diffs))
+        if diffs
+        else float("nan"),
+        "within_spec_correct_rated_higher": sum(1 for d in diffs if d > 0),
+    }
+
+
+def _pearson(a, b) -> float:
+    n = len(a)
+    if n < 2:
+        return float("nan")
+    ma, mb = math.fsum(a) / n, math.fsum(b) / n
+    num = math.fsum((x - ma) * (y - mb) for x, y in zip(a, b, strict=True))
+    den = math.sqrt(
+        math.fsum((x - ma) ** 2 for x in a) * math.fsum((y - mb) ** 2 for y in b)
+    )
+    return num / den if den else float("nan")
+
+
 def _validity(cube: ResponseCube, truth: dict[str, int]) -> dict:
     scores, labels = [], []
     for r in cube.rows:
@@ -213,11 +265,26 @@ def main() -> int:
         f"ceiling from reliability={ceil.auroc:.4f}"
     )
 
+    confound = _confoundCheck(core)
+    summary["confound_check"] = confound
+    print("")
+    print("--- confound check (E-0 lesson: is this length, or correctness?) ---")
+    print(f"corr(confidence, source length)      = {confound['corr_confidence_length']:+.4f}")
+    print(f"corr(confidence, correctness)        = {confound['corr_confidence_correctness']:+.4f}")
+    print(f"corr(source length, correctness)     = {confound['corr_length_correctness']:+.4f}")
+    print(
+        f"within-spec: correct rated higher in "
+        f"{confound['within_spec_correct_rated_higher']}/{confound['within_spec_pairs']} specs, "
+        f"mean diff {confound['within_spec_mean_diff']:+.4f}"
+    )
+
     cost = _costCurve(core)
     summary["cost_curve"] = cost
     print("")
     print("--- self-consistency cost curve (empirical) ---")
-    print(f"{'k':>3} {'ICC':>7} {'ndc':>4} {'D':>7} {'%GRR':>6} {'J(q=.2)':>8}  verdict")
+    print(
+        f"{'k':>3} {'ICC':>7} {'ndc':>4} {'D':>7} {'%GRR':>6} {'J(q=.2)':>8}  verdict"
+    )
     for point in cost["empirical"]:
         print(
             f"{point['k']:>3} {point['icc']:>7.4f} {point['ndc']:>4} {point['d']:>7.4f} "
