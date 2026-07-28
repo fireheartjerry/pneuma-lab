@@ -438,7 +438,9 @@
                 "selected_screen_ref",
                 "selected_shard_refs",
                 "selected_selection_ref",
-                "selected_validation_ref"
+                "selected_validation_ref",
+                "selected_tier",
+                "decision"
             ],
             "properties": {
                 "kind": { "const": "completed_chain" },
@@ -452,7 +454,16 @@
                     "items": { "$ref": "#/$defs/artifact_ref" }
                 },
                 "selected_selection_ref": { "$ref": "#/$defs/artifact_ref" },
-                "selected_validation_ref": { "$ref": "#/$defs/artifact_ref" }
+                "selected_validation_ref": { "$ref": "#/$defs/artifact_ref" },
+                "selected_tier": {
+                    "oneOf": [
+                        { "type": "null" },
+                        { "enum": [120, 160] }
+                    ]
+                },
+                "decision": {
+                    "enum": ["GO", "CONDITIONAL_ONLY"]
+                }
             },
             "additionalProperties": false
         },
@@ -465,7 +476,9 @@
                 "fallback_trigger_ref",
                 "selected_screen_ref",
                 "selected_shard_refs",
-                "full_grid_validation_ref"
+                "full_grid_validation_ref",
+                "selected_tier",
+                "decision"
             ],
             "properties": {
                 "kind": { "const": "completed_chain" },
@@ -479,7 +492,16 @@
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/artifact_ref" }
                 },
-                "full_grid_validation_ref": { "$ref": "#/$defs/artifact_ref" }
+                "full_grid_validation_ref": { "$ref": "#/$defs/artifact_ref" },
+                "selected_tier": {
+                    "oneOf": [
+                        { "type": "null" },
+                        { "enum": [120, 160] }
+                    ]
+                },
+                "decision": {
+                    "enum": ["GO", "CONDITIONAL_ONLY"]
+                }
             },
             "additionalProperties": false
         },
@@ -489,7 +511,9 @@
                 "kind",
                 "terminal_attempt_ref",
                 "terminal_stage",
-                "reason"
+                "reason",
+                "selected_tier",
+                "decision"
             ],
             "properties": {
                 "kind": { "const": "feasibility_no_go" },
@@ -503,9 +527,12 @@
                         "full_multiplier_screen_exhausted",
                         "numeric_fixture_failed",
                         "runtime_bound_exceeded",
-                        "attempt_incomplete"
+                        "attempt_incomplete",
+                        "power_or_type_i_gate_failed"
                     ]
-                }
+                },
+                "selected_tier": { "type": "null" },
+                "decision": { "const": "NO_GO" }
             },
             "additionalProperties": false
         },

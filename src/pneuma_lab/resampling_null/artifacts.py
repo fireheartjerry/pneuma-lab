@@ -258,20 +258,55 @@ def _validate_semantics(value: dict[str, object]) -> None:
                     "selected_attempt_index must identify an embedded attempt"
                 )
             selected_attempt = attempts[cast(int, selected)]
-            if (
-                not isinstance(selected_attempt, Mapping)
-                or selected_attempt.get("complete") is not True
-            ):
-                raise RecordValidationError("selected attempt must be complete")
+            if not isinstance(selected_attempt, Mapping):
+                raise RecordValidationError(
+                    "selected attempt must be an embedded attempt receipt"
+                )
+            failed_second = (
+                selected == 1
+                and len(attempts) == 2
+                and selected_attempt.get("complete") is False
+            )
+            if not failed_second and selected_attempt.get("complete") is not True:
+                raise RecordValidationError(
+                    "successful selected attempt must be complete"
+                )
             terminal_receipts = cast(
                 list[Mapping[str, object]],
                 payload["terminal_slot_receipts"],
             )
             selected_receipts = selected_attempt.get("terminal_receipts")
-            if selected_receipts != terminal_receipts:
-                raise RecordValidationError(
-                    "terminal receipts must descend from the selected attempt"
-                )
+            if failed_second:
+                if any(
+                    not isinstance(attempt, Mapping)
+                    or attempt.get("complete") is not False
+                    for attempt in attempts
+                ):
+                    raise RecordValidationError(
+                        "failed second-attempt finalization must preserve two "
+                        "incomplete attempts"
+                    )
+                if any(
+                    "failed_attempt_ref" not in terminal
+                    for terminal in terminal_receipts
+                ):
+                    raise RecordValidationError(
+                        "failed second-attempt finalization requires four "
+                        "FailedSlotReceipt terminals"
+                    )
+            else:
+                if selected_receipts != terminal_receipts:
+                    raise RecordValidationError(
+                        "successful terminal receipts must descend from the "
+                        "selected complete attempt"
+                    )
+                if any(
+                    "final_snapshot_ref" not in terminal
+                    for terminal in terminal_receipts
+                ):
+                    raise RecordValidationError(
+                        "successful finalization requires four unscored terminals"
+                    )
             slot_ids = [receipt.get("slot_id") for receipt in terminal_receipts]
             capability_ids = [
                 receipt.get("opaque_capability_id")
@@ -288,9 +323,17 @@ def _validate_semantics(value: dict[str, object]) -> None:
             selected_slot_identities = list(
                 zip(slot_ids, capability_ids, strict=True)
             )
+            attempt_ref_signatures: list[str] = []
             for attempt_index, attempt in enumerate(attempts):
                 if not isinstance(attempt, Mapping):
                     continue
+                attempt_ref_signatures.append(
+                    json.dumps(
+                        attempt.get("attempt_ref"),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                )
                 if attempt.get("work_order_sha256s") != selected_work_orders:
                     raise RecordValidationError(
                         "every attempt must use the selected attempt's four "
@@ -316,6 +359,10 @@ def _validate_semantics(value: dict[str, object]) -> None:
                         "attempt terminal receipts do not preserve canonical "
                         f"slot identities at attempt {attempt_index}"
                     )
+            if len(attempt_ref_signatures) != len(set(attempt_ref_signatures)):
+                raise RecordValidationError(
+                    "attempt receipts must have unique attempt_ref identities"
+                )
             execution_receipts = cast(
                 list[Mapping[str, object]],
                 payload["execution_receipts"],
@@ -346,19 +393,68 @@ def _validate_semantics(value: dict[str, object]) -> None:
                         f"opaque slot identity differs at slot {index}"
                     )
                 expected_source_kind = (
-                    "graded_unscored"
-                    if "final_snapshot_ref" in terminal
-                    else "failed_second_attempt"
+                    "failed_second_attempt"
+                    if failed_second
+                    else "graded_unscored"
                 )
                 if execution.get("source_kind") != expected_source_kind:
                     raise RecordValidationError(
                         f"execution receipt source kind differs at slot {index}"
                     )
+                if failed_second:
+                    if terminal.get("failed_attempt_ref") != selected_attempt.get(
+                        "attempt_ref"
+                    ):
+                        raise RecordValidationError(
+                            "FailedSlotReceipt does not bind the incomplete "
+                            "second attempt"
+                        )
+                    zero_counters = {
+                        "generated_tokens": 0,
+                        "model_calls": 0,
+                        "tool_calls": 0,
+                        "wall_clock_ms": 0,
+                    }
+                    if (
+                        execution.get("grade_receipt") is not None
+                        or outcome.get("success") != 0
+                        or outcome.get("prefix_success")
+                        != payload["prefix_success"]
+                        or outcome.get("partial_reward") != 0.0
+                        or outcome.get("infrastructure_failure") is not True
+                        or outcome.get("counters") != zero_counters
+                        or outcome.get("artifact_ref")
+                        != terminal.get("adverse_event_ref")
+                    ):
+                        raise RecordValidationError(
+                            f"failed second-attempt slot {index} is not an "
+                            "exact adverse-zero execution/outcome"
+                        )
+                else:
+                    grade = execution.get("grade_receipt")
+                    if not isinstance(grade, Mapping):
+                        raise RecordValidationError(
+                            "successful execution requires an exact grade receipt"
+                        )
+                    if (
+                        outcome.get("success") != grade.get("success")
+                        or outcome.get("partial_reward")
+                        != grade.get("partial_reward")
+                        or outcome.get("infrastructure_failure")
+                        != grade.get("infrastructure_failure")
+                        or outcome.get("artifact_ref")
+                        != grade.get("artifact_ref")
+                        or outcome.get("counters") != terminal.get("counters")
+                    ):
+                        raise RecordValidationError(
+                            f"successful execution/grade/terminal receipts differ "
+                            f"at slot {index}"
+                        )
             outage = payload.get("outage_receipt")
             if len(attempts) == 1:
-                if outage is not None:
+                if selected != 0 or outage is not None:
                     raise RecordValidationError(
-                        "outage receipt requires an actual rerun attempt"
+                        "one-attempt success must select attempt 0 without outage"
                     )
             else:
                 if selected != 1 or not isinstance(outage, Mapping):
@@ -367,7 +463,8 @@ def _validate_semantics(value: dict[str, object]) -> None:
                     )
                 first_attempt = cast(Mapping[str, object], attempts[0])
                 if (
-                    outage.get("task_id") != payload["task_id"]
+                    first_attempt.get("complete") is not False
+                    or outage.get("task_id") != payload["task_id"]
                     or outage.get("first_attempt") != first_attempt
                     or outage.get("work_order_sha256s")
                     != first_attempt.get("work_order_sha256s")
@@ -1390,6 +1487,30 @@ def _validate_scientific_ancestry(
         ),
         None,
     )
+    prefix_receipts_by_task: dict[str, Mapping[str, object]] = {}
+    if prefix is not None:
+        for receipt in cast(
+            list[Mapping[str, object]],
+            _power_payload(prefix)["task_receipts"],
+        ):
+            task_id = receipt.get("task_id")
+            if not isinstance(task_id, str) or task_id in prefix_receipts_by_task:
+                raise RecordValidationError(
+                    "prefix receipt task coverage must be unique by task_id"
+                )
+            prefix_receipts_by_task[task_id] = receipt
+    assignments_by_task: dict[str, Mapping[str, object]] = {}
+    if assignment is not None:
+        for row in cast(
+            list[Mapping[str, object]],
+            _power_payload(assignment)["assignments"],
+        ):
+            task_id = row.get("task_id")
+            if not isinstance(task_id, str) or task_id in assignments_by_task:
+                raise RecordValidationError(
+                    "assignment packet coverage must be unique by task_id"
+                )
+            assignments_by_task[task_id] = row
     for packet in packet_documents:
         packet_payload = _power_payload(packet)
         if assignment is not None:
@@ -1418,9 +1539,21 @@ def _validate_scientific_ancestry(
                     field=f"packet {field}",
                 )
         if packet_payload["stage"] == "candidate":
-            for index, entry in enumerate(
-                cast(list[Mapping[str, object]], packet_payload["entries"])
+            entries = cast(
+                list[Mapping[str, object]],
+                packet_payload["entries"],
+            )
+            entry_task_ids = {
+                cast(str, entry["task_id"]) for entry in entries
+            }
+            if assignment is not None and entry_task_ids != set(
+                assignments_by_task
             ):
+                raise RecordValidationError(
+                    "candidate packet task coverage differs from the "
+                    "assignment ledger"
+                )
+            for index, entry in enumerate(entries):
                 if prefix is not None:
                     _require_digest_equal(
                         entry.get("prefix_index_sha256"),
@@ -1428,6 +1561,42 @@ def _validate_scientific_ancestry(
                         field=f"packet entries[{index}].prefix_index_sha256",
                     )
                 if "real_ref" in entry:
+                    task_id = cast(str, entry["task_id"])
+                    donor_task_id = cast(str, entry["donor_task_id"])
+                    assignment_row = assignments_by_task.get(task_id)
+                    if (
+                        assignment_row is None
+                        or assignment_row.get("donor_task_id") != donor_task_id
+                    ):
+                        raise RecordValidationError(
+                            f"packet pair[{index}] task/donor IDs differ from "
+                            "the assignment ledger"
+                        )
+                    focal_prefix = prefix_receipts_by_task.get(task_id)
+                    donor_prefix = prefix_receipts_by_task.get(donor_task_id)
+                    if focal_prefix is None or donor_prefix is None:
+                        raise RecordValidationError(
+                            f"packet pair[{index}] lacks focal/donor prefix coverage"
+                        )
+                    focal_verifier = focal_prefix.get("verifier_receipt")
+                    donor_verifier = donor_prefix.get("verifier_receipt")
+                    if not isinstance(
+                        focal_verifier,
+                        Mapping,
+                    ) or not isinstance(donor_verifier, Mapping):
+                        raise RecordValidationError(
+                            f"packet pair[{index}] prefix verifier receipt is missing"
+                        )
+                    _require_artifact_ref_equal(
+                        entry["focal_verifier_ref"],
+                        focal_verifier.get("verifier_artifact_ref"),
+                        field=f"packet pair[{index}] focal_verifier_ref",
+                    )
+                    _require_artifact_ref_equal(
+                        entry["donor_verifier_ref"],
+                        donor_verifier.get("verifier_artifact_ref"),
+                        field=f"packet pair[{index}] donor_verifier_ref",
+                    )
                     if assignment is not None:
                         _require_ref_matches(
                             entry["assignment_ref"],
@@ -1835,9 +2004,12 @@ def _validate_power_attempt_topology(
                 cast(int, _power_payload(shard)["shard_index"])
                 for shard in shards
             ]
-            if shard_indices != list(range(shard_count)):
+            if (
+                len(shards) > shard_count
+                or shard_indices != list(range(len(shards)))
+            ):
                 raise RecordValidationError(
-                    "power shards must be complete and zero-based without gaps"
+                    "power shards must be contiguous and zero-based without gaps"
                 )
             merged_cell_ids: list[str] = []
             for shard in shards:
@@ -1859,69 +2031,81 @@ def _validate_power_attempt_topology(
                         "power shard contains duplicate cell IDs"
                     )
                 merged_cell_ids.extend(shard_cell_ids)
-            if merged_cell_ids != ordered_grid_cell_ids:
+            complete_shard_set = len(shards) == shard_count
+            expected_cell_ids = (
+                ordered_grid_cell_ids
+                if complete_shard_set
+                else ordered_grid_cell_ids[: len(merged_cell_ids)]
+            )
+            if merged_cell_ids != expected_cell_ids:
                 raise RecordValidationError(
                     "power shard cell coverage has gaps, overlap, or wrong order"
                 )
 
             if phase == "gaussian_approximation":
-                if len(selections) != 1:
+                if validations and not selections:
                     raise RecordValidationError(
-                        "complete Gaussian shard set requires one selection"
+                        "Gaussian validation requires a selection parent"
                     )
-                selection = selections[0]
-                _require_parent_chain(
-                    _power_payload(selection)["parent_refs"],
-                    [screen, *shards],
-                    field="power selection parent_refs",
-                )
-                if len(validations) != 1:
-                    raise RecordValidationError(
-                        "Gaussian selection requires one validation"
+                if selections:
+                    if not complete_shard_set:
+                        raise RecordValidationError(
+                            "Gaussian selection requires complete shard coverage"
+                        )
+                    selection = selections[0]
+                    _require_parent_chain(
+                        _power_payload(selection)["parent_refs"],
+                        [screen, *shards],
+                        field="power selection parent_refs",
                     )
-                _require_parent_chain(
-                    _power_payload(validations[0])["parent_refs"],
-                    [screen, *shards, selection],
-                    field="Gaussian validation parent_refs",
-                )
+                if validations:
+                    selection = selections[0]
+                    _require_parent_chain(
+                        _power_payload(validations[0])["parent_refs"],
+                        [screen, *shards, selection],
+                        field="Gaussian validation parent_refs",
+                    )
             else:
                 if selections:
                     raise RecordValidationError(
                         "full-multiplier fallback forbids a selection stage"
                     )
-                if len(validations) != 1:
-                    raise RecordValidationError(
-                        "complete full-multiplier shards require one validation"
+                if validations:
+                    if not complete_shard_set:
+                        raise RecordValidationError(
+                            "full-multiplier validation requires complete shards"
+                        )
+                    validation_payload = _power_payload(validations[0])
+                    trigger = cast(
+                        Mapping[str, object],
+                        validation_payload["fallback_trigger_ref"],
                     )
-                validation_payload = _power_payload(validations[0])
-                trigger = cast(
-                    Mapping[str, object],
-                    validation_payload["fallback_trigger_ref"],
-                )
-                _require_parent_chain(
-                    validation_payload["parent_refs"],
-                    [trigger, screen, *shards],
-                    field="full-multiplier validation parent_refs",
-                )
-                if (
-                    terminal_gaussian_validation is None
-                    or _ref_identity(
-                        trigger,
-                        field="full-multiplier fallback_trigger_ref",
+                    _require_parent_chain(
+                        validation_payload["parent_refs"],
+                        [trigger, screen, *shards],
+                        field="full-multiplier validation parent_refs",
                     )
-                    != _document_ref_identity(terminal_gaussian_validation)
-                ):
-                    raise RecordValidationError(
-                        "full-multiplier validation does not use the terminal "
-                        "failed Gaussian validation"
-                    )
-                if (
-                    validation_payload["complete_cell_ids"]
-                    != ordered_grid_cell_ids
-                ):
-                    raise RecordValidationError(
-                        "full-multiplier validation lacks full ordered cell coverage"
-                    )
+                    if (
+                        terminal_gaussian_validation is None
+                        or _ref_identity(
+                            trigger,
+                            field="full-multiplier fallback_trigger_ref",
+                        )
+                        != _document_ref_identity(
+                            terminal_gaussian_validation
+                        )
+                    ):
+                        raise RecordValidationError(
+                            "full-multiplier validation does not use the terminal "
+                            "failed Gaussian validation"
+                        )
+                    if (
+                        validation_payload["complete_cell_ids"]
+                        != ordered_grid_cell_ids
+                    ):
+                        raise RecordValidationError(
+                            "full-multiplier validation lacks full ordered cell coverage"
+                        )
 
 
 def _validate_power_identities(
@@ -1983,9 +2167,71 @@ def _validate_power_identities(
                 "final parent_refs must parent every immutable power attempt"
             )
         finalization = cast(Mapping[str, object], final_payload["finalization"])
+        phase_order = {
+            "gaussian_approximation": 0,
+            "full_multiplier_fallback": 1,
+        }
+
+        def attempt_order(document: _ScientificDocument) -> tuple[int, int]:
+            payload = _power_payload(document)
+            return (
+                phase_order[cast(str, payload["phase"])],
+                cast(int, payload["generation"]),
+            )
+
+        def is_successful_validation(document: _ScientificDocument) -> bool:
+            payload = _power_payload(document)
+            if payload["stage"] != "validation":
+                return False
+            if payload["phase"] == "full_multiplier_fallback":
+                return payload["decision"] != "NO_GO"
+            approximation = cast(
+                Mapping[str, object],
+                payload["approximation_receipt"],
+            )
+            return (
+                approximation["passed"] is True
+                and approximation["gaussian_tier_decision"]
+                != "FEASIBILITY_NO_GO"
+            )
+
         if finalization["kind"] == "completed_chain":
             phase = finalization["selected_phase"]
             generation = finalization["selected_generation"]
+            selected_attempt_order = (
+                phase_order[cast(str, phase)],
+                cast(int, generation),
+            )
+            if any(
+                attempt_order(document) > selected_attempt_order
+                for document in nonfinal
+            ):
+                raise RecordValidationError(
+                    "completed power finalization must select the terminal "
+                    "latest phase/generation attempt"
+                )
+            if any(
+                attempt_order(document) < selected_attempt_order
+                and is_successful_validation(document)
+                for document in nonfinal
+            ):
+                raise RecordValidationError(
+                    "a completed power attempt cannot be superseded; only an "
+                    "earlier partial or failed attempt may precede finalization"
+                )
+            selected_tier = finalization["selected_tier"]
+            decision = finalization["decision"]
+            if authority == "roster_bound_selection":
+                if selected_tier not in (120, 160) or decision != "GO":
+                    raise RecordValidationError(
+                        "roster-bound completed power chain requires a selected "
+                        "passing C120/C160 tier and GO decision"
+                    )
+            elif selected_tier is not None or decision != "CONDITIONAL_ONLY":
+                raise RecordValidationError(
+                    "synthetic completed power chain must be CONDITIONAL_ONLY "
+                    "without tier-selection authority"
+                )
             document_by_path = {
                 document.relative_path: document for document in nonfinal
             }
@@ -2095,6 +2341,21 @@ def _validate_power_identities(
                         "Gaussian completed chain requires a passing "
                         "approximation validation receipt"
                     )
+                expected_tier_decision = (
+                    f"C{selected_tier}"
+                    if authority == "roster_bound_selection"
+                    else "CONDITIONAL_ONLY"
+                )
+                if (
+                    approximation_receipt["gaussian_tier_decision"]
+                    != expected_tier_decision
+                    or approximation_receipt["full_multiplier_tier_decision"]
+                    != expected_tier_decision
+                ):
+                    raise RecordValidationError(
+                        "Gaussian completed verdict differs from its "
+                        "authority-bound approximation receipt"
+                    )
                 if validation_payload["selected_cells"] != selected_cells:
                     raise RecordValidationError(
                         "Gaussian validation cells differ from the frozen selection"
@@ -2133,6 +2394,14 @@ def _validate_power_identities(
                         "full-multiplier chain must parent a failed Gaussian trigger"
                     )
                 validation_payload = _power_payload(validation_document)
+                if (
+                    validation_payload["selected_tier"] != selected_tier
+                    or validation_payload["decision"] != decision
+                ):
+                    raise RecordValidationError(
+                        "full-multiplier completed verdict differs from its "
+                        "full-grid validation receipt"
+                    )
                 validation_fallback = cast(
                     Mapping[str, object],
                     validation_payload["fallback_trigger_ref"],
@@ -2146,6 +2415,10 @@ def _validate_power_identities(
                         "full-grid validation uses a different fallback trigger"
                     )
         else:
+            if authority != "roster_bound_selection":
+                raise RecordValidationError(
+                    "synthetic power authority cannot finalize FEASIBILITY_NO_GO"
+                )
             terminal_ref = cast(
                 Mapping[str, object],
                 finalization["terminal_attempt_ref"],
@@ -2168,8 +2441,135 @@ def _validate_power_identities(
                 raise RecordValidationError(
                     "feasibility no-go terminal_stage does not match its attempt"
                 )
+            terminal_stage = cast(str, terminal_payload["stage"])
+            terminal_phase = cast(str, terminal_payload["phase"])
+            reason = finalization["reason"]
+            if terminal_stage == "screen":
+                phase_reason = (
+                    "gaussian_screen_exhausted"
+                    if terminal_phase == "gaussian_approximation"
+                    else "full_multiplier_screen_exhausted"
+                )
+                allowed_reasons = {
+                    phase_reason,
+                    "numeric_fixture_failed",
+                    "runtime_bound_exceeded",
+                }
+            elif terminal_stage == "validation":
+                allowed_reasons = {
+                    "attempt_incomplete",
+                    "power_or_type_i_gate_failed",
+                }
+            else:
+                allowed_reasons = {"attempt_incomplete"}
+            if reason not in allowed_reasons:
+                raise RecordValidationError(
+                    "feasibility no-go reason does not match its terminal "
+                    "phase/stage"
+                )
+            if reason == "power_or_type_i_gate_failed":
+                if terminal_phase == "full_multiplier_fallback":
+                    if (
+                        terminal_payload["selected_tier"] is not None
+                        or terminal_payload["decision"] != "NO_GO"
+                    ):
+                        raise RecordValidationError(
+                            "full-multiplier gate-failure no-go differs from "
+                            "its validation tier/decision receipt"
+                        )
+                else:
+                    approximation = cast(
+                        Mapping[str, object],
+                        terminal_payload["approximation_receipt"],
+                    )
+                    if (
+                        approximation["passed"] is not True
+                        or approximation["gaussian_tier_decision"]
+                        != "FEASIBILITY_NO_GO"
+                        or approximation["full_multiplier_tier_decision"]
+                        != "FEASIBILITY_NO_GO"
+                    ):
+                        raise RecordValidationError(
+                            "Gaussian gate-failure no-go differs from its "
+                            "validation tier-decision receipt"
+                        )
+            if _ref_identity(
+                terminal_ref,
+                field="feasibility no-go terminal_attempt_ref",
+            ) != _document_ref_identity(terminal):
+                raise RecordValidationError(
+                    "feasibility no-go terminal_attempt_ref metadata differs "
+                    "from the terminal attempt"
+                )
             phase = terminal_payload["phase"]
             generation = terminal_payload["generation"]
+            attempt_documents = [
+                document
+                for document in nonfinal
+                if (
+                    _power_payload(document)["phase"] == phase
+                    and _power_payload(document)["generation"] == generation
+                )
+            ]
+            downstream_stages = {
+                cast(str, _power_payload(document)["stage"])
+                for document in attempt_documents
+            }
+            if (
+                terminal_stage == "screen"
+                and downstream_stages != {"screen"}
+            ):
+                raise RecordValidationError(
+                    "screen no-go has fictitious downstream attempt refs"
+                )
+            if terminal_stage == "shard":
+                if downstream_stages - {"screen", "shard"}:
+                    raise RecordValidationError(
+                        "shard no-go has fictitious downstream attempt refs"
+                    )
+                shards = sorted(
+                    (
+                        document
+                        for document in attempt_documents
+                        if _power_payload(document)["stage"] == "shard"
+                    ),
+                    key=lambda document: cast(
+                        int,
+                        _power_payload(document)["shard_index"],
+                    ),
+                )
+                if not shards or terminal is not shards[-1]:
+                    raise RecordValidationError(
+                        "shard no-go must name the last contiguous shard"
+                    )
+            if terminal_stage == "selection" and "validation" in downstream_stages:
+                raise RecordValidationError(
+                    "selection no-go has a fictitious validation attempt"
+                )
+            terminal_attempt_order = (
+                phase_order[cast(str, phase)],
+                cast(int, generation),
+            )
+            if any(
+                (
+                    phase_order[cast(str, _power_payload(document)["phase"])],
+                    cast(int, _power_payload(document)["generation"]),
+                )
+                > terminal_attempt_order
+                for document in nonfinal
+            ):
+                raise RecordValidationError(
+                    "feasibility no-go does not name the terminal power attempt"
+                )
+            if any(
+                attempt_order(document) < terminal_attempt_order
+                and is_successful_validation(document)
+                for document in nonfinal
+            ):
+                raise RecordValidationError(
+                    "feasibility no-go cannot supersede an earlier completed "
+                    "power attempt"
+                )
         if (
             final_payload["phase"] != phase
             or final_payload["generation"] != generation

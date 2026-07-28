@@ -128,7 +128,99 @@
                                 { "$ref": "#/$defs/outage_receipt" }
                             ]
                         }
-                    }
+                    },
+                    "oneOf": [
+                        {
+                            "properties": {
+                                "terminal_slot_receipts": {
+                                    "type": "array",
+                                    "minItems": 4,
+                                    "maxItems": 4,
+                                    "uniqueItems": true,
+                                    "items": {
+                                        "$ref": "#/$defs/unscored_slot_receipt"
+                                    }
+                                },
+                                "execution_receipts": {
+                                    "type": "array",
+                                    "minItems": 4,
+                                    "maxItems": 4,
+                                    "uniqueItems": true,
+                                    "items": {
+                                        "$ref": "#/$defs/graded_execution_receipt"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "properties": {
+                                "attempts": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                        {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/$defs/attempt_receipt"
+                                                },
+                                                {
+                                                    "properties": {
+                                                        "attempt_index": {
+                                                            "const": 0
+                                                        },
+                                                        "complete": {
+                                                            "const": false
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/$defs/attempt_receipt"
+                                                },
+                                                {
+                                                    "properties": {
+                                                        "attempt_index": {
+                                                            "const": 1
+                                                        },
+                                                        "complete": {
+                                                            "const": false
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ],
+                                    "items": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                },
+                                "selected_attempt_index": { "const": 1 },
+                                "terminal_slot_receipts": {
+                                    "type": "array",
+                                    "minItems": 4,
+                                    "maxItems": 4,
+                                    "uniqueItems": true,
+                                    "items": {
+                                        "$ref": "#/$defs/failed_slot_receipt"
+                                    }
+                                },
+                                "execution_receipts": {
+                                    "type": "array",
+                                    "minItems": 4,
+                                    "maxItems": 4,
+                                    "uniqueItems": true,
+                                    "items": {
+                                        "$ref": "#/$defs/failed_execution_receipt"
+                                    }
+                                },
+                                "outage_receipt": {
+                                    "$ref": "#/$defs/outage_receipt"
+                                }
+                            }
+                        }
+                    ]
                 }
             ],
             "additionalProperties": false
@@ -401,6 +493,28 @@
                 }
             ],
             "additionalProperties": false
+        },
+        "graded_execution_receipt": {
+            "allOf": [
+                { "$ref": "#/$defs/execution_receipt" },
+                {
+                    "properties": {
+                        "source_kind": { "const": "graded_unscored" },
+                        "grade_receipt": { "$ref": "#/$defs/grade_receipt" }
+                    }
+                }
+            ]
+        },
+        "failed_execution_receipt": {
+            "allOf": [
+                { "$ref": "#/$defs/execution_receipt" },
+                {
+                    "properties": {
+                        "source_kind": { "const": "failed_second_attempt" },
+                        "grade_receipt": { "type": "null" }
+                    }
+                }
+            ]
         },
         "outage_receipt": {
             "type": "object",
