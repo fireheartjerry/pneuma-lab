@@ -231,6 +231,29 @@ as a chemistry paper reporting concentrations from an unvalidated assay. The fix
 cheap. The cost of not asking is a literature of significant differences measured
 in undefined units.
 
+**Three answers that look like compliance and are not:**
+
+1. _"We used `temperature=0`, so it is deterministic."_ Determinism is repeatability,
+   not reliability. In the study motivating this standard, greedy decoding drove
+   repeatability variance to **exactly zero** and left 29% of total variance in
+   place — all of it reproducibility. The re-asked queue overlap was 0.956 and the
+   rephrased queue overlap was 0.646, on the same channel. Ask for the second
+   number; it is the one the first number hides.
+2. _"We calibrated it, and ECE improved."_ Calibration is weakly increasing, so it
+   cannot raise rank-based resolution or AUROC — this is a theorem, not an empirical
+   tendency. In the study, Platt scaling cut ECE by 0.31 and changed the
+   discrimination index by exactly 0.00e+00. Ask for resolution before and after,
+   not ECE.
+3. _"We averaged k samples."_ Averaging removes only the exchangeable part of the
+   error. Ask for the asymptote: if the condition-locked variance puts $\rho_\infty$
+   below the floor, no k is enough, and the card computes that.
+
+**Ask for the decision statistic, not only the psychometric one.** A remedy can lift
+ICC across the usability floor while the triage queue it produces stays barely more
+reproducible than before. Selection stability is the number that tells you whether
+the pipeline's behaviour is reproducible, which is usually the property the paper is
+actually claiming.
+
 ---
 
 Current implementation and blocker state for this subsystem is tracked in
