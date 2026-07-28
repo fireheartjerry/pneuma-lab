@@ -119,6 +119,187 @@ not enough.
 All revisions below are immutable inputs. A later upstream change creates a new
 experimental subject and cannot be pooled silently.
 
+### 4.0 Canonical derivation frame and three-key ceremony
+
+Every commitment, seed derivation, HMAC ranking, assignment draw, capability,
+and unblind permit uses one typed binary frame. No KDF input may use formatted
+strings, delimiter concatenation, canonical JSON, or an implementation-defined
+integer encoding.
+
+```text
+MAGIC = ASCII("pneuma-resampling-null-frame-v1") || 0x00
+
+FRAME(tag, fields) =
+      MAGIC
+    || UINT32_BE(len(UTF8(tag))) || UTF8(tag)
+    || UINT32_BE(number_of_fields)
+    || concat(
+           UINT8(type)
+        || UINT32_BE(len(payload))
+        || payload
+       )
+
+type 0x01 U64   : payload = UINT64_BE(value)
+type 0x02 TEXT  : payload = UTF8(value)
+type 0x03 BYTES : payload = the exact bytes
+```
+
+`U64` accepts an object whose exact type is integer, rejects booleans, and
+requires `0 <= value <= 2^64 - 1`. A tag or `TEXT` value must be a non-empty
+Python string already equal to its NFC normalization. It is encoded with strict
+UTF-8 and rejects every Unicode `C*` general category, including controls,
+format controls, private-use/unassigned code points, and lone surrogates. A tag,
+text value, bytes value, or field count that cannot fit its unsigned 32-bit
+length/count fails closed. Lowercase hexadecimal SHA-256 values are decoded to
+32 raw bytes before entering a `BYTES` field. The frozen Python and Unicode
+database versions are part of the runtime receipt.
+
+The following known-answer vectors are normative:
+
+```text
+FRAME(
+  "derive-seed-v1",
+  [U64(7), TEXT("task-1"), TEXT("prefix")]
+).hex =
+706e65756d612d726573616d706c696e672d6e756c6c2d6672616d652d7631000000000e6465726976652d736565642d7631000000030100000008000000000000000702000000067461736b2d310200000006707265666978
+
+SHA256(frame) =
+d0f92ef02cc64124ae8d651ad65c1f799f94fac4bd9923804cefbec2928cb327
+
+UINT64_FROM_BE(SHA256(frame)[0:8]) =
+15058118438168183076
+
+SHA256(FRAME(
+  "commitment-v1",
+  [TEXT("schedule-seed"), TEXT("kat-study"), U64(7)]
+)) =
+9bc37b258cc847128e49ed05681652da344723220886ec59193e53a1c8577760
+```
+
+Before roster ranking and before any prefix execution, the ceremony creates
+three independently sampled values with `secrets.token_bytes`—32 bytes, eight
+bytes interpreted as `UINT64_BE`, and 32 bytes—and three non-interchangeable
+commitments:
+
+| value | exact representation | commitment label | reveal/use contract |
+| --- | --- | --- | --- |
+| roster seed | 32 random bytes | `roster-seed` | commitment precedes the eligibility draw; the eligibility manifest later reveals the bytes and proves the draw from them |
+| schedule seed | one `U64` | `schedule-seed` | commitment is copied into the study manifest; schedule sealing reveals the integer and verifies it before deriving task/prefix/slot/order seeds |
+| assignment master key | 32 random bytes | `assignment-master-key` | commitment is copied into the study manifest; only the trusted post-prefix assignment and unblind processes may read the key and verify it in memory |
+
+For representation `V`, each commitment is:
+
+```text
+SHA256(FRAME(
+    "commitment-v1",
+    [TEXT(label), TEXT(study_id), V],
+))
+```
+
+The eligibility manifest binds its pre-draw commitment receipt and roster-seed
+reveal receipt. The study manifest independently binds
+`roster_seed_commitment_sha256`, `schedule_seed_commitment_sha256`, and
+`assignment_master_key_commitment_sha256`; one generic `seed_commitment` field
+is forbidden. A reveal with the wrong representation, label, study ID, length,
+or commitment stops the transaction.
+
+The assignment process verifies the 32-byte master key and derives exactly five
+32-byte subkeys with RFC 5869 HKDF-SHA256:
+
+```text
+context = FRAME(
+    "assignment-context-v1",
+    [
+        TEXT(study_id),
+        BYTES(manifest_sha256),
+        BYTES(schedule_sha256),
+    ],
+)
+
+PRK = HKDF-Extract(
+    salt = SHA256(context),
+    IKM = assignment_master_key,
+)
+
+K_label = HKDF-Expand(
+    PRK,
+    info = FRAME("assignment-subkey-v1", [TEXT(label)]),
+    L = 32,
+)
+
+label in {
+    "donor",
+    "allocation",
+    "orientation",
+    "capability",
+    "unblind",
+}
+```
+
+For HKDF-Expand at `L = 32`, the one RFC 5869 block is
+`HMAC-SHA256(PRK, info || 0x01)`. With study ID `kat-study`, master key
+containing the 32 consecutive bytes `0x00` through `0x1f`, manifest digest
+`0x11` repeated 32 times, and schedule digest `0x22` repeated 32 times, the
+normative subkeys are:
+
+```text
+donor      ba38f59248c6fddad640c1a047ee1ecf38a0420cc1546d2370f1b6534dc16517
+allocation 225e87f89450b1297025d2de9c5871785fba25ec1c4c8ea2dc3b1cc0dbaffc29
+orientation 1e69be341abf917e55156c95157c69fe70d3f0cd1d161fa6fbd11e189a8d6cf3
+capability 64e481fc16011d95a1bdff96b43c5fbfc2c49df0b8203f56fca38e4a6fc8266a
+unblind    19fd5926965155e44bc23ea0b2d804c7a1492a98183389e515eafb4b05290f6d
+```
+
+Neither the assignment master key nor any derived subkey may appear as an argv
+value, environment variable, run-root file, scientific/operational record,
+exception, log, telemetry event, worker input, or packet capability. A CLI may
+receive only the path to an owner-only-readable key file outside the run root; the
+trusted process reads exactly 32 bytes, never copies the file, and best-effort
+zeroes mutable buffers after derivation. Workers receive only per-slot opaque
+capability IDs; the already-frozen whole-block rerun contract may replay the
+same work-order capability but cannot mint a replacement.
+
+No public transaction accepts master/subkey bytes. Assignment,
+confirmation-verification, and unblind entry points receive an
+authority-bounded `AssignmentKeyProvider`. For each scoped call it loads
+exactly the trusted owner-only file, verifies the manifest commitment and exact
+manifest/schedule HKDF context, exposes only the five derived subkeys through a
+context manager, and best-effort zeroes mutable buffers on exit. The provider
+has no method that returns the master key. A confirmation verifier that cannot
+open `K_allocation`, `K_orientation`, and `K_capability` through that provider
+cannot claim to reconstruct the keyed ledger.
+
+For all bounded draws:
+
+```text
+UNIFORM_BELOW(key, message_frame, upper):
+    require type(upper) is int
+    require 1 <= upper <= 2^64
+    require len(key) == 32
+    limit = 2^64 - (2^64 mod upper)
+    for counter in 0 .. 2^64 - 1:
+        digest = HMAC-SHA256(
+            key,
+            FRAME(
+                "uniform-below-v1",
+                [BYTES(message_frame), U64(counter)],
+            ),
+        )
+        value = UINT64_FROM_BE(digest[0:8])
+        if value < limit:
+            return (value mod upper, counter)
+    fail closed
+```
+
+For every admissible `upper`, rejection sampling gives every result exactly
+`floor(2^64 / upper)` accepted 64-bit preimages. `upper > 2^64`, zero,
+negative, a boolean, or any non-integer is rejected before the loop. In the
+known-answer context above,
+`UNIFORM_BELOW(K_allocation, FRAME("allocation-v1",
+[TEXT("task-1")]), 12)` returns `(3, 0)`, and
+`UNIFORM_BELOW(K_orientation, FRAME("orientation-v1",
+[TEXT("task-1")]), 2)` returns `(0, 0)`.
+
 ### 4.1 SWE-bench-Live MultiLang
 
 - Harness: `microsoft/SWE-bench-Live`
@@ -225,12 +406,16 @@ the draw. Within a split, the ranking key is:
 ```text
 HMAC-SHA256(
     roster_seed,
-    "swe-roster-v1\0"
-    || dataset_revision || "\0"
-    || split || "\0"
-    || root_lineage_id || "\0"
-    || instance_id || "\0"
-    || canonical_task_record_sha256
+    FRAME(
+        "swe-roster-rank-v1",
+        [
+            TEXT(dataset_revision),
+            TEXT(split),
+            TEXT(root_lineage_id),
+            TEXT(instance_id),
+            BYTES(canonical_task_record_sha256),
+        ],
+    ),
 )
 ```
 
@@ -334,26 +519,23 @@ chat template, tool schema, global guideline, persona configuration, turn cap,
 and per-call seed recorded. The controller calls the local server directly;
 the upstream run-level `UserSimulator` seed and LiteLLM `drop_params` path are
 not used. For role `user_simulator` and zero-based call index `k`, the server
-seed is derived by the frozen domain-separated KDF:
+seed is derived by the same frozen frame:
 
 ```text
-task_bytes   = UTF8_NFC(task_opaque_id)
-branch_bytes = UTF8_NFC(branch_or_prefix_id)
-
-message =
-      ASCII("resampling-null:tau-user:v1")
-    || UINT64_BE(slot_or_prefix_root_seed)
-    || UINT32_BE(len(task_bytes)) || task_bytes
-    || UINT32_BE(len(branch_bytes)) || branch_bytes
-    || UINT64_BE(k)
-
-seed_k = UINT64_FROM_BE(SHA256(message)[0:8])
+seed_k = UINT64_FROM_BE(SHA256(FRAME(
+    "tau-user-call-seed-v1",
+    [
+        U64(slot_or_prefix_root_seed),
+        TEXT(task_opaque_id),
+        TEXT(branch_or_prefix_id),
+        U64(k),
+    ],
+))[0:8])
 ```
 
-The root seed and `k` must be in `[0, 2^64)`. Both text fields must round-trip
-through canonical NFC UTF-8, contain no NUL or surrogate, and fit the unsigned
-32-bit byte-length prefix; any violation fails before a model call. No decimal
-stringification or delimiter-based concatenation is permitted.
+The root seed and `k` must be in `[0, 2^64)`. The frame's strict text and length
+rules apply before a model call. No decimal stringification, alternate
+normalization, or delimiter-based concatenation is permitted.
 
 The persisted receipt binds call index, input token IDs, seed, output token
 IDs, tool-call bytes, model/tokenizer/template/prompt/tool-schema/container
@@ -399,17 +581,25 @@ reward_basis)` stratum, rank by:
 ```text
 HMAC-SHA256(
     roster_seed,
-    "tau3-roster-v1\0"
-    || peeled_commit || "\0"
-    || domain || "\0"
-    || issue_family_or_none || "\0"
-    || sorted_reward_basis || "\0"
-    || controller_task_id || "\0"
-    || canonical_task_record_sha256
+    FRAME(
+        "tau3-roster-rank-v1",
+        [
+            TEXT(peeled_commit),
+            TEXT(domain),
+            TEXT(issue_family_or_none),
+            BYTES(FRAME(
+                "tau3-reward-basis-set-v1",
+                [TEXT(value) for value in sorted_reward_basis],
+            )),
+            TEXT(controller_task_id),
+            BYTES(canonical_task_record_sha256),
+        ],
+    ),
 )
 ```
 
-The seed commitment and eligibility-manifest hash are sealed before the draw.
+The roster-seed commitment and eligibility-manifest preimage hash are sealed
+before the draw.
 Pilots, nested C120 prefixes, C160 extensions, and all ordered reserves freeze
 simultaneously. Controller task IDs—especially telecom IDs, which encode the
 fault—never enter subject/simulator prompts, worker environment variables, or
@@ -565,6 +755,53 @@ and token-ID digests must still match.
 Prefix scoring and verifier execution happen on disposable clones. Their cache,
 filesystem, timing, and output cannot flow back into any focal branch.
 
+### 5.4 Assignment prefix view
+
+Post-prefix donor matching consumes a canonical `AssignmentPrefixView`, not the
+prefix-receipt object. For each task the view contains only:
+
+- canonical task ID, benchmark, stratum, lineage, and registered group labels;
+- trigger/no-trigger class;
+- normalized verifier/checker or evaluator-component class;
+- objective finding count;
+- normalized report token count; and
+- the telecom issue family.
+
+It contains no `Y_0` grade or partial reward, success bit, model/tool/resource
+counter, wall time, provider cost, provider event, raw snapshot/verifier/grade
+ArtifactRef, finding text, packet text, endpoint byte, or branch field. The
+allowlist is implemented by constructing a new frozen record field by field;
+serializing a prefix record and deleting a denylist is forbidden. A caller
+cannot submit the view. Its internal builder reloads each typed verifier
+receipt, reconstructs the normalized component class and both integer counts
+from the referenced verifier bytes, and checks task metadata against the
+schedule.
+
+Precomputed count/length bands and a claimed
+`cross_family_component_match_available` bit are forbidden from the view. The
+manifest-pinned assignment program contains strictly increasing non-negative
+integer arrays `finding_count_band_upper_bounds` and
+`report_length_band_upper_bounds`. The band for `x` is the zero-based index of
+the first bound strictly greater than `x`, or the array length when no bound is
+greater. Candidate construction and verification independently derive these
+indices from the raw counts; booleans, negative values, duplicate/unsorted cut
+points, or caller-supplied bands fail closed. Telecom cross-family availability
+is derived per focal task from the complete canonical candidate graph after
+every other exact gate and before same-family fallback edges are admitted.
+Tasks and group labels use the canonical ordering in section 9.1, and the view
+digest is stored in the assignment ledger.
+
+The donor solver may depend on this view. The 12-way allocation and N/Z
+orientation may depend only on their separately derived subkeys, the canonical
+task ID, and the already-frozen manifest/schedule context; they do not consume
+the view digest or prefix-index digest. Metamorphic validation replaces every
+excluded field and raw reference while preserving the allowlisted values and
+must reproduce donor candidates, donor mapping, allocation indices, and
+orientation bits byte for byte. Changing an allowlisted matching feature may
+change only the donor result. Opaque slot capabilities separately bind the
+prefix-index digest, so an excluded-field mutation changes capabilities and
+ancestry without becoming an arm-assignment input.
+
 ## 6. Arms
 
 Every arm receives the identical post-trigger subject model-call, generated
@@ -588,7 +825,7 @@ depends on a branch outcome.
 
 Every primary-subject and τ³ user-simulator call derives its seed from the
 scheduled prefix root or continuation-slot root, role, and call index through
-the frozen domain-separated SHA-256 program.
+the section-4.0 framed, domain-separated SHA-256 program.
 The ordered per-call seed receipt is persisted. Both prefix and continuation
 loops invoke the simulator through an explicit controller-owned seeded
 interface; environment adapters may expose simulator context and apply a
@@ -664,8 +901,10 @@ call creates a primary verifier finding.
 
 ### 7.3 Sham donor
 
-A deterministic minimum-cost matching algorithm selects one donor from another
-eligible lineage:
+A deterministic constrained minimum-cost perfect matching selects one donor
+from another eligible lineage for every triggered task. No-trigger tasks remain
+randomized ITT units but never need or receive a donor. Matching input is only
+the triggered subset of the sealed `AssignmentPrefixView`:
 
 - SWE: same language, check runner/failure class, failure-count band, and log
   length band; different repository.
@@ -673,12 +912,236 @@ eligible lineage:
   length band; different task and, for telecom, different issue family where
   possible.
 
-For telecom `ACTION + ENV_ASSERTION`, every eligible task is
-`service_issue`, so a cross-family component-exact donor does not exist. The
-frozen fallback keeps domain and evaluator-component multiset exact, selects a
-different task from the same family, and records
-`cross_family_component_match_unavailable`. It may not relax component,
-domain, lineage, derangement, collision, or token-parity gates.
+For each telecom focal task, same-family candidates are absent when at least one
+cross-family candidate satisfies every other exact constraint. They become
+eligible only when that focal task's exact candidate set has no cross-family
+member. For `ACTION + ENV_ASSERTION`, every eligible task is `service_issue`,
+so the per-focal fallback records
+`cross_family_component_match_unavailable`. It may not relax component, domain,
+lineage, derangement, collision, or token-parity gates. An empty candidate set
+for a triggered focal task is a no-go; no roster redraw follows.
+
+For canonical triggered focal tasks `i` and triggered candidate donors `d`,
+create binary
+`x[i,d]`. Candidate enumeration and the exact binary-integer program require:
+
+```text
+sum_d x[i,d] = 1                         for every focal i
+sum_i x[i,d] = 1                         for every donor d
+x[i,i] = 0
+x[i,d] = 0                               for same-lineage or ineligible edges
+x[i,d] + x[d,i] <= 1                     whenever both directed edges exist
+```
+
+The solver lexicographically minimizes, using exact integer objectives:
+
+1. the number of permitted telecom same-family fallbacks;
+2. total absolute objective-finding-count difference;
+3. total absolute normalized-report-token-count difference.
+
+It must return `OPTIMAL`, not merely feasible or time-limited. Solver
+interchange has one closed, backend-independent grammar. Problem and solution
+objects use `canonical_json_bytes(value, indent=None)`: sorted keys, compact
+separators, strict UTF-8, no BOM, exactly one final LF, and non-finite numbers
+disabled. Parsing followed by canonical reserialization must reproduce the raw
+bytes. Identifiers obey section 4.0's NFC/Unicode rules, SHA-256 values are
+lowercase 64-hex, all costs are exact non-negative integers, booleans are not
+integers, floats are forbidden, and unknown fields fail.
+
+The exact problem shape is:
+
+```json
+{
+  "assignment_prefix_view_sha256": "<sha256>",
+  "assignment_program_sha256": "<sha256>",
+  "backend_receipt_sha256": "<sha256>",
+  "constraints": {
+    "forbid_same_lineage": true,
+    "forbid_self": true,
+    "forbid_two_cycle": true,
+    "one_incoming": true,
+    "one_outgoing": true
+  },
+  "edges": [
+    {
+      "donor_task_id": "<id>",
+      "focal_task_id": "<id>",
+      "primary_cost": [0, 0, 0],
+      "tie_hmac_sha256": "<sha256>"
+    }
+  ],
+  "fixed_edges": [["<focal-id>", "<donor-id>"]],
+  "focal_task_ids": ["<id>"],
+  "record_kind": "exact_matching_problem_v1",
+  "stratum_key": ["<component>"]
+}
+```
+
+`focal_task_ids` is the triggered stratum in canonical prefix-view order.
+`edges` contains every and only eligible edge, grouped by that focal order and
+then by `(raw tie-HMAC bytes, strict UTF-8 donor ID)`. The primary problem has
+empty `fixed_edges`; a tie trial appends one focal/donor pair to the already
+fixed focal prefix. Fixed edges are ordered, unique on both sides, eligible,
+and enforced together with the five constant-true constraints. Program and
+backend digests must resolve through the manifest-pinned assignment program.
+
+The exact solution shape is:
+
+```json
+{
+  "backend_receipt_sha256": "<sha256>",
+  "donor_by_task": [["<focal-id>", "<donor-id>"]],
+  "objective": [0, 0, 0],
+  "problem_sha256": "<sha256>",
+  "record_kind": "exact_matching_solution_v1",
+  "status": "OPTIMAL"
+}
+```
+
+For `OPTIMAL`, the objective is the exact three-integer vector and the mapping
+is a complete permutation in focal order. For `INFEASIBLE`, the objective is
+`null` and the mapping is empty; no other status is representable. Verification
+hashes the canonical problem, checks both authority digests, independently
+checks feasibility/objective, and reruns the same solver. A backend-native log
+is neither solver input nor proof.
+
+The zero-spend core exposes an injected `ExactMatchingSolver` protocol whose
+`authority_ref` and `backend_receipt_ref` must exactly match the manifest, plus
+a bounded exhaustive solver only for small hostile fixtures. It does not claim
+that fixture can serve C120/C160 and contains no production confirmation
+adapter. Confirmation remains unavailable until a separately reviewed
+benchmark-adapter implementation plan selects, implements, and pins a scalable
+backend before the study manifest and any prefix. Supplying a solver object
+afterward cannot repair an unpinned manifest. For any triggered confirmation
+stratum, absence or mismatch fails before ledger creation; an all-no-trigger
+ledger needs no solver or proof.
+
+Among primary-cost-optimal solutions, selection is unique without relying on
+solver discovery order. For every edge compute:
+
+```text
+tie[i,d] = HMAC-SHA256(
+    K_donor,
+    FRAME("donor-tie-v1", [TEXT(task_id_i), TEXT(task_id_d)]),
+)
+```
+
+In canonical focal order, try candidates in `(tie bytes, canonical donor ID)`
+order and fix the first edge for which the exact solver proves an optimal
+completion with the already-frozen objective vector. Retain every attempted
+problem/solution, including infeasible and higher-objective trials. Thus an
+HMAC collision is resolved by canonical donor ID. Task ordering is
+`(benchmark, stratum, lineage, task_id)` by strict UTF-8 bytes; group labels are
+ordered `language`, `domain`, `issue_family`, then by value bytes. Candidate
+rows use the explicit focal/tie order. No locale, hash-map insertion order, or
+solver-native tie breaker has authority.
+
+Each confirmation stratum emits one canonical
+`application/vnd.pneuma.assignment-matching-proof+json` blob with exactly:
+
+```json
+{
+  "assignment_prefix_view_sha256": "<sha256>",
+  "assignment_program_sha256": "<sha256>",
+  "backend_receipt_sha256": "<sha256>",
+  "donor_by_task": [["<focal-id>", "<donor-id>"]],
+  "final_problem_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-problem+json", "relative_path": "<relative>", "role": "exact_matching_problem", "sha256": "<sha256>"},
+  "final_solution_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-solution+json", "relative_path": "<relative>", "role": "exact_matching_solution", "sha256": "<sha256>"},
+  "primary_problem_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-problem+json", "relative_path": "<relative>", "role": "exact_matching_problem", "sha256": "<sha256>"},
+  "primary_solution_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-solution+json", "relative_path": "<relative>", "role": "exact_matching_solution", "sha256": "<sha256>"},
+  "proof_kind": "confirmation_exact_v1",
+  "schema_version": "1",
+  "stratum_key": ["<component>"],
+  "tie_steps": [
+    {
+      "focal_task_id": "<id>",
+      "ordered_candidates": [["<tie-sha256>", "<donor-id>"]],
+      "selected_donor_task_id": "<id>",
+      "trials": [
+        {
+          "donor_task_id": "<id>",
+          "problem_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-problem+json", "relative_path": "<relative>", "role": "exact_matching_problem", "sha256": "<sha256>"},
+          "solution_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-solution+json", "relative_path": "<relative>", "role": "exact_matching_solution", "sha256": "<sha256>"}
+        }
+      ]
+    }
+  ]
+}
+```
+
+ArtifactRef sizes above are illustrative positive values and use the existing
+closed definition. There is one tie step per focal. Its ordered candidates are
+complete after removing only donors already consumed by the previous fixed-edge
+prefix; the verifier derives that removal, while the donor receipt retains the
+full pre-fixing candidate set. Its trials are exactly the non-empty prefix
+through the first `OPTIMAL` trial retaining the primary objective. Every trial
+problem contains the prior chosen fixed edges plus that candidate. The final
+problem fixes the complete mapping, and its optimal solution, proof mapping,
+ledger, and receipts must agree.
+
+Synthetic fixtures emit a different, fully recomputable proof. Order tasks by
+`(HMAC-SHA256(K_donor, FRAME("synthetic-order-v1",
+[BYTES(view_sha256), TEXT(stratum_key_0), ..., TEXT(task_id)])), task_id)`;
+try cyclic offsets `1..n-1`; for each offset check same lineage before a
+reciprocal two-cycle in canonical focal order; select the first valid offset.
+The exact closed blob is:
+
+```json
+{
+  "assignment_prefix_view_sha256": "<sha256>",
+  "assignment_program_sha256": "<sha256>",
+  "canonical_focal_task_ids": ["<id>"],
+  "cycle_order": [{"order_hmac_sha256": "<sha256>", "task_id": "<id>"}],
+  "donor_by_task": [["<focal-id>", "<donor-id>"]],
+  "offset_trials": [{"failure_code": null, "offset": 1, "valid": true}],
+  "proof_kind": "synthetic_cyclic_offset_v1",
+  "schema_version": "1",
+  "selected_offset": 1,
+  "stratum_key": ["<component>"]
+}
+```
+
+`offset_trials` is every integer from one through the selected offset.
+Invalid rows carry exactly `"same_lineage"` or
+`"reciprocal_two_cycle"` for the first violation; the selected valid row has
+`null`. No valid offset means fail without publishing a ledger. This proof uses
+the same strict canonical-JSON contract and cannot be relabeled as
+confirmation.
+
+The ledger has exactly one proof per triggered matching stratum, ordered
+canonically; `matching_proof_refs` is unique and empty iff every task is
+no-trigger. Every matched receipt points to its stratum proof and an N/A
+receipt never does. Artifact-root verification parses the proof, recursively
+follows every problem/solution ref, rebuilds the view/candidate graph, and
+reruns the exact mode. It rejects skipped candidates/offsets, incomplete
+coverage, non-permutation, self/same-lineage edges, reciprocal two-cycles,
+relaxed constraints, changed objectives/mappings, noncanonical bytes, or
+cross-mode relabeling.
+
+Every roster task emits one closed `DonorMatchReceipt` arm. A triggered task
+uses `kind = "matched"` and contains assignment mode, matching algorithm,
+task/donor IDs and lineages, stratum key, prefix-view digest, the complete
+ordered candidate IDs/costs/fallback codes/tie digests, chosen cost, and
+matching-proof ArtifactRef. A no-trigger task uses only
+`kind = "not_applicable_no_trigger"`, task ID, trigger reason, and prefix-view
+digest; donor, candidate, cost, fallback, proof, and packet fields are
+forbidden. `TaskAssignment.donor_match_kind` is required:
+`matched` requires non-null, distinct donor ID/lineage, and
+`not_applicable_no_trigger` requires both donor fields null. The receipt set is
+non-empty, unique by focal task, and exactly
+roster-covering; matched receipts alone exactly cover the triggered set and
+reproduce its donor permutation. N/A tasks still receive the independently
+drawn 12-way allocation, N/Z orientation, and four prefix-bound capabilities.
+Tests reject a donor or packet ref on N/A and reject N/A on a triggered task.
+
+The ledger mode is closed to `synthetic_derangement` and
+`confirmation_lineage_matching`. The local synthetic mode uses
+`synthetic_cyclic_offset_v1` only on fixture strata after proving at least three
+distinct eligible lineages; its receipt says synthetic and can never be
+re-labeled. Confirmation mode requires
+`exact_constrained_min_cost_v1` and the optimality proof above for every
+triggered stratum; the all-no-trigger exception carries no matching algorithm
+execution or proof.
 
 Task-specific identifiers are represented as typed references—repository/file,
 symbol, test/check, database entity, policy/action, or task record—and replaced
@@ -800,16 +1263,94 @@ digest-bound seed stream and execution-order/hardware-lane label. Let
 prefix, packets, software, quotas, and slot. Branch isolation and no
 interference are required validity conditions.
 
-Within each task, the assignment program uniformly randomizes the multiset
-`{R, S, 0, 0}` over the four slots—12 equally likely allocations—then
-fair-coin labels the two no-packet slots `N` and `Z` solely for the resampling
-audit. The registry, prefix seeds, slot seeds, task order, and provider schedule
-are digest-bound before prefixes. After all common prefixes and verifier
-artifacts are frozen, the donor derangement is frozen and then each task
-receives an independent uniform 12-way arm allocation plus an independent N/Z
-coin, all before any branch-continuation outcome. Roster, order, and provider
-schedules may be blocked by benchmark, language, domain, or declared
-replication block; arm allocations are not coupled across tasks.
+Each task schedule serializes four slots in canonical ordinal order `0,1,2,3`.
+The array position is the slot ordinal. `execution_order` is a separate
+permutation field and never reorders the serialized array or changes treatment
+mapping. Using token order `NO_PACKET < REAL < SHAM`, the frozen allocation
+table is:
+
+| index | slot 0 | slot 1 | slot 2 | slot 3 |
+| ---: | --- | --- | --- | --- |
+| 0 | NO_PACKET | NO_PACKET | REAL | SHAM |
+| 1 | NO_PACKET | NO_PACKET | SHAM | REAL |
+| 2 | NO_PACKET | REAL | NO_PACKET | SHAM |
+| 3 | NO_PACKET | REAL | SHAM | NO_PACKET |
+| 4 | NO_PACKET | SHAM | NO_PACKET | REAL |
+| 5 | NO_PACKET | SHAM | REAL | NO_PACKET |
+| 6 | REAL | NO_PACKET | NO_PACKET | SHAM |
+| 7 | REAL | NO_PACKET | SHAM | NO_PACKET |
+| 8 | REAL | SHAM | NO_PACKET | NO_PACKET |
+| 9 | SHAM | NO_PACKET | NO_PACKET | REAL |
+| 10 | SHAM | NO_PACKET | REAL | NO_PACKET |
+| 11 | SHAM | REAL | NO_PACKET | NO_PACKET |
+
+For canonical task ID `t`, draw:
+
+```text
+(allocation_index, allocation_counter) =
+    UNIFORM_BELOW(
+        K_allocation,
+        FRAME("allocation-v1", [TEXT(t)]),
+        12,
+    )
+
+(orientation_bit, orientation_counter) =
+    UNIFORM_BELOW(
+        K_orientation,
+        FRAME("orientation-v1", [TEXT(t)]),
+        2,
+    )
+```
+
+Let `q0 < q1` be the two no-packet slot ordinals in the selected row. Bit `0`
+means `q0 = NONE, q1 = RESAMPLE`; bit `1` means
+`q0 = RESAMPLE, q1 = NONE`. This is the only NONE/RESAMPLE convention. An
+`AllocationReceipt` stores the task ID, slot IDs by ordinal, table index, both
+accepted counters, orientation bit, and four capabilities. A verifier indexes
+the table and applies the bit to reconstruct the full arm map; a separately
+claimed `slot_arms` mapping has no authority.
+
+The ledger serializes assignments, allocation receipts, and donor receipts in
+the schedule's canonical task order. Within a task, slot IDs, arms, and
+capabilities are ordinal `0..3`, never execution order. Candidate, solver, and
+proof rows follow section 7.3's explicit focal/tie/offset orders. A permutation
+that describes the same abstract map but changes bytes is rejected.
+
+Each opaque capability is:
+
+```text
+HMAC-SHA256(
+    K_capability,
+    FRAME(
+        "slot-capability-v1",
+        [
+            TEXT(study_id),
+            BYTES(manifest_sha256),
+            BYTES(schedule_sha256),
+            BYTES(prefix_index_sha256),
+            TEXT(task_id),
+            TEXT(slot_id),
+            TEXT(arm),
+        ],
+    ),
+)
+```
+
+All four capabilities per task and all capabilities globally must be unique.
+For the section-4.0 known-answer context, prefix digest `0x33` repeated 32 times,
+task `task-1`, slot `slot-0`, and arm `REAL`, the capability is
+`37004070f63a631313c50aceb2d14db47eaa731d8635455d4d69cabd1818b7e2`.
+
+The registry, roster, three commitments, prefix/slot seeds, canonical task/slot
+order, randomized execution order, and provider schedule are digest-bound
+before prefixes. After exact roster coverage of all common prefixes and
+verifier artifacts is frozen, the matching ledger is sealed and each canonical
+task receives its separate 12-way and orientation draw, all before a packet or
+branch-continuation artifact exists. Arm draws do not consume `Y_0`, counters,
+timing, cost, raw references, donor identity, candidate ordering, or any branch
+field. Roster and provider schedules may be blocked by benchmark, language,
+domain, or declared replication block; arm allocations are not coupled across
+tasks.
 
 The finite-roster effects give each benchmark weight one half and average over
 the four frozen seed/slot realizations:
@@ -1062,6 +1603,23 @@ completed selected chain with worst-cell validation or a terminal
 `FEASIBILITY_NO_GO` naming the failed attempt/stage and reason without
 fabricated downstream refs.
 
+Finalization is authority-discriminated. A roster-bound completed chain has
+`selected_tier` 120 or 160 and `decision = "GO"`. A synthetic-validation
+completed chain has `selected_tier = null` and
+`decision = "CONDITIONAL_ONLY"`. A feasibility no-go has
+`selected_tier = null` and `decision = "NO_GO"`; synthetic authority cannot
+emit that arm. The final report's authority and the selected validation receipt
+must reproduce these fields exactly.
+
+The terminal reason enum is closed to
+`gaussian_screen_exhausted`, `full_multiplier_screen_exhausted`,
+`numeric_fixture_failed`, `runtime_bound_exceeded`, `attempt_incomplete`, and
+`power_or_type_i_gate_failed`. `attempt_incomplete` is reserved for an attempt
+whose required stage never completed. A completed, schema-valid roster-bound
+validation with decision `NO_GO` and no selected tier must finalize at stage
+`validation` with `power_or_type_i_gate_failed`; it may not misdescribe a
+completed power/type-I rejection as incomplete.
+
 The type-I audit uses the same 729 nuisance pairs for each of three boundaries:
 
 ```text
@@ -1107,7 +1665,9 @@ benchmark, is the minimum. Preliminary planning says 120 paired binary units
 per benchmark have about 80% power only for effects near 17 points at
 discordance 0.40; that estimate is not a registered power result. If the exact
 simulator or eligible roster cannot support the minimum tier, the study records
-a feasibility no-go instead of shrinking into an anecdote.
+a feasibility no-go instead of shrinking into an anecdote. When a completed
+roster-bound validation establishes that neither tier passes the registered
+power/type-I gates, its reason is `power_or_type_i_gate_failed`.
 
 Tier selection may use only frozen power output, eligible-roster size, verified
 credit, measured p10 throughput, and calendar feasibility. It may not use pilot
@@ -1148,7 +1708,8 @@ Pilot rosters are disjoint from confirmation and reserve rosters:
 Before the first pilot starts, one eligibility-manifest transaction seals:
 
 1. every accepted/rejected task and qualification receipt;
-2. the roster-seed commitment and ranking implementation digest;
+2. the already-published roster-seed commitment, its label/study binding, the
+   verified reveal, and ranking implementation digest;
 3. the complete pilot roster;
 4. nested C120 confirmation membership;
 5. any eligible C160 extension; and
@@ -1182,20 +1743,25 @@ After pilot validation, a fresh context seals:
 1. the validated implementation and dependency digests;
 2. the already-frozen eligibility manifest and immutable
    pilot/C120/C160/reserve membership;
-3. the prefix/slot schedule plus the deterministic donor-derangement and
-   12-way allocation program and its synthetic fixtures;
+3. the three distinct commitment values from section 4.0, the assignment
+   program/matching-backend digest, and the provider-lane plan;
 4. the statistical-analysis source and expected synthetic fixtures;
 5. the exact cloud execution manifest; and
 6. the preregistration timestamp and digest.
 
 Confirmation then runs and seals every common prefix and verifier artifact
-without exposing branch endpoints. The already-sealed program mechanically
-materializes the donor ledger, 12-way arm allocations, and N/Z coins from those
-receipts, constructs and audits every token-matched packet pair, seals the final
+without exposing branch endpoints. Schedule sealing first verifies and reveals
+only the schedule seed; the assignment master key remains unread. After the
+prefix index proves exact roster coverage, the trusted assignment transaction
+verifies the master-key commitment, constructs the allowlisted prefix view,
+materializes matched donor proofs for triggered tasks plus typed no-trigger N/A
+receipts, 12-way arm allocations, N/Z coins, and prefix-bound capabilities,
+then discards key buffers. The already-sealed
+program constructs and audits every token-matched packet pair, seals the final
 packet-index digest, and seals the already-frozen analysis source/config/
 projection-schema digest before any branch continuation. A human may inspect
 only completeness/validity receipts during that transition, not prefix scores,
-verifier content, packet text, allocation, or branch outcome.
+verifier content, packet text, allocation, key material, or branch outcome.
 
 Confirmation bytes remain encrypted and unavailable to analysis authors until
 the analysis hash and artifact completeness receipt are sealed.
@@ -1246,6 +1812,49 @@ resampling-unblind-receipt.schema.json
 resampling-artifact-root.schema.json
 ```
 
+Before Task 3 is implemented, the Task-2 schemas are amended in place; this is
+a `0.1.0` pre-release correction, not a second record family. The closed
+payload contract requires:
+
+- `resampling_study_manifest`: all frozen source ArtifactRefs plus
+  `commitment_scheme = "resampling-null-key-ceremony-v1"` and the three
+  separately named roster/schedule/assignment-master commitment digests;
+- `resampling_prefix_schedule`: only `manifest_ref`, verified
+  `schedule_seed`, and non-empty canonical `tasks`; assignment-program and
+  provider-lane assets are loaded through the manifest and are not free inputs;
+- `resampling_prefix_receipt`: `schedule_ref` and non-empty
+  `task_receipts`;
+- `resampling_assignment_ledger`: `manifest_ref`, `schedule_ref`,
+  `prefix_index_ref`, manifest-equal `matching_program_ref`, assignment-key
+  commitment, assignment-prefix-view digest, closed assignment mode,
+  exact `matching_proof_refs`, and non-empty `assignments`,
+  `allocation_receipts`, and
+  `donor_match_receipts`; and
+- `resampling_artifact_root`: the full record/blob entries plus the verified
+  typed semantic-ancestry closure described below.
+
+Assignment mode is an enum, never an arbitrary non-empty string. The three
+assignment arrays are unique by task ID, have `minItems: 1`, cover exactly the
+manifest roster once, and agree on donor, table index/orientation, slot order,
+arm map, commitments, and parents. `DonorMatchReceipt` is a closed `oneOf`:
+`matched` has the full candidate/proof payload, while
+`not_applicable_no_trigger` forbids donor/candidate/proof/packet fields.
+`TaskAssignment` has the matching closed `donor_match_kind` discriminator:
+matched requires non-null donor ID/lineage and N/A requires both null.
+Matched receipts and donor permutations cover exactly the triggered subset;
+the N/A arm covers exactly the no-trigger subset; their union covers the roster.
+Matching-proof refs are unique and empty iff the triggered subset is empty;
+otherwise they cover every triggered matching stratum exactly once.
+The prefix view forbids precomputed count/length bands and claimed telecom
+fallback availability; validators derive them from parent bytes and the
+manifest-pinned program. Matching proof, exact problem, and exact solution
+blobs are not new scientific record kinds, but their media types select the
+closed section-7.3 grammar; validators require canonical bytes and recursively
+follow every nested ArtifactRef. Its candidate rows are closed schema
+definitions; the synthetic
+algorithm/mode pair and confirmation algorithm/mode pair cannot cross. Prefix
+receipts likewise have `minItems: 1` and exact schedule-roster coverage.
+
 Raw model/tool streams, snapshots, patches, logs, and binary blobs are not
 standalone records; a schema-valid parent carries their digest, size, media
 type, and relative artifact name. Every task block and study envelope therefore
@@ -1290,7 +1899,44 @@ The artifact root recursively follows every ArtifactRef from every scientific
 record, verifies the referenced raw bytes/size/media metadata, and hashes the
 union of scientific records and referenced blobs. Dangling, conflicting, or
 unlisted refs fail closed, including the deepest blob referenced only through
-an embedded task-block receipt. Manifest, schedule, prefix-index, assignment,
+an embedded task-block receipt. Reference shape alone is insufficient: every
+record-kind validator reloads the referenced parent under the same run root,
+checks its expected record kind and digest, and proves nested semantic ancestry
+and exact roster coverage. In particular, schedule must descend from manifest;
+every nested prefix/verifier receipt must descend from that schedule;
+assignment must descend from the same manifest/schedule/prefix trio and its
+matching/allocation receipts must reproduce its task assignments; packet,
+freeze, task-block, projection, unblind, and analysis parents must resolve to
+that same chain. A schema-valid but unrelated scientific record cannot satisfy
+an ArtifactRef.
+
+The branch-bearing chronology is enforced both when each record is written and
+when the root is verified:
+
+```text
+study manifest
+-> prefix schedule
+-> complete prefix/verifier receipt
+-> assignment ledger
+-> candidate packet index
+-> sealed packet index
+-> analysis freeze
+-> task blocks
+-> blinded projection/completeness
+-> unblind receipt
+-> analysis
+-> artifact root
+```
+
+No candidate/sealed packet, analysis freeze, task block, projection, unblind,
+analysis, or other branch-derived scientific record may be created before the
+assignment ledger exists and validates. A task block additionally requires the
+sealed packet index and analysis freeze. The power chain may run pre-outcome in
+parallel, but it descends from the same manifest and never consumes endpoint
+bytes. A file timestamp does not establish order; typed hash ancestry and
+fail-closed transaction prerequisites do.
+
+Manifest, schedule, prefix-index, assignment,
 projection, freeze, analysis, and unblind kinds are singleton. Packet indexes
 have exactly one candidate and one sealed identity; task blocks are unique by
 task ID with exact roster coverage. A power chain has one screen, selection,
@@ -1312,10 +1958,36 @@ de-identified, license-compliant release bundle is promoted intentionally.
 
 ### 12.2 Capability separation
 
-- The schedule controller cannot read verifier artifacts, arm IDs, or endpoint
-  outcomes.
-- The assignment controller can map arm IDs after prefix/verifier freeze but
-  cannot read branch endpoint outcomes.
+- The schedule controller receives the schedule-seed reveal and manifest ref.
+  It loads task, roster, assignment-program, and provider-lane assets only
+  through that manifest; it cannot read the assignment master key, verifier
+  artifacts, arm IDs, or endpoint outcomes.
+- The assignment controller loads the schedule only through its ArtifactRef,
+  reloads the manifest through the schedule, and loads the prefix index only
+  through its ArtifactRef. It may read the master key after complete
+  prefix/verifier freeze, construct only the allowlisted assignment prefix
+  view, map arms, and emit commitments/receipts; it cannot read branch endpoint
+  outcomes. It and the confirmation verifier open scoped subkeys only through
+  the section-4.0 `AssignmentKeyProvider`; the latter cannot claim arm/
+  capability reconstruction without that keyed authority. The master and
+  derived keys follow section 4.0's non-persistence rule.
+- The canonical clear assignment-ledger JSON persists only in an owner-only
+  controller scientific run root backed by transparent encryption at rest.
+  Trusted assignment, preparer, verifier, and unblind processes see its normal
+  plaintext `Path`, so schema, digest, and artifact-root scans work unchanged.
+  That controller root is never copied, mounted, or shared with branch-worker
+  identities or the analysis author before unblinding. An envelope-object
+  adapter is optional only if it presents the same trusted plaintext `Path`
+  view; the core does not assume a new resolver.
+- A separate operational storage-envelope receipt records ciphertext digest/
+  size where available, storage volume/object and version, encryption
+  algorithm, envelope/KMS key version, and ACL/IAM-policy digest. It contains
+  no key bytes, clear arm map, or packet text and is outside the scientific
+  JSON/digest. Thus Path-based schema/hash validation remains unchanged while
+  underlying storage remains encrypted. Confirmation requires a measured
+  transparent-encryption and ACL/IAM receipt before any prefix or assignment
+  transaction. Local hostile tests use an owner-only temporary root plus a
+  mock storage-policy adapter/receipt and make no host-encryption claim.
 - A trusted preparer may resolve the clear ledger and packet index into four
   one-slot work orders. Each run worker receives only one opaque slot
   capability, its frozen snapshot/seed/caps, and at most one generically named
@@ -1325,7 +1997,10 @@ de-identified, license-compliant release bundle is promoted intentionally.
   only; it cannot load the clear assignment ledger. It exposes opaque A/B/C/D
   labels.
 - Only the hash-gated unblinder receives both opaque projection and clear
-  ledger.
+  ledger. Through the same provider boundary it derives `K_unblind` in memory
+  and signs/verifies a framed permit binding study ID, manifest, schedule,
+  prefix, assignment ledger, projection, analysis freeze, and expected task
+  count; no raw-key API or generic `secret` HMAC is used.
 - The analysis author cannot access the unblinding key until source and
   synthetic expected outputs are sealed.
 - A context that reads confirmation outcome bytes is outcome-tainted and cannot

@@ -323,8 +323,18 @@ Test:
 - scientific builders remain byte-identical when the wall clock is monkeypatched;
 - study-manifest sealing copies external task/roster, assignment/provider,
   tokenizer/template/policy/pad-set, revision, and required-kind sources under
-  the study root and refuses any scientific record before that manifest exists;
-  and
+  the study root, requires three separately named commitment digests, and
+  refuses any scientific record before that manifest exists;
+- the schedule loads assignment/provider assets only through `manifest_ref`;
+  assignment loads the schedule only through `schedule_ref`;
+- prefix, assignment, and matching/allocation arrays are non-empty; assignment
+  mode is a closed enum and every assignment/matching/allocation array has exact
+  roster coverage;
+- semantic ancestry verification reloads every typed parent and rejects a
+  schema-valid but unrelated nested record; and
+- no packet, analysis freeze, task block, projection, unblind, or analysis
+  record can be written before a valid assignment ledger, while task blocks
+  additionally require the sealed packet index and analysis freeze; and
 - resampling schemas do not enter `INPUT_SCHEMA_FILES` or
   `OUTPUT_SCHEMA_FILES`.
 
@@ -397,10 +407,10 @@ Every schema has one closed `payload` with these required keys (stage-specific
 
 | record kind | required payload keys |
 | --- | --- |
-| `resampling_study_manifest` | `task_registry_ref`, `roster_ref`, `assignment_program_ref`, `provider_lane_plan_ref`, `tokenizer_ref`, `packet_template_ref`, `packet_policy_ref`, `pad_unit_set_ref`, `source_revision_refs`, `seed_commitment_sha256`, `required_document_kinds_ref` |
-| `resampling_prefix_schedule` | `manifest_ref`, `assignment_program_ref`, `provider_lane_plan_ref`, `study_seed`, `tasks` |
-| `resampling_prefix_receipt` | `schedule_ref`, `task_receipts` |
-| `resampling_assignment_ledger` | `schedule_ref`, `prefix_index_ref`, `assignment_mode`, `assignments`, `allocation_receipts` |
+| `resampling_study_manifest` | `task_registry_ref`, `roster_ref`, `assignment_program_ref`, `provider_lane_plan_ref`, `tokenizer_ref`, `packet_template_ref`, `packet_policy_ref`, `pad_unit_set_ref`, `source_revision_refs`, `commitment_scheme`, `roster_seed_commitment_sha256`, `schedule_seed_commitment_sha256`, `assignment_master_key_commitment_sha256`, `required_document_kinds_ref` |
+| `resampling_prefix_schedule` | `manifest_ref`, `schedule_seed`, `tasks` |
+| `resampling_prefix_receipt` | `schedule_ref`, non-empty `task_receipts` |
+| `resampling_assignment_ledger` | `manifest_ref`, `schedule_ref`, `prefix_index_ref`, `matching_program_ref`, `assignment_master_key_commitment_sha256`, `assignment_prefix_view_sha256`, closed `assignment_mode`, `matching_proof_refs`, non-empty `assignments`, `allocation_receipts`, `donor_match_receipts` |
 | `resampling_packet_index` | `stage`; candidate: `assignment_ref`, `prefix_index_ref`, `tokenizer_ref`, `packet_template_ref`, `packet_policy_ref`, `pad_unit_set_ref`, `entries`; sealed: `candidate_ref`, the same six parent refs, `audit_gates` |
 | `resampling_task_block` | every field of `TaskBlock`, with exactly four opaque `slot_outcomes` |
 | `resampling_blinded_projection` | `schedule_ref`, `analysis_freeze_ref`, `task_block_refs`, `rows`, `expected_task_count`, `complete` |
@@ -410,8 +420,20 @@ Every schema has one closed `payload` with these required keys (stage-specific
 | `resampling_unblind_receipt` | every field of `UnblindReceipt` |
 | `resampling_artifact_root` | `code_sha256`, `design_sha256`, `entries`, `root_sha256`, `required_document_kinds` |
 
-Array order and uniqueness constraints mirror the frozen dataclasses. A schema
-cannot replace an ArtifactRef with a naked digest.
+`commitment_scheme` is the constant
+`resampling-null-key-ceremony-v1`; the former generic
+`seed_commitment_sha256` is forbidden. Schedule tasks, prefix task receipts,
+ledger assignments, allocation receipts, donor-match receipts, and donor
+candidate rows all have `minItems: 1`. Assignment mode is exactly
+`synthetic_derangement` or `confirmation_lineage_matching`, and each
+mode/algorithm pair is closed. `matching_proof_refs` is unique and empty iff
+every donor receipt is the no-trigger N/A arm; otherwise semantic validation
+requires exactly one ref per triggered matching stratum and every matched
+receipt points to one of them. Array order and uniqueness constraints mirror the
+frozen dataclasses. A schema cannot replace an ArtifactRef with a naked digest.
+`task_assignment` is also a closed `oneOf`: `donor_match_kind == "matched"`
+requires non-null distinct donor ID/lineage, while
+`not_applicable_no_trigger` requires both donor fields null.
 
 Every referenced blob uses one shared `$defs.artifact_ref` with a
 root-relative POSIX name, SHA-256, byte size, and media type. Absolute paths are
@@ -427,7 +449,12 @@ none of the branch-only receipts and
 carries four copied `Y_0` outcomes. Because attempt, terminal, execution, and
 outage receipts carry snapshot, provider-event, provider-cost, adverse-event,
 and grade refs, the task block exposes the complete raw-blob closure to the
-artifact-root walker. The analysis schema requires freeze/projection digests, counts,
+artifact-root walker. Schema validation is only the first layer:
+`validate_record_ancestry` reloads every ArtifactRef that names a scientific
+record, requires its exact record kind and digest, and verifies nested
+manifest/schedule/prefix/assignment/packet/freeze/task coverage. A
+schema-valid record from another chain cannot satisfy a parent field. The
+analysis schema requires freeze/projection digests, counts,
 estimands, Fisher p-values, simultaneous bounds, `q0`, `r95`, gates, verdict,
 and ancestry.
 
@@ -486,6 +513,14 @@ def canonical_digest(value: Mapping[str, object]) -> str:
 
 
 def validate_record(value: Mapping[str, object]) -> dict[str, object]:
+    ...
+
+
+def validate_record_ancestry(
+    value: Mapping[str, object],
+    *,
+    run_root: Path,
+) -> None:
     ...
 
 
@@ -576,11 +611,26 @@ def verify_artifact_root(
 raises on duplicate keys. `validate_record` uses
 `Draft202012Validator.iter_errors`, sorts errors deterministically, and rejects
 non-finite numbers before schema validation. `write_record` validates fully
-before calling the existing atomic writer. Both write helpers resolve `path`
+before calling the existing atomic writer. It also calls
+`validate_record_ancestry`, which reloads typed parents under the run root,
+verifies nested roster coverage, and enforces:
+
+```text
+manifest -> schedule -> prefix receipt -> assignment
+-> packet candidate -> packet sealed -> analysis freeze
+-> task blocks -> projection -> unblind -> analysis -> artifact root
+```
+
+No packet or later branch-derived record exists without assignment; a task
+block additionally requires the sealed packet index and analysis freeze. Power
+reports form a separately typed pre-outcome chain descending from the manifest.
+Both write helpers resolve `path`
 inside `run_root`, refuse any existing destination, and return the actual
 root-relative digest/size/media-type/role reference. JSONL rows are materialized
 once, checked for finite values, and canonically encoded before the atomic
-publish. `seal_study_manifest` validates the external study template, copies
+publish. `seal_study_manifest` validates the external study template, requires
+`resampling-null-key-ceremony-v1` plus the three separately labeled commitment
+digests, copies
 and references the exact task registry, roster/group manifest, revision
 receipts, assignment program, provider-lane plan, tokenizer receipt, packet
 template, packet policy, neutral pad-unit set, and required-kind manifest under
@@ -595,7 +645,10 @@ referenced raw blob under the same root, including ciphertext packets,
 snapshots, streams, grade output, and source bundles. It rejects dangling refs,
 size/digest mismatches, two refs that claim different metadata for one path,
 an unreferenced scientific root, and a raw file presented as a scientific
-record. Manifest, schedule, prefix-index, assignment, projection, freeze,
+record. It reruns `validate_record_ancestry` for every scientific record and
+reconstructs exact manifest-roster coverage across schedule, prefix,
+assignment, matching/allocation, packet, task, and analysis descendants.
+Manifest, schedule, prefix-index, assignment, projection, freeze,
 analysis, and unblind kinds are singleton. Packet-index identity is
 `(record_kind, stage)` and requires exactly one candidate plus one sealed
 record. Task-block identity is `(record_kind, task_id)` and requires exactly one
@@ -608,7 +661,9 @@ per authority parents every attempted screen/shard/selection/validation record
 and has a closed finalization arm: `completed_chain` names its selected
 phase/generation and phase-appropriate downstream refs, while
 `feasibility_no_go` names the terminal failed attempt/stage and reason with no
-fictitious downstream refs. A Gaussian completed chain requires its worst-five
+fictitious downstream refs. A completed roster-bound validation with no
+passing tier uses `power_or_type_i_gate_failed`; `attempt_incomplete` is valid
+only when a required stage never completed. A Gaussian completed chain requires its worst-five
 selection and approximation-validation receipt; a full-multiplier completed
 chain instead requires its fallback trigger and full-grid
 completeness/numeric/tier-validation receipt and forbids a Gaussian selection.
@@ -652,108 +707,397 @@ git commit -m "feat(resampling-null): add artifact contracts"
 
 - Create: `src/pneuma_lab/resampling_null/assignment.py`
 - Create: `tests/resampling_null/test_assignment.py`
+- Modify: `src/pneuma_lab/resampling_null/types.py`
+- Modify: `src/pneuma_lab/resampling_null/__init__.py`
+- Modify: `schemas/resampling-study-manifest.schema.json`
+- Modify: `schemas/resampling-prefix-schedule.schema.json`
+- Modify: `schemas/resampling-prefix-receipt.schema.json`
+- Modify: `schemas/resampling-assignment-ledger.schema.json`
+- Modify: `schemas/resampling-artifact-root.schema.json`
+- Modify: `src/pneuma_lab/resampling_null/artifacts.py`
+- Modify: `tests/resampling_null/test_artifacts.py`
 
 ### Step 1: Write failing assignment tests
 
 Test:
 
+- the exact frame hex, frame SHA-256, derived seed, schedule commitment, five
+  HKDF subkeys, two bounded draws, and capability in design section 4.0 match
+  their known-answer vectors;
+- framed derivations distinguish the former colon collision
+  `("a:b", "c") != ("a", "b:c")`, while both members of the former NUL
+  collision `("a\0b", "c")` / `("a", "b\0c")` reject before framing;
+- tags/identifiers reject non-NFC text, controls, format controls, private-use/
+  unassigned code points, and lone surrogates before encoding;
+- every `U64` and `uniform_below.upper` check rejects booleans; `uniform_below`
+  accepts only exact integers `1..2^64` and terminates at `upper == 2^64`;
+- an exhaustive small-word analogue proves equal accepted preimage counts for
+  every result, while the production 64-bit limit formula is exact;
+- roster, schedule, and assignment-master commitments cannot substitute for one
+  another, and the wrong value/label/study/length fails before a draw;
+- assignment master/subkeys never appear in argv values, environment, run-root
+  bytes, records, logs, exception text, worker orders, or capability payloads;
 - roster input order cannot affect bytes or digest;
-- identical roster, study seed, and secret produce identical output;
-- domain-separated prefix, slot, donor, order, and capability values differ;
-- prefix schedule contains no donor, packet, arm, or outcome field;
-- branch assignment cannot be materialized before every frozen prefix/verifier
-  receipt is present and digest-valid;
-- every task gets four distinct seed streams and a permutation of execution
-  order `0..3`;
-- the treatment multiset is exactly `{REAL, SHAM, NO_PACKET, NO_PACKET}`;
-- the two no-packet slots receive NONE/RESAMPLE by a separate fair-bit draw;
-- all 12 treatment allocations and both no-packet orientations are reachable
-  across a deterministic seed sweep;
-- donor has a different task and lineage, with no reciprocal pair;
-- strata with fewer than three distinct eligible lineages fail closed;
-- capability IDs contain no arm spelling and change with the secret; and
-- the ledger records the 12-way treatment index and separate no-packet coin;
+- `seal_prefix_schedule` has no assignment-program/provider-lane argument,
+  loads both only through `manifest_ref`, and rejects a manifest commitment or
+  referenced asset mismatch;
+- `seal_branch_assignment` has no schedule object or free mode/program argument,
+  loads the schedule only through `schedule_ref`, reloads the manifest through
+  that schedule, and rejects an incomplete or wrong-parent prefix index;
+- prefix schedule contains no donor, packet, arm, key, or outcome field;
+- every task gets four distinct seed streams, canonical slot ordinals `0..3`,
+  and a separate permutation of execution order `0..3`;
+- all 12 frozen table rows reconstruct exactly, and the orientation convention
+  maps the lower/higher no-packet ordinals to NONE/RESAMPLE for bit 0 and
+  RESAMPLE/NONE for bit 1;
+- allocation and orientation use separate keys/messages and persist their
+  rejection counters; global capabilities are unique and bind the manifest,
+  schedule, and prefix digests;
+- the prefix-view builder recomputes normalized counts/classes from the
+  referenced verifier bytes, derives count/length bands from manifest-pinned
+  cut points, and derives telecom fallback availability from the complete
+  candidate graph; caller-supplied band/availability fields are rejected;
+- changing `Y_0`, partial reward, resource counters, wall time, provider cost,
+  snapshot/verifier/grade refs, finding text, or artifact names while keeping
+  the allowlisted view fixed leaves donor candidates/mapping and arm draws
+  byte-identical but changes prefix-bound capabilities;
+- changing an allowlisted matching feature may change donor matching but never
+  the 12-way or orientation draws;
+- a confirmation fixture returns the unique global constrained minimum, even
+  when the first cyclic/greedy derangement is feasible but more expensive;
+- candidate coverage, one-to-one permutation, different lineage, no self edge,
+  no reciprocal two-cycle, exact stratum constraints, optimum status, objective
+  vector, and HMAC-collision fallback to canonical donor ID are recomputed;
+- an infeasible candidate graph, non-optimal/time-limited solver status, changed
+  matching program/backend, or incomplete proof fails closed;
+- exact matching problem, solution, confirmation proof, and synthetic proof
+  blobs reject unknown fields, non-canonical ordering/JSON, booleans where
+  integers are required, non-finite numbers, wrong digests, skipped tie trials,
+  and incomplete cyclic-offset trials;
+- `synthetic_derangement` pairs only with
+  `synthetic_cyclic_offset_v1`; it can never be relabeled as confirmation;
+- `confirmation_lineage_matching` pairs only with
+  `exact_constrained_min_cost_v1`;
+- every triggered task has one matched donor receipt and every no-trigger task
+  has only a `not_applicable_no_trigger` receipt with no donor, candidates,
+  proof, or packet ref; N/A on a triggered task and donor/packet data on N/A
+  both fail;
+- assignments, allocation receipts, and donor receipts are non-empty, unique,
+  and exactly roster-covering; matched receipts/permutation exactly cover only
+  the triggered subset, while all tasks still receive allocations and
+  capabilities;
+- `require_confirmation_assignment` accepts only ArtifactRefs plus `run_root`
+  as scientific authority, opens key material only through the
+  commitment-checking `AssignmentKeyProvider`, accepts only a
+  manifest-authorized solver mechanism, reloads every byte, and rejects wrong
+  mode, digest, kind, nested coverage, proof, arm reconstruction, or ancestry;
   and
-- `require_confirmation_assignment` rejects any mode other than
-  `confirmation_lineage_matching` or any ancestry mismatch.
+- `write_record` refuses a packet, analysis freeze, task block, projection,
+  unblind, or analysis record before the valid assignment parent exists.
 
 ### Step 2: Prove red
 
 ```powershell
-python -m pytest tests/resampling_null/test_assignment.py -q
+python -m pytest tests/resampling_null/test_assignment.py tests/resampling_null/test_artifacts.py -q
 ```
 
-Expected: import failure.
+Expected: missing assignment module and pre-hardening schema/ancestry failures.
 
-### Step 3: Implement unbiased digest-bound draws
+### Step 3: Implement the one canonical binary derivation contract
 
-Never use Python's randomized `hash()` or modulo a digest directly. Implement:
+Never use Python's randomized `hash()`, formatted strings, delimiter
+concatenation, canonical JSON, or modulo a raw digest directly. Implement
+design section 4.0 byte for byte:
 
 ```python
-def derive_seed(study_seed: int, task_id: str, role: str) -> int:
-    payload = f"resampling-null:v1:{study_seed}:{task_id}:{role}".encode()
-    return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
+@dataclass(frozen=True, slots=True)
+class U64Field:
+    value: int
 
 
-def uniform_below(key: bytes, message: bytes, upper: int) -> int:
-    if upper <= 0:
-        raise ValueError("upper must be positive")
+@dataclass(frozen=True, slots=True)
+class TextField:
+    value: str
+
+
+@dataclass(frozen=True, slots=True)
+class BytesField:
+    value: bytes
+
+
+FrameField = U64Field | TextField | BytesField
+
+
+@dataclass(frozen=True, slots=True)
+class UniformDraw:
+    value: int
+    counter: int
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class AssignmentSubkeys:
+    donor: bytes
+    allocation: bytes
+    orientation: bytes
+    capability: bytes
+    unblind: bytes
+
+
+class AssignmentKeyProvider(Protocol):
+    def open_committed_subkeys(
+        self,
+        manifest_ref: ArtifactRef,
+        schedule_ref: ArtifactRef,
+        *,
+        run_root: Path,
+    ) -> ContextManager[AssignmentSubkeys]:
+        ...
+
+
+def kdf_frame(tag: str, fields: Sequence[FrameField]) -> bytes:
+    ...
+
+
+def commitment_sha256(
+    label: Literal[
+        "roster-seed",
+        "schedule-seed",
+        "assignment-master-key",
+    ],
+    study_id: str,
+    value: U64Field | BytesField,
+) -> str:
+    ...
+
+
+def derive_seed(schedule_seed: int, task_id: str, role: str) -> int:
+    return int.from_bytes(
+        hashlib.sha256(
+            kdf_frame(
+                "derive-seed-v1",
+                [
+                    U64Field(schedule_seed),
+                    TextField(task_id),
+                    TextField(role),
+                ],
+            )
+        ).digest()[:8],
+        "big",
+    )
+
+
+def uniform_below(
+    key: bytes,
+    message_frame: bytes,
+    upper: int,
+) -> UniformDraw:
+    if type(upper) is not int or not 1 <= upper <= 2**64:
+        raise ValueError("upper must be an integer in [1, 2**64]")
+    if type(key) is not bytes or len(key) != 32:
+        raise ValueError("key must be exactly 32 bytes")
     limit = (1 << 64) - ((1 << 64) % upper)
-    counter = 0
-    while True:
+    for counter in range(1 << 64):
         digest = hmac.new(
             key,
-            message + counter.to_bytes(8, "big"),
+            kdf_frame(
+                "uniform-below-v1",
+                [BytesField(message_frame), U64Field(counter)],
+            ),
             hashlib.sha256,
         ).digest()
         value = int.from_bytes(digest[:8], "big")
         if value < limit:
-            return value % upper
-        counter += 1
+            return UniformDraw(value=value % upper, counter=counter)
+    raise RuntimeError("64-bit rejection counter exhausted")
 
 
-def arm_capability(
-    secret: bytes,
+def _derive_assignment_subkeys(
+    assignment_master_key: bytes,
     study_id: str,
-    task_id: str,
-    slot_id: str,
-    arm: Arm,
-) -> str:
-    payload = (
-        f"resampling-null:capability:v1:{study_id}\0"
-        f"{task_id}\0{slot_id}\0{arm.value}"
-    ).encode()
-    return hmac.new(secret, payload, hashlib.sha256).hexdigest()
-
-
-def require_confirmation_assignment(
-    ledger: "AssignmentLedger",
-    *,
-    expected_schedule_sha256: str,
-    expected_prefix_index_sha256: str,
-) -> None:
+    manifest_ref: ArtifactRef,
+    schedule_ref: ArtifactRef,
+) -> AssignmentSubkeys:
     ...
 ```
 
-Implement two distinct transactions:
+`kdf_frame` uses the exact magic, type tags, unsigned big-endian widths, strict
+NFC/Unicode `C*` rejection, and raw-digest decoding rules in the design.
+`commitment_sha256` additionally enforces 32 bytes for roster/master keys and
+`U64Field` for the schedule seed. HKDF is RFC 5869 SHA-256, with the exact
+context and five exact labels in the design. `AssignmentSubkeys.__repr__`
+returns only `AssignmentSubkeys(<redacted>)`; no exception interpolates input or
+key bytes. `_derive_assignment_subkeys` is module-private and callable only by
+`AssignmentKeyProvider`; transaction APIs never accept its first argument.
+Treat Python buffer zeroing as best effort, not a secrecy claim.
+
+Pin all design known-answer vectors in tests. Also test the arithmetic proof:
+for each valid `upper`, `limit` is divisible by `upper`, every residue has
+`limit / upper` accepted 64-bit preimages, and `0 <= 2^64 - limit < upper`.
+The small-word exhaustive fixture exercises actual rejection paths without
+trying to enumerate `2^64` values.
+
+### Step 4: Implement typed views, receipts, and authority-minimal transactions
+
+Use these stable records:
 
 ```python
+class TriggerReason(str, Enum):
+    FIRST_ELIGIBLE_MUTATION = "first_eligible_mutation"
+    FOURTH_TOOL_CALL = "fourth_tool_call"
+    NO_INTERVENTION_OPPORTUNITY = "no_intervention_opportunity"
+
+
+class AssignmentMode(str, Enum):
+    SYNTHETIC = "synthetic_derangement"
+    CONFIRMATION = "confirmation_lineage_matching"
+
+
+class MatchingAlgorithm(str, Enum):
+    SYNTHETIC = "synthetic_cyclic_offset_v1"
+    CONFIRMATION = "exact_constrained_min_cost_v1"
+
+
+@dataclass(frozen=True, slots=True)
+class ExactMatchingEdge:
+    focal_task_id: str
+    donor_task_id: str
+    primary_cost: tuple[int, int, int]
+    tie_hmac_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class ExactMatchingConstraints:
+    one_outgoing: Literal[True]
+    one_incoming: Literal[True]
+    forbid_self: Literal[True]
+    forbid_same_lineage: Literal[True]
+    forbid_two_cycle: Literal[True]
+
+
+@dataclass(frozen=True, slots=True)
+class ExactMatchingProblem:
+    record_kind: Literal["exact_matching_problem_v1"]
+    assignment_program_sha256: str
+    backend_receipt_sha256: str
+    assignment_prefix_view_sha256: str
+    stratum_key: tuple[str, ...]
+    focal_task_ids: tuple[str, ...]
+    edges: tuple[ExactMatchingEdge, ...]
+    fixed_edges: tuple[tuple[str, str], ...]
+    constraints: ExactMatchingConstraints
+
+
+@dataclass(frozen=True, slots=True)
+class ExactMatchingSolution:
+    record_kind: Literal["exact_matching_solution_v1"]
+    problem_sha256: str
+    backend_receipt_sha256: str
+    status: Literal["OPTIMAL", "INFEASIBLE"]
+    objective: tuple[int, int, int] | None
+    donor_by_task: tuple[tuple[str, str], ...]
+
+
+class ExactMatchingSolver(Protocol):
+    @property
+    def authority_ref(self) -> ArtifactRef:
+        ...
+
+    @property
+    def backend_receipt_ref(self) -> ArtifactRef:
+        ...
+
+    def solve(self, problem: ExactMatchingProblem) -> ExactMatchingSolution:
+        ...
+
+
 @dataclass(frozen=True, slots=True)
 class PrefixSchedule:
     study_id: str
     frozen_created_at: str
     manifest_ref: ArtifactRef
-    assignment_program_ref: ArtifactRef
-    provider_lane_plan_ref: ArtifactRef
-    study_seed: int
+    schedule_seed: int
     tasks: tuple[TaskSchedule, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AssignmentPrefixTaskView:
+    task_id: str
+    benchmark: str
+    stratum: str
+    lineage: str
+    sensitivity_groups: tuple[GroupLabel, ...]
+    trigger_reason: TriggerReason
+    verifier_component_class: str
+    objective_finding_count: int
+    normalized_report_token_count: int
+    telecom_issue_family: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class AssignmentPrefixView:
+    study_id: str
+    schedule_sha256: str
+    tasks: tuple[AssignmentPrefixTaskView, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DonorCandidateReceipt:
+    donor_task_id: str
+    donor_lineage: str
+    primary_cost: tuple[int, int, int]
+    fallback_code: (
+        Literal["cross_family_component_match_unavailable"] | None
+    )
+    tie_hmac_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class MatchedDonorReceipt:
+    kind: Literal["matched"]
+    task_id: str
+    donor_task_id: str
+    task_lineage: str
+    donor_lineage: str
+    assignment_mode: AssignmentMode
+    matching_algorithm: MatchingAlgorithm
+    stratum_key: tuple[str, ...]
+    assignment_prefix_view_sha256: str
+    candidates: tuple[DonorCandidateReceipt, ...]
+    chosen_primary_cost: tuple[int, int, int]
+    matching_proof_ref: ArtifactRef
+
+
+@dataclass(frozen=True, slots=True)
+class NoTriggerDonorReceipt:
+    kind: Literal["not_applicable_no_trigger"]
+    task_id: str
+    trigger_reason: Literal[TriggerReason.NO_INTERVENTION_OPPORTUNITY]
+    assignment_prefix_view_sha256: str
+
+
+DonorMatchReceipt = MatchedDonorReceipt | NoTriggerDonorReceipt
+
+
+@dataclass(frozen=True, slots=True)
+class TaskAssignment:
+    task_id: str
+    task_lineage: str
+    donor_match_kind: Literal["matched", "not_applicable_no_trigger"]
+    donor_task_id: str | None
+    donor_lineage: str | None
+    slot_arms: tuple[tuple[str, Arm], ...]
+    schedule_sha256: str
+    prefix_index_sha256: str
 
 
 @dataclass(frozen=True, slots=True)
 class AllocationReceipt:
     task_id: str
+    slot_ids_by_ordinal: tuple[str, str, str, str]
     treatment_allocation_index: int
+    allocation_rejection_counter: int
     no_packet_orientation_bit: int
+    orientation_rejection_counter: int
     slot_capabilities: tuple[tuple[str, str], ...]
 
 
@@ -761,45 +1105,129 @@ class AllocationReceipt:
 class AssignmentLedger:
     study_id: str
     frozen_created_at: str
-    schedule_sha256: str
-    prefix_index_sha256: str
-    assignment_mode: str
+    manifest_ref: ArtifactRef
+    schedule_ref: ArtifactRef
+    prefix_index_ref: ArtifactRef
+    matching_program_ref: ArtifactRef
+    assignment_master_key_commitment_sha256: str
+    assignment_prefix_view_sha256: str
+    assignment_mode: AssignmentMode
+    matching_proof_refs: tuple[ArtifactRef, ...]
     assignments: tuple[TaskAssignment, ...]
     allocation_receipts: tuple[AllocationReceipt, ...]
+    donor_match_receipts: tuple[DonorMatchReceipt, ...]
 
 
 def seal_prefix_schedule(
     manifest_ref: ArtifactRef,
-    assignment_program_ref: ArtifactRef,
-    provider_lane_plan_ref: ArtifactRef,
     *,
-    study_seed: int,
+    schedule_seed_reveal: int,
     run_root: Path,
-) -> "PrefixSchedule":
+    out: Path,
+) -> ArtifactRef:
     ...
 
 
 def seal_branch_assignment(
-    schedule: "PrefixSchedule",
-    *,
     schedule_ref: ArtifactRef,
     prefix_index_ref: ArtifactRef,
+    *,
+    assignment_key_provider: AssignmentKeyProvider,
+    exact_matching_solver: ExactMatchingSolver | None,
     run_root: Path,
-    secret: bytes,
-) -> "AssignmentLedger":
+    out: Path,
+) -> ArtifactRef:
+    ...
+
+
+def require_confirmation_assignment(
+    ledger_ref: ArtifactRef,
+    *,
+    manifest_ref: ArtifactRef,
+    schedule_ref: ArtifactRef,
+    prefix_index_ref: ArtifactRef,
+    assignment_key_provider: AssignmentKeyProvider,
+    exact_matching_solver: ExactMatchingSolver | None,
+    run_root: Path,
+) -> AssignmentLedger:
     ...
 ```
 
+`ExactMatchingSolver` is an injected execution mechanism, never a free
+scientific input. Its `authority_ref` must byte-equal the manifest's
+`assignment_program_ref`; its backend receipt must be nested in that referenced
+program manifest and freeze executable/container digest, version, exact
+single-thread/zero-gap options, and the canonical I/O protocol below. The local core
+ships only a bounded exhaustive fixture solver for hostile tests; it does not
+pretend that solver is a practical 160-node backend. A manifest requesting
+confirmation mode with any triggered matching stratum but without an injected,
+authority-matched scalable solver raises `ConfirmationBackendUnavailable`
+before ledger creation. An all-no-trigger ledger needs no solver or proof. The
+zero-spend core contains no production confirmation adapter: a separately
+reviewed benchmark-adapter implementation plan must select, implement, and pin
+one before its study manifest or any confirmation prefix is sealed. Supplying a
+solver object later cannot repair an unpinned manifest. Synthetic mode ignores
+and rejects an injected confirmation solver.
+
+`AssignmentKeyProvider` is likewise an execution mechanism, not scientific
+authority and not a general secret callback. For each call it must load exactly
+the owner-only 32-byte file selected by trusted local configuration outside the
+run root, verify the `assignment-master-key` commitment from the resolved
+manifest and the exact manifest/schedule HKDF context, expose only a scoped
+`AssignmentSubkeys` context, and best-effort zero mutable master/subkey buffers
+on exit. It has no method that returns the master key and no caller may provide
+key bytes. `require_confirmation_assignment` must use this provider too:
+without `K_allocation`, `K_orientation`, and `K_capability`, claiming to
+reconstruct a keyed ledger is forbidden.
+
 `seal_prefix_schedule` loads the task registry and roster only through the
-validated manifest, and loads the provider-lane mapping and assignment program
-through their ArtifactRefs; it accepts no free task list or claimed parent
-digest. The prefix schedule fixes roster, prefix/slot seeds, task order, and
-provider lane before prefixes; it contains no donor or treatment. Only after all common
-prefixes and verifier artifacts are frozen does `seal_branch_assignment`
-load the schema-valid prefix index through `prefix_index_ref`, validate its
-schedule parent and exact roster coverage, derive all verifier receipts
-internally, materialize the donor map, and draw
-treatments. No branch endpoint is an input.
+validated manifest and loads the provider-lane mapping and assignment program
+only through ArtifactRefs inside that manifest. It accepts no free task list,
+program ref, provider-plan ref, or claimed digest. It verifies
+`schedule_seed_reveal` against the manifest's schedule commitment before
+deriving anything. Tasks are sorted by strict UTF-8
+`(benchmark, stratum, lineage, task_id)`; group labels are ordered
+`language, domain, issue_family`, then by value bytes. Each task's `slots` array
+is canonical ordinal order `0..3`; its `execution_order` fields separately form
+the randomized permutation. The prefix schedule fixes roster, prefix/slot
+seeds, task order, execution order, hardware/provider lane, and all referenced
+assets before prefixes; it contains no donor, packet, arm, master key, or
+outcome.
+
+Only after every common prefix and verifier artifact is frozen does
+`seal_branch_assignment` load the schedule through `schedule_ref`, reload the
+manifest through `schedule.manifest_ref`, load the prefix receipt through
+`prefix_index_ref`, and prove:
+
+- manifest roster IDs equal schedule IDs equal prefix-receipt IDs;
+- every prefix task has one matching nested verifier receipt;
+- all nested schedule, snapshot, verifier, and grade ArtifactRefs resolve under
+  the same run root with the expected role/kind/digest;
+- task/benchmark/stratum/lineage/group metadata match byte for byte; and
+- no packet, task block, endpoint, or later scientific record already exists.
+
+Through `AssignmentKeyProvider` it verifies the assignment-master commitment
+and obtains the five scoped subkeys. It then builds the allowlisted prefix view
+field by field, solves donors for triggered tasks, draws treatments for every
+task, writes one atomic ledger, and closes the key context. No branch endpoint
+is an input.
+
+The ledger's canonical scientific JSON persists only inside an owner-only
+controller scientific run root backed by transparent encryption at rest. That
+protected plaintext `Path` view is visible only to trusted assignment,
+preparer, verification, and unblind processes, so the ordinary schema/digest/
+artifact-root scan works unchanged. The controller root is never copied into,
+mounted in, or shared with branch workers or the analysis author before
+unblinding. An envelope-encrypted object adapter is optional only if it presents
+the same trusted plaintext `Path` contract; Task 3 does not depend on a new
+resolver API. A separate operational storage receipt records ciphertext
+digest/size where available, storage volume/object and version, encryption
+algorithm, envelope/KMS key version, and ACL/IAM-policy digest. It records no
+key bytes, decrypted arm map, or packet text and is not mixed into the
+canonical scientific JSON. Local hostile tests use an owner-only temporary
+root and a mock storage-policy adapter/receipt; they make no encryption claim.
+Measured transparent encryption plus the real ACL/IAM receipt is a
+confirmation-environment gate before any prefix or assignment transaction.
 
 The schema-valid `resampling-prefix-receipt` document is the complete
 prefix/verifier index: it nests one `FrozenVerifierReceipt` plus snapshot and
@@ -808,39 +1236,327 @@ grade artifact references per scheduled task. Thus the CLI's
 function verifies its digest and exact task coverage before creating any
 `AllocationReceipt`.
 
-Precompute the 12 lexicographically ordered assignments of
-`(Treatment.REAL, Treatment.SHAM, Treatment.NO_PACKET,
-Treatment.NO_PACKET)` to four slots. Draw one with
-`uniform_below(..., 12)`, then orient NONE/Z with a domain-separated
-`uniform_below(..., 2)` call. Persist both the treatment-allocation index and
-orientation bit before emitting the post-orientation `Arm` map. Sort tasks by
-`(benchmark, stratum, lineage, task_id)`.
+### Step 5: Freeze allocation, prefix-view, and matching algorithms
 
-Within each stratum, deterministically order candidates by an HMAC key and
-search cyclic offsets for the first complete donor map with different task,
-different lineage, and no reciprocal edge. Fail if none exists. Mark this
-local implementation:
+The serialized 12-row table is exactly:
 
-```json
-{"assignment_mode": "synthetic_derangement"}
+```text
+0  N N R S       6  R N N S
+1  N N S R       7  R N S N
+2  N R N S       8  R S N N
+3  N R S N       9  S N N R
+4  N S N R      10  S N R N
+5  N S R N      11  S R N N
 ```
 
-Both sealed records link to their parent digest. Benchmark adapters must later
-produce and validate their own
-`confirmation_lineage_matching` ledger.
+Here `N` means `NO_PACKET`, and columns are slot ordinals, never execution
+order. Draw the row with `K_allocation` and
+`FRAME("allocation-v1", [TEXT(task_id)])`. For the two no-packet ordinals
+`q0 < q1`, orientation bit 0 maps `q0/q1` to `NONE/RESAMPLE`; bit 1 reverses
+them. Draw it with `K_orientation` and the `orientation-v1` frame. Persist both
+rejection counters. Reconstruct `TaskAssignment.slot_arms` from the receipt and
+reject any discrepancy.
 
-### Step 4: Prove green
+Derive capabilities with `K_capability` and the exact design frame binding
+study, manifest digest, schedule digest, prefix digest, task, slot, and arm.
+Verify uniqueness within each task and globally across the ledger. Allocation
+and orientation frames contain no prefix/view/donor field, so metamorphic
+changes to excluded prefix data leave arm draws fixed; capabilities change
+because they deliberately bind the prefix.
+
+Serialize `assignments`, `allocation_receipts`, and `donor_match_receipts` in
+the schedule's canonical task order. Within each allocation receipt,
+`slot_ids_by_ordinal`, `slot_arms`, and `slot_capabilities` are all ordinal
+`0..3`, never execution order or map insertion order. Candidate and proof
+arrays use the explicit orders below; verification rejects a permutation even
+when it describes the same mathematical mapping.
+
+Build `AssignmentPrefixView` from this allowlist only:
+
+```text
+task_id, benchmark, stratum, lineage, registered group labels,
+trigger reason, normalized verifier/checker or component class,
+objective finding count, normalized report token count,
+telecom issue family
+```
+
+Explicitly forbid `Y_0`, partial reward, success, resource counters, timing,
+cost, provider event, every raw ArtifactRef, finding/packet text, endpoint data,
+branch fields, precomputed count/length bands, and a claimed
+cross-family-availability bit. Do not serialize then delete a denylist, and do
+not accept an `AssignmentPrefixView` from the caller. The internal builder
+reloads each typed verifier receipt, recomputes the normalized component class,
+objective finding count, and normalized report token count from its referenced
+bytes, and compares task metadata with the schedule.
+
+The manifest-pinned assignment program contains two closed arrays of strictly
+increasing non-negative integer cut points:
+`finding_count_band_upper_bounds` and
+`report_length_band_upper_bounds`. For a recomputed integer `x`, its band is
+the zero-based index of the first upper bound strictly greater than `x`, or the
+array length when none is greater. Booleans, negative counts, unsorted or
+duplicate cut points, and caller-provided band labels fail closed. Candidate
+construction derives those integer band indices afresh. Telecom
+`cross_family_component_match_available` is not a task feature at all: for
+each focal task it is recomputed from the complete canonical edge graph after
+all other exact eligibility gates and before same-family fallback edges are
+considered. A verifier repeats both derivations from parent bytes.
+
+For local synthetic fixtures only, sort eligible triggered tasks by canonical
+ID, order candidates with `K_donor`, and search cyclic offsets for the first
+different-lineage, no-two-cycle permutation. Mark it only as:
+
+```json
+{
+    "assignment_mode": "synthetic_derangement",
+    "matching_algorithm": "synthetic_cyclic_offset_v1"
+}
+```
+
+No-trigger tasks receive `not_applicable_no_trigger`, not a fictitious donor.
+They still receive all allocation/capability receipts and later use the typed
+no-intervention packet marker. Triggered synthetic strata with fewer than three
+distinct eligible lineages fail closed.
+
+Confirmation constructs the full ordered eligible edge set from the allowlisted
+view, including the frozen telecom same-family fallback rule. It solves the
+binary program:
+
+```text
+one outgoing and one incoming edge per triggered task
+no self or same-lineage edge
+no reciprocal two-cycle
+all frozen stratum/component/band constraints exact
+lexicographic integer objective:
+  (same-family fallback count,
+   total finding-count distance,
+   total report-token-count distance)
+```
+
+The manifest-pinned matching program/backend runs single-threaded and must
+return `OPTIMAL`. Solver interchange uses no opaque or backend-native file.
+Problem and solution blobs are exact closed objects serialized with the Task-2
+`canonical_json_bytes(value, indent=None)` function: sorted keys, compact
+separators, strict UTF-8, no BOM, exactly one terminal LF, and `allow_nan =
+False`. The verifier parses and reserializes every blob and requires byte
+equality. Identifiers use section 4.0's strict NFC/Unicode rule; digests are
+lowercase 64-hex; all costs are exact non-negative integers with booleans and
+floats forbidden; unknown fields fail.
+
+The exact `exact_matching_problem_v1` payload is:
+
+```json
+{
+  "assignment_prefix_view_sha256": "<sha256>",
+  "assignment_program_sha256": "<sha256>",
+  "backend_receipt_sha256": "<sha256>",
+  "constraints": {
+    "forbid_same_lineage": true,
+    "forbid_self": true,
+    "forbid_two_cycle": true,
+    "one_incoming": true,
+    "one_outgoing": true
+  },
+  "edges": [
+    {
+      "donor_task_id": "<id>",
+      "focal_task_id": "<id>",
+      "primary_cost": [0, 0, 0],
+      "tie_hmac_sha256": "<sha256>"
+    }
+  ],
+  "fixed_edges": [["<focal-id>", "<donor-id>"]],
+  "focal_task_ids": ["<id>"],
+  "record_kind": "exact_matching_problem_v1",
+  "stratum_key": ["<component>"]
+}
+```
+
+`focal_task_ids` is the triggered stratum in canonical prefix-view order.
+`edges` contains every and only eligible edge, grouped in focal order and then
+ordered by `(raw tie-HMAC bytes, strict UTF-8 donor ID)`; the initial problem's
+`fixed_edges` is empty. A constrained tie trial appends exactly one
+`[focal, donor]` pair to the previously fixed prefix. `fixed_edges` is in focal
+order, contains no duplicate focal/donor, and is enforced in addition to the
+five constant-true constraints. The assignment-program and backend-receipt
+digests must resolve through the solver's two authority refs and the manifest.
+
+The exact `exact_matching_solution_v1` payload is:
+
+```json
+{
+  "backend_receipt_sha256": "<sha256>",
+  "donor_by_task": [["<focal-id>", "<donor-id>"]],
+  "objective": [0, 0, 0],
+  "problem_sha256": "<sha256>",
+  "record_kind": "exact_matching_solution_v1",
+  "status": "OPTIMAL"
+}
+```
+
+For `OPTIMAL`, `objective` is the exact three-integer objective and
+`donor_by_task` is a complete permutation in the problem's focal order. For
+`INFEASIBLE`, `objective` is `null` and `donor_by_task` is empty. No other
+status is representable. The verifier hashes the canonical problem, checks the
+solution's problem/backend digests, independently validates feasibility and
+objective, and reruns the authority-matched solver; a backend-native log is
+neither an input nor proof.
+
+Among primary-cost-optimal completions, iterate focal tasks canonically and try
+candidates by:
+
+```text
+(
+  HMAC-SHA256(
+    K_donor,
+    FRAME("donor-tie-v1", [TEXT(focal_id), TEXT(donor_id)]),
+  ),
+  canonical_donor_id,
+)
+```
+
+Fix the first edge whose exact re-solve preserves the optimal objective and a
+complete solution. The donor ID resolves an HMAC collision. Every attempted
+candidate, including infeasible or higher-objective attempts, is retained.
+The confirmation proof blob has exactly this closed shape:
+
+```json
+{
+  "assignment_prefix_view_sha256": "<sha256>",
+  "assignment_program_sha256": "<sha256>",
+  "backend_receipt_sha256": "<sha256>",
+  "donor_by_task": [["<focal-id>", "<donor-id>"]],
+  "final_problem_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-problem+json", "relative_path": "<relative>", "role": "exact_matching_problem", "sha256": "<sha256>"},
+  "final_solution_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-solution+json", "relative_path": "<relative>", "role": "exact_matching_solution", "sha256": "<sha256>"},
+  "primary_problem_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-problem+json", "relative_path": "<relative>", "role": "exact_matching_problem", "sha256": "<sha256>"},
+  "primary_solution_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-solution+json", "relative_path": "<relative>", "role": "exact_matching_solution", "sha256": "<sha256>"},
+  "proof_kind": "confirmation_exact_v1",
+  "schema_version": "1",
+  "stratum_key": ["<component>"],
+  "tie_steps": [
+    {
+      "focal_task_id": "<id>",
+      "ordered_candidates": [["<tie-sha256>", "<donor-id>"]],
+      "selected_donor_task_id": "<id>",
+      "trials": [
+        {
+          "donor_task_id": "<id>",
+          "problem_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-problem+json", "relative_path": "<relative>", "role": "exact_matching_problem", "sha256": "<sha256>"},
+          "solution_ref": {"byte_count": 1, "media_type": "application/vnd.pneuma.exact-matching-solution+json", "relative_path": "<relative>", "role": "exact_matching_solution", "sha256": "<sha256>"}
+        }
+      ]
+    }
+  ]
+}
+```
+
+Every displayed ArtifactRef uses the existing closed ArtifactRef definition;
+`1` is only an illustrative positive byte count. `tie_steps`
+has one row per focal in order. `ordered_candidates` is the complete
+`(tie-HMAC, donor ID)` order after removing only donors already consumed by the
+previous fixed-edge prefix; the verifier derives that removal, and the donor
+receipt still carries the focal's full pre-fixing candidate set. `trials` is
+exactly the resulting non-empty prefix through the first solution whose status
+is `OPTIMAL` and objective equals the primary objective;
+`selected_donor_task_id` is that last trial. Each trial problem contains prior
+selected fixed edges plus its candidate. The final problem fixes the complete
+selected mapping, and its `OPTIMAL` solution, the proof mapping, ledger
+assignments, and donor receipts must agree byte for byte.
+
+Synthetic mode also emits one auditable proof per triggered stratum; it cannot
+borrow confirmation semantics. First order the stratum by
+`(HMAC-SHA256(K_donor, FRAME("synthetic-order-v1",
+[BYTES(view_sha256), TEXT(stratum_key_0), ..., TEXT(task_id)])), task_id)`.
+For offsets `1..n-1`, map cycle position `i` to `(i + offset) mod n`, checking
+same lineage before reciprocal two-cycle in canonical focal order, and select
+the first valid offset. The closed proof is:
+
+```json
+{
+  "assignment_prefix_view_sha256": "<sha256>",
+  "assignment_program_sha256": "<sha256>",
+  "canonical_focal_task_ids": ["<id>"],
+  "cycle_order": [{"order_hmac_sha256": "<sha256>", "task_id": "<id>"}],
+  "donor_by_task": [["<focal-id>", "<donor-id>"]],
+  "offset_trials": [{"failure_code": null, "offset": 1, "valid": true}],
+  "proof_kind": "synthetic_cyclic_offset_v1",
+  "schema_version": "1",
+  "selected_offset": 1,
+  "stratum_key": ["<component>"]
+}
+```
+
+`canonical_focal_task_ids` and `donor_by_task` use canonical focal order;
+`cycle_order` uses the HMAC order above. `offset_trials` is exactly every
+integer offset from 1 through `selected_offset`. `failure_code` is
+`"same_lineage"` or `"reciprocal_two_cycle"` for an invalid offset and is
+`null` exactly for the selected valid offset; an invalid offset reports the
+first violation under the check order above. If no offset is valid, ledger
+creation fails and no partial proof is published.
+
+Both proof arms are serialized with the same strict canonical-JSON contract and
+referenced as
+`application/vnd.pneuma.assignment-matching-proof+json` blobs. The ledger's
+ordered `matching_proof_refs` is unique, may be empty only when every task is
+no-trigger, and otherwise contains exactly one proof per triggered stratum in
+canonical stratum order; every matched receipt names its stratum proof.
+Artifact-root verification parses proof blobs, follows every nested
+problem/solution ArtifactRef, and reruns the appropriate algorithm. It rejects
+`FEASIBLE`, timeout, gap, candidate omission, non-permutation,
+self/same-lineage edge, two-cycle, relaxed feature, objective change, mapping
+change, a skipped candidate/offset, or cross-mode proof relabeling.
+
+Every roster task has exactly one donor receipt. `matched` is mandatory exactly
+for triggered tasks and carries the complete non-empty candidate list plus
+proof; `not_applicable_no_trigger` is mandatory exactly for no-trigger tasks
+and forbids donor/candidate/cost/fallback/proof/packet fields. Modify
+`TaskAssignment` so donor ID/lineage may be `None` only when its matching kind
+is N/A: `matched` requires both non-null and distinct task/lineage, while
+`not_applicable_no_trigger` requires both null. There is no inference from null
+alone or from trigger text outside the typed receipt.
+`require_confirmation_assignment` reloads the ledger and all four typed
+parents, rejects synthetic mode/algorithm, proves exact union coverage, reruns
+the confirmation proof, and reconstructs every arm/capability.
+
+### Step 6: Harden the Task-2 schemas and ancestry writer
+
+Make the schema table in Task 2 executable:
+
+- replace manifest `seed_commitment_sha256` with the constant ceremony name and
+  three named commitments;
+- remove schedule copies of assignment-program/provider-plan refs; those assets
+  load only through `manifest_ref`;
+- set `minItems: 1` on schedule tasks, prefix receipts, assignments,
+  allocations, donor receipts, and matched candidate arrays;
+- make `matching_proof_refs` a unique array, empty iff there are no triggered
+  tasks and otherwise exactly one ref per triggered matching stratum;
+- make assignment mode and matching algorithms enums;
+- add closed matched/N/A donor-receipt `oneOf` definitions and forbid donor
+  fields on N/A;
+- reject precomputed band/fallback-availability fields from the prefix view,
+  and parse every matching-proof/problem/solution blob against its closed
+  canonical grammar while following its nested ArtifactRefs;
+- require manifest/schedule/prefix/program/key/view/proof ancestry in the
+  assignment ledger; and
+- make `validate_record_ancestry`, `write_record`, and artifact-root
+  verification enforce nested record kinds/digests, exact roster/trigger
+  coverage, and the chronology from Task 2.
+
+Do not create a thirteenth record kind. The matching solver transcript is a
+referenced blob under the assignment ledger.
+
+### Step 7: Prove green
 
 ```powershell
-python -m pytest tests/resampling_null/test_assignment.py -q
+python -m pytest tests/resampling_null/test_assignment.py tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q
 ```
 
 Expected: pass.
 
-### Step 5: Commit
+### Step 8: Commit
 
 ```powershell
-git add src/pneuma_lab/resampling_null/assignment.py tests/resampling_null/test_assignment.py
+git add src/pneuma_lab/resampling_null/types.py src/pneuma_lab/resampling_null/__init__.py src/pneuma_lab/resampling_null/assignment.py src/pneuma_lab/resampling_null/artifacts.py schemas/resampling-study-manifest.schema.json schemas/resampling-prefix-schedule.schema.json schemas/resampling-prefix-receipt.schema.json schemas/resampling-assignment-ledger.schema.json schemas/resampling-artifact-root.schema.json tests/resampling_null/test_assignment.py tests/resampling_null/test_artifacts.py
 git commit -m "feat(resampling-null): seal four-slot assignments"
 ```
 
@@ -869,8 +1585,9 @@ Cover:
 - an identifier map whose source/destination kinds differ fails;
 - packet ancestry binds focal/donor verifier, assignment, identifier-map, and
   tokenizer digests;
-- candidate audit proves every focal/donor verifier reference belongs to the
-  sealed prefix index and every tokenizer/pad/template ref matches its parent;
+- candidate audit proves every triggered pair's focal/donor verifier reference
+  belongs to the sealed prefix index and every tokenizer/pad/template ref
+  matches its parent;
 - a no-intervention task is roster-covered by a typed marker and has no packet
   artifacts;
 - neutral padding cannot introduce executable instructions or identifiers; and
@@ -1095,7 +1812,8 @@ schema-valid `resampling_packet_index` with `stage == "candidate"`; candidate
 packet bytes remain encrypted in production. A separate
 `audit_and_seal_packet_index` transaction loads that immutable parent and
 verifies exact roster coverage,
-one focal/donor pair per task, assignment/prefix/verifier ancestry, token and
+one focal/donor pair per triggered task, one typed no-intervention marker per
+no-trigger task, assignment/prefix/verifier ancestry, token and
 schema parity, all rewrite/truncation audits, and referenced artifact bytes. It
 loads the sealed prefix index and derives the allowed focal/donor verifier refs
 from it; naked claimed digests are insufficient. It also verifies the exact
@@ -1189,6 +1907,7 @@ Extend `types.py` with the exact frozen/slotted records below. Tuple fields
 reject mutable containers. The prefix receipt stores only immutable
 snapshot/context/verifier references, trigger reason, pending tool calls,
 `Y_0`, and parent schedule digest; it does not embed mutable adapter objects.
+Reuse the `TriggerReason` enum introduced in Task 3; do not redeclare it.
 
 ```python
 class FailureKind(str, Enum):
@@ -1199,12 +1918,6 @@ class FailureKind(str, Enum):
     TOOL_CAP = "tool_cap"
     TIMEOUT = "timeout"
     INFRASTRUCTURE = "infrastructure"
-
-
-class TriggerReason(str, Enum):
-    FIRST_ELIGIBLE_MUTATION = "first_eligible_mutation"
-    FOURTH_TOOL_CALL = "fourth_tool_call"
-    NO_INTERVENTION_OPPORTUNITY = "no_intervention_opportunity"
 
 
 @dataclass(frozen=True, slots=True)
@@ -1315,10 +2028,14 @@ def derive_call_seed(
     subject_role: Literal["primary_subject", "user_simulator"],
     call_index: int,
 ) -> int:
-    payload = (
-        f"resampling-null:call-seed:v1:{slot_seed}:"
-        f"{subject_role}:{call_index}"
-    ).encode()
+    payload = kdf_frame(
+        "call-seed-v1",
+        [
+            U64Field(slot_seed),
+            TextField(subject_role),
+            U64Field(call_index),
+        ],
+    )
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
 
 
@@ -1814,9 +2531,9 @@ Test:
 - freeze refuses an unsealed or schema-invalid packet index;
 - a task block cannot be accepted without the analysis-freeze parent;
 - projection contains only opaque A/B/C/D capabilities;
-- arm names, treatment names, packets, donor IDs, and secret bytes are absent
+- arm names, treatment names, packets, donor IDs, and master/subkey bytes are absent
   from serialized projection;
-- projection is constructible in a process that has no ledger, secret, `Arm`,
+- projection is constructible in a process that has no ledger, key, `Arm`,
   or packet capability;
 - A/B/C/D follow preregistered slot order, not outcome or execution order;
 - projection covers the complete frozen roster and acts as the pre-unblind
@@ -1945,6 +2662,9 @@ def project_blinded(
 @dataclass(frozen=True, slots=True)
 class UnblindPermit:
     study_id: str
+    manifest_sha256: str
+    schedule_sha256: str
+    prefix_index_sha256: str
     projection_sha256: str
     assignment_ledger_sha256: str
     analysis_freeze_sha256: str
@@ -1967,6 +2687,9 @@ class PermitVerifier(Protocol):
         self,
         permit: UnblindPermit,
         *,
+        manifest_ref: ArtifactRef,
+        schedule_ref: ArtifactRef,
+        prefix_index_ref: ArtifactRef,
         projection_ref: ArtifactRef,
         assignment_ledger_ref: ArtifactRef,
         analysis_freeze_ref: ArtifactRef,
@@ -1976,12 +2699,16 @@ class PermitVerifier(Protocol):
 
 def issue_unblind_permit(
     *,
-    secret: bytes,
+    assignment_key_provider: AssignmentKeyProvider,
     study_id: str,
+    manifest_ref: ArtifactRef,
+    schedule_ref: ArtifactRef,
+    prefix_index_ref: ArtifactRef,
     projection_ref: ArtifactRef,
     assignment_ledger_ref: ArtifactRef,
     analysis_freeze_ref: ArtifactRef,
     expected_task_count: int,
+    run_root: Path,
 ) -> UnblindPermit:
     ...
 
@@ -2000,19 +2727,26 @@ def unblind_projection(
     ...
 ```
 
-`project_blinded` has no ledger/secret parameter and its module does not import
+`project_blinded` has no ledger/key parameter and its module does not import
 `Arm` or packet types. It loads only opaque task-block refs plus the prefix
 schedule and maps each task's frozen slot order to A/B/C/D. It verifies complete
 task coverage and all block parents, then writes the schema-valid projection.
-Persist neither plaintext secret nor clear arm map in that projection.
+Persist neither key material nor clear arm map in that projection.
 
 Only an unblinding entry point may load both the projection and clear assignment
-ledger. The caller constructs `UnblindPermit` from the secret file and the four
-frozen values; the clear secret never enters the permit, argv, stdout, or a
-scientific record. A secret-backed `PermitVerifier` independently recomputes
-the domain-separated HMAC. Verify that HMAC, projection completeness, current
-sources/config/projection schema/sealed packet index against the analysis
-freeze, and every parent digest before parsing slot-to-arm mappings.
+ledger. Through the same authority-bounded `AssignmentKeyProvider`, it opens
+the owner-only 32-byte assignment-master key outside the run root, verifies its
+manifest commitment and manifest/schedule context, exposes only the scoped
+derived subkeys, and uses only `K_unblind` to construct `UnblindPermit`.
+Compute its HMAC over `FRAME("unblind-permit-v1", ...)` binding study,
+manifest, schedule, prefix, assignment ledger, projection, analysis freeze,
+and expected task count. No public function accepts raw master/subkey bytes;
+the master/subkey never enters the permit, argv value, environment, stdout,
+log, worker, or scientific record. A separately configured key-provider-backed
+`PermitVerifier` independently recomputes the framed HMAC. Verify that HMAC,
+projection completeness, current sources/config/projection schema/sealed
+packet index against the analysis freeze, and every parent digest before
+parsing slot-to-arm mappings.
 Write the unblind receipt through the ancestry-bound atomic helper and refuse an
 existing target.
 
@@ -2524,7 +3258,11 @@ Test:
 - trigger allocation is a uniform exact-size subset of each benchmark roster
   and preserves joint-cell counts for leave-one-group gates;
 - a synthetic roster report is labeled conditional/non-decisive and cannot
-  select a confirmation tier;
+  select a confirmation tier: its completed chain requires
+  `selected_tier = None` and `decision = "CONDITIONAL_ONLY"`;
+- a roster-bound completed chain requires `selected_tier` in `{120, 160}` and
+  `decision = "GO"`, while every feasibility no-go requires
+  `selected_tier = None` and `decision = "NO_GO"`;
 - the Gaussian-max critical value is monotone and matches a known independent
   case;
 - Gaussian-max handles correlation `-1` and `+1` analytically;
@@ -2540,13 +3278,16 @@ Test:
 - validation-cell selection freezes exactly the five lowest unrounded
   alternative pass rates with deterministic tie-breaking;
 - C160 power is no lower than C120 on a fixed easy cell; and
-- a tiny test grid writes raw counts, intervals, numeric receipts, and verdict.
+- a tiny test grid writes raw counts, intervals, numeric receipts, and verdict;
 - every screen/shard/selection/validation/final output validates as a staged
   `resampling_power_report`; and
 - the one final report parents every failed/passing attempt and uses exactly
   one closed finalization arm; exhausted Gaussian-screen retries and exhausted
   full-multiplier-fallback screening both emit `feasibility_no_go` with no
   fabricated shard/selection/validation refs; and
+- a completed roster-bound `NO_GO` validation uses
+  `power_or_type_i_gate_failed`, while `attempt_incomplete` is rejected for a
+  completed validation; and
 - a successful all-cell full-multiplier fallback validates complete
   cells/counts/numeric/tier receipts, finalizes without a Gaussian selection,
   and survives artifact sealing.
@@ -2721,6 +3462,8 @@ class GaussianApproximationCompletedChain:
     selected_shard_refs: tuple[ArtifactRef, ...]
     selected_selection_ref: ArtifactRef
     selected_validation_ref: ArtifactRef
+    selected_tier: Literal[120, 160] | None
+    decision: Literal["GO", "CONDITIONAL_ONLY"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -2732,6 +3475,8 @@ class FullMultiplierCompletedChain:
     selected_screen_ref: ArtifactRef
     selected_shard_refs: tuple[ArtifactRef, ...]
     full_grid_validation_ref: ArtifactRef
+    selected_tier: Literal[120, 160] | None
+    decision: Literal["GO", "CONDITIONAL_ONLY"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -2745,7 +3490,10 @@ class FeasibilityNoGoFinalization:
         "numeric_fixture_failed",
         "runtime_bound_exceeded",
         "attempt_incomplete",
+        "power_or_type_i_gate_failed",
     ]
+    selected_tier: None
+    decision: Literal["NO_GO"]
 
 
 PowerFinalization = (
@@ -2836,7 +3584,16 @@ requires the failed-Gaussian trigger plus
 raw counts, numeric receipts, and the tier decision directly and has no
 Gaussian selection. Its `feasibility_no_go` arm instead names the terminal
 failed attempt/stage and frozen reason and forbids downstream refs that do not
-exist.
+exist. Finalization is authority-discriminated: a roster-bound completed chain
+requires `selected_tier` 120 or 160 and `decision = "GO"`; a synthetic
+completed chain requires `selected_tier = None` and
+`decision = "CONDITIONAL_ONLY"`; a feasibility no-go requires
+`selected_tier = None` and `decision = "NO_GO"`. `attempt_incomplete` is
+reserved for a terminal attempt whose required stage never completed and may
+not describe a schema-valid completed validation. A completed roster-bound
+validation whose decision is `NO_GO` because neither tier passes the
+registered power/type-I gates must finalize at stage `validation` with
+`reason = "power_or_type_i_gate_failed"`.
 
 For P0 only, use the two-dimensional Gaussian-max critical value derived from
 the estimated contrast correlation. Select the five lowest-power alternative
@@ -2851,7 +3608,8 @@ For the roster-bound run, the tier passes only if every Bonferroni
 Clopper-Pearson lower bound across 729
 alternative cells is at least 0.80 and every upper bound across 2,187 null cells
 is at most 0.05. Choose C160 when it passes; otherwise choose C120 only when it
-passes; otherwise emit `FEASIBILITY_NO_GO`. Validation freezes the five cell IDs
+passes; otherwise emit `FEASIBILITY_NO_GO` with
+`power_or_type_i_gate_failed`. Validation freezes the five cell IDs
 with the lowest unrounded C160 alternative gate-pass rate, breaking ties by the
 ordered manifest. On those cells, 2,000 datasets use the full registered
 99,999-draw multiplier routine. Every absolute gate-pass-rate difference must
@@ -2934,15 +3692,15 @@ Expected: import failure.
 ```text
 python -m pneuma_lab.resampling_null --run-root <dir> selftest [--defer-artifact-root] [--defer-power]
 python -m pneuma_lab.resampling_null --run-root <dir> study seal --study-source <json> --tasks-source <jsonl> --roster-source <json> --assignment-program-source <path> --provider-lane-plan-source <json> --tokenizer-source <json> --packet-template-source <text> --packet-policy-source <json> --pad-unit-set-source <json> --revision-source <path> [--revision-source <path> ...] --required-kinds-source <json> --out study-manifest.json
-python -m pneuma_lab.resampling_null --run-root <dir> schedule seal --study study-manifest.json --assignment-program <relative-file> --provider-lane-plan <relative-json> --out prefix-schedule.json
+python -m pneuma_lab.resampling_null --run-root <dir> schedule seal --study study-manifest.json --schedule-seed-file <outside-root-path> --out prefix-schedule.json
 python -m pneuma_lab.resampling_null --run-root <dir> synthetic prefixes --study study-manifest.json --schedule prefix-schedule.json --out prefix-index.json
-python -m pneuma_lab.resampling_null --run-root <dir> assignment seal --schedule prefix-schedule.json --prefix-index prefix-index.json --secret-file <path> --out assignment-ledger.json
+python -m pneuma_lab.resampling_null --run-root <dir> assignment seal --schedule prefix-schedule.json --prefix-index prefix-index.json --assignment-key-file <outside-root-path> --out assignment-ledger.json
 python -m pneuma_lab.resampling_null --run-root <dir> packets build --study study-manifest.json --assignment assignment-ledger.json --prefix-index prefix-index.json --out-candidate packet-candidate.json
 python -m pneuma_lab.resampling_null --run-root <dir> packets audit --study study-manifest.json --candidate packet-candidate.json --schedule prefix-schedule.json --assignment assignment-ledger.json --prefix-index prefix-index.json --out-index packet-index.json
 python -m pneuma_lab.resampling_null --run-root <dir> analysis freeze --source-root <path> --source <relative-path> --config <path> --projection-schema <path> --packet-index packet-index.json --out analysis-freeze.json
 python -m pneuma_lab.resampling_null --run-root <dir> synthetic branches --study study-manifest.json --schedule prefix-schedule.json --assignment assignment-ledger.json --prefix-index prefix-index.json --packet-index packet-index.json --analysis-freeze analysis-freeze.json --out-prefix task-blocks
 python -m pneuma_lab.resampling_null --run-root <dir> project --schedule prefix-schedule.json --analysis-freeze analysis-freeze.json --task-block-prefix task-blocks --out blinded-projection.json
-python -m pneuma_lab.resampling_null --run-root <dir> analyze --study study-manifest.json --projection blinded-projection.json --assignment assignment-ledger.json --analysis-freeze analysis-freeze.json --source-root <path> --source <relative-path> --config <path> --projection-schema <path> --packet-index packet-index.json --secret-file <path> --unblind-receipt unblind-receipt.json --out analysis.json
+python -m pneuma_lab.resampling_null --run-root <dir> analyze --study study-manifest.json --projection blinded-projection.json --assignment assignment-ledger.json --analysis-freeze analysis-freeze.json --source-root <path> --source <relative-path> --config <path> --projection-schema <path> --packet-index packet-index.json --assignment-key-file <outside-root-path> --unblind-receipt unblind-receipt.json --out analysis.json
 python -m pneuma_lab.resampling_null --run-root <dir> power screen --grid <path> --roster <relative-json> --decision-authority <synthetic_validation|roster_bound_selection> --phase <gaussian_approximation|full_multiplier_fallback> --generation <int> --topology <path> --out power-screen.json
 python -m pneuma_lab.resampling_null --run-root <dir> power simulate --grid <path> --roster <relative-json> --screen power-screen.json --mode <production|full_multiplier> --shard-index <int> --shard-count <int> --out <relative-json>
 python -m pneuma_lab.resampling_null --run-root <dir> power select-validation --screen power-screen.json --shard-prefix <relative-prefix> --out validation-selection.json
@@ -2962,9 +3720,22 @@ are explicitly named `*-source`, `--source-root`/`--source`, `--config`,
 copied/content-addressed into the root before use. `study seal` creates the
 first schema-valid manifest and copies the task/roster inputs plus the exact
 tokenizer receipt, packet template, packet policy, and pad-unit set used by all
-packet commands. `packets build` and `packets audit` load those four refs only
+packet commands. Its study source must contain the ceremony constant and three
+named commitment digests. `schedule seal` reads the public schedule-seed reveal,
+verifies its commitment, and loads assignment/provider assets only through the
+manifest; there is no override option. `assignment seal` loads only schedule
+and prefix ArtifactRefs, verifies the 32-byte master-key commitment in memory,
+and cannot select a ledger mode outside the manifest-pinned program.
+`packets build` and `packets audit` load their four refs only
 through the validated study manifest and reject any candidate that names
 different metadata.
+
+The CLI's `--run-root` is the owner-only, transparently encrypted controller
+scientific root from Task 3, not a branch-worker workspace or shared analysis
+mount. Trusted commands validate its canonical plaintext paths normally.
+`synthetic branches` is the trusted preparer/orchestrator: it resolves the
+ledger before process launch and gives each isolated worker only its one-slot
+work order, never the controller root path, ledger path, or credentials.
 
 `--source` is repeatable and relative to `--source-root`; the command sorts its
 values before hashing. Both `analysis freeze` and `analyze` receive the same
@@ -2972,7 +3743,7 @@ current source/config/schema/sealed-packet inputs. `packets build` writes a
 schema-valid candidate-stage index and referenced packet artifacts;
 only `packets audit` may create a sealed-stage packet index. `synthetic
 branches` refuses absent, schema-invalid, or digest-mismatched packet-index and
-analysis-freeze parents. `project` has no assignment or secret option.
+analysis-freeze parents. `project` has no assignment or key option.
 `analyze` verifies the current frozen sources, loads the roster ref only through
 the validated study manifest, verifies that the assignment schedule descends
 from that manifest, and requires exact row/task/group coverage. It then creates
@@ -3010,9 +3781,13 @@ the explicit Task-10 power commands then create the root's only authoritative
 power chain before one immutable artifact seal. Both modes refuse a root that
 already contains a receipt.
 
-Secrets are read from a file, never an argument or stdout. CLI failures return
-non-zero and one JSON error object without traceback unless `--debug` is
-explicit.
+The schedule-seed and assignment-key file paths must resolve outside the run
+root. The schedule seed becomes public in its sealed schedule. The assignment
+master key must be exactly 32 bytes and is never copied; its bytes and derived
+subkeys never enter argv values, environment, stdout/stderr, logs, tracebacks,
+scientific/operational files, or workers. CLI failures return non-zero and one
+JSON error object without traceback unless `--debug` is explicit; debug output
+still redacts all key objects and values.
 
 ### Step 4: Prove green
 
