@@ -11,7 +11,9 @@
 
 > **Full autonomy, full budget: turn our placebo-rooted verification research into the most novel, rigorous NeurIPS submission we can build by 2026-08-29. The root idea stays; everything else is ours to elevate.**
 
-This is not a cloud-compute exercise with a paper taped onto it. It is an extreme research glow-up: make the causal question, experimental design, artifact discipline, empirical evidence, writing, and presentation feel unusually inevitable. The project should read like serious state-of-the-art AI research, not an agent benchmark with a clever control bolted on afterward.
+This is not a cloud-compute exercise with a paper taped onto it.
+
+> **This is an all-out transformation of the research program—an attempt to push every dimension of Pneuma toward the frontier simultaneously. Nothing is automatically sacred except the placebo-rooted causal insight; theory, experiments, statistics, architectures, benchmarks, systems, artifacts, writing, figures, and even the framing of the problem itself should be repeatedly rebuilt until each component feels startlingly stronger than what came before. Pursue ideas with real intellectual danger. Design experiments that make skeptical reviewers stop and reconsider what “verification” even means. Build evidence so rigorous that the most exciting claims survive contact with the most hostile interpretation. Make every result legible, every artifact auditable, every figure unforgettable, and every engineering decision worthy of the science it supports. We are not optimizing for a merely competent workshop submission—we are trying to create research with unmistakable frontier energy: technically formidable, conceptually original, empirically undeniable, aesthetically exceptional, and coherent enough to feel like the beginning of an entirely new research direction. Extreme aura is the surface effect; extreme scientific substance is the mechanism.**
 
 The one non-negotiable intellectual core is the placebo question:
 
