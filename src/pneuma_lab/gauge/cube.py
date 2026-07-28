@@ -217,13 +217,33 @@ class ResponseCube:
             )
         )
 
-        present = [
-            cells_sorted[(i, c)]
+        # Choose the replicate depth that retains the most observations rather than
+        # letting one short cell truncate the whole design. A handful of unparseable
+        # replies would otherwise cost every item 25% of its data.
+        depths = [
+            min(len(cells_sorted[(i, c)]) for c in conditions)
             for i in items
-            for c in conditions
-            if (i, c) in cells_sorted
+            if all((i, c) in cells_sorted for c in conditions)
         ]
-        n_reps = min((len(v) for v in present), default=0)
+        n_reps = 0
+        kept = list(items)
+        if depths:
+            best_score = -1
+            for candidate in range(max(depths), 1, -1):
+                keep = [
+                    i
+                    for i in items
+                    if all((i, c) in cells_sorted for c in conditions)
+                    and min(len(cells_sorted[(i, c)]) for c in conditions) >= candidate
+                ]
+                if len(keep) < 2:
+                    continue
+                score = len(keep) * candidate
+                if score > best_score:
+                    best_score, n_reps, kept = score, candidate, keep
+        shallow = tuple(sorted(set(items) - set(kept)))
+        items = kept
+        dropped_items = tuple(sorted(set(dropped_items) | set(shallow)))
         cells = {
             (i, c): cells_sorted[(i, c)][:n_reps]
             for i in items

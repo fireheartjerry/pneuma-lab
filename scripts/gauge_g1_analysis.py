@@ -26,7 +26,7 @@ from pneuma_lab.gauge.placebo import placeboReport  # noqa: E402
 from pneuma_lab.gauge.remedies import runRemedies  # noqa: E402
 from pneuma_lab.gauge.resolution import effectiveSupport, gaugeResolution  # noqa: E402
 from pneuma_lab.gauge.stats import auroc, bootstrapCi  # noqa: E402
-from pneuma_lab.gauge.theory import ceilings  # noqa: E402
+from pneuma_lab.gauge.theory import aggregationCurve, ceilings, requiredK  # noqa: E402
 
 
 def _loadStage(run_dir: Path, name: str) -> ResponseCube | None:
@@ -67,6 +67,66 @@ def _cell(cube: ResponseCube, facets, label: str) -> dict:
         "distinct_values": len({round(v, 6) for v in flat}),
         "verdict": res.verdict,
     }
+
+
+def _costCurve(cube: ResponseCube, facets=("wording_id",)) -> dict:
+    """What does self-consistency actually buy, per unit of extra inference?
+
+    For each k, average k replicates into each of two disjoint measurement passes
+    and recompute the statistics a pipeline cares about. Two disjoint passes of
+    size k need 2k replicates, so the empirical curve stops at floor(R/2); beyond
+    that the theoretical Spearman-Brown-with-a-floor curve takes over.
+    """
+    matrix = cube.balancedMatrix(facets)
+    rows = matrix.itemRows()
+    max_k = matrix.n_reps // 2
+    points = []
+    for k in range(1, max_k + 1):
+        averaged: dict[tuple, list[float]] = {}
+        for item, cells in rows.items():
+            for cond, series in cells.items():
+                a = math.fsum(series[:k]) / k
+                b = math.fsum(series[k : 2 * k]) / k
+                averaged[(item, cond)] = [a, b]
+        res = gaugeResolution(_asMatrix(averaged, matrix))
+        points.append(
+            {
+                "k": k,
+                "calls_per_item": k * 2 * matrix.n_conditions,
+                "icc": res.icc,
+                "ndc": res.ndc,
+                "d": res.d,
+                "pct_grr": res.pct_grr,
+                "selection_stability": (res.selection_stability or {}).get("jaccard"),
+                "verdict": res.verdict,
+            }
+        )
+    vc = gaugeResolution(matrix).components
+    theory = aggregationCurve(
+        vc, systematic="condition_locked", ks=(1, 2, 4, 8, 16, 32, 10**6)
+    )
+    return {
+        "empirical": points,
+        "theoretical": theory,
+        "required_k_icc_0.70": requiredK(vc, target=0.70),
+        "required_k_icc_0.90": requiredK(vc, target=0.90),
+    }
+
+
+def _asMatrix(cells: dict, template) -> object:
+    from pneuma_lab.gauge.cube import BalancedMatrix
+
+    items = tuple(sorted({k[0] for k in cells}))
+    conditions = tuple(sorted({k[1] for k in cells}, key=str))
+    return BalancedMatrix(
+        cells=cells,
+        items=items,
+        conditions=conditions,
+        n_reps=2,
+        dropped_items=(),
+        dropped_conditions=(),
+        parse_failure_rate=template.parse_failure_rate,
+    )
 
 
 def _validity(cube: ResponseCube, truth: dict[str, int]) -> dict:
@@ -151,6 +211,22 @@ def main() -> int:
     print(
         f"observed AUROC={_f(validity['auroc'])} (n={validity['n']}), "
         f"ceiling from reliability={ceil.auroc:.4f}"
+    )
+
+    cost = _costCurve(core)
+    summary["cost_curve"] = cost
+    print("")
+    print("--- self-consistency cost curve (empirical) ---")
+    print(f"{'k':>3} {'ICC':>7} {'ndc':>4} {'D':>7} {'%GRR':>6} {'J(q=.2)':>8}  verdict")
+    for point in cost["empirical"]:
+        print(
+            f"{point['k']:>3} {point['icc']:>7.4f} {point['ndc']:>4} {point['d']:>7.4f} "
+            f"{point['pct_grr']:>6.1f} {_f(point['selection_stability']):>8}  {point['verdict']}"
+        )
+    print(
+        f"required k for ICC>=0.70: {cost['required_k_icc_0.70']}; "
+        f"for ICC>=0.90: {cost['required_k_icc_0.90']}; "
+        f"asymptote={cost['theoretical']['asymptote']:.4f}"
     )
 
     if "scales" in available:

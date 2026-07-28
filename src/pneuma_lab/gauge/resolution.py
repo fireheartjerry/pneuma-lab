@@ -163,7 +163,7 @@ def selectionStability(
     matrix: Mapping[tuple, Sequence[float]] | BalancedMatrix,
     *,
     q: float = 0.2,
-    draws: int = 32,
+    draws: int = 256,
     seed: int = 20260728,
 ) -> dict:
     """How reproducible is the *triage queue* a pipeline builds from this channel?
