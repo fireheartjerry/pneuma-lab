@@ -27,6 +27,14 @@ Setting `temperature=0` removes 100% of sampling variance and lifts the channel 
 build; **rephrasing the question reproduces 64%**. The field's one habitual reliability check
 — set temperature to zero and re-run — is precisely the check that cannot see this.
 
+Three properties explain the number. Split by ground truth, the channel has essentially no
+resolution _within_ a class (`ndc = 0`, %GRR 95.4 among correct implementations): almost all
+its item variance is a single correct-vs-buggy step, so it is a noisy binary detector wearing
+the costume of a continuous scale. Its repeatability is **2.54x worse on buggy code than on
+correct code** — least precise exactly where a verification pipeline needs it. And 38% of
+readings are pinned to the top of the scale, censored and unable to order each other. Against
+that, rephrasing the question moves the reading **54% as far as introducing a real bug does**.
+
 We prove that post-hoc calibration cannot help: every standard calibrator is weakly
 increasing, so it leaves rank-based resolution and AUROC exactly invariant. Empirically Platt
 scaling cut ECE by 0.30 while changing discrimination by 0.00e+00. We evaluate five standard
@@ -85,8 +93,18 @@ This paper does three things.
 - **A gauge card**: a schema-validated artifact carrying the design, decomposition, ceilings,
   a _prescription_ for what a fix would cost, all five remedies with error bars, and the
   placebo response.
-- **An honest negative on our own thesis.** We pre-registered that no technique would repair
-  the channel. Two do. We report the price instead.
+- **A mechanism for `ndc = 1`.** Stratifying the gauge study by ground truth shows the channel
+  carries one usable graduation — the correct-vs-buggy step — and essentially none within a
+  class. This reconciles "good classifier" with "cannot rank two items."
+- **Heteroscedasticity as a first-class finding.** Repeatability is 2.54x worse on buggy code
+  than on correct code. A single global reliability figure hides that the instrument is least
+  precise exactly where it is relied upon.
+- **A calibrated sense of how large wording effects are.** Rephrasing moves the reading 54% as
+  far as introducing a real bug does, using paraphrases a practitioner would treat as
+  interchangeable.
+- **A pre-registration that changed our conclusion.** We registered that no technique would
+  repair the channel; two do. We report the price instead, and the surviving claim — a
+  diagnostic gap in how the field validates every elicited metric — is the larger one.
 
 ---
 
@@ -325,7 +343,58 @@ operative, not decorative.
 Operationally: ask the same model the same question twice, build the queue a pipeline would
 build (least-confident 20%), and **43% of that queue changes**.
 
-### 6.3 Determinism is not reliability — the central result
+### 6.3 Why `ndc = 1`: the channel is a one-step detector, not a scale
+
+Splitting the gauge study by ground truth explains the headline number mechanistically.
+
+| subset            |   ndc |   ICC |   $D$ | %GRR |
+| ----------------- | ----: | ----: | ----: | ---: |
+| correct code only | **0** | 0.091 | 0.574 | 95.4 |
+| buggy code only   |     1 | 0.460 | 0.674 | 73.5 |
+| pooled            |     1 | 0.512 | 0.684 | 69.9 |
+
+Within a class, the channel has essentially **no** resolution — among correct implementations
+it is 95.4% gauge variance and $D = 0.574$, barely above a coin flip. Almost all of the
+pooled item variance is the single correct-vs-buggy step. That is precisely what `ndc = 1`
+means and it is not a metaphor: the instrument has one usable graduation. It behaves as a
+noisy binary detector wearing the costume of a continuous scale, which is why it can be a
+decent classifier (§6.2) and still be unable to rank two patches.
+
+Two further properties compound this.
+
+**Heteroscedasticity — the gauge is noisiest exactly where it matters.** Repeatability SD is
+**0.062** on code that passes its hidden tests and **0.158** on code with a seeded bug: the
+instrument is **2.54x less precise on the items a verification pipeline exists to catch**. A
+single global reliability figure hides this entirely.
+
+**Saturation.** **38.3%** of readings sit exactly at the top of the scale (40.5% at either
+endpoint). Pinned readings are censored — they report "at least this much" and cannot order
+each other — which caps resolution independently of any variance component. Of the readings
+at maximum confidence, **281 are on code that fails its hidden tests**.
+
+### 6.4 A rephrase moves the reading half as far as a real bug does
+
+The eight wordings are semantically equivalent requests for the same judgement about the same
+code. Their means are not:
+
+| wording                                         |      mean | wording                                        |  mean |
+| ----------------------------------------------- | --------: | ---------------------------------------------- | ----: |
+| w1 "how confident … correct?"                   |     0.903 | w5 "chance a reviewer finds a bug?" (rev.)     | 0.834 |
+| w2 "probability it passes a hidden test suite?" | **0.811** | w6 "likely it fails a hidden test?" (rev.)     | 0.871 |
+| w3 "certainty it contains no bugs?"             | **0.909** | w7 "estimate the reliability"                  | 0.878 |
+| w4 "credence that this code is correct?"        |     0.882 | w8 "how sure it does what the docstring says?" | 0.893 |
+
+The spread across wordings is **0.098**. The spread between code that works and code that
+does not is **0.181**. So:
+
+> **Rephrasing the question moves the reported confidence 54% as much as actually
+> introducing a bug does.**
+
+"How confident are you that this is correct?" and "What is the probability it passes a hidden
+test suite?" differ by 0.092 — and these are not adversarial paraphrases, they are the two
+phrasings a practitioner would consider interchangeable.
+
+### 6.5 Determinism is not reliability — the central result
 
 |                                          | T = 0.0 (greedy) |         T = 0.7 |
 | ---------------------------------------- | ---------------: | --------------: |
@@ -352,7 +421,7 @@ while 54% of its variance still comes from a prompt-wording choice nobody logged
 this is the most consequential finding here, because it explains how the field arrived at
 confidence in these numbers without ever measuring their reliability.
 
-### 6.4 Response precision
+### 6.6 Response precision
 
 | scale            | ndc |   ICC |   $D$ | %GRR | $S_{eff}$ |  mean | verdict         |
 | ---------------- | --: | ----: | ----: | ---: | --------: | ----: | --------------- |
@@ -365,11 +434,11 @@ Invariant to response precision. Offering two decimal places buys 7.2 effective 
 the 0–10 and 0.00–1.00 scales. That is the instrument's zero point moving, not the model's
 mind.
 
-### 6.5 Placebo arm
+### 6.7 Placebo arm
 
 ⟦PENDING — placebo stage numbers, filled from `build/gauge/g1/summary.json`.⟧
 
-### 6.6 Confound control
+### 6.8 Confound control
 
 E-0 in this repository died of a length confound, so the same trap is checked explicitly.
 Confidence correlates with source length at $+0.278$ — but length correlates with correctness
@@ -378,7 +447,7 @@ sibling of near-identical length on an identical task. The **within-spec** contr
 cannot be produced by length or topic, and it is decisive: the correct sibling is rated higher
 in **21 of 23** specs, mean difference $+0.188$.
 
-### 6.7 Provenance — is this about introspection?
+### 6.9 Provenance — is this about introspection?
 
 ⟦PENDING — `provenance_self` vs `provenance_foreign`.⟧
 
@@ -386,11 +455,11 @@ The `foreign` arm that produced every number above **is already an LLM-as-judge 
 model is rating code it did not write. Whatever holds there transfers directly to judge scores
 and elicited eval ratings, independent of any question about self-knowledge.
 
-### 6.8 Model families, sizes, arithmetic precision
+### 6.10 Model families, sizes, arithmetic precision
 
 ⟦PENDING — `families` stage, including the F16-vs-Q4_K_M pair of the same 7B model.⟧
 
-### 6.9 The five remedies
+### 6.11 The five remedies
 
 | remedy            | statistic                           |     value | verdict                |
 | ----------------- | ----------------------------------- | --------: | ---------------------- |

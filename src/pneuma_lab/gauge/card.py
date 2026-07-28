@@ -192,6 +192,7 @@ def buildCard(
             "d_ci": d_ci.asDict(),
             "resolving_power": resolution.resolving_power,
             "s_eff": resolution.s_eff,
+            "saturation": resolution.saturation,
             "selection_stability": resolution.selection_stability,
             "cross_condition_stability": resolution.cross_condition_stability,
         },
@@ -328,6 +329,7 @@ def renderCard(card: dict) -> str:
         f"| discrimination index D | {_fmt(res['d'])} | {_ci(res.get('d_ci'))} |",
         f"| resolving power | {_fmt(res['resolving_power'])} | — |",
         f"| effective support | {_fmt(res['s_eff'])} levels | — |",
+        _saturationRow(res),
         _selectionRow(res),
         _crossRow(res),
         "",
@@ -399,6 +401,17 @@ def _selectionRow(res: dict) -> str:
     return (
         f"| selection stability (bottom {sel['q']:.0%}) | {_fmt(sel['jaccard'])} "
         f"| random floor {_fmt(sel['random_floor'])} |"
+    )
+
+
+def _saturationRow(res: dict) -> str:
+    """Readings pinned to a scale endpoint are censored and cannot order each other."""
+    sat = res.get("saturation")
+    if not sat:
+        return "| saturation | n/a | — |"
+    return (
+        f"| saturation (readings at a scale endpoint) | {_fmt(sat['saturated'])} "
+        f"| {_fmt(sat['at_high'])} at ceiling |"
     )
 
 

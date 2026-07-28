@@ -54,6 +54,7 @@ class GaugeResolution:
     d: float
     resolving_power: float
     s_eff: float
+    saturation: dict | None
     verdict: str
     components: VarianceComponents
     selection_stability: dict | None = None
@@ -67,6 +68,7 @@ class GaugeResolution:
             "d": self.d,
             "resolving_power": self.resolving_power,
             "s_eff": self.s_eff,
+            "saturation": self.saturation,
             "verdict": self.verdict,
             "selection_stability": self.selection_stability,
             "cross_condition_stability": self.cross_condition_stability,
@@ -159,6 +161,23 @@ def effectiveSupport(values: Sequence[float], *, quantum: float = 1e-9) -> float
         key = int(round(float(v) / quantum))
         counts[key] = counts.get(key, 0) + 1
     return math.exp(shannonEntropy(list(counts.values())))
+
+
+def saturationRate(
+    values: Sequence[float], *, low: float = 0.0, high: float = 1.0, tol: float = 1e-9
+) -> dict:
+    """Fraction of readings pinned to an endpoint of the scale.
+
+    A saturated reading is censored: the instrument is reporting "at least this
+    much" rather than a value. High saturation caps resolution independently of
+    every variance component, because pinned readings cannot order each other.
+    """
+    if not values:
+        return {"at_high": 0.0, "at_low": 0.0, "saturated": 0.0}
+    n = len(values)
+    at_high = sum(1 for v in values if v >= high - tol) / n
+    at_low = sum(1 for v in values if v <= low + tol) / n
+    return {"at_high": at_high, "at_low": at_low, "saturated": at_high + at_low}
 
 
 def selectionStability(
@@ -356,6 +375,7 @@ def gaugeResolution(matrix: BalancedMatrix) -> GaugeResolution:
         d=d,
         resolving_power=p,
         s_eff=s_eff,
+        saturation=saturationRate(flat),
         verdict=gaugeVerdict(pct_grr=g, ndc_value=n, icc_value=i, d=d, s_eff=s_eff),
         components=vc,
         selection_stability=selectionStability(matrix),
@@ -390,5 +410,6 @@ __all__ = [
     "pctGrr",
     "crossConditionStability",
     "resolvingPower",
+    "saturationRate",
     "selectionStability",
 ]
