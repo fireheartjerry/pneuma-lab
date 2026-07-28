@@ -478,13 +478,35 @@ sibling of near-identical length on an identical task. The **within-spec** contr
 cannot be produced by length or topic, and it is decisive: the correct sibling is rated higher
 in **21 of 23** specs, mean difference $+0.188$.
 
-### 6.9 Provenance — is this about introspection?
+### 6.9 Provenance — the failure is not about introspection
 
-⟦PENDING — `provenance_self` vs `provenance_foreign`.⟧
+If the failure were introspective — a model being bad at knowing its own mind — it would not
+appear when the model rates code it never wrote. We ran both arms. In `self_authored` the
+model writes the solution and is asked about it **in the same conversation**, so the report is
+a genuine self-report rather than role-play; in `foreign` it rates bank code it has never
+seen, which is exactly an LLM-as-judge setup.
 
-The `foreign` arm that produced every number above **is already an LLM-as-judge setup**: the
-model is rating code it did not write. Whatever holds there transfers directly to judge scores
-and elicited eval ratings, independent of any question about self-knowledge.
+| arm                      | items |   ndc |   ICC |       $D$ | %GRR | $S_{eff}$ |  mean | verdict         |
+| ------------------------ | ----: | ----: | ----: | --------: | ---: | --------: | ----: | --------------- |
+| self-authored (own code) |    24 | **0** | 0.069 | **0.562** | 96.5 |      2.71 | 0.961 | UNINTERPRETABLE |
+| foreign, matched         |    23 | **0** | 0.139 | **0.566** | 92.8 |      3.05 | 0.970 | UNINTERPRETABLE |
+
+The two arms are indistinguishable: $D$ differs by **0.003**, both resolve `ndc = 0`
+categories, both are >90% gauge variance. There is also **no self-enhancement** — the model
+is if anything marginally _less_ confident about its own code ($-0.009$).
+
+**G1-H2 is confirmed.** The collapse is not a fact about self-knowledge; it is a fact about
+elicitation as a measurement modality. That is what carries the result out of the
+introspection literature and into every LLM-as-judge number and elicited eval score in the
+field: a judge rating an artifact it did not produce is the _foreign_ arm, and the foreign arm
+is no better.
+
+Both arms are range-restricted by construction (the foreign arm is correct-variant items only;
+the self-authored arm is the model's own solutions), which inflates %GRR in both. The
+restriction is symmetric, so the comparison between them is fair, but the absolute numbers in
+this table should be read against §6.2 rather than on their own. Notably the within-class
+result from §6.3 reappears here independently: restricted to a single correctness class, the
+channel resolves nothing at all.
 
 ### 6.10 Model families, sizes, arithmetic precision
 
@@ -599,7 +621,7 @@ Reported in full, including against us.
 | Hypothesis | Pre-registered                                                 | Observed                             | Status                  |
 | ---------- | -------------------------------------------------------------- | ------------------------------------ | ----------------------- |
 | G1-H1      | `ndc <= 1` **and** `D < 0.65`                                  | `ndc = 1`, `D = 0.684`               | **partially falsified** |
-| G1-H2      | foreign not better than self-authored                          | ⟦PENDING⟧                            | ⟦PENDING⟧               |
+| G1-H2      | foreign not better than self-authored                          | $\Delta D = 0.003$, both `ndc = 0`  | **confirmed**           |
 | G1-H3      | no model cell reaches `USABLE`                                 | ⟦PENDING⟧                            | ⟦PENDING⟧               |
 | G1-H4      | neither temperature reaches `ndc >= 2`; $S_{eff} < 2$ at `T=0` | `ndc = 2` at `T=0`, $S_{eff} = 4.07$ | **falsified**           |
 | G1-H5      | all five remedies stay below the floor                         | wording-averaging reaches ICC 0.910  | **partially falsified** |
