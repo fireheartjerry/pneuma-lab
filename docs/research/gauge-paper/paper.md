@@ -557,6 +557,14 @@ One line a reviewer can ask:
   failing elicited card is an argument for using them — `⟦CLOUD-EXP-4⟧`.
 - **A card describes a channel plus a protocol, not a model.** `UNINTERPRETABLE` does not mean
   the model lacks calibrated internal states.
+- **"Form" is not perfectly isolated from "meaning" in §6.7.** The eight wordings are close
+  paraphrases, but they are not purely syntactic: "probability it passes a hidden test suite"
+  names a specific referent that "confident it is correct" does not, so part of the 0.098
+  spread may be a genuine difference in what was asked rather than pure form. The sham/treated
+  contrast is clean — the sham block is definitionally uninformative — but the strongest
+  version of the form claim needs paraphrases sampled from a generative distribution and
+  screened for semantic equivalence, which is `⟦CLOUD-EXP-7⟧`. We state the finding as
+  "sensitive to how the question is asked" rather than "sensitive to syntax alone."
 - **Verdict thresholds are imported** from AIAG and clinimetrics rather than derived for this
   domain. They are pre-registered and reported alongside raw statistics so a reader can apply
   their own — `⟦CLOUD-EXP-6⟧`.

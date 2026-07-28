@@ -11,9 +11,15 @@ any two items. The dominant defect is **reproducibility, not repeatability**: se
 temperature to 0 removes 100% of the sampling variance and the channel still fails, because
 54% of its total variance comes from _how the question was phrased_.
 
-**Two of our own pre-registered hypotheses were falsified.** They are reported first,
-in full, below. The thesis that survives is weaker and more useful than the one we
-pre-registered.
+The channel is also **not suggestible**: a length-matched, task-irrelevant context block does
+not move it (p = 0.72) while a genuinely relevant one moves it sharply (p = 2.2e-10). Yet
+merely _rephrasing the question_ moves it more than that relevant block does. The channel
+**ignores irrelevant content and obeys irrelevant form**.
+
+**Three of our own pre-registered hypotheses were falsified** (H1 partially, H4, H5
+partially, H6). They are reported in full below. The finding that survives is not the one we
+registered — it is a diagnostic gap in how elicited metrics are validated, which is a larger
+claim than the one we set out to test.
 
 ---
 
@@ -140,11 +146,11 @@ variance is still coming from a prompt-wording choice nobody logged.
 
 ## 6. Placebo arm (G1-H6) — falsified, and it matters
 
-| arm | context block | mean | contrast vs base | p |
-| --- | --- | ---: | ---: | ---: |
-| `base` | none | 0.8587 | — | — |
-| `sham` | 297 chars, task-irrelevant | 0.8632 | **+0.0044** | **0.72** |
-| `treated` | 293 chars, genuinely relevant | 0.7735 | **-0.0876** | **2.2e-10** |
+| arm       | context block                 |   mean | contrast vs base |           p |
+| --------- | ----------------------------- | -----: | ---------------: | ----------: |
+| `base`    | none                          | 0.8587 |                — |           — |
+| `sham`    | 297 chars, task-irrelevant    | 0.8632 |      **+0.0044** |    **0.72** |
+| `treated` | 293 chars, genuinely relevant | 0.7735 |      **-0.0876** | **2.2e-10** |
 
 Placebo-dominance ratio **Pi = 0.000**, CI [0.000, 0.011], against an item variance of 0.041.
 The minimum detectable effect at this design is 0.0235, so the study could comfortably have
@@ -155,7 +161,7 @@ not suggestible at all: irrelevant repository chatter does not move it, and a ge
 relevant prior-failure memo moves it sharply in the correct direction.
 
 Set against section 4 — where merely rephrasing the question shifts the reading by 0.098,
-*more* than the 0.088 a real prior-failure memo achieves — the precise statement is:
+_more_ than the 0.088 a real prior-failure memo achieves — the precise statement is:
 
 > The channel **ignores irrelevant content and obeys irrelevant form**. It is robust to what
 > you put in the prompt and highly sensitive to how you ask the question.
