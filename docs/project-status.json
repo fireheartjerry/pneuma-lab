@@ -68,6 +68,14 @@
                     "build/e0/report.json",
                     "docs/research/experiments/e0-results.md"
                 ]
+            },
+            {
+                "id": "g1_self_report_gauge",
+                "verdict": "failed_preregistered_hypotheses",
+                "evidence_refs": [
+                    "docs/research/experiments/g1-gauge-preregistration.md",
+                    "docs/research/experiments/g1-gauge-results.md"
+                ]
             }
         ]
     },

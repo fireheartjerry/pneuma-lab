@@ -82,6 +82,18 @@ _CURRENT_NEGATIVE_RESULTS = {
             )
         ),
     },
+    # G-1 falsified three of its six registered hypotheses (H1 partially, H4, H5
+    # partially, H6) and confirmed H2. The surviving finding is a measurement-
+    # methodology result, not a psyche or evidence-ladder claim.
+    "g1_self_report_gauge": {
+        "verdict": "failed_preregistered_hypotheses",
+        "evidence_refs": frozenset(
+            (
+                "docs/research/experiments/g1-gauge-preregistration.md",
+                "docs/research/experiments/g1-gauge-results.md",
+            )
+        ),
+    },
 }
 
 
