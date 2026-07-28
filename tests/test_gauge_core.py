@@ -268,6 +268,18 @@ def test_selection_stability_brackets_a_good_gauge_and_pure_noise():
     assert good["n_selected"] == 10
 
 
+def test_saturation_detects_censored_readings():
+    from pneuma_lab.gauge.resolution import saturationRate
+
+    assert saturationRate([1.0] * 10)["at_high"] == 1.0
+    assert saturationRate([0.0] * 10)["at_low"] == 1.0
+    mixed = saturationRate([1.0, 1.0, 0.5, 0.5, 0.0, 0.3])
+    assert mixed["at_high"] == pytest.approx(2 / 6)
+    assert mixed["at_low"] == pytest.approx(1 / 6)
+    assert mixed["saturated"] == pytest.approx(3 / 6)
+    assert saturationRate([])["saturated"] == 0.0
+
+
 def test_selection_stability_is_deterministic():
     m = _matrix(0.1, 0.05, 0.02, 0.15)
     assert selectionStability(m, q=0.25) == selectionStability(m, q=0.25)

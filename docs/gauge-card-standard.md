@@ -132,6 +132,10 @@ statistics carry the load:
   can only lower it.
 - **Effective support** $S_{eff} = \exp(H)$ — how many levels the channel actually
   emits, regardless of how many it was offered.
+- **Saturation** — the fraction of readings pinned to an endpoint of the scale. A
+  saturated reading is censored: it reports "at least this much" and cannot order
+  itself against another saturated reading, so high saturation caps resolution
+  independently of every variance component.
 
 Two statistics translate all of that into the decision a pipeline actually makes.
 A pipeline does not consume the mean of a confidence channel; it ranks items and
@@ -181,6 +185,11 @@ channel is purchasable with compute and certifies nothing.
   under rewording, and a single-facet design cannot see it.
 - **Report the parse-failure rate.** Responses your parser rejected are data about
   the channel, not noise to be swept up.
+- **Stratify by outcome if you have ground truth.** A single global reliability
+  figure can hide that the instrument is far less precise on exactly the cases it
+  exists to catch. In the study motivating this standard, repeatability was 2.54x
+  worse on incorrect items than on correct ones, and resolution _within_ the correct
+  class was nil while the pooled figure looked merely poor.
 
 ## Using it
 
