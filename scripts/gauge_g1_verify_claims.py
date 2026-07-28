@@ -170,6 +170,28 @@ def main() -> int:
         fv = mean([x.value for x in fore_arm.rows if x.parse_ok])
         claim("self-enhancement delta", "-0.010", sv - fv)
 
+    # remedy battery figures quoted in section 9 / 6.11
+    from pneuma_lab.gauge.remedies import calibration, selfConsistency, thresholding, wordingAveraging
+
+    claim("thresholding kappa", "0.727", thresholding(core, draws=300).value)
+    claim("thresholding flip rate", "0.122", thresholding(core, draws=10).detail["flip_rate"])
+    cal = calibration(core, truth, draws=300)
+    claim("calibration D unchanged", "0.684", cal.value)
+    claim(
+        "calibration D delta (T2: exactly zero)",
+        "0.0",
+        abs(cal.detail["after"]["platt"]["d"] - cal.detail["before"]["d"]),
+    )
+    claim(
+        "calibration ECE drop",
+        "0.3106",
+        cal.detail["before"]["ece"] - cal.detail["after"]["platt"]["ece"],
+    )
+    claim("wording-averaging ICC", "0.900", wordingAveraging(core, draws=300).value)
+    sc = selfConsistency(core, draws=300)
+    claim("self-consistency ICC at k=4", "0.760", sc.value)
+    claim("self-consistency asymptote", "0.870", sc.detail["asymptote"])
+
     scales = _load(run_dir, "scales")
     if scales is not None:
         means = {}
