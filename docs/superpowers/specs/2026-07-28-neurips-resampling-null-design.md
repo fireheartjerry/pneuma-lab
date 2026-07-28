@@ -125,63 +125,296 @@ experimental subject and cannot be pooled silently.
   `70ec57e852e3f2d195790fe71f553e272c691833`.
 - Dataset: `SWE-bench-Live/MultiLang`
   `608f7ae9ab8ea1f9f0d030fe04562cf6bd1a0c8b`.
-- Dataset surface at that revision: 743 tasks, 381 repositories, eight
-  language splits.
-- License: harness and dataset MIT; every upstream repository and image keeps
-  its own license and must pass the per-base-commit audit.
+- Required RepoLaunch runtime/submodule:
+  `microsoft/RepoLaunch`
+  `7735b1e7363dd3bbc69bd0ef80db646a2ae391fd`.
+- Dataset surface at that revision: 743 tasks, 381 literal repository strings,
+  380 current GitHub repository IDs, one dataset configuration, and eight
+  language splits. `vmware-tanzu/velero` and `velero-io/velero` resolve to one
+  GitHub repository and therefore one root lineage; six other dataset names
+  currently redirect after repository renames.
+- License: harness, dataset, and RepoLaunch metadata are MIT. That does not
+  license the 381 upstream repositories, their historical base commits, or
+  their container contents. Every candidate must pass the base-commit license
+  audit below.
 - Primary endpoint: all registered `FAIL_TO_PASS` and `PASS_TO_PASS` checks pass
-  in a clean endpoint image.
+  with exact complete observation in a clean endpoint image. Missing, skipped,
+  unparsed, or duplicate registered checks fail closed.
+
+The current GitHub `isArchived` plus SPDX
+`{MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, Zlib}` scan is a diagnostic
+proxy, not an eligibility result:
+
+| split | tasks | literal repositories | proxy tasks | proxy root lineages |
+| --- | ---: | ---: | ---: | ---: |
+| C | 37 | 20 | 24 | 9 |
+| C++ | 74 | 30 | 18 | 14 |
+| C# | 87 | 32 | 75 | 26 |
+| Go | 138 | 92 | 123 | 77 |
+| Java | 109 | 60 | 85 | 44 |
+| JavaScript | 93 | 43 | 78 | 35 |
+| Rust | 94 | 41 | 73 | 28 |
+| TypeScript | 111 | 63 | 78 | 45 |
+| **total** | **743** | **381** | **554** | **278** |
+
+Four repositories are currently archived. Current archive, rename, fork, or
+license metadata never substitutes for evidence at the task's base commit.
+There is no strict post-2026 task cutoff: a date-only filter leaves five
+distinct C repositories and cannot support either tier. Contamination risk is
+reported and bounded through public-artifact disclosure, lineage/date
+sensitivities, and exact base-commit provenance rather than a fictional cutoff.
+The harness environment also leaves material dependencies unpinned and carries
+RepoLaunch as a submodule. The adapter manifest must resolve and hash a complete
+dependency lock and the RepoLaunch commit above; a top-level harness commit
+alone is not a runnable-environment receipt.
 
 Eligible tasks must:
 
 1. come from a non-archived repository with an unambiguous permissive
    MIT/Apache/BSD/ISC/Zlib-class license at the task's base commit;
-2. have a buildable pinned image;
-3. pass the gold patch and regression suite in three consecutive clean runs;
-4. fail at least one target check at the base commit;
-5. require no private credential, mutable external service, or unsupported
-   accelerator; and
-6. contribute at most one task per repository to a confirmatory roster.
+2. resolve its official image to an immutable OCI
+   `linux/amd64@sha256:<digest>` manifest/config/layer set and mirror those
+   bytes provider-locally; all 743 upstream image references are currently
+   untagged and digest-free, so the raw references are ineligible;
+3. run in the hardened adapter with networking disabled, no credential,
+   provider metadata, host-gateway, Docker-socket, or mutable host mount, and a
+   separately isolated public `log_parser`; the official controller-side
+   Python `exec` path is forbidden;
+4. pass three independent fresh base/gold container pairs. In every pair, test
+   and gold patches apply cleanly, the base reports at least one registered
+   `FAIL_TO_PASS` failure, and gold reports every registered `FAIL_TO_PASS` and
+   `PASS_TO_PASS` check exactly once as pass, with successful patch and test
+   command exits;
+5. produce identical parsed outcomes across all three pairs without external
+   services, credentials, accelerators, parser escape, timeout, or resource
+   exhaustion. The official same-container three-gold loop is not this gate;
+6. pass roster-measured CPU, memory, disk, and timeout admission. The official
+   hard-coded four CPU/16 GiB runtime is not inherited because some C++ tasks
+   require about 50 GiB;
+7. bind the complete row hash, base commit/tree, issue/PR IDs, date, image
+   digests, parser/command/F2P/P2P digests, and license evidence; and
+8. contribute at most one task per canonical root repository/mirrored-tree
+   lineage to a confirmatory roster.
 
-The preferred `C160` roster has 160 tasks from 160 repositories. The minimum
-defensible `C120` roster has 120 tasks from 120 repositories with allocation:
+The minimum `C120` confirmation roster keeps the fixed allocation
 9 C, 14 C++, 16 C#, 17 Go, 16 Java, 16 JavaScript, 16 Rust, and 16 TypeScript.
-The exact `C160` allocation is produced before subject execution by the frozen
-registry builder, with at least 12 tasks per language and no repository reuse.
+The current metadata proxy has zero confirmation-lineage slack in C and C++;
+the disjoint pilot needs two additional root lineages per split. Even with zero
+fixed reserves, C120 therefore needs at least 11 qualified C and 16 qualified
+C++ lineages, while the proxy has 9 and 14. `C120` is currently
+`FEASIBILITY_NO_GO`, not merely fragile. It becomes conditionally feasible only
+if the full base-commit, image, isolation, and three-pair audit yields, for
+every split `s`,
+`eligible_s >= C120_quota_s + 2 pilot_s + fixed_reserve_s`.
+
+`C160` is presently `FEASIBILITY_NO_GO`: the current proxy has only nine C
+lineages. It becomes eligible for roster construction only if the base-commit
+audit leaves enough confirmation candidates after two pilots and the
+manifest-fixed reserve count in every split. The confirmation allocator then
+assigns 12 per split and distributes the remaining 64 places by Hamilton
+largest remainder over each split's post-pilot, post-reserve
+`eligible_lineages - 12`, breaking ties by canonical split order
+`C, C++, C#, Go, Java, JavaScript, Rust, TypeScript`. The final gate is
+`eligible_s >= C160_quota_s + 2 pilot_s + fixed_reserve_s` for every split;
+before Hamilton assigns any extra C places, C alone therefore needs at least
+14 qualified lineages plus its fixed reserves.
+
+The SWE eligibility manifest freezes every accepted and rejected row before
+the draw. Within a split, the ranking key is:
+
+```text
+HMAC-SHA256(
+    roster_seed,
+    "swe-roster-v1\0"
+    || dataset_revision || "\0"
+    || split || "\0"
+    || root_lineage_id || "\0"
+    || instance_id || "\0"
+    || canonical_task_record_sha256
+)
+```
+
+The manifest freezes `fixed_reserve_s` for every split before tier selection;
+that count may be zero but cannot be inferred from later failures. The 16
+pilots, nested C120 membership, possible C160 extensions, fixed reserves, and
+the order of every remaining eligible lineage are materialized and sealed in
+one transaction. Subject outcomes, pilot efficacy, grader outcomes, or branch
+failures can never replace a task. An execution failure is an adverse outcome
+or a predeclared whole-tier no-go, not a roster redraw.
 
 ### 4.2 τ³-bench objective text subset
 
 - Repository: `sierra-research/tau2-bench`.
-- Tag: `v1.0.1`.
-- Dereferenced revision:
+- Annotated tag: `v1.0.1`; tag object
+  `b711c1ead46f55111bf765cf44d5da8bacc2d28c`.
+- Peeled commit:
   `fc0055dc4e0a316c3f83133267fbd6faaa770992`.
 - License: MIT.
 - Python contract: `>=3.12,<3.14`.
+- Packaging caveat: `pyproject.toml` declares `1.0.1`, while the editable
+  `tau2` entry in the pinned `uv.lock` still declares `1.0.0`. Commit, tag
+  object, source blobs, lockfile blob, environment image, and installed
+  dependency receipts are authoritative; an installed package version string
+  alone is not.
 
-The eligible pool contains only tasks with objective evaluation components:
+The pinned data contain these objective components:
 
-| domain | eligible pool | accepted evaluator components |
-| --- | ---: | --- |
-| airline | 50 | `DB`, `COMMUNICATE` |
-| telecom base | 114 | `ENV_ASSERTION`, and where present `ACTION` |
-| banking knowledge | 97 | `DB`, `ACTION`; frozen offline BM25 retrieval |
+| domain / stratum | pinned tasks | confirmatory tasks | reward basis |
+| --- | ---: | ---: | --- |
+| airline | 50 | 50 | all `DB + COMMUNICATE` |
+| telecom `mms_issue` base | 49 | 49 | all `ENV_ASSERTION` |
+| telecom `mobile_data_issue` base | 36 | 36 | all `ENV_ASSERTION` |
+| telecom `service_issue` base | 29 | 29 | 20 `ACTION + ENV_ASSERTION`; 9 `ENV_ASSERTION` |
+| banking knowledge | 97 | 88 | 88 `DB`; 9 `ACTION` excluded |
 
 Retail is excluded because 112 of 114 tasks depend on an LLM
-`NL_ASSERTION`. Voice mode and API-backed retrieval are excluded. The resulting
-pool is 261 task definitions.
+`NL_ASSERTION`. Voice mode and API-backed retrieval are excluded. Telecom's
+`tasks.json` contains 2,285 generated tasks; the 114-task base is obtained only
+by exact membership in `split_tasks.json["base"]`, with uniqueness and the
+49/36/29 family counts asserted. The pinned objective data pool is 261 task
+definitions. The confirmatory pool is **252** after excluding the nine
+banking `ACTION`-only tasks because the official action matcher ignores
+requestor and can accept a predicted call that omits expected argument keys.
+
+The primary τ³ endpoint is frozen to:
+
+```text
+evaluation_type = EvaluationType.ALL
+mode = CommunicationMode.HALF_DUPLEX
+strict_replay = True
+evaluator_network_call_count = 0
+```
+
+`ALL_WITH_NL_ASSERTIONS`, `ALL_IGNORE_BASIS`, and every LLM evaluator are
+forbidden. The primary reports the official v1.0.1 result, including the 20
+unavoidable telecom `ACTION + ENV_ASSERTION` tasks. A separately frozen strict
+integrity secondary is requestor-aware and requires a one-to-one match on
+action name plus exact canonical argument-dictionary equality, with no missing
+or extra keys; it never changes the official primary reward.
 
 The preferred `C160` roster contains 44 airline, 58 telecom, and 58 banking
 tasks. The `C120` roster contains 40 from each domain. A domain-stratified
-deterministic hash chooses tasks. Telecom receives an additional
-issue-family-blocked and leave-one-family-out sensitivity because its 114 tasks
-derive from only three issue families.
+deterministic HMAC chooses tasks. The nine τ³ pilots are three per domain and
+disjoint from confirmation and reserves. Telecom pilots are exactly one
+`mms_issue`, one `mobile_data_issue`, and one `service_issue`; the service
+pilot is drawn from `ACTION + ENV_ASSERTION` so the official and strict action
+paths are exercised before confirmation.
+
+The nested telecom confirmation quotas are:
+
+| tier | `mms_issue` | `mobile_data_issue` | `service_issue` | service component split |
+| --- | ---: | ---: | ---: | --- |
+| C120 | 17 | 13 | 10 | 7 `ACTION + ENV_ASSERTION`; 3 `ENV_ASSERTION` |
+| C160 | 25 | 18 | 15 | 10 `ACTION + ENV_ASSERTION`; 5 `ENV_ASSERTION` |
+
+C120 is roster-feasible if its qualification gates pass. C160 is eligible only
+if at least 47 airline tasks qualify across its three pilots and 44
+confirmation tasks and the manifest contains at most three ordered airline
+reserves. A fourth required airline reserve or more than three airline
+qualification losses records `FEASIBILITY_NO_GO` for C160; it never triggers a
+post-outcome redraw.
+
+Banking uses exactly `retrieval_variant="bm25"`, `top_k=10`,
+`rank-bm25==0.2.2`, `numpy==2.3.5`, the pinned
+`classic_rag_bm25_no_grep.md` at Git blob
+`c6931d1a5eb1db4652f6084e13102fbe457cb3f3`, and no reranker, grep, dense
+embedding, shell, API, sandbox, or `golden_retrieval`. The adapter loads the
+698 pinned documents from Git tree
+`3b9506137142d433153e001ce9d40c6f7c28a527` only after rejecting duplicate
+IDs, orders them by canonical UTF-8 document ID, and resolves tied scores by
+`(-score, document_id)`. It disables or content-keys the upstream global
+document cache and seals the ordered-document digest. Model-visible search
+results replace retrieval, post-processing, and total wall-time fields with one
+frozen constant; raw timings remain out-of-band telemetry.
 
 The user simulator is a frozen, locally served
 `Qwen/Qwen3.5-9B` at
 `c202236235762e1c871ad0ccb60c8ee5ba337b9a`, greedy decoding, with prompt,
-chat template, turn cap, and per-turn seed recorded. This differs from the
-official frontier user-simulator setting and must be described as an internal,
-fully reproducible objective setting rather than leaderboard parity.
+chat template, tool schema, global guideline, persona configuration, turn cap,
+and per-call seed recorded. The controller calls the local server directly;
+the upstream run-level `UserSimulator` seed and LiteLLM `drop_params` path are
+not used. For role `user_simulator` and zero-based call index `k`, the server
+seed is derived by the frozen domain-separated KDF:
+
+```text
+task_bytes   = UTF8_NFC(task_opaque_id)
+branch_bytes = UTF8_NFC(branch_or_prefix_id)
+
+message =
+      ASCII("resampling-null:tau-user:v1")
+    || UINT64_BE(slot_or_prefix_root_seed)
+    || UINT32_BE(len(task_bytes)) || task_bytes
+    || UINT32_BE(len(branch_bytes)) || branch_bytes
+    || UINT64_BE(k)
+
+seed_k = UINT64_FROM_BE(SHA256(message)[0:8])
+```
+
+The root seed and `k` must be in `[0, 2^64)`. Both text fields must round-trip
+through canonical NFC UTF-8, contain no NUL or surrogate, and fit the unsigned
+32-bit byte-length prefix; any violation fails before a model call. No decimal
+stringification or delimiter-based concatenation is permitted.
+
+The persisted receipt binds call index, input token IDs, seed, output token
+IDs, tool-call bytes, model/tokenizer/template/prompt/tool-schema/container
+digests, and state-before/state-after digests. A cold-process, cold-model-server
+duplicate fixture must be byte-identical; a server that ignores the seed or
+changes token IDs is a no-go. This differs from the official frontier
+user-simulator setting and must be described as an internal, fully
+reproducible objective setting rather than leaderboard parity.
+
+The telecom adapter replaces the latent
+`B{uuid.uuid4().hex[:8]}` draft-bill path with a deterministic
+task/branch-local counter keyed by the frozen environment seed. Predicted and
+gold replay receive the same generator implementation and receipt. The
+official gold paths currently avoid the UUID branch because all 50 base
+`refuel_data` actions target `C1001/L1002`, whose customer has draft bill
+`B1003`; off-policy subject calls can reach it, so leaving the random path
+latent is forbidden.
+
+Before roster selection, every τ³ candidate must pass all of:
+
+1. canonical task/schema parsing and the exact revision/blob/count assertions;
+2. confirmatory reward-basis membership, no `NL_ASSERTION` basis, half-duplex
+   text mode, and banking `DB`-only exclusion;
+3. fresh environment reset, clone, snapshot, and restore byte equality;
+4. official gold endpoint `1` and identical component output in three fresh
+   processes under `ALL`, half-duplex, strict replay, and zero evaluator
+   network calls;
+5. requestor-aware strict-action secondary fixtures for telecom service tasks;
+6. cold-process BM25 index/query byte equality, explicit tie fixtures, timing
+   sanitization, and no unkeyed-cache reuse;
+7. cold-start local simulator byte equality with accepted seed receipts;
+8. off-policy tool fuzz proving deterministic telecom ID creation and complete
+   environment replay;
+9. a leakage audit proving description, ticket, task ID, evaluation criteria,
+   gold actions/arguments, assertions/expected values, required documents,
+   target DB state/hash, and issue notes remain controller-only; and
+10. measured memory, disk, context, output-token, and wall-cap admission.
+
+The τ³ eligibility manifest binds every accepted/rejected canonical task and
+qualification receipt. Within each `(domain, issue_family_or_none,
+reward_basis)` stratum, rank by:
+
+```text
+HMAC-SHA256(
+    roster_seed,
+    "tau3-roster-v1\0"
+    || peeled_commit || "\0"
+    || domain || "\0"
+    || issue_family_or_none || "\0"
+    || sorted_reward_basis || "\0"
+    || controller_task_id || "\0"
+    || canonical_task_record_sha256
+)
+```
+
+The seed commitment and eligibility-manifest hash are sealed before the draw.
+Pilots, nested C120 prefixes, C160 extensions, and all ordered reserves freeze
+simultaneously. Controller task IDs—especially telecom IDs, which encode the
+fault—never enter subject/simulator prompts, worker environment variables, or
+artifact paths; workers receive opaque HMAC unit IDs. No subject, pilot, branch,
+or endpoint outcome can cause replacement.
 
 The simulator is a separately metered serving subject. On AWS, the default
 `g6e.12xlarge` schedule reserves one L40S for the 9B simulator during τ³ work,
@@ -404,12 +637,14 @@ clone of the prefix state. The REAL packet may include:
 - verifier resource/timeout status.
 
 It never includes test source, gold patch content, future commits, or an
-unbounded traceback. The final endpoint runs the official checks again in a
-fresh grader image.
-
-This is an intervention study, not a leaderboard submission. Giving hidden-test
-feedback mid-trajectory is the treatment being studied and must be stated
-plainly.
+unbounded traceback. The final endpoint runs the complete registered F2P/P2P
+checks again in a fresh digest-pinned grader image and rejects any missing
+check. SWE-bench-Live MultiLang publishes the gold patch, test patch, commands,
+parser, and check sets and has no private hidden-test layer. Those public
+answer-bearing fields remain controller-only until unblinding. This is an
+intervention study, not a leaderboard submission; giving registered verifier
+feedback mid-trajectory is the treatment and must be stated plainly without
+calling the endpoint private, hidden, or contamination-free.
 
 ### 7.2 τ³ verifier
 
@@ -421,8 +656,11 @@ prefix environment and transcript. The REAL packet reports:
 - the relevant action or communication category; and
 - bounded current-state evidence.
 
-Expected final values and hidden task answers are not emitted. No LLM judge
-creates a primary verifier finding.
+Expected final values and hidden task answers are not emitted. Task IDs,
+description, ticket, evaluation criteria, golden actions and arguments,
+assertion arguments/expected values, required-document identities, target DB
+hash/diff, and task issue metadata are controller-only. No LLM judge or network
+call creates a primary verifier finding.
 
 ### 7.3 Sham donor
 
@@ -434,6 +672,13 @@ eligible lineage:
 - τ³: same domain, evaluator-component multiset, failure-count band, and report
   length band; different task and, for telecom, different issue family where
   possible.
+
+For telecom `ACTION + ENV_ASSERTION`, every eligible task is
+`service_issue`, so a cross-family component-exact donor does not exist. The
+frozen fallback keeps domain and evaluator-component multiset exact, selects a
+different task from the same family, and records
+`cross_family_component_match_unavailable`. It may not relax component,
+domain, lineage, derangement, collision, or token-parity gates.
 
 Task-specific identifiers are represented as typed references—repository/file,
 symbol, test/check, database entity, policy/action, or task record—and replaced
@@ -897,7 +1142,24 @@ failed blocks.
 Pilot rosters are disjoint from confirmation and reserve rosters:
 
 - SWE: 16 pilot tasks, two per language, each from a unique repository.
-- τ³: nine pilot tasks, three per domain.
+- τ³: nine pilot tasks, three per domain; telecom contributes one MMS, one
+  mobile-data, and one `ACTION + ENV_ASSERTION` service task.
+
+Before the first pilot starts, one eligibility-manifest transaction seals:
+
+1. every accepted/rejected task and qualification receipt;
+2. the roster-seed commitment and ranking implementation digest;
+3. the complete pilot roster;
+4. nested C120 confirmation membership;
+5. any eligible C160 extension; and
+6. every ordered reserve.
+
+The same frozen bytes drive the roster-bound P0 simulation. A pilot task,
+subject outcome, endpoint result, or apparent effect cannot cause a task
+replacement or reorder a reserve. A system-level pilot failure blocks the
+implementation generation; after repair, the complete pilot repeats on the
+same roster under an incremented immutable implementation generation, or the
+tier records `FEASIBILITY_NO_GO`.
 
 Pilot outputs can validate:
 
@@ -912,12 +1174,14 @@ Pilot outputs can validate:
 - fixed budget adequacy.
 
 Pilot efficacy is labeled and excluded from confirmation. No arm-specific pilot
-effect may select a model, benchmark, endpoint, sample tier, or analysis.
+effect may select a model, benchmark, endpoint, task, reserve, sample tier, or
+analysis.
 
 After pilot validation, a fresh context seals:
 
-1. the implementation and dependency digests;
-2. the eligible task registry and replacements;
+1. the validated implementation and dependency digests;
+2. the already-frozen eligibility manifest and immutable
+   pilot/C120/C160/reserve membership;
 3. the prefix/slot schedule plus the deterministic donor-derangement and
    12-way allocation program and its synthetic fixtures;
 4. the statistical-analysis source and expected synthetic fixtures;
@@ -1181,6 +1445,16 @@ Current rates:
   retained;
 - S3 Standard: $0.023/GB-month;
 - gp3: $0.08/GiB-month.
+
+The pinned MultiLang dataset is about 254 MiB compressed. A deterministic
+40-image metadata sample—five per split—measured compressed layer sets from
+0.695 to 14.150 GiB, median 1.801 GiB, mean 2.932 GiB, with only about 9%
+observed cross-image layer deduplication. Quota-weighted planning points are
+about 352 GiB of cold compressed pulls for C120 and 470 GiB for provisional
+C160, or about 321/428 GiB after sample-like deduplication. These exclude
+unpacked layers, writable branches, test logs, snapshots, and provider
+replication. They justify retaining—not lowering—the 3 TB working-disk gate
+until roster-specific image receipts replace the sample projection.
 
 The admission controller reads each task's declared and observed cgroup memory
 and disk use. It starts a branch only when the admitted set plus a 20% reserve
@@ -1643,7 +1917,22 @@ into approval of an unknown future hash.
 
 Before confirmation, stop or narrow if:
 
-- fewer than 120 eligible tasks remain in either benchmark;
+- SWE C120 cannot instantiate the exact
+  `9/14/16/17/16/16/16/16` confirmation quotas from qualified root lineages
+  plus two disjoint pilots and the manifest-fixed reserves in every split after
+  the complete base-license, OCI-digest, offline-isolation, and
+  three-independent-pair audit;
+- SWE C160 cannot instantiate its 12-per-split plus Hamilton confirmation
+  allocation plus two disjoint pilots and the manifest-fixed reserves in every
+  split;
+- τ³ C120 lacks its three frozen pilots per domain plus
+  `40/40/40` confirmation roster;
+- τ³ C160 has fewer than 47 qualified airline tasks across pilot and
+  confirmation, requires more than three airline reserves, or lacks its
+  `44/58/58` confirmation roster;
+- any benchmark image remains mutable/digest-free, a parser can escape its
+  isolation boundary, evaluator network-call count is nonzero, or a registered
+  F2P/P2P/evaluator component is missing;
 - trigger opportunity is below 60%;
 - gold/regression flakiness exceeds 2%;
 - snapshot restoration differs in any arm-visible byte/token/state;
@@ -1688,10 +1977,37 @@ primary because the unit ceiling and frontier saturation weaken power.
   `https://who-verifies-the-agents.github.io/`
 - SWE-bench-Live:
   `https://swe-bench-live.github.io/`
-- SWE-bench-Live MultiLang:
-  `https://huggingface.co/datasets/SWE-bench-Live/MultiLang`
+- Pinned SWE-bench-Live MultiLang dataset and card:
+  `https://huggingface.co/datasets/SWE-bench-Live/MultiLang/tree/608f7ae9ab8ea1f9f0d030fe04562cf6bd1a0c8b`;
+  `https://huggingface.co/datasets/SWE-bench-Live/MultiLang/blob/608f7ae9ab8ea1f9f0d030fe04562cf6bd1a0c8b/README.md`
+- Pinned SWE-bench-Live harness, evaluation contract, endpoint, and validation:
+  `https://github.com/microsoft/SWE-bench-Live/tree/70ec57e852e3f2d195790fe71f553e272c691833`;
+  `https://github.com/microsoft/SWE-bench-Live/blob/70ec57e852e3f2d195790fe71f553e272c691833/evaluation/README.md`;
+  `https://github.com/microsoft/SWE-bench-Live/blob/70ec57e852e3f2d195790fe71f553e272c691833/evaluation/evaluation.py`;
+  `https://github.com/microsoft/SWE-bench-Live/blob/70ec57e852e3f2d195790fe71f553e272c691833/evaluation/validation.py`
+- Pinned RepoLaunch Linux runtime and dynamic parser:
+  `https://github.com/microsoft/RepoLaunch/blob/7735b1e7363dd3bbc69bd0ef80db646a2ae391fd/launch/core/platforms/linux.py`;
+  `https://github.com/microsoft/RepoLaunch/blob/7735b1e7363dd3bbc69bd0ef80db646a2ae391fd/launch/scripts/parser.py`
 - τ³-bench v1.0.1:
   `https://github.com/sierra-research/tau2-bench/tree/v1.0.1`
+- τ³ annotated release, peeled commit, license, and package contract:
+  `https://github.com/sierra-research/tau2-bench/releases/tag/v1.0.1`;
+  `https://github.com/sierra-research/tau2-bench/commit/fc0055dc4e0a316c3f83133267fbd6faaa770992`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/LICENSE`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/pyproject.toml`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/uv.lock`
+- τ³ task/evaluator and retrieval sources:
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/data/tau2/domains/airline/tasks.json`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/data/tau2/domains/telecom/tasks.json`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/data/tau2/domains/telecom/split_tasks.json`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/data/tau2/domains/banking_knowledge/tasks.json`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/docs/evaluation.md`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/src/tau2/evaluator/evaluator.py`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/src/tau2/data_model/tasks.py`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/src/tau2/domains/banking_knowledge/retrieval.py`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/data/tau2/domains/banking_knowledge/prompts/classic_rag_bm25_no_grep.md`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/src/tau2/domains/telecom/tools.py`;
+  `https://raw.githubusercontent.com/sierra-research/tau2-bench/fc0055dc4e0a316c3f83133267fbd6faaa770992/src/tau2/user/user_simulator.py`
 - Qwen3.6 model card:
   `https://huggingface.co/Qwen/Qwen3.6-35B-A3B`
 - Terminal-Bench 2.1 fallback:
