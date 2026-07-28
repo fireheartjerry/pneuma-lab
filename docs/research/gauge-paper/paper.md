@@ -314,7 +314,7 @@ been shown to fail.
 ### 6.1 What the channel emits
 
 Offered a continuous `0.00–1.00` scale, the channel used 35 distinct values with an effective
-support of **6.87 levels**, dominated by `1.00` (1188), `0.95` (829), `0.85` (355). Mean
+support of **6.73 levels**, dominated by `1.00` (1188), `0.95` (829), `0.85` (355). Mean
 reported confidence **0.873** against actual bank accuracy **0.489** (ECE 0.378). It reports
 0.963 on code that passes its hidden tests and 0.782 on code with a seeded bug — a real
 separation of **0.181**.
@@ -340,7 +340,7 @@ AIAG 30% bar.
 | **ndc**                     |               **1** | >= 5               |
 | ICC                         |               0.512 | 0.70               |
 | $D$                         |               0.684 | 0.5 = coin flip    |
-| resolving power             |               0.470 |                    |
+| resolving power             |               0.469 |                    |
 | selection stability (q=0.2) |               0.568 | random floor 0.111 |
 | **verdict**                 | **UNINTERPRETABLE** |                    |
 

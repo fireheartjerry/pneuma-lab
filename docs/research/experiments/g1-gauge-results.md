@@ -50,7 +50,7 @@ Parse-failure rate was 0.4% on the core stage.
 ## 2. Audit: what the channel actually emits
 
 Offered a continuous `0.00`–`1.00` scale, the channel used **35 distinct values** with an
-effective support of **6.87 levels**, dominated by a handful:
+effective support of **6.73 levels**, dominated by a handful:
 
 | value | 1.00 | 0.95 | 0.85 | 0.75 | 0.50 | 0.98 |
 | ----- | ---- | ---- | ---- | ---- | ---- | ---- |
@@ -82,8 +82,8 @@ confused and only the SD ratio is comparable to the AIAG 30% acceptance bar.
 | **ndc**                          |               **1** | AIAG requires >= 5; **< 2 means no two items can be separated** |
 | ICC                              |               0.512 | usability floor 0.70                                            |
 | discrimination index D           |               0.684 | 0.5 = coin flip on pairwise ordering                            |
-| resolving power                  |               0.470 | fraction of item pairs ordered consistently and non-trivially   |
-| effective support                |         6.87 levels |                                                                 |
+| resolving power                  |               0.469 | fraction of item pairs ordered consistently and non-trivially   |
+| effective support                |         6.90 levels |                                                                 |
 | selection stability (bottom 20%) |               0.568 | random floor 0.111                                              |
 | **Verdict**                      | **UNINTERPRETABLE** |                                                                 |
 
