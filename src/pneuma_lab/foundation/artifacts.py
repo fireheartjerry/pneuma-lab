@@ -145,7 +145,7 @@ class _LinuxMountInfo:
     mount_id: int
     parent_id: int
     device: str
-    root: PurePosixPath
+    root: PurePosixPath | None
     mountpoint: PurePosixPath
 
 
@@ -181,6 +181,19 @@ def _normalized_mount_path(field: str) -> PurePosixPath:
     return PurePosixPath(normalized)
 
 
+def _normalized_mount_root(
+    field: str,
+    *,
+    filesystem_type: str,
+) -> PurePosixPath | None:
+    if filesystem_type == "nsfs" and re.fullmatch(
+        r"[a-z][a-z0-9_]*:\[[1-9][0-9]*\]",
+        field,
+    ):
+        return None
+    return _normalized_mount_path(field)
+
+
 def _parse_linux_mountinfo(value: str) -> dict[int, _LinuxMountInfo]:
     mounts: dict[int, _LinuxMountInfo] = {}
     try:
@@ -196,11 +209,15 @@ def _parse_linux_mountinfo(value: str) -> dict[int, _LinuxMountInfo]:
                 raise ValueError("mountinfo device")
             if mount_id in mounts:
                 raise ValueError("duplicate mount ID")
+            filesystem_type = fields[separator + 1]
             mounts[mount_id] = _LinuxMountInfo(
                 mount_id=mount_id,
                 parent_id=parent_id,
                 device=device,
-                root=_normalized_mount_path(fields[3]),
+                root=_normalized_mount_root(
+                    fields[3],
+                    filesystem_type=filesystem_type,
+                ),
                 mountpoint=_normalized_mount_path(fields[4]),
             )
     except (IndexError, TypeError, ValueError) as exc:
@@ -215,17 +232,22 @@ def _parse_linux_mountinfo(value: str) -> dict[int, _LinuxMountInfo]:
 def _read_linux_mountinfo() -> dict[int, _LinuxMountInfo]:
     try:
         with open("/proc/self/mountinfo", encoding="utf-8") as stream:
-            return _parse_linux_mountinfo(stream.read())
+            value = stream.read()
     except OSError as exc:
         raise ArtifactPublicationError(
             "Linux mount provenance cannot be inspected"
         ) from exc
+    return _parse_linux_mountinfo(value)
 
 
 def _underlying_location_for_mount(
     mount: _LinuxMountInfo,
     path: PurePosixPath,
 ) -> tuple[str, PurePosixPath]:
+    if mount.root is None:
+        raise ArtifactPublicationError(
+            "Linux mount provenance root is not addressable"
+        )
     normalized_path = PurePosixPath(posixpath.normpath(path.as_posix()))
     try:
         relative = normalized_path.relative_to(mount.mountpoint)

@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 import stat
 import subprocess
 import sys
+from unittest.mock import mock_open
 
 import pytest
 
@@ -64,6 +65,102 @@ def test_linux_mountinfo_parser_unescapes_nested_mount_roots() -> None:
     ) == (
         "8:1",
         PurePosixPath("/protected data/subtree/nested/output"),
+    )
+
+
+def test_linux_mountinfo_parser_accepts_exact_opaque_nsfs_root() -> None:
+    mounts = artifacts._parse_linux_mountinfo(
+        "41 25 8:1 /protected/subtree /repo rw - ext4 /dev/sda1 rw\n"
+        "805 445 0:4 mnt:[4026532308] "
+        "/run/snapd/ns/mesa-2404.mnt rw - nsfs nsfs rw\n"
+    )
+
+    assert mounts[41].root == PurePosixPath("/protected/subtree")
+    assert mounts[805].root is None
+    assert mounts[805].mountpoint == PurePosixPath(
+        "/run/snapd/ns/mesa-2404.mnt"
+    )
+
+
+def test_linux_mountinfo_opaque_nsfs_root_is_not_addressable() -> None:
+    mount = artifacts._parse_linux_mountinfo(
+        "805 445 0:4 mnt:[4026532308] "
+        "/run/snapd/ns/mesa-2404.mnt rw - nsfs nsfs rw\n"
+    )[805]
+
+    with pytest.raises(ArtifactPublicationError, match="addressable"):
+        artifacts._underlying_location_for_mount(
+            mount,
+            PurePosixPath("/run/snapd/ns/mesa-2404.mnt"),
+        )
+
+
+@pytest.mark.parametrize(
+    "root",
+    (
+        "mnt:4026532308",
+        "mnt:[0]",
+        "mnt:[04026532308]",
+        "mnt:[not-an-inode]",
+        "MNT:[4026532308]",
+        "mnt:[4026532308]/child",
+    ),
+)
+def test_linux_mountinfo_parser_rejects_malformed_opaque_nsfs_roots(
+    root: str,
+) -> None:
+    with pytest.raises(ArtifactPublicationError, match="mount"):
+        artifacts._parse_linux_mountinfo(
+            f"805 445 0:4 {root} "
+            "/run/snapd/ns/mesa-2404.mnt rw - nsfs nsfs rw\n"
+        )
+
+
+def test_linux_mountinfo_parser_rejects_nsfs_token_for_other_filesystem() -> None:
+    with pytest.raises(ArtifactPublicationError, match="mount"):
+        artifacts._parse_linux_mountinfo(
+            "805 445 8:1 mnt:[4026532308] /repo rw - ext4 /dev/sda1 rw\n"
+        )
+
+
+def test_linux_mountinfo_parser_rejects_relative_nsfs_mountpoint() -> None:
+    with pytest.raises(ArtifactPublicationError, match="mount"):
+        artifacts._parse_linux_mountinfo(
+            "805 445 0:4 mnt:[4026532308] "
+            "run/snapd/ns/mesa-2404.mnt rw - nsfs nsfs rw\n"
+        )
+
+
+def test_linux_mountinfo_parser_rejects_duplicate_ordinary_and_nsfs_id() -> None:
+    with pytest.raises(ArtifactPublicationError, match="mount"):
+        artifacts._parse_linux_mountinfo(
+            "805 25 8:1 / /repo rw - ext4 /dev/sda1 rw\n"
+            "805 445 0:4 mnt:[4026532308] "
+            "/run/snapd/ns/mesa-2404.mnt rw - nsfs nsfs rw\n"
+        )
+
+
+def test_read_linux_mountinfo_preserves_parser_error(monkeypatch) -> None:
+    mountinfo_payload = (
+        "41 25 8:1 /protected/subtree /repo rw - ext4 /dev/sda1 rw\n"
+    )
+    mountinfo_open = mock_open(read_data=mountinfo_payload)
+
+    def fail_parse(value: str) -> dict[int, object]:
+        assert value == mountinfo_payload
+        raise ArtifactPublicationError("specific mountinfo parse failure")
+
+    monkeypatch.setattr("builtins.open", mountinfo_open)
+    monkeypatch.setattr(artifacts, "_parse_linux_mountinfo", fail_parse)
+
+    with pytest.raises(
+        ArtifactPublicationError,
+        match="^specific mountinfo parse failure$",
+    ):
+        artifacts._read_linux_mountinfo()
+    mountinfo_open.assert_called_once_with(
+        "/proc/self/mountinfo",
+        encoding="utf-8",
     )
 
 
