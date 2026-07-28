@@ -22,7 +22,8 @@ real aggregate signal — averaged over 56 elicitations it reaches AUROC 0.906, 
 the ceiling its own reliability implies — while resolving **`ndc = 1`** distinct category:
 it cannot reliably rank any two items. The defect is **reproducibility, not repeatability**.
 Setting `temperature=0` removes 100% of sampling variance and lifts the channel only from
-`UNINTERPRETABLE` to `MARGINAL`, because 54% of total variance comes from prompt wording. At
+`UNINTERPRETABLE` to `MARGINAL`, because 29% of the remaining variance is reproducibility --
+all of it attributable to prompt wording, and enough to keep `%GRR` at 53.9%. At
 `T=0`, re-asking the same question reproduces 96% of the verification queue a pipeline would
 build; **rephrasing the question reproduces 64%**. The field's one habitual reliability check
 — set temperature to zero and re-run — is precisely the check that cannot see this.
@@ -319,12 +320,16 @@ separation of **0.181**.
 
 47 items x 8 wordings x 7 replicates = 2,632 retained observations.
 
-| component       |   variance |     share |
-| --------------- | ---------: | --------: |
-| item (signal)   |     0.0262 |     30.1% |
-| repeatability   |     0.0221 |     25.4% |
-| reproducibility |     0.0039 |      4.5% |
-| **gauge (GRR)** | **0.0260** | **69.9%** |
+| component | variance | share of total variance |
+| --- | ---: | ---: |
+| item (signal) | 0.026567 | 51.2% |
+| repeatability | 0.021349 | 41.1% |
+| reproducibility | 0.003978 | 7.7% |
+| **gauge (GRR)** | **0.025328** | **48.8%** |
+
+`%GRR = 69.9%` is a ratio of **standard deviations** ($\sqrt{0.488}$), not of variances. Both
+are reported because the two are routinely confused and only the SD ratio is comparable to the
+AIAG 30% bar.
 
 | statistic                   |               value | threshold          |
 | --------------------------- | ------------------: | ------------------ |
@@ -417,7 +422,8 @@ that matters:
 > _number_, not a reproducible _measurement_.
 
 A `temperature=0` elicited metric therefore passes the only reliability check anyone runs
-while 54% of its variance still comes from a prompt-wording choice nobody logged. We believe
+while 29% of its variance -- and 100% of its remaining gauge variance -- still comes from a
+prompt-wording choice nobody logged. We believe
 this is the most consequential finding here, because it explains how the field arrived at
 confidence in these numbers without ever measuring their reliability.
 

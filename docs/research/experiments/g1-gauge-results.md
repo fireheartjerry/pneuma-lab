@@ -9,7 +9,8 @@ elicitations it reaches AUROC 0.906, within 0.02 of the hard ceiling its own rel
 implies — while resolving **`ndc = 1`** distinct category, meaning it cannot reliably rank
 any two items. The dominant defect is **reproducibility, not repeatability**: setting
 temperature to 0 removes 100% of the sampling variance and the channel still fails, because
-54% of its total variance comes from _how the question was phrased_.
+29% of the remaining variance is reproducibility -- entirely attributable to _how the
+question was phrased_ -- which keeps `%GRR` at 53.9% and `ndc` at 2.
 
 The channel is also **not suggestible**: a length-matched, task-irrelevant context block does
 not move it (p = 0.72) while a genuinely relevant one moves it sharply (p = 2.2e-10). Yet
@@ -63,12 +64,17 @@ a seeded bug it reports 0.782. The separation is real and it is **0.181**.
 
 Core stage, 47 items x 8 wordings x 7 replicates = 2,632 retained observations.
 
-| component                 |   variance | share of total |
-| ------------------------- | ---------: | -------------: |
-| item (signal)             |     0.0262 |          30.1% |
-| repeatability             |     0.0221 |          25.4% |
-| reproducibility (wording) |     0.0039 |           4.5% |
-| **gauge (GRR)**           | **0.0260** |      **69.9%** |
+| component | variance | share of total variance |
+| --- | ---: | ---: |
+| item (signal) | 0.026567 | 51.2% |
+| repeatability | 0.021349 | 41.1% |
+| reproducibility (wording) | 0.003978 | 7.7% |
+| **gauge (GRR)** | **0.025328** | **48.8%** |
+| total | 0.051895 | 100% |
+
+`%GRR = 69.9%` is the AIAG statistic and is a ratio of **standard deviations**
+($\sqrt{0.488} = 0.699$), not of variances; both are reported because the two are routinely
+confused and only the SD ratio is comparable to the AIAG 30% acceptance bar.
 
 | statistic                        |               value | threshold                                                       |
 | -------------------------------- | ------------------: | --------------------------------------------------------------- |
@@ -140,8 +146,25 @@ And it is still not enough, in the way that matters most:
 > verification queue is identical. **Rephrase the question and only 64% is.** Determinism
 > bought a reproducible _number_, not a reproducible _measurement_.
 
+At `T=0` the decomposition is unambiguous, because repeatability is exactly zero and every
+remaining component is reproducibility:
+
+| component | variance | share of total variance |
+| --- | ---: | ---: |
+| item (signal) | 0.037193 | 71.0% |
+| repeatability | **0.000000** | **0.0%** |
+| wording main effect | 0.002186 | 4.2% |
+| item x wording | 0.013016 | 24.8% |
+| **gauge (GRR)** | **0.015202** | **29.0%** |
+
+Note where the reproducibility lives: the wording *main* effect is small (4.2%), and the
+`item x wording` interaction is six times larger (24.8%). Rewording does not simply shift every
+reading up or down — a shift would cancel in any ranking. It **reorders the items**, which is
+exactly the component a ranking pipeline cannot survive and exactly the component that averaging
+over replicates cannot touch.
+
 This is the study's sharpest practical finding. A `temperature=0` elicited metric looks
-airtight under the only check anyone runs (re-run it, get the same answer) while 54% of its
+airtight under the only check anyone runs (re-run it, get the same answer) while 29% of its
 variance is still coming from a prompt-wording choice nobody logged.
 
 ## 6. Placebo arm (G1-H6) — falsified, and it matters
