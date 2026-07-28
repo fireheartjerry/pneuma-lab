@@ -82,7 +82,10 @@ This paper does three things.
 - **The determinism trap, measured.** `temperature=0` eliminates repeatability variance
   entirely and leaves reproducibility untouched. We give the first quantification of the gap
   in decision terms: same-question queue overlap 0.956 vs rephrased-question overlap 0.646 on
-  the identical channel.
+  the identical channel. The residual is dominated by the `item x wording` **interaction**
+  (24.8% of variance) rather than the wording main effect (4.2%) — rewording reorders items
+  rather than shifting them, so it is exactly the component a ranking pipeline cannot absorb
+  and the one no amount of resampling removes.
 - **A proof that calibration cannot repair resolution.** Every standard post-hoc calibrator
   is weakly increasing; strictly increasing maps leave resolving power and AUROC exactly
   invariant, and weakly increasing maps can only destroy ordering. Verified to machine
@@ -416,6 +419,25 @@ phrasings a practitioner would consider interchangeable.
 Greedy decoding is a genuinely effective free remedy: it removes _all_ repeatability variance
 and lifts the channel one tier at zero cost. And it is still not enough, in exactly the way
 that matters:
+
+At `T=0` the decomposition is unambiguous, because repeatability is exactly zero and every
+remaining component is reproducibility:
+
+| component | variance | share of total variance |
+| --- | ---: | ---: |
+| item (signal) | 0.037193 | 71.0% |
+| repeatability | **0.000000** | **0.0%** |
+| wording main effect | 0.002186 | 4.2% |
+| item x wording interaction | 0.013016 | 24.8% |
+| **gauge (GRR)** | **0.015202** | **29.0%** |
+
+Where that reproducibility lives is the mechanism. The wording *main effect* is small (4.2%);
+the **`item x wording` interaction is six times larger** (24.8%). Rewording does not shift
+every reading up or down — a pure shift would cancel in any ranking and cost a triage pipeline
+nothing. It **reorders the items**. That is why the rephrased queue overlap falls to 0.646
+while the re-asked overlap is 0.956, and it is why the interaction term is the one component
+that neither greedy decoding nor averaging over replicates can touch: it is condition-locked
+by construction (T3).
 
 > At `T=0` the channel reproduces its own numbers perfectly — re-ask and 96% of the queue is
 > identical. Rephrase the question and only 64% is. Determinism bought a reproducible
