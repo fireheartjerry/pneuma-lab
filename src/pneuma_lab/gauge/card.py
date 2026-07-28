@@ -36,7 +36,7 @@ from .resolution import (
     gaugeResolution,
 )
 from .stats import Interval, bootstrapCi
-from .theory import ceilings
+from .theory import USABILITY_FLOOR, aggregationAsymptote, ceilings, requiredK
 
 TOOL_VERSION = "pneuma-lab.gauge/0.1.0"
 
@@ -195,6 +195,7 @@ def buildCard(
             "selection_stability": resolution.selection_stability,
         },
         "ceilings": ceiling.asDict(),
+        "prescription": _prescription(vc, matrix.n_conditions),
         "remedies": [r.asDict() for r in remedies],
         "placebo": placebo_block,
         "verdict": resolution.verdict,
@@ -206,6 +207,41 @@ def buildCard(
         },
     }
     return _clean(card)
+
+
+def _prescription(vc, n_conditions: int, *, target: float = USABILITY_FLOOR) -> dict:
+    """What would it cost to make this channel usable? Diagnosis is easy to ignore."""
+    k_reps = requiredK(vc, systematic="condition_locked", target=target)
+    k_words = requiredK(vc, systematic="none", target=target)
+    asymptote = aggregationAsymptote(
+        var_item=vc.var_item, var_systematic=vc.var_condition + vc.var_interaction
+    )
+    if k_reps is not None:
+        note = (
+            f"averaging {k_reps} samples at a fixed wording reaches ICC {target:g}; "
+            f"the asymptote at that wording is {asymptote:.3f}"
+        )
+        calls = k_reps
+    elif k_words is not None:
+        note = (
+            f"resampling at a fixed wording cannot reach ICC {target:g} (asymptote "
+            f"{asymptote:.3f}); averaging over {k_words} distinct wordings can"
+        )
+        calls = k_words
+    else:
+        note = (
+            f"ICC {target:g} is unreachable by aggregation: item variance is "
+            f"{vc.var_item:.3g} against a gauge variance of {vc.var_grr:.3g}"
+        )
+        calls = None
+    return {
+        "target_icc": target,
+        "required_replicates": k_reps,
+        "required_wordings": k_words,
+        "asymptote": asymptote,
+        "estimated_calls_per_item": calls,
+        "note": note,
+    }
 
 
 def _iccOf(cells) -> float:
@@ -299,6 +335,7 @@ def renderCard(card: dict) -> str:
         f"- max attainable AUROC at base rate {ceil['base_rate']:.2f}: **{_fmt(ceil['auroc'])}**",
         "- these are ceilings at *any* sample size; more data cannot move them",
         "",
+        _prescriptionBlock(card),
         "## Remedies",
         "",
         "| remedy | statistic | value | 95% CI | floor | verdict |",
@@ -332,6 +369,21 @@ def renderCard(card: dict) -> str:
         f"```txt\n{card['reproduction']['command']}\n```",
         "",
         f"cube digest `{card['reproduction']['cube_digest']}`, tool `{card['reproduction']['tool_version']}`",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _prescriptionBlock(card: dict) -> str:
+    rx = card.get("prescription")
+    if not rx:
+        return ""
+    calls = rx.get("estimated_calls_per_item") or "unbounded"
+    lines = [
+        "## What it would cost to fix",
+        "",
+        f"- {rx['note']}",
+        f"- estimated elicitations per item: {calls}",
         "",
     ]
     return "\n".join(lines)
