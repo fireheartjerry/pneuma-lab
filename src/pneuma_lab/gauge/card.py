@@ -193,6 +193,7 @@ def buildCard(
             "resolving_power": resolution.resolving_power,
             "s_eff": resolution.s_eff,
             "selection_stability": resolution.selection_stability,
+            "cross_condition_stability": resolution.cross_condition_stability,
         },
         "ceilings": ceiling.asDict(),
         "prescription": _prescription(vc, matrix.n_conditions),
@@ -328,6 +329,7 @@ def renderCard(card: dict) -> str:
         f"| resolving power | {_fmt(res['resolving_power'])} | — |",
         f"| effective support | {_fmt(res['s_eff'])} levels | — |",
         _selectionRow(res),
+        _crossRow(res),
         "",
         "## Ceilings implied by this reliability",
         "",
@@ -396,6 +398,17 @@ def _selectionRow(res: dict) -> str:
         return "| selection stability | n/a | — |"
     return (
         f"| selection stability (bottom {sel['q']:.0%}) | {_fmt(sel['jaccard'])} "
+        f"| random floor {_fmt(sel['random_floor'])} |"
+    )
+
+
+def _crossRow(res: dict) -> str:
+    """The same queue question, but the second pass rephrases instead of re-asking."""
+    sel = res.get("cross_condition_stability")
+    if not sel or sel.get("jaccard") is None:
+        return "| selection stability (rephrased) | n/a | — |"
+    return (
+        f"| selection stability, rephrased | {_fmt(sel['jaccard'])} "
         f"| random floor {_fmt(sel['random_floor'])} |"
     )
 

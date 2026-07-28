@@ -57,6 +57,7 @@ class GaugeResolution:
     verdict: str
     components: VarianceComponents
     selection_stability: dict | None = None
+    cross_condition_stability: dict | None = None
 
     def asDict(self) -> dict:
         return {
@@ -68,6 +69,7 @@ class GaugeResolution:
             "s_eff": self.s_eff,
             "verdict": self.verdict,
             "selection_stability": self.selection_stability,
+            "cross_condition_stability": self.cross_condition_stability,
         }
 
 
@@ -226,6 +228,72 @@ def selectionStability(
     }
 
 
+def crossConditionStability(
+    matrix: Mapping[tuple, Sequence[float]] | BalancedMatrix,
+    *,
+    q: float = 0.2,
+    draws: int = 256,
+    seed: int = 20260728,
+) -> dict:
+    """Does the triage queue survive *rephrasing*, not just re-asking?
+
+    `selectionStability` re-asks the same question and compares queues. This asks a
+    differently-worded version of the same question and compares queues. The gap
+    between the two is the practical meaning of the repeatability/reproducibility
+    split: setting temperature to zero can drive the first to 1.0 while leaving the
+    second untouched, which is how a channel can look perfectly stable and still not
+    measure anything stable.
+    """
+    cells = matrix.cells if isinstance(matrix, BalancedMatrix) else dict(matrix)
+    items = sorted({k[0] for k in cells})
+    conditions = sorted({k[1] for k in cells}, key=str)
+    n_sel = max(1, int(math.ceil(q * len(items))))
+    floor = q / (2.0 - q)
+    if len(items) < 2 or len(conditions) < 2:
+        return {
+            "q": q,
+            "jaccard": float("nan"),
+            "random_floor": floor,
+            "n_selected": n_sel,
+        }
+
+    rng_a = random.Random(seed)
+    rng_b = random.Random(seed + 977)
+    overlaps: list[float] = []
+    for i in range(len(conditions)):
+        for j in range(i + 1, len(conditions)):
+            first, second = {}, {}
+            for item in items:
+                va, vb = (
+                    cells.get((item, conditions[i])),
+                    cells.get((item, conditions[j])),
+                )
+                if not va or not vb:
+                    continue
+                first[item] = math.fsum(va) / len(va)
+                second[item] = math.fsum(vb) / len(vb)
+            shared = sorted(set(first) & set(second))
+            if len(shared) < n_sel + 1:
+                continue
+            for _ in range(draws):
+                pick_a = set(
+                    sorted(shared, key=lambda x: (first[x], rng_a.random()))[:n_sel]
+                )
+                pick_b = set(
+                    sorted(shared, key=lambda x: (second[x], rng_b.random()))[:n_sel]
+                )
+                union = pick_a | pick_b
+                overlaps.append(len(pick_a & pick_b) / len(union) if union else 0.0)
+    return {
+        "q": q,
+        "jaccard": (math.fsum(overlaps) / len(overlaps)) if overlaps else float("nan"),
+        "random_floor": floor,
+        "n_selected": n_sel,
+        "n_items": len(items),
+        "n_condition_pairs": len(conditions) * (len(conditions) - 1) // 2,
+    }
+
+
 def onewayIcc(groups: Mapping[str, Sequence[float]]) -> float:
     """ICC(1,1) from a balanced one-way random-effects design (item -> k measurements).
 
@@ -291,6 +359,7 @@ def gaugeResolution(matrix: BalancedMatrix) -> GaugeResolution:
         verdict=gaugeVerdict(pct_grr=g, ndc_value=n, icc_value=i, d=d, s_eff=s_eff),
         components=vc,
         selection_stability=selectionStability(matrix),
+        cross_condition_stability=crossConditionStability(matrix),
     )
 
 
@@ -319,6 +388,7 @@ __all__ = [
     "icc",
     "ndc",
     "pctGrr",
+    "crossConditionStability",
     "resolvingPower",
     "selectionStability",
 ]
