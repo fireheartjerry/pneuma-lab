@@ -202,6 +202,35 @@ def main() -> int:
             claim(f"scale {scale} ndc", "1", rr.ndc)
         claim("scale mean spread", "0.115", max(means.values()) - min(means.values()))
 
+    fam = _load(run_dir, "families")
+    if fam is not None:
+        pool = core.filter(wording_id=("w1", "w2", "w3")).merge(fam)
+        cells = {}
+        for mdl in pool.values("model"):
+            sub = pool.filter(model=mdl)
+            mm = sub.balancedMatrix(("wording_id",))
+            if mm.usable():
+                cells[mdl] = gaugeResolution(mm)
+        claim("qwen2.5:7b ndc", "3", cells["qwen2.5:7b"].ndc)
+        claim("qwen2.5:7b ICC", "0.856", cells["qwen2.5:7b"].icc)
+        claim("qwen2.5:7b %GRR", "38.0", cells["qwen2.5:7b"].pct_grr)
+        claim("qwen2.5:1.5b ICC", "0.008", cells["qwen2.5:1.5b"].icc)
+        claim("qwen2.5:1.5b %GRR", "99.6", cells["qwen2.5:1.5b"].pct_grr)
+        claim(
+            "F16 vs Q4 |delta D|",
+            "0.006",
+            abs(
+                cells["qwen2.5-coder:7b-instruct-fp16"].d
+                - cells["qwen2.5-coder:7b"].d
+            ),
+        )
+        claim(
+            "coder:1.5b parse-failure rate",
+            "0.278",
+            pool.filter(model="qwen2.5-coder:1.5b").parseFailureRate(),
+        )
+        claim("ndc spread across models", "3", max(c.ndc for c in cells.values()) - min(c.ndc for c in cells.values()))
+
     width = max(len(c[0]) for c in claims)
     failures = 0
     print(f"{'claim':<{width}}  {'quoted':>10} {'computed':>10}  ok")
