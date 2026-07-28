@@ -109,7 +109,7 @@ class BranchOutcome:
     partial_reward: float
     infrastructure_failure: bool
     counters: ResourceCounters
-    artifact_sha256: str
+    artifact_ref: ArtifactRef
 
     def __post_init__(self) -> None:
         for name in ("task_id", "benchmark", "opaque_arm_id"):
@@ -130,7 +130,8 @@ class BranchOutcome:
             raise ValueError("infrastructure_failure requires success == 0")
         if not isinstance(self.counters, ResourceCounters):
             raise TypeError("counters must be ResourceCounters")
-        _require_sha256(self.artifact_sha256, "artifact_sha256")
+        if not isinstance(self.artifact_ref, ArtifactRef):
+            raise TypeError("artifact_ref must be ArtifactRef")
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +166,8 @@ class BranchSlotSet:
     slots: tuple[BranchSlot, ...]
 
     def __post_init__(self) -> None:
+        if not isinstance(self.slots, tuple):
+            raise TypeError("slots must be a tuple")
         if len(self.slots) != 4:
             raise ValueError("slots must contain exactly four branch slots")
         if not all(isinstance(slot, BranchSlot) for slot in self.slots):
@@ -194,14 +197,18 @@ class TaskSchedule:
 @dataclass(frozen=True, slots=True)
 class FrozenVerifierReceipt:
     task_id: str
-    prefix_receipt_sha256: str
-    verifier_artifact_sha256: str
+    schedule_sha256: str
+    snapshot_ref: ArtifactRef
+    verifier_artifact_ref: ArtifactRef
     finding_count: int
 
     def __post_init__(self) -> None:
         _require_nonempty_string(self.task_id, "task_id")
-        _require_sha256(self.prefix_receipt_sha256, "prefix_receipt_sha256")
-        _require_sha256(self.verifier_artifact_sha256, "verifier_artifact_sha256")
+        _require_sha256(self.schedule_sha256, "schedule_sha256")
+        if not isinstance(self.snapshot_ref, ArtifactRef):
+            raise TypeError("snapshot_ref must be ArtifactRef")
+        if not isinstance(self.verifier_artifact_ref, ArtifactRef):
+            raise TypeError("verifier_artifact_ref must be ArtifactRef")
         _require_exact_nonnegative_int(self.finding_count, "finding_count")
 
 
@@ -222,6 +229,8 @@ class TaskAssignment:
             raise ValueError("task_id and donor_task_id must differ")
         if self.task_lineage == self.donor_lineage:
             raise ValueError("task_lineage and donor_lineage must differ")
+        if not isinstance(self.slot_arms, tuple):
+            raise TypeError("slot_arms must be a tuple")
         if len(self.slot_arms) != 4:
             raise ValueError("slot_arms must contain exactly four entries")
         slot_ids: list[str] = []

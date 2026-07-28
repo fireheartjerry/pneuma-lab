@@ -35,6 +35,10 @@ def counters() -> ResourceCounters:
     return ResourceCounters(0, 0, 0, 0)
 
 
+def artifact(digest: str = "a" * 64) -> ArtifactRef:
+    return ArtifactRef("outcome", "outcomes/task-1.json", digest, 1, "application/json")
+
+
 def outcome(**overrides: object) -> BranchOutcome:
     values: dict[str, object] = {
         "task_id": "task-1",
@@ -45,7 +49,7 @@ def outcome(**overrides: object) -> BranchOutcome:
         "partial_reward": 0.0,
         "infrastructure_failure": False,
         "counters": counters(),
-        "artifact_sha256": "a" * 64,
+        "artifact_ref": artifact(),
     }
     values.update(overrides)
     return BranchOutcome(**values)  # type: ignore[arg-type]
@@ -112,6 +116,12 @@ def test_resource_counters_require_exact_nonnegative_ints(field: str, value: obj
         ResourceCounters(**values)  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("value", [nan, inf, -inf])
+def test_resource_counters_explicitly_reject_nonfinite_values(value: float) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        ResourceCounters(value, 0, 0, 0)  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize("value", [True, False, 1.0, 2, -1])
 def test_branch_outcome_requires_binary_exact_int_success_fields(value: object) -> None:
     with pytest.raises((TypeError, ValueError)):
@@ -127,9 +137,9 @@ def test_branch_outcome_rejects_nonfinite_partial_reward(value: float) -> None:
 
 
 @pytest.mark.parametrize("digest", ["A" * 64, "g" * 64, "a" * 63, "a" * 65])
-def test_branch_outcome_requires_exact_lowercase_sha256(digest: str) -> None:
+def test_branch_outcome_requires_an_artifact_ref_with_exact_lowercase_sha256(digest: str) -> None:
     with pytest.raises(ValueError):
-        outcome(artifact_sha256=digest)
+        outcome(artifact_ref=artifact(digest))
 
 
 def test_infrastructure_failure_requires_adverse_zero_outcome() -> None:
@@ -147,6 +157,12 @@ def test_branch_slot_set_requires_four_pairwise_distinct_slot_dimensions() -> No
         BranchSlotSet((slots[0], slots[1], slots[2], slot("slot-4", 2, 3)))
     with pytest.raises(ValueError):
         BranchSlotSet((slots[0], slots[1], slots[2], slot("slot-2", 3, 3)))
+
+
+def test_branch_slot_set_rejects_a_mutable_outer_list() -> None:
+    slots = [slot(f"slot-{index}", index, index) for index in range(4)]
+    with pytest.raises(TypeError):
+        BranchSlotSet(slots)  # type: ignore[arg-type]
 
 
 def test_artifact_ref_accepts_a_normalized_posix_relative_reference() -> None:
@@ -182,17 +198,30 @@ def test_task_schedule_binds_a_task_prefix_seed_and_exactly_four_unique_slots() 
         TaskSchedule(task(), 7, BranchSlotSet(slots), "")
 
 
-def test_frozen_verifier_receipt_is_digest_only_and_rejects_invalid_counts() -> None:
-    receipt = FrozenVerifierReceipt("task-1", "c" * 64, "d" * 64, 0)
+def test_frozen_verifier_receipt_is_non_circular_artifact_only_and_rejects_invalid_counts() -> None:
+    snapshot = ArtifactRef("snapshot", "snapshots/task-1.json", "c" * 64, 1, "application/json")
+    verifier = ArtifactRef("verifier", "verifiers/task-1.json", "d" * 64, 1, "application/json")
+    receipt = FrozenVerifierReceipt("task-1", "e" * 64, snapshot, verifier, 0)
     assert tuple(field.name for field in fields(FrozenVerifierReceipt)) == (
         "task_id",
-        "prefix_receipt_sha256",
-        "verifier_artifact_sha256",
+        "schedule_sha256",
+        "snapshot_ref",
+        "verifier_artifact_ref",
         "finding_count",
     )
     assert receipt.finding_count == 0
     with pytest.raises((TypeError, ValueError)):
-        FrozenVerifierReceipt("task-1", "c" * 64, "d" * 64, True)
+        FrozenVerifierReceipt("task-1", "e" * 64, snapshot, verifier, True)
+
+
+def test_branch_outcome_requires_an_artifact_ref_instead_of_a_bare_digest() -> None:
+    artifact = ArtifactRef("outcome", "outcomes/task-1.json", "a" * 64, 1, "application/json")
+    result = BranchOutcome("task-1", "benchmark-a", "arm-token", 1, 0, 0.0, False, counters(), artifact)
+    assert result.artifact_ref is artifact
+    with pytest.raises(TypeError):
+        BranchOutcome(
+            "task-1", "benchmark-a", "arm-token", 1, 0, 0.0, False, counters(), artifact_sha256="a" * 64
+        )
 
 
 def assignment(**overrides: object) -> TaskAssignment:
@@ -216,6 +245,11 @@ def test_task_assignment_maps_every_arm_once_across_four_unique_slots() -> None:
         assignment(slot_arms=(("slot-0", Arm.REAL), ("slot-1", Arm.SHAM), ("slot-2", Arm.NONE), ("slot-2", Arm.RESAMPLE)))
     with pytest.raises(ValueError):
         assignment(slot_arms=(("slot-0", Arm.REAL), ("slot-1", Arm.SHAM), ("slot-2", Arm.NONE), ("slot-3", Arm.NONE)))
+
+
+def test_task_assignment_rejects_a_mutable_outer_list() -> None:
+    with pytest.raises(TypeError):
+        assignment(slot_arms=[("slot-0", Arm.REAL), ("slot-1", Arm.SHAM), ("slot-2", Arm.NONE), ("slot-3", Arm.RESAMPLE)])  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
