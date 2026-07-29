@@ -782,3 +782,32 @@ The next event after the archived migration boundary is appended below.
 - **Command:** Ran exactly one focused triggered behavior selection and one combined Ruff+mypy static gate, each hard-capped at 60 seconds.
 - **Result:** GREEN, exit 0. One test passed with 217 unrelated tests deselected in 1.48 seconds. Ruff passed; mypy found no issues in one source file.
 - **Compact receipt:** stdout 175 bytes / 4 lines / SHA-256 `c964986883eed5ef127733c02050c586fdbf94ed67ef713f1d7dd991dc50ae44`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0058/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0059 — publish keyed synthetic reconstruction
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Action:** Checked whitespace/status; staged exactly reconstruction source, focused keyed forgery case, and journal; checked staged scope; committed `feat(neurips): reconstruct synthetic assignments`; pushed publicly; compared exact refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `6ffecf2ffba83c8249939db465cf3dde13b83058`. Three files, 512 insertions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Compact receipt:** stdout 673 bytes / 13 lines / SHA-256 `14ec2a15bd167ee1b525898a57e2d1a2d88d7747d5190fd0b432a22b93d16272`; stderr 134 bytes / 2 lines / SHA-256 `50d42d2f68fc298c1c4178fcb8b8cecbbd5e58f52df687b7ab9052523c5993cf`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0059/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0060 — close typed assignment-ledger API
+
+- **Action:** Added frozen `DonorCandidateReceipt`, matched and N/A donor receipts, their closed union, and `AssignmentLedger`. Enforced mode/algorithm coherence, distinct focal/donor identity and lineage, unique complete candidates, chosen-cost agreement, shared task order, typed refs, exact digests, and unique proof refs.
+- **API:** Keyed reconstruction now returns `AssignmentLedger`, not an untyped document dictionary. Exported assignment sealing, public graph verification, keyed/confirmation reconstruction, typed ledger, and bundle verification from the package surface.
+- **Focused result:** GREEN, exit 0. One focused triggered test passed with 217 unrelated tests deselected in 1.30 seconds.
+- **Static correction:** mypy initially inferred the donor list as N/A-only from its first append; explicitly typed it as the closed `DonorMatchReceipt` union. Corrected Ruff/mypy gate passed.
+
+### EJ-20260729-0061 — compose assignment storage and result-bundle verification
+
+- **Action:** Added exact assignment fixed-receipt verification: compact intent digest, deterministic commit ID, exact manifest/schedule/root/science binding, begin/end lease tuple, generation/expiry, authority, mount, mode, freshness/lifecycle booleans, commit flags, and byte-equal durable registry proof.
+- **Adversarial case:** Forge only the fixed assignment receipt's scientific digest. Verification rejects; restoring the original receipt succeeds.
+- **Bundle orchestration:** `verify_result_bundle` performs keyed reconstruction (which already checks public graph and prefix acceptance), verifies assignment acceptance, then calls immutable artifact-root verification with the exact required-kind authority.
+- **Claim boundary:** Assignment receipt verification is exercised. Full bundle success awaits a complete post-analysis artifact-root fixture; compilation alone is not promoted as end-to-end bundle evidence.
+- **Result:** GREEN, exit 0. One focused test passed in 1.37 seconds; Ruff passed; mypy found no issues in three source files.
+
+### EJ-20260729-0062 — final captured typed/composition gate
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Command:** Ran exactly one focused triggered behavior selection and one combined Ruff+mypy static gate, each hard-capped at 60 seconds.
+- **Result:** GREEN, exit 0. One test passed with 217 unrelated tests deselected in 1.20 seconds. Ruff passed; mypy found no issues in three source files.
+- **Compact receipt:** stdout 176 bytes / 4 lines / SHA-256 `4069e7f1e9b8a5502d6fb83b95caaa7777fd2bc6dc09423bd277d52321761d5b`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0062/` (ignored, retained through 2026-11-27).

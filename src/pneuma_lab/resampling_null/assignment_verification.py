@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import asdict
+import hashlib
 from pathlib import Path
 from typing import cast
 
@@ -14,6 +15,7 @@ from .artifacts import (
     _load_direct_scientific_parent,
     _load_json_bytes,
     _read_ref,
+    verify_artifact_root,
 )
 from .assignment import _ALLOCATION_TABLE
 from .assignment import (
@@ -38,10 +40,20 @@ from .branch_assignment import (
 )
 from .preflight import _validate_assignment_program
 from .secrets import AssignmentSecretHandle, _require_handle_binding
+from .storage import _load_operational_object
 from .types import Arm, ArtifactRef, Treatment
 from .types import (
+    AllocationReceipt,
+    AssignmentLedger,
+    AssignmentMode,
     AssignmentPrefixTaskView,
     AssignmentPrefixView,
+    DonorCandidateReceipt,
+    DonorMatchReceipt,
+    MatchedDonorReceipt,
+    MatchingAlgorithm,
+    NoTriggerDonorReceipt,
+    TaskAssignment,
     TriggerReason,
 )
 
@@ -507,7 +519,7 @@ def require_assignment_reconstruction(
     assignment_secret_handle: AssignmentSecretHandle,
     matching_backend_session: object | None,
     run_root: Path,
-) -> dict[str, object]:
+) -> AssignmentLedger:
     """Reconstruct every secret-dependent synthetic assignment decision."""
 
     if matching_backend_session is not None:
@@ -868,7 +880,7 @@ def require_assignment_reconstruction(
     finally:
         keys.wipe()
         _wipe_bytearray(master)
-    return public_ledger
+    return _typed_assignment_ledger(public_ledger)
 
 
 def require_confirmation_assignment(
@@ -877,7 +889,7 @@ def require_confirmation_assignment(
     assignment_secret_handle: AssignmentSecretHandle,
     matching_backend_session: object | None,
     run_root: Path,
-) -> dict[str, object]:
+) -> AssignmentLedger:
     """Fail closed until the nominal confirmation runner adapter exists."""
 
     del assignment_secret_handle, matching_backend_session
@@ -895,4 +907,311 @@ def require_confirmation_assignment(
         )
     raise RecordValidationError(
         "confirmation matching backend reconstruction adapter is unavailable"
+    )
+
+
+def _require_assignment_publication(
+    ledger_ref: ArtifactRef,
+    *,
+    manifest_ref: ArtifactRef,
+    schedule_ref: ArtifactRef,
+    run_root: Path,
+) -> None:
+    receipt_path = (
+        run_root / "operational" / "storage-policy" / "assignment.json"
+    )
+    receipt, _receipt_raw = _load_operational_object(receipt_path)
+    if set(receipt) != {
+        "record_kind",
+        "schema_version",
+        "transaction",
+        "intent",
+        "transaction_intent_sha256",
+        "publication_commit",
+        "fresh_at_publication_commit",
+        "publication_commit_recorded",
+        "publication_commit_consumes_lease",
+        "fixed_receipt_is_acceptance_marker",
+    }:
+        raise RecordValidationError(
+            "assignment storage receipt shape is not closed"
+        )
+    intent = receipt.get("intent")
+    proof = receipt.get("publication_commit")
+    if not isinstance(intent, dict) or not isinstance(proof, dict):
+        raise RecordValidationError(
+            "assignment storage receipt parents must be objects"
+        )
+    intent_raw = canonical_json_bytes(intent, indent=None)
+    intent_digest = hashlib.sha256(intent_raw).hexdigest()
+    commit_id = hashlib.sha256(
+        b"local-test-storage-commit-v1\x00" + bytes.fromhex(intent_digest)
+    ).hexdigest()
+    normalized_root_sha256 = hashlib.sha256(
+        run_root.as_posix().encode("utf-8")
+    ).hexdigest()
+    begin = intent.get("begin")
+    end = intent.get("end")
+    if not isinstance(begin, dict) or not isinstance(end, dict):
+        raise RecordValidationError(
+            "assignment storage intent lacks begin/end observations"
+        )
+    if (
+        receipt.get("record_kind") != "storage_policy_receipt_v1"
+        or receipt.get("schema_version") != "1"
+        or receipt.get("transaction") != "assignment"
+        or receipt.get("transaction_intent_sha256") != intent_digest
+        or receipt.get("fresh_at_publication_commit") is not True
+        or receipt.get("publication_commit_recorded") is not True
+        or receipt.get("publication_commit_consumes_lease") is not True
+        or receipt.get("fixed_receipt_is_acceptance_marker") is not True
+        or intent.get("transaction") != "assignment"
+        or intent.get("prepared_scientific_relative_path")
+        != ledger_ref.relative_path
+        or intent.get("prepared_scientific_sha256") != ledger_ref.sha256
+        or intent.get("lease_id") != begin.get("lease_id")
+        or intent.get("lease_id") != end.get("lease_id")
+        or begin.get("observation") != "begin"
+        or end.get("observation") != "end"
+        or begin.get("manifest_sha256") != manifest_ref.sha256
+        or end.get("manifest_sha256") != manifest_ref.sha256
+        or begin.get("schedule_sha256") != schedule_ref.sha256
+        or end.get("schedule_sha256") != schedule_ref.sha256
+        or begin.get("normalized_run_root_sha256")
+        != normalized_root_sha256
+        or end.get("normalized_run_root_sha256")
+        != normalized_root_sha256
+        or begin.get("mode") != "local_test"
+        or end.get("mode") != "local_test"
+        or begin.get("test_only") is not True
+        or end.get("test_only") is not True
+        or intent.get("final_lease_generation")
+        != end.get("lease_generation")
+        or intent.get("final_lease_expires_at_utc")
+        != end.get("lease_expires_at_utc")
+        or intent.get("continuous_lease_held") is not True
+        or intent.get("fresh_at_end") is not True
+        or intent.get("end_releases_lease") is not False
+        or proof.get("record_kind") != "storage_publication_commit_v1"
+        or proof.get("schema_version") != "1"
+        or proof.get("transaction") != "assignment"
+        or proof.get("manifest_sha256") != manifest_ref.sha256
+        or proof.get("schedule_sha256") != schedule_ref.sha256
+        or proof.get("normalized_run_root_sha256")
+        != normalized_root_sha256
+        or proof.get("mode") != "local_test"
+        or proof.get("test_only") is not True
+        or proof.get("lease_id") != intent.get("lease_id")
+        or proof.get("lease_generation")
+        != intent.get("final_lease_generation")
+        or proof.get("lease_expires_at_utc")
+        != intent.get("final_lease_expires_at_utc")
+        or proof.get("authority_ref") != begin.get("authority_ref")
+        or proof.get("mount_identity_sha256")
+        != end.get("mount_identity_sha256")
+        or proof.get("transaction_intent_sha256") != intent_digest
+        or proof.get("scientific_relative_path") != ledger_ref.relative_path
+        or proof.get("scientific_sha256") != ledger_ref.sha256
+        or proof.get("registry_commit_id") != commit_id
+        or proof.get("commit_recorded") is not True
+        or proof.get("lease_consumed") is not True
+        or proof.get("release_required") is not True
+    ):
+        raise RecordValidationError(
+            "assignment storage receipt does not bind the accepted ledger"
+        )
+    proof_path = (
+        run_root
+        / "operational"
+        / "storage-policy"
+        / "registry"
+        / "commits"
+        / f"{commit_id}.json"
+    )
+    stored_proof, stored_raw = _load_operational_object(proof_path)
+    if (
+        stored_proof != proof
+        or stored_raw != canonical_json_bytes(proof, indent=None)
+    ):
+        raise RecordValidationError(
+            "assignment registry proof differs from fixed receipt"
+        )
+
+
+def verify_result_bundle(
+    receipt_path: Path,
+    ledger_ref: ArtifactRef,
+    *,
+    assignment_secret_handle: AssignmentSecretHandle,
+    matching_backend_session: object | None,
+    required_document_kinds: Collection[str],
+    run_root: Path,
+) -> None:
+    """Compose keyed reconstruction, storage acceptance, and root closure."""
+
+    root = Path(run_root).resolve(strict=True)
+    ledger = require_assignment_reconstruction(
+        ledger_ref,
+        assignment_secret_handle=assignment_secret_handle,
+        matching_backend_session=matching_backend_session,
+        run_root=root,
+    )
+    _require_assignment_publication(
+        ledger_ref,
+        manifest_ref=ledger.manifest_ref,
+        schedule_ref=ledger.schedule_ref,
+        run_root=root,
+    )
+    verify_artifact_root(
+        receipt_path,
+        root,
+        required_document_kinds=required_document_kinds,
+    )
+
+
+def _typed_assignment_ledger(document: dict[str, object]) -> AssignmentLedger:
+    payload = cast(dict[str, object], document["payload"])
+    assignments = tuple(
+        TaskAssignment(
+            task_id=cast(str, row["task_id"]),
+            task_lineage=cast(str, row["task_lineage"]),
+            donor_match_kind=cast(object, row["donor_match_kind"]),  # type: ignore[arg-type]
+            donor_task_id=cast(str | None, row["donor_task_id"]),
+            donor_lineage=cast(str | None, row["donor_lineage"]),
+            slot_arms=tuple(
+                (cast(str, pair[0]), Arm(cast(str, pair[1])))
+                for pair in cast(list[list[object]], row["slot_arms"])
+            ),
+            schedule_sha256=cast(str, row["schedule_sha256"]),
+            prefix_index_sha256=cast(str, row["prefix_index_sha256"]),
+        )
+        for row in cast(list[dict[str, object]], payload["assignments"])
+    )
+    allocations = tuple(
+        AllocationReceipt(
+            task_id=cast(str, row["task_id"]),
+            slot_ids_by_ordinal=cast(
+                tuple[str, str, str, str],
+                tuple(cast(list[str], row["slot_ids_by_ordinal"])),
+            ),
+            treatment_allocation_index=cast(
+                int,
+                row["treatment_allocation_index"],
+            ),
+            allocation_rejection_counter=cast(
+                int,
+                row["allocation_rejection_counter"],
+            ),
+            no_packet_orientation_bit=cast(
+                int,
+                row["no_packet_orientation_bit"],
+            ),
+            orientation_rejection_counter=cast(
+                int,
+                row["orientation_rejection_counter"],
+            ),
+            slot_capabilities=tuple(
+                (cast(str, pair[0]), cast(str, pair[1]))
+                for pair in cast(list[list[object]], row["slot_capabilities"])
+            ),
+        )
+        for row in cast(
+            list[dict[str, object]],
+            payload["allocation_receipts"],
+        )
+    )
+    donor_receipts: list[DonorMatchReceipt] = []
+    for row in cast(
+        list[dict[str, object]],
+        payload["donor_match_receipts"],
+    ):
+        if row["kind"] == "not_applicable_no_trigger":
+            donor_receipts.append(
+                NoTriggerDonorReceipt(
+                    kind="not_applicable_no_trigger",
+                    task_id=cast(str, row["task_id"]),
+                    trigger_reason="no_intervention_opportunity",
+                    assignment_prefix_view_sha256=cast(
+                        str,
+                        row["assignment_prefix_view_sha256"],
+                    ),
+                )
+            )
+            continue
+        candidates = tuple(
+            DonorCandidateReceipt(
+                donor_task_id=cast(str, candidate["donor_task_id"]),
+                donor_lineage=cast(str, candidate["donor_lineage"]),
+                primary_cost=cast(
+                    tuple[int, int, int],
+                    tuple(cast(list[int], candidate["primary_cost"])),
+                ),
+                fallback_code=cast(object, candidate["fallback_code"]),  # type: ignore[arg-type]
+                tie_hmac_sha256=cast(str, candidate["tie_hmac_sha256"]),
+            )
+            for candidate in cast(
+                list[dict[str, object]],
+                row["candidates"],
+            )
+        )
+        donor_receipts.append(
+            MatchedDonorReceipt(
+                kind="matched",
+                task_id=cast(str, row["task_id"]),
+                donor_task_id=cast(str, row["donor_task_id"]),
+                task_lineage=cast(str, row["task_lineage"]),
+                donor_lineage=cast(str, row["donor_lineage"]),
+                assignment_mode=AssignmentMode(
+                    cast(str, row["assignment_mode"])
+                ),
+                matching_algorithm=MatchingAlgorithm(
+                    cast(str, row["matching_algorithm"])
+                ),
+                stratum_key=tuple(cast(list[str], row["stratum_key"])),
+                assignment_prefix_view_sha256=cast(
+                    str,
+                    row["assignment_prefix_view_sha256"],
+                ),
+                candidates=candidates,
+                chosen_primary_cost=cast(
+                    tuple[int, int, int],
+                    tuple(cast(list[int], row["chosen_primary_cost"])),
+                ),
+                matching_proof_ref=_artifact_ref(
+                    row["matching_proof_ref"],
+                    field="typed matching_proof_ref",
+                ),
+            )
+        )
+    return AssignmentLedger(
+        study_id=cast(str, document["study_id"]),
+        frozen_created_at=cast(str, document["frozen_created_at"]),
+        manifest_ref=_artifact_ref(payload["manifest_ref"], field="manifest_ref"),
+        schedule_ref=_artifact_ref(payload["schedule_ref"], field="schedule_ref"),
+        prefix_index_ref=_artifact_ref(
+            payload["prefix_index_ref"],
+            field="prefix_index_ref",
+        ),
+        matching_program_ref=_artifact_ref(
+            payload["matching_program_ref"],
+            field="matching_program_ref",
+        ),
+        assignment_master_key_commitment_sha256=cast(
+            str,
+            payload["assignment_master_key_commitment_sha256"],
+        ),
+        assignment_prefix_view_sha256=cast(
+            str,
+            payload["assignment_prefix_view_sha256"],
+        ),
+        assignment_mode=AssignmentMode(
+            cast(str, payload["assignment_mode"])
+        ),
+        matching_proof_refs=tuple(
+            _artifact_ref(value, field="matching_proof_refs item")
+            for value in cast(list[object], payload["matching_proof_refs"])
+        ),
+        assignments=assignments,
+        allocation_receipts=allocations,
+        donor_match_receipts=tuple(donor_receipts),
     )

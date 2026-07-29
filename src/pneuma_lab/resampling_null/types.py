@@ -435,6 +435,132 @@ class AllocationReceipt:
 
 
 @dataclass(frozen=True, slots=True)
+class DonorCandidateReceipt:
+    donor_task_id: str
+    donor_lineage: str
+    primary_cost: tuple[int, int, int]
+    fallback_code: (
+        Literal["cross_family_component_match_unavailable"] | None
+    )
+    tie_hmac_sha256: str
+
+    def __post_init__(self) -> None:
+        _require_nonempty_string(self.donor_task_id, "donor_task_id")
+        _require_nonempty_string(self.donor_lineage, "donor_lineage")
+        if not isinstance(self.primary_cost, tuple) or len(self.primary_cost) != 3:
+            raise TypeError("primary_cost must be an exact three-tuple")
+        for value in self.primary_cost:
+            _require_exact_nonnegative_int(value, "primary_cost item")
+        if self.fallback_code not in (
+            None,
+            "cross_family_component_match_unavailable",
+        ):
+            raise ValueError("fallback_code is not recognized")
+        _require_sha256(self.tie_hmac_sha256, "tie_hmac_sha256")
+
+
+@dataclass(frozen=True, slots=True)
+class MatchedDonorReceipt:
+    kind: Literal["matched"]
+    task_id: str
+    donor_task_id: str
+    task_lineage: str
+    donor_lineage: str
+    assignment_mode: AssignmentMode
+    matching_algorithm: MatchingAlgorithm
+    stratum_key: tuple[str, ...]
+    assignment_prefix_view_sha256: str
+    candidates: tuple[DonorCandidateReceipt, ...]
+    chosen_primary_cost: tuple[int, int, int]
+    matching_proof_ref: ArtifactRef
+
+    def __post_init__(self) -> None:
+        if self.kind != "matched":
+            raise ValueError("matched donor receipt kind must equal matched")
+        for name in (
+            "task_id",
+            "donor_task_id",
+            "task_lineage",
+            "donor_lineage",
+        ):
+            _require_nonempty_string(getattr(self, name), name)
+        if self.task_id == self.donor_task_id:
+            raise ValueError("matched donor task must differ from focal task")
+        if self.task_lineage == self.donor_lineage:
+            raise ValueError("matched donor lineage must differ from focal lineage")
+        if not isinstance(self.assignment_mode, AssignmentMode):
+            raise TypeError("assignment_mode must be AssignmentMode")
+        if not isinstance(self.matching_algorithm, MatchingAlgorithm):
+            raise TypeError("matching_algorithm must be MatchingAlgorithm")
+        if (
+            self.assignment_mode is AssignmentMode.SYNTHETIC
+            and self.matching_algorithm is not MatchingAlgorithm.SYNTHETIC
+        ) or (
+            self.assignment_mode is AssignmentMode.CONFIRMATION
+            and self.matching_algorithm is not MatchingAlgorithm.CONFIRMATION
+        ):
+            raise ValueError("assignment mode/algorithm pair differs")
+        if not isinstance(self.stratum_key, tuple) or not self.stratum_key:
+            raise TypeError("stratum_key must be a non-empty tuple")
+        for component in self.stratum_key:
+            _require_nonempty_string(component, "stratum_key item")
+        _require_sha256(
+            self.assignment_prefix_view_sha256,
+            "assignment_prefix_view_sha256",
+        )
+        if not isinstance(self.candidates, tuple) or not self.candidates:
+            raise TypeError("candidates must be a non-empty tuple")
+        if not all(
+            isinstance(candidate, DonorCandidateReceipt)
+            for candidate in self.candidates
+        ):
+            raise TypeError("candidates must contain DonorCandidateReceipt")
+        donor_ids = [candidate.donor_task_id for candidate in self.candidates]
+        if len(donor_ids) != len(set(donor_ids)):
+            raise ValueError("candidate donor task IDs must be unique")
+        if self.donor_task_id not in donor_ids:
+            raise ValueError("chosen donor must appear in candidates")
+        if (
+            not isinstance(self.chosen_primary_cost, tuple)
+            or len(self.chosen_primary_cost) != 3
+        ):
+            raise TypeError("chosen_primary_cost must be an exact three-tuple")
+        for value in self.chosen_primary_cost:
+            _require_exact_nonnegative_int(value, "chosen_primary_cost item")
+        chosen = next(
+            candidate
+            for candidate in self.candidates
+            if candidate.donor_task_id == self.donor_task_id
+        )
+        if chosen.primary_cost != self.chosen_primary_cost:
+            raise ValueError("chosen_primary_cost differs from chosen candidate")
+        if not isinstance(self.matching_proof_ref, ArtifactRef):
+            raise TypeError("matching_proof_ref must be ArtifactRef")
+
+
+@dataclass(frozen=True, slots=True)
+class NoTriggerDonorReceipt:
+    kind: Literal["not_applicable_no_trigger"]
+    task_id: str
+    trigger_reason: Literal["no_intervention_opportunity"]
+    assignment_prefix_view_sha256: str
+
+    def __post_init__(self) -> None:
+        if self.kind != "not_applicable_no_trigger":
+            raise ValueError("no-trigger donor receipt kind differs")
+        _require_nonempty_string(self.task_id, "task_id")
+        if self.trigger_reason != "no_intervention_opportunity":
+            raise ValueError("no-trigger receipt has wrong trigger reason")
+        _require_sha256(
+            self.assignment_prefix_view_sha256,
+            "assignment_prefix_view_sha256",
+        )
+
+
+DonorMatchReceipt = MatchedDonorReceipt | NoTriggerDonorReceipt
+
+
+@dataclass(frozen=True, slots=True)
 class TaskAssignment:
     task_id: str
     task_lineage: str
@@ -482,3 +608,74 @@ class TaskAssignment:
             raise ValueError("slot_arms must assign every Arm exactly once")
         _require_sha256(self.schedule_sha256, "schedule_sha256")
         _require_sha256(self.prefix_index_sha256, "prefix_index_sha256")
+
+
+@dataclass(frozen=True, slots=True)
+class AssignmentLedger:
+    study_id: str
+    frozen_created_at: str
+    manifest_ref: ArtifactRef
+    schedule_ref: ArtifactRef
+    prefix_index_ref: ArtifactRef
+    matching_program_ref: ArtifactRef
+    assignment_master_key_commitment_sha256: str
+    assignment_prefix_view_sha256: str
+    assignment_mode: AssignmentMode
+    matching_proof_refs: tuple[ArtifactRef, ...]
+    assignments: tuple[TaskAssignment, ...]
+    allocation_receipts: tuple[AllocationReceipt, ...]
+    donor_match_receipts: tuple[DonorMatchReceipt, ...]
+
+    def __post_init__(self) -> None:
+        _require_nonempty_string(self.study_id, "study_id")
+        _require_nonempty_string(self.frozen_created_at, "frozen_created_at")
+        for name in (
+            "manifest_ref",
+            "schedule_ref",
+            "prefix_index_ref",
+            "matching_program_ref",
+        ):
+            if not isinstance(getattr(self, name), ArtifactRef):
+                raise TypeError(f"{name} must be ArtifactRef")
+        _require_sha256(
+            self.assignment_master_key_commitment_sha256,
+            "assignment_master_key_commitment_sha256",
+        )
+        _require_sha256(
+            self.assignment_prefix_view_sha256,
+            "assignment_prefix_view_sha256",
+        )
+        if not isinstance(self.assignment_mode, AssignmentMode):
+            raise TypeError("assignment_mode must be AssignmentMode")
+        for name, expected_type in (
+            ("matching_proof_refs", ArtifactRef),
+            ("assignments", TaskAssignment),
+            ("allocation_receipts", AllocationReceipt),
+        ):
+            value = getattr(self, name)
+            if not isinstance(value, tuple) or not all(
+                isinstance(item, expected_type) for item in value
+            ):
+                raise TypeError(f"{name} has wrong immutable item type")
+        if not self.assignments:
+            raise ValueError("assignments must not be empty")
+        if (
+            not isinstance(self.donor_match_receipts, tuple)
+            or not all(
+                isinstance(
+                    item,
+                    (MatchedDonorReceipt, NoTriggerDonorReceipt),
+                )
+                for item in self.donor_match_receipts
+            )
+        ):
+            raise TypeError("donor_match_receipts has wrong immutable item type")
+        task_orders = (
+            [item.task_id for item in self.assignments],
+            [item.task_id for item in self.allocation_receipts],
+            [item.task_id for item in self.donor_match_receipts],
+        )
+        if not task_orders[0] or any(order != task_orders[0] for order in task_orders[1:]):
+            raise ValueError("ledger arrays must share exact task order")
+        if len(self.matching_proof_refs) != len(set(self.matching_proof_refs)):
+            raise ValueError("matching_proof_refs must be unique")

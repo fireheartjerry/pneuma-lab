@@ -5,9 +5,17 @@ from .secrets import (
     AssignmentSecretStore,
     UnblindSecretHandle,
 )
+from .assignment_verification import (
+    require_assignment_reconstruction,
+    require_confirmation_assignment,
+    verify_result_bundle,
+    verify_synthetic_assignment_graph,
+)
+from .branch_assignment import seal_branch_assignment
 from .types import (
     Arm,
     ArtifactRef,
+    AssignmentLedger,
     AssignmentMode,
     BranchOutcome,
     BranchSlot,
@@ -28,6 +36,7 @@ from .types import (
 __all__ = (
     "Arm",
     "ArtifactRef",
+    "AssignmentLedger",
     "AssignmentSecretHandle",
     "AssignmentSecretStore",
     "AssignmentMode",
@@ -39,6 +48,9 @@ __all__ = (
     "GroupLabel",
     "MatchingAlgorithm",
     "ResourceCounters",
+    "require_assignment_reconstruction",
+    "require_confirmation_assignment",
+    "seal_branch_assignment",
     "TaskAssignment",
     "TaskSchedule",
     "TaskSpec",
@@ -46,4 +58,6 @@ __all__ = (
     "TriggerReason",
     "UnblindSecretHandle",
     "Verdict",
+    "verify_result_bundle",
+    "verify_synthetic_assignment_graph",
 )

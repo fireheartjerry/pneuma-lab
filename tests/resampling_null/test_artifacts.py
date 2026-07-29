@@ -40,6 +40,7 @@ from pneuma_lab.resampling_null.assignment import (
 )
 from pneuma_lab.resampling_null.branch_assignment import seal_branch_assignment
 from pneuma_lab.resampling_null.assignment_verification import (
+    _require_assignment_publication,
     require_assignment_reconstruction,
     require_confirmation_assignment,
     verify_synthetic_assignment_graph,
@@ -3457,6 +3458,40 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
         len(cast(list[object], receipt["candidates"])) == 2
         for receipt in donor_receipts
     )
+    assignment_storage_receipt_path = (
+        root / "operational/storage-policy/assignment.json"
+    )
+    assignment_storage_receipt_bytes = (
+        assignment_storage_receipt_path.read_bytes()
+    )
+    forged_assignment_storage_receipt = json.loads(
+        assignment_storage_receipt_bytes
+    )
+    forged_assignment_storage_receipt["publication_commit"][
+        "scientific_sha256"
+    ] = SHA_A
+    assignment_storage_receipt_path.write_bytes(
+        canonical_json_bytes(
+            forged_assignment_storage_receipt,
+            indent=None,
+        )
+    )
+    with pytest.raises(RecordValidationError, match="accepted ledger"):
+        _require_assignment_publication(
+            ledger_ref,
+            manifest_ref=manifest_ref,
+            schedule_ref=schedule_ref,
+            run_root=root,
+        )
+    assignment_storage_receipt_path.write_bytes(
+        assignment_storage_receipt_bytes
+    )
+    _require_assignment_publication(
+        ledger_ref,
+        manifest_ref=manifest_ref,
+        schedule_ref=schedule_ref,
+        run_root=root,
+    )
     assert (
         verify_synthetic_assignment_graph(
             ledger_ref,
@@ -3487,15 +3522,20 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
             matching_backend_session=None,
             run_root=root,
         )
-    assert (
-        require_assignment_reconstruction(
-            ledger_ref,
-            assignment_secret_handle=reconstruction_handle,
-            matching_backend_session=None,
-            run_root=root,
-        )["payload"]
-        == payload
+    reconstructed = require_assignment_reconstruction(
+        ledger_ref,
+        assignment_secret_handle=reconstruction_handle,
+        matching_backend_session=None,
+        run_root=root,
     )
+    assert [assignment.task_id for assignment in reconstructed.assignments] == [
+        "task-1",
+        "task-donor",
+        "task-third",
+    ]
+    assert reconstructed.assignment_prefix_view_sha256 == payload[
+        "assignment_prefix_view_sha256"
+    ]
 
     forged_ledger = load_record(root / ledger_ref.relative_path)
     forged_payload = cast(dict[str, object], forged_ledger["payload"])
