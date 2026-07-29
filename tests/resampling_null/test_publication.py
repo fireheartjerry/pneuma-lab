@@ -1007,3 +1007,158 @@ def test_publication_namespace_lease_setup_failure_releases_descriptors(
     assert calls >= 2
     assert _fd_set() == baseline
     assert not (run_root / ".pneuma-publication.lock").exists()
+
+
+@pytest.mark.parametrize(
+    ("cleanup_point", "expected_failure", "descriptor_purpose"),
+    [
+        ("lease_unlock", "namespace lock unlock", None),
+        (
+            "lease_close",
+            "namespace lock descriptor close",
+            "publication namespace lock",
+        ),
+        ("lock_unlink", "namespace lock unlink", None),
+        ("root_unlock", "root namespace unlock", None),
+        (
+            "root_close",
+            "root descriptor close",
+            "publication root",
+        ),
+    ],
+)
+def test_publication_setup_cleanup_failure_is_aggregated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    cleanup_point: str,
+    expected_failure: str,
+    descriptor_purpose: str | None,
+) -> None:
+    publication = _publication_module()
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    baseline = _fd_set()
+    original_close = publication.os.close
+    original_flock = publication.fcntl.flock
+    original_fsync = publication.os.fsync
+    original_unlink = publication.os.unlink
+    close_calls = 0
+    unlock_calls = 0
+    setup_failed = False
+
+    def fail_setup_fsync(descriptor: int) -> None:
+        nonlocal setup_failed
+        if not setup_failed:
+            setup_failed = True
+            raise OSError("injected publication setup failure")
+        original_fsync(descriptor)
+
+    def fail_cleanup_flock(descriptor: int, operation: int) -> None:
+        nonlocal unlock_calls
+        original_flock(descriptor, operation)
+        if operation != publication.fcntl.LOCK_UN:
+            return
+        unlock_calls += 1
+        if (cleanup_point == "lease_unlock" and unlock_calls == 1) or (
+            cleanup_point == "root_unlock" and unlock_calls == 2
+        ):
+            raise OSError(f"injected {expected_failure}")
+
+    def fail_cleanup_close(descriptor: int) -> None:
+        nonlocal close_calls
+        close_calls += 1
+        original_close(descriptor)
+        if (cleanup_point == "lease_close" and close_calls == 1) or (
+            cleanup_point == "root_close" and close_calls == 2
+        ):
+            raise OSError(f"injected {expected_failure}")
+
+    def fail_cleanup_unlink(
+        path: str,
+        *,
+        dir_fd: int | None = None,
+    ) -> None:
+        if cleanup_point == "lock_unlink" and path == ".pneuma-publication.lock":
+            raise PermissionError(f"injected {expected_failure}")
+        original_unlink(path, dir_fd=dir_fd)
+
+    monkeypatch.setattr(publication.os, "fsync", fail_setup_fsync)
+    monkeypatch.setattr(publication.fcntl, "flock", fail_cleanup_flock)
+    monkeypatch.setattr(publication.os, "close", fail_cleanup_close)
+    monkeypatch.setattr(publication.os, "unlink", fail_cleanup_unlink)
+    with pytest.raises(
+        publication.PublicationRollbackError,
+        match=r"publication setup cleanup incomplete",
+    ) as captured:
+        with publication.BoundPublication(run_root):
+            pass
+
+    assert isinstance(captured.value.__cause__, OSError)
+    assert "injected publication setup failure" in str(captured.value.__cause__)
+    assert expected_failure in str(captured.value)
+    if descriptor_purpose is not None:
+        assert "descriptor close state uncertain" in str(captured.value)
+        assert f"purpose={descriptor_purpose}" in str(captured.value)
+    if cleanup_point == "lock_unlink":
+        assert "residual path: .pneuma-publication.lock" in str(captured.value)
+        original_unlink(run_root / ".pneuma-publication.lock")
+    else:
+        assert not (run_root / ".pneuma-publication.lock").exists()
+    assert _fd_set() == baseline
+
+
+def test_rollback_source_close_failure_is_typed_and_aggregated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publication = _publication_module()
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    baseline = _fd_set()
+    original_close = publication.os.close
+    original_open = publication.os.open
+    path_descriptors: set[int] = set()
+    failed_descriptor: int | None = None
+
+    def capture_path_open(
+        path: object,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        descriptor = original_open(path, flags, mode, dir_fd=dir_fd)
+        if flags & getattr(os, "O_PATH", 0):
+            path_descriptors.add(descriptor)
+        return descriptor
+
+    def fail_path_close(descriptor: int) -> None:
+        nonlocal failed_descriptor
+        original_close(descriptor)
+        if failed_descriptor is None and descriptor in path_descriptors:
+            failed_descriptor = descriptor
+            raise OSError("injected rollback source close failure")
+
+    monkeypatch.setattr(publication.os, "open", capture_path_open)
+    monkeypatch.setattr(publication.os, "close", fail_path_close)
+    with pytest.raises(
+        publication.PublicationRollbackError,
+        match=r"publication rollback incomplete.*rollback source close",
+    ) as captured:
+        with publication.BoundPublication(run_root) as transaction:
+            transaction.publish_bytes(
+                "item.json",
+                b"owned\n",
+                role="fixture",
+                media_type="application/json",
+            )
+            raise OSError("injected terminal failure")
+
+    assert isinstance(captured.value.__cause__, OSError)
+    assert "injected terminal failure" in str(captured.value.__cause__)
+    assert failed_descriptor is not None
+    assert "descriptor close state uncertain" in str(captured.value)
+    assert f"fd={failed_descriptor}" in str(captured.value)
+    assert "residual path: item.json" not in str(captured.value)
+    assert not (run_root / "item.json").exists()
+    assert _fd_set() == baseline

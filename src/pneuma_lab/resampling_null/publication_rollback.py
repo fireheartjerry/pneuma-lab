@@ -12,6 +12,7 @@ from collections.abc import Callable, Iterable
 from typing import Any, Protocol, TypeVar
 
 from .publication_quarantine import RollbackResidual
+from .publication_quarantine import QuarantinedSource
 from .publication_quarantine import UnlocatedOwnedIdentity
 from .publication_quarantine import (
     binding_matches_named as _binding_matches_named,
@@ -97,6 +98,24 @@ _RollbackItemT = TypeVar("_RollbackItemT", bound=RollbackItem)
 _RollbackResult = tuple[list[str], list[RollbackResidual]]
 
 
+def _finish_bound_source(
+    binding: QuarantinedSource,
+    result: _RollbackResult,
+    *,
+    prior_failures: list[str],
+    prior_residuals: list[RollbackResidual],
+) -> _RollbackResult:
+    failures, residuals = result
+    close_failures, close_residuals = _close_source(
+        binding.source_descriptor,
+        purpose="rollback source",
+    )
+    return (
+        [*prior_failures, *failures, *close_failures],
+        [*prior_residuals, *residuals, *close_residuals],
+    )
+
+
 def descriptor_digest(descriptor: int) -> tuple[str, int]:
     os.lseek(descriptor, 0, os.SEEK_SET)
     digest = hashlib.sha256()
@@ -160,6 +179,17 @@ def _rollback_owned(
     )
     if binding is None:
         return failures, residuals
+    prior_failures = failures
+    prior_residuals = residuals
+
+    def finish(result: _RollbackResult) -> _RollbackResult:
+        return _finish_bound_source(
+            binding,
+            result,
+            prior_failures=prior_failures,
+            prior_residuals=prior_residuals,
+        )
+
     try:
         source_is_owned = stat.S_ISREG(binding.source_metadata.st_mode) and (
             binding.source_metadata.st_dev,
@@ -175,12 +205,14 @@ def _rollback_owned(
                 expected_inode=owned.inode,
             )
             if not matches:
-                return failures, residuals
-            return _restore_bound_source(
-                binding,
-                owned.name,
-                relative_path=owned.relative_path,
-                rename=rename,
+                return finish((failures, residuals))
+            return finish(
+                _restore_bound_source(
+                    binding,
+                    owned.name,
+                    relative_path=owned.relative_path,
+                    rename=rename,
+                )
             )
         try:
             descriptor = os.open(
@@ -205,16 +237,18 @@ def _rollback_owned(
                 expected_inode=owned.inode,
             )
             if not matches:
-                return failures, residuals
-            return _restore_bound_source(
-                binding,
-                owned.name,
-                relative_path=owned.relative_path,
-                rename=rename,
-                failure=(
-                    f"{owned.relative_path} quarantine inspection: "
-                    f"{type(exc).__name__}: {exc}"
-                ),
+                return finish((failures, residuals))
+            return finish(
+                _restore_bound_source(
+                    binding,
+                    owned.name,
+                    relative_path=owned.relative_path,
+                    rename=rename,
+                    failure=(
+                        f"{owned.relative_path} quarantine inspection: "
+                        f"{type(exc).__name__}: {exc}"
+                    ),
+                )
             )
         matches, failures, residuals = _recheck_quarantine(
             binding,
@@ -225,7 +259,7 @@ def _rollback_owned(
             expected_inode=owned.inode,
         )
         if not matches:
-            return failures, residuals
+            return finish((failures, residuals))
         identity_matches = (
             stat.S_ISREG(metadata.st_mode)
             and digest == owned.sha256
@@ -240,26 +274,35 @@ def _rollback_owned(
                 )
                 os.fsync(binding.parent_descriptor)
             except BaseException as exc:
-                return (
-                    [f"{binding.quarantine_relative}: {type(exc).__name__}: {exc}"],
-                    [binding.quarantine_relative],
+                return finish(
+                    (
+                        [f"{binding.quarantine_relative}: {type(exc).__name__}: {exc}"],
+                        [binding.quarantine_relative],
+                    )
                 )
-            return [], []
+            return finish(([], []))
         if identity_matches:
             failure = (
                 f"{owned.relative_path}: link count {link_count} prevents rollback"
             )
         else:
             failure = f"{owned.relative_path}: owned content changed during rollback"
-        return _restore_bound_source(
-            binding,
-            owned.name,
-            relative_path=owned.relative_path,
-            rename=rename,
-            failure=failure,
+        return finish(
+            _restore_bound_source(
+                binding,
+                owned.name,
+                relative_path=owned.relative_path,
+                rename=rename,
+                failure=failure,
+            )
         )
-    finally:
-        _close_source(binding.source_descriptor)
+    except BaseException as exc:
+        return finish(
+            (
+                [f"{owned.relative_path}: {type(exc).__name__}: {exc}"],
+                [owned.relative_path],
+            )
+        )
 
 
 def _rollback_temporary(
@@ -291,6 +334,17 @@ def _rollback_temporary(
     )
     if binding is None:
         return failures, residuals
+    prior_failures = failures
+    prior_residuals = residuals
+
+    def finish(result: _RollbackResult) -> _RollbackResult:
+        return _finish_bound_source(
+            binding,
+            result,
+            prior_failures=prior_failures,
+            prior_residuals=prior_residuals,
+        )
+
     try:
         source_is_owned = stat.S_ISREG(binding.source_metadata.st_mode) and (
             binding.source_metadata.st_dev,
@@ -305,13 +359,15 @@ def _rollback_temporary(
             expected_inode=temporary.inode,
         )
         if not matches:
-            return failures, residuals
+            return finish((failures, residuals))
         if not source_is_owned:
-            return _restore_bound_source(
-                binding,
-                temporary.name,
-                relative_path=temporary.relative_path,
-                rename=rename,
+            return finish(
+                _restore_bound_source(
+                    binding,
+                    temporary.name,
+                    relative_path=temporary.relative_path,
+                    rename=rename,
+                )
             )
         try:
             os.unlink(
@@ -320,13 +376,20 @@ def _rollback_temporary(
             )
             os.fsync(binding.parent_descriptor)
         except BaseException as exc:
-            return (
-                [f"{binding.quarantine_relative}: {type(exc).__name__}: {exc}"],
-                [binding.quarantine_relative],
+            return finish(
+                (
+                    [f"{binding.quarantine_relative}: {type(exc).__name__}: {exc}"],
+                    [binding.quarantine_relative],
+                )
             )
-        return [], []
-    finally:
-        _close_source(binding.source_descriptor)
+        return finish(([], []))
+    except BaseException as exc:
+        return finish(
+            (
+                [f"{temporary.relative_path}: {type(exc).__name__}: {exc}"],
+                [temporary.relative_path],
+            )
+        )
 
 
 def _rollback_directory(
@@ -358,6 +421,17 @@ def _rollback_directory(
     )
     if binding is None:
         return failures, residuals
+    prior_failures = failures
+    prior_residuals = residuals
+
+    def finish(result: _RollbackResult) -> _RollbackResult:
+        return _finish_bound_source(
+            binding,
+            result,
+            prior_failures=prior_failures,
+            prior_residuals=prior_residuals,
+        )
+
     try:
         source_is_owned = stat.S_ISDIR(binding.source_metadata.st_mode) and (
             binding.source_metadata.st_dev,
@@ -372,17 +446,19 @@ def _rollback_directory(
             expected_inode=created.inode,
         )
         if not matches:
-            return failures, residuals
+            return finish((failures, residuals))
         if not source_is_owned:
-            return _restore_bound_source(
-                binding,
-                created.name,
-                relative_path=created.relative_path,
-                rename=rename,
-                failure=(
-                    f"{created.relative_path}: "
-                    "directory identity changed during rollback"
-                ),
+            return finish(
+                _restore_bound_source(
+                    binding,
+                    created.name,
+                    relative_path=created.relative_path,
+                    rename=rename,
+                    failure=(
+                        f"{created.relative_path}: "
+                        "directory identity changed during rollback"
+                    ),
+                )
             )
         try:
             os.rmdir(
@@ -391,13 +467,20 @@ def _rollback_directory(
             )
             os.fsync(binding.parent_descriptor)
         except BaseException as exc:
-            return (
-                [f"{binding.quarantine_relative}: {type(exc).__name__}: {exc}"],
-                [binding.quarantine_relative],
+            return finish(
+                (
+                    [f"{binding.quarantine_relative}: {type(exc).__name__}: {exc}"],
+                    [binding.quarantine_relative],
+                )
             )
-        return [], []
-    finally:
-        _close_source(binding.source_descriptor)
+        return finish(([], []))
+    except BaseException as exc:
+        return finish(
+            (
+                [f"{created.relative_path}: {type(exc).__name__}: {exc}"],
+                [created.relative_path],
+            )
+        )
 
 
 def _collect_rollbacks(

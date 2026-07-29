@@ -26,6 +26,7 @@ from .publication_rollback import descriptor_digest as _descriptor_digest
 from .publication_rollback import rename_no_replace as _rename_no_replace
 from .publication_rollback import render_rollback_residual
 from .publication_rollback import rollback_publication
+from .publication_quarantine import DescriptorCloseResidual
 from .types import ArtifactRef
 
 
@@ -40,6 +41,15 @@ class PublicationRollbackError(RecordValidationError):
     """Raised when transaction-owned publication state cannot be removed."""
 
 
+@dataclass(slots=True)
+class _NamespaceLeaseSetup:
+    root_descriptor: int | None
+    lease_descriptor: int | None = None
+    lease_created: bool = False
+    root_locked: bool = False
+    lease_locked: bool = False
+
+
 @dataclass(frozen=True, slots=True)
 class _DirectoryBinding:
     parts: tuple[str, ...]
@@ -48,6 +58,64 @@ class _DirectoryBinding:
     descriptor: int
     device: int
     inode: int
+
+
+def _cleanup_namespace_lease_setup(
+    setup: _NamespaceLeaseSetup,
+) -> tuple[list[str], list[str | DescriptorCloseResidual]]:
+    failures: list[str] = []
+    residuals: list[str | DescriptorCloseResidual] = []
+    if setup.lease_descriptor is not None:
+        if setup.lease_locked:
+            try:
+                fcntl.flock(setup.lease_descriptor, fcntl.LOCK_UN)
+            except OSError as exc:
+                failures.append(f"namespace lock unlock: {type(exc).__name__}: {exc}")
+        try:
+            os.close(setup.lease_descriptor)
+        except OSError as exc:
+            failures.append(
+                f"namespace lock descriptor close: {type(exc).__name__}: {exc}"
+            )
+            residuals.append(
+                DescriptorCloseResidual(
+                    descriptor=setup.lease_descriptor,
+                    purpose="publication namespace lock",
+                )
+            )
+        setup.lease_descriptor = None
+    if setup.lease_created and setup.root_descriptor is not None:
+        try:
+            os.unlink(_LEASE_NAME, dir_fd=setup.root_descriptor)
+        except OSError as exc:
+            failures.append(f"namespace lock unlink: {type(exc).__name__}: {exc}")
+            residuals.append(_LEASE_NAME)
+        else:
+            setup.lease_created = False
+            try:
+                os.fsync(setup.root_descriptor)
+            except OSError as exc:
+                failures.append(
+                    f"namespace lock unlink durability: {type(exc).__name__}: {exc}"
+                )
+    if setup.root_descriptor is not None:
+        if setup.root_locked:
+            try:
+                fcntl.flock(setup.root_descriptor, fcntl.LOCK_UN)
+            except OSError as exc:
+                failures.append(f"root namespace unlock: {type(exc).__name__}: {exc}")
+        try:
+            os.close(setup.root_descriptor)
+        except OSError as exc:
+            failures.append(f"root descriptor close: {type(exc).__name__}: {exc}")
+            residuals.append(
+                DescriptorCloseResidual(
+                    descriptor=setup.root_descriptor,
+                    purpose="publication root",
+                )
+            )
+        setup.root_descriptor = None
+    return failures, residuals
 
 
 def _write_all(descriptor: int, payload: bytes) -> None:
@@ -103,11 +171,13 @@ class BoundPublication:
     def __enter__(self) -> BoundPublication:
         if self._entered:
             raise RuntimeError("publication transaction cannot be re-entered")
-        descriptor = os.open(self._named_root, _DIRECTORY_FLAGS)
-        lease_descriptor: int | None = None
-        lease_created = False
+        setup = _NamespaceLeaseSetup(
+            root_descriptor=os.open(self._named_root, _DIRECTORY_FLAGS)
+        )
         try:
-            bound = os.fstat(descriptor)
+            if setup.root_descriptor is None:
+                raise AssertionError("publication root descriptor ownership lost")
+            bound = os.fstat(setup.root_descriptor)
             named = os.stat(self._named_root, follow_symlinks=False)
             if not stat.S_ISDIR(bound.st_mode) or (bound.st_dev, bound.st_ino) != (
                 named.st_dev,
@@ -116,31 +186,32 @@ class BoundPublication:
                 raise RecordValidationError("run_root identity changed during binding")
             try:
                 fcntl.flock(
-                    descriptor,
+                    setup.root_descriptor,
                     fcntl.LOCK_EX | fcntl.LOCK_NB,
                 )
             except BlockingIOError as exc:
                 raise RecordValidationError(
                     "publication namespace lease is already held"
                 ) from exc
+            setup.root_locked = True
             try:
-                lease_descriptor = os.open(
+                setup.lease_descriptor = os.open(
                     _LEASE_NAME,
                     _LEASE_FLAGS | os.O_CREAT | os.O_EXCL,
                     0o600,
-                    dir_fd=descriptor,
+                    dir_fd=setup.root_descriptor,
                 )
-                lease_created = True
+                setup.lease_created = True
             except FileExistsError:
-                lease_descriptor = os.open(
+                setup.lease_descriptor = os.open(
                     _LEASE_NAME,
                     _LEASE_FLAGS,
-                    dir_fd=descriptor,
+                    dir_fd=setup.root_descriptor,
                 )
-            lease_metadata = os.fstat(lease_descriptor)
+            lease_metadata = os.fstat(setup.lease_descriptor)
             named_lease = os.stat(
                 _LEASE_NAME,
-                dir_fd=descriptor,
+                dir_fd=setup.root_descriptor,
                 follow_symlinks=False,
             )
             if not stat.S_ISREG(lease_metadata.st_mode) or (
@@ -152,42 +223,34 @@ class BoundPublication:
                 )
             try:
                 fcntl.flock(
-                    lease_descriptor,
+                    setup.lease_descriptor,
                     fcntl.LOCK_EX | fcntl.LOCK_NB,
                 )
             except BlockingIOError as exc:
                 raise RecordValidationError(
                     "publication namespace lease is already held"
                 ) from exc
-            os.fsync(descriptor)
-        except BaseException:
-            if lease_descriptor is not None:
-                try:
-                    fcntl.flock(lease_descriptor, fcntl.LOCK_UN)
-                except OSError:
-                    pass
-                try:
-                    os.close(lease_descriptor)
-                except OSError:
-                    pass
-            if lease_created:
-                try:
-                    os.unlink(_LEASE_NAME, dir_fd=descriptor)
-                    os.fsync(descriptor)
-                except OSError:
-                    pass
-            try:
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
-            except OSError:
-                pass
-            os.close(descriptor)
+            setup.lease_locked = True
+            os.fsync(setup.root_descriptor)
+        except BaseException as original:
+            failures, residuals = _cleanup_namespace_lease_setup(setup)
+            if failures or residuals:
+                details = [
+                    *failures,
+                    *(render_rollback_residual(item) for item in residuals),
+                ]
+                raise PublicationRollbackError(
+                    "publication setup cleanup incomplete: " + "; ".join(details)
+                ) from original
             raise
-        self._root_descriptor = descriptor
+        self._root_descriptor = setup.root_descriptor
         self._root_device = bound.st_dev
         self._root_inode = bound.st_ino
-        self._lease_descriptor = lease_descriptor
+        self._lease_descriptor = setup.lease_descriptor
         self._lease_device = lease_metadata.st_dev
         self._lease_inode = lease_metadata.st_ino
+        setup.root_descriptor = None
+        setup.lease_descriptor = None
         self._entered = True
         return self
 
