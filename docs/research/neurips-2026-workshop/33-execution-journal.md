@@ -497,3 +497,20 @@ The next event after the archived migration boundary is appended below.
 - **Compact receipt:** stdout `1338` bytes / `19` lines / SHA-256 `1c5971c45a7bb08434783854d1723cede1c3a181f3d7930d33cec53c3fe2860c`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 - **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0509/` (local, ignored, retained through `2026-11-27`).
 - **Next gate:** stage exactly the four Slice 4 files plus this receipt, commit, push, and verify.
+
+### EJ-20260728-0510 — commit, push, and verify Task 3 Slice 4
+
+- **Prior event:** `EJ-20260728-0509`
+- **Local interval:** `2026-07-28T22:48:33-07:00` to `2026-07-28T22:48:35-07:00`
+- **UTC interval:** `2026-07-29T05:48:33+00:00` to `2026-07-29T05:48:35+00:00`
+- **Action:** Staged exactly the journal plus four Slice 4 files, checked whitespace/scope, committed `feat(resampling-null): add purpose-bound secret store`, pushed, and verified the exact remote ref.
+- **Result:** GREEN, exit `0`. Commit/remote `4ecf3c8e6f76d0d64ce6d86676b5c3eb1023e414`; parent `8112398a55fbd7bd326596d7639fef530a4c8a89`; tree `82fff5336f426ec0c112653840ceadc2cfdf74e1`. Five files, `775` insertions.
+- **Compact receipt:** stdout `684` bytes / `13` lines / SHA-256 `5375a1cfe06befe45667617d13aa4ab48b91fb84ba4baa0723f84b5f807b3ba2`; stderr `110` bytes / `2` lines / SHA-256 `6a8e40ed1f4845bcf8c47f7b9833900298f9e7c14048eece19b8c182aa6e7b20`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0510/` (local, ignored, retained through `2026-11-27`).
+- **Scientific boundary:** this implements secret custody and purpose binding; it does not yet implement deterministic imports, full commitment/context verification transactions, assignment allocation, confirmation, or unblinding.
+
+### EJ-20260728-0511 — pre-record finite Slice 4 receipt commit B
+
+- **Prior event:** `EJ-20260728-0510`
+- **Planned B mechanics:** `git add -- docs/research/neurips-2026-workshop/33-execution-journal.md`; `git diff --cached --check`; `git commit -m "docs(neurips): record task 3 slice 4 delivery"`; `git push origin HEAD:refs/heads/codex/neurips-2026-empirical`.
+- **Scope:** journal only. Reconcile B before Slice 5 action.
