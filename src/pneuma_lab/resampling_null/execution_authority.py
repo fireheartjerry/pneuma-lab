@@ -922,12 +922,12 @@ def _validate_provider_lane_plan(
         )
         if (
             max(prefix_caps.generated_tokens, branch_caps.generated_tokens)
-            > subject_binding.caps.aggregate_generated_tokens
+            != subject_binding.caps.aggregate_generated_tokens
             or max(prefix_caps.model_calls, branch_caps.model_calls)
-            > subject_binding.caps.aggregate_model_calls
+            != subject_binding.caps.aggregate_model_calls
         ):
             raise RecordValidationError(
-                f"{field} subject contract caps do not bound lane caps"
+                f"{field} subject contract caps do not exactly match lane caps"
             )
         if (
             parser_binding.response_grammar
@@ -1113,9 +1113,17 @@ def _validate_provider_lane_plan(
                 *row.lane_ordinals_by_execution_rank,
             )
         ]
+        simulator_requirements = {
+            row.requires_user_simulator for row in assigned
+        }
+        if simulator_requirements == {False, True}:
+            raise RecordValidationError(
+                "provider lane "
+                f"{validated_lane.lane_id!r} has mixed simulator capability"
+            )
         if (
             validated_lane.simulator_contract_ref is None
-            and any(row.requires_user_simulator for row in assigned)
+            and simulator_requirements == {True}
         ):
             raise RecordValidationError(
                 "provider lane "
@@ -1123,7 +1131,7 @@ def _validate_provider_lane_plan(
             )
         if (
             validated_lane.simulator_contract_ref is not None
-            and not any(row.requires_user_simulator for row in assigned)
+            and simulator_requirements != {True}
         ):
             raise RecordValidationError(
                 "provider lane "

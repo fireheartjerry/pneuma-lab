@@ -1156,6 +1156,107 @@ def _ref_mapping(ref: ArtifactRef) -> dict[str, object]:
     return cast(dict[str, object], asdict(ref))
 
 
+def _provider_execution_authority(
+    roster_value: object,
+    assignment_value: object,
+) -> Literal["synthetic_validation", "confirmation"]:
+    roster_fields = {
+        "record_kind",
+        "schema_version",
+        "roster_kind",
+        "supported_tiers",
+        "tasks",
+    }
+    if not isinstance(roster_value, Mapping) or set(roster_value) != roster_fields:
+        raise RecordValidationError(
+            "v2 provider plan requires a closed roster source"
+        )
+    if (
+        roster_value.get("record_kind") != "resampling_roster_v1"
+        or roster_value.get("schema_version") != "1"
+    ):
+        raise RecordValidationError("v2 provider roster has wrong identity")
+
+    from .preflight import ASSIGNMENT_PROGRAM_GRAMMAR, _validate_assignment_program
+
+    if (
+        not isinstance(assignment_value, Mapping)
+        or set(assignment_value) != set(ASSIGNMENT_PROGRAM_GRAMMAR.fields)
+    ):
+        raise RecordValidationError(
+            "v2 provider plan requires a closed assignment source"
+        )
+    assignment = dict(assignment_value)
+    if assignment.get("record_kind") != ASSIGNMENT_PROGRAM_GRAMMAR.record_kind:
+        raise RecordValidationError("v2 provider assignment has wrong identity")
+    _validate_assignment_program(assignment)
+
+    authority_by_pair: dict[tuple[object, object], Literal[
+        "synthetic_validation",
+        "confirmation",
+    ]] = {
+        (
+            "synthetic_fixture",
+            "synthetic_derangement",
+        ): "synthetic_validation",
+        (
+            "eligible_confirmation",
+            "confirmation_lineage_matching",
+        ): "confirmation",
+    }
+    pair = (
+        roster_value.get("roster_kind"),
+        assignment.get("assignment_mode"),
+    )
+    try:
+        return authority_by_pair[pair]
+    except KeyError as exc:
+        raise RecordValidationError(
+            "v2 provider roster and assignment authority disagree or are unknown"
+        ) from exc
+
+
+def _create_transaction_parents(
+    parent: Path,
+    *,
+    run_root: Path,
+    created_directories: list[Path],
+) -> None:
+    missing: list[Path] = []
+    cursor = parent
+    while cursor != run_root and not cursor.exists():
+        missing.append(cursor)
+        cursor = cursor.parent
+    for directory in reversed(missing):
+        try:
+            directory.mkdir()
+        except FileExistsError:
+            if not directory.is_dir():
+                raise
+        else:
+            created_directories.append(directory)
+
+
+def _rollback_publication(
+    attempted_destinations: Sequence[Path],
+    created_directories: Sequence[Path],
+) -> None:
+    for destination in reversed(attempted_destinations):
+        try:
+            destination.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
+    for directory in reversed(created_directories):
+        try:
+            directory.rmdir()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
+
+
 def seal_study_manifest(
     study_source: Path,
     tasks_source: Path,
@@ -1369,7 +1470,13 @@ def seal_study_manifest(
     final = dict(template)
     final["payload"] = final_payload
     validated = validate_record(final)
-    out_target, _relative = _prepare_destination(out, root)
+    out_target, _relative = _resolve_inside(out, root, require_exists=False)
+    if out_target.exists():
+        raise FileExistsError(out_target)
+    if out_target in destinations:
+        raise RecordValidationError(
+            "study manifest destination conflicts with a source destination"
+        )
 
     provider_value = _load_json_bytes(
         provider_copy.payload,
@@ -1396,6 +1503,22 @@ def seal_study_manifest(
             )
         registry = dict(task_value)
         _validate_task_registry(registry)
+        roster_copy = next(
+            copy for copy in copies if copy.ref.role == "roster"
+        )
+        assignment_copy = next(
+            copy for copy in copies if copy.ref.role == "assignment_program"
+        )
+        execution_authority = _provider_execution_authority(
+            _load_json_bytes(
+                roster_copy.payload,
+                source=roster_copy.source,
+            ),
+            _load_json_bytes(
+                assignment_copy.payload,
+                source=assignment_copy.source,
+            ),
+        )
         with tempfile.TemporaryDirectory(
             prefix=".pneuma-manifest-stage-",
             dir=root.parent,
@@ -1413,16 +1536,37 @@ def seal_study_manifest(
                 manifest_revisions=tuple(
                     copy.ref for copy in revision_copies
                 ),
+                schedule_authority=execution_authority,
             )
-    for copy in all_copies:
-        copy.destination.parent.mkdir(parents=True, exist_ok=True)
-        write_atomic_bytes(copy.destination, copy.payload)
-    return write_record(
-        out_target,
-        validated,
-        run_root=root,
-        role="study_manifest",
-    )
+    attempted_destinations: list[Path] = []
+    created_directories: list[Path] = []
+    try:
+        for copy in all_copies:
+            _create_transaction_parents(
+                copy.destination.parent,
+                run_root=root,
+                created_directories=created_directories,
+            )
+            attempted_destinations.append(copy.destination)
+            write_atomic_bytes(copy.destination, copy.payload)
+        _create_transaction_parents(
+            out_target.parent,
+            run_root=root,
+            created_directories=created_directories,
+        )
+        attempted_destinations.append(out_target)
+        return write_record(
+            out_target,
+            validated,
+            run_root=root,
+            role="study_manifest",
+        )
+    except BaseException:
+        _rollback_publication(
+            attempted_destinations,
+            created_directories,
+        )
+        raise
 
 
 def verify_digest_link(

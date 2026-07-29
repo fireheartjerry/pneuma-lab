@@ -4795,10 +4795,14 @@ def test_study_manifest_seal_copies_all_sources_without_reading_clock(
     assert manifest["frozen_created_at"] == FROZEN
 
 
-@pytest.mark.parametrize("binding_failure", [False, True])
+@pytest.mark.parametrize(
+    "failure_mode",
+    [None, "binding", "synthetic_meter", "authority_mismatch", "publish"],
+)
 def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
     tmp_path: Path,
-    binding_failure: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_mode: str | None,
 ) -> None:
     external = tmp_path / "external"
     external.mkdir()
@@ -4906,6 +4910,59 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
         subtree="revisions",
         role="source_revision",
     )
+    sources["roster"] = write_json(
+        external / "roster.json",
+        {
+            "record_kind": "resampling_roster_v1",
+            "schema_version": "1",
+            "roster_kind": "synthetic_fixture",
+            "supported_tiers": [120, 160],
+            "tasks": [{**task, "tiers": [120, 160]}],
+        },
+    )
+    sources["assignment"] = write_json(
+        external / "assignment.json",
+        {
+            "record_kind": "resampling_assignment_program_v1",
+            "schema_version": "1",
+            "assignment_mode": (
+                "confirmation_lineage_matching"
+                if failure_mode == "authority_mismatch"
+                else "synthetic_derangement"
+            ),
+            "matching_algorithm": (
+                "exact_constrained_min_cost_v1"
+                if failure_mode == "authority_mismatch"
+                else "synthetic_cyclic_offset_v1"
+            ),
+            "finding_count_band_upper_bounds": [1, 3],
+            "report_length_band_upper_bounds": [128, 512],
+            "verifier_normalizer_contract": {
+                "contract_id": "assignment-verifier-normalizer-v1",
+                "normalizer_source_ref": revision_ref,
+                "normalizer_source_sha256": revision_ref["sha256"],
+                "report_tokenizer_sha256": tokenizer_ref["sha256"],
+                "benchmark_component_kinds": {
+                    "SWE": ["check_runner", "failure_class"],
+                    "TAU": ["evaluator_component"],
+                },
+            },
+            "assignment_runtime_contract": {
+                "implementation": "CPython",
+                "python_version": (
+                    f"{sys.version_info.major}.{sys.version_info.minor}."
+                    f"{sys.version_info.micro}"
+                ),
+                "unicodedata_unidata_version": unicodedata.unidata_version,
+            },
+            "backend_receipt_ref": (
+                revision_ref
+                if failure_mode == "authority_mismatch"
+                else None
+            ),
+            "stratum_keys": ["benchmark", "language"],
+        },
+    )
 
     authority_dir = external / "sources" / "provider-authority"
 
@@ -5010,7 +5067,7 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
             },
             "provider_event_grammar": "fixture-provider-event-v1",
             "settlement_grammar": "fixture-settlement-v1",
-            "zero_cost_synthetic_closure": True,
+            "zero_cost_synthetic_closure": failure_mode != "synthetic_meter",
             "source_revision_refs": [revision_ref],
         },
         role="meter_contract",
@@ -5039,7 +5096,7 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
         {
             **common_task,
             "record_kind": "prefix_environment_contract_v1",
-            "benchmark": "tau" if binding_failure else "swe",
+            "benchmark": "tau" if failure_mode == "binding" else "swe",
             "nominal_factory_type": "FixtureEnvironmentFactory",
             "snapshot_grammar": "fixture-snapshot-v1",
             "restore_grammar": "fixture-restore-v1",
@@ -5149,8 +5206,21 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
     )
     run_root = tmp_path / "run"
     run_root.mkdir()
-    if binding_failure:
-        with pytest.raises(RecordValidationError, match="benchmark"):
+    if failure_mode in {
+        "binding",
+        "synthetic_meter",
+        "authority_mismatch",
+    }:
+        message = (
+            "benchmark"
+            if failure_mode == "binding"
+            else (
+                "zero-cost synthetic"
+                if failure_mode == "synthetic_meter"
+                else "authority disagree"
+            )
+        )
+        with pytest.raises(RecordValidationError, match=message):
             seal_study_manifest(
                 study,
                 sources["tasks"],
@@ -5171,6 +5241,59 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
             )
         assert list(run_root.iterdir()) == []
         return
+    if failure_mode == "publish":
+        import pneuma_lab.resampling_null.artifacts as artifacts_module
+
+        keep = run_root / "preexisting" / "keep.txt"
+        keep.parent.mkdir()
+        keep.write_text("keep", encoding="utf-8")
+        original_write = artifacts_module.write_atomic_bytes
+        final_write_count = 0
+
+        def fail_second_final_write(path: Path, payload: bytes) -> None:
+            nonlocal final_write_count
+            target = Path(path)
+            if target.is_relative_to(run_root):
+                final_write_count += 1
+                if final_write_count == 2:
+                    raise OSError("injected final publication failure")
+            original_write(target, payload)
+
+        monkeypatch.setattr(
+            artifacts_module,
+            "write_atomic_bytes",
+            fail_second_final_write,
+        )
+        with pytest.raises(OSError, match="injected final publication failure"):
+            seal_study_manifest(
+                study,
+                sources["tasks"],
+                sources["roster"],
+                sources["assignment"],
+                sources["provider"],
+                sources["storage-policy"],
+                sources["power-grid"],
+                sources["power-topology"],
+                sources["tokenizer"],
+                sources["template"],
+                sources["policy"],
+                sources["pads"],
+                [sources["revision"]],
+                sources["required"],
+                run_root=run_root,
+                out=run_root / "study-manifest.json",
+            )
+        assert sorted(
+            path.relative_to(run_root).as_posix()
+            for path in run_root.rglob("*")
+        ) == ["preexisting", "preexisting/keep.txt"]
+        assert keep.read_text(encoding="utf-8") == "keep"
+        assert not (run_root / "study-manifest.json").exists()
+        monkeypatch.setattr(
+            artifacts_module,
+            "write_atomic_bytes",
+            original_write,
+        )
     manifest_ref = seal_study_manifest(
         study,
         sources["tasks"],
@@ -5190,6 +5313,10 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
         out=run_root / "study-manifest.json",
     )
     assert (run_root / manifest_ref.relative_path).is_file()
+    if failure_mode == "publish":
+        assert (run_root / "preexisting" / "keep.txt").read_text(
+            encoding="utf-8"
+        ) == "keep"
     for ref in (
         subject_ref,
         simulator_ref,

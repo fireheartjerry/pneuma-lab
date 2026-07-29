@@ -42,10 +42,12 @@ def _authority_fixture(
     environment_benchmark: str = "swe",
     scheduled_lane: str = "lane-0",
     requires_simulator: bool = True,
+    foreign_requires_simulator: bool | None = None,
     simulator_present: bool = True,
     simulator_aggregate_generated_tokens: int = 40,
     lane_simulator_aggregate_generated_tokens: int | None = None,
     subject_aggregate_generated_tokens: int = 40,
+    subject_aggregate_model_calls: int = 4,
     parser_response_grammar: str = "fixture-response-v1",
     parser_tool_schema_drift: bool = False,
     meter_zero_cost: bool = True,
@@ -181,7 +183,7 @@ def _authority_fixture(
         "stateless_client_attestation": "fixture-stateless-v1",
         "aggregate_caps": {
             "generated_tokens": subject_aggregate_generated_tokens,
-            "model_calls": 4,
+            "model_calls": subject_aggregate_model_calls,
             "turns": 4,
         },
         "per_call_caps": {
@@ -268,7 +270,14 @@ def _authority_fixture(
     registry_tasks: list[dict[str, object]] = []
     for task_id, task_requires_simulator in (
         ("task-1", requires_simulator),
-        ("task-foreign", False),
+        (
+            "task-foreign",
+            (
+                requires_simulator
+                if foreign_requires_simulator is None
+                else foreign_requires_simulator
+            ),
+        ),
     ):
         task_input_ref = blob(
             f"sources/{task_id}-input.json",
@@ -614,11 +623,26 @@ def test_t5_s02a_rejects_deep_authority_ref_damage(
         ({"scheduled_lane": "lane-foreign"}, "lane mismatch"),
         ({"requires_simulator": False}, "unnecessary simulator"),
         (
+            {
+                "requires_simulator": False,
+                "foreign_requires_simulator": True,
+            },
+            "mixed simulator capability",
+        ),
+        (
             {"simulator_present": False},
             "required simulator",
         ),
         (
             {"subject_aggregate_generated_tokens": 39},
+            "subject contract caps",
+        ),
+        (
+            {"subject_aggregate_generated_tokens": 41},
+            "subject contract caps",
+        ),
+        (
+            {"subject_aggregate_model_calls": 5},
             "subject contract caps",
         ),
         (
