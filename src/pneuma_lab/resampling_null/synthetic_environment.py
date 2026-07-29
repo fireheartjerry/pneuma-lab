@@ -102,11 +102,7 @@ def _read_frame_fd(
     allow_clean_eof: bool = False,
 ) -> bytes | None:
     chunks = bytearray()
-    deadline = (
-        None
-        if timeout_seconds is None
-        else time.monotonic() + timeout_seconds
-    )
+    deadline = None if timeout_seconds is None else time.monotonic() + timeout_seconds
     while True:
         remaining = None if deadline is None else deadline - time.monotonic()
         if remaining is not None and remaining <= 0:
@@ -167,6 +163,8 @@ def _synthetic_worker_main() -> int:
     os.set_blocking(arguments.request_fd, False)
     os.set_blocking(arguments.response_fd, False)
     state: dict[str, object] | None = None
+    program_value: dict[str, object] | None = None
+    actor_roles: tuple[str, ...] = ()
 
     def encoded(value: bytes) -> str:
         return base64.b64encode(value).decode("ascii")
@@ -184,10 +182,14 @@ def _synthetic_worker_main() -> int:
         "restore": {"operation", "snapshot_bytes"},
         "visible_context": {"operation"},
         "simulator_context": {"operation"},
+        "append_assistant_turn": {"operation", "turn"},
+        "append_simulator_turn": {"operation", "turn"},
+        "execute_tool": {"operation", "call"},
         "mutation_committed": {"operation"},
         "verifier_eligible": {"operation"},
         "episode_terminal": {"operation"},
         "failure_kind": {"operation"},
+        "terminate": {"operation", "failure_kind", "pending_queue"},
         "close": {"operation"},
     }
     while True:
@@ -219,14 +221,56 @@ def _synthetic_worker_main() -> int:
                     != arguments.program_sha256
                 ):
                     raise ValueError("program bytes differ from command binding")
+                decoded_program = _strict_compact_json(
+                    program_bytes[:-1]
+                    if program_bytes.endswith(b"\n")
+                    else program_bytes
+                )
+                if type(decoded_program) is not dict:
+                    raise ValueError("program must be one exact object")
+                program_value = decoded_program
+                transcript = program_value.get("provider_transcript", [])
+                if type(transcript) is not list:
+                    raise ValueError("program transcript must be one array")
+                decoded_task = _strict_compact_json(
+                    task_bytes[:-1] if task_bytes.endswith(b"\n") else task_bytes
+                )
+                if type(decoded_task) is not dict:
+                    raise ValueError("task input must be one exact object")
+                task_payload = decoded_task.get("canonical_task_payload")
+                actor_value = (
+                    task_payload.get("synthetic_actor_order")
+                    if type(task_payload) is dict
+                    else decoded_task.get("synthetic_actor_order")
+                )
+                if actor_value is None:
+                    actor_roles = tuple("primary_subject" for _ in transcript)
+                elif (
+                    type(actor_value) is not list
+                    or len(actor_value) != len(transcript)
+                    or any(
+                        role not in ("primary_subject", "user_simulator")
+                        for role in actor_value
+                    )
+                ):
+                    raise ValueError("task actor order is invalid")
+                else:
+                    actor_roles = tuple(actor_value)
+                initial_role = actor_roles[0] if actor_roles else None
                 state = {
                     "branch_pending_calls": [],
-                    "episode_terminal": False,
+                    "episode_terminal": not transcript,
                     "failure_kind": "none",
+                    "mutation_committed": False,
                     "program_sha256": arguments.program_sha256,
-                    "simulator_context": None,
+                    "simulator_context": (
+                        encoded(b"synthetic-simulator-context")
+                        if initial_role == "user_simulator"
+                        else None
+                    ),
                     "terminal_unexecuted_remainder": [],
                     "turns": [],
+                    "verifier_eligible": False,
                     "visible_context": encoded(task_bytes),
                 }
                 reply(None)
@@ -248,14 +292,131 @@ def _synthetic_worker_main() -> int:
                 reply(state["visible_context"])
             elif operation == "simulator_context":
                 reply(state["simulator_context"])
+            elif operation in (
+                "append_assistant_turn",
+                "append_simulator_turn",
+            ):
+                if program_value is None:
+                    raise ValueError("program is unavailable")
+                turn = message["turn"]
+                if type(turn) is not dict or set(turn) != {
+                    "finish_reason",
+                    "generated_tokens",
+                    "text",
+                    "tool_calls",
+                }:
+                    raise ValueError("turn has an open shape")
+                calls = turn["tool_calls"]
+                if type(calls) is not list:
+                    raise ValueError("turn tool_calls must be one array")
+                for call in calls:
+                    if type(call) is not dict or set(call) != {
+                        "call_id",
+                        "canonical_arguments_json",
+                        "name",
+                    }:
+                        raise ValueError("turn contains an open tool call")
+                turns = state["turns"]
+                if type(turns) is not list:
+                    raise ValueError("worker turn state is invalid")
+                transcript = program_value.get("provider_transcript")
+                if (
+                    type(transcript) is not list
+                    or len(turns) >= len(transcript)
+                    or len(turns) >= len(actor_roles)
+                ):
+                    raise ValueError("turn has no sealed transcript row")
+                expected_role = actor_roles[len(turns)]
+                operation_role = (
+                    "primary_subject"
+                    if operation == "append_assistant_turn"
+                    else "user_simulator"
+                )
+                if expected_role != operation_role:
+                    raise ValueError("append operation crosses derived role")
+                if operation_role == "user_simulator" and calls:
+                    raise ValueError("simulator turn cannot issue tools")
+                turns.append(turn)
+                state["branch_pending_calls"] = list(calls)
+                if turn["finish_reason"] == "terminal" and not calls:
+                    state["episode_terminal"] = True
+                next_index = len(turns)
+                next_role = (
+                    actor_roles[next_index] if next_index < len(actor_roles) else None
+                )
+                state["simulator_context"] = (
+                    encoded(b"synthetic-simulator-context")
+                    if next_role == "user_simulator"
+                    else None
+                )
+                reply(None)
+            elif operation == "execute_tool":
+                if program_value is None:
+                    raise ValueError("program is unavailable")
+                call = message["call"]
+                if type(call) is not dict or set(call) != {
+                    "call_id",
+                    "canonical_arguments_json",
+                    "name",
+                }:
+                    raise ValueError("tool call has an open shape")
+                pending = state["branch_pending_calls"]
+                if type(pending) is not list or not pending or pending[0] != call:
+                    raise ValueError("tool call differs from pending queue head")
+                observations = program_value.get("tool_observations")
+                if type(observations) is not list:
+                    raise ValueError("program tool observations must be one array")
+                matches = [
+                    item
+                    for item in observations
+                    if type(item) is dict and item.get("call_id") == call["call_id"]
+                ]
+                if len(matches) != 1:
+                    raise ValueError("tool call has no unique sealed observation")
+                observation = matches[0]
+                required = {
+                    "call_id",
+                    "episode_terminal",
+                    "failure_kind",
+                    "mutation_committed",
+                    "result_ref",
+                    "verifier_eligible",
+                }
+                if set(observation) != required:
+                    raise ValueError("tool observation has an open shape")
+                state["branch_pending_calls"] = pending[1:]
+                state["mutation_committed"] = observation["mutation_committed"]
+                state["verifier_eligible"] = observation["verifier_eligible"]
+                state["episode_terminal"] = observation["episode_terminal"]
+                state["failure_kind"] = observation["failure_kind"]
+                reply(
+                    {
+                        "call_id": call["call_id"],
+                        "result_bytes": encoded(
+                            _worker_canonical({"call_id": call["call_id"]}) + b"\n"
+                        ),
+                    }
+                )
             elif operation == "mutation_committed":
-                reply(False)
+                reply(state["mutation_committed"])
             elif operation == "verifier_eligible":
-                reply(False)
+                reply(state["verifier_eligible"])
             elif operation == "episode_terminal":
                 reply(state["episode_terminal"])
             elif operation == "failure_kind":
                 reply(state["failure_kind"])
+            elif operation == "terminate":
+                failure = message["failure_kind"]
+                pending = message["pending_queue"]
+                if type(failure) is not str or failure == "none":
+                    raise ValueError("terminate requires an adverse failure")
+                if type(pending) is not list:
+                    raise ValueError("terminate pending queue must be one array")
+                state["branch_pending_calls"] = []
+                state["terminal_unexecuted_remainder"] = pending
+                state["episode_terminal"] = True
+                state["failure_kind"] = failure
+                reply(None)
             elif operation == "close":
                 reply(None)
                 break
@@ -390,14 +551,17 @@ class InitialQualificationAuthority:
 
     def _seal_value(self) -> tuple[object, ...]:
         return (
-            *(self._ref_value(getattr(self, field)) for field in (
-                "schedule_ref",
-                "task_ref",
-                "task_input_ref",
-                "environment_contract_ref",
-                "isolation_contract_ref",
-                "program_ref",
-            )),
+            *(
+                self._ref_value(getattr(self, field))
+                for field in (
+                    "schedule_ref",
+                    "task_ref",
+                    "task_input_ref",
+                    "environment_contract_ref",
+                    "isolation_contract_ref",
+                    "program_ref",
+                )
+            ),
             self._descriptor_value(self.environment_descriptor),
             self._descriptor_value(self.tokenizer_descriptor),
             hashlib.sha256(self.task_input_bytes).hexdigest(),
@@ -418,8 +582,7 @@ class InitialQualificationAuthority:
         if role in CONTROLLER_ROLE_MEDIA:
             if (
                 ref.media_type != CONTROLLER_ROLE_MEDIA[role]
-                or ref.relative_path
-                != f"controller-artifacts/{role}/{ref.sha256}"
+                or ref.relative_path != f"controller-artifacts/{role}/{ref.sha256}"
             ):
                 raise ValueError(f"{field} has noncanonical controller path/media")
             return
@@ -827,6 +990,74 @@ class SyntheticEnvironmentHandle:
             )
         return base64.b64decode(value, validate=True)
 
+    @staticmethod
+    def _call_mapping(call: ToolCall) -> dict[str, object]:
+        if type(call) is not ToolCall:
+            raise TypeError("call must be exact ToolCall")
+        return {
+            "call_id": call.call_id,
+            "canonical_arguments_json": call.canonical_arguments_json,
+            "name": call.name,
+        }
+
+    @classmethod
+    def _turn_mapping(cls, turn: object) -> dict[str, object]:
+        from .types import SubjectTurn
+
+        if type(turn) is not SubjectTurn:
+            raise TypeError("turn must be exact SubjectTurn")
+        return {
+            "finish_reason": turn.finish_reason,
+            "generated_tokens": turn.generated_tokens,
+            "text": turn.text,
+            "tool_calls": [cls._call_mapping(call) for call in turn.tool_calls],
+        }
+
+    def append_assistant_turn(self, turn: object) -> None:
+        self._ipc.exchange(
+            "append_assistant_turn",
+            turn=self._turn_mapping(turn),
+        )
+
+    def append_simulator_turn(self, turn: object) -> None:
+        self._ipc.exchange(
+            "append_simulator_turn",
+            turn=self._turn_mapping(turn),
+        )
+
+    def execute_tool(self, call: ToolCall) -> tuple[str, bytes]:
+        value = self._ipc.exchange(
+            "execute_tool",
+            call=self._call_mapping(call),
+        )
+        if type(value) is not dict or set(value) != {
+            "call_id",
+            "result_bytes",
+        }:
+            raise RecordValidationError("tool result has an open shape")
+        call_id = value["call_id"]
+        encoded_result = value["result_bytes"]
+        if type(call_id) is not str or type(encoded_result) is not str:
+            raise RecordValidationError("tool result fields have wrong types")
+        return call_id, base64.b64decode(encoded_result, validate=True)
+
+    def terminate(
+        self,
+        failure_kind: FailureKind,
+        pending_queue: tuple[ToolCall, ...],
+    ) -> None:
+        if type(failure_kind) is not FailureKind:
+            raise TypeError("failure_kind must be exact FailureKind")
+        if type(pending_queue) is not tuple or not all(
+            type(call) is ToolCall for call in pending_queue
+        ):
+            raise TypeError("pending_queue must contain exact ToolCall values")
+        self._ipc.exchange(
+            "terminate",
+            failure_kind=failure_kind.value,
+            pending_queue=[self._call_mapping(call) for call in pending_queue],
+        )
+
     def mutation_committed(self) -> bool:
         return self._boolean_query("mutation_committed")
 
@@ -867,6 +1098,8 @@ class _SnapshotState:
     terminal_unexecuted_remainder: tuple[ToolCall, ...]
     episode_terminal: bool
     failure_kind: FailureKind
+    mutation_committed: bool
+    verifier_eligible: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -924,10 +1157,12 @@ def _decode_snapshot_state(payload: bytes) -> _SnapshotState:
         "branch_pending_calls",
         "episode_terminal",
         "failure_kind",
+        "mutation_committed",
         "program_sha256",
         "simulator_context",
         "terminal_unexecuted_remainder",
         "turns",
+        "verifier_eligible",
         "visible_context",
     }
     if type(value) is not dict or set(value) != expected:
@@ -954,6 +1189,9 @@ def _decode_snapshot_state(payload: bytes) -> _SnapshotState:
         raise RecordValidationError("snapshot turns must be one exact array")
     if type(value["episode_terminal"]) is not bool:
         raise RecordValidationError("snapshot terminal state must be exact bool")
+    for field in ("mutation_committed", "verifier_eligible"):
+        if type(value[field]) is not bool:
+            raise RecordValidationError(f"snapshot {field} must be exact bool")
     try:
         failure_kind = FailureKind(value["failure_kind"])
     except (TypeError, ValueError) as exc:
@@ -973,6 +1211,8 @@ def _decode_snapshot_state(payload: bytes) -> _SnapshotState:
         ),
         episode_terminal=value["episode_terminal"],
         failure_kind=failure_kind,
+        mutation_committed=value["mutation_committed"],
+        verifier_eligible=value["verifier_eligible"],
     )
 
 
@@ -1322,9 +1562,7 @@ def _cleanup_process(
     except BaseException as exc:
         errors.append(exc)
         errors.append(
-            RecordValidationError(
-                "environment process was not confirmed reaped"
-            )
+            RecordValidationError("environment process was not confirmed reaped")
         )
         return _ProcessCleanupResult(tuple(errors), False)
     return _ProcessCleanupResult(tuple(errors), True)
@@ -1427,9 +1665,7 @@ class _EnvironmentFleet:
                     root_name=root_name,
                     expected_identity=root_identity,
                     root_fd=root_fd,
-                    allow_removal=(
-                        process_cleanup is None or process_cleanup.reaped
-                    ),
+                    allow_removal=(process_cleanup is None or process_cleanup.reaped),
                 )
             )
             raise BaseExceptionGroup("environment spawn failed", errors)

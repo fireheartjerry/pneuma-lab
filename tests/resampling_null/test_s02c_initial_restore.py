@@ -169,6 +169,7 @@ def _snapshot_bytes(
             "branch_pending_calls": [],
             "episode_terminal": False,
             "failure_kind": "none",
+            "mutation_committed": False,
             "program_sha256": program_sha256,
             "simulator_context": (
                 None
@@ -177,6 +178,7 @@ def _snapshot_bytes(
             ),
             "terminal_unexecuted_remainder": [],
             "turns": list(turns) if isinstance(turns, tuple) else turns,
+            "verifier_eligible": False,
             "visible_context": base64.b64encode(visible_context).decode("ascii"),
         },
         indent=None,
@@ -307,8 +309,7 @@ def test_workspace_symlink_and_exhausted_stale_names_fail_without_mutation(
             authority=_authority(),
         )
     assert any(
-        isinstance(error, RecordValidationError)
-        and "workspace is unsafe" in str(error)
+        isinstance(error, RecordValidationError) and "workspace is unsafe" in str(error)
         for error in _exception_leaves(raised.value)
     )
     assert not any(external.iterdir())
