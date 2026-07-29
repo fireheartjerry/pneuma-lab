@@ -555,7 +555,7 @@ def test_parent_registration_fstat_failure_closes_descriptor(
     def fail_registration_fstat(descriptor: int):
         nonlocal calls
         calls += 1
-        if calls == 3:
+        if calls == 4:
             raise OSError("injected registration fstat failure")
         return original_fstat(descriptor)
 
@@ -569,7 +569,7 @@ def test_parent_registration_fstat_failure_closes_descriptor(
                 media_type="application/json",
             )
 
-    assert calls >= 3
+    assert calls >= 4
     assert _fd_set() == baseline
 
 
@@ -798,6 +798,7 @@ def test_post_move_quarantine_substitution_reports_ownership_loss(
     )
     original_rename = publication._rename_no_replace
     substituted = False
+    moved_identity: tuple[int, int] | None = None
 
     def substitute_after_quarantine_move(
         source_name: str,
@@ -806,7 +807,17 @@ def test_post_move_quarantine_substitution_reports_ownership_loss(
         source_descriptor: int,
         destination_descriptor: int,
     ) -> None:
-        nonlocal substituted
+        nonlocal moved_identity, substituted
+        if moved_identity is None and quarantine_marker in destination_name:
+            source_metadata = os.stat(
+                source_name,
+                dir_fd=source_descriptor,
+                follow_symlinks=False,
+            )
+            moved_identity = (
+                source_metadata.st_dev,
+                source_metadata.st_ino,
+            )
         original_rename(
             source_name,
             destination_name,
@@ -859,3 +870,140 @@ def test_post_move_quarantine_substitution_reports_ownership_loss(
     assert substituted
     assert (run_root / original_name).is_symlink()
     assert (run_root / stolen_name).exists()
+    assert moved_identity is not None
+    message = str(captured.value)
+    assert (
+        "unlocated owned identity: "
+        f"device={moved_identity[0]}, inode={moved_identity[1]}, "
+        f"logical former path={original_name}"
+    ) in message
+    assert f"residual path: {original_name}" not in message
+
+
+def test_opposite_pre_rename_ordering_cleans_named_owned_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publication = _publication_module()
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    peer_source = run_root / "peer.tmp"
+    staged_owned = run_root / "staged-owned.tmp"
+    peer_source.write_bytes(b"peer\n")
+    original_open = publication.os.open
+    inverted = False
+
+    def invert_identity_during_path_open(
+        path: object,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        nonlocal inverted
+        if not inverted and path == "item.json" and flags & getattr(os, "O_PATH", 0):
+            assert dir_fd is not None
+            os.rename(
+                "item.json",
+                staged_owned.name,
+                src_dir_fd=dir_fd,
+                dst_dir_fd=dir_fd,
+            )
+            os.rename(
+                peer_source.name,
+                "item.json",
+                src_dir_fd=dir_fd,
+                dst_dir_fd=dir_fd,
+            )
+            descriptor = original_open(
+                path,
+                flags,
+                mode,
+                dir_fd=dir_fd,
+            )
+            os.replace(
+                staged_owned.name,
+                "item.json",
+                src_dir_fd=dir_fd,
+                dst_dir_fd=dir_fd,
+            )
+            inverted = True
+            return descriptor
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(
+        publication.os,
+        "open",
+        invert_identity_during_path_open,
+    )
+    with pytest.raises(OSError, match="injected terminal failure"):
+        with publication.BoundPublication(run_root) as transaction:
+            transaction.publish_bytes(
+                "item.json",
+                b"owned\n",
+                role="fixture",
+                media_type="application/json",
+            )
+            raise OSError("injected terminal failure")
+
+    assert inverted
+    assert not (run_root / "item.json").exists()
+    assert not staged_owned.exists()
+    assert not list(run_root.glob("*.rollback-*"))
+
+
+def test_publication_namespace_lease_excludes_and_releases_without_fd_leak(
+    tmp_path: Path,
+) -> None:
+    publication = _publication_module()
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    baseline = _fd_set()
+
+    with publication.BoundPublication(run_root) as first:
+        active = _fd_set()
+        with pytest.raises(
+            publication.RecordValidationError,
+            match="publication namespace lease is already held",
+        ):
+            with publication.BoundPublication(run_root):
+                pass
+        assert _fd_set() == active
+        first.commit()
+
+    assert _fd_set() == baseline
+    assert not (run_root / ".pneuma-publication.lock").exists()
+    with publication.BoundPublication(run_root) as second:
+        second.commit()
+    assert _fd_set() == baseline
+
+
+def test_publication_namespace_lease_setup_failure_releases_descriptors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publication = _publication_module()
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    baseline = _fd_set()
+    original_fstat = publication.os.fstat
+    calls = 0
+
+    def fail_lock_fstat(descriptor: int):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("injected publication lock fstat failure")
+        return original_fstat(descriptor)
+
+    monkeypatch.setattr(publication.os, "fstat", fail_lock_fstat)
+    with pytest.raises(
+        OSError,
+        match="injected publication lock fstat failure",
+    ):
+        with publication.BoundPublication(run_root):
+            pass
+
+    assert calls >= 2
+    assert _fd_set() == baseline
+    assert not (run_root / ".pneuma-publication.lock").exists()

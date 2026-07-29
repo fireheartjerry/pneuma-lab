@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import fcntl
 import hashlib
 import os
 from pathlib import Path, PurePosixPath
@@ -23,11 +24,14 @@ from .publication_rollback import (
 )
 from .publication_rollback import descriptor_digest as _descriptor_digest
 from .publication_rollback import rename_no_replace as _rename_no_replace
+from .publication_rollback import render_rollback_residual
 from .publication_rollback import rollback_publication
 from .types import ArtifactRef
 
 
 _DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+_LEASE_FLAGS = os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC
+_LEASE_NAME = ".pneuma-publication.lock"
 _READ_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 _TEMPORARY_FLAGS = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
 
@@ -84,6 +88,9 @@ class BoundPublication:
         self._root_descriptor: int | None = None
         self._root_device: int | None = None
         self._root_inode: int | None = None
+        self._lease_descriptor: int | None = None
+        self._lease_device: int | None = None
+        self._lease_inode: int | None = None
         self._directories: dict[tuple[str, ...], _DirectoryBinding] = {}
         self._created_directories: list[_CreatedDirectory] = []
         self._owned: list[_OwnedPublication] = []
@@ -97,6 +104,8 @@ class BoundPublication:
         if self._entered:
             raise RuntimeError("publication transaction cannot be re-entered")
         descriptor = os.open(self._named_root, _DIRECTORY_FLAGS)
+        lease_descriptor: int | None = None
+        lease_created = False
         try:
             bound = os.fstat(descriptor)
             named = os.stat(self._named_root, follow_symlinks=False)
@@ -105,12 +114,80 @@ class BoundPublication:
                 named.st_ino,
             ):
                 raise RecordValidationError("run_root identity changed during binding")
+            try:
+                fcntl.flock(
+                    descriptor,
+                    fcntl.LOCK_EX | fcntl.LOCK_NB,
+                )
+            except BlockingIOError as exc:
+                raise RecordValidationError(
+                    "publication namespace lease is already held"
+                ) from exc
+            try:
+                lease_descriptor = os.open(
+                    _LEASE_NAME,
+                    _LEASE_FLAGS | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                    dir_fd=descriptor,
+                )
+                lease_created = True
+            except FileExistsError:
+                lease_descriptor = os.open(
+                    _LEASE_NAME,
+                    _LEASE_FLAGS,
+                    dir_fd=descriptor,
+                )
+            lease_metadata = os.fstat(lease_descriptor)
+            named_lease = os.stat(
+                _LEASE_NAME,
+                dir_fd=descriptor,
+                follow_symlinks=False,
+            )
+            if not stat.S_ISREG(lease_metadata.st_mode) or (
+                lease_metadata.st_dev,
+                lease_metadata.st_ino,
+            ) != (named_lease.st_dev, named_lease.st_ino):
+                raise RecordValidationError(
+                    "publication namespace lock identity changed"
+                )
+            try:
+                fcntl.flock(
+                    lease_descriptor,
+                    fcntl.LOCK_EX | fcntl.LOCK_NB,
+                )
+            except BlockingIOError as exc:
+                raise RecordValidationError(
+                    "publication namespace lease is already held"
+                ) from exc
+            os.fsync(descriptor)
         except BaseException:
+            if lease_descriptor is not None:
+                try:
+                    fcntl.flock(lease_descriptor, fcntl.LOCK_UN)
+                except OSError:
+                    pass
+                try:
+                    os.close(lease_descriptor)
+                except OSError:
+                    pass
+            if lease_created:
+                try:
+                    os.unlink(_LEASE_NAME, dir_fd=descriptor)
+                    os.fsync(descriptor)
+                except OSError:
+                    pass
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+            except OSError:
+                pass
             os.close(descriptor)
             raise
         self._root_descriptor = descriptor
         self._root_device = bound.st_dev
         self._root_inode = bound.st_ino
+        self._lease_descriptor = lease_descriptor
+        self._lease_device = lease_metadata.st_dev
+        self._lease_inode = lease_metadata.st_ino
         self._entered = True
         return self
 
@@ -424,12 +501,66 @@ class BoundPublication:
             details = "; ".join(
                 [
                     *failures,
-                    *(f"residual path: {path}" for path in residuals),
+                    *(render_rollback_residual(residual) for residual in residuals),
                 ]
             )
             raise PublicationRollbackError(
                 f"publication rollback incomplete: {details}"
             ) from original
+
+    def _release_namespace_lease(self) -> list[str]:
+        failures: list[str] = []
+        root_descriptor = self._root_descriptor
+        lease_descriptor = self._lease_descriptor
+        if root_descriptor is None:
+            return failures
+        if lease_descriptor is not None:
+            try:
+                descriptor_metadata = os.fstat(lease_descriptor)
+                named_metadata = os.stat(
+                    _LEASE_NAME,
+                    dir_fd=root_descriptor,
+                    follow_symlinks=False,
+                )
+                if (
+                    not stat.S_ISREG(descriptor_metadata.st_mode)
+                    or (descriptor_metadata.st_dev, descriptor_metadata.st_ino)
+                    != (self._lease_device, self._lease_inode)
+                    or (named_metadata.st_dev, named_metadata.st_ino)
+                    != (self._lease_device, self._lease_inode)
+                ):
+                    raise RecordValidationError(
+                        "publication namespace lock identity changed"
+                    )
+                os.unlink(_LEASE_NAME, dir_fd=root_descriptor)
+                os.fsync(root_descriptor)
+            except BaseException as exc:
+                failures.append(
+                    f"publication namespace lock cleanup: {type(exc).__name__}: {exc}"
+                )
+            try:
+                fcntl.flock(lease_descriptor, fcntl.LOCK_UN)
+            except OSError as exc:
+                failures.append(
+                    "publication namespace file lease release: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+            try:
+                os.close(lease_descriptor)
+            except OSError as exc:
+                failures.append(
+                    "publication namespace lock descriptor: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+            finally:
+                self._lease_descriptor = None
+        try:
+            fcntl.flock(root_descriptor, fcntl.LOCK_UN)
+        except OSError as exc:
+            failures.append(
+                f"publication root namespace lease release: {type(exc).__name__}: {exc}"
+            )
+        return failures
 
     def _close(self) -> list[str]:
         failures: list[str] = []
@@ -440,6 +571,7 @@ class BoundPublication:
                 relative_path = PurePosixPath(*binding.parts).as_posix()
                 failures.append(f"{relative_path}: {type(exc).__name__}: {exc}")
         self._directories.clear()
+        failures.extend(self._release_namespace_lease())
         if self._root_descriptor is not None:
             try:
                 os.close(self._root_descriptor)

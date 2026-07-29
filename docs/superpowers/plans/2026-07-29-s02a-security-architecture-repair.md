@@ -4,9 +4,19 @@
 
 **Goal:** Make first-record publication descriptor-confined and ownership-safe while splitting S02A authority reconstruction into acyclic, inspectable modules and reusable fixtures.
 
-**Architecture:** `publication.py` owns one root descriptor for a multi-file transaction, reaches descendants only with componentwise `openat`, and rolls back through held parent descriptors with quarantine/restore semantics. `errors.py`, `authority_refs.py`, `provider_contracts.py`, and `task_schedule_codec.py` form a one-way authority stack; `execution_authority.py`, `schedule.py`, and `artifacts.py` consume public internal interfaces without private circular imports. Tests use one explicit `ProviderAuthorityFixture` graph and isolate publication fault injection from public sealing integrations.
+**Architecture:** `publication.py` owns one root descriptor and a cooperative local namespace lease for a multi-file transaction, reaches descendants only with componentwise `openat`, and rolls back through held parent descriptors with quarantine/restore semantics. `errors.py`, `authority_refs.py`, `provider_contracts.py`, and `task_schedule_codec.py` form a one-way authority stack; `execution_authority.py`, `schedule.py`, and `artifacts.py` consume public internal interfaces without private circular imports. Tests use one explicit `ProviderAuthorityFixture` graph and isolate publication fault injection from public sealing integrations.
 
-**Tech Stack:** Python 3.12, POSIX `openat`/`mkdirat`/`renameat`/`linkat` primitives through `os`, frozen dataclasses, pytest, Ruff, mypy.
+**Tech Stack:** Python 3.12, Linux `O_PATH` and `renameat2(RENAME_NOREPLACE)`, POSIX dirfd operations and `flock`, frozen dataclasses, pytest, Ruff, mypy.
+
+---
+
+## Threat Model and Operator Boundary
+
+`BoundPublication` protects against path traversal, named-root/ancestor replacement, create collisions, cooperating concurrent local publishers, and races that occur before a held identity is quarantined. A nonblocking cooperative lease is held for the complete root-descriptor lifetime through both the root directory descriptor and a root-confined, no-follow regular lock file. Every supported local writer must acquire that same lease.
+
+POSIX does not provide an atomic “unlink this name only if it still references device/inode X” operation. `O_PATH`, no-follow stat, and descriptor binding prove identity before the call, but an uncooperative same-UID process can still replace the quarantine name between the final identity check and `unlink`/`rmdir`. More stat loops or rename-exchange loops do not close that final namespace gap. Therefore local clean deletion is claimed only inside the held cooperative lease; it is not malicious-peer safety.
+
+Confirmation/production publication remains fail-closed until the storage registry supplies an exclusive-writer capability plus an operator-enforced ACL, dedicated UID, protected mount namespace, or equivalent namespace boundary. If hostile-namespace operation is later required, rollback must be quarantine-only and leave typed residuals for operator garbage collection. That larger infrastructure is deliberately not implemented in this S02A repair.
 
 ---
 
