@@ -11,3 +11,7 @@ build/estimators/** text eol=lf
 # WSL bootstrap scripts must remain executable Bash with LF endings even when
 # the repository is checked out by Git for Windows with autocrlf enabled.
 scripts/foundation/*.sh text eol=lf
+
+# Historical journal segments are byte-addressed archival payloads. Preserve LF
+# bytes and suppress heuristic whitespace/diff rewriting of exact boundaries.
+docs/research/neurips-2026-workshop/execution-journal/*.md text eol=lf -diff

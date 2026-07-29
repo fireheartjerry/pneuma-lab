@@ -1,0 +1,99 @@
+{
+  "archived_original_bytes": 686661,
+  "archived_original_lines": 10419,
+  "archived_original_sha256": "ecddbb64c20323a0200131a6181215b344105ec211080703ae374e96360b618c",
+  "event_count": 468,
+  "first_event_id": "EJ-20260728-0001",
+  "last_event_id": "EJ-20260728-0468",
+  "schema_version": 1,
+  "segments": [
+    {
+      "bytes": 5591,
+      "first_event_id": null,
+      "last_event_id": null,
+      "lines": 94,
+      "path": "prologue.md",
+      "sha256": "8c52e02244f6a489d1d9939d69f29feca396b2c43522f44c4a45dae595eb3ad5"
+    },
+    {
+      "bytes": 100202,
+      "first_event_id": "EJ-20260728-0001",
+      "last_event_id": "EJ-20260728-0050",
+      "lines": 1891,
+      "path": "events-20260728-0001-0050.md",
+      "sha256": "8bec600956bd17584efd48677f4a7cbdad3f4bcdbd11368caff8796c0eac62af"
+    },
+    {
+      "bytes": 68420,
+      "first_event_id": "EJ-20260728-0051",
+      "last_event_id": "EJ-20260728-0100",
+      "lines": 1423,
+      "path": "events-20260728-0051-0100.md",
+      "sha256": "ae684a8cd9e7f2ed79931e129a71df21f86cc91393140d7fd8f72fe6bd78090d"
+    },
+    {
+      "bytes": 58775,
+      "first_event_id": "EJ-20260728-0101",
+      "last_event_id": "EJ-20260728-0150",
+      "lines": 1280,
+      "path": "events-20260728-0101-0150.md",
+      "sha256": "4ea5abfe6277f50b120c96d1eb726ef6ba9900ba6e393971d86e084158d67859"
+    },
+    {
+      "bytes": 78897,
+      "first_event_id": "EJ-20260728-0151",
+      "last_event_id": "EJ-20260728-0200",
+      "lines": 1609,
+      "path": "events-20260728-0151-0200.md",
+      "sha256": "f226f43c4a8843e876686d807085fe6c88b6dc74c434f49c30faf9618d070652"
+    },
+    {
+      "bytes": 83647,
+      "first_event_id": "EJ-20260728-0201",
+      "last_event_id": "EJ-20260728-0250",
+      "lines": 1569,
+      "path": "events-20260728-0201-0250.md",
+      "sha256": "1590527a4d505121b22a48a409897d26d3898e886803cfc49ebdaf95237a0dab"
+    },
+    {
+      "bytes": 62691,
+      "first_event_id": "EJ-20260728-0251",
+      "last_event_id": "EJ-20260728-0300",
+      "lines": 614,
+      "path": "events-20260728-0251-0300.md",
+      "sha256": "05325cccf338be3cc2235b5c9f9786516931d5ce77debc7b4f47f617f11e17af"
+    },
+    {
+      "bytes": 67097,
+      "first_event_id": "EJ-20260728-0301",
+      "last_event_id": "EJ-20260728-0350",
+      "lines": 531,
+      "path": "events-20260728-0301-0350.md",
+      "sha256": "5f0bec9bae995c37bc4793e50d140fd758dd162a25b7ef20db8e00c18093fba2"
+    },
+    {
+      "bytes": 64790,
+      "first_event_id": "EJ-20260728-0351",
+      "last_event_id": "EJ-20260728-0400",
+      "lines": 564,
+      "path": "events-20260728-0351-0400.md",
+      "sha256": "6989ae2e5630a70ea22ca33b13df43405206fa6fef494b5c45e4dd6d3b9a39b8"
+    },
+    {
+      "bytes": 73729,
+      "first_event_id": "EJ-20260728-0401",
+      "last_event_id": "EJ-20260728-0450",
+      "lines": 632,
+      "path": "events-20260728-0401-0450.md",
+      "sha256": "cf15230a1fb058bff579744f8985ce3707fd18c63609d7803ccca289670fdf4b"
+    },
+    {
+      "bytes": 22822,
+      "first_event_id": "EJ-20260728-0451",
+      "last_event_id": "EJ-20260728-0468",
+      "lines": 212,
+      "path": "events-20260728-0451-0468.md",
+      "sha256": "b4650b694d1ae64110288a094a1dc315f38e7a505a2228dd16c1fe5d3ba106c4"
+    }
+  ]
+}
