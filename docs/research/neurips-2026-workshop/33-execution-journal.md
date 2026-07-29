@@ -5134,3 +5134,126 @@ exit "$neurips_exit"
     `d2a3c5a20059574ab8dad92a45b29f06aeeaf2bd9dafbc8716c5449848a687db`.
 - `next_gate`: create/push substantive commit A from exactly these five paths;
   its mechanics and immutable result belong to journal-only receipt commit B.
+### EJ-20260728-0166 — substantive commit A creation, push, and remote verification
+
+- `receipt_mode`: live, single fail-fast aggregate receipt allocated by the
+  exact repaired allocator; this post-A receipt belongs to journal-only commit
+  B.
+- `previous_event_id`: `EJ-20260728-0165`.
+- `occurred_at_local`: `2026-07-28T17:24:50-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:24:50+00:00`.
+- `actor`: Codex root agent.
+- `intent`: stage exactly the five closed A0 paths, validate the staged patch,
+  create substantive commit A, push the exact branch ref, and compare the
+  observed remote SHA to A.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0166 from published EJ-0165 with the exact repaired
+  protocol.
+- `argv`: one fail-fast aggregate containing exact-scope assertions,
+  `git add -- <five paths>`, `git diff --cached --check`, staged/unstaged path
+  assertions, `git commit -m "docs(neurips): reconcile task 3 authority"`,
+  `git push origin HEAD:refs/heads/codex/neurips-2026-empirical`, and
+  `git ls-remote --heads origin refs/heads/codex/neurips-2026-empirical`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0166/stdout.log`.
+- `stdout_bytes`: `577`.
+- `stdout_sha256`:
+  `888e4e06fb55d5e2499c08952f77cedb864d9e8ae7c6d06ab17d1452f2a6f15e`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0166/stderr.log`.
+- `stderr_bytes`: `110`.
+- `stderr_sha256`:
+  `332431de3cb4eee1b776019fcfc808a8ec3454926bf3b007ca84e059ba3aca5c`.
+- `result`: commit A
+  `6d2dd2aaea6a6529e0dd30a6d911bf311fc447f8` was created from pre-head
+  `2aaf5820c42911e3a70ffa29139be20f0ecd9a18`; its five-path commit assertion
+  passed; push returned zero; and fresh `ls-remote` reported the exact same SHA
+  at `refs/heads/codex/neurips-2026-empirical`.
+- `next_gate`: inspect all 577 stdout and 110 stderr bytes, then review and
+  pre-record journal-only commit B mechanics before executing B.
+### EJ-20260728-0167 — complete commit-A Git-output inspection
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; all source bytes surfaced.
+- `previous_event_id`: `EJ-20260728-0166`.
+- `occurred_at_local`: `2026-07-28T17:25:42-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:25:42+00:00`.
+- `actor`: Codex root agent.
+- `intent`: read every stdout/stderr byte from A's commit/push aggregate before
+  relying on its compact result.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0167 from published EJ-0166 with the exact repaired
+  protocol.
+- `argv`: fail-fast concatenation of complete EJ-0166 stdout and stderr.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0167/stdout.log`.
+- `stdout_bytes`: `755`.
+- `stdout_sha256`:
+  `92387a645854e0c7585ab6e60e3909a55c665ec5a2a6d5d43fc859ec8ebc54d1`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0167/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: complete output confirms commit `6d2dd2a`, five changed files,
+  journal creation, exact compact A/remote SHA equality, and push
+  `2aaf582..6d2dd2a` to `codex/neurips-2026-empirical`.
+- `next_gate`: inspect the complete journal-only post-A diff and pre-record
+  exact B commit/push mechanics.
+### EJ-20260728-0168 — journal-only B review and mechanics pre-record
+
+- `receipt_mode`: live, single fail-fast aggregate receipt allocated by the
+  exact repaired allocator; complete journal-only diff surfaced.
+- `previous_event_id`: `EJ-20260728-0167`.
+- `occurred_at_local`: `2026-07-28T17:26:24-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:26:24+00:00`.
+- `actor`: Codex root agent.
+- `intent`: require the post-A worktree to contain only the journal, run
+  whitespace validation, inspect every post-A diff byte, and bind B's exact
+  mechanics before B exists.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0168 from published EJ-0167 with the exact repaired
+  protocol.
+- `argv`: fail-fast `git diff --check`, exact one-path status assertion, and
+  complete `git diff -- docs/research/neurips-2026-workshop/33-execution-journal.md`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0168/stdout.log`.
+- `stdout_bytes`: `4100`.
+- `stdout_sha256`:
+  `e32700eaab83678f8d07cd9bca0008defca96fb6bc81cb6e6ecec3a9cb81e85f`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0168/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN. The complete post-A diff contains only the 71 reviewed lines
+  for EJ-0166 and EJ-0167; no whitespace error or second path exists.
+- `planned_commit_b_parent`:
+  `6d2dd2aaea6a6529e0dd30a6d911bf311fc447f8`.
+- `planned_commit_b_path`:
+  `docs/research/neurips-2026-workshop/33-execution-journal.md`.
+- `planned_commit_b_message`:
+  `docs(neurips): record task 3 authority delivery`.
+- `planned_commit_b_argv`, in exact order:
+  1. `git add --
+     docs/research/neurips-2026-workshop/33-execution-journal.md`;
+  2. `git diff --cached --check`;
+  3. exact assertions that the staged diff contains only the journal, the
+     unstaged diff is empty, current HEAD equals the planned parent, and the
+     committed diff after B contains only the journal;
+  4. `git commit -m "docs(neurips): record task 3 authority delivery"`;
+  5. `git push origin
+     HEAD:refs/heads/codex/neurips-2026-empirical`;
+  6. `git ls-remote --heads origin
+     refs/heads/codex/neurips-2026-empirical`, followed by exact local/remote
+     SHA equality.
+- `terminal_receipt_rule`: B's own commit/push result cannot be included inside
+  B. Its raw event is retained locally; the opening receipt of the next
+  substantive A must record B's actual SHA, complete result, and fresh remote
+  verification before any slice command. If execution stops before the next A,
+  B is reported as terminal pending verification in the handoff.
+- `next_gate`: execute exactly the pre-recorded B mechanics; do not append an
+  in-band self-referential result.
