@@ -1,5 +1,10 @@
 """Zero-spend resampling-null experimental core."""
 
+from .secrets import (
+    AssignmentSecretHandle,
+    AssignmentSecretStore,
+    UnblindSecretHandle,
+)
 from .types import (
     Arm,
     ArtifactRef,
@@ -23,6 +28,8 @@ from .types import (
 __all__ = (
     "Arm",
     "ArtifactRef",
+    "AssignmentSecretHandle",
+    "AssignmentSecretStore",
     "AssignmentMode",
     "BranchOutcome",
     "BranchSlot",
@@ -37,5 +44,6 @@ __all__ = (
     "TaskSpec",
     "Treatment",
     "TriggerReason",
+    "UnblindSecretHandle",
     "Verdict",
 )

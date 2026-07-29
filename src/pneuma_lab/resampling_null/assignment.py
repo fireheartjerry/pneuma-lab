@@ -9,6 +9,11 @@ import hmac
 from typing import Literal
 import unicodedata
 
+from .secrets import (
+    AssignmentSecretHandle,
+    UnblindSecretHandle,
+    _consume_assignment_handle_into,
+)
 from .types import ArtifactRef
 
 
@@ -232,6 +237,24 @@ def _wipe_bytearray(buffer: bytearray) -> None:
         raise TypeError("wipe target must be a bytearray")
     for index in range(len(buffer)):
         buffer[index] = 0
+
+
+def _read_exact_master_into(
+    assignment_secret_handle: AssignmentSecretHandle | UnblindSecretHandle,
+    destination: bytearray,
+) -> None:
+    """Read one assignment secret into an application-owned buffer."""
+
+    if type(destination) is not bytearray:
+        raise ValueError("master destination must be one mutable 32-byte buffer")
+    if len(destination) != 32:
+        _wipe_bytearray(destination)
+        raise ValueError("master destination must be one mutable 32-byte buffer")
+    try:
+        _consume_assignment_handle_into(assignment_secret_handle, destination)
+    except BaseException:
+        _wipe_bytearray(destination)
+        raise
 
 
 def _require_master_view(assignment_master_key: memoryview) -> None:

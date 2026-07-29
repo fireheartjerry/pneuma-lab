@@ -485,3 +485,15 @@ The next event after the archived migration boundary is appended below.
 - **Prior event:** `EJ-20260728-0507`
 - **Planned B mechanics:** `git add -- docs/research/neurips-2026-workshop/33-execution-journal.md`; `git diff --cached --check`; `git commit -m "docs: record lightweight-test policy delivery"`; `git push origin HEAD:refs/heads/codex/neurips-2026-empirical`.
 - **Scope:** journal only. Reconcile B at the opening of Slice 4 delivery; do not run another test.
+
+### EJ-20260728-0509 — reconcile policy B and perform final Slice 4 delivery inspection
+
+- **Prior event:** `EJ-20260728-0508`
+- **Local interval:** `2026-07-28T22:47:59-07:00` to `2026-07-28T22:48:00-07:00`
+- **UTC interval:** `2026-07-29T05:47:59+00:00` to `2026-07-29T05:48:00+00:00`
+- **Action:** Reconciled policy B/remote, checked journal integrity and whitespace, then captured final Slice 4 stats, byte counts, hashes, and worktree scope without running tests.
+- **Result:** GREEN, exit `0`, zero stderr. B/remote equal `8112398a55fbd7bd326596d7639fef530a4c8a89`. Slice 4 remains exactly four files: `458` tracked insertions plus `305` lines in `secrets.py`; hashes match the hostile-reviewed bytes from EJ-0488. No unrelated dirty path exists.
+- **Sufficient validation basis:** focused Slice 4 `19/19`, assignment `80/80`, resampling-null `382/382`, Ruff, and mypy already passed on these exact hashes. No repeat is warranted.
+- **Compact receipt:** stdout `1338` bytes / `19` lines / SHA-256 `1c5971c45a7bb08434783854d1723cede1c3a181f3d7930d33cec53c3fe2860c`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0509/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** stage exactly the four Slice 4 files plus this receipt, commit, push, and verify.

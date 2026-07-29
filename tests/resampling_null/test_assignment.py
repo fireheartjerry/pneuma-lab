@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
+import copy
 from dataclasses import FrozenInstanceError
 import hashlib
+from importlib import import_module
+import os
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -578,3 +582,426 @@ def test_t3_s03_wipe_zeroes_application_owned_buffers() -> None:
     buffer = bytearray(range(32))
     _wipe_bytearray(buffer)
     assert buffer == bytearray(32)
+
+
+def test_t3_s04_store_claims_assignment_handle_and_reads_exact_master(
+    tmp_path: Path,
+) -> None:
+    secret_path = tmp_path / "assignment-master.key"
+    secret_path.write_bytes(bytes(range(32)))
+    secret_path.chmod(0o600)
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    store = secret_api.AssignmentSecretStore(secret_path)
+    handle = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    destination = bytearray(32)
+
+    assignment_api = import_module("pneuma_lab.resampling_null.assignment")
+    assignment_api._read_exact_master_into(handle, destination)
+
+    assert type(handle) is secret_api.AssignmentSecretHandle
+    assert destination == bytearray(range(32))
+    store.close()
+
+
+def test_t3_s04_assignment_handle_is_single_use(tmp_path: Path) -> None:
+    secret_path = tmp_path / "assignment-master.key"
+    secret_path.write_bytes(bytes(range(32)))
+    secret_path.chmod(0o600)
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    store = secret_api.AssignmentSecretStore(secret_path)
+    handle = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    assignment_api = import_module("pneuma_lab.resampling_null.assignment")
+    assignment_api._read_exact_master_into(handle, bytearray(32))
+    untouched = bytearray(b"\xaa" * 32)
+
+    with pytest.raises(ValueError, match="(?i)(consumed|registered|unused)"):
+        assignment_api._read_exact_master_into(handle, untouched)
+
+    assert untouched == bytearray(32)
+    store.close()
+
+
+def test_t3_s04_assignment_handle_is_nominal_and_store_minted(
+    tmp_path: Path,
+) -> None:
+    secret_path = tmp_path / "assignment-master.key"
+    secret_path.write_bytes(bytes(range(32)))
+    secret_path.chmod(0o600)
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    store = secret_api.AssignmentSecretStore(secret_path)
+
+    with pytest.raises(TypeError, match="(?i)(construct|mint|private)"):
+        secret_api.AssignmentSecretHandle(store)
+    with pytest.raises(TypeError, match="(?i)(subclass|final|nominal)"):
+
+        class _ForgedHandle(secret_api.AssignmentSecretHandle):
+            pass
+
+    handle = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    with pytest.raises(TypeError, match="(?i)(copy|nominal|handle)"):
+        copy.copy(handle)
+    with pytest.raises(TypeError, match="(?i)(copy|nominal|handle)"):
+        copy.deepcopy(handle)
+    store.close()
+
+
+def test_t3_s04_store_claims_distinct_unblind_handle_and_reads_exact_master(
+    tmp_path: Path,
+) -> None:
+    secret_path = tmp_path / "assignment-master.key"
+    secret_path.write_bytes(bytes(reversed(range(32))))
+    secret_path.chmod(0o600)
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    store = secret_api.AssignmentSecretStore(secret_path)
+    handle = store.claim_unblind(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    destination = bytearray(32)
+
+    assignment_api = import_module("pneuma_lab.resampling_null.assignment")
+    assignment_api._read_exact_master_into(handle, destination)
+
+    assert type(handle) is secret_api.UnblindSecretHandle
+    assert not isinstance(handle, secret_api.AssignmentSecretHandle)
+    assert destination == bytearray(reversed(range(32)))
+    store.close()
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "relative_path",
+        "inside_run_root",
+        "terminal_symlink",
+        "hard_link",
+        "group_readable",
+        "directory",
+    ],
+)
+def test_t3_s04_claim_rejects_insecure_secret_source(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    secret_path = tmp_path / "assignment-master.key"
+
+    if case == "relative_path":
+        secret_path = Path("relative-assignment-master.key")
+    elif case == "inside_run_root":
+        secret_path = run_root / "assignment-master.key"
+        secret_path.write_bytes(bytes(range(32)))
+        secret_path.chmod(0o600)
+    elif case == "terminal_symlink":
+        target = tmp_path / "real-assignment-master.key"
+        target.write_bytes(bytes(range(32)))
+        target.chmod(0o600)
+        secret_path.symlink_to(target)
+    elif case == "hard_link":
+        target = tmp_path / "real-assignment-master.key"
+        target.write_bytes(bytes(range(32)))
+        target.chmod(0o600)
+        os.link(target, secret_path)
+    elif case == "group_readable":
+        secret_path.write_bytes(bytes(range(32)))
+        secret_path.chmod(0o640)
+    elif case == "directory":
+        secret_path.mkdir()
+    else:
+        raise AssertionError(case)
+
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    store = secret_api.AssignmentSecretStore(secret_path)
+    try:
+        with pytest.raises(
+            ValueError,
+            match="(?i)(secret|absolute|run root|link|owner|permission|regular)",
+        ):
+            store.claim_assignment(
+                _manifest_ref(),
+                _schedule_ref(),
+                run_root=run_root,
+            )
+    finally:
+        store.close()
+
+
+@pytest.mark.parametrize("secret_size", [31, 33])
+def test_t3_s04_exact_read_wipes_destination_and_burns_malformed_secret(
+    tmp_path: Path,
+    secret_size: int,
+) -> None:
+    secret_path = tmp_path / "assignment-master.key"
+    secret_path.write_bytes(b"\xaa" * secret_size)
+    secret_path.chmod(0o600)
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    store = secret_api.AssignmentSecretStore(secret_path)
+    handle = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    destination = bytearray(b"\xbb" * 32)
+    assignment_api = import_module("pneuma_lab.resampling_null.assignment")
+
+    with pytest.raises(ValueError, match="(?i)(master|secret|exact|32)"):
+        assignment_api._read_exact_master_into(handle, destination)
+
+    assert destination == bytearray(32)
+    with pytest.raises(ValueError, match="(?i)(consumed|registered|unused)"):
+        assignment_api._read_exact_master_into(handle, bytearray(32))
+    store.close()
+
+
+def test_t3_s04_registry_binds_context_and_purpose_and_burns_mismatch(
+    tmp_path: Path,
+) -> None:
+    secret_path = tmp_path / "assignment-master.key"
+    secret_path.write_bytes(bytes(range(32)))
+    secret_path.chmod(0o600)
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    store = secret_api.AssignmentSecretStore(secret_path)
+    wrong_schedule = ArtifactRef(
+        "schedule",
+        "schedule.json",
+        "33" * 32,
+        1,
+        "application/json",
+    )
+    wrong_context = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+
+    with pytest.raises(ValueError, match="(?i)(binding|context|purpose)"):
+        secret_api._require_handle_binding(
+            wrong_context,
+            _manifest_ref(),
+            wrong_schedule,
+            run_root=run_root,
+            purpose="assignment",
+        )
+    destination = bytearray(b"\xaa" * 32)
+    assignment_api = import_module("pneuma_lab.resampling_null.assignment")
+    with pytest.raises(ValueError, match="(?i)(consumed|registered|unused)"):
+        assignment_api._read_exact_master_into(wrong_context, destination)
+    assert destination == bytearray(32)
+
+    wrong_purpose = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    with pytest.raises(ValueError, match="(?i)(binding|context|purpose)"):
+        secret_api._require_handle_binding(
+            wrong_purpose,
+            _manifest_ref(),
+            _schedule_ref(),
+            run_root=run_root,
+            purpose="unblind",
+        )
+
+    valid = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    secret_api._require_handle_binding(
+        valid,
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+        purpose="assignment",
+    )
+    assignment_api._read_exact_master_into(valid, bytearray(32))
+    store.close()
+
+
+def test_t3_s04_consumption_rechecks_pinned_descriptor_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret_path = tmp_path / "assignment-master.key"
+    secret_path.write_bytes(bytes(range(32)))
+    secret_path.chmod(0o600)
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    store = secret_api.AssignmentSecretStore(secret_path)
+    handle = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    entry = store._registry[handle]
+    descriptor = entry if type(entry) is int else entry.descriptor
+    original_fstat = secret_api.os.fstat
+    observed = original_fstat(descriptor)
+    altered_values = list(observed)
+    altered_values[1] += 1
+    altered = os.stat_result(altered_values)
+
+    def changed_fstat(fd: int) -> os.stat_result:
+        return altered if fd == descriptor else original_fstat(fd)
+
+    monkeypatch.setattr(secret_api.os, "fstat", changed_fstat)
+    destination = bytearray(b"\xaa" * 32)
+    assignment_api = import_module("pneuma_lab.resampling_null.assignment")
+    with pytest.raises(ValueError, match="(?i)(identity|descriptor|changed)"):
+        assignment_api._read_exact_master_into(handle, destination)
+    assert destination == bytearray(32)
+    store.close()
+
+
+def test_t3_s04_secret_store_is_final_and_stably_exported() -> None:
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    package_api = import_module("pneuma_lab.resampling_null")
+    for name in (
+        "AssignmentSecretHandle",
+        "AssignmentSecretStore",
+        "UnblindSecretHandle",
+    ):
+        assert getattr(package_api, name) is getattr(secret_api, name)
+        assert name in package_api.__all__
+
+    with pytest.raises(TypeError, match="(?i)(final|subclass|concrete)"):
+
+        class _CallerStore(secret_api.AssignmentSecretStore):
+            pass
+
+
+@pytest.mark.parametrize(
+    "destination",
+    [
+        bytearray(b"\xaa" * 31),
+        cast(bytearray, b"\xaa" * 32),
+    ],
+)
+def test_t3_s04_invalid_destination_rejects_before_handle_consumption(
+    tmp_path: Path,
+    destination: bytearray,
+) -> None:
+    secret_path = tmp_path / "assignment-master.key"
+    secret_path.write_bytes(bytes(range(32)))
+    secret_path.chmod(0o600)
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    store = secret_api.AssignmentSecretStore(secret_path)
+    handle = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    assignment_api = import_module("pneuma_lab.resampling_null.assignment")
+
+    with pytest.raises(ValueError, match="(?i)(master|destination|mutable|32)"):
+        assignment_api._read_exact_master_into(handle, destination)
+
+    if type(destination) is bytearray:
+        assert destination == bytearray(len(destination))
+    valid_destination = bytearray(32)
+    assignment_api._read_exact_master_into(handle, valid_destination)
+    assert valid_destination == bytearray(range(32))
+    store.close()
+
+
+def test_t3_s04_claim_holds_original_descriptor_across_path_replacement(
+    tmp_path: Path,
+) -> None:
+    secret_path = tmp_path / "assignment-master.key"
+    original = bytes(range(32))
+    replacement = bytes(reversed(range(32)))
+    secret_path.write_bytes(original)
+    secret_path.chmod(0o600)
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    store = secret_api.AssignmentSecretStore(secret_path)
+    original_handle = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    archived_path = tmp_path / "archived.key"
+    secret_path.rename(archived_path)
+    secret_path.write_bytes(replacement)
+    secret_path.chmod(0o600)
+    replacement_handle = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    assignment_api = import_module("pneuma_lab.resampling_null.assignment")
+    original_destination = bytearray(32)
+    replacement_destination = bytearray(32)
+
+    assignment_api._read_exact_master_into(original_handle, original_destination)
+    assignment_api._read_exact_master_into(replacement_handle, replacement_destination)
+
+    assert original_destination == bytearray(original)
+    assert replacement_destination == bytearray(replacement)
+    store.close()
+
+
+def test_t3_s04_store_close_closes_unconsumed_handles_and_rejects_claims(
+    tmp_path: Path,
+) -> None:
+    secret_path = tmp_path / "assignment-master.key"
+    secret_path.write_bytes(bytes(range(32)))
+    secret_path.chmod(0o600)
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    secret_api = import_module("pneuma_lab.resampling_null.secrets")
+    store = secret_api.AssignmentSecretStore(secret_path)
+    handle = store.claim_assignment(
+        _manifest_ref(),
+        _schedule_ref(),
+        run_root=run_root,
+    )
+    entry = store._registry[handle]
+    descriptor = entry.descriptor
+
+    store.close()
+
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
+    destination = bytearray(b"\xaa" * 32)
+    assignment_api = import_module("pneuma_lab.resampling_null.assignment")
+    with pytest.raises(ValueError, match="(?i)(consumed|registered|unused)"):
+        assignment_api._read_exact_master_into(handle, destination)
+    assert destination == bytearray(32)
+    with pytest.raises(ValueError, match="(?i)(store|closed)"):
+        store.claim_assignment(
+            _manifest_ref(),
+            _schedule_ref(),
+            run_root=run_root,
+        )
