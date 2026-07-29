@@ -28,6 +28,7 @@ from pneuma_lab.resampling_null.assignment import (
     kdf_frame,
     uniform_below,
 )
+import pneuma_lab.resampling_null.assignment as assignment_module
 from pneuma_lab.resampling_null.types import ArtifactRef
 
 
@@ -1004,4 +1005,110 @@ def test_t3_s04_store_close_closes_unconsumed_handles_and_rejects_claims(
             _manifest_ref(),
             _schedule_ref(),
             run_root=run_root,
+        )
+
+
+def test_t3_s05_assignment_authority_is_loaded_only_through_refs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest_ref = ArtifactRef(
+        role="manifest",
+        relative_path="manifest.json",
+        sha256="a" * 64,
+        byte_count=1,
+        media_type="application/json",
+    )
+    schedule_ref = ArtifactRef(
+        role="schedule",
+        relative_path="schedule.json",
+        sha256="b" * 64,
+        byte_count=2,
+        media_type="application/json",
+    )
+    prefix_ref = ArtifactRef(
+        role="prefix",
+        relative_path="prefix.json",
+        sha256="c" * 64,
+        byte_count=3,
+        media_type="application/json",
+    )
+
+    def ref_value(ref: ArtifactRef) -> dict[str, object]:
+        return {
+            "role": ref.role,
+            "relative_path": ref.relative_path,
+            "sha256": ref.sha256,
+            "byte_count": ref.byte_count,
+            "media_type": ref.media_type,
+        }
+
+    identity = {
+        "study_id": "study-1",
+        "frozen_created_at": "2026-07-28T12:00:00Z",
+        "provenance": {"design_sha256": "d" * 64, "code_sha256": "e" * 64},
+    }
+    values = {
+        "schedule_ref": {
+            **identity,
+            "payload": {"manifest_ref": ref_value(manifest_ref)},
+        },
+        "schedule manifest_ref": {**identity, "payload": {}},
+        "prefix_index_ref": {
+            **identity,
+            "payload": {"schedule_ref": ref_value(schedule_ref)},
+        },
+    }
+    calls: list[tuple[str, str]] = []
+
+    class Document:
+        def __init__(self, value: dict[str, object]) -> None:
+            self.value = value
+
+    def load_parent(
+        value: object,
+        *,
+        run_root: Path,
+        field: str,
+        expected_kind: str,
+        expected_stage: str | None = None,
+    ) -> Document:
+        del value, run_root, expected_stage
+        calls.append((field, expected_kind))
+        return Document(values[field])
+
+    monkeypatch.setattr(
+        assignment_module,
+        "_load_direct_scientific_parent",
+        load_parent,
+    )
+
+    authority = assignment_module.load_assignment_authority(
+        schedule_ref,
+        prefix_ref,
+        run_root=tmp_path,
+    )
+
+    assert authority == assignment_module.AssignmentAuthority(
+        study_id="study-1",
+        frozen_created_at="2026-07-28T12:00:00Z",
+        manifest_ref=manifest_ref,
+        schedule_ref=schedule_ref,
+        prefix_index_ref=prefix_ref,
+    )
+    assert calls == [
+        ("schedule_ref", "resampling_prefix_schedule"),
+        ("schedule manifest_ref", "resampling_study_manifest"),
+        ("prefix_index_ref", "resampling_prefix_receipt"),
+    ]
+
+    values["prefix_index_ref"] = {
+        **identity,
+        "payload": {"schedule_ref": ref_value(manifest_ref)},
+    }
+    with pytest.raises(ValueError, match="does not descend"):
+        assignment_module.load_assignment_authority(
+            schedule_ref,
+            prefix_ref,
+            run_root=tmp_path,
         )

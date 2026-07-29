@@ -6,9 +6,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 import hashlib
 import hmac
+from pathlib import Path
 from typing import Literal
 import unicodedata
 
+from .artifacts import (
+    RecordValidationError,
+    _load_direct_scientific_parent,
+)
 from .secrets import (
     AssignmentSecretHandle,
     UnblindSecretHandle,
@@ -47,6 +52,95 @@ FrameField = U64Field | TextField | BytesField
 class UniformDraw:
     value: int
     counter: int
+
+
+@dataclass(frozen=True, slots=True)
+class AssignmentAuthority:
+    """Immutable identities loaded exclusively through scientific refs."""
+
+    study_id: str
+    frozen_created_at: str
+    manifest_ref: ArtifactRef
+    schedule_ref: ArtifactRef
+    prefix_index_ref: ArtifactRef
+
+
+def _artifact_ref(value: object, *, field: str) -> ArtifactRef:
+    if not isinstance(value, dict):
+        raise RecordValidationError(f"{field} must be an ArtifactRef")
+    try:
+        return ArtifactRef(**value)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RecordValidationError(f"{field} is malformed: {exc}") from exc
+
+
+def _ref_mapping(ref: ArtifactRef) -> dict[str, object]:
+    return {
+        "role": ref.role,
+        "relative_path": ref.relative_path,
+        "sha256": ref.sha256,
+        "byte_count": ref.byte_count,
+        "media_type": ref.media_type,
+    }
+
+
+def load_assignment_authority(
+    schedule_ref: ArtifactRef,
+    prefix_index_ref: ArtifactRef,
+    *,
+    run_root: Path,
+) -> AssignmentAuthority:
+    """Load schedule, its manifest, and prefix solely through bound refs."""
+
+    if type(schedule_ref) is not ArtifactRef or type(prefix_index_ref) is not ArtifactRef:
+        raise TypeError("assignment authority requires exact ArtifactRef values")
+    schedule = _load_direct_scientific_parent(
+        _ref_mapping(schedule_ref),
+        run_root=run_root,
+        field="schedule_ref",
+        expected_kind="resampling_prefix_schedule",
+    )
+    schedule_payload = schedule.value["payload"]
+    if not isinstance(schedule_payload, dict):
+        raise RecordValidationError("schedule payload must be an object")
+    manifest_ref = _artifact_ref(
+        schedule_payload.get("manifest_ref"),
+        field="schedule manifest_ref",
+    )
+    manifest = _load_direct_scientific_parent(
+        _ref_mapping(manifest_ref),
+        run_root=run_root,
+        field="schedule manifest_ref",
+        expected_kind="resampling_study_manifest",
+    )
+    prefix = _load_direct_scientific_parent(
+        _ref_mapping(prefix_index_ref),
+        run_root=run_root,
+        field="prefix_index_ref",
+        expected_kind="resampling_prefix_receipt",
+    )
+    prefix_payload = prefix.value["payload"]
+    if not isinstance(prefix_payload, dict):
+        raise RecordValidationError("prefix payload must be an object")
+    if _artifact_ref(
+        prefix_payload.get("schedule_ref"),
+        field="prefix schedule_ref",
+    ) != schedule_ref:
+        raise RecordValidationError("prefix index does not descend from schedule_ref")
+    identities = (manifest.value, schedule.value, prefix.value)
+    for field in ("study_id", "frozen_created_at", "provenance"):
+        expected = identities[0][field]
+        if any(record[field] != expected for record in identities[1:]):
+            raise RecordValidationError(
+                f"assignment authority has inconsistent {field}"
+            )
+    return AssignmentAuthority(
+        study_id=str(schedule.value["study_id"]),
+        frozen_created_at=str(schedule.value["frozen_created_at"]),
+        manifest_ref=manifest_ref,
+        schedule_ref=schedule_ref,
+        prefix_index_ref=prefix_index_ref,
+    )
 
 
 class _AssignmentKeyBuffers:
