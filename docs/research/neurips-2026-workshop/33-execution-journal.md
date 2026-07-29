@@ -898,3 +898,30 @@ The next event after the archived migration boundary is appended below.
 
 - **Result:** `git diff --check` passed. The decision row exactly records refreshed plan SHA-256 `50070ddd47a9ac7957d1a0a5bd050bbc5cf79471110abcef4f545540a0272673` and design SHA-256 `f9d3333bc3a4378be13a1235fc224052856ffbe693763d42a822b78dbf13928e`; recomputation matched both. Decision-log SHA-256 after DL-135 is `338ec7e8175e65b67db212c7aed08196eb60f0df82394cf6eecf765ca19c6237`.
 - **Scope:** Docs/authority only. No empirical claim, result, spend, training, cloud action, confirmation adapter, or triggered seal was created.
+
+### EJ-20260729-0076 — publish DL-135 authority repair
+
+- **Action:** Staged exactly decision log, journal, Task-4 plan, and design; checked staged whitespace/scope; committed `docs(neurips): require reconstructable packet audits`; pushed publicly; compared exact refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `9d2174ae387bf5bc55e96b05b4c0d4cd8e4442e4`. Four files, 100 insertions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Next gate:** Implement canonical synthetic packet-source artifacts and ref-byte binding under the refreshed DL-135 authority before reopening triggered sealing.
+
+### EJ-20260729-0077 — implement first reconstructable packet parent
+
+- **Action:** Added the closed `packet_normalized_findings_v1` synthetic derivation. It loads exact verifier-feature bytes, requires the closed assignment feature grammar, follows and byte-verifies both source-verifier and source-report refs, validates task/benchmark/components/finding count/report token count, parses only closed typed literal/identifier atom arms, rejects duplicate finding IDs, emits deterministic ordered canonical JSON, and installs it as an immutable referenced blob inside `run_root`.
+- **Schema:** Added required `normalized_donor_ref` to every packet-pair receipt. Focal, donor, and derived SHAM normalization are now three distinct conceptual parents under DL-135; the old two-ref model cannot represent rewrite reconstruction.
+- **Fixture:** Upgraded the existing three-lineage triggered authority fixture with one typed objective finding and derived the normalized artifact twice to distinct paths. Canonical payload bytes and SHA-256 are identical.
+- **Provisional boundary:** The pre-DL-135 `build_packet_pair` still emits provisional normalized refs and triggered sealing still rejects them. This slice establishes the source artifact primitive; it does not reopen triggered authority.
+
+### EJ-20260729-0078 — hostile normalized-parent repair
+
+- **Finding:** The initial normalizer followed the source-verifier ref but did not load the feature wrapper's source-report ref, and runtime task ID exact typing relied on annotations. A forged or missing report parent could therefore escape this local closure even though assignment verification would normally catch it.
+- **Repair:** Require a nonempty exact-string task ID; load and byte-verify the report ref; require its closed synthetic report grammar, exact task binding, and exact whitespace-token count agreement with the feature wrapper.
+- **Result boundary:** This proves deterministic synthetic normalization from the named verifier chain only. It does not prove SWE/tau normalization, identifier-map completeness, SHAM falsity, tokenizer reconstruction, encrypted packet equality, or any empirical effect.
+
+### EJ-20260729-0079 — minimal normalized-source gate
+
+- **Behavior command:** `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_artifacts.py -q -k t3_s10`.
+- **Behavior result:** GREEN, exit 0. Exactly one triggered authority fixture passed with 217 unrelated tests deselected in 1.79 seconds.
+- **Static command:** Ruff over the touched source/export/fixture files and mypy over the two source files, each hard-capped at 60 seconds.
+- **Static result:** GREEN, exit 0. Ruff passed; mypy found no issues. `git diff --check` passed.
+- **Content hashes:** packet-index schema `b3e878fb98c6b76d396aa71900ba950049abe71abe69d63d707191a7ce14f6d2`; `packets.py` `98734a7bc5580add82d63f8344a3fd4ac175a6834d13998b176c647f75d825f2`; exports `3e0451ecb1f81dd4f5f677207562e006fb4e42b55a3099adee3b2c9fd2bd0764`; fixture `13826660edf661080e12dcd468d925c372a43441636ba7656c5d6d47b0eade5d`.

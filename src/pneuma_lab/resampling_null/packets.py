@@ -6,11 +6,12 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from enum import Enum
 import hashlib
+import json
 from pathlib import Path
 import re
 from typing import Literal, Protocol, cast
 
-from pneuma_lab.foundation.artifacts import canonical_json_bytes
+from pneuma_lab.foundation.artifacts import canonical_json_bytes, write_atomic_bytes
 
 from .artifacts import RecordValidationError, load_record, write_record
 from .types import ArtifactRef
@@ -143,6 +144,7 @@ class PacketPairReceipt:
     tokenizer_ref: ArtifactRef
     packet_template_ref: ArtifactRef
     normalized_real_ref: ArtifactRef
+    normalized_donor_ref: ArtifactRef
     normalized_sham_ref: ArtifactRef
     packet_policy_ref: ArtifactRef
     pad_unit_set_ref: ArtifactRef
@@ -556,6 +558,7 @@ def build_packet_pair(
         tokenizer_ref=tokenizer_ref,
         packet_template_ref=packet_template_ref,
         normalized_real_ref=real_ref,
+        normalized_donor_ref=donor_verifier_ref,
         normalized_sham_ref=sham_ref,
         packet_policy_ref=packet_policy_ref,
         pad_unit_set_ref=pad_unit_set_ref,
@@ -727,6 +730,223 @@ def _require_artifact_bytes(ref: ArtifactRef, *, run_root: Path) -> bytes:
     ):
         raise PacketInvalid("packet artifact bytes do not match ArtifactRef")
     return payload
+
+
+def _strict_json_blob(ref: ArtifactRef, *, run_root: Path) -> dict[str, object]:
+    payload = _require_artifact_bytes(ref, run_root=run_root)
+
+    def reject_duplicates(
+        pairs: list[tuple[str, object]],
+    ) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise PacketInvalid(f"duplicate JSON key {key!r}")
+            result[key] = value
+        return result
+
+    try:
+        value = json.loads(
+            payload.decode("utf-8", errors="strict"),
+            object_pairs_hook=reject_duplicates,
+            parse_constant=lambda constant: (_ for _ in ()).throw(
+                PacketInvalid(f"non-finite JSON constant {constant!r}")
+            ),
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise PacketInvalid("packet audit source is not strict UTF-8 JSON") from exc
+    if not isinstance(value, dict):
+        raise PacketInvalid("packet audit source must be a JSON object")
+    return cast(dict[str, object], value)
+
+
+def _normalized_atom(value: object) -> PacketAtom:
+    if not isinstance(value, Mapping):
+        raise PacketInvalid("synthetic finding atom must be an object")
+    atom_kind = value.get("atom_kind")
+    if atom_kind == "literal" and set(value) == {"atom_kind", "text"}:
+        return LiteralAtom(cast(str, value["text"]))
+    if atom_kind == "identifier" and set(value) == {
+        "atom_kind",
+        "entity_id",
+        "identifier_kind",
+    }:
+        try:
+            return IdentifierAtom(
+                cast(str, value["entity_id"]),
+                IdentifierKind(cast(str, value["identifier_kind"])),
+            )
+        except (TypeError, ValueError) as exc:
+            raise PacketInvalid("synthetic identifier atom is invalid") from exc
+    raise PacketInvalid("synthetic finding atom has an unknown closed arm")
+
+
+def _normalized_finding(value: object) -> VerifierFinding:
+    if not isinstance(value, Mapping) or set(value) != {
+        "finding_id",
+        "component",
+        "code",
+        "severity",
+        "atoms",
+    }:
+        raise PacketInvalid("synthetic objective finding is not closed")
+    atoms = value["atoms"]
+    if not isinstance(atoms, list) or not atoms:
+        raise PacketInvalid("synthetic objective finding atoms must be non-empty")
+    return VerifierFinding(
+        finding_id=cast(str, value["finding_id"]),
+        component=cast(str, value["component"]),
+        code=cast(str, value["code"]),
+        severity=cast(str, value["severity"]),
+        atoms=tuple(_normalized_atom(atom) for atom in atoms),
+    )
+
+
+def _finding_document(finding: VerifierFinding) -> dict[str, object]:
+    atoms: list[dict[str, object]] = []
+    for atom in finding.atoms:
+        if isinstance(atom, LiteralAtom):
+            atoms.append({"atom_kind": "literal", "text": atom.text})
+        else:
+            atoms.append(
+                {
+                    "atom_kind": "identifier",
+                    "entity_id": atom.entity_id,
+                    "identifier_kind": atom.kind.value,
+                }
+            )
+    return {
+        "finding_id": finding.finding_id,
+        "component": finding.component,
+        "code": finding.code,
+        "severity": finding.severity,
+        "atoms": atoms,
+    }
+
+
+def _write_canonical_packet_blob(
+    value: Mapping[str, object],
+    *,
+    run_root: Path,
+    out: Path,
+    role: str,
+) -> ArtifactRef:
+    root = Path(run_root).resolve(strict=True)
+    target = Path(out)
+    if not target.is_absolute():
+        target = root / target
+    target = target.resolve(strict=False)
+    try:
+        relative = target.relative_to(root).as_posix()
+    except ValueError as exc:
+        raise PacketInvalid("packet audit destination escapes run_root") from exc
+    if target.exists():
+        raise FileExistsError(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = canonical_json_bytes(dict(value), indent=None)
+    write_atomic_bytes(target, payload)
+    return ArtifactRef(
+        role=role,
+        relative_path=relative,
+        sha256=hashlib.sha256(payload).hexdigest(),
+        byte_count=len(payload),
+        media_type="application/json",
+    )
+
+
+def normalize_synthetic_packet_findings(
+    verifier_ref: ArtifactRef,
+    *,
+    task_id: str,
+    run_root: Path,
+    out: Path,
+) -> ArtifactRef:
+    """Derive canonical typed findings from one closed synthetic verifier chain."""
+
+    if type(task_id) is not str or not task_id:
+        raise PacketInvalid("normalized finding task_id must be non-empty exact text")
+    features = _strict_json_blob(verifier_ref, run_root=run_root)
+    if set(features) != {
+        "record_kind",
+        "schema_version",
+        "task_id",
+        "benchmark",
+        "source_verifier_ref",
+        "source_report_ref",
+        "components",
+        "objective_finding_count",
+        "normalized_report_token_count",
+    } or (
+        features.get("record_kind") != "assignment_verifier_features_v1"
+        or features.get("schema_version") != "1"
+        or features.get("task_id") != task_id
+    ):
+        raise PacketInvalid("synthetic verifier feature parent is not closed")
+    source_ref = _artifact_ref(
+        features["source_verifier_ref"],
+        field="source_verifier_ref",
+    )
+    report_ref = _artifact_ref(
+        features["source_report_ref"],
+        field="source_report_ref",
+    )
+    source = _strict_json_blob(source_ref, run_root=run_root)
+    report = _strict_json_blob(report_ref, run_root=run_root)
+    if set(source) != {
+        "record_kind",
+        "schema_version",
+        "task_id",
+        "benchmark",
+        "components",
+        "objective_findings",
+    } or (
+        source.get("record_kind") != "synthetic_verifier_source_v1"
+        or source.get("schema_version") != "1"
+        or source.get("task_id") != task_id
+        or source.get("benchmark") != features.get("benchmark")
+        or source.get("components") != features.get("components")
+    ):
+        raise PacketInvalid("synthetic source verifier is not closed or bound")
+    if set(report) != {
+        "record_kind",
+        "schema_version",
+        "task_id",
+        "report_text",
+    } or (
+        report.get("record_kind") != "synthetic_verifier_report_v1"
+        or report.get("schema_version") != "1"
+        or report.get("task_id") != task_id
+        or type(report.get("report_text")) is not str
+        or features.get("normalized_report_token_count")
+        != len(cast(str, report["report_text"]).split())
+    ):
+        raise PacketInvalid("synthetic source report is not closed or bound")
+    raw_findings = source["objective_findings"]
+    if not isinstance(raw_findings, list):
+        raise PacketInvalid("synthetic objective findings must be an array")
+    findings = tuple(_normalized_finding(value) for value in raw_findings)
+    if (
+        type(features["objective_finding_count"]) is not int
+        or features["objective_finding_count"] != len(findings)
+    ):
+        raise PacketInvalid("synthetic objective finding count does not recompute")
+    finding_ids = [finding.finding_id for finding in findings]
+    if len(finding_ids) != len(set(finding_ids)):
+        raise PacketInvalid("synthetic objective finding IDs repeat")
+    normalized = {
+        "record_kind": "packet_normalized_findings_v1",
+        "schema_version": "1",
+        "task_id": task_id,
+        "source_verifier_ref": asdict(verifier_ref),
+        "normalizer_id": "synthetic_typed_findings_v1",
+        "findings": [_finding_document(finding) for finding in findings],
+    }
+    return _write_canonical_packet_blob(
+        normalized,
+        run_root=run_root,
+        out=out,
+        role="packet_normalized_findings",
+    )
 
 
 def audit_and_seal_packet_index(

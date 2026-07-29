@@ -23,6 +23,7 @@ from .packets import (
     VerifierFinding,
     audit_and_seal_packet_index,
     build_packet_pair,
+    normalize_synthetic_packet_findings,
     write_packet_candidate,
 )
 from .types import (
@@ -66,6 +67,7 @@ __all__ = (
     "LiteralAtom",
     "MatchingAlgorithm",
     "NoInterventionPacketMarker",
+    "normalize_synthetic_packet_findings",
     "PacketInvalid",
     "PacketPairReceipt",
     "PacketPolicy",

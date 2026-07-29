@@ -43,6 +43,7 @@ from pneuma_lab.resampling_null.packets import (
     NoInterventionPacketMarker,
     PacketInvalid,
     audit_and_seal_packet_index,
+    normalize_synthetic_packet_findings,
     write_packet_candidate,
 )
 from pneuma_lab.resampling_null.assignment_verification import (
@@ -1325,6 +1326,7 @@ def _build_full_study(
         "sham_packet": raw("sham-packet.bin", b"sham"),
         "identifier_map": raw("identifier-map.json", {}),
         "normalized_real": raw("normalized-real.bin", b"real"),
+        "normalized_donor": raw("normalized-donor.bin", b"donor"),
         "normalized_sham": raw("normalized-sham.bin", b"sham"),
         "attempt_0": raw("attempt-0.json", {"attempt_index": 0}),
         "attempt_1": raw("attempt-1.json", {"attempt_index": 1}),
@@ -1751,6 +1753,7 @@ def _build_full_study(
             "tokenizer_ref": raws["tokenizer"],
             "packet_template_ref": raws["template"],
             "normalized_real_ref": raws["normalized_real"],
+            "normalized_donor_ref": raws["normalized_donor"],
             "normalized_sham_ref": raws["normalized_sham"],
             "packet_policy_ref": raws["policy"],
             "pad_unit_set_ref": raws["pads"],
@@ -3400,7 +3403,22 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
                     {"kind": "check_runner", "value": "pytest", "count": 1},
                     {"kind": "failure_class", "value": "none", "count": 1},
                 ],
-                "objective_findings": [],
+                "objective_findings": [
+                    {
+                        "finding_id": "third-finding",
+                        "component": "pytest",
+                        "code": "assertion",
+                        "severity": "high",
+                        "atoms": [
+                            {"atom_kind": "literal", "text": "inspect "},
+                            {
+                                "atom_kind": "identifier",
+                                "entity_id": "src/third.py",
+                                "identifier_kind": "repository_file",
+                            },
+                        ],
+                    }
+                ],
             },
             indent=None,
         ),
@@ -3433,7 +3451,7 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
                     {"kind": "check_runner", "value": "pytest", "count": 1},
                     {"kind": "failure_class", "value": "none", "count": 1},
                 ],
-                "objective_finding_count": 0,
+                "objective_finding_count": 1,
                 "normalized_report_token_count": 1,
             },
             indent=None,
@@ -3448,6 +3466,9 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
     cast(dict[str, object], third_receipt["verifier_receipt"])[
         "verifier_artifact_ref"
     ] = third_features
+    cast(dict[str, object], third_receipt["verifier_receipt"])[
+        "finding_count"
+    ] = 1
     receipts.append(third_receipt)
     for receipt in receipts:
         receipt["schedule_sha256"] = schedule_ref.sha256
@@ -3464,6 +3485,24 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
         },
     )
     prefix_ref = ArtifactRef(**prefix_ref_value)
+    normalized_a = normalize_synthetic_packet_findings(
+        ArtifactRef(**third_features),
+        task_id="task-third",
+        run_root=root,
+        out=root / "private-audit/normalized-third-a.json",
+    )
+    normalized_b = normalize_synthetic_packet_findings(
+        ArtifactRef(**third_features),
+        task_id="task-third",
+        run_root=root,
+        out=root / "private-audit/normalized-third-b.json",
+    )
+    assert normalized_a.sha256 == normalized_b.sha256
+    assert (
+        root / normalized_a.relative_path
+    ).read_bytes() == (
+        root / normalized_b.relative_path
+    ).read_bytes()
 
     assignment_lease = claim_local_test_storage(
         transaction="assignment",
