@@ -7262,3 +7262,98 @@ exit "$neurips_exit"
 - `next_gate`: execute the pre-recorded hashed script once in EJ-0230; any
   component failure makes the aggregate nonzero and must be recorded before
   delivery B.
+### EJ-20260728-0230 — Slice 1 substantive commit A delivered
+
+- `receipt_mode`: live external-state delivery receipt allocated by the exact
+  repaired allocator; complete stdout and stderr surfaced.
+- `previous_event_id`: `EJ-20260728-0229`.
+- `occurred_at_local`: `2026-07-28T18:20:14-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:20:14+00:00`.
+- `actor`: Codex root agent.
+- `intent`: execute the single pre-recorded, hashed, fail-closed Slice 1
+  substantive delivery-A script.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0230 from published EJ-0229 with the exact repaired
+  protocol.
+- `argv`: `bash build/research/neurips-2026-workshop/execution-journal/deliver-task3-s01-a.sh`.
+- `script_sha256`:
+  `4d6700177cb20e968291f1ad00e314a6a8185f1de89befa56c9585770b32e740`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0230/stdout.log`.
+- `stdout_bytes`: `595`.
+- `stdout_sha256`:
+  `c6119510ac874d89838b55784b3b4a5dc42b6f96ac7e862f3f42a72022f918c0`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0230/stderr.log`.
+- `stderr_bytes`: `110`.
+- `stderr_sha256`:
+  `f9055080a59542e127c83b3025cecf2f374f4af72173e738fa45e73d4f07d851`.
+- `commit_a_sha`: `059981627851e99e66fbc8ed095fe78be00c6caa`.
+- `commit_a_parent`: `02adc79bf924bae7165f40a76bb956befd4dbb6e`.
+- `commit_a_tree`: `e2eec9e07bfe9b2ee5d75d3aa35a9f2af3f04459`.
+- `commit_a_subject`: `build(resampling-null): pin task 3 tools and types`.
+- `commit_a_stat`: six files changed, 3,177 insertions, 11 deletions.
+- `push_argv`: `git push origin HEAD:refs/heads/codex/neurips-2026-empirical`.
+- `push_result`: GREEN; complete stderr reports
+  `02adc79..0599816 HEAD -> codex/neurips-2026-empirical`.
+- `remote_verify_argv`: `git ls-remote --exit-code origin refs/heads/codex/neurips-2026-empirical`.
+- `remote_observed_sha`: `059981627851e99e66fbc8ed095fe78be00c6caa`.
+- `post_delivery_status`: clean before this recursion-exempt journal append.
+- `result`: GREEN; substantive A is committed, pushed, and observed at the
+  exact remote ref. This receipt itself is intentionally pending journal-only
+  delivery B.
+- `next_gate`: prepare and hash a fail-closed journal-only B script that accepts
+  only A as base, only this journal as modified, commits the A receipt, pushes,
+  and verifies the same remote ref.
+### EJ-20260728-0231 — journal-only delivery B preflight and pre-record
+
+- `receipt_mode`: live fail-closed delivery preflight allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0230`.
+- `occurred_at_local`: `2026-07-28T18:21:42-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:21:42+00:00`.
+- `actor`: Codex root agent.
+- `intent`: bind and inspect the exact script that will commit/push the
+  journal-only A-delivery receipt as finite paired receipt B.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0231 from published EJ-0230 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` B-script hash/syntax/token audit, journal-only
+  worktree assertion, diff check, A identity check, and remote observation.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0231/stdout.log`.
+- `stdout_bytes`: `554`.
+- `stdout_sha256`:
+  `337eb31dc9a363aeac5f0e8cba8d804a6fc4f162239f87d1de5d85be357cef0a`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0231/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `script_path`:
+  `build/research/neurips-2026-workshop/execution-journal/deliver-task3-s01-b.sh`.
+- `script_bytes`: `2170`; `script_lines`: `66`.
+- `script_sha256`:
+  `94912d54160ba554faa6a645d3475ea7131685dfc56d00901e0cb842a713ca76`.
+- `result`: GREEN. Local and remote both equal A
+  `059981627851e99e66fbc8ed095fe78be00c6caa`; only this journal is modified;
+  diff/syntax pass; no force/reset/checkout/delete token exists.
+- `planned_delivery_b_argv`: `bash build/research/neurips-2026-workshop/execution-journal/deliver-task3-s01-b.sh`.
+- `planned_component_argv`:
+  1. `.venv/bin/python - docs/research/neurips-2026-workshop/33-execution-journal.md`
+     exact journal-only pre-stage assertion;
+  2. `git add -- docs/research/neurips-2026-workshop/33-execution-journal.md`;
+  3. `.venv/bin/python - docs/research/neurips-2026-workshop/33-execution-journal.md`
+     exact staged-scope assertion;
+  4. `git diff --cached --check`;
+  5. `git commit -m "docs(neurips): record task 3 slice 1 delivery"`;
+  6. `git push origin HEAD:refs/heads/codex/neurips-2026-empirical`;
+  7. `git ls-remote --exit-code origin refs/heads/codex/neurips-2026-empirical`.
+- `paired_receipt_rule`: B's mechanics/results cannot be included inside B
+  without recursion. EJ-0232, as the first opening receipt of Slice 2, must
+  record the actual B SHA/push streams and freshly verify its remote ref before
+  any Slice 2 task command.
+- `next_gate`: execute the pre-recorded B script once as EJ-0232, then append
+  its actual result as the Slice 2 opening receipt before any other task.
