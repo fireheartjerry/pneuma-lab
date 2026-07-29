@@ -974,3 +974,43 @@ The next event after the archived migration boundary is appended below.
 - **Checks:** `git diff --check` passed. No broad suite, coverage, subprocess, spend, cloud action, or training ran.
 - **Content hashes:** `packets.py` `c4e448bdbe6055e635e696be8d27bdb46d4b260b48d13ab682db5e8d54a033e5`; exports `f67f15a2e1814b872a374ad744c5f46e874d5a7f067b68c2ac3a0e196ae66596`; fixture `d1f4270aa2f0618221fafb414292cb5b9d8b4a4010d61811318a8d61b24bd36c`.
 - **Next gate:** Refactor packet construction to consume canonical normalized focal/donor/SHAM/map plus reconstructed packet authority, eliminating provisional normalized-ref aliases and caller collision authority.
+
+### EJ-20260729-0088 — publish canonical packet authority
+
+- **Action:** Staged exactly packet-authority source/export, the reused triggered fixture, and journal; checked staged whitespace/scope; committed `feat(neurips): load canonical packet authority`; pushed publicly; compared exact refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `92f588e82c86090d3e139c0fc290012329451787`. Four files, 213 insertions and eight deletions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Next gate:** Rebuild packet construction from canonical parents, then make the independent audit reproduce and byte-compare the entire triggered pair before allowing a sealed index.
+
+### EJ-20260729-0089 — replace provisional packet-construction authority
+
+- **API change:** Replaced the public naked-value builder with `build_packet_pair` that accepts only `run_root`, canonical normalized focal/donor/SHAM refs, the canonical identifier-map ref, manifest config refs, sealed focal/donor verifier refs, assignment/prefix ancestry, artifact destinations, and the synthetic artifact store. The old value constructor is now private implementation machinery.
+- **Derived authority:** The public builder reloads canonical config, independently re-derives focal/donor normalized documents from raw verifier chains and byte-compares them, parses the closed canonical map, reruns map/SHAM derivation idempotently, verifies normalized SHAM ancestry/bytes, derives exhaustive focal collision signatures internally, and only then renders packets.
+- **Receipt correction:** Padding-search `pad_unit_set_sha256` now equals the manifest parent ArtifactRef digest rather than a second ad hoc digest of the unit list. Normalized focal/donor/SHAM refs are the distinct canonical artifacts, never packet or verifier aliases.
+- **Synthetic storage:** Added `SyntheticPacketArtifactStore`, an ignored-run-root plaintext-only fixture store with path containment, no differing overwrite, idempotent equal-byte recovery, exact refs, and no confirmation claim.
+
+### EJ-20260729-0090 — independent triggered reconstruction and sealing
+
+- **Audit transaction:** Added a read-only verifying packet store. The sealer derives exact schedule/prefix/assignment donor/verifier ancestry, invokes canonical construction from candidate parent refs, requires both reconstructed plaintext packets to byte-equal their referenced synthetic artifacts, and canonical-JSON-compares the entire reconstructed receipt with the candidate entry. Only then can it emit the sealed index.
+- **Assignment acceptance:** Exposed `require_assignment_publication` as a public wrapper around the existing fixed-receipt/registry-proof verifier. Candidate publication and sealing now both require durable assignment acceptance plus the public synthetic assignment-graph verifier; an orphan ledger cannot authorize packets.
+- **Fixture:** Extended the existing three-lineage triggered transaction with one typed objective finding per task, three canonical normalized parents, assignment-derived donor maps, three canonical SHAM parents, six packet artifacts, one candidate, a deliberate one-byte REAL corruption that must fail, restoration, and successful sealed-index publication.
+- **Test reduction:** Replaced the obsolete 175-line packet unit fixture with one 46-line primitive tripwire. Full causal reconstruction lives in the single authority transaction; test scaffolding shrank rather than becoming a parallel product.
+
+### EJ-20260729-0091 — triggered-seal RED corrections
+
+- **First RED:** Whole-record leakage correctly rejected an obsolete standalone donor whose code field contained `task-third`. Removed the redundant standalone probe and retained the stricter leakage gate; scheduled fixture codes are donor-neutral `alpha`/`bravo`/`charlie`.
+- **Second RED:** Packet plaintext and semantic reconstruction succeeded, but Python equality compared dataclass tuples with candidate JSON arrays. Corrected the terminal receipt comparison to compact canonical JSON bytes, the actual authority representation; no field or gate was relaxed.
+- **Corruption falsification:** Appending one byte to the first REAL artifact caused sealing to reject before output. Restoring exact bytes allowed reconstruction and sealing.
+
+### EJ-20260729-0092 — hostile triggered-seal review
+
+- **Closed attacks:** Caller findings/tokenizer/map/collision authority; normalized-ref aliases; incomplete/type-changing maps; donor identity in atoms or semantic fields; unsafe pads; noncanonical configs; packet path alias/escape/overwrite; candidate roster/order drift; focal/donor verifier drift; assignment orphan/graph forgery; packet-byte mutation; receipt mutation; and candidate-as-execution-authority.
+- **Implementation-independence boundary:** Construction and audit are separate transactions with disjoint write/read-only stores and no trust in candidate booleans, but share reviewed deterministic transformation code. This proves parent-to-byte reproducibility, not N-version implementation independence. Independent manipulation experiments and blind audits remain later scientific gates.
+- **Production boundary:** The complete synthetic plaintext fixture path is implemented. No production decrypt-for-audit capability, SWE/tau normalizer, confirmation tokenizer loader, confirmation packet seal, manipulation success, or causal result exists or is claimed.
+
+### EJ-20260729-0093 — minimal complete synthetic packet gate
+
+- **Behavior command:** `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_artifacts.py -q -k t3_s10`.
+- **Final behavior result:** GREEN, exit 0. Exactly one three-lineage triggered authority transaction passed with 217 unrelated tests deselected in 1.81 seconds.
+- **Static command:** Ruff over three touched source files and two touched fixtures; mypy over the same three source files; every process capped at 60 seconds.
+- **Static result:** GREEN, exit 0. Ruff passed; mypy found no issues. `git diff --check` passed.
+- **Content hashes:** `packets.py` `8232b9b1e3e509128eaf40a9f7da7ab7b6b20eec598c789af6e0391693655b08`; assignment verification `7088852553d503f075084d9a0c8ae41f4ebba1e7dbd995f9c05312402c349395`; exports `1d1332148506f5bd0011d8618556159606802cda315f43f3a5e0f9ca8fa8cb31`; authority fixture `92367a33030d9fadd7db1438b25da749817b83a1d089babfc87db8afd4ec4c52`; primitive tripwire `a769d0aad886a048820c5aad3f622fe68ae97a0a6190af2fc222745321fe293a`.

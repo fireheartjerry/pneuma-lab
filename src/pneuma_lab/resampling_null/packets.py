@@ -14,6 +14,10 @@ from typing import Literal, Protocol, cast
 from pneuma_lab.foundation.artifacts import canonical_json_bytes, write_atomic_bytes
 
 from .artifacts import RecordValidationError, load_record, write_record
+from .assignment_verification import (
+    require_assignment_publication,
+    verify_synthetic_assignment_graph,
+)
 from .types import ArtifactRef
 
 
@@ -35,6 +39,42 @@ class PacketArtifactStore(Protocol):
         role: Literal["private_guidance"],
     ) -> ArtifactRef:
         ...
+
+
+class SyntheticPacketArtifactStore:
+    """Ignored-run-root plaintext store; never valid for confirmation."""
+
+    def __init__(self, run_root: Path) -> None:
+        self._run_root = Path(run_root).resolve(strict=True)
+
+    def put_text(
+        self,
+        relative_path: str,
+        text: str,
+        *,
+        role: Literal["private_guidance"],
+    ) -> ArtifactRef:
+        if type(relative_path) is not str or not relative_path:
+            raise PacketInvalid("synthetic packet path must be non-empty text")
+        target = (self._run_root / relative_path).resolve(strict=False)
+        try:
+            normalized = target.relative_to(self._run_root).as_posix()
+        except ValueError as exc:
+            raise PacketInvalid("synthetic packet path escapes run_root") from exc
+        payload = text.encode("utf-8")
+        if target.exists():
+            if target.read_bytes() != payload:
+                raise FileExistsError(target)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            write_atomic_bytes(target, payload)
+        return ArtifactRef(
+            role=role,
+            relative_path=normalized,
+            sha256=hashlib.sha256(payload).hexdigest(),
+            byte_count=len(payload),
+            media_type="text/plain",
+        )
 
 
 class IdentifierKind(str, Enum):
@@ -218,6 +258,20 @@ def _digest_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _finding_signature(finding: VerifierFinding) -> str:
+    return hashlib.sha256(
+        canonical_json_bytes(
+            {
+                "atoms": _atoms_text(finding.atoms),
+                "code": finding.code,
+                "component": finding.component,
+                "severity": finding.severity,
+            },
+            indent=None,
+        )
+    ).hexdigest()
+
+
 def _token_count(tokenizer: Tokenizer, text: str) -> int:
     encoded = tokenizer.encode(text)
     if not isinstance(encoded, tuple) or any(
@@ -298,11 +352,11 @@ def _padding_search(
     tokenizer: Tokenizer,
     target: int,
     neutral_pad_units: Sequence[str],
+    pad_unit_set_sha256: str,
 ) -> tuple[str, PaddingSearchReceipt]:
     units = _validated_pad_units(neutral_pad_units)
-    unit_digest = hashlib.sha256(
-        canonical_json_bytes(list(units), indent=None)
-    ).hexdigest()
+    if not re.fullmatch(r"[0-9a-f]{64}", pad_unit_set_sha256):
+        raise PacketInvalid("pad-unit authority digest is invalid")
     frontier: dict[str, tuple[int, ...]] = {"": tuple(0 for _ in units)}
     explored = 0
     max_states = max(256, (target + 1) * len(units) * 16)
@@ -314,7 +368,7 @@ def _padding_search(
             token_count = _token_count(tokenizer, _render(shorter, padding))
             if token_count == target:
                 return padding, PaddingSearchReceipt(
-                    pad_unit_set_sha256=unit_digest,
+                    pad_unit_set_sha256=pad_unit_set_sha256,
                     target_token_count=target,
                     states_explored=explored,
                     selected_unit_counts=tuple(
@@ -361,14 +415,13 @@ def _validated_pad_units(neutral_pad_units: Sequence[str]) -> tuple[str, ...]:
     return units
 
 
-def build_packet_pair(
+def _build_packet_pair_from_values(
     real: Sequence[VerifierFinding],
     donor: Sequence[VerifierFinding],
     *,
     tokenizer: Tokenizer,
     policy: PacketPolicy,
     identifier_map: Mapping[IdentifierAtom, IdentifierAtom],
-    true_focal_signatures: frozenset[str],
     neutral_pad_units: Sequence[str],
     artifact_store: PacketArtifactStore,
     real_relative_path: str,
@@ -382,6 +435,9 @@ def build_packet_pair(
     identifier_map_ref: ArtifactRef,
     tokenizer_ref: ArtifactRef,
     packet_template_ref: ArtifactRef,
+    normalized_real_ref: ArtifactRef,
+    normalized_donor_ref: ArtifactRef,
+    normalized_sham_ref: ArtifactRef,
     packet_policy_ref: ArtifactRef,
     pad_unit_set_ref: ArtifactRef,
 ) -> PacketPairReceipt:
@@ -500,21 +556,12 @@ def build_packet_pair(
         )
         truncations.extend((real_receipt, sham_receipt))
 
-    sham_signatures = {
-        hashlib.sha256(
-            canonical_json_bytes(
-                {
-                    "atoms": _atoms_text(finding.atoms),
-                    "code": finding.code,
-                    "component": finding.component,
-                    "severity": finding.severity,
-                },
-                indent=None,
-            )
-        ).hexdigest()
-        for finding in bounded_sham
+    sham_signatures = {_finding_signature(finding) for finding in bounded_sham}
+    focal_signatures = {
+        *(_finding_signature(finding) for finding in focal),
+        *(_finding_signature(finding) for finding in bounded_real),
     }
-    if sham_signatures & true_focal_signatures:
+    if sham_signatures & focal_signatures:
         raise PacketInvalid("SHAM evidence collides with a true focal finding")
 
     real_text = _render(bounded_real, "")
@@ -528,6 +575,7 @@ def build_packet_pair(
             tokenizer=tokenizer,
             target=target,
             neutral_pad_units=units,
+            pad_unit_set_sha256=pad_unit_set_ref.sha256,
         )
         real_text = _render(bounded_real, padding)
     elif sham_count < target:
@@ -536,13 +584,12 @@ def build_packet_pair(
             tokenizer=tokenizer,
             target=target,
             neutral_pad_units=units,
+            pad_unit_set_sha256=pad_unit_set_ref.sha256,
         )
         sham_text = _render(bounded_sham, padding)
     else:
         padding_receipt = PaddingSearchReceipt(
-            pad_unit_set_sha256=hashlib.sha256(
-                canonical_json_bytes(list(units), indent=None)
-            ).hexdigest(),
+            pad_unit_set_sha256=pad_unit_set_ref.sha256,
             target_token_count=target,
             states_explored=1,
             selected_unit_counts=tuple((unit, 0) for unit in units),
@@ -589,9 +636,9 @@ def build_packet_pair(
         identifier_map_ref=identifier_map_ref,
         tokenizer_ref=tokenizer_ref,
         packet_template_ref=packet_template_ref,
-        normalized_real_ref=real_ref,
-        normalized_donor_ref=donor_verifier_ref,
-        normalized_sham_ref=sham_ref,
+        normalized_real_ref=normalized_real_ref,
+        normalized_donor_ref=normalized_donor_ref,
+        normalized_sham_ref=normalized_sham_ref,
         packet_policy_ref=packet_policy_ref,
         pad_unit_set_ref=pad_unit_set_ref,
         padding_search=padding_receipt,
@@ -663,6 +710,8 @@ def write_packet_candidate(
         run_root=run_root,
         expected_kind="resampling_assignment_ledger",
     )
+    require_assignment_publication(assignment_ref, run_root=run_root)
+    verify_synthetic_assignment_graph(assignment_ref, run_root=run_root)
     for entry in entries:
         if entry.prefix_index_sha256 != prefix_index_ref.sha256:
             raise PacketInvalid("packet entry names a different prefix index")
@@ -993,6 +1042,25 @@ def normalize_synthetic_packet_findings(
 ) -> ArtifactRef:
     """Derive canonical typed findings from one closed synthetic verifier chain."""
 
+    normalized = _derive_synthetic_normalized_document(
+        verifier_ref,
+        task_id=task_id,
+        run_root=run_root,
+    )
+    return _write_canonical_packet_blob(
+        normalized,
+        run_root=run_root,
+        out=out,
+        role="packet_normalized_findings",
+    )
+
+
+def _derive_synthetic_normalized_document(
+    verifier_ref: ArtifactRef,
+    *,
+    task_id: str,
+    run_root: Path,
+) -> dict[str, object]:
     if type(task_id) is not str or not task_id:
         raise PacketInvalid("normalized finding task_id must be non-empty exact text")
     features = _strict_json_blob(verifier_ref, run_root=run_root)
@@ -1063,7 +1131,7 @@ def normalize_synthetic_packet_findings(
     finding_ids = [finding.finding_id for finding in findings]
     if len(finding_ids) != len(set(finding_ids)):
         raise PacketInvalid("synthetic objective finding IDs repeat")
-    normalized = {
+    normalized: dict[str, object] = {
         "record_kind": "packet_normalized_findings_v1",
         "schema_version": "1",
         "task_id": task_id,
@@ -1071,12 +1139,7 @@ def normalize_synthetic_packet_findings(
         "normalizer_id": "synthetic_typed_findings_v1",
         "findings": [_finding_document(finding) for finding in findings],
     }
-    return _write_canonical_packet_blob(
-        normalized,
-        run_root=run_root,
-        out=out,
-        role="packet_normalized_findings",
-    )
+    return normalized
 
 
 def _load_normalized_findings(
@@ -1296,6 +1359,284 @@ def derive_packet_rewrite_artifacts(
     )
 
 
+def _load_identifier_map(
+    ref: ArtifactRef,
+    *,
+    focal_task_id: str,
+    donor_task_id: str,
+    normalized_real_ref: ArtifactRef,
+    normalized_donor_ref: ArtifactRef,
+    run_root: Path,
+) -> dict[IdentifierAtom, IdentifierAtom]:
+    value = _canonical_json_blob(ref, run_root=run_root)
+    if set(value) != {
+        "record_kind",
+        "schema_version",
+        "focal_task_id",
+        "donor_task_id",
+        "normalized_real_ref",
+        "normalized_donor_ref",
+        "entries",
+    } or (
+        value.get("record_kind") != "packet_identifier_map_v1"
+        or value.get("schema_version") != "1"
+        or value.get("focal_task_id") != focal_task_id
+        or value.get("donor_task_id") != donor_task_id
+        or _artifact_ref(
+            value.get("normalized_real_ref"),
+            field="map normalized_real_ref",
+        )
+        != normalized_real_ref
+        or _artifact_ref(
+            value.get("normalized_donor_ref"),
+            field="map normalized_donor_ref",
+        )
+        != normalized_donor_ref
+        or not isinstance(value.get("entries"), list)
+    ):
+        raise PacketInvalid("identifier-map artifact is not closed or bound")
+
+    def atom(document: object, *, field: str) -> IdentifierAtom:
+        if not isinstance(document, Mapping) or set(document) != {
+            "entity_id",
+            "identifier_kind",
+        }:
+            raise PacketInvalid(f"{field} is not a closed identifier")
+        try:
+            return IdentifierAtom(
+                cast(str, document["entity_id"]),
+                IdentifierKind(cast(str, document["identifier_kind"])),
+            )
+        except (TypeError, ValueError) as exc:
+            raise PacketInvalid(f"{field} is invalid") from exc
+
+    result: dict[IdentifierAtom, IdentifierAtom] = {}
+    ordered_sources: list[tuple[bytes, bytes]] = []
+    for index, entry in enumerate(cast(list[object], value["entries"])):
+        if not isinstance(entry, Mapping) or set(entry) != {
+            "source",
+            "destination",
+        }:
+            raise PacketInvalid("identifier-map entry is not closed")
+        source = atom(entry["source"], field=f"map source {index}")
+        destination = atom(
+            entry["destination"],
+            field=f"map destination {index}",
+        )
+        if source in result:
+            raise PacketInvalid("identifier-map source repeats")
+        result[source] = destination
+        ordered_sources.append(
+            (
+                source.kind.value.encode("utf-8"),
+                source.entity_id.encode("utf-8"),
+            )
+        )
+    if ordered_sources != sorted(ordered_sources):
+        raise PacketInvalid("identifier-map entries are not canonical order")
+    return result
+
+
+def _load_normalized_sham(
+    ref: ArtifactRef,
+    *,
+    focal_task_id: str,
+    donor_task_id: str,
+    normalized_real_ref: ArtifactRef,
+    normalized_donor_ref: ArtifactRef,
+    identifier_map_ref: ArtifactRef,
+    run_root: Path,
+) -> tuple[VerifierFinding, ...]:
+    value = _canonical_json_blob(ref, run_root=run_root)
+    if set(value) != {
+        "record_kind",
+        "schema_version",
+        "focal_task_id",
+        "donor_task_id",
+        "normalized_real_ref",
+        "normalized_donor_ref",
+        "identifier_map_ref",
+        "findings",
+    } or (
+        value.get("record_kind") != "packet_normalized_sham_v1"
+        or value.get("schema_version") != "1"
+        or value.get("focal_task_id") != focal_task_id
+        or value.get("donor_task_id") != donor_task_id
+        or _artifact_ref(
+            value.get("normalized_real_ref"),
+            field="SHAM normalized_real_ref",
+        )
+        != normalized_real_ref
+        or _artifact_ref(
+            value.get("normalized_donor_ref"),
+            field="SHAM normalized_donor_ref",
+        )
+        != normalized_donor_ref
+        or _artifact_ref(
+            value.get("identifier_map_ref"),
+            field="SHAM identifier_map_ref",
+        )
+        != identifier_map_ref
+        or not isinstance(value.get("findings"), list)
+    ):
+        raise PacketInvalid("normalized SHAM artifact is not closed or bound")
+    return tuple(
+        _normalized_finding(finding)
+        for finding in cast(list[object], value["findings"])
+    )
+
+
+def build_packet_pair(
+    *,
+    run_root: Path,
+    normalized_real_ref: ArtifactRef,
+    normalized_donor_ref: ArtifactRef,
+    normalized_sham_ref: ArtifactRef,
+    artifact_store: PacketArtifactStore,
+    real_relative_path: str,
+    sham_relative_path: str,
+    task_id: str,
+    donor_task_id: str,
+    prefix_index_sha256: str,
+    focal_verifier_ref: ArtifactRef,
+    donor_verifier_ref: ArtifactRef,
+    assignment_ref: ArtifactRef,
+    identifier_map_ref: ArtifactRef,
+    tokenizer_ref: ArtifactRef,
+    packet_template_ref: ArtifactRef,
+    packet_policy_ref: ArtifactRef,
+    pad_unit_set_ref: ArtifactRef,
+) -> PacketPairReceipt:
+    """Build a packet pair only from canonical, independently derivable parents."""
+
+    authority = load_synthetic_packet_authority(
+        tokenizer_ref=tokenizer_ref,
+        packet_template_ref=packet_template_ref,
+        packet_policy_ref=packet_policy_ref,
+        pad_unit_set_ref=pad_unit_set_ref,
+        run_root=run_root,
+    )
+    for normalized_ref, verifier_ref, normalized_task_id in (
+        (normalized_real_ref, focal_verifier_ref, task_id),
+        (normalized_donor_ref, donor_verifier_ref, donor_task_id),
+    ):
+        expected = _derive_synthetic_normalized_document(
+            verifier_ref,
+            task_id=normalized_task_id,
+            run_root=run_root,
+        )
+        if canonical_json_bytes(expected, indent=None) != _require_artifact_bytes(
+            normalized_ref,
+            run_root=run_root,
+        ):
+            raise PacketInvalid(
+                "normalized findings do not reproduce from sealed verifier"
+            )
+    real = _load_normalized_findings(
+        normalized_real_ref,
+        expected_task_id=task_id,
+        run_root=run_root,
+    )
+    donor = _load_normalized_findings(
+        normalized_donor_ref,
+        expected_task_id=donor_task_id,
+        run_root=run_root,
+    )
+    identifier_map = _load_identifier_map(
+        identifier_map_ref,
+        focal_task_id=task_id,
+        donor_task_id=donor_task_id,
+        normalized_real_ref=normalized_real_ref,
+        normalized_donor_ref=normalized_donor_ref,
+        run_root=run_root,
+    )
+    rewritten = derive_packet_rewrite_artifacts(
+        identifier_map,
+        focal_task_id=task_id,
+        donor_task_id=donor_task_id,
+        normalized_real_ref=normalized_real_ref,
+        normalized_donor_ref=normalized_donor_ref,
+        run_root=run_root,
+        identifier_map_out=Path(run_root) / identifier_map_ref.relative_path,
+        normalized_sham_out=Path(run_root) / normalized_sham_ref.relative_path,
+    )
+    if (
+        rewritten.identifier_map_ref != identifier_map_ref
+        or rewritten.normalized_sham_ref != normalized_sham_ref
+    ):
+        raise PacketInvalid("rewrite artifacts do not independently reproduce")
+    _load_normalized_sham(
+        normalized_sham_ref,
+        focal_task_id=task_id,
+        donor_task_id=donor_task_id,
+        normalized_real_ref=normalized_real_ref,
+        normalized_donor_ref=normalized_donor_ref,
+        identifier_map_ref=identifier_map_ref,
+        run_root=run_root,
+    )
+    return _build_packet_pair_from_values(
+        real,
+        donor,
+        tokenizer=authority.tokenizer,
+        policy=authority.policy,
+        identifier_map=identifier_map,
+        neutral_pad_units=authority.neutral_pad_units,
+        artifact_store=artifact_store,
+        real_relative_path=real_relative_path,
+        sham_relative_path=sham_relative_path,
+        task_id=task_id,
+        donor_task_id=donor_task_id,
+        prefix_index_sha256=prefix_index_sha256,
+        focal_verifier_ref=focal_verifier_ref,
+        donor_verifier_ref=donor_verifier_ref,
+        assignment_ref=assignment_ref,
+        identifier_map_ref=identifier_map_ref,
+        tokenizer_ref=tokenizer_ref,
+        packet_template_ref=packet_template_ref,
+        normalized_real_ref=normalized_real_ref,
+        normalized_donor_ref=normalized_donor_ref,
+        normalized_sham_ref=normalized_sham_ref,
+        packet_policy_ref=packet_policy_ref,
+        pad_unit_set_ref=pad_unit_set_ref,
+    )
+
+
+class _VerifyingPacketArtifactStore:
+    def __init__(
+        self,
+        *,
+        run_root: Path,
+        expected: Mapping[str, ArtifactRef],
+    ) -> None:
+        self._run_root = run_root
+        self._expected = dict(expected)
+        self._observed: set[str] = set()
+
+    def put_text(
+        self,
+        relative_path: str,
+        text: str,
+        *,
+        role: Literal["private_guidance"],
+    ) -> ArtifactRef:
+        expected = self._expected.get(relative_path)
+        if expected is None or role != "private_guidance":
+            raise PacketInvalid("audit constructor requested an unknown packet path")
+        if expected.role != role or _require_artifact_bytes(
+            expected,
+            run_root=self._run_root,
+        ) != text.encode("utf-8"):
+            raise PacketInvalid(
+                "reconstructed packet plaintext differs from referenced bytes"
+            )
+        self._observed.add(relative_path)
+        return expected
+
+    def require_complete(self) -> None:
+        if self._observed != set(self._expected):
+            raise PacketInvalid("audit constructor did not reproduce both packets")
+
+
 def audit_and_seal_packet_index(
     candidate_ref: ArtifactRef,
     *,
@@ -1322,6 +1663,8 @@ def audit_and_seal_packet_index(
         run_root=run_root,
         expected_kind="resampling_assignment_ledger",
     )
+    require_assignment_publication(assignment_ref, run_root=run_root)
+    verify_synthetic_assignment_graph(assignment_ref, run_root=run_root)
     schedule = _require_parent_record(
         schedule_ref,
         run_root=run_root,
@@ -1421,10 +1764,71 @@ def audit_and_seal_packet_index(
             continue
         if is_marker or assignment_row.get("donor_match_kind") != "matched":
             raise PacketInvalid("triggered task lacks one matched packet pair")
-        raise PacketInvalid(
-            "triggered packet sealing requires the pending independent "
-            "normalization/tokenizer recomputation authority"
+        donor_task_id = cast(str, assignment_row["donor_task_id"])
+        donor_prefix = prefix_by_task.get(donor_task_id)
+        if donor_prefix is None:
+            raise PacketInvalid("triggered packet donor is outside sealed prefix")
+        focal_verifier = _artifact_ref(
+            cast(dict[str, object], prefix_row["verifier_receipt"])[
+                "verifier_artifact_ref"
+            ],
+            field="focal verifier ref",
         )
+        donor_verifier = _artifact_ref(
+            cast(dict[str, object], donor_prefix["verifier_receipt"])[
+                "verifier_artifact_ref"
+            ],
+            field="donor verifier ref",
+        )
+        real_ref = _artifact_ref(entry.get("real_ref"), field="real_ref")
+        sham_ref = _artifact_ref(entry.get("sham_ref"), field="sham_ref")
+        verifying_store = _VerifyingPacketArtifactStore(
+            run_root=run_root,
+            expected={
+                real_ref.relative_path: real_ref,
+                sham_ref.relative_path: sham_ref,
+            },
+        )
+        reconstructed = build_packet_pair(
+            run_root=run_root,
+            normalized_real_ref=_artifact_ref(
+                entry.get("normalized_real_ref"),
+                field="normalized_real_ref",
+            ),
+            normalized_donor_ref=_artifact_ref(
+                entry.get("normalized_donor_ref"),
+                field="normalized_donor_ref",
+            ),
+            normalized_sham_ref=_artifact_ref(
+                entry.get("normalized_sham_ref"),
+                field="normalized_sham_ref",
+            ),
+            artifact_store=verifying_store,
+            real_relative_path=real_ref.relative_path,
+            sham_relative_path=sham_ref.relative_path,
+            task_id=task_id,
+            donor_task_id=donor_task_id,
+            prefix_index_sha256=prefix_index_ref.sha256,
+            focal_verifier_ref=focal_verifier,
+            donor_verifier_ref=donor_verifier,
+            assignment_ref=assignment_ref,
+            identifier_map_ref=_artifact_ref(
+                entry.get("identifier_map_ref"),
+                field="identifier_map_ref",
+            ),
+            tokenizer_ref=tokenizer_ref,
+            packet_template_ref=packet_template_ref,
+            packet_policy_ref=packet_policy_ref,
+            pad_unit_set_ref=pad_unit_set_ref,
+        )
+        verifying_store.require_complete()
+        if canonical_json_bytes(
+            asdict(reconstructed),
+            indent=None,
+        ) != canonical_json_bytes(dict(entry), indent=None):
+            raise PacketInvalid(
+                "candidate packet receipt differs from independent reconstruction"
+            )
     sealed = {
         "record_kind": "resampling_packet_index",
         "schema_version": candidate["schema_version"],

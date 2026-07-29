@@ -44,9 +44,10 @@ from pneuma_lab.resampling_null.packets import (
     IdentifierKind,
     NoInterventionPacketMarker,
     PacketInvalid,
+    SyntheticPacketArtifactStore,
     audit_and_seal_packet_index,
+    build_packet_pair,
     derive_packet_rewrite_artifacts,
-    load_synthetic_packet_authority,
     normalize_synthetic_packet_findings,
     write_packet_candidate,
 )
@@ -3454,7 +3455,7 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
                     {
                         "finding_id": "third-finding",
                         "component": "pytest",
-                        "code": "assertion",
+                            "code": "charlie",
                         "severity": "high",
                         "atoms": [
                             {"atom_kind": "literal", "text": "inspect "},
@@ -3504,6 +3505,80 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
             indent=None,
         ),
     )
+    packet_feature_refs: dict[str, dict[str, object]] = {
+        "task-third": third_features
+    }
+    for packet_task_id, packet_identifier, packet_code in (
+        ("task-1", "src/task-one.py", "alpha"),
+        ("task-donor", "src/task-donor.py", "bravo"),
+    ):
+        packet_source = _write_blob(
+            root,
+            f"sources/verifier-{packet_task_id}-typed.json",
+            canonical_json_bytes(
+                {
+                    "record_kind": "synthetic_verifier_source_v1",
+                    "schema_version": "1",
+                    "task_id": packet_task_id,
+                    "benchmark": "swe",
+                    "components": [
+                        {"kind": "check_runner", "value": "pytest", "count": 1},
+                        {"kind": "failure_class", "value": "none", "count": 1},
+                    ],
+                    "objective_findings": [
+                        {
+                            "finding_id": f"finding-{packet_task_id}",
+                            "component": "pytest",
+                                "code": packet_code,
+                            "severity": "high",
+                            "atoms": [
+                                {"atom_kind": "literal", "text": "inspect "},
+                                {
+                                    "atom_kind": "identifier",
+                                    "entity_id": packet_identifier,
+                                    "identifier_kind": "repository_file",
+                                },
+                            ],
+                        }
+                    ],
+                },
+                indent=None,
+            ),
+        )
+        packet_report = _write_blob(
+            root,
+            f"sources/report-{packet_task_id}-typed.json",
+            canonical_json_bytes(
+                {
+                    "record_kind": "synthetic_verifier_report_v1",
+                    "schema_version": "1",
+                    "task_id": packet_task_id,
+                    "report_text": "clean",
+                },
+                indent=None,
+            ),
+        )
+        packet_feature_refs[packet_task_id] = _write_blob(
+            root,
+            f"sources/features-{packet_task_id}-typed.json",
+            canonical_json_bytes(
+                {
+                    "record_kind": "assignment_verifier_features_v1",
+                    "schema_version": "1",
+                    "task_id": packet_task_id,
+                    "benchmark": "swe",
+                    "source_verifier_ref": packet_source,
+                    "source_report_ref": packet_report,
+                    "components": [
+                        {"kind": "check_runner", "value": "pytest", "count": 1},
+                        {"kind": "failure_class", "value": "none", "count": 1},
+                    ],
+                    "objective_finding_count": 1,
+                    "normalized_report_token_count": 1,
+                },
+                indent=None,
+            ),
+        )
     receipts = deepcopy(old_receipts)
     third_receipt = deepcopy(receipts[1])
     third_receipt["task_id"] = "task-third"
@@ -3518,9 +3593,13 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
     ] = 1
     receipts.append(third_receipt)
     for receipt in receipts:
+        verifier = cast(dict[str, object], receipt["verifier_receipt"])
+        verifier["verifier_artifact_ref"] = packet_feature_refs[
+            cast(str, receipt["task_id"])
+        ]
+        verifier["finding_count"] = 1
         receipt["schedule_sha256"] = schedule_ref.sha256
         receipt["trigger_reason"] = "first_eligible_mutation"
-        verifier = cast(dict[str, object], receipt["verifier_receipt"])
         verifier["schedule_sha256"] = schedule_ref.sha256
     prefix_ref_value = _write_test_record(
         root,
@@ -3550,118 +3629,19 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
     ).read_bytes() == (
         root / normalized_b.relative_path
     ).read_bytes()
-    focal_source = _write_blob(
-        root,
-        "sources/verifier-packet-focal.json",
-        canonical_json_bytes(
-            {
-                "record_kind": "synthetic_verifier_source_v1",
-                "schema_version": "1",
-                "task_id": "task-packet-focal",
-                "benchmark": "swe",
-                "components": [
-                    {"kind": "check_runner", "value": "pytest", "count": 1}
-                ],
-                "objective_findings": [
-                    {
-                        "finding_id": "focal-finding",
-                        "component": "pytest",
-                        "code": "assertion",
-                        "severity": "high",
-                        "atoms": [
-                            {"atom_kind": "literal", "text": "inspect "},
-                            {
-                                "atom_kind": "identifier",
-                                "entity_id": "src/focal.py",
-                                "identifier_kind": "repository_file",
-                            },
-                        ],
-                    }
-                ],
-            },
-            indent=None,
-        ),
-    )
-    focal_report = _write_blob(
-        root,
-        "sources/report-packet-focal.json",
-        canonical_json_bytes(
-            {
-                "record_kind": "synthetic_verifier_report_v1",
-                "schema_version": "1",
-                "task_id": "task-packet-focal",
-                "report_text": "focal",
-            },
-            indent=None,
-        ),
-    )
-    focal_features = _write_blob(
-        root,
-        "sources/features-packet-focal.json",
-        canonical_json_bytes(
-            {
-                "record_kind": "assignment_verifier_features_v1",
-                "schema_version": "1",
-                "task_id": "task-packet-focal",
-                "benchmark": "swe",
-                "source_verifier_ref": focal_source,
-                "source_report_ref": focal_report,
-                "components": [
-                    {"kind": "check_runner", "value": "pytest", "count": 1}
-                ],
-                "objective_finding_count": 1,
-                "normalized_report_token_count": 1,
-            },
-            indent=None,
-        ),
-    )
-    normalized_focal = normalize_synthetic_packet_findings(
-        ArtifactRef(**focal_features),
-        task_id="task-packet-focal",
-        run_root=root,
-        out=root / "private-audit/normalized-focal.json",
-    )
-    rewrite = derive_packet_rewrite_artifacts(
-        {
-            IdentifierAtom(
-                "src/third.py",
-                IdentifierKind.REPOSITORY_FILE,
-            ): IdentifierAtom(
-                "src/focal.py",
-                IdentifierKind.REPOSITORY_FILE,
+    normalized_by_task = {"task-third": normalized_a}
+    for normalized_task_id in ("task-1", "task-donor"):
+        normalized_by_task[normalized_task_id] = (
+            normalize_synthetic_packet_findings(
+                ArtifactRef(**packet_feature_refs[normalized_task_id]),
+                task_id=normalized_task_id,
+                run_root=root,
+                out=(
+                    root
+                    / f"private-audit/normalized-{normalized_task_id}.json"
+                ),
             )
-        },
-        focal_task_id="task-packet-focal",
-        donor_task_id="task-third",
-        normalized_real_ref=normalized_focal,
-        normalized_donor_ref=normalized_a,
-        run_root=root,
-        identifier_map_out=root / "private-audit/identifier-map.json",
-        normalized_sham_out=root / "private-audit/normalized-sham.json",
-    )
-    sham_text = (root / rewrite.normalized_sham_ref.relative_path).read_text()
-    assert rewrite.rewrite_count == 1
-    assert "src/focal.py" in sham_text
-    assert "src/third.py" not in sham_text
-    packet_authority = load_synthetic_packet_authority(
-        tokenizer_ref=ArtifactRef(
-            **cast(dict[str, Any], manifest_payload["tokenizer_ref"])
-        ),
-        packet_template_ref=ArtifactRef(
-            **cast(dict[str, Any], manifest_payload["packet_template_ref"])
-        ),
-        packet_policy_ref=ArtifactRef(
-            **cast(dict[str, Any], manifest_payload["packet_policy_ref"])
-        ),
-        pad_unit_set_ref=ArtifactRef(
-            **cast(dict[str, Any], manifest_payload["pad_unit_set_ref"])
-        ),
-        run_root=root,
-    )
-    assert packet_authority.policy.max_findings == 8
-    assert packet_authority.neutral_pad_units == (" .",)
-    assert len(packet_authority.tokenizer.encode("alpha beta")) == 2
-
+        )
     assignment_lease = claim_local_test_storage(
         transaction="assignment",
         run_root=root,
@@ -3801,6 +3781,129 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
     assert reconstructed.assignment_prefix_view_sha256 == payload[
         "assignment_prefix_view_sha256"
     ]
+    tokenizer_ref = ArtifactRef(
+        **cast(dict[str, Any], manifest_payload["tokenizer_ref"])
+    )
+    packet_template_ref = ArtifactRef(
+        **cast(dict[str, Any], manifest_payload["packet_template_ref"])
+    )
+    packet_policy_ref = ArtifactRef(
+        **cast(dict[str, Any], manifest_payload["packet_policy_ref"])
+    )
+    pad_unit_set_ref = ArtifactRef(
+        **cast(dict[str, Any], manifest_payload["pad_unit_set_ref"])
+    )
+    identifiers = {
+        "task-1": "src/task-one.py",
+        "task-donor": "src/task-donor.py",
+        "task-third": "src/third.py",
+    }
+    prefix_verifiers = {
+        cast(str, receipt["task_id"]): ArtifactRef(
+            **cast(
+                dict[str, Any],
+                cast(dict[str, object], receipt["verifier_receipt"])[
+                    "verifier_artifact_ref"
+                ],
+            )
+        )
+        for receipt in receipts
+    }
+    packet_store = SyntheticPacketArtifactStore(root)
+    packet_entries = []
+    for assignment in reconstructed.assignments:
+        donor_task_id = cast(str, assignment.donor_task_id)
+        rewrite_artifacts = derive_packet_rewrite_artifacts(
+            {
+                IdentifierAtom(
+                    identifiers[donor_task_id],
+                    IdentifierKind.REPOSITORY_FILE,
+                ): IdentifierAtom(
+                    identifiers[assignment.task_id],
+                    IdentifierKind.REPOSITORY_FILE,
+                )
+            },
+            focal_task_id=assignment.task_id,
+            donor_task_id=donor_task_id,
+            normalized_real_ref=normalized_by_task[assignment.task_id],
+            normalized_donor_ref=normalized_by_task[donor_task_id],
+            run_root=root,
+            identifier_map_out=(
+                root
+                / f"private-audit/map-{assignment.task_id}.json"
+            ),
+            normalized_sham_out=(
+                root
+                / f"private-audit/sham-{assignment.task_id}.json"
+            ),
+        )
+        packet_entries.append(
+            build_packet_pair(
+                run_root=root,
+                normalized_real_ref=normalized_by_task[assignment.task_id],
+                normalized_donor_ref=normalized_by_task[donor_task_id],
+                normalized_sham_ref=rewrite_artifacts.normalized_sham_ref,
+                artifact_store=packet_store,
+                real_relative_path=f"private-packets/{assignment.task_id}-real.txt",
+                sham_relative_path=f"private-packets/{assignment.task_id}-sham.txt",
+                task_id=assignment.task_id,
+                donor_task_id=donor_task_id,
+                prefix_index_sha256=prefix_ref.sha256,
+                focal_verifier_ref=prefix_verifiers[assignment.task_id],
+                donor_verifier_ref=prefix_verifiers[donor_task_id],
+                assignment_ref=ledger_ref,
+                identifier_map_ref=rewrite_artifacts.identifier_map_ref,
+                tokenizer_ref=tokenizer_ref,
+                packet_template_ref=packet_template_ref,
+                packet_policy_ref=packet_policy_ref,
+                pad_unit_set_ref=pad_unit_set_ref,
+            )
+        )
+    candidate_ref = write_packet_candidate(
+        packet_entries,
+        assignment_ref=ledger_ref,
+        prefix_index_ref=prefix_ref,
+        tokenizer_ref=tokenizer_ref,
+        packet_template_ref=packet_template_ref,
+        packet_policy_ref=packet_policy_ref,
+        pad_unit_set_ref=pad_unit_set_ref,
+        run_root=root,
+        out=root / "packet-candidate-triggered.json",
+    )
+    first_packet_path = root / packet_entries[0].real_ref.relative_path
+    first_packet_bytes = first_packet_path.read_bytes()
+    first_packet_path.write_bytes(first_packet_bytes + b" ")
+    with pytest.raises(PacketInvalid, match="bytes|plaintext"):
+        audit_and_seal_packet_index(
+            candidate_ref,
+            expected_task_ids={"task-1", "task-donor", "task-third"},
+            assignment_ref=ledger_ref,
+            schedule_ref=schedule_ref,
+            prefix_index_ref=prefix_ref,
+            tokenizer_ref=tokenizer_ref,
+            packet_template_ref=packet_template_ref,
+            packet_policy_ref=packet_policy_ref,
+            pad_unit_set_ref=pad_unit_set_ref,
+            run_root=root,
+            out=root / "packet-index-forged.json",
+        )
+    first_packet_path.write_bytes(first_packet_bytes)
+    sealed_packet_ref = audit_and_seal_packet_index(
+        candidate_ref,
+        expected_task_ids={"task-1", "task-donor", "task-third"},
+        assignment_ref=ledger_ref,
+        schedule_ref=schedule_ref,
+        prefix_index_ref=prefix_ref,
+        tokenizer_ref=tokenizer_ref,
+        packet_template_ref=packet_template_ref,
+        packet_policy_ref=packet_policy_ref,
+        pad_unit_set_ref=pad_unit_set_ref,
+        run_root=root,
+        out=root / "packet-index-triggered.json",
+    )
+    assert load_record(root / sealed_packet_ref.relative_path)["payload"][
+        "stage"
+    ] == "sealed"
 
     forged_ledger = load_record(root / ledger_ref.relative_path)
     forged_payload = cast(dict[str, object], forged_ledger["payload"])

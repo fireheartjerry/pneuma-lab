@@ -6,6 +6,7 @@ from .secrets import (
     UnblindSecretHandle,
 )
 from .assignment_verification import (
+    require_assignment_publication,
     require_assignment_reconstruction,
     require_confirmation_assignment,
     verify_result_bundle,
@@ -22,6 +23,7 @@ from .packets import (
     PacketPairReceipt,
     PacketPolicy,
     PacketRewriteArtifacts,
+    SyntheticPacketArtifactStore,
     VerifierFinding,
     audit_and_seal_packet_index,
     build_packet_pair,
@@ -79,8 +81,10 @@ __all__ = (
     "PacketPairReceipt",
     "PacketPolicy",
     "PacketRewriteArtifacts",
+    "SyntheticPacketArtifactStore",
     "ResourceCounters",
     "require_assignment_reconstruction",
+    "require_assignment_publication",
     "require_confirmation_assignment",
     "seal_branch_assignment",
     "TaskAssignment",

@@ -1038,6 +1038,34 @@ def _require_assignment_publication(
         )
 
 
+def require_assignment_publication(
+    ledger_ref: ArtifactRef,
+    *,
+    run_root: Path,
+) -> None:
+    """Require the durable fixed receipt that makes one ledger authoritative."""
+
+    ledger = _load_direct_scientific_parent(
+        _ref_mapping(ledger_ref),
+        run_root=run_root,
+        field="ledger_ref",
+        expected_kind="resampling_assignment_ledger",
+    )
+    payload = cast(dict[str, object], ledger.value["payload"])
+    _require_assignment_publication(
+        ledger_ref,
+        manifest_ref=_artifact_ref(
+            payload.get("manifest_ref"),
+            field="manifest_ref",
+        ),
+        schedule_ref=_artifact_ref(
+            payload.get("schedule_ref"),
+            field="schedule_ref",
+        ),
+        run_root=Path(run_root).resolve(strict=True),
+    )
+
+
 def verify_result_bundle(
     receipt_path: Path,
     ledger_ref: ArtifactRef,
