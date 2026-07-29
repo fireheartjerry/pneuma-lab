@@ -725,3 +725,31 @@ The next event after the archived migration boundary is appended below.
 - **Command:** Ran exactly one focused `t3_s10` behavioral selection and one combined Ruff+mypy static gate, each hard-capped at 60 seconds.
 - **Result:** GREEN, exit 0. One test passed with 217 unrelated tests deselected in 1.16 seconds. Ruff passed; mypy found no issues in one source file.
 - **Compact receipt:** stdout 175 bytes / 4 lines / SHA-256 `d3b68b7107ef1aed83be09006c67979e81f4b0bdd081dc7feb0f847ec15e5804`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0050/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0051 — publish triggered synthetic proof promotion
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Action:** Checked whitespace/status; staged exactly the triggered authority fixture and journal; checked staged scope; committed `test(neurips): promote triggered assignment proofs`; pushed publicly; compared exact refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `99b902721ad6f2a86d47cefb4555cac472bc0964`. Two files, 309 insertions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Compact receipt:** stdout 553 bytes / 11 lines / SHA-256 `4b7c9a7b941fcb6b2294cccfc861d44faedaaf260bab8a740b2421c60bf18ca3`; stderr 134 bytes / 2 lines / SHA-256 `eba9473c7ec915411880bf9463eb3262a18aa1668a3eeda81143181c76e1ac1e`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0051/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0052 — implement key-independent assignment-graph verifier
+
+- **Action:** Added a public verifier that loads only ledger-reachable schedule/prefix/proof refs and never accepts or opens a secret handle/backend. It checks closed compact proof grammar, digest-derived CAS paths, ancestry, exact schedule-order coverage, cyclic offset/trial reconstruction, permutation/self/lineage/two-cycle feasibility, public allocation-to-arm reconstruction, global capability uniqueness, matched/N/A donor ancestry, candidate coverage, and proof reachability.
+- **Adversarial case:** Mutate the selected offset in the installed proof bytes. The verifier rejects the digest/bytes mismatch.
+- **Focused result:** GREEN, exit 0. One `t3_s10` test passed with 217 unrelated tests deselected in 1.30 seconds.
+
+### EJ-20260729-0053 — static and hostile parser review
+
+- **Initial static result:** RED. Ruff found one unused `hashlib` import; removed it.
+- **Hostile findings:** Short donor arrays could raise an incidental `IndexError`; non-text/duplicate focal IDs were under-closed; duplicate donor IDs with altered metadata could satisfy set-only coverage; matched mode/algorithm/lineage/stratum bindings were incomplete.
+- **Corrections:** Added explicit lengths/types/UTF-8 order/uniqueness, exact public trial failure reconstruction, candidate cardinality, lineage/mode/algorithm/view/stratum agreement, and synthetic zero-fallback cost grammar.
+- **Corrected result:** GREEN, exit 0. One focused test passed in 0.99 seconds; Ruff passed; mypy found no issues in the new verifier.
+- **Claim boundary:** This proves key-independent graph closure only. HMAC order, exact keyed draws, and capabilities still require fresh-handle reconstruction.
+
+### EJ-20260729-0054 — final captured unkeyed graph-verification gate
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Command:** Ran exactly one focused triggered behavior selection and one combined Ruff+mypy static gate, each hard-capped at 60 seconds.
+- **Result:** GREEN, exit 0. One test passed with 217 unrelated tests deselected in 1.08 seconds. Ruff passed; mypy found no issues in one source file.
+- **Compact receipt:** stdout 175 bytes / 4 lines / SHA-256 `f48e7a9f2a6cf9feb0b679fca5e410c3766aed4b35b5e1c26d03909dc0338715`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0054/` (ignored, retained through 2026-11-27).

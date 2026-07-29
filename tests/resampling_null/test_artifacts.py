@@ -39,6 +39,9 @@ from pneuma_lab.resampling_null.assignment import (
     require_schedulable_power_final,
 )
 from pneuma_lab.resampling_null.branch_assignment import seal_branch_assignment
+from pneuma_lab.resampling_null.assignment_verification import (
+    verify_synthetic_assignment_graph,
+)
 from pneuma_lab.resampling_null.schedule import seal_prefix_schedule
 from pneuma_lab.resampling_null.secrets import AssignmentSecretStore
 from pneuma_lab.resampling_null.storage import (
@@ -3452,6 +3455,24 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
         len(cast(list[object], receipt["candidates"])) == 2
         for receipt in donor_receipts
     )
+    assert (
+        verify_synthetic_assignment_graph(
+            ledger_ref,
+            run_root=root,
+        )["payload"]
+        == payload
+    )
+    proof_path = root / proof_ref.relative_path
+    proof_bytes = proof_path.read_bytes()
+    forged_proof = json.loads(proof_bytes)
+    forged_proof["selected_offset"] = 2
+    proof_path.write_bytes(canonical_json_bytes(forged_proof, indent=None))
+    with pytest.raises(RecordValidationError, match="digest|SHA|bytes"):
+        verify_synthetic_assignment_graph(
+            ledger_ref,
+            run_root=root,
+        )
+    proof_path.write_bytes(proof_bytes)
 
 
 def _numeric_contract() -> dict[str, object]:
