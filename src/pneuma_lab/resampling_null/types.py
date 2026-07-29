@@ -757,11 +757,10 @@ class SubjectContext:
     private_guidance: str | None
 
     def __post_init__(self) -> None:
-        if not isinstance(self.messages, tuple) or not all(
-            isinstance(message, ContextMessage)
-            for message in self.messages
-        ):
-            raise TypeError("messages must be a tuple of ContextMessage")
+        if type(self.messages) is not tuple:
+            raise TypeError("messages must be an exact tuple")
+        if not all(type(message) is ContextMessage for message in self.messages):
+            raise TypeError("messages must contain exact ContextMessage records")
         if self.private_guidance is not None:
             _require_nonempty_string(self.private_guidance, "private_guidance")
 
@@ -799,7 +798,11 @@ class BranchCaps:
             "wall_clock_ms",
         ):
             _require_exact_nonnegative_int(getattr(self, name), name)
-        if self.pending_prefix_calls_count_against_tool_cap is not True:
+        if type(self.pending_prefix_calls_count_against_tool_cap) is not bool:
+            raise TypeError(
+                "pending_prefix_calls_count_against_tool_cap must be bool"
+            )
+        if not self.pending_prefix_calls_count_against_tool_cap:
             raise ValueError(
                 "pending prefix calls must count against the branch tool cap"
             )
@@ -813,8 +816,10 @@ class GradeReceipt:
     artifact_ref: ArtifactRef
 
     def __post_init__(self) -> None:
-        if type(self.success) is not int or self.success not in (0, 1):
-            raise ValueError("success must be exact integer 0 or 1")
+        if type(self.success) is not int:
+            raise TypeError("success must be an exact int")
+        if self.success not in (0, 1):
+            raise ValueError("success must be 0 or 1")
         partial_reward = _require_finite_float(
             self.partial_reward,
             "partial_reward",
@@ -835,6 +840,8 @@ class CallSeedReceipt:
     seed: int
 
     def __post_init__(self) -> None:
+        if type(self.subject_role) is not str:
+            raise TypeError("subject_role must be exact str")
         if self.subject_role not in ("primary_subject", "user_simulator"):
             raise ValueError("subject_role is not registered")
         _require_seed(self.call_index, "call_index")
@@ -851,11 +858,10 @@ class SubjectTurn:
     def __post_init__(self) -> None:
         if type(self.text) is not str:
             raise TypeError("text must be exact text")
-        if not isinstance(self.tool_calls, tuple) or not all(
-            isinstance(call, ToolCall)
-            for call in self.tool_calls
-        ):
-            raise TypeError("tool_calls must be a tuple of ToolCall")
+        if type(self.tool_calls) is not tuple:
+            raise TypeError("tool_calls must be an exact tuple")
+        if not all(type(call) is ToolCall for call in self.tool_calls):
+            raise TypeError("tool_calls must contain exact ToolCall records")
         call_ids = [call.call_id for call in self.tool_calls]
         if len(call_ids) != len(set(call_ids)):
             raise ValueError("tool_calls must not repeat call_id")

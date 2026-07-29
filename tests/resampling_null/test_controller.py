@@ -1,11 +1,11 @@
 """Tiny controller-contract tripwire; execution evidence stays mechanism-led."""
 
-from dataclasses import FrozenInstanceError
+from dataclasses import dataclass, FrozenInstanceError
+from enum import Enum
 
 import pytest
 
-from pneuma_lab.resampling_null.controller import derive_call_seed
-from pneuma_lab.resampling_null.types import (
+from pneuma_lab.resampling_null import (
     ArtifactRef,
     BranchCaps,
     CallSeedReceipt,
@@ -18,6 +18,7 @@ from pneuma_lab.resampling_null.types import (
     SubjectTurn,
     ToolBoundary,
     ToolCall,
+    derive_call_seed,
 )
 
 
@@ -115,3 +116,80 @@ def test_t5_s01_call_seed_and_frozen_boundary_contract() -> None:
     assert identity.seed == 2**64 - 1
     with pytest.raises(ValueError, match="lowercase hexadecimal"):
         OpaqueSlotIdentity("slot-1", "A" * 64, 0, 0, 0)
+
+
+def test_t5_s01_review_rejects_foreign_role_values_at_public_boundary() -> None:
+    class ForeignRole(str, Enum):
+        PRIMARY_SUBJECT = "primary_subject"
+
+    class EqualityOverloadedRole:
+        def __eq__(self, other: object) -> bool:
+            return other == "primary_subject"
+
+    for foreign_role in (ForeignRole.PRIMARY_SUBJECT, EqualityOverloadedRole()):
+        with pytest.raises(TypeError, match="subject_role must be exact str"):
+            derive_call_seed(0, foreign_role, 0)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="subject_role must be exact str"):
+            CallSeedReceipt(foreign_role, 0, 0)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="registered"):
+        CallSeedReceipt("assistant", 0, 0)  # type: ignore[arg-type]
+
+
+def test_t5_s01_review_requires_exact_tuple_and_record_types() -> None:
+    class ForeignTuple(tuple[object, ...]):
+        pass
+
+    @dataclass(frozen=True, slots=True)
+    class ExtendedContextMessage(ContextMessage):
+        hidden_state: str
+
+    @dataclass(frozen=True, slots=True)
+    class ExtendedToolCall(ToolCall):
+        hidden_state: str
+
+    with pytest.raises(TypeError, match="exact tuple"):
+        SubjectContext(ForeignTuple((ContextMessage("user", "visible"),)), None)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="exact ContextMessage"):
+        SubjectContext(
+            (ExtendedContextMessage("user", "visible", "hidden"),),
+            None,
+        )
+    with pytest.raises(TypeError, match="exact tuple"):
+        SubjectTurn("", ForeignTuple(()), 0, None)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="exact ToolCall"):
+        SubjectTurn(
+            "",
+            (ExtendedToolCall("call-4", "read", "{}\n", "hidden"),),
+            0,
+            None,
+        )
+
+
+def test_t5_s01_review_preserves_scalar_error_taxonomy() -> None:
+    for field, invocation in (
+        ("slot_seed", lambda: derive_call_seed(True, "primary_subject", 0)),
+        ("call_index", lambda: derive_call_seed(0, "primary_subject", True)),
+    ):
+        with pytest.raises(TypeError, match=field):
+            invocation()
+    for invocation in (
+        lambda: derive_call_seed(-1, "primary_subject", 0),
+        lambda: derive_call_seed(0, "primary_subject", 2**64),
+    ):
+        with pytest.raises(ValueError):
+            invocation()
+    with pytest.raises(TypeError, match="pending_prefix"):
+        BranchCaps(0, 0, 0, 0, 1)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="success"):
+        GradeReceipt(
+            True,  # type: ignore[arg-type]
+            0.0,
+            False,
+            ArtifactRef(
+                "grade",
+                "grades/task.json",
+                "0" * 64,
+                1,
+                "application/json",
+            ),
+        )

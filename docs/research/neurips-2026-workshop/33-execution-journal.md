@@ -1036,3 +1036,14 @@ The next event after the archived migration boundary is appended below.
 
 - **Boundary review:** Exact-int guards reject booleans; uint64 guards reject negative and overflowing seeds/indexes; tuple fields reject lists and wrong record members; frozen slots prevent post-construction mutation; incomplete tool boundaries cannot mutate, become verifier-eligible, or claim `NONE`; opaque capabilities require lowercase SHA-256; grade failures cannot be both infrastructural and successful. Canonical argument parsing rejects whitespace drift, missing terminal LF, duplicate keys, nonfinite constants, and non-object JSON before any future execution layer can consume them.
 - **Residual boundary:** These records constrain values but do not establish provider determinism, wall-clock enforcement, tool sandboxing, mutation detection, grading validity, identity blindness, successful resampling, or causal evidence. No experiment ran and no empirical or consciousness claim is promoted.
+
+### EJ-20260729-0098 — hostile review finds subtype boundary gaps
+
+- **Finding:** `subject_role` membership could accept equality-overloaded objects or foreign string-enum values before downstream framing rejected them; receipt construction accepted them outright. Tuple and member checks used `isinstance`, admitting tuple subclasses and record subclasses with extra state. Controller uint64 guards and two receipt branches also classified wrong scalar types as value errors.
+- **RED:** `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_controller.py -q` failed exactly three new regression tests while the original primitive test passed. Failures exposed the late role rejection, accepted tuple subclass, and wrong `ValueError` for boolean `slot_seed`.
+
+### EJ-20260729-0099 — tighten exact primitive boundaries
+
+- **Repair:** Require exact `str` before closed role membership in both seed derivation and receipt construction; require exact tuple containers and exact context/tool-call record members; split scalar type failures from range/value failures; and exercise the primitive API only through public package exports.
+- **GREEN/static:** The same focused behavior command passed four tests in 0.23 seconds. The same capped Ruff slice over controller, types, exports, and focused test passed; the capped mypy slice over three source files reported no issues. `git diff --check` passed.
+- **Boundary/non-claims:** Subclass/equality smuggling at these primitive boundaries is closed. No runner, provider call, tool execution, seal, schema, spend, experiment, causal result, or consciousness claim was added or promoted.
