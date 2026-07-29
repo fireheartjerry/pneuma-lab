@@ -217,3 +217,35 @@ The next event after the archived migration boundary is appended below.
 - **Compact receipt:** stdout `2773` bytes / `40` lines / SHA-256 `c82a083b501224c044d165626c884e9dcf54452e9c509d1e2d8d6918674a1bd6`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 - **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0483/` (local, ignored, retained through `2026-11-27`).
 - **Next gate:** restage this receipt, commit journal sharding as isolated substantive commit A, push, verify the public remote ref, then record finite commit B.
+
+### EJ-20260728-0484 — create isolated journal-sharding substantive commit A
+
+- **Prior event:** `EJ-20260728-0483`
+- **Local interval:** `2026-07-28T22:20:59-07:00` to `2026-07-28T22:20:59-07:00`
+- **UTC interval:** `2026-07-29T05:20:59+00:00` to `2026-07-29T05:20:59+00:00`
+- **Action:** Restaged the latest live receipt, asserted exactly 16 staged paths and zero staged Slice 4 paths, rechecked staged whitespace, then ran `git commit -m "docs(neurips): shard execution journal"`.
+- **Result:** GREEN, exit `0`, zero stderr. Commit A is `91ee45a943b9a418dc855b366b33262656dbd771`; parent `3655b52b6e90b96f4fb1d8b9a895a208c1f46f24`; tree `8720264e8a59d89e365918bb2ffa4354de74b1e7`. Commit reports `837 insertions`, `9823 deletions` across 16 intended files.
+- **Compact receipt:** stdout `1637` bytes / `20` lines / SHA-256 `29cf3ee1bd6205a746e57c98304cf6b47774b0640ba42d974cb61deb1e71e747`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0484/` (local, ignored, retained through `2026-11-27`).
+- **Scope:** commit A contains journal infrastructure only. Slice 4 remains in the working tree.
+- **Next gate:** push commit A to the now-public branch and compare the remote ref exactly.
+
+### EJ-20260728-0485 — push journal-sharding commit A and verify remote ref
+
+- **Prior event:** `EJ-20260728-0484`
+- **Local interval:** `2026-07-28T22:21:32-07:00` to `2026-07-28T22:21:34-07:00`
+- **UTC interval:** `2026-07-29T05:21:32+00:00` to `2026-07-29T05:21:34+00:00`
+- **Action:** Pushed `HEAD` to `refs/heads/codex/neurips-2026-empirical`, then queried that exact remote ref and compared it to commit A.
+- **Result:** GREEN, exit `0`. GitHub advanced the branch from `3655b52` to `91ee45a`; expected and observed full SHA are both `91ee45a943b9a418dc855b366b33262656dbd771`.
+- **Compact receipt:** stdout `100` bytes / `2` lines / SHA-256 `23326b1e85f90a88f588af88bcc84322c5ac4e969d0e74680821881aa927bcd5`; stderr `110` bytes / `2` lines / SHA-256 `5b1c8385dcfefefa9f5093f4fa2dad7961605b602a3463726cc1d48ccdefee67` (normal Git push progress).
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0485/` (local, ignored, retained through `2026-11-27`).
+- **Public-state note:** because the repository is now public, commit A and its checker/shards are publicly retrievable on this branch.
+
+### EJ-20260728-0486 — pre-record finite journal-only delivery commit B
+
+- **Prior event:** `EJ-20260728-0485`
+- **Delivery facts:** substantive commit A `91ee45a943b9a418dc855b366b33262656dbd771` is pushed and exactly observed at `origin/refs/heads/codex/neurips-2026-empirical`.
+- **Planned B mechanics:** `git add -- docs/research/neurips-2026-workshop/33-execution-journal.md`; `git diff --cached --check`; `git commit -m "docs(neurips): record journal sharding delivery"`; `git push origin HEAD:refs/heads/codex/neurips-2026-empirical`.
+- **Scope assertion:** B must contain only the live journal receipts EJ-0484 through EJ-0486. Slice 4 remains unstaged.
+- **Self-reference break:** B's resulting SHA and push result cannot be embedded in B before Git content addressing creates it. Per the recording contract, these exact mechanics are exempt from an immediate recursive receipt and must be reconciled by the opening receipt of the next substantive work.
+- **Next gate:** execute exactly the planned B mechanics, then resume Slice 4 by reconciling B and freshly verifying the remote ref before any Slice 4 command.
