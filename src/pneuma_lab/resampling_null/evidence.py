@@ -1033,7 +1033,20 @@ class FrozenPrefixReceipt:
                 raise ValueError("call_seeds role-local indexes must be consecutive")
             next_index[receipt.subject_role] += 1
 
-    def validate_snapshot_bytes(self, payload: bytes) -> None:
+    def validate_snapshot_bytes(
+        self,
+        payload: bytes,
+        *,
+        simulator_caps: CallContractCaps | None,
+        observed_simulator_turns: int | None,
+    ) -> None:
+        """Validate bytes using independently reconstructed simulator authority.
+
+        ``simulator_caps`` comes from the frozen lane contract and
+        ``observed_simulator_turns`` from freshly loaded attempt/parser
+        evidence. Neither value is accepted from the snapshot itself.
+        """
+
         snapshot = load_composite_snapshot(payload)
         if snapshot.schedule_ref.sha256 != self.schedule_sha256:
             raise ValueError("snapshot schedule differs from prefix receipt")
@@ -1070,6 +1083,50 @@ class FrozenPrefixReceipt:
             raise ValueError(
                 "snapshot remaining quotas differ from caps-minus-used arithmetic"
             )
+        if simulator_caps is None:
+            if (
+                observed_simulator_turns is not None
+                or snapshot.simulator_remaining_quotas is not None
+            ):
+                raise ValueError(
+                    "simulator-free authority requires null caps, turns, and quotas"
+                )
+        else:
+            if type(simulator_caps) is not CallContractCaps:
+                raise TypeError("simulator_caps must be exact CallContractCaps or None")
+            if type(observed_simulator_turns) is not int:
+                raise TypeError("observed_simulator_turns must be exact int or None")
+            if (
+                observed_simulator_turns < 0
+                or observed_simulator_turns
+                > snapshot.simulator_counters.model_calls
+            ):
+                raise ValueError(
+                    "observed simulator turns must be within dispatched model calls"
+                )
+            expected_simulator_remaining = CallContractCaps(
+                aggregate_generated_tokens=max(
+                    0,
+                    simulator_caps.aggregate_generated_tokens
+                    - snapshot.simulator_counters.generated_tokens,
+                ),
+                aggregate_model_calls=max(
+                    0,
+                    simulator_caps.aggregate_model_calls
+                    - snapshot.simulator_counters.model_calls,
+                ),
+                aggregate_turns=max(
+                    0,
+                    simulator_caps.aggregate_turns - observed_simulator_turns,
+                ),
+                per_call_generated_tokens=simulator_caps.per_call_generated_tokens,
+                per_call_turns=simulator_caps.per_call_turns,
+            )
+            if snapshot.simulator_remaining_quotas != expected_simulator_remaining:
+                raise ValueError(
+                    "snapshot simulator remaining quotas differ from "
+                    "caps-minus-used arithmetic"
+                )
         validate_snapshot_receipt_fields(
             snapshot,
             snapshot_ref=self.snapshot_ref,

@@ -1496,11 +1496,12 @@ class StableSourceProvenance:
         ):
             raise ValueError("source path must be normalized and relative")
         self._expected_ref = expected_ref
-        self._root_fd: int | None = os.open(source_root, _DIRECTORY_FLAGS)
+        self._root_fd: int | None = None
         self._parent_fds: list[int] = []
         self._fd: int | None = None
-        parent = self._root_fd
         try:
+            self._root_fd = os.open(source_root, _DIRECTORY_FLAGS)
+            parent = self._root_fd
             for component in relative.parts[:-1]:
                 child = os.open(component, _DIRECTORY_FLAGS, dir_fd=parent)
                 self._parent_fds.append(child)
@@ -1515,8 +1516,13 @@ class StableSourceProvenance:
                 ) from exc
             self._initial_identity = self._identity(os.fstat(self._fd))
             self.payload = self._read_and_verify(require_initial=True)
-        except BaseException:
-            self.close()
+        except BaseException as primary:
+            cleanup_errors = self._close_errors()
+            if cleanup_errors:
+                raise BaseExceptionGroup(
+                    "source provenance setup and cleanup failed",
+                    [primary, *cleanup_errors],
+                ) from None
             raise
 
     @staticmethod
@@ -1564,10 +1570,25 @@ class StableSourceProvenance:
             raise RuntimeError("source provenance reader is closed")
         return self
 
-    def __exit__(self, *_exception: object) -> None:
-        self.close()
+    def __exit__(
+        self,
+        _exception_type: type[BaseException] | None,
+        exception: BaseException | None,
+        _traceback: object,
+    ) -> None:
+        cleanup_errors = self._close_errors()
+        if cleanup_errors:
+            errors = (
+                [*cleanup_errors]
+                if exception is None
+                else [exception, *cleanup_errors]
+            )
+            raise BaseExceptionGroup(
+                "source provenance body and cleanup failed",
+                errors,
+            ) from None
 
-    def close(self) -> None:
+    def _close_errors(self) -> list[BaseException]:
         descriptors = (
             ([self._fd] if self._fd is not None else [])
             + list(reversed(self._parent_fds))
@@ -1576,14 +1597,21 @@ class StableSourceProvenance:
         self._fd = None
         self._parent_fds = []
         self._root_fd = None
-        errors: list[Exception] = []
+        errors: list[BaseException] = []
         for descriptor in descriptors:
             try:
                 os.close(cast(int, descriptor))
-            except OSError as exc:
+            except BaseException as exc:
                 errors.append(exc)
+        return errors
+
+    def close(self) -> None:
+        errors = self._close_errors()
         if errors:
-            raise ExceptionGroup("source provenance close was incomplete", errors)
+            raise BaseExceptionGroup(
+                "source provenance close was incomplete",
+                errors,
+            )
 
 
 __all__ = (

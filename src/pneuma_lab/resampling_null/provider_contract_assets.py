@@ -193,11 +193,13 @@ def _verify_registered_authority_graph(
                 expected_role=ref.role,
             )
             pending.extend(walk_artifact_refs(nested))
+    closure_visited: set[ArtifactRef] = set()
     for index, ref in enumerate(ordered):
         reader.verify_closure(
             ref,
             field=f"{field} ref {index}",
             expected_role=ref.role,
+            visited=closure_visited,
         )
 
 

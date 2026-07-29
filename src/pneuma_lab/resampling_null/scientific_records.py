@@ -7,9 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
-from .artifacts import validate_record
+from .artifacts import _read_ref, validate_record
 from .authority_refs import (
-    AuthorityRefReader,
     decode_artifact_ref,
     load_json_bytes,
 )
@@ -41,9 +40,7 @@ def load_scientific_parent(
             f"{field} must reference application/json"
         )
     root = Path(run_root).resolve(strict=True)
-    with AuthorityRefReader(root) as reader:
-        raw = reader.read_bytes(ref)
-    path = root / ref.relative_path
+    path, raw = _read_ref(ref, run_root=root)
     decoded = load_json_bytes(raw, source=path)
     if not isinstance(decoded, Mapping):
         raise RecordValidationError(

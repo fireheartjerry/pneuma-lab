@@ -45,6 +45,7 @@ from pneuma_lab.resampling_null.types import (
 
 
 SHA = "a" * 64
+SIMULATOR_CAPS = CallContractCaps(10, 3, 3, 5, 1)
 
 
 def _ref(role: str, suffix: str | None = None) -> ArtifactRef:
@@ -384,6 +385,53 @@ def _snapshot() -> CompositeSnapshotEnvelope:
     )
 
 
+def _prefix_receipt_for_snapshot(
+    snapshot: CompositeSnapshotEnvelope,
+) -> tuple[FrozenPrefixReceipt, bytes]:
+    payload = composite_snapshot_bytes(snapshot)
+    digest = hashlib.sha256(payload).hexdigest()
+    snapshot_ref = ArtifactRef(
+        "composite_snapshot",
+        f"controller-artifacts/composite_snapshot/{digest}",
+        digest,
+        len(payload),
+        "application/json",
+    )
+    return (
+        FrozenPrefixReceipt(
+            task_id="task-1",
+            schedule_sha256=snapshot.schedule_ref.sha256,
+            prefix_caps=PrefixCaps(10, 3, 4, 100),
+            snapshot_ref=snapshot_ref,
+            visible_context_ref=snapshot.visible_context_ref,
+            visible_sha256=snapshot.visible_sha256,
+            token_ids_ref=snapshot.token_ids_ref,
+            token_ids_sha256=snapshot.token_ids_sha256,
+            branch_pending_calls=snapshot.branch_pending_calls,
+            terminal_unexecuted_remainder=snapshot.terminal_unexecuted_remainder,
+            trigger_reason=TriggerReason.FIRST_ELIGIBLE_MUTATION,
+            terminal_failure_kind=snapshot.terminal_failure_kind,
+            y0_grade=GradeReceipt(0, 0.0, False, _ref("grade_evidence")),
+            grade_execution_receipt_ref=_ref("grade_evidence_receipt"),
+            verifier_receipt=FrozenVerifierReceipt(
+                "task-1",
+                snapshot.schedule_ref.sha256,
+                snapshot_ref,
+                _ref("verifier_evidence"),
+                0,
+            ),
+            verifier_execution_receipt_ref=_ref("verifier_evidence_receipt"),
+            counters=snapshot.primary_counters,
+            simulator_counters=snapshot.simulator_counters,
+            call_seeds=(),
+            provider_attempts_ref=snapshot.provider_attempts_ref,
+            boundary_ledger_ref=snapshot.boundary_ledger_ref,
+            provider_cost_ref=_ref("provider_cost_closure"),
+        ),
+        payload,
+    )
+
+
 def test_composite_snapshot_is_canonical_closed_and_separates_queues() -> None:
     snapshot = _snapshot()
     payload = composite_snapshot_bytes(snapshot)
@@ -594,7 +642,11 @@ def test_frozen_prefix_receipt_cross_checks_composite_snapshot_bytes() -> None:
         boundary_ledger_ref=snapshot.boundary_ledger_ref,
         provider_cost_ref=_ref("provider_cost_closure"),
     )
-    receipt.validate_snapshot_bytes(payload)
+    receipt.validate_snapshot_bytes(
+        payload,
+        simulator_caps=SIMULATOR_CAPS,
+        observed_simulator_turns=1,
+    )
     with pytest.raises(ValueError):
         FrozenPrefixReceipt(
             **{
@@ -667,7 +719,11 @@ def test_frozen_prefix_closes_caps_and_adverse_y0() -> None:
                 **{field.name: getattr(base, field.name) for field in fields(base)},
                 "prefix_caps": PrefixCaps(11, 3, 4, 100),
             }
-        ).validate_snapshot_bytes(payload)
+        ).validate_snapshot_bytes(
+            payload,
+            simulator_caps=SIMULATOR_CAPS,
+            observed_simulator_turns=1,
+        )
     with pytest.raises(ValueError, match="adverse"):
         FrozenPrefixReceipt(
             **{
@@ -734,7 +790,83 @@ def test_frozen_prefix_preserves_overshoot_with_zero_remaining_quota() -> None:
         boundary_ledger_ref=snapshot.boundary_ledger_ref,
         provider_cost_ref=_ref("provider_cost_closure"),
     )
-    receipt.validate_snapshot_bytes(payload)
+    receipt.validate_snapshot_bytes(
+        payload,
+        simulator_caps=SIMULATOR_CAPS,
+        observed_simulator_turns=1,
+    )
+
+
+def test_frozen_prefix_validates_external_simulator_quota_authority() -> None:
+    snapshot = _snapshot()
+    receipt, payload = _prefix_receipt_for_snapshot(snapshot)
+    receipt.validate_snapshot_bytes(
+        payload,
+        simulator_caps=SIMULATOR_CAPS,
+        observed_simulator_turns=1,
+    )
+    with pytest.raises(ValueError, match="simulator remaining quotas"):
+        receipt.validate_snapshot_bytes(
+            payload,
+            simulator_caps=SIMULATOR_CAPS,
+            observed_simulator_turns=0,
+        )
+    with pytest.raises(ValueError, match="simulator turns"):
+        receipt.validate_snapshot_bytes(
+            payload,
+            simulator_caps=SIMULATOR_CAPS,
+            observed_simulator_turns=2,
+        )
+
+    overshot = CompositeSnapshotEnvelope(
+        **{
+            **{field.name: getattr(snapshot, field.name) for field in fields(snapshot)},
+            "simulator_counters": ResourceCounters(12, 4, 0, 20),
+            "simulator_remaining_quotas": CallContractCaps(0, 0, 0, 5, 1),
+        }
+    )
+    overshot_receipt, overshot_payload = _prefix_receipt_for_snapshot(overshot)
+    overshot_receipt.validate_snapshot_bytes(
+        overshot_payload,
+        simulator_caps=SIMULATOR_CAPS,
+        observed_simulator_turns=4,
+    )
+    mismatched = CompositeSnapshotEnvelope(
+        **{
+            **{field.name: getattr(overshot, field.name) for field in fields(overshot)},
+            "simulator_remaining_quotas": CallContractCaps(1, 0, 0, 5, 1),
+        }
+    )
+    mismatched_receipt, mismatched_payload = _prefix_receipt_for_snapshot(
+        mismatched
+    )
+    with pytest.raises(ValueError, match="simulator remaining quotas"):
+        mismatched_receipt.validate_snapshot_bytes(
+            mismatched_payload,
+            simulator_caps=SIMULATOR_CAPS,
+            observed_simulator_turns=4,
+        )
+
+    simulator_free = CompositeSnapshotEnvelope(
+        **{
+            **{field.name: getattr(snapshot, field.name) for field in fields(snapshot)},
+            "simulator_counters": ResourceCounters(0, 0, 0, 20),
+            "simulator_remaining_quotas": None,
+            "simulator_stateless_attestation_ref": None,
+        }
+    )
+    free_receipt, free_payload = _prefix_receipt_for_snapshot(simulator_free)
+    free_receipt.validate_snapshot_bytes(
+        free_payload,
+        simulator_caps=None,
+        observed_simulator_turns=None,
+    )
+    with pytest.raises(ValueError, match="simulator-free"):
+        free_receipt.validate_snapshot_bytes(
+            free_payload,
+            simulator_caps=None,
+            observed_simulator_turns=0,
+        )
 
 
 def test_failure_kind_includes_discrete_model_and_turn_caps() -> None:
@@ -802,7 +934,11 @@ def test_frozen_prefix_cross_binds_trigger_to_snapshot_terminal_state(
         provider_cost_ref=_ref("provider_cost_closure"),
     )
     with pytest.raises(ValueError, match="terminal"):
-        receipt.validate_snapshot_bytes(payload)
+        receipt.validate_snapshot_bytes(
+            payload,
+            simulator_caps=SIMULATOR_CAPS,
+            observed_simulator_turns=1,
+        )
 
 
 @pytest.mark.parametrize(
@@ -864,7 +1000,11 @@ def test_frozen_prefix_accepts_coherent_trigger_terminal_pairs(
         boundary_ledger_ref=snapshot.boundary_ledger_ref,
         provider_cost_ref=_ref("provider_cost_closure"),
     )
-    receipt.validate_snapshot_bytes(payload)
+    receipt.validate_snapshot_bytes(
+        payload,
+        simulator_caps=SIMULATOR_CAPS,
+        observed_simulator_turns=1,
+    )
 
 
 def _contains_artifact_ref(value: object) -> bool:

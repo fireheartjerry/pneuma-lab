@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
+import pneuma_lab.resampling_null.prefix_contracts as prefix_contracts
 from pneuma_lab.resampling_null.prefix_contracts import (
     AUTHORITY_ASSET_ROLE_MEDIA,
     CONTROLLER_ROLE_MEDIA,
@@ -236,6 +237,105 @@ def test_stable_source_provenance_rechecks_held_nofollow_regular_file(
     source.symlink_to(target)
     with pytest.raises(ValueError):
         StableSourceProvenance(tmp_path, Path("source.py"), ref)
+
+
+@pytest.mark.parametrize("failure_phase", ["setup", "read"])
+def test_stable_source_constructor_aggregates_primary_and_all_cleanup_failures(
+    tmp_path: Path,
+    monkeypatch,
+    failure_phase: str,
+) -> None:
+    source = tmp_path / "source.py"
+    payload = b"VALUE = 1\n"
+    source.write_bytes(payload)
+    ref = ArtifactRef(
+        "source_revision",
+        "source.py",
+        hashlib.sha256(payload).hexdigest(),
+        len(payload),
+        "application/octet-stream",
+    )
+    real_open = prefix_contracts.os.open
+    real_read = prefix_contracts.os.read
+    real_close = prefix_contracts.os.close
+    closed: list[int] = []
+
+    class InjectedPrimary(BaseException):
+        pass
+
+    def inject_open(
+        path: object,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if failure_phase == "setup" and path == "source.py":
+            raise InjectedPrimary("injected setup failure")
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    def inject_read(descriptor: int, size: int) -> bytes:
+        if failure_phase == "read":
+            raise InjectedPrimary("injected read failure")
+        return real_read(descriptor, size)
+
+    def close_then_fail(descriptor: int) -> None:
+        closed.append(descriptor)
+        real_close(descriptor)
+        raise OSError(f"injected close failure {len(closed)}")
+
+    monkeypatch.setattr(prefix_contracts.os, "open", inject_open)
+    monkeypatch.setattr(prefix_contracts.os, "read", inject_read)
+    monkeypatch.setattr(prefix_contracts.os, "close", close_then_fail)
+    with pytest.raises(BaseExceptionGroup) as raised:
+        StableSourceProvenance(tmp_path, Path("source.py"), ref)
+    assert isinstance(raised.value.exceptions[0], InjectedPrimary)
+    assert all(isinstance(error, OSError) for error in raised.value.exceptions[1:])
+    assert len(closed) == (1 if failure_phase == "setup" else 2)
+
+
+@pytest.mark.parametrize("failure_phase", ["drift", "body"])
+def test_stable_source_context_aggregates_body_and_all_cleanup_failures(
+    tmp_path: Path,
+    monkeypatch,
+    failure_phase: str,
+) -> None:
+    source = tmp_path / "source.py"
+    payload = b"VALUE = 1\n"
+    source.write_bytes(payload)
+    ref = ArtifactRef(
+        "source_revision",
+        "source.py",
+        hashlib.sha256(payload).hexdigest(),
+        len(payload),
+        "application/octet-stream",
+    )
+    provenance = StableSourceProvenance(tmp_path, Path("source.py"), ref)
+    real_close = prefix_contracts.os.close
+    closed: list[int] = []
+
+    class InjectedBody(BaseException):
+        pass
+
+    def close_then_fail(descriptor: int) -> None:
+        closed.append(descriptor)
+        real_close(descriptor)
+        raise OSError(f"injected close failure {len(closed)}")
+
+    monkeypatch.setattr(prefix_contracts.os, "close", close_then_fail)
+    with pytest.raises(BaseExceptionGroup) as raised:
+        with provenance:
+            if failure_phase == "drift":
+                source.write_bytes(b"VALUE = 2\n")
+                provenance.verify_again()
+            raise InjectedBody("injected body failure")
+    primary = raised.value.exceptions[0]
+    if failure_phase == "drift":
+        assert isinstance(primary, ValueError)
+    else:
+        assert isinstance(primary, InjectedBody)
+    assert all(isinstance(error, OSError) for error in raised.value.exceptions[1:])
+    assert len(closed) == 2
 
 
 def test_candidate_wrapper_uses_exact_role_media_and_runtime_decoder() -> None:

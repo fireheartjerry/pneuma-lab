@@ -152,6 +152,8 @@ class AuthorityRefReader:
         self._root_descriptor: int | None = None
         self._decoded: dict[ArtifactRef, object] = {}
         self._payloads: dict[ArtifactRef, bytes] = {}
+        self._path_bindings: dict[str, ArtifactRef] = {}
+        self._physical_bindings: dict[tuple[int, int], ArtifactRef] = {}
 
     def __enter__(self) -> AuthorityRefReader:
         descriptor = os.open(self.run_root, _DIRECTORY_FLAGS)
@@ -188,20 +190,27 @@ class AuthorityRefReader:
         if (
             path.is_absolute()
             or not parts
-            or parts[0] == "operational"
+            or parts[0] != "sources"
             or any(part in ("", ".", "..") for part in parts)
             or path.as_posix() != relative_path
         ):
             raise RecordValidationError(
-                f"artifact_ref is not confined: {relative_path!r}"
+                "artifact_ref is outside the copied authority namespace: "
+                f"{relative_path!r}"
             )
         return parts
 
     def read_bytes(self, ref: ArtifactRef) -> bytes:
+        parts = self._parts(ref.relative_path)
+        bound_ref = self._path_bindings.get(ref.relative_path)
+        if bound_ref is not None and bound_ref != ref:
+            raise RecordValidationError(
+                f"artifact_ref relative path alias: {ref.relative_path!r}"
+            )
+        self._path_bindings[ref.relative_path] = ref
         cached = self._payloads.get(ref)
         if cached is not None:
             return cached
-        parts = self._parts(ref.relative_path)
         descriptors: list[int] = []
         parent = self._require_root()
         try:
@@ -225,6 +234,14 @@ class AuthorityRefReader:
                         "artifact_ref must identify a regular file: "
                         f"{ref.relative_path!r}"
                     )
+                physical_identity = (metadata.st_dev, metadata.st_ino)
+                physical_ref = self._physical_bindings.get(physical_identity)
+                if physical_ref is not None and physical_ref != ref:
+                    raise RecordValidationError(
+                        "artifact_ref physical file alias: "
+                        f"{ref.relative_path!r}"
+                    )
+                self._physical_bindings[physical_identity] = ref
                 digest = hashlib.sha256()
                 chunks: list[bytes] = []
                 size = 0
