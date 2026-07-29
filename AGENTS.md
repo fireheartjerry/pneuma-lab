@@ -55,6 +55,10 @@
     bibliography/appendix/supplement policy, metadata, PDF build and visual
     rendering, embedded fonts, filenames and size limits, submission-form
     fields, and the deadline with its timezone. Any mismatch blocks release.
+- Broad/long test suites are optional unless a task specifically requires them.
+  Prefer the narrowest high-signal test command, and impose a hard 60-second
+  wall-clock ceiling on every test process unless the user explicitly approves
+  a longer run. Record timeouts honestly; never reinterpret them as passes.
 
 ## Commands
 
