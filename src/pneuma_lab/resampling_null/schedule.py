@@ -289,6 +289,7 @@ def seal_prefix_schedule(
             registry=task_registry,
             tokenizer_ref=tokenizer_ref,
             manifest_revisions=tuple(revision_refs),
+            schedule_authority=selection.schedule_authority,
         )
         lanes = tuple(lane.lane_id for lane in validated_plan.lanes)
         lane_bindings = {

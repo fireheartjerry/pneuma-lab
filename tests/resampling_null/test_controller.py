@@ -40,8 +40,19 @@ def _authority_fixture(
     plan_kind: str = "provider_lane_plan_v2",
     subject_extra: bool = False,
     environment_benchmark: str = "swe",
+    scheduled_lane: str = "lane-0",
+    requires_simulator: bool = True,
+    simulator_present: bool = True,
+    simulator_aggregate_generated_tokens: int = 40,
+    lane_simulator_aggregate_generated_tokens: int | None = None,
+    subject_aggregate_generated_tokens: int = 40,
+    parser_response_grammar: str = "fixture-response-v1",
+    parser_tool_schema_drift: bool = False,
+    meter_zero_cost: bool = True,
+    role_overrides: dict[str, str] | None = None,
 ) -> tuple[ArtifactRef, dict[str, ArtifactRef]]:
     root.mkdir()
+    effective_role_overrides = role_overrides or {}
 
     def blob(relative_path: str, value: object, *, role: str) -> ArtifactRef:
         path = root / relative_path
@@ -53,7 +64,7 @@ def _authority_fixture(
         )
         path.write_bytes(payload)
         return ArtifactRef(
-            role=role,
+            role=effective_role_overrides.get(relative_path, role),
             relative_path=relative_path,
             sha256=hashlib.sha256(payload).hexdigest(),
             byte_count=len(payload),
@@ -64,7 +75,33 @@ def _authority_fixture(
             ),
         )
 
-    revision_ref = blob("sources/revision.txt", b"revision", role="source_revision")
+    def ref_value(ref: ArtifactRef) -> dict[str, object]:
+        return {
+            "role": ref.role,
+            "relative_path": ref.relative_path,
+            "sha256": ref.sha256,
+            "byte_count": ref.byte_count,
+            "media_type": ref.media_type,
+        }
+
+    deep_leaf_ref = blob(
+        "sources/deep-leaf.json",
+        {"leaf": "authority"},
+        role="deep_authority_asset",
+    )
+    deep_ref = blob(
+        "sources/deep.json",
+        {"nested_ref": ref_value(deep_leaf_ref)},
+        role="deep_authority_asset",
+    )
+    revision_ref = blob(
+        "sources/revision.json",
+        {
+            "record_kind": "fixture_source_revision_v1",
+            "nested_ref": ref_value(deep_ref),
+        },
+        role="source_revision",
+    )
     tokenizer_ref = blob(
         "sources/tokenizer.json",
         {"tokenizer": "fixture-v1"},
@@ -78,6 +115,11 @@ def _authority_fixture(
     tool_schema_ref = blob(
         "sources/tools.json",
         {"tools": []},
+        role="tool_schema",
+    )
+    alternate_tool_schema_ref = blob(
+        "sources/tools-alternate.json",
+        {"tools": [{"name": "drift"}]},
         role="tool_schema",
     )
     clock_ref = blob("sources/clock.txt", b"clock", role="clock_source")
@@ -96,28 +138,36 @@ def _authority_fixture(
         "revision": revision_ref,
         "tokenizer": tokenizer_ref,
         "prompt": prompt_ref,
-        "tool_schema": tool_schema_ref,
+            "tool_schema": tool_schema_ref,
         "clock": clock_ref,
         "watchdog": watchdog_ref,
         "qualification": qualification_ref,
+        "deep": deep_ref,
+        "deep_leaf": deep_leaf_ref,
     }
-
-    def ref_value(ref: ArtifactRef) -> dict[str, object]:
-        return {
-            "role": ref.role,
-            "relative_path": ref.relative_path,
-            "sha256": ref.sha256,
-            "byte_count": ref.byte_count,
-            "media_type": ref.media_type,
-        }
 
     source_revisions = [ref_value(revision_ref)]
-    call_caps = {
-        "aggregate_generated_tokens": 40,
-        "aggregate_model_calls": 4,
-        "per_call_generated_tokens": 12,
-        "per_call_turns": 1,
-    }
+    call_caps = (
+        {
+            "aggregate_generated_tokens": (
+                simulator_aggregate_generated_tokens
+                if lane_simulator_aggregate_generated_tokens is None
+                else lane_simulator_aggregate_generated_tokens
+            ),
+            "aggregate_model_calls": 4,
+            "aggregate_turns": 4,
+            "per_call_generated_tokens": 12,
+            "per_call_turns": 1,
+        }
+        if simulator_present
+        else {
+            "aggregate_generated_tokens": 0,
+            "aggregate_model_calls": 0,
+            "aggregate_turns": 0,
+            "per_call_generated_tokens": 0,
+            "per_call_turns": 0,
+        }
+    )
     subject: dict[str, object] = {
         "record_kind": "prefix_subject_contract_v1",
         "schema_version": "1",
@@ -130,7 +180,7 @@ def _authority_fixture(
         "seeded_call_grammar": "call-seed-v1",
         "stateless_client_attestation": "fixture-stateless-v1",
         "aggregate_caps": {
-            "generated_tokens": 40,
+            "generated_tokens": subject_aggregate_generated_tokens,
             "model_calls": 4,
             "turns": 4,
         },
@@ -156,6 +206,11 @@ def _authority_fixture(
             "record_kind": "prefix_simulator_contract_v1",
             "model_id": "fixture-simulator",
             "nominal_type": "FixtureSimulator",
+            "aggregate_caps": {
+                "generated_tokens": simulator_aggregate_generated_tokens,
+                "model_calls": 4,
+                "turns": 4,
+            },
         },
         role="simulator_contract",
     )
@@ -166,8 +221,14 @@ def _authority_fixture(
             "schema_version": "1",
             "nominal_type": "FixtureParser",
             "build_id": "fixture-build",
-            "response_grammar": "fixture-response-v1",
-            "tool_schema_ref": ref_value(tool_schema_ref),
+            "response_grammar": parser_response_grammar,
+            "tool_schema_ref": ref_value(
+                (
+                    alternate_tool_schema_ref
+                    if parser_tool_schema_drift
+                    else tool_schema_ref
+                )
+            ),
             "source_revision_refs": source_revisions,
         },
         role="tool_parser_contract",
@@ -189,7 +250,7 @@ def _authority_fixture(
             },
             "provider_event_grammar": "fixture-provider-event-v1",
             "settlement_grammar": "fixture-settlement-v1",
-            "zero_cost_synthetic_closure": True,
+            "zero_cost_synthetic_closure": meter_zero_cost,
             "source_revision_refs": source_revisions,
         },
         role="meter_contract",
@@ -205,8 +266,8 @@ def _authority_fixture(
 
     task_rows: list[dict[str, object]] = []
     registry_tasks: list[dict[str, object]] = []
-    for task_id, requires_simulator in (
-        ("task-1", True),
+    for task_id, task_requires_simulator in (
+        ("task-1", requires_simulator),
         ("task-foreign", False),
     ):
         task_input_ref = blob(
@@ -216,8 +277,11 @@ def _authority_fixture(
                 "schema_version": "1",
                 "task_id": task_id,
                 "benchmark": "swe",
-                "requires_user_simulator": requires_simulator,
-                "canonical_task_payload": {"instruction": task_id},
+                "requires_user_simulator": task_requires_simulator,
+                "canonical_task_payload": {
+                    "instruction": task_id,
+                    "deep_ref": ref_value(deep_ref),
+                },
             },
             role="task_input",
         )
@@ -332,7 +396,11 @@ def _authority_fixture(
                     },
                     "simulator_caps": call_caps,
                     "subject_contract_ref": ref_value(subject_ref),
-                    "simulator_contract_ref": ref_value(simulator_ref),
+                    "simulator_contract_ref": (
+                        ref_value(simulator_ref)
+                        if simulator_present
+                        else None
+                    ),
                     "tool_parser_contract_ref": ref_value(parser_ref),
                     "meter_contract_ref": ref_value(meter_ref),
                 }
@@ -430,7 +498,7 @@ def _authority_fixture(
                         }
                         for index in range(4)
                     ],
-                    "provider_lane": "lane-0",
+                    "provider_lane": scheduled_lane,
                 }
             ],
         },
@@ -454,7 +522,9 @@ def test_t5_s02a_loads_frozen_schedule_ancestry_authority(tmp_path: Path) -> Non
     assert authority.task_schedule.provider_lane == "lane-0"
     assert authority.prefix_caps == PrefixCaps(40, 4, 4, 1_000)
     assert authority.branch_caps == BranchCaps(20, 2, 4, 500, True)
-    assert authority.simulator_caps == SimulatorCaps(40, 4, 12, 1)
+    assert authority.simulator_caps == SimulatorCaps(40, 4, 4, 12, 1)
+    assert authority.subject_contract_caps == SimulatorCaps(40, 4, 4, 12, 1)
+    assert authority.simulator_contract_caps == SimulatorCaps(40, 4, 4, 12, 1)
     assert authority.task_input_ref == refs["task-1_input"]
     assert authority.environment_contract_ref == refs["task-1_environment"]
     assert authority.grader_contract_ref == refs["task-1_grader"]
@@ -516,6 +586,131 @@ def test_t5_s02a_rejects_tampered_plan_or_nested_contract(tmp_path: Path) -> Non
                 schedule_ref=schedule_ref,
                 task_id="task-1",
             )
+
+
+@pytest.mark.parametrize("damage", ["tamper", "dangle"])
+def test_t5_s02a_rejects_deep_authority_ref_damage(
+    tmp_path: Path,
+    damage: str,
+) -> None:
+    root = tmp_path / damage
+    schedule_ref, refs = _authority_fixture(root)
+    leaf = root / refs["deep_leaf"].relative_path
+    if damage == "tamper":
+        leaf.write_bytes(leaf.read_bytes() + b" ")
+    else:
+        leaf.unlink()
+    with pytest.raises(RecordValidationError, match="(?i)(bytes|dangling)"):
+        load_prefix_execution_authority(
+            run_root=root,
+            schedule_ref=schedule_ref,
+            task_id="task-1",
+        )
+
+
+@pytest.mark.parametrize(
+    ("fixture_kwargs", "message"),
+    [
+        ({"scheduled_lane": "lane-foreign"}, "lane mismatch"),
+        ({"requires_simulator": False}, "unnecessary simulator"),
+        (
+            {"simulator_present": False},
+            "required simulator",
+        ),
+        (
+            {"subject_aggregate_generated_tokens": 39},
+            "subject contract caps",
+        ),
+        (
+            {"lane_simulator_aggregate_generated_tokens": 39},
+            "simulator caps",
+        ),
+        (
+            {"parser_response_grammar": "drift-response-v1"},
+            "response grammar",
+        ),
+        (
+            {"parser_tool_schema_drift": True},
+            "tool schema",
+        ),
+        (
+            {"meter_zero_cost": False},
+            "zero-cost synthetic",
+        ),
+    ],
+)
+def test_t5_s02a_rejects_lane_contract_coherence_drift(
+    tmp_path: Path,
+    fixture_kwargs: dict[str, object],
+    message: str,
+) -> None:
+    schedule_ref, _refs = _authority_fixture(
+        tmp_path / "run",
+        **fixture_kwargs,  # type: ignore[arg-type]
+    )
+    with pytest.raises(RecordValidationError, match=message):
+        load_prefix_execution_authority(
+            run_root=tmp_path / "run",
+            schedule_ref=schedule_ref,
+            task_id="task-1",
+        )
+
+
+def test_t5_s02a_accepts_no_simulator_only_with_zero_caps(tmp_path: Path) -> None:
+    schedule_ref, _refs = _authority_fixture(
+        tmp_path / "run",
+        requires_simulator=False,
+        simulator_present=False,
+    )
+    authority = load_prefix_execution_authority(
+        run_root=tmp_path / "run",
+        schedule_ref=schedule_ref,
+        task_id="task-1",
+    )
+    assert authority.simulator_contract_ref is None
+    assert authority.simulator_contract_caps is None
+    assert authority.simulator_caps == SimulatorCaps(0, 0, 0, 0, 0)
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "prefix-schedule.json",
+        "study-manifest.json",
+        "sources/provider-plan.json",
+        "sources/tasks.json",
+        "sources/tokenizer.json",
+        "sources/revision.json",
+        "sources/task-1-input.json",
+        "sources/subject.json",
+        "sources/simulator.json",
+        "sources/parser.json",
+        "sources/meter.json",
+        "sources/task-1-environment.json",
+        "sources/task-1-grader.json",
+        "sources/task-1-verifier.json",
+        "sources/task-1-isolation.json",
+        "sources/prompt.json",
+        "sources/tools.json",
+        "sources/clock.txt",
+        "sources/watchdog.txt",
+        "sources/qualification.json",
+    ],
+)
+def test_t5_s02a_rejects_cross_role_aliasing(
+    tmp_path: Path,
+    relative_path: str,
+) -> None:
+    schedule_ref, _refs = _authority_fixture(
+        tmp_path / "run",
+        role_overrides={relative_path: "cross_role_alias"},
+    )
+    with pytest.raises(RecordValidationError, match="role"):
+        load_prefix_execution_authority(
+            run_root=tmp_path / "run",
+            schedule_ref=schedule_ref,
+            task_id="task-1",
+        )
 
 
 def test_t5_s01_call_seed_and_frozen_boundary_contract() -> None:

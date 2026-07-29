@@ -39,6 +39,9 @@ from pneuma_lab.resampling_null.assignment import (
     require_schedulable_power_final,
 )
 from pneuma_lab.resampling_null.branch_assignment import seal_branch_assignment
+from pneuma_lab.resampling_null.execution_authority import (
+    load_prefix_execution_authority,
+)
 from pneuma_lab.resampling_null.packets import (
     IdentifierAtom,
     IdentifierKind,
@@ -65,7 +68,7 @@ from pneuma_lab.resampling_null.storage import (
     claim_local_test_storage,
     _publish_local_test_scientific,
 )
-from pneuma_lab.resampling_null.types import ArtifactRef
+from pneuma_lab.resampling_null.types import ArtifactRef, SimulatorCaps
 
 
 KINDS = (
@@ -1124,6 +1127,10 @@ def _build_full_study(
             else {"name": "tokenizer"}
         ),
     )
+    if completed_power_consumer_fixture:
+        normalizer_ref["role"] = "source_revision"
+        tokenizer_ref["role"] = "tokenizer"
+        tokenizer_ref["media_type"] = "application/json"
     raws = {
         "tasks": raw(
             "tasks.json",
@@ -1372,6 +1379,34 @@ def _build_full_study(
             ref["media_type"] = "application/json"
             return ref
 
+        raws["tasks"]["role"] = "task_registry"
+        raws["tasks"]["media_type"] = "application/json"
+        raws["revision"]["role"] = "source_revision"
+        prompt_template_ref = authority_json(
+            "authority-prompt.json",
+            {"template": "synthetic-prefix-v1"},
+            role="prompt_template",
+        )
+        tool_schema_ref = authority_json(
+            "authority-tools.json",
+            {"tools": []},
+            role="tool_schema",
+        )
+        clock_source_ref = authority_json(
+            "authority-clock.json",
+            {"clock": "synthetic-monotonic-v1"},
+            role="clock_source",
+        )
+        watchdog_source_ref = authority_json(
+            "authority-watchdog.json",
+            {"watchdog": "synthetic-deadline-v1"},
+            role="watchdog_source",
+        )
+        qualification_ref = authority_json(
+            "authority-isolation-qualification.json",
+            {"qualification": "synthetic-isolation-v1"},
+            role="isolation_qualification",
+        )
         source_revisions = [raws["revision"]]
         aggregate_caps = {
             "generated_tokens": 40,
@@ -1382,8 +1417,8 @@ def _build_full_study(
         common_call_contract = {
             "schema_version": "1",
             "tokenizer_ref": raws["tokenizer"],
-            "prompt_template_ref": raws["template"],
-            "tool_schema_ref": raws["policy"],
+            "prompt_template_ref": prompt_template_ref,
+            "tool_schema_ref": tool_schema_ref,
             "request_grammar": "synthetic-request-v1",
             "response_grammar": "synthetic-response-v1",
             "seeded_call_grammar": "call-seed-v1",
@@ -1403,16 +1438,6 @@ def _build_full_study(
             },
             role="subject_contract",
         )
-        simulator_contract_ref = authority_json(
-            "simulator-contract.json",
-            {
-                **common_call_contract,
-                "record_kind": "prefix_simulator_contract_v1",
-                "model_id": "synthetic-simulator",
-                "nominal_type": "SyntheticSimulator",
-            },
-            role="simulator_contract",
-        )
         parser_contract_ref = authority_json(
             "parser-contract.json",
             {
@@ -1421,7 +1446,7 @@ def _build_full_study(
                 "nominal_type": "SyntheticToolParser",
                 "build_id": "synthetic-fixture-build",
                 "response_grammar": "synthetic-response-v1",
-                "tool_schema_ref": raws["policy"],
+                "tool_schema_ref": tool_schema_ref,
                 "source_revision_refs": source_revisions,
             },
             role="tool_parser_contract",
@@ -1433,8 +1458,8 @@ def _build_full_study(
                 "schema_version": "1",
                 "nominal_type": "SyntheticMeter",
                 "build_id": "synthetic-fixture-build",
-                "clock_source_ref": raws["revision"],
-                "watchdog_source_ref": raws["revision"],
+                "clock_source_ref": clock_source_ref,
+                "watchdog_source_ref": watchdog_source_ref,
                 "cost_units": {
                     "currency": "usd_micros",
                     "generated_tokens": "tokens",
@@ -1521,7 +1546,7 @@ def _build_full_study(
                     "distinct_processes": True,
                     "distinct_roots": True,
                     "no_shared_writable_state": True,
-                    "qualification_ref": raws["revision"],
+                    "qualification_ref": qualification_ref,
                 },
                 role="isolation_contract",
             )
@@ -1560,13 +1585,14 @@ def _build_full_study(
                             "pending_prefix_calls_count_against_tool_cap": True,
                         },
                         "simulator_caps": {
-                            "aggregate_generated_tokens": 40,
-                            "aggregate_model_calls": 4,
-                            "per_call_generated_tokens": 12,
-                            "per_call_turns": 1,
+                            "aggregate_generated_tokens": 0,
+                            "aggregate_model_calls": 0,
+                            "aggregate_turns": 0,
+                            "per_call_generated_tokens": 0,
+                            "per_call_turns": 0,
                         },
                         "subject_contract_ref": subject_contract_ref,
-                        "simulator_contract_ref": simulator_contract_ref,
+                        "simulator_contract_ref": None,
                         "tool_parser_contract_ref": parser_contract_ref,
                         "meter_contract_ref": meter_contract_ref,
                     }
@@ -1668,6 +1694,8 @@ def _build_full_study(
         "resampling_study_manifest",
         manifest_payload,
     )
+    if completed_power_consumer_fixture:
+        manifest_ref["role"] = "study_manifest"
 
     schedule_payload = _minimal_payload("resampling_prefix_schedule")
     schedule_payload["manifest_ref"] = manifest_ref
@@ -3280,6 +3308,13 @@ def test_t3_s07_prefix_schedule_is_derived_and_published_inside_lease(
         (root / "operational/storage-policy/prefix.json").read_bytes()
     )
     assert receipt["publication_commit"]["scientific_sha256"] == schedule_ref.sha256
+    authority = load_prefix_execution_authority(
+        run_root=root,
+        schedule_ref=schedule_ref,
+        task_id="task-1",
+    )
+    assert authority.simulator_contract_ref is None
+    assert authority.simulator_caps == SimulatorCaps(0, 0, 0, 0, 0)
 
 
 def test_t3_s09_branch_assignment_is_derived_inside_assignment_lease(
@@ -4760,8 +4795,10 @@ def test_study_manifest_seal_copies_all_sources_without_reading_clock(
     assert manifest["frozen_created_at"] == FROZEN
 
 
-def test_t5_s02a_study_seal_copies_v2_provider_nested_refs(
+@pytest.mark.parametrize("binding_failure", [False, True])
+def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
     tmp_path: Path,
+    binding_failure: bool,
 ) -> None:
     external = tmp_path / "external"
     external.mkdir()
@@ -4814,6 +4851,15 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs(
             {"kind": "issue_family", "value": "bug"},
         ],
     }
+    revision_deep_source = write_json(
+        external / "sources" / "provider-authority" / "revision-deep.json",
+        {"deep": "revision-authority"},
+    )
+    revision_deep_ref = external_ref(
+        revision_deep_source,
+        relative_path="sources/provider-authority/revision-deep.json",
+        role="deep_authority_asset",
+    )
     sources = {
         "tasks": write_json(
             external / "tasks.json",
@@ -4829,7 +4875,10 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs(
         ),
         "revision": write_json(
             external / "revision.json",
-            {"revision": "fixture-v1"},
+            {
+                "revision": "fixture-v1",
+                "nested_ref": revision_deep_ref,
+            },
         ),
     }
     for name in (
@@ -4990,6 +5039,7 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs(
         {
             **common_task,
             "record_kind": "prefix_environment_contract_v1",
+            "benchmark": "tau" if binding_failure else "swe",
             "nominal_factory_type": "FixtureEnvironmentFactory",
             "snapshot_grammar": "fixture-snapshot-v1",
             "restore_grammar": "fixture-restore-v1",
@@ -5061,6 +5111,7 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs(
                     "simulator_caps": {
                         "aggregate_generated_tokens": 40,
                         "aggregate_model_calls": 4,
+                        "aggregate_turns": 4,
                         "per_call_generated_tokens": 12,
                         "per_call_turns": 1,
                     },
@@ -5098,6 +5149,28 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs(
     )
     run_root = tmp_path / "run"
     run_root.mkdir()
+    if binding_failure:
+        with pytest.raises(RecordValidationError, match="benchmark"):
+            seal_study_manifest(
+                study,
+                sources["tasks"],
+                sources["roster"],
+                sources["assignment"],
+                sources["provider"],
+                sources["storage-policy"],
+                sources["power-grid"],
+                sources["power-topology"],
+                sources["tokenizer"],
+                sources["template"],
+                sources["policy"],
+                sources["pads"],
+                [sources["revision"]],
+                sources["required"],
+                run_root=run_root,
+                out=run_root / "study-manifest.json",
+            )
+        assert list(run_root.iterdir()) == []
+        return
     manifest_ref = seal_study_manifest(
         study,
         sources["tasks"],
@@ -5132,6 +5205,7 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs(
         clock_ref,
         watchdog_ref,
         qualification_ref,
+        revision_deep_ref,
     ):
         assert (run_root / cast(str, ref["relative_path"])).is_file()
 

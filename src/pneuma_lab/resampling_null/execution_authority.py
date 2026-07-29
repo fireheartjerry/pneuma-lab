@@ -42,6 +42,7 @@ _CAP_FIELDS = {
 _SIMULATOR_CAP_FIELDS = {
     "aggregate_generated_tokens",
     "aggregate_model_calls",
+    "aggregate_turns",
     "per_call_generated_tokens",
     "per_call_turns",
 }
@@ -75,6 +76,8 @@ class PrefixExecutionAuthority:
     prefix_caps: PrefixCaps
     branch_caps: BranchCaps
     simulator_caps: SimulatorCaps
+    subject_contract_caps: SimulatorCaps
+    simulator_contract_caps: SimulatorCaps | None
     task_input_ref: ArtifactRef
     environment_contract_ref: ArtifactRef
     grader_contract_ref: ArtifactRef
@@ -109,6 +112,15 @@ class PrefixExecutionAuthority:
             raise TypeError("branch_caps must be exact BranchCaps")
         if type(self.simulator_caps) is not SimulatorCaps:
             raise TypeError("simulator_caps must be exact SimulatorCaps")
+        if type(self.subject_contract_caps) is not SimulatorCaps:
+            raise TypeError("subject_contract_caps must be exact SimulatorCaps")
+        if (
+            self.simulator_contract_caps is not None
+            and type(self.simulator_contract_caps) is not SimulatorCaps
+        ):
+            raise TypeError(
+                "simulator_contract_caps must be exact SimulatorCaps or None"
+            )
         if (
             self.simulator_contract_ref is not None
             and type(self.simulator_contract_ref) is not ArtifactRef
@@ -138,6 +150,8 @@ class _Lane:
     prefix_caps: PrefixCaps
     branch_caps: BranchCaps
     simulator_caps: SimulatorCaps
+    subject_contract_caps: SimulatorCaps
+    simulator_contract_caps: SimulatorCaps | None
     subject_contract_ref: ArtifactRef
     simulator_contract_ref: ArtifactRef | None
     tool_parser_contract_ref: ArtifactRef
@@ -148,6 +162,19 @@ class _Lane:
 class _ValidatedProviderPlan:
     lanes: tuple[_Lane, ...]
     task_lanes: tuple[_TaskLane, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _ValidatedCallContract:
+    caps: SimulatorCaps
+    response_grammar: str
+    tool_schema_ref: ArtifactRef
+
+
+@dataclass(frozen=True, slots=True)
+class _ValidatedParserContract:
+    response_grammar: str
+    tool_schema_ref: ArtifactRef
 
 
 def _closed_mapping(
@@ -179,7 +206,12 @@ def _exact_nonnegative_int(value: object, *, field: str) -> int:
     return integer
 
 
-def _artifact_ref(value: object, *, field: str) -> ArtifactRef:
+def _artifact_ref(
+    value: object,
+    *,
+    field: str,
+    expected_role: str | None = None,
+) -> ArtifactRef:
     mapping = _closed_mapping(value, fields=_REF_FIELDS, field=field)
     try:
         ref = ArtifactRef(
@@ -191,7 +223,61 @@ def _artifact_ref(value: object, *, field: str) -> ArtifactRef:
         )
     except (TypeError, ValueError) as exc:
         raise RecordValidationError(f"{field} is malformed: {exc}") from exc
+    if expected_role is not None and ref.role != expected_role:
+        raise RecordValidationError(
+            f"{field} role must equal {expected_role!r}"
+        )
     return ref
+
+
+def _verify_ref_closure(
+    ref: ArtifactRef,
+    *,
+    run_root: Path,
+    field: str,
+    expected_role: str | None = None,
+    visited: set[ArtifactRef] | None = None,
+) -> object:
+    if expected_role is not None and ref.role != expected_role:
+        raise RecordValidationError(
+            f"{field} role must equal {expected_role!r}"
+        )
+    observed = visited if visited is not None else set()
+    if ref in observed:
+        return None
+    observed.add(ref)
+    path, raw = _read_ref(ref, run_root=run_root)
+    if ref.media_type != "application/json":
+        return None
+    value = _load_json_bytes(raw, source=path)
+    if raw != canonical_json_bytes(value, indent=None):
+        raise RecordValidationError(f"{field} must be compact canonical JSON")
+    for index, nested_ref in enumerate(_walk_exact_artifact_refs(value)):
+        _verify_ref_closure(
+            nested_ref,
+            run_root=run_root,
+            field=f"{field} nested ref {index}",
+            visited=observed,
+        )
+    return value
+
+
+def _walk_exact_artifact_refs(value: object) -> tuple[ArtifactRef, ...]:
+    refs: list[ArtifactRef] = []
+
+    def walk(candidate: object, *, field: str) -> None:
+        if isinstance(candidate, Mapping):
+            if set(candidate) == _REF_FIELDS:
+                refs.append(_artifact_ref(candidate, field=field))
+                return
+            for key, nested in candidate.items():
+                walk(nested, field=f"{field}.{key}")
+        elif isinstance(candidate, list):
+            for index, nested in enumerate(candidate):
+                walk(nested, field=f"{field}[{index}]")
+
+    walk(value, field="$")
+    return tuple(refs)
 
 
 def _read_json_ref(
@@ -200,16 +286,27 @@ def _read_json_ref(
     run_root: Path,
     field: str,
     canonical: bool,
+    expected_role: str,
 ) -> dict[str, object]:
+    if ref.role != expected_role:
+        raise RecordValidationError(
+            f"{field} role must equal {expected_role!r}"
+        )
     if ref.media_type != "application/json":
         raise RecordValidationError(f"{field} must reference application/json")
-    path, raw = _read_ref(ref, run_root=run_root)
-    value = _load_json_bytes(raw, source=path)
+    if canonical:
+        value = _verify_ref_closure(
+            ref,
+            run_root=run_root,
+            field=field,
+            expected_role=expected_role,
+        )
+    else:
+        path, raw = _read_ref(ref, run_root=run_root)
+        value = _load_json_bytes(raw, source=path)
     if not isinstance(value, Mapping):
         raise RecordValidationError(f"{field} must reference a JSON object")
     plain = dict(value)
-    if canonical and raw != canonical_json_bytes(plain, indent=None):
-        raise RecordValidationError(f"{field} must be compact canonical JSON")
     return plain
 
 
@@ -223,7 +320,11 @@ def _validate_source_revisions(
     if not isinstance(value, list) or not value:
         raise RecordValidationError(f"{field} must be a non-empty array")
     refs = tuple(
-        _artifact_ref(item, field=f"{field}[{index}]")
+        _artifact_ref(
+            item,
+            field=f"{field}[{index}]",
+            expected_role="source_revision",
+        )
         for index, item in enumerate(value)
     )
     if len(refs) != len(set(refs)):
@@ -233,7 +334,12 @@ def _validate_source_revisions(
             f"{field} contains a non-manifest source revision"
         )
     for ref in refs:
-        _read_ref(ref, run_root=run_root)
+        _verify_ref_closure(
+            ref,
+            run_root=run_root,
+            field=field,
+            expected_role="source_revision",
+        )
 
 
 def _validate_named_caps(
@@ -257,8 +363,19 @@ def _validate_call_contract(
     manifest_revisions: tuple[ArtifactRef, ...],
     run_root: Path,
     field: str,
-) -> None:
-    value = _read_json_ref(ref, run_root=run_root, field=field, canonical=True)
+) -> _ValidatedCallContract:
+    expected_role = (
+        "subject_contract"
+        if expected_kind == "prefix_subject_contract_v1"
+        else "simulator_contract"
+    )
+    value = _read_json_ref(
+        ref,
+        run_root=run_root,
+        field=field,
+        canonical=True,
+        expected_role=expected_role,
+    )
     contract = _closed_mapping(
         value,
         fields=_CALL_CONTRACT_FIELDS,
@@ -284,28 +401,71 @@ def _validate_call_contract(
     contract_tokenizer = _artifact_ref(
         contract["tokenizer_ref"],
         field=f"{field}.tokenizer_ref",
+        expected_role="tokenizer",
     )
     if contract_tokenizer != tokenizer_ref:
         raise RecordValidationError(f"{field} tokenizer differs from manifest")
-    _read_ref(contract_tokenizer, run_root=run_root)
-    for name in ("prompt_template_ref", "tool_schema_ref"):
-        nested_ref = _artifact_ref(contract[name], field=f"{field}.{name}")
-        _read_ref(nested_ref, run_root=run_root)
-    _validate_named_caps(
+    _verify_ref_closure(
+        contract_tokenizer,
+        run_root=run_root,
+        field=f"{field}.tokenizer_ref",
+        expected_role="tokenizer",
+    )
+    prompt_ref = _artifact_ref(
+        contract["prompt_template_ref"],
+        field=f"{field}.prompt_template_ref",
+        expected_role="prompt_template",
+    )
+    _verify_ref_closure(
+        prompt_ref,
+        run_root=run_root,
+        field=f"{field}.prompt_template_ref",
+        expected_role="prompt_template",
+    )
+    tool_schema_ref = _artifact_ref(
+        contract["tool_schema_ref"],
+        field=f"{field}.tool_schema_ref",
+        expected_role="tool_schema",
+    )
+    _verify_ref_closure(
+        tool_schema_ref,
+        run_root=run_root,
+        field=f"{field}.tool_schema_ref",
+        expected_role="tool_schema",
+    )
+    aggregate = _validate_named_caps(
         contract["aggregate_caps"],
         fields={"generated_tokens", "model_calls", "turns"},
         field=f"{field}.aggregate_caps",
     )
-    _validate_named_caps(
+    per_call = _validate_named_caps(
         contract["per_call_caps"],
         fields={"generated_tokens", "turns"},
         field=f"{field}.per_call_caps",
     )
+    if (
+        per_call["generated_tokens"] > aggregate["generated_tokens"]
+        or per_call["turns"] > aggregate["turns"]
+    ):
+        raise RecordValidationError(
+            f"{field} per-call caps cannot exceed aggregate caps"
+        )
     _validate_source_revisions(
         contract["source_revision_refs"],
         field=f"{field}.source_revision_refs",
         manifest_revisions=manifest_revisions,
         run_root=run_root,
+    )
+    return _ValidatedCallContract(
+        caps=SimulatorCaps(
+            aggregate_generated_tokens=aggregate["generated_tokens"],
+            aggregate_model_calls=aggregate["model_calls"],
+            aggregate_turns=aggregate["turns"],
+            per_call_generated_tokens=per_call["generated_tokens"],
+            per_call_turns=per_call["turns"],
+        ),
+        response_grammar=cast(str, contract["response_grammar"]),
+        tool_schema_ref=tool_schema_ref,
     )
 
 
@@ -314,10 +474,16 @@ def _validate_parser_contract(
     *,
     manifest_revisions: tuple[ArtifactRef, ...],
     run_root: Path,
-) -> None:
+) -> _ValidatedParserContract:
     field = "tool parser contract"
     contract = _closed_mapping(
-        _read_json_ref(ref, run_root=run_root, field=field, canonical=True),
+        _read_json_ref(
+            ref,
+            run_root=run_root,
+            field=field,
+            canonical=True,
+            expected_role="tool_parser_contract",
+        ),
         fields={
             "record_kind",
             "schema_version",
@@ -339,13 +505,23 @@ def _validate_parser_contract(
     tool_schema_ref = _artifact_ref(
         contract["tool_schema_ref"],
         field=f"{field}.tool_schema_ref",
+        expected_role="tool_schema",
     )
-    _read_ref(tool_schema_ref, run_root=run_root)
+    _verify_ref_closure(
+        tool_schema_ref,
+        run_root=run_root,
+        field=f"{field}.tool_schema_ref",
+        expected_role="tool_schema",
+    )
     _validate_source_revisions(
         contract["source_revision_refs"],
         field=f"{field}.source_revision_refs",
         manifest_revisions=manifest_revisions,
         run_root=run_root,
+    )
+    return _ValidatedParserContract(
+        response_grammar=cast(str, contract["response_grammar"]),
+        tool_schema_ref=tool_schema_ref,
     )
 
 
@@ -354,10 +530,16 @@ def _validate_meter_contract(
     *,
     manifest_revisions: tuple[ArtifactRef, ...],
     run_root: Path,
-) -> None:
+) -> bool:
     field = "meter contract"
     contract = _closed_mapping(
-        _read_json_ref(ref, run_root=run_root, field=field, canonical=True),
+        _read_json_ref(
+            ref,
+            run_root=run_root,
+            field=field,
+            canonical=True,
+            expected_role="meter_contract",
+        ),
         fields={
             "record_kind",
             "schema_version",
@@ -385,9 +567,21 @@ def _validate_meter_contract(
         "settlement_grammar",
     ):
         _exact_text(contract[name], field=f"{field}.{name}")
-    for name in ("clock_source_ref", "watchdog_source_ref"):
-        nested_ref = _artifact_ref(contract[name], field=f"{field}.{name}")
-        _read_ref(nested_ref, run_root=run_root)
+    for name, role in (
+        ("clock_source_ref", "clock_source"),
+        ("watchdog_source_ref", "watchdog_source"),
+    ):
+        nested_ref = _artifact_ref(
+            contract[name],
+            field=f"{field}.{name}",
+            expected_role=role,
+        )
+        _verify_ref_closure(
+            nested_ref,
+            run_root=run_root,
+            field=f"{field}.{name}",
+            expected_role=role,
+        )
     units = _closed_mapping(
         contract["cost_units"],
         fields={"currency", "generated_tokens", "model_calls", "wall_clock"},
@@ -405,6 +599,7 @@ def _validate_meter_contract(
         manifest_revisions=manifest_revisions,
         run_root=run_root,
     )
+    return cast(bool, contract["zero_cost_synthetic_closure"])
 
 
 def _validate_task_input(
@@ -416,7 +611,13 @@ def _validate_task_input(
 ) -> bool:
     field = f"task input {task_id!r}"
     task_input = _closed_mapping(
-        _read_json_ref(ref, run_root=run_root, field=field, canonical=True),
+        _read_json_ref(
+            ref,
+            run_root=run_root,
+            field=field,
+            canonical=True,
+            expected_role="task_input",
+        ),
         fields={
             "record_kind",
             "schema_version",
@@ -493,7 +694,13 @@ def _validate_task_contract(
     else:
         raise AssertionError("unregistered task contract kind")
     contract = _closed_mapping(
-        _read_json_ref(ref, run_root=run_root, field=field, canonical=True),
+        _read_json_ref(
+            ref,
+            run_root=run_root,
+            field=field,
+            canonical=True,
+            expected_role=f"{contract_kind}_contract",
+        ),
         fields=fields,
         field=field,
     )
@@ -536,8 +743,14 @@ def _validate_task_contract(
         qualification_ref = _artifact_ref(
             contract["qualification_ref"],
             field=f"{field}.qualification_ref",
+            expected_role="isolation_qualification",
         )
-        _read_ref(qualification_ref, run_root=run_root)
+        _verify_ref_closure(
+            qualification_ref,
+            run_root=run_root,
+            field=f"{field}.qualification_ref",
+            expected_role="isolation_qualification",
+        )
     for name in text_fields:
         _exact_text(contract[name], field=f"{field}.{name}")
     _validate_source_revisions(
@@ -589,6 +802,7 @@ def _validate_provider_lane_plan(
     registry: dict[str, object],
     tokenizer_ref: ArtifactRef,
     manifest_revisions: tuple[ArtifactRef, ...],
+    schedule_authority: str | None = None,
 ) -> _ValidatedProviderPlan:
     plan = _closed_mapping(
         value,
@@ -638,6 +852,7 @@ def _validate_provider_lane_plan(
         subject_ref = _artifact_ref(
             lane["subject_contract_ref"],
             field=f"{field}.subject_contract_ref",
+            expected_role="subject_contract",
         )
         simulator_ref = (
             None
@@ -645,17 +860,20 @@ def _validate_provider_lane_plan(
             else _artifact_ref(
                 lane["simulator_contract_ref"],
                 field=f"{field}.simulator_contract_ref",
+                expected_role="simulator_contract",
             )
         )
         parser_ref = _artifact_ref(
             lane["tool_parser_contract_ref"],
             field=f"{field}.tool_parser_contract_ref",
+            expected_role="tool_parser_contract",
         )
         meter_ref = _artifact_ref(
             lane["meter_contract_ref"],
             field=f"{field}.meter_contract_ref",
+            expected_role="meter_contract",
         )
-        _validate_call_contract(
+        subject_binding = _validate_call_contract(
             subject_ref,
             expected_kind="prefix_subject_contract_v1",
             tokenizer_ref=tokenizer_ref,
@@ -663,8 +881,9 @@ def _validate_provider_lane_plan(
             run_root=run_root,
             field=f"{field} subject contract",
         )
+        simulator_binding: _ValidatedCallContract | None = None
         if simulator_ref is not None:
-            _validate_call_contract(
+            simulator_binding = _validate_call_contract(
                 simulator_ref,
                 expected_kind="prefix_simulator_contract_v1",
                 tokenizer_ref=tokenizer_ref,
@@ -672,31 +891,101 @@ def _validate_provider_lane_plan(
                 run_root=run_root,
                 field=f"{field} simulator contract",
             )
-        _validate_parser_contract(
+        parser_binding = _validate_parser_contract(
             parser_ref,
             manifest_revisions=manifest_revisions,
             run_root=run_root,
         )
-        _validate_meter_contract(
+        zero_cost_synthetic_closure = _validate_meter_contract(
             meter_ref,
             manifest_revisions=manifest_revisions,
             run_root=run_root,
         )
+        if (
+            schedule_authority == "synthetic_validation"
+            and not zero_cost_synthetic_closure
+        ):
+            raise RecordValidationError(
+                f"{field} requires zero-cost synthetic meter closure"
+            )
+        prefix_caps = _prefix_caps(
+            lane["prefix_caps"],
+            field=f"{field}.prefix_caps",
+        )
+        branch_caps = _branch_caps(
+            lane["branch_caps"],
+            field=f"{field}.branch_caps",
+        )
+        simulator_caps = _simulator_caps(
+            lane["simulator_caps"],
+            field=f"{field}.simulator_caps",
+        )
+        if (
+            max(prefix_caps.generated_tokens, branch_caps.generated_tokens)
+            > subject_binding.caps.aggregate_generated_tokens
+            or max(prefix_caps.model_calls, branch_caps.model_calls)
+            > subject_binding.caps.aggregate_model_calls
+        ):
+            raise RecordValidationError(
+                f"{field} subject contract caps do not bound lane caps"
+            )
+        if (
+            parser_binding.response_grammar
+            != subject_binding.response_grammar
+        ):
+            raise RecordValidationError(
+                f"{field} parser response grammar differs from subject"
+            )
+        if parser_binding.tool_schema_ref != subject_binding.tool_schema_ref:
+            raise RecordValidationError(
+                f"{field} parser tool schema differs from subject"
+            )
+        if simulator_binding is None:
+            if simulator_caps != SimulatorCaps(0, 0, 0, 0, 0):
+                raise RecordValidationError(
+                    f"{field} absent simulator requires all-zero simulator caps"
+                )
+        else:
+            if simulator_caps != simulator_binding.caps:
+                raise RecordValidationError(
+                    f"{field} simulator caps differ from simulator contract"
+                )
+            if any(
+                value <= 0
+                for value in (
+                    simulator_caps.aggregate_generated_tokens,
+                    simulator_caps.aggregate_model_calls,
+                    simulator_caps.aggregate_turns,
+                    simulator_caps.per_call_generated_tokens,
+                    simulator_caps.per_call_turns,
+                )
+            ):
+                raise RecordValidationError(
+                    f"{field} present simulator caps must be positive"
+                )
+            if (
+                parser_binding.response_grammar
+                != simulator_binding.response_grammar
+            ):
+                raise RecordValidationError(
+                    f"{field} parser response grammar differs from simulator"
+                )
+            if parser_binding.tool_schema_ref != simulator_binding.tool_schema_ref:
+                raise RecordValidationError(
+                    f"{field} parser tool schema differs from simulator"
+                )
         lanes.append(
             _Lane(
                 ordinal=ordinal,
                 lane_id=lane_id,
-                prefix_caps=_prefix_caps(
-                    lane["prefix_caps"],
-                    field=f"{field}.prefix_caps",
-                ),
-                branch_caps=_branch_caps(
-                    lane["branch_caps"],
-                    field=f"{field}.branch_caps",
-                ),
-                simulator_caps=_simulator_caps(
-                    lane["simulator_caps"],
-                    field=f"{field}.simulator_caps",
+                prefix_caps=prefix_caps,
+                branch_caps=branch_caps,
+                simulator_caps=simulator_caps,
+                subject_contract_caps=subject_binding.caps,
+                simulator_contract_caps=(
+                    simulator_binding.caps
+                    if simulator_binding is not None
+                    else None
                 ),
                 subject_contract_ref=subject_ref,
                 simulator_contract_ref=simulator_ref,
@@ -765,6 +1054,11 @@ def _validate_provider_lane_plan(
             name: _artifact_ref(
                 row[f"{name}_ref"],
                 field=f"{field}.{name}_ref",
+                expected_role=(
+                    "task_input"
+                    if name == "task_input"
+                    else name
+                ),
             )
             for name in (
                 "task_input",
@@ -827,11 +1121,15 @@ def _validate_provider_lane_plan(
                 "provider lane "
                 f"{validated_lane.lane_id!r} is missing a required simulator"
             )
+        if (
+            validated_lane.simulator_contract_ref is not None
+            and not any(row.requires_user_simulator for row in assigned)
+        ):
+            raise RecordValidationError(
+                "provider lane "
+                f"{validated_lane.lane_id!r} has unnecessary simulator authority"
+            )
     return _ValidatedProviderPlan(tuple(lanes), tuple(task_lanes))
-
-
-def _manifest_ref(value: object, *, field: str) -> ArtifactRef:
-    return _artifact_ref(value, field=field)
 
 
 def load_prefix_execution_authority(
@@ -846,6 +1144,10 @@ def load_prefix_execution_authority(
         raise TypeError("run_root must be an exact platform Path")
     if type(schedule_ref) is not ArtifactRef:
         raise TypeError("schedule_ref must be an exact ArtifactRef")
+    if schedule_ref.role != "resampling_prefix_schedule":
+        raise RecordValidationError(
+            "schedule_ref role must equal 'resampling_prefix_schedule'"
+        )
     if type(task_id) is not str:
         raise TypeError("task_id must be exact text")
     if not task_id:
@@ -858,9 +1160,10 @@ def load_prefix_execution_authority(
         expected_kind="resampling_prefix_schedule",
     )
     schedule_payload = cast(dict[str, object], schedule.value["payload"])
-    manifest_ref = _manifest_ref(
+    manifest_ref = _artifact_ref(
         schedule_payload["manifest_ref"],
         field="schedule manifest_ref",
+        expected_role="study_manifest",
     )
     manifest = _load_direct_scientific_parent(
         asdict(manifest_ref),
@@ -890,12 +1193,14 @@ def load_prefix_execution_authority(
     registry_ref = _artifact_ref(
         manifest_payload["task_registry_ref"],
         field="manifest task_registry_ref",
+        expected_role="task_registry",
     )
     registry = _read_json_ref(
         registry_ref,
         run_root=root,
         field="task registry",
         canonical=False,
+        expected_role="task_registry",
     )
     if (
         set(registry) != {"record_kind", "schema_version", "tasks"}
@@ -923,28 +1228,45 @@ def load_prefix_execution_authority(
     tokenizer_ref = _artifact_ref(
         manifest_payload["tokenizer_ref"],
         field="manifest tokenizer_ref",
+        expected_role="tokenizer",
     )
-    _read_ref(tokenizer_ref, run_root=root)
+    _verify_ref_closure(
+        tokenizer_ref,
+        run_root=root,
+        field="manifest tokenizer_ref",
+        expected_role="tokenizer",
+    )
     revisions_value = manifest_payload["source_revision_refs"]
     if not isinstance(revisions_value, list) or not revisions_value:
         raise RecordValidationError(
             "manifest source_revision_refs must be a non-empty array"
         )
     manifest_revisions = tuple(
-        _artifact_ref(value, field=f"manifest source_revision_refs[{index}]")
+        _artifact_ref(
+            value,
+            field=f"manifest source_revision_refs[{index}]",
+            expected_role="source_revision",
+        )
         for index, value in enumerate(revisions_value)
     )
     for revision_ref in manifest_revisions:
-        _read_ref(revision_ref, run_root=root)
+        _verify_ref_closure(
+            revision_ref,
+            run_root=root,
+            field="manifest source revision",
+            expected_role="source_revision",
+        )
     provider_ref = _artifact_ref(
         manifest_payload["provider_lane_plan_ref"],
         field="manifest provider_lane_plan_ref",
+        expected_role="provider_lane_plan",
     )
     provider_plan = _read_json_ref(
         provider_ref,
         run_root=root,
         field="provider lane plan",
         canonical=False,
+        expected_role="provider_lane_plan",
     )
     validated_plan = _validate_provider_lane_plan(
         provider_plan,
@@ -952,6 +1274,7 @@ def load_prefix_execution_authority(
         registry=registry,
         tokenizer_ref=tokenizer_ref,
         manifest_revisions=manifest_revisions,
+        schedule_authority=cast(str, schedule_payload["schedule_authority"]),
     )
     task_rows = [
         row for row in validated_plan.task_lanes if row.task_id == task_id
@@ -985,6 +1308,8 @@ def load_prefix_execution_authority(
         prefix_caps=selected_lane.prefix_caps,
         branch_caps=selected_lane.branch_caps,
         simulator_caps=selected_lane.simulator_caps,
+        subject_contract_caps=selected_lane.subject_contract_caps,
+        simulator_contract_caps=selected_lane.simulator_contract_caps,
         task_input_ref=task_row.task_input_ref,
         environment_contract_ref=task_row.environment_contract_ref,
         grader_contract_ref=task_row.grader_contract_ref,

@@ -812,6 +812,7 @@ class BranchCaps:
 class SimulatorCaps:
     aggregate_generated_tokens: int
     aggregate_model_calls: int
+    aggregate_turns: int
     per_call_generated_tokens: int
     per_call_turns: int
 
@@ -819,6 +820,7 @@ class SimulatorCaps:
         for name in (
             "aggregate_generated_tokens",
             "aggregate_model_calls",
+            "aggregate_turns",
             "per_call_generated_tokens",
             "per_call_turns",
         ):

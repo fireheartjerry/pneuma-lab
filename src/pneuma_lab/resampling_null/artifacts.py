@@ -11,6 +11,7 @@ import math
 import mimetypes
 from numbers import Number
 from pathlib import Path, PurePosixPath
+import tempfile
 from typing import Any, Literal, cast
 
 from jsonschema import Draft202012Validator
@@ -1098,6 +1099,9 @@ def _plan_provider_v2_closure(
         observed.add(ref)
         known = known_by_ref.get(ref)
         if known is not None:
+            if ref.media_type == "application/json":
+                nested = _load_json_bytes(known.payload, source=known.source)
+                pending.extend(_walk_artifact_refs(nested))
             continue
         conflicting = known_by_path.get(ref.relative_path)
         if conflicting is not None and conflicting != ref:
@@ -1367,9 +1371,6 @@ def seal_study_manifest(
     validated = validate_record(final)
     out_target, _relative = _prepare_destination(out, root)
 
-    for copy in all_copies:
-        copy.destination.parent.mkdir(parents=True, exist_ok=True)
-        write_atomic_bytes(copy.destination, copy.payload)
     provider_value = _load_json_bytes(
         provider_copy.payload,
         source=provider_copy.source,
@@ -1395,13 +1396,27 @@ def seal_study_manifest(
             )
         registry = dict(task_value)
         _validate_task_registry(registry)
-        _validate_provider_lane_plan(
-            provider_value,
-            run_root=root,
-            registry=registry,
-            tokenizer_ref=by_role["tokenizer"],
-            manifest_revisions=tuple(copy.ref for copy in revision_copies),
-        )
+        with tempfile.TemporaryDirectory(
+            prefix=".pneuma-manifest-stage-",
+            dir=root.parent,
+        ) as staging_name:
+            staging_root = Path(staging_name)
+            for copy in all_copies:
+                staging_path = staging_root / copy.ref.relative_path
+                staging_path.parent.mkdir(parents=True, exist_ok=True)
+                write_atomic_bytes(staging_path, copy.payload)
+            _validate_provider_lane_plan(
+                provider_value,
+                run_root=staging_root,
+                registry=registry,
+                tokenizer_ref=by_role["tokenizer"],
+                manifest_revisions=tuple(
+                    copy.ref for copy in revision_copies
+                ),
+            )
+    for copy in all_copies:
+        copy.destination.parent.mkdir(parents=True, exist_ok=True)
+        write_atomic_bytes(copy.destination, copy.payload)
     return write_record(
         out_target,
         validated,
