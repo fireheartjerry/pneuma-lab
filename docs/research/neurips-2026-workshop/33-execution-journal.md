@@ -1047,3 +1047,11 @@ The next event after the archived migration boundary is appended below.
 - **Repair:** Require exact `str` before closed role membership in both seed derivation and receipt construction; require exact tuple containers and exact context/tool-call record members; split scalar type failures from range/value failures; and exercise the primitive API only through public package exports.
 - **GREEN/static:** The same focused behavior command passed four tests in 0.23 seconds. The same capped Ruff slice over controller, types, exports, and focused test passed; the capped mypy slice over three source files reported no issues. `git diff --check` passed.
 - **Boundary/non-claims:** Subclass/equality smuggling at these primitive boundaries is closed. No runner, provider call, tool execution, seal, schema, spend, experiment, causal result, or consciousness claim was added or promoted.
+
+### EJ-20260729-0100 — independent T5-S01 review and final local gate
+
+- **Spec review:** An independent read-only reviewer compared the committed implementation with the bounded T5-S01 contract and found it compliant. The reviewer independently reran the focused behavior command: four tests passed, with no unrelated test selection.
+- **Quality review:** A separate hostile reviewer rejected the first commit because equality-overloaded role values and tuple/record subclasses could cross nominally closed forensic boundaries. After the TDD repair in EJ-0098/0099, the same reviewer re-inspected the exact follow-up diff and approved it with no remaining critical, important, or minor finding.
+- **Fresh behavior gate:** `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_controller.py -q`; GREEN, exit 0, four tests passed in 0.21 seconds.
+- **Fresh static gate:** Ruff over controller, types, exports, and the focused test passed; mypy over the three source files reported no issues; every process was capped at 60 seconds. `git diff --check` passed.
+- **Final content hashes:** controller `0f032ef5d581275abdf5d2fe07c6dabdc6ac187d59b1b0c192f4a00273b5f12c`; types `143a492b76045be7b71434e13dcc31e210235652ef0d77027784c01f958275e4`; exports `2e270d1f192a1b5fca0d22e4985689c1892f8caaf58891e641a9164c8979d5c2`; focused test `bda9b1be4e588de27cec75b320d0efb5c7458e5fa93de39f505430b993849604`.
