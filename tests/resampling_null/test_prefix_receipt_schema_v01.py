@@ -12,12 +12,17 @@ SHA_B = "b" * 64
 
 
 def _ref(role: str) -> dict[str, object]:
+    media_type = (
+        "application/octet-stream"
+        if role in {"grade_evidence", "verifier_evidence"}
+        else "application/json"
+    )
     return {
         "role": role,
         "relative_path": f"controller-artifacts/{role}/{SHA_A}",
         "sha256": SHA_A,
         "byte_count": 1,
-        "media_type": "application/json",
+        "media_type": media_type,
     }
 
 

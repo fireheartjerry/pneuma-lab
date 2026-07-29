@@ -215,6 +215,51 @@ def test_success_path_close_failure_removes_artifact_for_retry(
     store.close()
 
 
+def test_base_exception_after_create_removes_artifact_for_retry(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    store = ControllerArtifactStore(tmp_path)
+    real_write_all = controller_artifacts._write_all
+
+    def interrupt_write(descriptor: int, payload: bytes) -> None:
+        raise KeyboardInterrupt("injected write interruption")
+
+    monkeypatch.setattr(controller_artifacts, "_write_all", interrupt_write)
+    with pytest.raises(KeyboardInterrupt, match="write interruption"):
+        store.write(role="request", payload=b"x", media_type="text/plain")
+    monkeypatch.setattr(controller_artifacts, "_write_all", real_write_all)
+    ref = store.write(role="request", payload=b"x", media_type="text/plain")
+    assert ref.byte_count == 1
+    store.close()
+
+
+def test_base_exception_preserves_cleanup_errors_in_base_exception_group(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    store = ControllerArtifactStore(tmp_path)
+    real_unlink = os.unlink
+
+    class InjectedInterruption(BaseException):
+        pass
+
+    def interrupt_write(descriptor: int, payload: bytes) -> None:
+        raise InjectedInterruption("injected write interruption")
+
+    def fail_unlink(path: str, *, dir_fd: int | None = None) -> None:
+        raise OSError("injected interruption cleanup failure")
+
+    monkeypatch.setattr(controller_artifacts, "_write_all", interrupt_write)
+    monkeypatch.setattr(controller_artifacts.os, "unlink", fail_unlink)
+    with pytest.raises(BaseExceptionGroup) as raised:
+        store.write(role="request", payload=b"x", media_type="text/plain")
+    assert isinstance(raised.value.exceptions[0], InjectedInterruption)
+    assert "cleanup failure" in str(raised.value.exceptions[1])
+    monkeypatch.setattr(controller_artifacts.os, "unlink", real_unlink)
+    store.close()
+
+
 def test_verification_and_descriptor_close_failures_are_all_preserved(
     tmp_path,
     monkeypatch,

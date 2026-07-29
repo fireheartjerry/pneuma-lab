@@ -229,7 +229,7 @@ class ControllerArtifactStore:
                 )
             close_owned("read")
             close_owned("role")
-        except Exception as primary_error:
+        except BaseException as primary_error:
             cleanup_errors: list[Exception] = []
             close_owned("write", cleanup_errors)
             close_owned("read", cleanup_errors)
@@ -255,6 +255,13 @@ class ControllerArtifactStore:
                     cleanup_errors.append(exc)
             close_owned("role", cleanup_errors)
             close_owned("cleanup_role", cleanup_errors)
+            if not isinstance(primary_error, Exception):
+                if cleanup_errors:
+                    raise BaseExceptionGroup(
+                        "controller artifact write cleanup is uncertain",
+                        [primary_error, *cleanup_errors],
+                    )
+                raise
             if created or cleanup_errors:
                 message = (
                     "controller artifact write cleanup is uncertain"

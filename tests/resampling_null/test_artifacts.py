@@ -1210,6 +1210,20 @@ def _build_full_study(
         return _write_blob(root, f"{subtree}/{name}", payload)
 
     def controller_raw(role: str, label: str | None = None) -> dict[str, object]:
+        media_types = {
+            "composite_snapshot": "application/json",
+            "grade_evidence": "application/octet-stream",
+            "grade_evidence_receipt": "application/json",
+            "provider_attempt_ledger": "application/json",
+            "provider_cost_closure": "application/json",
+            "token_ids": "application/json",
+            "tool_boundary_ledger": "application/json",
+            "verifier_evidence": "application/octet-stream",
+            "verifier_evidence_receipt": "application/json",
+            "visible_context": "application/json",
+        }
+        if role not in media_types:
+            raise AssertionError(f"unregistered controller fixture role: {role!r}")
         payload = f"{role}-{label or 'fixture'}".encode()
         digest = hashlib.sha256(payload).hexdigest()
         ref = _write_blob(
@@ -1218,6 +1232,7 @@ def _build_full_study(
             payload,
         )
         ref["role"] = role
+        ref["media_type"] = media_types[role]
         return ref
 
     if completed_power_consumer_fixture:
@@ -1969,7 +1984,7 @@ def _build_full_study(
                 role="provider_cost_closure",
                 sha256=SHA_A,
                 byte_count=3,
-                media_type="application/octet-stream",
+                media_type="application/json",
             )
             if variant == "dangling-ref"
             else raws["provider_cost_closure"]
