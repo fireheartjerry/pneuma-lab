@@ -299,10 +299,10 @@ class ControllerEnvironmentIPC:
             )
             raw_fds.remove(response_stream_fd)
             streams.append(response_reader)
-            raw_fds.remove(request_write)
             os.close(request_write)
-            raw_fds.remove(response_read)
+            raw_fds.remove(request_write)
             os.close(response_read)
+            raw_fds.remove(response_read)
             return cls(
                 request_read_fd=request_read,
                 response_write_fd=response_write,
@@ -780,15 +780,25 @@ def _assert_pairwise_isolated(instances: tuple[_OwnedEnvironment, ...]) -> None:
 
 def _open_root(run_root: Path) -> tuple[Path, int]:
     root = Path(run_root)
+    absolute_root = root.absolute()
     metadata = os.stat(root, follow_symlinks=False)
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
         raise RecordValidationError("run root must be a non-symlink directory")
     descriptor = os.open(root, _DIRECTORY_FLAGS)
-    bound = os.fstat(descriptor)
-    if (bound.st_dev, bound.st_ino) != (metadata.st_dev, metadata.st_ino):
-        os.close(descriptor)
-        raise RecordValidationError("run root identity changed during binding")
-    return root.absolute(), descriptor
+    try:
+        bound = os.fstat(descriptor)
+        if (bound.st_dev, bound.st_ino) != (metadata.st_dev, metadata.st_ino):
+            raise RecordValidationError("run root identity changed during binding")
+    except BaseException as primary:
+        try:
+            os.close(descriptor)
+        except BaseException as cleanup:
+            raise BaseExceptionGroup(
+                "run root binding and cleanup failed",
+                [primary, cleanup],
+            ) from None
+        raise
+    return absolute_root, descriptor
 
 
 def _open_workspace(root_fd: int) -> int:
@@ -801,9 +811,18 @@ def _open_workspace(root_fd: int) -> int:
         workspace_fd = os.open(_WORKSPACE_NAME, _DIRECTORY_FLAGS, dir_fd=root_fd)
     except OSError as exc:
         raise RecordValidationError("environment workspace is unsafe") from exc
-    if not stat.S_ISDIR(os.fstat(workspace_fd).st_mode):
-        os.close(workspace_fd)
-        raise RecordValidationError("environment workspace is not a directory")
+    try:
+        if not stat.S_ISDIR(os.fstat(workspace_fd).st_mode):
+            raise RecordValidationError("environment workspace is not a directory")
+    except BaseException as primary:
+        try:
+            os.close(workspace_fd)
+        except BaseException as cleanup:
+            raise BaseExceptionGroup(
+                "environment workspace binding and cleanup failed",
+                [primary, cleanup],
+            ) from None
+        raise
     return workspace_fd
 
 
@@ -981,8 +1000,14 @@ class _EnvironmentFleet:
         self._root, self._root_fd = _open_root(run_root)
         try:
             self._workspace_fd = _open_workspace(self._root_fd)
-        except BaseException:
-            os.close(self._root_fd)
+        except BaseException as primary:
+            try:
+                os.close(self._root_fd)
+            except BaseException as cleanup:
+                raise BaseExceptionGroup(
+                    "environment workspace setup and root cleanup failed",
+                    [primary, cleanup],
+                ) from None
             raise
         self._factory = factory
         self._task_input_bytes = _exact_bytes(task_input_bytes, "task_input_bytes")

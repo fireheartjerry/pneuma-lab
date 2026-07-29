@@ -21,10 +21,13 @@ from pneuma_lab.resampling_null.synthetic_environment import (
     SyntheticEnvironmentFactory,
     SyntheticEnvironmentHandle,
     SyntheticByteTokenizer,
+    _EnvironmentFleet,
     _InitialObservation,
     _assert_pairwise_isolated,
     _cleanup_process,
     _open_qualified_initial_restore,
+    _open_root,
+    _open_workspace,
     _qualify_initial_restore,
     _validate_initial_observation,
 )
@@ -424,6 +427,164 @@ def test_ipc_creation_is_transactional_for_every_acquisition(
     with pytest.raises(BaseException):
         synthetic_environment.ControllerEnvironmentIPC.create()
     assert len(os.listdir("/proc/self/fd")) == before
+
+
+def test_ipc_raw_close_failure_stays_tracked_and_aggregated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before = len(os.listdir("/proc/self/fd"))
+    real_close = synthetic_environment.os.close
+    calls = 0
+
+    def close_then_fail_once(descriptor: int) -> None:
+        nonlocal calls
+        calls += 1
+        real_close(descriptor)
+        if calls == 1:
+            raise OSError("injected raw close uncertainty")
+
+    monkeypatch.setattr(synthetic_environment.os, "close", close_then_fail_once)
+    with pytest.raises(BaseExceptionGroup) as raised:
+        synthetic_environment.ControllerEnvironmentIPC.create()
+
+    leaves = _exception_leaves(raised.value)
+    assert str(leaves[0]) == "injected raw close uncertainty"
+    assert len(leaves) >= 2
+    assert len(os.listdir("/proc/self/fd")) == before
+
+
+@pytest.mark.parametrize("opener", ["root", "workspace"])
+def test_directory_openers_close_fd_after_fstat_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    opener: str,
+) -> None:
+    before = len(os.listdir("/proc/self/fd"))
+    root_fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    if opener == "workspace":
+        (tmp_path / "prefix-environments").mkdir()
+    real_open = synthetic_environment.os.open
+    real_fstat = synthetic_environment.os.fstat
+    target_fd: int | None = None
+
+    def track_directory_open(
+        path: object,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        nonlocal target_fd
+        descriptor = real_open(path, flags, mode, dir_fd=dir_fd)
+        if (opener == "root" and Path(path) == tmp_path) or (
+            opener == "workspace" and path == "prefix-environments"
+        ):
+            target_fd = descriptor
+        return descriptor
+
+    def fail_first_fstat(descriptor: int) -> os.stat_result:
+        if descriptor == target_fd:
+            raise OSError("injected fstat failure")
+        return real_fstat(descriptor)
+
+    monkeypatch.setattr(synthetic_environment.os, "open", track_directory_open)
+    monkeypatch.setattr(synthetic_environment.os, "fstat", fail_first_fstat)
+    try:
+        with pytest.raises(OSError, match="injected fstat failure"):
+            if opener == "root":
+                _open_root(tmp_path)
+            else:
+                _open_workspace(root_fd)
+    finally:
+        os.close(root_fd)
+    assert len(os.listdir("/proc/self/fd")) == before
+
+
+def test_root_opener_aggregates_fstat_primary_before_close_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_open = synthetic_environment.os.open
+    real_close = synthetic_environment.os.close
+    real_fstat = synthetic_environment.os.fstat
+    target_fd: int | None = None
+
+    def track_root_open(
+        path: object,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        nonlocal target_fd
+        descriptor = real_open(path, flags, mode, dir_fd=dir_fd)
+        if Path(path) == tmp_path:
+            target_fd = descriptor
+        return descriptor
+
+    def fail_fstat(descriptor: int) -> os.stat_result:
+        if descriptor == target_fd:
+            raise KeyboardInterrupt("fstat primary")
+        return real_fstat(descriptor)
+
+    def close_then_fail(descriptor: int) -> None:
+        real_close(descriptor)
+        if descriptor == target_fd:
+            raise OSError("close cleanup")
+
+    monkeypatch.setattr(synthetic_environment.os, "open", track_root_open)
+    monkeypatch.setattr(synthetic_environment.os, "fstat", fail_fstat)
+    monkeypatch.setattr(synthetic_environment.os, "close", close_then_fail)
+    with pytest.raises(BaseExceptionGroup) as raised:
+        _open_root(tmp_path)
+    leaves = _exception_leaves(raised.value)
+    assert isinstance(leaves[0], KeyboardInterrupt)
+    assert str(leaves[1]) == "close cleanup"
+
+
+def test_fleet_workspace_failure_aggregates_root_close_after_primary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authority = _authority()
+    factory = SyntheticEnvironmentFactory(
+        task_input_bytes=authority.task_input_bytes,
+        program_bytes=authority.program_bytes,
+        implementation_source_sha256=(
+            authority.environment_descriptor.implementation_source_ref.sha256
+        ),
+    )
+    real_close = synthetic_environment.os.close
+    real_open_root = synthetic_environment._open_root
+    target_fd: int | None = None
+
+    def track_root_open(run_root: Path) -> tuple[Path, int]:
+        nonlocal target_fd
+        bound_root, descriptor = real_open_root(run_root)
+        target_fd = descriptor
+        return bound_root, descriptor
+
+    def fail_workspace(root_fd: int) -> int:
+        raise KeyboardInterrupt("workspace primary")
+
+    def close_then_fail(descriptor: int) -> None:
+        real_close(descriptor)
+        if descriptor == target_fd:
+            raise OSError("root close cleanup")
+
+    monkeypatch.setattr(synthetic_environment, "_open_root", track_root_open)
+    monkeypatch.setattr(synthetic_environment, "_open_workspace", fail_workspace)
+    monkeypatch.setattr(synthetic_environment.os, "close", close_then_fail)
+    with pytest.raises(BaseExceptionGroup) as raised:
+        _EnvironmentFleet(
+            run_root=tmp_path,
+            factory=factory,
+            task_input_bytes=authority.task_input_bytes,
+            program_bytes=authority.program_bytes,
+        )
+    leaves = _exception_leaves(raised.value)
+    assert isinstance(leaves[0], KeyboardInterrupt)
+    assert str(leaves[1]) == "root close cleanup"
 
 
 def test_process_cleanup_waits_after_terminate_and_kill_failures() -> None:
