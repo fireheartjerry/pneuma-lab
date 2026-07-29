@@ -107,6 +107,127 @@ def _semantic_unique(
         raise RecordValidationError(f"{field} must have unique {key} values")
 
 
+def _require_controller_receipt_ref(
+    value: object,
+    *,
+    field: str,
+    role: str,
+) -> None:
+    if not isinstance(value, Mapping) or value.get("role") != role:
+        raise RecordValidationError(f"{field} role must equal {role!r}")
+    digest = value.get("sha256")
+    expected_path = f"controller-artifacts/{role}/{digest}"
+    if value.get("relative_path") != expected_path:
+        raise RecordValidationError(
+            f"{field} path must equal its controller role and digest"
+        )
+
+
+def _validate_prefix_receipt_semantics(
+    receipt: Mapping[str, object],
+    *,
+    field: str,
+) -> None:
+    role_fields = {
+        "snapshot_ref": "composite_snapshot",
+        "visible_context_ref": "visible_context",
+        "token_ids_ref": "token_ids",
+        "provider_attempts_ref": "provider_attempt_ledger",
+        "boundary_ledger_ref": "tool_boundary_ledger",
+        "provider_cost_ref": "provider_cost_closure",
+        "grade_execution_receipt_ref": "grade_evidence_receipt",
+        "verifier_execution_receipt_ref": "verifier_evidence_receipt",
+    }
+    for name, role in role_fields.items():
+        _require_controller_receipt_ref(
+            receipt[name],
+            field=f"{field}.{name}",
+            role=role,
+        )
+    visible_ref = cast(Mapping[str, object], receipt["visible_context_ref"])
+    token_ref = cast(Mapping[str, object], receipt["token_ids_ref"])
+    if receipt["visible_sha256"] != visible_ref["sha256"]:
+        raise RecordValidationError(f"{field} visible digest differs from ref")
+    if receipt["token_ids_sha256"] != token_ref["sha256"]:
+        raise RecordValidationError(f"{field} token digest differs from ref")
+    grade = cast(Mapping[str, object], receipt["y0_grade"])
+    verifier = cast(Mapping[str, object], receipt["verifier_receipt"])
+    _require_controller_receipt_ref(
+        grade["artifact_ref"],
+        field=f"{field}.y0_grade.artifact_ref",
+        role="grade_evidence",
+    )
+    _require_controller_receipt_ref(
+        verifier["verifier_artifact_ref"],
+        field=f"{field}.verifier_receipt.verifier_artifact_ref",
+        role="verifier_evidence",
+    )
+    _require_controller_receipt_ref(
+        verifier["snapshot_ref"],
+        field=f"{field}.verifier_receipt.snapshot_ref",
+        role="composite_snapshot",
+    )
+    if (
+        verifier["task_id"] != receipt["task_id"]
+        or verifier["schedule_sha256"] != receipt["schedule_sha256"]
+        or verifier["snapshot_ref"] != receipt["snapshot_ref"]
+    ):
+        raise RecordValidationError(
+            f"{field} verifier ancestry differs from frozen prefix"
+        )
+    branch_calls = cast(list[object], receipt["branch_pending_calls"])
+    terminal_calls = cast(
+        list[object],
+        receipt["terminal_unexecuted_remainder"],
+    )
+    trigger = receipt["trigger_reason"]
+    failure = receipt["terminal_failure_kind"]
+    if branch_calls and terminal_calls:
+        raise RecordValidationError(f"{field} pending-call queues are exclusive")
+    for queue_name, queue in (
+        ("branch_pending_calls", branch_calls),
+        ("terminal_unexecuted_remainder", terminal_calls),
+    ):
+        call_ids = [item.get("call_id") for item in queue if isinstance(item, Mapping)]
+        if len(call_ids) != len(set(call_ids)):
+            raise RecordValidationError(
+                f"{field}.{queue_name} must have unique call_id values"
+            )
+    if trigger != "no_intervention_opportunity":
+        if failure != "none" or terminal_calls:
+            raise RecordValidationError(
+                f"{field} branch trigger requires NONE and no terminal remainder"
+            )
+    elif branch_calls:
+        raise RecordValidationError(f"{field} no-trigger forbids branch calls")
+    if terminal_calls and failure != "malformed_action":
+        raise RecordValidationError(
+            f"{field} terminal remainder requires malformed_action"
+        )
+    if (
+        trigger == "no_intervention_opportunity"
+        and failure != "none"
+        and (grade["success"] != 0 or grade["partial_reward"] != 0.0)
+    ):
+        raise RecordValidationError(f"{field} adverse no-trigger requires zero Y0")
+    primary = cast(Mapping[str, object], receipt["counters"])
+    simulator = cast(Mapping[str, object], receipt["simulator_counters"])
+    if primary["wall_clock_ms"] != simulator["wall_clock_ms"]:
+        raise RecordValidationError(f"{field} counter wall times must match")
+    if simulator["tool_calls"] != 0:
+        raise RecordValidationError(f"{field} simulator tool_calls must equal zero")
+    next_index = {"primary_subject": 0, "user_simulator": 0}
+    for index, seed in enumerate(
+        cast(list[Mapping[str, object]], receipt["call_seeds"])
+    ):
+        role = cast(str, seed["subject_role"])
+        if seed["call_index"] != next_index[role]:
+            raise RecordValidationError(
+                f"{field}.call_seeds[{index}] role-local index is not consecutive"
+            )
+        next_index[role] += 1
+
+
 def _validate_semantics(value: dict[str, object]) -> None:
     kind = cast(str, value["record_kind"])
     payload = cast(dict[str, object], value["payload"])
@@ -140,6 +261,13 @@ def _validate_semantics(value: dict[str, object]) -> None:
             "payload.task_receipts",
             key="task_id",
         )
+        for index, receipt in enumerate(
+            cast(list[Mapping[str, object]], payload["task_receipts"])
+        ):
+            _validate_prefix_receipt_semantics(
+                receipt,
+                field=f"payload.task_receipts[{index}]",
+            )
     elif kind == "resampling_assignment_ledger":
         assignments = cast(list[Mapping[str, object]], payload["assignments"])
         allocation_receipts = cast(
@@ -1012,10 +1140,7 @@ def _plan_provider_v2_closure(
         )
     source_root = provider_copy.source.parent.resolve(strict=True)
     known_by_ref = {copy.ref: copy for copy in known_copies}
-    known_by_path = {
-        copy.ref.relative_path: copy.ref
-        for copy in known_copies
-    }
+    known_by_path = {copy.ref.relative_path: copy.ref for copy in known_copies}
     pending = list(_walk_artifact_refs(decoded))
     planned: list[_SourceCopy] = []
     observed: set[ArtifactRef] = set()
@@ -1045,10 +1170,7 @@ def _plan_provider_v2_closure(
             raise RecordValidationError(
                 f"provider nested ref source is missing: {ref.relative_path!r}"
             ) from exc
-        if (
-            relative != ref.relative_path
-            or not source.is_file()
-        ):
+        if relative != ref.relative_path or not source.is_file():
             raise RecordValidationError(
                 f"provider nested ref source is not canonical: {ref.relative_path!r}"
             )
@@ -1095,18 +1217,15 @@ def _provider_execution_authority(
         "tasks",
     }
     if not isinstance(roster_value, Mapping) or set(roster_value) != roster_fields:
-        raise RecordValidationError(
-            "v2 provider plan requires a closed roster source"
-        )
+        raise RecordValidationError("v2 provider plan requires a closed roster source")
     if (
         roster_value.get("record_kind") != "resampling_roster_v1"
         or roster_value.get("schema_version") != "1"
     ):
         raise RecordValidationError("v2 provider roster has wrong identity")
 
-    if (
-        not isinstance(assignment_value, Mapping)
-        or set(assignment_value) != set(ASSIGNMENT_PROGRAM_GRAMMAR.fields)
+    if not isinstance(assignment_value, Mapping) or set(assignment_value) != set(
+        ASSIGNMENT_PROGRAM_GRAMMAR.fields
     ):
         raise RecordValidationError(
             "v2 provider plan requires a closed assignment source"
@@ -1116,10 +1235,13 @@ def _provider_execution_authority(
         raise RecordValidationError("v2 provider assignment has wrong identity")
     validate_assignment_program(assignment)
 
-    authority_by_pair: dict[tuple[object, object], Literal[
-        "synthetic_validation",
-        "confirmation",
-    ]] = {
+    authority_by_pair: dict[
+        tuple[object, object],
+        Literal[
+            "synthetic_validation",
+            "confirmation",
+        ],
+    ] = {
         (
             "synthetic_fixture",
             "synthetic_derangement",
@@ -1308,12 +1430,7 @@ def seal_study_manifest(
         known_copies=copies + revision_copies + conditional_copies,
         run_root=root,
     )
-    all_copies = (
-        copies
-        + revision_copies
-        + conditional_copies
-        + provider_nested_copies
-    )
+    all_copies = copies + revision_copies + conditional_copies + provider_nested_copies
     destinations = [copy.destination for copy in all_copies]
     if len(destinations) != len(set(destinations)):
         raise RecordValidationError("source copies have conflicting destinations")
@@ -1376,9 +1493,7 @@ def seal_study_manifest(
         isinstance(provider_value, Mapping)
         and provider_value.get("record_kind") == "provider_lane_plan_v2"
     ):
-        task_copy = next(
-            copy for copy in copies if copy.ref.role == "task_registry"
-        )
+        task_copy = next(copy for copy in copies if copy.ref.role == "task_registry")
         task_value = _load_json_bytes(task_copy.payload, source=task_copy.source)
         if (
             not isinstance(task_value, Mapping)
@@ -1390,9 +1505,7 @@ def seal_study_manifest(
             )
         registry = dict(task_value)
         validate_task_registry(registry)
-        roster_copy = next(
-            copy for copy in copies if copy.ref.role == "roster"
-        )
+        roster_copy = next(copy for copy in copies if copy.ref.role == "roster")
         assignment_copy = next(
             copy for copy in copies if copy.ref.role == "assignment_program"
         )
@@ -1407,17 +1520,11 @@ def seal_study_manifest(
             ),
         )
         has_conditional_authority = bool(conditional_copies)
-        if (
-            execution_authority == "synthetic_validation"
-            and has_conditional_authority
-        ):
+        if execution_authority == "synthetic_validation" and has_conditional_authority:
             raise RecordValidationError(
                 "synthetic authority forbids eligibility and ceremony refs"
             )
-        if (
-            execution_authority == "confirmation"
-            and not has_conditional_authority
-        ):
+        if execution_authority == "confirmation" and not has_conditional_authority:
             raise RecordValidationError(
                 "confirmation authority requires eligibility and ceremony refs"
             )
@@ -1436,9 +1543,7 @@ def seal_study_manifest(
                     reader=reader,
                     registry=registry,
                     tokenizer_ref=by_role["tokenizer"],
-                    manifest_revisions=tuple(
-                        copy.ref for copy in revision_copies
-                    ),
+                    manifest_revisions=tuple(copy.ref for copy in revision_copies),
                     schedule_authority=execution_authority,
                 )
     with BoundPublication(root) as publication:

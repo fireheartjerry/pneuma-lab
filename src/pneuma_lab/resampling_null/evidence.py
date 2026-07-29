@@ -81,6 +81,21 @@ def _exact_ref(value: object, field: str) -> ArtifactRef:
     return cast(ArtifactRef, value)
 
 
+def _authority_ref(value: object, field: str, *, role: str) -> ArtifactRef:
+    ref = _exact_ref(value, field)
+    if ref.role != role:
+        raise ValueError(f"{field} role must equal {role!r}")
+    return ref
+
+
+def _controller_ref(value: object, field: str, *, role: str) -> ArtifactRef:
+    ref = _authority_ref(value, field, role=role)
+    expected_path = f"controller-artifacts/{role}/{ref.sha256}"
+    if ref.relative_path != expected_path:
+        raise ValueError(f"{field} path must equal {expected_path!r}")
+    return ref
+
+
 def _exact_tuple(
     value: object,
     *,
@@ -135,9 +150,22 @@ class ProviderDispatchIntent:
             raise ValueError("subject_role is not registered")
         _uint64(self.call_index, "call_index")
         _uint64(self.seed, "seed")
-        _exact_ref(self.request_ref, "request_ref")
-        _exact_ref(self.input_token_ids_ref, "input_token_ids_ref")
-        _exact_ref(self.model_contract_ref, "model_contract_ref")
+        _controller_ref(self.request_ref, "request_ref", role="provider_request")
+        _controller_ref(
+            self.input_token_ids_ref,
+            "input_token_ids_ref",
+            role="input_token_ids",
+        )
+        contract_role = (
+            "subject_contract"
+            if self.subject_role == "primary_subject"
+            else "simulator_contract"
+        )
+        _authority_ref(
+            self.model_contract_ref,
+            "model_contract_ref",
+            role=contract_role,
+        )
         _uint64(self.absolute_deadline_ms, "absolute_deadline_ms")
 
 
@@ -160,7 +188,11 @@ class ProviderCallAttemptReceipt:
     provider_event_ref: ArtifactRef
 
     def __post_init__(self) -> None:
-        _exact_ref(self.dispatch_intent_ref, "dispatch_intent_ref")
+        _controller_ref(
+            self.dispatch_intent_ref,
+            "dispatch_intent_ref",
+            role="provider_dispatch_intent",
+        )
         if type(self.subject_role) is not str:
             raise TypeError("subject_role must be exact text")
         if self.subject_role not in ("primary_subject", "user_simulator"):
@@ -169,10 +201,27 @@ class ProviderCallAttemptReceipt:
         _uint64(self.seed, "seed")
         if type(self.status) is not ProviderAttemptStatus:
             raise TypeError("status must be exact ProviderAttemptStatus")
-        _exact_ref(self.request_ref, "request_ref")
-        _exact_ref(self.input_token_ids_ref, "input_token_ids_ref")
-        _exact_ref(self.model_contract_ref, "model_contract_ref")
-        _exact_ref(self.provider_event_ref, "provider_event_ref")
+        _controller_ref(self.request_ref, "request_ref", role="provider_request")
+        _controller_ref(
+            self.input_token_ids_ref,
+            "input_token_ids_ref",
+            role="input_token_ids",
+        )
+        contract_role = (
+            "subject_contract"
+            if self.subject_role == "primary_subject"
+            else "simulator_contract"
+        )
+        _authority_ref(
+            self.model_contract_ref,
+            "model_contract_ref",
+            role=contract_role,
+        )
+        _controller_ref(
+            self.provider_event_ref,
+            "provider_event_ref",
+            role="provider_event",
+        )
         _nonnegative_int(self.generated_tokens, "generated_tokens")
         _nonnegative_int(self.elapsed_ms, "elapsed_ms")
         response_present = self.response_ref is not None
@@ -182,8 +231,16 @@ class ProviderCallAttemptReceipt:
                 "response_ref and output_token_ids_ref must appear together"
             )
         if response_present:
-            _exact_ref(self.response_ref, "response_ref")
-            _exact_ref(self.output_token_ids_ref, "output_token_ids_ref")
+            _controller_ref(
+                self.response_ref,
+                "response_ref",
+                role="provider_response",
+            )
+            _controller_ref(
+                self.output_token_ids_ref,
+                "output_token_ids_ref",
+                role="output_token_ids",
+            )
         elif self.generated_tokens != 0:
             raise ValueError("response-less attempts cannot have generated tokens")
         if (
@@ -211,7 +268,11 @@ class ProviderCallAttemptReceipt:
     ) -> None:
         if type(intent) is not ProviderDispatchIntent:
             raise TypeError("intent must be exact ProviderDispatchIntent")
-        _exact_ref(intent_ref, "intent_ref")
+        _controller_ref(
+            intent_ref,
+            "intent_ref",
+            role="provider_dispatch_intent",
+        )
         if self.dispatch_intent_ref != intent_ref:
             raise ValueError("attempt dispatch_intent_ref is cross-wired")
         repeated = (
@@ -262,6 +323,15 @@ class ProviderAttemptLedger:
             raise ValueError("each intent must have exactly one terminal attempt")
         if len(set(self.intent_refs)) != len(self.intent_refs):
             raise ValueError("intent_refs must be pairwise distinct")
+        for ref in self.intent_refs:
+            _controller_ref(
+                ref,
+                "intent_refs item",
+                role="provider_dispatch_intent",
+            )
+        provider_events = [attempt.provider_event_ref for attempt in self.attempts]
+        if len(provider_events) != len(set(provider_events)):
+            raise ValueError("provider_event_ref values must be pairwise distinct")
         next_index = {"primary_subject": 0, "user_simulator": 0}
         for intent, intent_ref, attempt in zip(
             self.intents,
@@ -290,8 +360,8 @@ class CompletedToolBoundaryReceipt:
 
     def __post_init__(self) -> None:
         _exact_text(self.call_id, "call_id")
-        _exact_ref(self.tool_call_ref, "tool_call_ref")
-        _exact_ref(self.tool_result_ref, "tool_result_ref")
+        _controller_ref(self.tool_call_ref, "tool_call_ref", role="tool_call")
+        _controller_ref(self.tool_result_ref, "tool_result_ref", role="tool_result")
         _exact_bool(self.mutation_committed, "mutation_committed")
         _exact_bool(self.verifier_eligible_after, "verifier_eligible_after")
         _exact_bool(self.episode_terminal, "episode_terminal")
@@ -360,24 +430,30 @@ class CompositeSnapshotEnvelope:
     def __post_init__(self) -> None:
         if self.schema_version != _SNAPSHOT_SCHEMA_VERSION:
             raise ValueError("snapshot schema_version must equal '0.1.0'")
-        for name in (
-            "study_ref",
-            "task_ref",
-            "schedule_ref",
-            "task_input_ref",
-            "environment_contract_ref",
-            "isolation_contract_ref",
-            "environment_snapshot_ref",
-            "visible_context_ref",
-            "token_ids_ref",
-            "boundary_ledger_ref",
-            "provider_attempts_ref",
-            "subject_stateless_attestation_ref",
-            "runtime_ref",
-            "container_ref",
-            "source_revision_ref",
+        for name, role in (
+            ("study_ref", "study_manifest"),
+            ("schedule_ref", "resampling_prefix_schedule"),
+            ("task_input_ref", "task_input"),
+            ("environment_contract_ref", "environment_contract"),
+            ("isolation_contract_ref", "isolation_contract"),
+            ("source_revision_ref", "source_revision"),
         ):
-            _exact_ref(getattr(self, name), name)
+            _authority_ref(getattr(self, name), name, role=role)
+        for name, role in (
+            ("task_ref", "selected_task"),
+            ("environment_snapshot_ref", "environment_snapshot"),
+            ("visible_context_ref", "visible_context"),
+            ("token_ids_ref", "token_ids"),
+            ("boundary_ledger_ref", "tool_boundary_ledger"),
+            ("provider_attempts_ref", "provider_attempt_ledger"),
+            (
+                "subject_stateless_attestation_ref",
+                "subject_stateless_attestation",
+            ),
+            ("runtime_ref", "runtime_attestation"),
+            ("container_ref", "container_attestation"),
+        ):
+            _controller_ref(getattr(self, name), name, role=role)
         _exact_tuple(
             self.branch_pending_calls,
             field="branch_pending_calls",
@@ -400,6 +476,10 @@ class CompositeSnapshotEnvelope:
         )
         _sha256(self.visible_sha256, "visible_sha256")
         _sha256(self.token_ids_sha256, "token_ids_sha256")
+        if self.visible_sha256 != self.visible_context_ref.sha256:
+            raise ValueError("visible_sha256 must equal visible_context_ref digest")
+        if self.token_ids_sha256 != self.token_ids_ref.sha256:
+            raise ValueError("token_ids_sha256 must equal token_ids_ref digest")
         if type(self.primary_counters) is not ResourceCounters:
             raise TypeError("primary_counters must be exact ResourceCounters")
         if type(self.simulator_counters) is not ResourceCounters:
@@ -434,9 +514,10 @@ class CompositeSnapshotEnvelope:
                 "simulator-free authority requires exactly zero simulator usage"
             )
         if self.simulator_stateless_attestation_ref is not None:
-            _exact_ref(
+            _controller_ref(
                 self.simulator_stateless_attestation_ref,
                 "simulator_stateless_attestation_ref",
+                role="simulator_stateless_attestation",
             )
         _exact_bool(self.cumulative_mutation, "cumulative_mutation")
         _exact_bool(self.episode_terminal, "episode_terminal")
@@ -444,6 +525,11 @@ class CompositeSnapshotEnvelope:
             raise TypeError("terminal_failure_kind must be exact FailureKind")
         if self.episode_terminal and self.branch_pending_calls:
             raise ValueError("a terminal snapshot cannot retain branch-pending calls")
+        if (
+            self.terminal_failure_kind is not FailureKind.NONE
+            and not self.episode_terminal
+        ):
+            raise ValueError("adverse failure state must be terminal")
         if self.terminal_unexecuted_remainder and (
             not self.episode_terminal
             or self.terminal_failure_kind is not FailureKind.MALFORMED_ACTION
@@ -757,7 +843,7 @@ def validate_snapshot_receipt_fields(
 
     if type(snapshot) is not CompositeSnapshotEnvelope:
         raise TypeError("snapshot must be exact CompositeSnapshotEnvelope")
-    _exact_ref(snapshot_ref, "snapshot_ref")
+    _controller_ref(snapshot_ref, "snapshot_ref", role="composite_snapshot")
     if type(snapshot_bytes) is not bytes:
         raise TypeError("snapshot_bytes must be exact bytes")
     canonical = composite_snapshot_bytes(snapshot)
@@ -819,7 +905,9 @@ class FrozenPrefixReceipt:
     trigger_reason: TriggerReason
     terminal_failure_kind: FailureKind
     y0_grade: GradeReceipt
+    grade_execution_receipt_ref: ArtifactRef
     verifier_receipt: FrozenVerifierReceipt
+    verifier_execution_receipt_ref: ArtifactRef
     counters: ResourceCounters
     simulator_counters: ResourceCounters
     call_seeds: tuple[CallSeedReceipt, ...]
@@ -832,17 +920,23 @@ class FrozenPrefixReceipt:
         _sha256(self.schedule_sha256, "schedule_sha256")
         if type(self.prefix_caps) is not PrefixCaps:
             raise TypeError("prefix_caps must be exact PrefixCaps")
-        for name in (
-            "snapshot_ref",
-            "visible_context_ref",
-            "token_ids_ref",
-            "provider_attempts_ref",
-            "boundary_ledger_ref",
-            "provider_cost_ref",
+        for name, role in (
+            ("snapshot_ref", "composite_snapshot"),
+            ("visible_context_ref", "visible_context"),
+            ("token_ids_ref", "token_ids"),
+            ("provider_attempts_ref", "provider_attempt_ledger"),
+            ("boundary_ledger_ref", "tool_boundary_ledger"),
+            ("provider_cost_ref", "provider_cost_closure"),
+            ("grade_execution_receipt_ref", "grade_evidence_receipt"),
+            ("verifier_execution_receipt_ref", "verifier_evidence_receipt"),
         ):
-            _exact_ref(getattr(self, name), name)
+            _controller_ref(getattr(self, name), name, role=role)
         _sha256(self.visible_sha256, "visible_sha256")
         _sha256(self.token_ids_sha256, "token_ids_sha256")
+        if self.visible_sha256 != self.visible_context_ref.sha256:
+            raise ValueError("visible_sha256 must equal visible_context_ref digest")
+        if self.token_ids_sha256 != self.token_ids_ref.sha256:
+            raise ValueError("token_ids_sha256 must equal token_ids_ref digest")
         _exact_tuple(
             self.branch_pending_calls,
             field="branch_pending_calls",
@@ -855,6 +949,11 @@ class FrozenPrefixReceipt:
         )
         if self.branch_pending_calls and self.terminal_unexecuted_remainder:
             raise ValueError("prefix pending-call queues are exclusive")
+        _unique_call_ids(self.branch_pending_calls, field="branch_pending_calls")
+        _unique_call_ids(
+            self.terminal_unexecuted_remainder,
+            field="terminal_unexecuted_remainder",
+        )
         if type(self.trigger_reason) is not TriggerReason:
             raise TypeError("trigger_reason must be exact TriggerReason")
         if type(self.terminal_failure_kind) is not FailureKind:
@@ -878,8 +977,24 @@ class FrozenPrefixReceipt:
             )
         if type(self.y0_grade) is not GradeReceipt:
             raise TypeError("y0_grade must be exact GradeReceipt")
+        _controller_ref(
+            self.y0_grade.artifact_ref,
+            "y0_grade.artifact_ref",
+            role="grade_evidence",
+        )
+        if (
+            self.trigger_reason is TriggerReason.NO_INTERVENTION_OPPORTUNITY
+            and self.terminal_failure_kind is not FailureKind.NONE
+            and (self.y0_grade.success != 0 or self.y0_grade.partial_reward != 0.0)
+        ):
+            raise ValueError("adverse no-trigger requires forced-zero scientific Y0")
         if type(self.verifier_receipt) is not FrozenVerifierReceipt:
             raise TypeError("verifier_receipt must be exact FrozenVerifierReceipt")
+        _controller_ref(
+            self.verifier_receipt.verifier_artifact_ref,
+            "verifier_receipt.verifier_artifact_ref",
+            role="verifier_evidence",
+        )
         if (
             self.verifier_receipt.task_id != self.task_id
             or self.verifier_receipt.schedule_sha256 != self.schedule_sha256
@@ -899,16 +1014,40 @@ class FrozenPrefixReceipt:
             field="call_seeds",
             member_type=CallSeedReceipt,
         )
-        role_indexes = [
-            (receipt.subject_role, receipt.call_index) for receipt in self.call_seeds
-        ]
-        if len(role_indexes) != len(set(role_indexes)):
-            raise ValueError("call_seeds must not repeat a role-local index")
+        next_index = {"primary_subject": 0, "user_simulator": 0}
+        for receipt in self.call_seeds:
+            if receipt.call_index != next_index[receipt.subject_role]:
+                raise ValueError("call_seeds role-local indexes must be consecutive")
+            next_index[receipt.subject_role] += 1
 
     def validate_snapshot_bytes(self, payload: bytes) -> None:
         snapshot = load_composite_snapshot(payload)
         if snapshot.schedule_ref.sha256 != self.schedule_sha256:
             raise ValueError("snapshot schedule differs from prefix receipt")
+        cap_pairs = (
+            (
+                snapshot.primary_counters.generated_tokens,
+                snapshot.primary_remaining_quotas.generated_tokens,
+                self.prefix_caps.generated_tokens,
+            ),
+            (
+                snapshot.primary_counters.model_calls,
+                snapshot.primary_remaining_quotas.model_calls,
+                self.prefix_caps.model_calls,
+            ),
+            (
+                snapshot.primary_counters.tool_calls,
+                snapshot.primary_remaining_quotas.tool_calls,
+                self.prefix_caps.tool_calls,
+            ),
+            (
+                snapshot.primary_counters.wall_clock_ms,
+                snapshot.primary_remaining_quotas.wall_clock_ms,
+                self.prefix_caps.wall_clock_ms,
+            ),
+        )
+        if any(used + remaining != cap for used, remaining, cap in cap_pairs):
+            raise ValueError("snapshot counters plus remaining quotas differ from caps")
         validate_snapshot_receipt_fields(
             snapshot,
             snapshot_ref=self.snapshot_ref,
@@ -990,8 +1129,12 @@ class GradeEvidenceReceipt:
     def __post_init__(self) -> None:
         if type(self.identity) is not RestoreIdentity:
             raise TypeError("identity must be exact RestoreIdentity")
-        for name in ("snapshot_ref", "restore_receipt_ref", "evidence_ref"):
-            _exact_ref(getattr(self, name), name)
+        for name, role in (
+            ("snapshot_ref", "composite_snapshot"),
+            ("restore_receipt_ref", "grade_restore_receipt"),
+            ("evidence_ref", "grade_evidence"),
+        ):
+            _controller_ref(getattr(self, name), name, role=role)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1004,8 +1147,12 @@ class VerifierEvidenceReceipt:
     def __post_init__(self) -> None:
         if type(self.identity) is not RestoreIdentity:
             raise TypeError("identity must be exact RestoreIdentity")
-        for name in ("snapshot_ref", "restore_receipt_ref", "evidence_ref"):
-            _exact_ref(getattr(self, name), name)
+        for name, role in (
+            ("snapshot_ref", "composite_snapshot"),
+            ("restore_receipt_ref", "verifier_restore_receipt"),
+            ("evidence_ref", "verifier_evidence"),
+        ):
+            _controller_ref(getattr(self, name), name, role=role)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1057,13 +1204,13 @@ class ProviderSettlement:
     cost_microunits: int
 
     def __post_init__(self) -> None:
-        for name in (
-            "dispatch_intent_ref",
-            "attempt_receipt_ref",
-            "provider_event_ref",
-            "settlement_ref",
+        for name, role in (
+            ("dispatch_intent_ref", "provider_dispatch_intent"),
+            ("attempt_receipt_ref", "provider_attempt"),
+            ("provider_event_ref", "provider_event"),
+            ("settlement_ref", "provider_settlement"),
         ):
-            _exact_ref(getattr(self, name), name)
+            _controller_ref(getattr(self, name), name, role=role)
         _nonnegative_int(self.cost_microunits, "cost_microunits")
 
     def validate_against(
@@ -1073,8 +1220,12 @@ class ProviderSettlement:
         attempt_ref: ArtifactRef,
         attempt: ProviderCallAttemptReceipt,
     ) -> None:
-        _exact_ref(intent_ref, "intent_ref")
-        _exact_ref(attempt_ref, "attempt_ref")
+        _controller_ref(
+            intent_ref,
+            "intent_ref",
+            role="provider_dispatch_intent",
+        )
+        _controller_ref(attempt_ref, "attempt_ref", role="provider_attempt")
         if type(attempt) is not ProviderCallAttemptReceipt:
             raise TypeError("attempt must be exact ProviderCallAttemptReceipt")
         if (
@@ -1112,6 +1263,8 @@ def _validate_cost_ancestry(
         raise ValueError("every attempt requires exactly one final settlement")
     if len(set(attempt_refs)) != len(attempt_refs):
         raise ValueError("attempt_refs must be pairwise distinct")
+    for ref in attempt_refs:
+        _controller_ref(ref, "attempt_refs item", role="provider_attempt")
     settlement_refs = [settlement.settlement_ref for settlement in settlements]
     if len(set(settlement_refs)) != len(settlement_refs):
         raise ValueError("settlement_refs must be pairwise distinct")

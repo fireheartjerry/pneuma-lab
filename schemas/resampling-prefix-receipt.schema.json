@@ -72,6 +72,66 @@
             },
             "additionalProperties": false
         },
+        "composite_snapshot_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                { "properties": { "role": { "const": "composite_snapshot" } } }
+            ]
+        },
+        "visible_context_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                { "properties": { "role": { "const": "visible_context" } } }
+            ]
+        },
+        "token_ids_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                { "properties": { "role": { "const": "token_ids" } } }
+            ]
+        },
+        "provider_attempt_ledger_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                { "properties": { "role": { "const": "provider_attempt_ledger" } } }
+            ]
+        },
+        "tool_boundary_ledger_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                { "properties": { "role": { "const": "tool_boundary_ledger" } } }
+            ]
+        },
+        "provider_cost_closure_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                { "properties": { "role": { "const": "provider_cost_closure" } } }
+            ]
+        },
+        "grade_evidence_receipt_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                { "properties": { "role": { "const": "grade_evidence_receipt" } } }
+            ]
+        },
+        "grade_evidence_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                { "properties": { "role": { "const": "grade_evidence" } } }
+            ]
+        },
+        "verifier_evidence_receipt_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                { "properties": { "role": { "const": "verifier_evidence_receipt" } } }
+            ]
+        },
+        "verifier_evidence_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                { "properties": { "role": { "const": "verifier_evidence" } } }
+            ]
+        },
         "resource_counters": {
             "type": "object",
             "required": ["generated_tokens", "model_calls", "tool_calls", "wall_clock_ms"],
@@ -105,7 +165,7 @@
                 "success": { "enum": [0, 1] },
                 "partial_reward": { "type": "number" },
                 "infrastructure_failure": { "type": "boolean" },
-                "artifact_ref": { "$ref": "#/$defs/artifact_ref" }
+                "artifact_ref": { "$ref": "#/$defs/grade_evidence_ref" }
             },
             "additionalProperties": false
         },
@@ -135,8 +195,10 @@
             "properties": {
                 "task_id": { "$ref": "#/$defs/nonempty" },
                 "schedule_sha256": { "$ref": "#/$defs/sha256" },
-                "snapshot_ref": { "$ref": "#/$defs/artifact_ref" },
-                "verifier_artifact_ref": { "$ref": "#/$defs/artifact_ref" },
+                "snapshot_ref": { "$ref": "#/$defs/composite_snapshot_ref" },
+                "verifier_artifact_ref": {
+                    "$ref": "#/$defs/verifier_evidence_ref"
+                },
                 "finding_count": { "type": "integer", "minimum": 0 }
             },
             "additionalProperties": false
@@ -157,7 +219,9 @@
                 "trigger_reason",
                 "terminal_failure_kind",
                 "y0_grade",
+                "grade_execution_receipt_ref",
                 "verifier_receipt",
+                "verifier_execution_receipt_ref",
                 "counters",
                 "simulator_counters",
                 "call_seeds",
@@ -169,10 +233,10 @@
                 "task_id": { "$ref": "#/$defs/nonempty" },
                 "schedule_sha256": { "$ref": "#/$defs/sha256" },
                 "prefix_caps": { "$ref": "#/$defs/resource_counters" },
-                "snapshot_ref": { "$ref": "#/$defs/artifact_ref" },
-                "visible_context_ref": { "$ref": "#/$defs/artifact_ref" },
+                "snapshot_ref": { "$ref": "#/$defs/composite_snapshot_ref" },
+                "visible_context_ref": { "$ref": "#/$defs/visible_context_ref" },
                 "visible_sha256": { "$ref": "#/$defs/sha256" },
-                "token_ids_ref": { "$ref": "#/$defs/artifact_ref" },
+                "token_ids_ref": { "$ref": "#/$defs/token_ids_ref" },
                 "token_ids_sha256": { "$ref": "#/$defs/sha256" },
                 "branch_pending_calls": {
                     "type": "array",
@@ -202,7 +266,13 @@
                     ]
                 },
                 "y0_grade": { "$ref": "#/$defs/grade_receipt" },
+                "grade_execution_receipt_ref": {
+                    "$ref": "#/$defs/grade_evidence_receipt_ref"
+                },
                 "verifier_receipt": { "$ref": "#/$defs/verifier_receipt" },
+                "verifier_execution_receipt_ref": {
+                    "$ref": "#/$defs/verifier_evidence_receipt_ref"
+                },
                 "counters": { "$ref": "#/$defs/resource_counters" },
                 "simulator_counters": { "$ref": "#/$defs/resource_counters" },
                 "call_seeds": {
@@ -210,9 +280,15 @@
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/call_seed_receipt" }
                 },
-                "provider_attempts_ref": { "$ref": "#/$defs/artifact_ref" },
-                "boundary_ledger_ref": { "$ref": "#/$defs/artifact_ref" },
-                "provider_cost_ref": { "$ref": "#/$defs/artifact_ref" }
+                "provider_attempts_ref": {
+                    "$ref": "#/$defs/provider_attempt_ledger_ref"
+                },
+                "boundary_ledger_ref": {
+                    "$ref": "#/$defs/tool_boundary_ledger_ref"
+                },
+                "provider_cost_ref": {
+                    "$ref": "#/$defs/provider_cost_closure_ref"
+                }
             },
             "additionalProperties": false
         }

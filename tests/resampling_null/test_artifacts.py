@@ -128,7 +128,12 @@ def _record(kind: str, payload: dict[str, object]) -> dict[str, object]:
 
 
 def _minimal_prefix_task_receipt() -> dict[str, object]:
-    shared_ref = _ref("parents/shared.json")
+    def controller_ref(role: str) -> dict[str, object]:
+        return _ref(
+            f"controller-artifacts/{role}/{SHA_A}",
+            role=role,
+        )
+
     return {
         "task_id": "task-1",
         "schedule_sha256": SHA_A,
@@ -138,11 +143,11 @@ def _minimal_prefix_task_receipt() -> dict[str, object]:
             "tool_calls": 0,
             "wall_clock_ms": 0,
         },
-        "snapshot_ref": shared_ref,
-        "visible_context_ref": shared_ref,
+        "snapshot_ref": controller_ref("composite_snapshot"),
+        "visible_context_ref": controller_ref("visible_context"),
         "visible_sha256": SHA_A,
-        "token_ids_ref": shared_ref,
-        "token_ids_sha256": SHA_B,
+        "token_ids_ref": controller_ref("token_ids"),
+        "token_ids_sha256": SHA_A,
         "branch_pending_calls": [],
         "terminal_unexecuted_remainder": [],
         "trigger_reason": "no_intervention_opportunity",
@@ -151,15 +156,17 @@ def _minimal_prefix_task_receipt() -> dict[str, object]:
             "success": 0,
             "partial_reward": 0.0,
             "infrastructure_failure": False,
-            "artifact_ref": shared_ref,
+            "artifact_ref": controller_ref("grade_evidence"),
         },
+        "grade_execution_receipt_ref": controller_ref("grade_evidence_receipt"),
         "verifier_receipt": {
             "task_id": "task-1",
             "schedule_sha256": SHA_A,
-            "snapshot_ref": shared_ref,
-            "verifier_artifact_ref": shared_ref,
+            "snapshot_ref": controller_ref("composite_snapshot"),
+            "verifier_artifact_ref": controller_ref("verifier_evidence"),
             "finding_count": 0,
         },
+        "verifier_execution_receipt_ref": controller_ref("verifier_evidence_receipt"),
         "counters": {
             "generated_tokens": 0,
             "model_calls": 0,
@@ -173,9 +180,9 @@ def _minimal_prefix_task_receipt() -> dict[str, object]:
             "wall_clock_ms": 0,
         },
         "call_seeds": [],
-        "provider_attempts_ref": shared_ref,
-        "boundary_ledger_ref": shared_ref,
-        "provider_cost_ref": shared_ref,
+        "provider_attempts_ref": controller_ref("provider_attempt_ledger"),
+        "boundary_ledger_ref": controller_ref("tool_boundary_ledger"),
+        "provider_cost_ref": controller_ref("provider_cost_closure"),
     }
 
 
@@ -642,6 +649,67 @@ def test_t3_s02_prefix_receipts_are_nonempty() -> None:
         validate_record(_record("resampling_prefix_receipt", payload))
 
 
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "both_queues",
+        "branch_timeout",
+        "duplicate_role_index",
+        "nonconsecutive_role_index",
+        "unequal_walls",
+        "simulator_tools",
+        "adverse_nonzero_y0",
+        "wrong_snapshot_role",
+        "verifier_ancestry",
+        "duplicate_queue_call_id",
+    ],
+)
+def test_t5_s02b_prefix_semantics_fail_closed(variant: str) -> None:
+    payload = _minimal_payload("resampling_prefix_receipt")
+    receipt = cast(list[dict[str, object]], payload["task_receipts"])[0]
+    if variant == "both_queues":
+        call = {
+            "call_id": "call-1",
+            "name": "read",
+            "canonical_arguments_json": "{}\n",
+        }
+        receipt["branch_pending_calls"] = [call]
+        receipt["terminal_unexecuted_remainder"] = [call]
+    elif variant == "branch_timeout":
+        receipt["trigger_reason"] = "first_eligible_mutation"
+        receipt["terminal_failure_kind"] = "timeout"
+    elif variant == "duplicate_role_index":
+        receipt["call_seeds"] = [
+            {"subject_role": "primary_subject", "call_index": 0, "seed": 1},
+            {"subject_role": "primary_subject", "call_index": 0, "seed": 2},
+        ]
+    elif variant == "nonconsecutive_role_index":
+        receipt["call_seeds"] = [
+            {"subject_role": "primary_subject", "call_index": 1, "seed": 1},
+        ]
+    elif variant == "unequal_walls":
+        receipt["simulator_counters"]["wall_clock_ms"] = 1  # type: ignore[index]
+    elif variant == "simulator_tools":
+        receipt["simulator_counters"]["tool_calls"] = 1  # type: ignore[index]
+    elif variant == "adverse_nonzero_y0":
+        receipt["terminal_failure_kind"] = "timeout"
+        receipt["y0_grade"]["success"] = 1  # type: ignore[index]
+    elif variant == "verifier_ancestry":
+        receipt["verifier_receipt"]["task_id"] = "other-task"  # type: ignore[index]
+    elif variant == "duplicate_queue_call_id":
+        call = {
+            "call_id": "call-1",
+            "name": "read",
+            "canonical_arguments_json": "{}\n",
+        }
+        receipt["branch_pending_calls"] = [call, {**call, "name": "write"}]
+        receipt["trigger_reason"] = "first_eligible_mutation"
+    else:
+        receipt["snapshot_ref"]["role"] = "wrong"  # type: ignore[index]
+    with pytest.raises(RecordValidationError):
+        validate_record(_record("resampling_prefix_receipt", payload))
+
+
 def test_t3_s02_assignment_accepts_closed_no_trigger_arm() -> None:
     payload = _t3_s02_no_trigger_assignment_payload()
     assert validate_record(_record("resampling_assignment_ledger", payload))
@@ -1082,10 +1150,19 @@ def _build_full_study(
         subtree = "sources" if completed_power_consumer_fixture else "raw"
         return _write_blob(root, f"{subtree}/{name}", payload)
 
-    if completed_power_consumer_fixture:
-        roster_size = (
-            2 if decision_authority == "synthetic_validation" else 160
+    def controller_raw(role: str, label: str | None = None) -> dict[str, object]:
+        payload = f"{role}-{label or 'fixture'}".encode()
+        digest = hashlib.sha256(payload).hexdigest()
+        ref = _write_blob(
+            root,
+            f"controller-artifacts/{role}/{digest}",
+            payload,
         )
+        ref["role"] = role
+        return ref
+
+    if completed_power_consumer_fixture:
+        roster_size = 2 if decision_authority == "synthetic_validation" else 160
         task_ids = ["task-1", "task-donor"] + [
             f"task-{index:03d}" for index in range(2, roster_size)
         ]
@@ -1100,11 +1177,7 @@ def _build_full_study(
                     {"kind": "domain", "value": "software"},
                     {"kind": "issue_family", "value": "bug"},
                 ],
-                "tiers": (
-                    [120, 160]
-                    if index < 120
-                    else [160]
-                ),
+                "tiers": ([120, 160] if index < 120 else [160]),
             }
             for index, task_id in enumerate(task_ids)
         ]
@@ -1308,6 +1381,23 @@ def _build_full_study(
         "revision": raw("revision.md", b"revision"),
         "required": raw("required.json", list(FROZEN_UPSTREAM_KINDS)),
         "shared": raw("shared.bin", b"shared"),
+        "composite_snapshot": controller_raw("composite_snapshot"),
+        "visible_context": controller_raw("visible_context"),
+        "token_ids": controller_raw("token_ids"),
+        "grade_evidence_receipt": controller_raw("grade_evidence_receipt"),
+        "grade_evidence": controller_raw("grade_evidence"),
+        "verifier_evidence_receipt": controller_raw("verifier_evidence_receipt"),
+        "focal_verifier_evidence": controller_raw(
+            "verifier_evidence",
+            "focal",
+        ),
+        "donor_verifier_evidence": controller_raw(
+            "verifier_evidence",
+            "donor",
+        ),
+        "provider_attempt_ledger": controller_raw("provider_attempt_ledger"),
+        "tool_boundary_ledger": controller_raw("tool_boundary_ledger"),
+        "provider_cost_closure": controller_raw("provider_cost_closure"),
         "analysis_config": raw("analysis-config.json", {"alpha": 0.05}),
         "projection_schema": raw("projection-schema.json", {"version": 1}),
         "power_grid": raw(
@@ -1388,6 +1478,7 @@ def _build_full_study(
         "adverse_3": raw("adverse-3.json", {"slot_id": "slot-3"}),
     }
     if completed_power_consumer_fixture:
+
         def authority_json(
             name: str,
             value: dict[str, object],
@@ -1701,12 +1792,10 @@ def _build_full_study(
         "required_document_kinds_ref": raws["required"],
     }
     if completed_power_consumer_fixture:
-        manifest_payload["assignment_master_key_commitment_sha256"] = (
-            commitment_sha256(
-                "assignment-master-key",
-                "study-1",
-                BytesField(bytes(range(32))),
-            )
+        manifest_payload["assignment_master_key_commitment_sha256"] = commitment_sha256(
+            "assignment-master-key",
+            "study-1",
+            BytesField(bytes(range(32))),
         )
     manifest_ref = _write_test_record(
         root,
@@ -1763,15 +1852,15 @@ def _build_full_study(
             "tool_calls": 0,
             "wall_clock_ms": 0,
         },
-        "snapshot_ref": raws["shared"],
+        "snapshot_ref": raws["composite_snapshot"],
         "visible_context_ref": (
-            {**raws["shared"], "role": "frankenstein"}
+            {**raws["visible_context"], "role": "frankenstein"}
             if variant == "conflicting-ref"
-            else raws["shared"]
+            else raws["visible_context"]
         ),
-        "visible_sha256": SHA_A,
-        "token_ids_ref": raws["shared"],
-        "token_ids_sha256": SHA_B,
+        "visible_sha256": raws["visible_context"]["sha256"],
+        "token_ids_ref": raws["token_ids"],
+        "token_ids_sha256": raws["token_ids"]["sha256"],
         "branch_pending_calls": [],
         "terminal_unexecuted_remainder": [],
         "trigger_reason": (
@@ -1789,21 +1878,17 @@ def _build_full_study(
             "success": 0,
             "partial_reward": 0.0,
             "infrastructure_failure": False,
-            "artifact_ref": raws["shared"],
+            "artifact_ref": raws["grade_evidence"],
         },
+        "grade_execution_receipt_ref": raws["grade_evidence_receipt"],
         "verifier_receipt": {
             "task_id": "task-1",
             "schedule_sha256": verifier_schedule_sha,
-            "snapshot_ref": raws["shared"],
-            "verifier_artifact_ref": (
-                raws["features_task"]
-                if completed_power_consumer_fixture
-                else raws["focal_verifier"]
-                if packet_pair or failed_second_task
-                else raws["shared"]
-            ),
+            "snapshot_ref": raws["composite_snapshot"],
+            "verifier_artifact_ref": raws["focal_verifier_evidence"],
             "finding_count": 0,
         },
+        "verifier_execution_receipt_ref": raws["verifier_evidence_receipt"],
         "counters": {
             "generated_tokens": 0,
             "model_calls": 0,
@@ -1817,16 +1902,18 @@ def _build_full_study(
             "wall_clock_ms": 0,
         },
         "call_seeds": [],
-        "provider_attempts_ref": raws["shared"],
-        "boundary_ledger_ref": raws["shared"],
+        "provider_attempts_ref": raws["provider_attempt_ledger"],
+        "boundary_ledger_ref": raws["tool_boundary_ledger"],
         "provider_cost_ref": (
             _ref(
-                "raw/missing.bin",
+                f"controller-artifacts/provider_cost_closure/{SHA_A}",
+                role="provider_cost_closure",
+                sha256=SHA_A,
                 byte_count=3,
                 media_type="application/octet-stream",
             )
             if variant == "dangling-ref"
-            else raws["shared"]
+            else raws["provider_cost_closure"]
         ),
     }
     prefix_task_receipts = [prefix_task_receipt]
@@ -1837,11 +1924,7 @@ def _build_full_study(
         donor_receipt["verifier_receipt"]["task_id"] = "task-donor"  # type: ignore[index]
         donor_receipt["verifier_receipt"][  # type: ignore[index]
             "verifier_artifact_ref"
-        ] = (
-            raws["features_donor"]
-            if completed_power_consumer_fixture
-            else raws["donor_verifier"]
-        )
+        ] = raws["donor_verifier_evidence"]
         prefix_task_receipts.append(donor_receipt)
     prefix_ref = _write_test_record(
         root,
@@ -2045,12 +2128,12 @@ def _build_full_study(
             "focal_verifier_ref": (
                 raws["alternate"]
                 if variant == "packet-focal-verifier"
-                else raws["focal_verifier"]
+                else raws["focal_verifier_evidence"]
             ),
             "donor_verifier_ref": (
                 raws["alternate"]
                 if variant == "packet-donor-verifier"
-                else raws["donor_verifier"]
+                else raws["donor_verifier_evidence"]
             ),
             "assignment_ref": assignment_ref,
             "identifier_map_ref": raws["identifier_map"],
@@ -2333,7 +2416,7 @@ def _build_full_study(
     for index, outcome in enumerate(donor_outcomes):
         outcome["task_id"] = "task-donor"
         outcome["opaque_arm_id"] = donor_capability_ids[index]
-        outcome["artifact_ref"] = raws["shared"]
+        outcome["artifact_ref"] = donor_receipt["y0_grade"]["artifact_ref"]  # type: ignore[index]
     donor_task_ref = _write_test_record(
         root,
         "task-donor.json",
@@ -3131,9 +3214,7 @@ def test_t3_s07_local_storage_lease_is_nominal_exclusive_and_single_use(
         root,
         completed_power_consumer_fixture=True,
     )
-    manifest_ref = ArtifactRef(
-        **cast(dict[str, Any], installed["manifest_ref"])
-    )
+    manifest_ref = ArtifactRef(**cast(dict[str, Any], installed["manifest_ref"]))
     lease = claim_local_test_storage(
         transaction="prefix",
         run_root=root,
@@ -3193,9 +3274,7 @@ def test_t3_s07_local_storage_publication_binds_science_and_fixed_receipt(
         root,
         completed_power_consumer_fixture=True,
     )
-    manifest_ref = ArtifactRef(
-        **cast(dict[str, Any], installed["manifest_ref"])
-    )
+    manifest_ref = ArtifactRef(**cast(dict[str, Any], installed["manifest_ref"]))
     lease = claim_local_test_storage(
         transaction="prefix",
         run_root=root,
@@ -3277,9 +3356,7 @@ def test_t3_s07_prefix_schedule_is_derived_and_published_inside_lease(
         completed_power_consumer_fixture=True,
     )
     (root / "prefix-schedule.json").unlink()
-    manifest_ref = ArtifactRef(
-        **cast(dict[str, Any], installed["manifest_ref"])
-    )
+    manifest_ref = ArtifactRef(**cast(dict[str, Any], installed["manifest_ref"]))
     final_paths = [
         path
         for path in (root / "power").glob("*.json")
@@ -3338,12 +3415,8 @@ def test_t3_s07_prefix_schedule_is_derived_and_published_inside_lease(
         slots = cast(list[dict[str, object]], task["slots"])
         assert len({slot["slot_id"] for slot in slots}) == 4
         assert sorted(slot["execution_order"] for slot in slots) == [0, 1, 2, 3]
-        assert all(
-            slot["hardware_lane"] == slot["execution_order"] for slot in slots
-        )
-    receipt = json.loads(
-        (root / "operational/storage-policy/prefix.json").read_bytes()
-    )
+        assert all(slot["hardware_lane"] == slot["execution_order"] for slot in slots)
+    receipt = json.loads((root / "operational/storage-policy/prefix.json").read_bytes())
     assert receipt["publication_commit"]["scientific_sha256"] == schedule_ref.sha256
     authority = load_prefix_execution_authority(
         run_root=root,
@@ -3380,9 +3453,7 @@ def test_t3_s09_branch_assignment_is_derived_inside_assignment_lease(
         if isinstance(value, dict) and value.get("record_kind") in forbidden:
             path.unlink()
 
-    manifest_ref = ArtifactRef(
-        **cast(dict[str, Any], installed["manifest_ref"])
-    )
+    manifest_ref = ArtifactRef(**cast(dict[str, Any], installed["manifest_ref"]))
     old_prefix = load_record(root / "prefix-receipt.json")
     old_prefix_payload = cast(dict[str, object], old_prefix["payload"])
     (root / "prefix-receipt.json").unlink()
@@ -3422,9 +3493,9 @@ def test_t3_s09_branch_assignment_is_derived_inside_assignment_lease(
         old_prefix_payload["task_receipts"],
     ):
         receipt["schedule_sha256"] = schedule_ref.sha256
-        cast(dict[str, object], receipt["verifier_receipt"])[
-            "schedule_sha256"
-        ] = schedule_ref.sha256
+        cast(dict[str, object], receipt["verifier_receipt"])["schedule_sha256"] = (
+            schedule_ref.sha256
+        )
     prefix_ref_value = _write_test_record(
         root,
         "prefix-receipt.json",
@@ -3447,14 +3518,10 @@ def test_t3_s09_branch_assignment_is_derived_inside_assignment_lease(
         schedule_ref,
         run_root=root,
     )
-    prefix_storage_receipt_path = (
-        root / "operational/storage-policy/prefix.json"
-    )
+    prefix_storage_receipt_path = root / "operational/storage-policy/prefix.json"
     prefix_storage_receipt_bytes = prefix_storage_receipt_path.read_bytes()
     forged_prefix_storage_receipt = json.loads(prefix_storage_receipt_bytes)
-    forged_prefix_storage_receipt["publication_commit"][
-        "scientific_sha256"
-    ] = SHA_A
+    forged_prefix_storage_receipt["publication_commit"]["scientific_sha256"] = SHA_A
     prefix_storage_receipt_path.write_bytes(
         canonical_json_bytes(forged_prefix_storage_receipt, indent=None)
     )
@@ -3497,8 +3564,7 @@ def test_t3_s09_branch_assignment_is_derived_inside_assignment_lease(
         (root / "operational/storage-policy/assignment.json").read_bytes()
     )
     assert (
-        storage_receipt["publication_commit"]["scientific_sha256"]
-        == ledger_ref.sha256
+        storage_receipt["publication_commit"]["scientific_sha256"] == ledger_ref.sha256
     )
     manifest = load_record(root / manifest_ref.relative_path)
     manifest_payload = cast(dict[str, object], manifest["payload"])
@@ -3559,9 +3625,10 @@ def test_t3_s09_branch_assignment_is_derived_inside_assignment_lease(
         run_root=root,
         out=root / "packet-index.json",
     )
-    assert load_record(root / sealed_packet_ref.relative_path)["payload"][
-        "stage"
-    ] == "sealed"
+    assert (
+        load_record(root / sealed_packet_ref.relative_path)["payload"]["stage"]
+        == "sealed"
+    )
     with pytest.raises(ValueError, match="consumed"):
         store._consume_into(handle, bytearray(32))  # type: ignore[arg-type]
 
@@ -3616,14 +3683,18 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
         "tiers": [120, 160],
     }
     old_registry = json.loads(
-        (root / cast(dict[str, object], manifest_payload["task_registry_ref"])[
-            "relative_path"
-        ]).read_bytes()
+        (
+            root
+            / cast(dict[str, object], manifest_payload["task_registry_ref"])[
+                "relative_path"
+            ]
+        ).read_bytes()
     )
     old_roster = json.loads(
-        (root / cast(dict[str, object], manifest_payload["roster_ref"])[
-            "relative_path"
-        ]).read_bytes()
+        (
+            root
+            / cast(dict[str, object], manifest_payload["roster_ref"])["relative_path"]
+        ).read_bytes()
     )
     old_provider = json.loads(
         (
@@ -3663,10 +3734,7 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
     ):
         template_ref = template_provider_row[ref_field]
         template_value = json.loads(
-            (
-                root
-                / cast(dict[str, object], template_ref)["relative_path"]
-            ).read_bytes()
+            (root / cast(dict[str, object], template_ref)["relative_path"]).read_bytes()
         )
         template_value["task_id"] = "task-third"
         third_ref = _write_blob(
@@ -3741,7 +3809,7 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
                     {
                         "finding_id": "third-finding",
                         "component": "pytest",
-                            "code": "charlie",
+                        "code": "charlie",
                         "severity": "high",
                         "atoms": [
                             {"atom_kind": "literal", "text": "inspect "},
@@ -3791,9 +3859,7 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
             indent=None,
         ),
     )
-    packet_feature_refs: dict[str, dict[str, object]] = {
-        "task-third": third_features
-    }
+    packet_feature_refs: dict[str, dict[str, object]] = {"task-third": third_features}
     for packet_task_id, packet_identifier, packet_code in (
         ("task-1", "src/task-one.py", "alpha"),
         ("task-donor", "src/task-donor.py", "bravo"),
@@ -3815,7 +3881,7 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
                         {
                             "finding_id": f"finding-{packet_task_id}",
                             "component": "pytest",
-                                "code": packet_code,
+                            "code": packet_code,
                             "severity": "high",
                             "atoms": [
                                 {"atom_kind": "literal", "text": "inspect "},
@@ -3868,15 +3934,11 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
     receipts = deepcopy(old_receipts)
     third_receipt = deepcopy(receipts[1])
     third_receipt["task_id"] = "task-third"
-    cast(dict[str, object], third_receipt["verifier_receipt"])[
-        "task_id"
-    ] = "task-third"
+    cast(dict[str, object], third_receipt["verifier_receipt"])["task_id"] = "task-third"
     cast(dict[str, object], third_receipt["verifier_receipt"])[
         "verifier_artifact_ref"
     ] = third_features
-    cast(dict[str, object], third_receipt["verifier_receipt"])[
-        "finding_count"
-    ] = 1
+    cast(dict[str, object], third_receipt["verifier_receipt"])["finding_count"] = 1
     receipts.append(third_receipt)
     for receipt in receipts:
         verifier = cast(dict[str, object], receipt["verifier_receipt"])
@@ -3910,23 +3972,16 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
         out=root / "private-audit/normalized-third-b.json",
     )
     assert normalized_a.sha256 == normalized_b.sha256
-    assert (
-        root / normalized_a.relative_path
-    ).read_bytes() == (
+    assert (root / normalized_a.relative_path).read_bytes() == (
         root / normalized_b.relative_path
     ).read_bytes()
     normalized_by_task = {"task-third": normalized_a}
     for normalized_task_id in ("task-1", "task-donor"):
-        normalized_by_task[normalized_task_id] = (
-            normalize_synthetic_packet_findings(
-                ArtifactRef(**packet_feature_refs[normalized_task_id]),
-                task_id=normalized_task_id,
-                run_root=root,
-                out=(
-                    root
-                    / f"private-audit/normalized-{normalized_task_id}.json"
-                ),
-            )
+        normalized_by_task[normalized_task_id] = normalize_synthetic_packet_findings(
+            ArtifactRef(**packet_feature_refs[normalized_task_id]),
+            task_id=normalized_task_id,
+            run_root=root,
+            out=(root / f"private-audit/normalized-{normalized_task_id}.json"),
         )
     assignment_lease = claim_local_test_storage(
         transaction="assignment",
@@ -3959,9 +4014,7 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
     proof_refs = cast(list[dict[str, object]], payload["matching_proof_refs"])
     assert len(proof_refs) == 1
     proof_ref = ArtifactRef(**proof_refs[0])
-    assert proof_ref.relative_path == (
-        f"blobs/matching/proof/{proof_ref.sha256}.json"
-    )
+    assert proof_ref.relative_path == (f"blobs/matching/proof/{proof_ref.sha256}.json")
     proof = json.loads((root / proof_ref.relative_path).read_bytes())
     assert proof["proof_kind"] == "synthetic_cyclic_offset_v1"
     assert proof["canonical_focal_task_ids"] == [
@@ -3970,11 +4023,15 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
         "task-third",
     ]
     mapping = dict(proof["donor_by_task"])
-    assert set(mapping) == set(mapping.values()) == {
-        "task-1",
-        "task-donor",
-        "task-third",
-    }
+    assert (
+        set(mapping)
+        == set(mapping.values())
+        == {
+            "task-1",
+            "task-donor",
+            "task-third",
+        }
+    )
     assert all(focal != donor for focal, donor in mapping.items())
     donor_receipts = cast(
         list[dict[str, object]],
@@ -3982,8 +4039,7 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
     )
     assert all(receipt["kind"] == "matched" for receipt in donor_receipts)
     assert all(
-        receipt["matching_proof_ref"] == proof_refs[0]
-        for receipt in donor_receipts
+        receipt["matching_proof_ref"] == proof_refs[0] for receipt in donor_receipts
     )
     assert all(
         len(cast(list[object], receipt["candidates"])) == 2
@@ -3992,15 +4048,9 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
     assignment_storage_receipt_path = (
         root / "operational/storage-policy/assignment.json"
     )
-    assignment_storage_receipt_bytes = (
-        assignment_storage_receipt_path.read_bytes()
-    )
-    forged_assignment_storage_receipt = json.loads(
-        assignment_storage_receipt_bytes
-    )
-    forged_assignment_storage_receipt["publication_commit"][
-        "scientific_sha256"
-    ] = SHA_A
+    assignment_storage_receipt_bytes = assignment_storage_receipt_path.read_bytes()
+    forged_assignment_storage_receipt = json.loads(assignment_storage_receipt_bytes)
+    forged_assignment_storage_receipt["publication_commit"]["scientific_sha256"] = SHA_A
     assignment_storage_receipt_path.write_bytes(
         canonical_json_bytes(
             forged_assignment_storage_receipt,
@@ -4014,9 +4064,7 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
             schedule_ref=schedule_ref,
             run_root=root,
         )
-    assignment_storage_receipt_path.write_bytes(
-        assignment_storage_receipt_bytes
-    )
+    assignment_storage_receipt_path.write_bytes(assignment_storage_receipt_bytes)
     _require_assignment_publication(
         ledger_ref,
         manifest_ref=manifest_ref,
@@ -4064,9 +4112,10 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
         "task-donor",
         "task-third",
     ]
-    assert reconstructed.assignment_prefix_view_sha256 == payload[
-        "assignment_prefix_view_sha256"
-    ]
+    assert (
+        reconstructed.assignment_prefix_view_sha256
+        == payload["assignment_prefix_view_sha256"]
+    )
     tokenizer_ref = ArtifactRef(
         **cast(dict[str, Any], manifest_payload["tokenizer_ref"])
     )
@@ -4114,13 +4163,9 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
             normalized_real_ref=normalized_by_task[assignment.task_id],
             normalized_donor_ref=normalized_by_task[donor_task_id],
             run_root=root,
-            identifier_map_out=(
-                root
-                / f"private-audit/map-{assignment.task_id}.json"
-            ),
+            identifier_map_out=(root / f"private-audit/map-{assignment.task_id}.json"),
             normalized_sham_out=(
-                root
-                / f"private-audit/sham-{assignment.task_id}.json"
+                root / f"private-audit/sham-{assignment.task_id}.json"
             ),
         )
         packet_entries.append(
@@ -4187,9 +4232,10 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
         run_root=root,
         out=root / "packet-index-triggered.json",
     )
-    assert load_record(root / sealed_packet_ref.relative_path)["payload"][
-        "stage"
-    ] == "sealed"
+    assert (
+        load_record(root / sealed_packet_ref.relative_path)["payload"]["stage"]
+        == "sealed"
+    )
 
     forged_ledger = load_record(root / ledger_ref.relative_path)
     forged_payload = cast(dict[str, object], forged_ledger["payload"])
@@ -4900,9 +4946,7 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
     manifest_ref = seal()
     assert (run_root / manifest_ref.relative_path).is_file()
     if failure_mode == "confirmation_conditional":
-        manifest_payload = load_record(
-            run_root / manifest_ref.relative_path
-        )["payload"]
+        manifest_payload = load_record(run_root / manifest_ref.relative_path)["payload"]
         assert isinstance(manifest_payload, dict)
         assert manifest_payload["eligibility_manifest_ref"] is not None
         assert manifest_payload["roster_ceremony_policy_ref"] is not None
@@ -5010,6 +5054,10 @@ def test_artifact_root_rejects_dangling_and_conflicting_refs(
     message: str,
 ) -> None:
     root = tmp_path / variant
+    if variant == "conflicting-ref":
+        with pytest.raises(RecordValidationError):
+            _build_full_study(root, variant=variant)
+        return
     _build_full_study(root, variant=variant)
     with pytest.raises(RecordValidationError, match=message):
         seal_artifact_root(

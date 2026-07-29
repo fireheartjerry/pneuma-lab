@@ -58,6 +58,7 @@ def _receipt() -> dict[str, object]:
                         "infrastructure_failure": False,
                         "artifact_ref": _ref("grade_evidence"),
                     },
+                    "grade_execution_receipt_ref": _ref("grade_evidence_receipt"),
                     "verifier_receipt": {
                         "task_id": "task-1",
                         "schedule_sha256": SHA_A,
@@ -65,6 +66,7 @@ def _receipt() -> dict[str, object]:
                         "verifier_artifact_ref": _ref("verifier_evidence"),
                         "finding_count": 0,
                     },
+                    "verifier_execution_receipt_ref": _ref("verifier_evidence_receipt"),
                     "counters": {
                         "generated_tokens": 0,
                         "model_calls": 0,
@@ -119,6 +121,8 @@ def test_dl136_prefix_receipt_rejects_old_pending_tool_calls_only_shape() -> Non
         "simulator_counters",
         "provider_attempts_ref",
         "boundary_ledger_ref",
+        "grade_execution_receipt_ref",
+        "verifier_execution_receipt_ref",
     ],
 )
 def test_dl136_prefix_receipt_rejects_omitted_new_fields(field: str) -> None:
@@ -133,5 +137,53 @@ def test_dl136_prefix_receipt_rejects_unknown_field() -> None:
     value = deepcopy(_receipt())
     task = value["payload"]["task_receipts"][0]  # type: ignore[index]
     task["adapter_claimed_usage"] = 0  # type: ignore[index]
+    with pytest.raises(Exception):
+        _validator().validate(value)
+
+
+@pytest.mark.parametrize(
+    ("field", "wrong_role"),
+    [
+        ("snapshot_ref", "snapshot"),
+        ("visible_context_ref", "context"),
+        ("token_ids_ref", "tokens"),
+        ("provider_attempts_ref", "attempts"),
+        ("boundary_ledger_ref", "boundaries"),
+        ("provider_cost_ref", "cost"),
+    ],
+)
+def test_dl136_prefix_receipt_rejects_wrong_edge_roles(
+    field: str,
+    wrong_role: str,
+) -> None:
+    value = _receipt()
+    task = value["payload"]["task_receipts"][0]  # type: ignore[index]
+    task[field]["role"] = wrong_role  # type: ignore[index]
+    with pytest.raises(Exception):
+        _validator().validate(value)
+
+
+@pytest.mark.parametrize(
+    "edge",
+    [
+        "grade_evidence",
+        "grade_execution",
+        "verifier_evidence",
+        "verifier_execution",
+    ],
+)
+def test_dl136_prefix_receipt_rejects_wrong_grade_verifier_roles(
+    edge: str,
+) -> None:
+    value = _receipt()
+    task = value["payload"]["task_receipts"][0]  # type: ignore[index]
+    if edge == "grade_evidence":
+        task["y0_grade"]["artifact_ref"]["role"] = "wrong"  # type: ignore[index]
+    elif edge == "grade_execution":
+        task["grade_execution_receipt_ref"]["role"] = "wrong"  # type: ignore[index]
+    elif edge == "verifier_evidence":
+        task["verifier_receipt"]["verifier_artifact_ref"]["role"] = "wrong"  # type: ignore[index]
+    else:
+        task["verifier_execution_receipt_ref"]["role"] = "wrong"  # type: ignore[index]
     with pytest.raises(Exception):
         _validator().validate(value)

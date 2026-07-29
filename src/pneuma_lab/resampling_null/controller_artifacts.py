@@ -381,7 +381,19 @@ class ControllerArtifactResolver:
         root_descriptor = self._root_descriptor
         self._artifact_descriptor = None
         self._root_descriptor = None
+        errors: list[Exception] = []
         if artifact_descriptor is not None:
-            os.close(artifact_descriptor)
+            try:
+                os.close(artifact_descriptor)
+            except OSError as exc:
+                errors.append(exc)
         if root_descriptor is not None:
-            os.close(root_descriptor)
+            try:
+                os.close(root_descriptor)
+            except OSError as exc:
+                errors.append(exc)
+        if errors:
+            raise ExceptionGroup(
+                "controller artifact resolver close was incomplete",
+                errors,
+            )

@@ -178,3 +178,26 @@ def test_failed_write_reports_cleanup_uncertainty(tmp_path, monkeypatch) -> None
     monkeypatch.setattr(controller_artifacts.os, "write", real_write)
     monkeypatch.setattr(controller_artifacts.os, "unlink", real_unlink)
     store.close()
+
+
+def test_resolver_close_aggregates_and_attempts_both_descriptors(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    store = ControllerArtifactStore(tmp_path)
+    store.close()
+    resolver = ControllerArtifactResolver(tmp_path)
+    real_close = os.close
+    close_calls = 0
+
+    def fail_first_close(descriptor: int) -> None:
+        nonlocal close_calls
+        close_calls += 1
+        real_close(descriptor)
+        if close_calls == 1:
+            raise OSError("injected resolver close failure")
+
+    monkeypatch.setattr(controller_artifacts.os, "close", fail_first_close)
+    with pytest.raises(ExceptionGroup):
+        resolver.close()
+    assert close_calls == 2
