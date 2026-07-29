@@ -649,3 +649,213 @@ def test_temporary_rollback_preserves_peer_replacement(
     assert replaced_name is not None
     peer = run_root / replaced_name
     assert peer.read_bytes() == peer_bytes
+
+
+def test_temporary_first_fstat_failure_reports_uncertain_created_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publication = _publication_module()
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    transaction_token = "2" * 32
+    monkeypatch.setattr(
+        publication.secrets,
+        "token_hex",
+        lambda _bytes: transaction_token,
+    )
+    temporary_name = f".pneuma-{transaction_token}-1.tmp"
+
+    with pytest.raises(
+        publication.PublicationRollbackError,
+        match=rf"rollback incomplete.*{temporary_name}.*identity unavailable",
+    ) as captured:
+        with publication.BoundPublication(run_root) as transaction:
+            original_fstat = publication.os.fstat
+            failed = False
+
+            def fail_first_temporary_fstat(descriptor: int):
+                nonlocal failed
+                if not failed:
+                    failed = True
+                    raise OSError("injected temporary fstat failure")
+                return original_fstat(descriptor)
+
+            monkeypatch.setattr(
+                publication.os,
+                "fstat",
+                fail_first_temporary_fstat,
+            )
+            transaction.publish_bytes(
+                "item.json",
+                b"owned\n",
+                role="fixture",
+                media_type="application/json",
+            )
+
+    assert isinstance(captured.value.__cause__, OSError)
+    assert (run_root / temporary_name).exists()
+
+
+@pytest.mark.parametrize("failure_point", ["reopen", "fstat"])
+def test_created_directory_binding_failure_reports_uncertain_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_point: str,
+) -> None:
+    publication = _publication_module()
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+
+    with pytest.raises(
+        publication.PublicationRollbackError,
+        match=r"rollback incomplete.*sources.*identity unavailable",
+    ) as captured:
+        with publication.BoundPublication(run_root) as transaction:
+            if failure_point == "reopen":
+                original_open = publication.os.open
+                source_open_calls = 0
+
+                def fail_created_directory_reopen(
+                    path: object,
+                    flags: int,
+                    mode: int = 0o777,
+                    *,
+                    dir_fd: int | None = None,
+                ) -> int:
+                    nonlocal source_open_calls
+                    if path == "sources":
+                        source_open_calls += 1
+                        if source_open_calls == 2:
+                            raise OSError("injected created-directory reopen failure")
+                    return original_open(
+                        path,
+                        flags,
+                        mode,
+                        dir_fd=dir_fd,
+                    )
+
+                monkeypatch.setattr(
+                    publication.os,
+                    "open",
+                    fail_created_directory_reopen,
+                )
+            else:
+                original_fstat = publication.os.fstat
+                failed = False
+
+                def fail_created_directory_fstat(descriptor: int):
+                    nonlocal failed
+                    if not failed:
+                        failed = True
+                        raise OSError("injected created-directory fstat failure")
+                    return original_fstat(descriptor)
+
+                monkeypatch.setattr(
+                    publication.os,
+                    "fstat",
+                    fail_created_directory_fstat,
+                )
+            transaction.publish_bytes(
+                "sources/item.json",
+                b"owned\n",
+                role="fixture",
+                media_type="application/json",
+            )
+
+    assert isinstance(captured.value.__cause__, OSError)
+    assert (run_root / "sources").is_dir()
+
+
+@pytest.mark.parametrize(
+    ("object_kind", "quarantine_marker", "original_name", "stolen_name"),
+    [
+        ("owned", ".rollback-", "item.json", "stolen-owned.json"),
+        (
+            "temporary",
+            ".temp-rollback-",
+            ".pneuma-" + "3" * 32 + "-1.tmp",
+            "stolen-temporary.tmp",
+        ),
+        ("directory", ".dir-rollback-", "sources", "stolen-sources"),
+    ],
+)
+def test_post_move_quarantine_substitution_reports_ownership_loss(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    object_kind: str,
+    quarantine_marker: str,
+    original_name: str,
+    stolen_name: str,
+) -> None:
+    publication = _publication_module()
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    monkeypatch.setattr(
+        publication.secrets,
+        "token_hex",
+        lambda _bytes: "3" * 32,
+    )
+    original_rename = publication._rename_no_replace
+    substituted = False
+
+    def substitute_after_quarantine_move(
+        source_name: str,
+        destination_name: str,
+        *,
+        source_descriptor: int,
+        destination_descriptor: int,
+    ) -> None:
+        nonlocal substituted
+        original_rename(
+            source_name,
+            destination_name,
+            source_descriptor=source_descriptor,
+            destination_descriptor=destination_descriptor,
+        )
+        if not substituted and quarantine_marker in destination_name:
+            substituted = True
+            os.rename(
+                destination_name,
+                stolen_name,
+                src_dir_fd=destination_descriptor,
+                dst_dir_fd=destination_descriptor,
+            )
+            os.symlink(
+                "peer-target",
+                destination_name,
+                dir_fd=destination_descriptor,
+            )
+
+    monkeypatch.setattr(
+        publication,
+        "_rename_no_replace",
+        substitute_after_quarantine_move,
+    )
+    if object_kind == "temporary":
+
+        def fail_write(_descriptor: int, _payload: bytes) -> None:
+            raise OSError("injected temporary write failure")
+
+        monkeypatch.setattr(publication, "_write_all", fail_write)
+
+    with pytest.raises(
+        publication.PublicationRollbackError,
+        match=r"rollback incomplete.*ownership lost",
+    ) as captured:
+        with publication.BoundPublication(run_root) as transaction:
+            relative_path = (
+                "sources/item.json" if object_kind == "directory" else "item.json"
+            )
+            transaction.publish_bytes(
+                relative_path,
+                b"owned\n",
+                role="fixture",
+                media_type="application/json",
+            )
+            raise OSError("injected terminal failure")
+
+    assert isinstance(captured.value.__cause__, OSError)
+    assert substituted
+    assert (run_root / original_name).is_symlink()
+    assert (run_root / stolen_name).exists()

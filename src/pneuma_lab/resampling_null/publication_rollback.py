@@ -15,6 +15,7 @@ from typing import Any, Protocol, TypeVar
 
 _HASH_CHUNK_BYTES = 1024 * 1024
 _RENAME_NOREPLACE = 1
+_PATH_FLAGS = getattr(os, "O_PATH", 0) | os.O_NOFOLLOW | os.O_CLOEXEC
 _LIBC = ctypes.CDLL(None, use_errno=True)
 _RENAMEAT2: Any = getattr(_LIBC, "renameat2", None)
 if _RENAMEAT2 is not None:
@@ -33,8 +34,8 @@ class CreatedDirectory:
     parent_parts: tuple[str, ...]
     name: str
     relative_path: str
-    device: int
-    inode: int
+    device: int | None
+    inode: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,8 +54,17 @@ class OwnedTemporary:
     parent_parts: tuple[str, ...]
     name: str
     relative_path: str
-    device: int
-    inode: int
+    device: int | None
+    inode: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class _QuarantinedSource:
+    parent_descriptor: int
+    source_descriptor: int
+    source_metadata: os.stat_result
+    quarantine_name: str
+    quarantine_relative: str
 
 
 class DescriptorResolver(Protocol):
@@ -142,6 +152,219 @@ def _restore_quarantine(
     os.fsync(parent_descriptor)
 
 
+def _close_source(descriptor: int) -> None:
+    try:
+        os.close(descriptor)
+    except OSError:
+        pass
+
+
+def _quarantine_source(
+    *,
+    parent_parts: tuple[str, ...],
+    name: str,
+    relative_path: str,
+    index: int,
+    descriptor_for: DescriptorResolver,
+    quarantine_name_for: QuarantineName,
+    rename: RenameNoReplace,
+) -> tuple[_QuarantinedSource | None, list[str], list[str]]:
+    parent = descriptor_for(parent_parts)
+    quarantine_name = quarantine_name_for(index)
+    quarantine_relative = PurePosixPath(
+        *parent_parts,
+        quarantine_name,
+    ).as_posix()
+    if not getattr(os, "O_PATH", 0):
+        return (
+            None,
+            [f"{relative_path}: O_PATH identity binding unavailable"],
+            [relative_path],
+        )
+    try:
+        source_descriptor = os.open(name, _PATH_FLAGS, dir_fd=parent)
+    except FileNotFoundError:
+        return None, [], []
+    except BaseException as exc:
+        return (
+            None,
+            [f"{relative_path} source identity open: {type(exc).__name__}: {exc}"],
+            [relative_path],
+        )
+    keep_open = False
+    try:
+        source_metadata = os.fstat(source_descriptor)
+        try:
+            rename(
+                name,
+                quarantine_name,
+                source_descriptor=parent,
+                destination_descriptor=parent,
+            )
+        except FileNotFoundError as exc:
+            return (
+                None,
+                [
+                    f"{relative_path}: ownership lost before quarantine move: "
+                    f"{type(exc).__name__}: {exc}"
+                ],
+                [relative_path],
+            )
+        except BaseException as exc:
+            return (
+                None,
+                [
+                    f"{relative_path} quarantine move to "
+                    f"{quarantine_relative}: {type(exc).__name__}: {exc}"
+                ],
+                [relative_path],
+            )
+        try:
+            named = os.stat(
+                quarantine_name,
+                dir_fd=parent,
+                follow_symlinks=False,
+            )
+        except BaseException as exc:
+            failures = [
+                f"{quarantine_relative} identity inspection: "
+                f"{type(exc).__name__}: {exc}"
+            ]
+            try:
+                _restore_quarantine(
+                    parent,
+                    quarantine_name,
+                    name,
+                    rename=rename,
+                )
+            except BaseException as restore_exc:
+                failures.append(
+                    f"{quarantine_relative} restore: "
+                    f"{type(restore_exc).__name__}: {restore_exc}"
+                )
+                return None, failures, [quarantine_relative]
+            return None, failures, [relative_path]
+        if (named.st_dev, named.st_ino) != (
+            source_metadata.st_dev,
+            source_metadata.st_ino,
+        ):
+            try:
+                held_after_move = os.fstat(source_descriptor)
+            except BaseException as exc:
+                ownership_reachable = True
+                failures = [
+                    f"{relative_path}: ownership reachability inspection: "
+                    f"{type(exc).__name__}: {exc}"
+                ]
+            else:
+                ownership_reachable = getattr(held_after_move, "st_nlink", 1) > 0
+                failures = (
+                    [f"{relative_path}: ownership lost after quarantine move"]
+                    if ownership_reachable
+                    else []
+                )
+            try:
+                _restore_quarantine(
+                    parent,
+                    quarantine_name,
+                    name,
+                    rename=rename,
+                )
+            except BaseException as exc:
+                failures.append(
+                    f"{quarantine_relative} restore: {type(exc).__name__}: {exc}"
+                )
+                return None, failures, [quarantine_relative]
+            if ownership_reachable:
+                return None, failures, [relative_path]
+            return None, [], []
+        binding = _QuarantinedSource(
+            parent_descriptor=parent,
+            source_descriptor=source_descriptor,
+            source_metadata=source_metadata,
+            quarantine_name=quarantine_name,
+            quarantine_relative=quarantine_relative,
+        )
+        keep_open = True
+        return binding, [], []
+    finally:
+        if not keep_open:
+            _close_source(source_descriptor)
+
+
+def _restore_bound_source(
+    binding: _QuarantinedSource,
+    destination_name: str,
+    *,
+    relative_path: str,
+    rename: RenameNoReplace,
+    failure: str | None = None,
+) -> tuple[list[str], list[str]]:
+    failures = [] if failure is None else [failure]
+    try:
+        _restore_quarantine(
+            binding.parent_descriptor,
+            binding.quarantine_name,
+            destination_name,
+            rename=rename,
+        )
+    except BaseException as exc:
+        failures.append(
+            f"{binding.quarantine_relative} restore: {type(exc).__name__}: {exc}"
+        )
+        return failures, [binding.quarantine_relative]
+    if failure is None:
+        return [], []
+    return failures, [relative_path]
+
+
+def _binding_matches_named(
+    binding: _QuarantinedSource,
+    metadata: os.stat_result,
+) -> bool:
+    return (metadata.st_dev, metadata.st_ino) == (
+        binding.source_metadata.st_dev,
+        binding.source_metadata.st_ino,
+    )
+
+
+def _recheck_quarantine(
+    binding: _QuarantinedSource,
+    destination_name: str,
+    *,
+    relative_path: str,
+    rename: RenameNoReplace,
+) -> tuple[bool, list[str], list[str]]:
+    try:
+        named = os.stat(
+            binding.quarantine_name,
+            dir_fd=binding.parent_descriptor,
+            follow_symlinks=False,
+        )
+    except BaseException as exc:
+        failures, residuals = _restore_bound_source(
+            binding,
+            destination_name,
+            relative_path=relative_path,
+            rename=rename,
+            failure=(
+                f"{binding.quarantine_relative} identity inspection: "
+                f"{type(exc).__name__}: {exc}"
+            ),
+        )
+        return False, failures, residuals
+    if not _binding_matches_named(binding, named):
+        failures, residuals = _restore_bound_source(
+            binding,
+            destination_name,
+            relative_path=relative_path,
+            rename=rename,
+            failure=(f"{relative_path}: ownership lost after quarantine move"),
+        )
+        return False, failures, residuals
+    return True, [], []
+
+
 def _rollback_owned(
     owned: OwnedPublication,
     *,
@@ -151,126 +374,111 @@ def _rollback_owned(
     rename: RenameNoReplace,
     read_flags: int,
 ) -> tuple[list[str], list[str]]:
-    parent = descriptor_for(owned.parent_parts)
-    quarantine_name = quarantine_name_for(index)
-    quarantine_relative = PurePosixPath(
-        *owned.parent_parts,
-        quarantine_name,
-    ).as_posix()
+    binding, failures, residuals = _quarantine_source(
+        parent_parts=owned.parent_parts,
+        name=owned.name,
+        relative_path=owned.relative_path,
+        index=index,
+        descriptor_for=descriptor_for,
+        quarantine_name_for=quarantine_name_for,
+        rename=rename,
+    )
+    if binding is None:
+        return failures, residuals
     try:
-        rename(
-            owned.name,
-            quarantine_name,
-            source_descriptor=parent,
-            destination_descriptor=parent,
-        )
-    except FileNotFoundError:
-        return [], []
-    except BaseException as exc:
-        return (
-            [
-                f"{owned.relative_path} quarantine move to "
-                f"{quarantine_relative}: {type(exc).__name__}: {exc}"
-            ],
-            [owned.relative_path],
-        )
-    try:
-        descriptor = os.open(quarantine_name, read_flags, dir_fd=parent)
-        try:
-            metadata = os.fstat(descriptor)
-            digest, size = descriptor_digest(descriptor)
-        finally:
-            os.close(descriptor)
-    except BaseException as exc:
-        classification_failure: BaseException | None = None
-        confirmed_peer = False
-        try:
-            named = os.stat(
-                quarantine_name,
-                dir_fd=parent,
-                follow_symlinks=False,
-            )
-            confirmed_peer = not stat.S_ISREG(named.st_mode) or (
-                named.st_dev,
-                named.st_ino,
-            ) != (owned.device, owned.inode)
-        except BaseException as classification_exc:
-            classification_failure = classification_exc
-        try:
-            _restore_quarantine(
-                parent,
-                quarantine_name,
+        source_is_owned = stat.S_ISREG(binding.source_metadata.st_mode) and (
+            binding.source_metadata.st_dev,
+            binding.source_metadata.st_ino,
+        ) == (owned.device, owned.inode)
+        if not source_is_owned:
+            matches, failures, residuals = _recheck_quarantine(
+                binding,
                 owned.name,
+                relative_path=owned.relative_path,
                 rename=rename,
             )
-        except BaseException as restore_exc:
-            return (
-                [
-                    f"{quarantine_relative} inspection: {type(exc).__name__}: {exc}",
-                    f"{quarantine_relative} restore: "
-                    f"{type(restore_exc).__name__}: {restore_exc}",
-                ],
-                [quarantine_relative],
+            if not matches:
+                return failures, residuals
+            return _restore_bound_source(
+                binding,
+                owned.name,
+                relative_path=owned.relative_path,
+                rename=rename,
             )
-        if confirmed_peer:
-            return [], []
-        failures = [
-            f"{owned.relative_path} quarantine inspection: {type(exc).__name__}: {exc}"
-        ]
-        if classification_failure is not None:
-            failures.append(
-                f"{owned.relative_path} quarantine classification: "
-                f"{type(classification_failure).__name__}: "
-                f"{classification_failure}"
-            )
-        return failures, [owned.relative_path]
-    identity_matches = (
-        stat.S_ISREG(metadata.st_mode)
-        and (metadata.st_dev, metadata.st_ino) == (owned.device, owned.inode)
-        and digest == owned.sha256
-        and size == owned.byte_count
-    )
-    confirmed_peer = not stat.S_ISREG(metadata.st_mode) or (
-        metadata.st_dev,
-        metadata.st_ino,
-    ) != (owned.device, owned.inode)
-    link_count = getattr(metadata, "st_nlink", 1)
-    if identity_matches and link_count == 1:
         try:
-            os.unlink(quarantine_name, dir_fd=parent)
-            os.fsync(parent)
-        except BaseException as exc:
-            return (
-                [f"{quarantine_relative}: {type(exc).__name__}: {exc}"],
-                [quarantine_relative],
+            descriptor = os.open(
+                binding.quarantine_name,
+                read_flags,
+                dir_fd=binding.parent_descriptor,
             )
-        return [], []
-    try:
-        _restore_quarantine(
-            parent,
-            quarantine_name,
+            try:
+                metadata = os.fstat(descriptor)
+                if not _binding_matches_named(binding, metadata):
+                    raise OSError("quarantine read identity changed")
+                digest, size = descriptor_digest(descriptor)
+            finally:
+                os.close(descriptor)
+        except BaseException as exc:
+            matches, failures, residuals = _recheck_quarantine(
+                binding,
+                owned.name,
+                relative_path=owned.relative_path,
+                rename=rename,
+            )
+            if not matches:
+                return failures, residuals
+            return _restore_bound_source(
+                binding,
+                owned.name,
+                relative_path=owned.relative_path,
+                rename=rename,
+                failure=(
+                    f"{owned.relative_path} quarantine inspection: "
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            )
+        matches, failures, residuals = _recheck_quarantine(
+            binding,
             owned.name,
+            relative_path=owned.relative_path,
             rename=rename,
         )
-        residual_name = owned.relative_path
-    except BaseException as exc:
-        failures = [f"{quarantine_relative} restore: {type(exc).__name__}: {exc}"]
-        residual_name = quarantine_relative
-    else:
-        failures = []
-    if identity_matches:
-        failures.append(
-            f"{owned.relative_path}: link count {link_count} prevents rollback"
+        if not matches:
+            return failures, residuals
+        identity_matches = (
+            stat.S_ISREG(metadata.st_mode)
+            and digest == owned.sha256
+            and size == owned.byte_count
         )
-        return failures, [residual_name]
-    if confirmed_peer:
-        if residual_name == quarantine_relative:
-            return failures, [residual_name]
-        return failures, []
-    failures.append(f"{owned.relative_path}: owned content changed during rollback")
-    if residual_name == quarantine_relative:
-        return failures, [residual_name]
-    return failures, [owned.relative_path]
+        link_count = getattr(metadata, "st_nlink", 1)
+        if identity_matches and link_count == 1:
+            try:
+                os.unlink(
+                    binding.quarantine_name,
+                    dir_fd=binding.parent_descriptor,
+                )
+                os.fsync(binding.parent_descriptor)
+            except BaseException as exc:
+                return (
+                    [f"{binding.quarantine_relative}: {type(exc).__name__}: {exc}"],
+                    [binding.quarantine_relative],
+                )
+            return [], []
+        if identity_matches:
+            failure = (
+                f"{owned.relative_path}: link count {link_count} prevents rollback"
+            )
+        else:
+            failure = f"{owned.relative_path}: owned content changed during rollback"
+        return _restore_bound_source(
+            binding,
+            owned.name,
+            relative_path=owned.relative_path,
+            rename=rename,
+            failure=failure,
+        )
+    finally:
+        _close_source(binding.source_descriptor)
 
 
 def _rollback_temporary(
@@ -281,86 +489,59 @@ def _rollback_temporary(
     quarantine_name_for: QuarantineName,
     rename: RenameNoReplace,
 ) -> tuple[list[str], list[str]]:
-    parent = descriptor_for(temporary.parent_parts)
-    quarantine_name = quarantine_name_for(index)
-    quarantine_relative = PurePosixPath(
-        *temporary.parent_parts,
-        quarantine_name,
-    ).as_posix()
-    try:
-        rename(
-            temporary.name,
-            quarantine_name,
-            source_descriptor=parent,
-            destination_descriptor=parent,
-        )
-    except FileNotFoundError:
-        return [], []
-    except BaseException as exc:
+    if temporary.device is None or temporary.inode is None:
         return (
             [
-                f"{temporary.relative_path} quarantine move to "
-                f"{quarantine_relative}: {type(exc).__name__}: {exc}"
+                f"{temporary.relative_path}: identity unavailable; "
+                "uncertain created name preserved"
             ],
             [temporary.relative_path],
         )
+    binding, failures, residuals = _quarantine_source(
+        parent_parts=temporary.parent_parts,
+        name=temporary.name,
+        relative_path=temporary.relative_path,
+        index=index,
+        descriptor_for=descriptor_for,
+        quarantine_name_for=quarantine_name_for,
+        rename=rename,
+    )
+    if binding is None:
+        return failures, residuals
     try:
-        metadata = os.stat(
-            quarantine_name,
-            dir_fd=parent,
-            follow_symlinks=False,
-        )
-    except BaseException as exc:
-        try:
-            _restore_quarantine(
-                parent,
-                quarantine_name,
-                temporary.name,
-                rename=rename,
-            )
-        except BaseException as restore_exc:
-            return (
-                [
-                    f"{quarantine_relative} inspection: {type(exc).__name__}: {exc}",
-                    f"{quarantine_relative} restore: "
-                    f"{type(restore_exc).__name__}: {restore_exc}",
-                ],
-                [quarantine_relative],
-            )
-        return (
-            [
-                f"{temporary.relative_path} quarantine inspection: "
-                f"{type(exc).__name__}: {exc}"
-            ],
-            [temporary.relative_path],
-        )
-    identity_matches = stat.S_ISREG(metadata.st_mode) and (
-        metadata.st_dev,
-        metadata.st_ino,
-    ) == (temporary.device, temporary.inode)
-    if identity_matches:
-        try:
-            os.unlink(quarantine_name, dir_fd=parent)
-            os.fsync(parent)
-        except BaseException as exc:
-            return (
-                [f"{quarantine_relative}: {type(exc).__name__}: {exc}"],
-                [quarantine_relative],
-            )
-        return [], []
-    try:
-        _restore_quarantine(
-            parent,
-            quarantine_name,
+        source_is_owned = stat.S_ISREG(binding.source_metadata.st_mode) and (
+            binding.source_metadata.st_dev,
+            binding.source_metadata.st_ino,
+        ) == (temporary.device, temporary.inode)
+        matches, failures, residuals = _recheck_quarantine(
+            binding,
             temporary.name,
+            relative_path=temporary.relative_path,
             rename=rename,
         )
-    except BaseException as exc:
-        return (
-            [f"{quarantine_relative} restore: {type(exc).__name__}: {exc}"],
-            [quarantine_relative],
-        )
-    return [], []
+        if not matches:
+            return failures, residuals
+        if not source_is_owned:
+            return _restore_bound_source(
+                binding,
+                temporary.name,
+                relative_path=temporary.relative_path,
+                rename=rename,
+            )
+        try:
+            os.unlink(
+                binding.quarantine_name,
+                dir_fd=binding.parent_descriptor,
+            )
+            os.fsync(binding.parent_descriptor)
+        except BaseException as exc:
+            return (
+                [f"{binding.quarantine_relative}: {type(exc).__name__}: {exc}"],
+                [binding.quarantine_relative],
+            )
+        return [], []
+    finally:
+        _close_source(binding.source_descriptor)
 
 
 def _rollback_directory(
@@ -371,90 +552,63 @@ def _rollback_directory(
     quarantine_name_for: QuarantineName,
     rename: RenameNoReplace,
 ) -> tuple[list[str], list[str]]:
-    parent = descriptor_for(created.parent_parts)
-    quarantine_name = quarantine_name_for(index)
-    quarantine_relative = PurePosixPath(
-        *created.parent_parts,
-        quarantine_name,
-    ).as_posix()
-    try:
-        rename(
-            created.name,
-            quarantine_name,
-            source_descriptor=parent,
-            destination_descriptor=parent,
-        )
-    except FileNotFoundError:
-        return [], []
-    except BaseException as exc:
+    if created.device is None or created.inode is None:
         return (
             [
-                f"{created.relative_path} quarantine move to "
-                f"{quarantine_relative}: {type(exc).__name__}: {exc}"
+                f"{created.relative_path}: identity unavailable; "
+                "uncertain created name preserved"
             ],
             [created.relative_path],
         )
+    binding, failures, residuals = _quarantine_source(
+        parent_parts=created.parent_parts,
+        name=created.name,
+        relative_path=created.relative_path,
+        index=index,
+        descriptor_for=descriptor_for,
+        quarantine_name_for=quarantine_name_for,
+        rename=rename,
+    )
+    if binding is None:
+        return failures, residuals
     try:
-        metadata = os.stat(
-            quarantine_name,
-            dir_fd=parent,
-            follow_symlinks=False,
+        source_is_owned = stat.S_ISDIR(binding.source_metadata.st_mode) and (
+            binding.source_metadata.st_dev,
+            binding.source_metadata.st_ino,
+        ) == (created.device, created.inode)
+        matches, failures, residuals = _recheck_quarantine(
+            binding,
+            created.name,
+            relative_path=created.relative_path,
+            rename=rename,
         )
-    except BaseException as exc:
-        try:
-            _restore_quarantine(
-                parent,
-                quarantine_name,
+        if not matches:
+            return failures, residuals
+        if not source_is_owned:
+            return _restore_bound_source(
+                binding,
                 created.name,
+                relative_path=created.relative_path,
                 rename=rename,
+                failure=(
+                    f"{created.relative_path}: "
+                    "directory identity changed during rollback"
+                ),
             )
-        except BaseException as restore_exc:
-            return (
-                [
-                    f"{quarantine_relative} inspection: {type(exc).__name__}: {exc}",
-                    f"{quarantine_relative} restore: "
-                    f"{type(restore_exc).__name__}: {restore_exc}",
-                ],
-                [quarantine_relative],
-            )
-        return (
-            [f"{created.relative_path}: directory identity changed during rollback"],
-            [],
-        )
-    identity_matches = stat.S_ISDIR(metadata.st_mode) and (
-        metadata.st_dev,
-        metadata.st_ino,
-    ) == (created.device, created.inode)
-    if not identity_matches:
         try:
-            _restore_quarantine(
-                parent,
-                quarantine_name,
-                created.name,
-                rename=rename,
+            os.rmdir(
+                binding.quarantine_name,
+                dir_fd=binding.parent_descriptor,
             )
+            os.fsync(binding.parent_descriptor)
         except BaseException as exc:
             return (
-                [
-                    f"{created.relative_path}: directory identity "
-                    "changed during rollback",
-                    f"{quarantine_relative} restore: {type(exc).__name__}: {exc}",
-                ],
-                [quarantine_relative],
+                [f"{binding.quarantine_relative}: {type(exc).__name__}: {exc}"],
+                [binding.quarantine_relative],
             )
-        return (
-            [f"{created.relative_path}: directory identity changed during rollback"],
-            [],
-        )
-    try:
-        os.rmdir(quarantine_name, dir_fd=parent)
-        os.fsync(parent)
-    except BaseException as exc:
-        return (
-            [f"{quarantine_relative}: {type(exc).__name__}: {exc}"],
-            [quarantine_relative],
-        )
-    return [], []
+        return [], []
+    finally:
+        _close_source(binding.source_descriptor)
 
 
 def _collect_rollbacks(

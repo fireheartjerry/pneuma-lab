@@ -134,6 +134,7 @@ class BoundPublication:
     ) -> int:
         parent_descriptor = self._descriptor(parent_parts)
         created = False
+        created_index: int | None = None
         try:
             descriptor = os.open(
                 name,
@@ -143,6 +144,20 @@ class BoundPublication:
         except FileNotFoundError:
             os.mkdir(name, mode=0o700, dir_fd=parent_descriptor)
             created = True
+            relative_path = PurePosixPath(
+                *parent_parts,
+                name,
+            ).as_posix()
+            created_index = len(self._created_directories)
+            self._created_directories.append(
+                _CreatedDirectory(
+                    parent_parts=parent_parts,
+                    name=name,
+                    relative_path=relative_path,
+                    device=None,
+                    inode=None,
+                )
+            )
             descriptor = os.open(
                 name,
                 _DIRECTORY_FLAGS,
@@ -150,6 +165,14 @@ class BoundPublication:
             )
         try:
             bound = os.fstat(descriptor)
+            if created_index is not None:
+                self._created_directories[created_index] = _CreatedDirectory(
+                    parent_parts=parent_parts,
+                    name=name,
+                    relative_path=relative_path,
+                    device=bound.st_dev,
+                    inode=bound.st_ino,
+                )
             named = os.stat(
                 name,
                 dir_fd=parent_descriptor,
@@ -163,19 +186,6 @@ class BoundPublication:
                     "directory identity changed during traversal"
                 )
             if created:
-                relative_path = PurePosixPath(
-                    *parent_parts,
-                    name,
-                ).as_posix()
-                self._created_directories.append(
-                    _CreatedDirectory(
-                        parent_parts=parent_parts,
-                        name=name,
-                        relative_path=relative_path,
-                        device=bound.st_dev,
-                        inode=bound.st_ino,
-                    )
-                )
                 os.fsync(parent_descriptor)
         except BaseException:
             os.close(descriptor)
@@ -233,6 +243,18 @@ class BoundPublication:
             0o600,
             dir_fd=parent_descriptor,
         )
+        temporary_index = len(self._temporaries)
+        temporary = _OwnedTemporary(
+            parent_parts=parent_parts,
+            name=temporary_name,
+            relative_path=PurePosixPath(
+                *parent_parts,
+                temporary_name,
+            ).as_posix(),
+            device=None,
+            inode=None,
+        )
+        self._temporaries.append(temporary)
         try:
             created = os.fstat(descriptor)
             temporary = _OwnedTemporary(
@@ -245,7 +267,7 @@ class BoundPublication:
                 device=created.st_dev,
                 inode=created.st_ino,
             )
-            self._temporaries.append(temporary)
+            self._temporaries[temporary_index] = temporary
             _write_all(descriptor, payload)
             os.fsync(descriptor)
             prepared = os.fstat(descriptor)
