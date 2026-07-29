@@ -163,6 +163,13 @@ class PacketPairReceipt:
 
 
 @dataclass(frozen=True, slots=True)
+class PacketRewriteArtifacts:
+    identifier_map_ref: ArtifactRef
+    normalized_sham_ref: ArtifactRef
+    rewrite_count: int
+
+
+@dataclass(frozen=True, slots=True)
 class NoInterventionPacketMarker:
     task_id: str
     prefix_index_sha256: str
@@ -840,10 +847,18 @@ def _write_canonical_packet_blob(
         relative = target.relative_to(root).as_posix()
     except ValueError as exc:
         raise PacketInvalid("packet audit destination escapes run_root") from exc
-    if target.exists():
-        raise FileExistsError(target)
-    target.parent.mkdir(parents=True, exist_ok=True)
     payload = canonical_json_bytes(dict(value), indent=None)
+    if target.exists():
+        if target.read_bytes() != payload:
+            raise FileExistsError(target)
+        return ArtifactRef(
+            role=role,
+            relative_path=relative,
+            sha256=hashlib.sha256(payload).hexdigest(),
+            byte_count=len(payload),
+            media_type="application/json",
+        )
+    target.parent.mkdir(parents=True, exist_ok=True)
     write_atomic_bytes(target, payload)
     return ArtifactRef(
         role=role,
@@ -946,6 +961,223 @@ def normalize_synthetic_packet_findings(
         run_root=run_root,
         out=out,
         role="packet_normalized_findings",
+    )
+
+
+def _load_normalized_findings(
+    ref: ArtifactRef,
+    *,
+    expected_task_id: str,
+    run_root: Path,
+) -> tuple[VerifierFinding, ...]:
+    value = _strict_json_blob(ref, run_root=run_root)
+    if set(value) != {
+        "record_kind",
+        "schema_version",
+        "task_id",
+        "source_verifier_ref",
+        "normalizer_id",
+        "findings",
+    } or (
+        value.get("record_kind") != "packet_normalized_findings_v1"
+        or value.get("schema_version") != "1"
+        or value.get("task_id") != expected_task_id
+        or value.get("normalizer_id") != "synthetic_typed_findings_v1"
+    ):
+        raise PacketInvalid("normalized finding artifact is not closed or bound")
+    _artifact_ref(
+        value["source_verifier_ref"],
+        field="normalized source_verifier_ref",
+    )
+    raw_findings = value["findings"]
+    if not isinstance(raw_findings, list):
+        raise PacketInvalid("normalized findings must be an array")
+    findings = tuple(_normalized_finding(finding) for finding in raw_findings)
+    finding_ids = [finding.finding_id for finding in findings]
+    if len(finding_ids) != len(set(finding_ids)):
+        raise PacketInvalid("normalized finding IDs repeat")
+    if canonical_json_bytes(value, indent=None) != _require_artifact_bytes(
+        ref,
+        run_root=run_root,
+    ):
+        raise PacketInvalid("normalized findings are not compact canonical JSON")
+    return findings
+
+
+def _identifier_document(atom: IdentifierAtom) -> dict[str, str]:
+    return {
+        "entity_id": atom.entity_id,
+        "identifier_kind": atom.kind.value,
+    }
+
+
+def derive_packet_rewrite_artifacts(
+    identifier_map: Mapping[IdentifierAtom, IdentifierAtom],
+    *,
+    focal_task_id: str,
+    donor_task_id: str,
+    normalized_real_ref: ArtifactRef,
+    normalized_donor_ref: ArtifactRef,
+    run_root: Path,
+    identifier_map_out: Path,
+    normalized_sham_out: Path,
+) -> PacketRewriteArtifacts:
+    """Derive complete typed rewrite authority and normalized SHAM bytes."""
+
+    if (
+        type(focal_task_id) is not str
+        or not focal_task_id
+        or type(donor_task_id) is not str
+        or not donor_task_id
+        or focal_task_id == donor_task_id
+    ):
+        raise PacketInvalid("rewrite focal/donor task IDs must be distinct")
+    focal = _load_normalized_findings(
+        normalized_real_ref,
+        expected_task_id=focal_task_id,
+        run_root=run_root,
+    )
+    donor = _load_normalized_findings(
+        normalized_donor_ref,
+        expected_task_id=donor_task_id,
+        run_root=run_root,
+    )
+    if not focal or not donor:
+        raise PacketInvalid("triggered rewrite requires non-empty focal and donor findings")
+    focal_identifiers = {
+        atom
+        for finding in focal
+        for atom in finding.atoms
+        if isinstance(atom, IdentifierAtom)
+    }
+    donor_identifiers = {
+        atom
+        for finding in donor
+        for atom in finding.atoms
+        if isinstance(atom, IdentifierAtom)
+    }
+    donor_identity_text = {
+        donor_task_id,
+        *(atom.entity_id for atom in donor_identifiers),
+    }
+    if any(
+        identity in atom.text
+        for finding in donor
+        for atom in finding.atoms
+        if isinstance(atom, LiteralAtom)
+        for identity in donor_identity_text
+        if identity
+    ):
+        raise PacketInvalid("donor identity leaks through a literal atom")
+    if set(identifier_map) != donor_identifiers:
+        raise PacketInvalid("identifier map does not exactly cover donor identifiers")
+    frozen_map = dict(identifier_map)
+    if len(frozen_map) != len(identifier_map):
+        raise PacketInvalid("identifier map iteration is not stable")
+    destinations = list(frozen_map.values())
+    if (
+        any(type(atom) is not IdentifierAtom for atom in destinations)
+        or len(destinations) != len(set(destinations))
+    ):
+        raise PacketInvalid("identifier map destinations must be unique identifiers")
+    for source, destination in frozen_map.items():
+        if (
+            type(source) is not IdentifierAtom
+            or type(destination) is not IdentifierAtom
+            or source.kind is not destination.kind
+            or destination not in focal_identifiers
+            or any(
+                identity in destination.entity_id
+                for identity in donor_identity_text
+                if identity
+            )
+        ):
+            raise PacketInvalid(
+                "identifier map is not type-preserving and focal-derived"
+            )
+    ordered_map = sorted(
+        frozen_map.items(),
+        key=lambda pair: (
+            pair[0].kind.value.encode("utf-8"),
+            pair[0].entity_id.encode("utf-8"),
+        ),
+    )
+    map_document = {
+        "record_kind": "packet_identifier_map_v1",
+        "schema_version": "1",
+        "focal_task_id": focal_task_id,
+        "donor_task_id": donor_task_id,
+        "normalized_real_ref": asdict(normalized_real_ref),
+        "normalized_donor_ref": asdict(normalized_donor_ref),
+        "entries": [
+            {
+                "source": _identifier_document(source),
+                "destination": _identifier_document(destination),
+            }
+            for source, destination in ordered_map
+        ],
+    }
+    map_ref = _write_canonical_packet_blob(
+        map_document,
+        run_root=run_root,
+        out=identifier_map_out,
+        role="packet_identifier_map",
+    )
+    sham_findings: list[VerifierFinding] = []
+    for focal_finding, donor_finding in zip(focal, donor, strict=False):
+        rewritten_atoms = tuple(
+            frozen_map[atom]
+            if isinstance(atom, IdentifierAtom)
+            else atom
+            for atom in donor_finding.atoms
+        )
+        sham_findings.append(
+            VerifierFinding(
+                finding_id=focal_finding.finding_id,
+                component=donor_finding.component,
+                code=donor_finding.code,
+                severity=focal_finding.severity,
+                atoms=rewritten_atoms,
+            )
+        )
+    if any(
+        identity in field
+        for finding in sham_findings
+        for field in (
+            finding.finding_id,
+            finding.component,
+            finding.code,
+            finding.severity,
+            _atoms_text(finding.atoms),
+        )
+        for identity in donor_identity_text
+        if identity
+    ):
+        raise PacketInvalid("normalized SHAM retains donor identity")
+    sham_document = {
+        "record_kind": "packet_normalized_sham_v1",
+        "schema_version": "1",
+        "focal_task_id": focal_task_id,
+        "donor_task_id": donor_task_id,
+        "normalized_real_ref": asdict(normalized_real_ref),
+        "normalized_donor_ref": asdict(normalized_donor_ref),
+        "identifier_map_ref": asdict(map_ref),
+        "findings": [_finding_document(finding) for finding in sham_findings],
+    }
+    sham_ref = _write_canonical_packet_blob(
+        sham_document,
+        run_root=run_root,
+        out=normalized_sham_out,
+        role="packet_normalized_sham",
+    )
+    return PacketRewriteArtifacts(
+        identifier_map_ref=map_ref,
+        normalized_sham_ref=sham_ref,
+        rewrite_count=sum(
+            isinstance(atom, IdentifierAtom)
+            for finding in donor
+            for atom in finding.atoms
+        ),
     )
 
 

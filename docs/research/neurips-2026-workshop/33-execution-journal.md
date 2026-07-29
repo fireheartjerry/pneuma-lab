@@ -925,3 +925,28 @@ The next event after the archived migration boundary is appended below.
 - **Static command:** Ruff over the touched source/export/fixture files and mypy over the two source files, each hard-capped at 60 seconds.
 - **Static result:** GREEN, exit 0. Ruff passed; mypy found no issues. `git diff --check` passed.
 - **Content hashes:** packet-index schema `b3e878fb98c6b76d396aa71900ba950049abe71abe69d63d707191a7ce14f6d2`; `packets.py` `98734a7bc5580add82d63f8344a3fd4ac175a6834d13998b176c647f75d825f2`; exports `3e0451ecb1f81dd4f5f677207562e006fb4e42b55a3099adee3b2c9fd2bd0764`; fixture `13826660edf661080e12dcd468d925c372a43441636ba7656c5d6d47b0eade5d`.
+
+### EJ-20260729-0080 — publish canonical normalized findings
+
+- **Action:** Staged exactly packet schema, normalizer source/export, reused triggered fixture, and journal; checked staged whitespace/scope; committed `feat(neurips): canonicalize packet findings`; pushed publicly; compared exact refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `a092ecc5a7b4e8db4f9f2e9acb0848261be6af87`. Five files, 293 insertions and three deletions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Next gate:** Derive a complete canonical type-preserving identifier map and distinct normalized SHAM artifact from canonical focal/donor parents.
+
+### EJ-20260729-0081 — derive canonical map and normalized SHAM
+
+- **Implementation:** Added frozen `PacketRewriteArtifacts` and `derive_packet_rewrite_artifacts`. It reloads compact canonical focal/donor normalized parents, requires distinct task IDs and nonempty findings, derives the complete donor identifier set, rejects literal donor leakage, requires exact map-key coverage, unique destinations, same-kind replacements, and destinations already present in the focal artifact, then serializes a UTF-8 byte-ordered canonical `packet_identifier_map_v1`.
+- **SHAM derivation:** Applies the frozen map to donor atoms, copies focal finding IDs/severities and donor component/code fields in deterministic pair order, rejects donor identity across every semantic string and atom field, and writes a distinct canonical `packet_normalized_sham_v1` bound to focal/donor normalized refs and the map ref.
+- **Fixture evidence:** The existing triggered fixture creates one independent focal verifier chain, normalizes it, maps donor `src/third.py` to focal `src/focal.py`, and verifies the normalized SHAM contains only the focal alias. No new test subsystem was created.
+
+### EJ-20260729-0082 — hostile rewrite durability and leakage repair
+
+- **Findings:** The first version scanned SHAM atoms but could miss donor identity embedded in component/code/severity fields. It also wrote the identifier map before the SHAM artifact, so a crash between writes left an identical retry blocked by `FileExistsError`.
+- **Repairs:** Scan every rendered semantic field against donor task/identifier strings; forbid focal destinations containing any donor identity substring; freeze the mapping against unstable iteration; and make canonical audit-blob installation idempotent only when existing bytes are exactly equal, while differing bytes remain fail-closed.
+- **Boundary:** The map and SHAM are now deterministic candidate parents. Independent audit must still regenerate them from raw verifier/config bytes before triggered sealing.
+
+### EJ-20260729-0083 — minimal rewrite gate
+
+- **Behavior command:** `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_artifacts.py -q -k t3_s10`.
+- **Behavior result:** GREEN, exit 0. Exactly one triggered authority fixture passed with 217 unrelated tests deselected in 1.53 seconds.
+- **Static command/result:** Ruff over touched source/export/fixture and mypy over the two source files, each capped at 60 seconds; GREEN, exit 0. `git diff --check` passed.
+- **Content hashes:** `packets.py` `4f76ec83a5dba4174e0bd40899acd30c802e6223f05d054da5e7e05bf2d1fda5`; exports `b773153ba2e5830bf7dd06e186ccd7acd6217c4e68295c9ccfb6d4508cc7b4ca`; fixture `7c1fa4aa37e54e9fbaafccc4dd548675d56dd1433b73228c988646476aaf7d82`.

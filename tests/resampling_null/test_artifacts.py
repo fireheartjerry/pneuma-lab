@@ -40,9 +40,12 @@ from pneuma_lab.resampling_null.assignment import (
 )
 from pneuma_lab.resampling_null.branch_assignment import seal_branch_assignment
 from pneuma_lab.resampling_null.packets import (
+    IdentifierAtom,
+    IdentifierKind,
     NoInterventionPacketMarker,
     PacketInvalid,
     audit_and_seal_packet_index,
+    derive_packet_rewrite_artifacts,
     normalize_synthetic_packet_findings,
     write_packet_candidate,
 )
@@ -3503,6 +3506,99 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
     ).read_bytes() == (
         root / normalized_b.relative_path
     ).read_bytes()
+    focal_source = _write_blob(
+        root,
+        "sources/verifier-packet-focal.json",
+        canonical_json_bytes(
+            {
+                "record_kind": "synthetic_verifier_source_v1",
+                "schema_version": "1",
+                "task_id": "task-packet-focal",
+                "benchmark": "swe",
+                "components": [
+                    {"kind": "check_runner", "value": "pytest", "count": 1}
+                ],
+                "objective_findings": [
+                    {
+                        "finding_id": "focal-finding",
+                        "component": "pytest",
+                        "code": "assertion",
+                        "severity": "high",
+                        "atoms": [
+                            {"atom_kind": "literal", "text": "inspect "},
+                            {
+                                "atom_kind": "identifier",
+                                "entity_id": "src/focal.py",
+                                "identifier_kind": "repository_file",
+                            },
+                        ],
+                    }
+                ],
+            },
+            indent=None,
+        ),
+    )
+    focal_report = _write_blob(
+        root,
+        "sources/report-packet-focal.json",
+        canonical_json_bytes(
+            {
+                "record_kind": "synthetic_verifier_report_v1",
+                "schema_version": "1",
+                "task_id": "task-packet-focal",
+                "report_text": "focal",
+            },
+            indent=None,
+        ),
+    )
+    focal_features = _write_blob(
+        root,
+        "sources/features-packet-focal.json",
+        canonical_json_bytes(
+            {
+                "record_kind": "assignment_verifier_features_v1",
+                "schema_version": "1",
+                "task_id": "task-packet-focal",
+                "benchmark": "swe",
+                "source_verifier_ref": focal_source,
+                "source_report_ref": focal_report,
+                "components": [
+                    {"kind": "check_runner", "value": "pytest", "count": 1}
+                ],
+                "objective_finding_count": 1,
+                "normalized_report_token_count": 1,
+            },
+            indent=None,
+        ),
+    )
+    normalized_focal = normalize_synthetic_packet_findings(
+        ArtifactRef(**focal_features),
+        task_id="task-packet-focal",
+        run_root=root,
+        out=root / "private-audit/normalized-focal.json",
+    )
+    rewrite = derive_packet_rewrite_artifacts(
+        {
+            IdentifierAtom(
+                "src/third.py",
+                IdentifierKind.REPOSITORY_FILE,
+            ): IdentifierAtom(
+                "src/focal.py",
+                IdentifierKind.REPOSITORY_FILE,
+            )
+        },
+        focal_task_id="task-packet-focal",
+        donor_task_id="task-third",
+        normalized_real_ref=normalized_focal,
+        normalized_donor_ref=normalized_a,
+        run_root=root,
+        identifier_map_out=root / "private-audit/identifier-map.json",
+        normalized_sham_out=root / "private-audit/normalized-sham.json",
+    )
+    sham_text = (root / rewrite.normalized_sham_ref.relative_path).read_text()
+    assert rewrite.rewrite_count == 1
+    assert "src/focal.py" in sham_text
+    assert "src/third.py" not in sham_text
 
     assignment_lease = claim_local_test_storage(
         transaction="assignment",
