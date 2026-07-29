@@ -31,6 +31,11 @@ from pneuma_lab.resampling_null.artifacts import (
     write_record,
 )
 from pneuma_lab.resampling_null.assignment import require_schedulable_power_final
+from pneuma_lab.resampling_null.storage import (
+    ConfirmationStorageLease,
+    LocalTestStorageLease,
+    claim_local_test_storage,
+)
 from pneuma_lab.resampling_null.types import ArtifactRef
 
 
@@ -1111,7 +1116,31 @@ def _build_full_study(
         ),
         "assignment": raw("assignment.py", b"assignment"),
         "provider": raw("provider.json", {"lane": "lane-a"}),
-        "storage_policy": raw("storage-policy.json", {"mode": "local_test"}),
+        "storage_policy": raw(
+            "storage-policy.json",
+            (
+                {
+                    "record_kind": "storage_policy_contract_v1",
+                    "schema_version": "1",
+                    "mode": "local_test",
+                    "test_only": True,
+                    "storage_resource_id": None,
+                    "measurement_evidence_ref": None,
+                    "evidence_verifier_public_key_ed25519_hex": None,
+                    "registry_attestation_public_key_ed25519_hex": None,
+                    "max_measurement_age_seconds": None,
+                    "lease_kind": "local_test_process_lock_v1",
+                    "encryption_at_rest": False,
+                    "encryption_algorithm": None,
+                    "kms_key_version": None,
+                    "acl_enforced": False,
+                    "acl_policy_sha256": None,
+                    "measurement_sha256": None,
+                }
+                if completed_power_consumer_fixture
+                else {"mode": "local_test"}
+            ),
+        ),
         "tokenizer": raw("tokenizer.json", {"name": "tokenizer"}),
         "template": raw("template.json", {"name": "template"}),
         "policy": raw("policy.json", {"name": "policy"}),
@@ -2567,6 +2596,68 @@ def test_t3_s07_completed_power_consumer_derives_manifest_membership(
     expected_count = 2 if decision_authority == "synthetic_validation" else 160
     assert len(selection.selected_task_ids) == expected_count
     assert selection.selected_task_ids[:2] == ("task-1", "task-donor")
+
+
+def test_t3_s07_local_storage_lease_is_nominal_exclusive_and_single_use(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "local-storage"
+    installed = _build_full_study(
+        root,
+        completed_power_consumer_fixture=True,
+    )
+    manifest_ref = ArtifactRef(
+        **cast(dict[str, Any], installed["manifest_ref"])
+    )
+    lease = claim_local_test_storage(
+        transaction="prefix",
+        run_root=root,
+        manifest_ref=manifest_ref,
+        schedule_ref=None,
+    )
+    with pytest.raises(RecordValidationError, match="already held"):
+        claim_local_test_storage(
+            transaction="prefix",
+            run_root=root,
+            manifest_ref=manifest_ref,
+            schedule_ref=None,
+        )
+    with pytest.raises(TypeError, match="created only by core"):
+        LocalTestStorageLease(object())  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="unavailable"):
+        ConfirmationStorageLease()
+    begin = lease._begin()
+    assert begin.observation == "begin"
+    end = lease._end()
+    assert end.observation == "end"
+    with pytest.raises(RecordValidationError, match="cannot end"):
+        lease._end()
+    lease._abort()
+    with pytest.raises(RecordValidationError, match="cannot begin"):
+        lease._begin()
+    with pytest.raises(ValueError, match="transaction"):
+        claim_local_test_storage(
+            transaction=cast(Any, "../../escape"),
+            run_root=root,
+            manifest_ref=manifest_ref,
+            schedule_ref=None,
+        )
+
+    confirmation_root = tmp_path / "confirmation-storage"
+    confirmation = _build_full_study(
+        confirmation_root,
+        decision_authority="roster_bound_selection",
+        completed_power_consumer_fixture=True,
+    )
+    with pytest.raises(RecordValidationError, match="synthetic manifest"):
+        claim_local_test_storage(
+            transaction="prefix",
+            run_root=confirmation_root,
+            manifest_ref=ArtifactRef(
+                **cast(dict[str, Any], confirmation["manifest_ref"])
+            ),
+            schedule_ref=None,
+        )
 
 
 def _numeric_contract() -> dict[str, object]:

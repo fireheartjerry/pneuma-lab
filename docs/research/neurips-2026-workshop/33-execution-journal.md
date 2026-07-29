@@ -289,3 +289,96 @@ The next event after the archived migration boundary is appended below.
 - **Command:** Repeated the one combined Ruff+mypy static gate because production and fixture code changed after EJ-0596.
 - **Result:** GREEN, exit 0. Ruff passed; mypy found no issues in six source files.
 - **Compact receipt:** stdout 86 bytes / 4 lines / SHA-256 `c890f4997c92727adef97347a45394eeec993f24d0febb207d43498d26e80d54`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0600/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0601 — deliver Slice 7A completed-power consumer
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Checked whitespace/status, staged exactly the two source files, focused fixture/test file, and live journal; checked the staged diff; committed `feat(neurips): gate schedules on completed power`; pushed the public branch; compared local and remote refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `e34a5d2dc5357bebb013ae631345e3c27522937f`. Four files, 621 insertions and 13 deletions. The untracked `raw_root_placeholder` was observed and deliberately left untouched/uncommitted because it is outside this delivery's known scope.
+- **Compact receipt:** stdout 813 bytes / 14 lines / SHA-256 `08825227a9aa63398765922b3b5804374ad79172b982647973bb2996b50ec6e5`; stderr 134 bytes / 2 lines / SHA-256 `52074b533faadddee85fb24f70bbff58440c606b4947d158315a10ebb1df42c9`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0601/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0602 — open Slice 7B storage publication authority
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Capture the exact storage value records, transaction ordering, local-test/confirmation capability split, retry semantics, and current implementation references before writing Slice 7B.
+- **Result:** Exit 0. Captured 326 lines. No storage transaction implementation currently exists in the source tree; the worktree otherwise contains the live journal plus the unrelated untracked `raw_root_placeholder`.
+- **Compact receipt:** stdout 17,731 bytes / 326 lines / SHA-256 `53a31c4cdae7ca980ac32d8caa8f2f0b3f6f51553ace5248409a41cd2654761d`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0602/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0603 — reduce storage authority to transaction invariants
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Review the captured Slice 7B authority verbatim and isolate the enforceable state machine.
+- **Result:** Exit 0. Prefix storage ordering is: claim exact lease before seed/selection/destination; begin; deterministic preparation; fsynced temporary science; non-releasing end; immutable fsynced intent; prove remaining lifetime; atomic science install+parent fsync; durable registry commit consuming lease; exact fixed receipt install+parent fsync. Pre-install abort is recoverable; post-install/pre-commit bytes are permanently quarantined; post-commit recovery may only reproduce the same receipt. Confirmation requires a nominal trusted registry and remains unavailable; local-test uses an exact one-use process lock.
+- **Compact receipt:** stdout 17,731 bytes / 326 lines / SHA-256 `53a31c4cdae7ca980ac32d8caa8f2f0b3f6f51553ace5248409a41cd2654761d`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0603/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0604 — capture storage observation and intent value contracts
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Recover the preceding storage observation/intent declarations and exact local-test claim interface omitted from the first bounded capture.
+- **Result:** Exit 0. Captured 225 lines for direct review; no repository state changed outside the journal.
+- **Compact receipt:** stdout 10,046 bytes / 225 lines / SHA-256 `c312d6c478b596f86cae134ac1b48f9867310cd845f5c71cccb920c9ba6fa6de`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0604/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0605 — review storage value contracts and recovery boundary
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Display the EJ-0604 capture for direct analysis and preserve an independently addressed raw receipt.
+- **Result:** Exit 0. Exact local/confirmation attestation, intent, publication-commit, and receipt fields are pinned. The registry terminal states are mutually exclusive; recovery cannot invoke commit; local commit IDs are deterministic from intent digest; operational state is excluded from scientific closure.
+- **Compact receipt:** stdout 10,046 bytes / 225 lines / SHA-256 `c312d6c478b596f86cae134ac1b48f9867310cd845f5c71cccb920c9ba6fa6de`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0605/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0606 — capture local storage contract and seed-binding seam
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Recover the exact local-test policy contract, trusted-registry method boundary, and existing seed commitment/derivation references needed for prefix sealing.
+- **Result:** Exit 0. Captured 405 lines for direct review; no implementation change occurred.
+- **Compact receipt:** stdout 30,466 bytes / 405 lines / SHA-256 `c3ebf400349c5a5895111820af03334d434a90c5e69c74c28d8e7c30f83e3599`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0606/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0607 — review local contract and schedule call boundary
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Display the bounded local-policy/registry/schedule excerpt before selecting the implementation seam.
+- **Result:** Exit 0. The local policy is a closed explicit non-enforcement record; confirmation storage is only obtainable from `ConfirmationPreflightRegistry.claim_storage`; `seal_prefix_schedule` consumes an already-claimed lease. Therefore core needs a local-only claim factory and one-use nominal lease, while the existing confirmation registry continues to fail closed until its trusted adapter exists.
+- **Compact receipt:** stdout 10,467 bytes / 180 lines / SHA-256 `b70e05236dd84e23c67d976998207cc4a940cf9d4c00382ff3f3529971551622`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0607/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0608 — implement and focus-check nominal local storage lease
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Added `storage.py` with the exact local attestation/intent/commit/receipt value records, unavailable non-subclassable confirmation lease, non-public exact local lease construction, deterministic tuple binding, exclusive OS transaction lock, begin/end/commit/abort terminal states, copy/serialization rejection, and closed local policy claim. Added one focused lease test and upgraded only the isolated Slice 7 fixture's policy bytes.
+- **Result:** GREEN, exit 0. Three `t3_s07` cases passed; 211 unrelated tests deselected. Runtime 2.09 seconds. Publication orchestration is not yet implemented or claimed.
+- **Compact receipt:** stdout 114 bytes / 2 lines / SHA-256 `e0e7f389b71e35a0c0de0690599b7828f940808b28bb1ce816ee8af820d994d6`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0608/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0609 — static wrapper exits before compact receipt
+
+- **Time:** command metadata records exact local and UTC start timestamps.
+- **Action:** Invoked the combined Ruff+mypy gate, but the wrapper used `exit 1` inside the redirected command group. On a finding, that exited the shell before status, display, byte-count, and hash commands ran.
+- **Result:** RED/incomplete wrapper. Tool exit was 1 with no displayed output. Raw stdout/stderr files exist, but their contents and hashes are deliberately not inferred here. The next event will inspect those retained files and distinguish code findings from wrapper behavior.
+- **Forensic note:** This event has no complete compact receipt because the wrapper terminated before producing it; do not rerun the checks until the existing raw outputs are classified.
+
+### EJ-20260728-0610 — classify EJ-0609 static output
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Read the retained EJ-0609 metadata/stdout/stderr once and computed the missing compact receipt.
+- **Result:** Ruff passed. mypy found exactly one issue: `LocalTestStorageLease.__reduce__` was annotated as returning `object`, broader than `object.__reduce__`'s allowed return. This is a typing defect in an always-raising anti-serialization method, not a runtime test failure.
+- **EJ-0609 recovered receipt:** stdout 280 bytes / 5 lines / SHA-256 `2b50ade43023335727ba6023bfb570abf58d424f3d59c5df26b20d70a3aef95f`; stderr empty.
+- **Compact receipt:** stdout 964 bytes / 17 lines / SHA-256 `d7e11c0f9fb62c5184cf9e8bc0c3bc3c5274da6621c665663c31943eb066e7dc`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0610/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0611 — corrected combined static gate passes
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Command:** Repeated Ruff+mypy with a wrapper that records both statuses without exiting its shell early.
+- **Result:** GREEN, exit 0. Ruff passed; mypy found no issues in seven source files.
+- **Hostile follow-up:** Static success does not prove runtime authority. Manual review immediately identified three pre-delivery gaps: runtime transaction allowlisting, explicit synthetic-manifest binding, and no-follow lock-file opening. These are being corrected before promotion.
+- **Compact receipt:** stdout 86 bytes / 4 lines / SHA-256 `1adc478a560d3a14d1ea46e6acabf21cf4deb367170dd8186ba95d5bd5c27185`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0611/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0612 — hostile-corrected local lease gate passes
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Added runtime transaction allowlisting before path use, explicit synthetic manifest/roster binding, and directory-relative `O_NOFOLLOW|O_CLOEXEC` lock opening. Extended the same focused lease test with a traversal-shaped transaction and confirmation-manifest misuse.
+- **Result:** GREEN, exit 0. Three focused `t3_s07` tests passed; 211 unrelated tests deselected. Runtime 2.20 seconds.
+- **Compact receipt:** stdout 114 bytes / 2 lines / SHA-256 `69ee95a07aeacec136a548bf0540d9cc7faa27fbfbc766057a6a78af0b3433ae`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0612/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0613 — final static gate for local storage capability
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Command:** One combined Ruff+mypy gate after hostile runtime/path corrections.
+- **Result:** GREEN, exit 0. Ruff passed; mypy found no issues in seven source files.
+- **Compact receipt:** stdout 86 bytes / 4 lines / SHA-256 `1adc478a560d3a14d1ea46e6acabf21cf4deb367170dd8186ba95d5bd5c27185`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0613/` (ignored, retained through 2026-11-27).
