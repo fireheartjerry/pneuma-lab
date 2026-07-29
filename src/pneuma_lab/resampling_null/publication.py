@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import errno
 import hashlib
 import os
 from pathlib import Path, PurePosixPath
@@ -13,17 +12,24 @@ from types import TracebackType
 from typing import Literal
 
 from .errors import RecordValidationError
+from .publication_rollback import (
+    CreatedDirectory as _CreatedDirectory,
+)
+from .publication_rollback import (
+    OwnedPublication as _OwnedPublication,
+)
+from .publication_rollback import (
+    OwnedTemporary as _OwnedTemporary,
+)
+from .publication_rollback import descriptor_digest as _descriptor_digest
+from .publication_rollback import rename_no_replace as _rename_no_replace
+from .publication_rollback import rollback_publication
 from .types import ArtifactRef
 
 
-_DIRECTORY_FLAGS = (
-    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
-)
+_DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 _READ_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
-_TEMPORARY_FLAGS = (
-    os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
-)
-_HASH_CHUNK_BYTES = 1024 * 1024
+_TEMPORARY_FLAGS = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
 
 
 class PublicationRollbackError(RecordValidationError):
@@ -40,31 +46,6 @@ class _DirectoryBinding:
     inode: int
 
 
-@dataclass(frozen=True, slots=True)
-class _CreatedDirectory:
-    parent_parts: tuple[str, ...]
-    name: str
-    relative_path: str
-
-
-@dataclass(frozen=True, slots=True)
-class _OwnedPublication:
-    parent_parts: tuple[str, ...]
-    name: str
-    relative_path: str
-    device: int
-    inode: int
-    sha256: str
-    byte_count: int
-
-
-@dataclass(frozen=True, slots=True)
-class _OwnedTemporary:
-    parent_parts: tuple[str, ...]
-    name: str
-    relative_path: str
-
-
 def _write_all(descriptor: int, payload: bytes) -> None:
     remaining = memoryview(payload)
     while remaining:
@@ -72,16 +53,6 @@ def _write_all(descriptor: int, payload: bytes) -> None:
         if written <= 0:
             raise OSError("short publication write")
         remaining = remaining[written:]
-
-
-def _descriptor_digest(descriptor: int) -> tuple[str, int]:
-    os.lseek(descriptor, 0, os.SEEK_SET)
-    digest = hashlib.sha256()
-    size = 0
-    while chunk := os.read(descriptor, _HASH_CHUNK_BYTES):
-        digest.update(chunk)
-        size += len(chunk)
-    return digest.hexdigest(), size
 
 
 def _relative_parts(relative_path: str) -> tuple[str, ...]:
@@ -129,14 +100,11 @@ class BoundPublication:
         try:
             bound = os.fstat(descriptor)
             named = os.stat(self._named_root, follow_symlinks=False)
-            if (
-                not stat.S_ISDIR(bound.st_mode)
-                or (bound.st_dev, bound.st_ino)
-                != (named.st_dev, named.st_ino)
+            if not stat.S_ISDIR(bound.st_mode) or (bound.st_dev, bound.st_ino) != (
+                named.st_dev,
+                named.st_ino,
             ):
-                raise RecordValidationError(
-                    "run_root identity changed during binding"
-                )
+                raise RecordValidationError("run_root identity changed during binding")
         except BaseException:
             os.close(descriptor)
             raise
@@ -175,14 +143,6 @@ class BoundPublication:
         except FileNotFoundError:
             os.mkdir(name, mode=0o700, dir_fd=parent_descriptor)
             created = True
-            relative_path = PurePosixPath(*parent_parts, name).as_posix()
-            self._created_directories.append(
-                _CreatedDirectory(
-                    parent_parts=parent_parts,
-                    name=name,
-                    relative_path=relative_path,
-                )
-            )
             descriptor = os.open(
                 name,
                 _DIRECTORY_FLAGS,
@@ -195,19 +155,31 @@ class BoundPublication:
                 dir_fd=parent_descriptor,
                 follow_symlinks=False,
             )
-            if (
-                not stat.S_ISDIR(bound.st_mode)
-                or (bound.st_dev, bound.st_ino)
-                != (named.st_dev, named.st_ino)
+            if not stat.S_ISDIR(bound.st_mode) or (bound.st_dev, bound.st_ino) != (
+                named.st_dev,
+                named.st_ino,
             ):
                 raise RecordValidationError(
                     "directory identity changed during traversal"
                 )
+            if created:
+                relative_path = PurePosixPath(
+                    *parent_parts,
+                    name,
+                ).as_posix()
+                self._created_directories.append(
+                    _CreatedDirectory(
+                        parent_parts=parent_parts,
+                        name=name,
+                        relative_path=relative_path,
+                        device=bound.st_dev,
+                        inode=bound.st_ino,
+                    )
+                )
+                os.fsync(parent_descriptor)
         except BaseException:
             os.close(descriptor)
             raise
-        if created:
-            os.fsync(parent_descriptor)
         return descriptor
 
     def _parent_descriptor(
@@ -219,7 +191,11 @@ class BoundPublication:
             child = (*current, component)
             if child not in self._directories:
                 descriptor = self._open_directory(current, component)
-                metadata = os.fstat(descriptor)
+                try:
+                    metadata = os.fstat(descriptor)
+                except BaseException:
+                    os.close(descriptor)
+                    raise
                 self._directories[child] = _DirectoryBinding(
                     parts=child,
                     parent_parts=current,
@@ -251,31 +227,31 @@ class BoundPublication:
         name = parts[-1]
         parent_descriptor = self._parent_descriptor(parent_parts)
         temporary_name = self._temporary_name()
-        temporary = _OwnedTemporary(
-            parent_parts=parent_parts,
-            name=temporary_name,
-            relative_path=PurePosixPath(
-                *parent_parts,
-                temporary_name,
-            ).as_posix(),
-        )
         descriptor = os.open(
             temporary_name,
             _TEMPORARY_FLAGS,
             0o600,
             dir_fd=parent_descriptor,
         )
-        self._temporaries.append(temporary)
         try:
+            created = os.fstat(descriptor)
+            temporary = _OwnedTemporary(
+                parent_parts=parent_parts,
+                name=temporary_name,
+                relative_path=PurePosixPath(
+                    *parent_parts,
+                    temporary_name,
+                ).as_posix(),
+                device=created.st_dev,
+                inode=created.st_ino,
+            )
+            self._temporaries.append(temporary)
             _write_all(descriptor, payload)
             os.fsync(descriptor)
             prepared = os.fstat(descriptor)
         finally:
             os.close(descriptor)
-        if (
-            not stat.S_ISREG(prepared.st_mode)
-            or prepared.st_size != len(payload)
-        ):
+        if not stat.S_ISREG(prepared.st_mode) or prepared.st_size != len(payload):
             raise RecordValidationError(
                 "prepared publication is not the expected regular file"
             )
@@ -335,16 +311,11 @@ class BoundPublication:
             os.close(descriptor)
         return (
             stat.S_ISREG(metadata.st_mode)
-            and (metadata.st_dev, metadata.st_ino)
-            == (owned.device, owned.inode)
-            and (named.st_dev, named.st_ino)
-            == (owned.device, owned.inode)
+            and (metadata.st_dev, metadata.st_ino) == (owned.device, owned.inode)
+            and (named.st_dev, named.st_ino) == (owned.device, owned.inode)
             and digest == owned.sha256
             and size == owned.byte_count
-            and (
-                not require_single_link
-                or getattr(metadata, "st_nlink", 1) == 1
-            )
+            and (not require_single_link or getattr(metadata, "st_nlink", 1) == 1)
         )
 
     def _verify_named_identities(self) -> None:
@@ -383,10 +354,9 @@ class BoundPublication:
                 raise RecordValidationError(
                     f"directory identity changed: {relative_path}"
                 ) from exc
-            if (
-                not stat.S_ISDIR(named.st_mode)
-                or (named.st_dev, named.st_ino)
-                != (binding.device, binding.inode)
+            if not stat.S_ISDIR(named.st_mode) or (named.st_dev, named.st_ino) != (
+                binding.device,
+                binding.inode,
             ):
                 relative_path = PurePosixPath(*parts).as_posix()
                 raise RecordValidationError(
@@ -407,180 +377,27 @@ class BoundPublication:
     def _quarantine_name(self, index: int) -> str:
         return f".pneuma-{self._transaction}.rollback-{index}"
 
-    def _restore_quarantine(
-        self,
-        parent_descriptor: int,
-        quarantine_name: str,
-        destination_name: str,
-    ) -> None:
-        os.link(
-            quarantine_name,
-            destination_name,
-            src_dir_fd=parent_descriptor,
-            dst_dir_fd=parent_descriptor,
-            follow_symlinks=False,
-        )
-        os.unlink(quarantine_name, dir_fd=parent_descriptor)
-        os.fsync(parent_descriptor)
+    def _temporary_quarantine_name(self, index: int) -> str:
+        return f".pneuma-{self._transaction}.temp-rollback-{index}.tmp"
 
-    def _rollback_owned(
-        self,
-        owned: _OwnedPublication,
-        *,
-        index: int,
-    ) -> tuple[list[str], list[str]]:
-        parent_descriptor = self._descriptor(owned.parent_parts)
-        quarantine_name = self._quarantine_name(index)
-        quarantine_relative = PurePosixPath(
-            *owned.parent_parts,
-            quarantine_name,
-        ).as_posix()
-        try:
-            os.rename(
-                owned.name,
-                quarantine_name,
-                src_dir_fd=parent_descriptor,
-                dst_dir_fd=parent_descriptor,
-            )
-        except FileNotFoundError:
-            return [], []
-        try:
-            descriptor = os.open(
-                quarantine_name,
-                _READ_FLAGS,
-                dir_fd=parent_descriptor,
-            )
-            try:
-                metadata = os.fstat(descriptor)
-                digest, size = _descriptor_digest(descriptor)
-            finally:
-                os.close(descriptor)
-        except BaseException as exc:
-            return (
-                [
-                    f"{quarantine_relative}: "
-                    f"{type(exc).__name__}: {exc}"
-                ],
-                [quarantine_relative],
-            )
-        identity_matches = (
-            stat.S_ISREG(metadata.st_mode)
-            and (metadata.st_dev, metadata.st_ino)
-            == (owned.device, owned.inode)
-            and digest == owned.sha256
-            and size == owned.byte_count
-        )
-        link_count = getattr(metadata, "st_nlink", 1)
-        if identity_matches and link_count == 1:
-            try:
-                os.unlink(quarantine_name, dir_fd=parent_descriptor)
-                os.fsync(parent_descriptor)
-            except BaseException as exc:
-                return (
-                    [
-                        f"{quarantine_relative}: "
-                        f"{type(exc).__name__}: {exc}"
-                    ],
-                    [quarantine_relative],
-                )
-            return [], []
-        failures: list[str] = []
-        residuals: list[str] = []
-        try:
-            self._restore_quarantine(
-                parent_descriptor,
-                quarantine_name,
-                owned.name,
-            )
-            residual_name = owned.relative_path
-        except BaseException as exc:
-            failures.append(
-                f"{quarantine_relative} restore: "
-                f"{type(exc).__name__}: {exc}"
-            )
-            residual_name = quarantine_relative
-        if identity_matches:
-            failures.append(
-                f"{owned.relative_path}: link count {link_count} "
-                "prevents rollback"
-            )
-            residuals.append(residual_name)
-        elif residual_name == quarantine_relative:
-            residuals.append(residual_name)
-        return failures, residuals
-
-    def _rollback_temporaries(self) -> tuple[list[str], list[str]]:
-        failures: list[str] = []
-        residuals: list[str] = []
-        for temporary in reversed(self._temporaries):
-            parent_descriptor = self._descriptor(temporary.parent_parts)
-            try:
-                os.unlink(temporary.name, dir_fd=parent_descriptor)
-                os.fsync(parent_descriptor)
-            except FileNotFoundError:
-                continue
-            except BaseException as exc:
-                failures.append(
-                    f"{temporary.relative_path}: "
-                    f"{type(exc).__name__}: {exc}"
-                )
-            try:
-                os.stat(
-                    temporary.name,
-                    dir_fd=parent_descriptor,
-                    follow_symlinks=False,
-                )
-            except FileNotFoundError:
-                continue
-            except BaseException as exc:
-                failures.append(
-                    f"{temporary.relative_path} recheck: "
-                    f"{type(exc).__name__}: {exc}"
-                )
-            else:
-                residuals.append(temporary.relative_path)
-        return failures, residuals
-
-    def _rollback_directories(self) -> list[str]:
-        failures: list[str] = []
-        for created in reversed(self._created_directories):
-            parent_descriptor = self._descriptor(created.parent_parts)
-            try:
-                os.rmdir(created.name, dir_fd=parent_descriptor)
-                os.fsync(parent_descriptor)
-            except FileNotFoundError:
-                pass
-            except OSError as exc:
-                if exc.errno not in (
-                    errno.ENOTEMPTY,
-                    errno.EEXIST,
-                    errno.ENOTDIR,
-                ):
-                    failures.append(
-                        f"{created.relative_path}: "
-                        f"{type(exc).__name__}: {exc}"
-                    )
-        return failures
+    def _directory_quarantine_name(self, index: int) -> str:
+        return f".pneuma-{self._transaction}.dir-rollback-{index}"
 
     def _rollback(
         self,
         original: BaseException,
     ) -> None:
-        failures: list[str] = []
-        residuals: list[str] = []
-        for index, owned in enumerate(reversed(self._owned), start=1):
-            owned_failures, owned_residuals = self._rollback_owned(
-                owned,
-                index=index,
-            )
-            failures.extend(owned_failures)
-            residuals.extend(owned_residuals)
-        temporary_failures, temporary_residuals = (
-            self._rollback_temporaries()
+        failures, residuals = rollback_publication(
+            owned=self._owned,
+            temporaries=self._temporaries,
+            directories=self._created_directories,
+            descriptor_for=self._descriptor,
+            owned_name_for=self._quarantine_name,
+            temporary_name_for=self._temporary_quarantine_name,
+            directory_name_for=self._directory_quarantine_name,
+            rename=_rename_no_replace,
+            read_flags=_READ_FLAGS,
         )
-        failures.extend(temporary_failures)
-        residuals.extend(temporary_residuals)
-        failures.extend(self._rollback_directories())
         if failures or residuals:
             details = "; ".join(
                 [
@@ -599,17 +416,13 @@ class BoundPublication:
                 os.close(binding.descriptor)
             except OSError as exc:
                 relative_path = PurePosixPath(*binding.parts).as_posix()
-                failures.append(
-                    f"{relative_path}: {type(exc).__name__}: {exc}"
-                )
+                failures.append(f"{relative_path}: {type(exc).__name__}: {exc}")
         self._directories.clear()
         if self._root_descriptor is not None:
             try:
                 os.close(self._root_descriptor)
             except OSError as exc:
-                failures.append(
-                    f"run_root: {type(exc).__name__}: {exc}"
-                )
+                failures.append(f"run_root: {type(exc).__name__}: {exc}")
             finally:
                 self._root_descriptor = None
         return failures
@@ -635,8 +448,7 @@ class BoundPublication:
         close_failures = self._close()
         if close_failures:
             close_error = PublicationRollbackError(
-                "publication descriptor close incomplete: "
-                + "; ".join(close_failures)
+                "publication descriptor close incomplete: " + "; ".join(close_failures)
             )
             cause = rollback_failure if rollback_failure is not None else original
             if cause is not None:
