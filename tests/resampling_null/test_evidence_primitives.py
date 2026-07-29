@@ -48,12 +48,24 @@ SHA = "a" * 64
 def _ref(role: str, suffix: str | None = None) -> ArtifactRef:
     name = suffix or role
     digest = SHA if suffix is None else hashlib.sha256(name.encode()).hexdigest()
+    media_type = (
+        "application/octet-stream"
+        if role
+        in {
+            "environment_snapshot",
+            "grade_evidence",
+            "provider_response",
+            "tool_result",
+            "verifier_evidence",
+        }
+        else "application/json"
+    )
     return ArtifactRef(
         role=role,
         relative_path=f"controller-artifacts/{role}/{digest}",
         sha256=digest,
         byte_count=1,
-        media_type="application/octet-stream",
+        media_type=media_type,
     )
 
 
@@ -298,6 +310,38 @@ def test_completed_tool_boundary_and_ledger_are_forensically_closed() -> None:
         }
     )
     assert clean_terminal.episode_terminal
+
+
+def test_failed_tool_boundary_must_be_terminal_and_final() -> None:
+    values = {
+        "call_id": "call-1",
+        "tool_call_ref": _ref("tool_call"),
+        "tool_result_ref": _ref("tool_result"),
+        "mutation_committed": False,
+        "verifier_eligible_after": False,
+        "episode_terminal": False,
+        "failure_kind": FailureKind.TIMEOUT,
+        "elapsed_ms": 7,
+    }
+    with pytest.raises(ValueError, match="failure boundary must be terminal"):
+        CompletedToolBoundaryReceipt(**values)
+
+    failed = CompletedToolBoundaryReceipt(
+        **{
+            **values,
+            "episode_terminal": True,
+        }
+    )
+    later = CompletedToolBoundaryReceipt(
+        **{
+            **values,
+            "call_id": "call-2",
+            "episode_terminal": False,
+            "failure_kind": FailureKind.NONE,
+        }
+    )
+    with pytest.raises(ValueError, match="final boundary"):
+        ToolBoundaryLedger(boundaries=(failed, later))
 
 
 def _snapshot() -> CompositeSnapshotEnvelope:

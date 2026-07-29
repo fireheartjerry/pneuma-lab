@@ -10,7 +10,7 @@ import json
 import mimetypes
 from pathlib import Path, PurePosixPath
 import tempfile
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from jsonschema import Draft202012Validator
 
@@ -42,6 +42,9 @@ from .preflight import (
 )
 from .provider_contracts import validate_provider_lane_plan
 from .types import ArtifactRef
+
+if TYPE_CHECKING:
+    from .evidence import FrozenPrefixReceipt
 
 
 SCHEMA_BY_KIND = {
@@ -107,125 +110,202 @@ def _semantic_unique(
         raise RecordValidationError(f"{field} must have unique {key} values")
 
 
-def _require_controller_receipt_ref(
-    value: object,
+def _decode_prefix_receipt_record(
+    receipt: Mapping[str, object],
     *,
     field: str,
-    role: str,
-) -> None:
-    if not isinstance(value, Mapping) or value.get("role") != role:
-        raise RecordValidationError(f"{field} role must equal {role!r}")
-    digest = value.get("sha256")
-    expected_path = f"controller-artifacts/{role}/{digest}"
-    if value.get("relative_path") != expected_path:
-        raise RecordValidationError(
-            f"{field} path must equal its controller role and digest"
+) -> FrozenPrefixReceipt:
+    """Decode the schema mapping through the exact runtime value contracts."""
+
+    from .authority_refs import decode_artifact_ref
+    from .evidence import FrozenPrefixReceipt
+    from .types import (
+        CallSeedReceipt,
+        FailureKind,
+        FrozenVerifierReceipt,
+        GradeReceipt,
+        PrefixCaps,
+        ResourceCounters,
+        ToolCall,
+        TriggerReason,
+    )
+
+    def mapping(name: str, value: object) -> Mapping[str, object]:
+        if not isinstance(value, Mapping):
+            raise RecordValidationError(f"{field}.{name} must be a mapping")
+        return value
+
+    def ref(name: str, value: object, role: str) -> ArtifactRef:
+        return decode_artifact_ref(
+            value,
+            field=f"{field}.{name}",
+            expected_role=role,
         )
+
+    def counters(name: str, value: object) -> ResourceCounters:
+        item = mapping(name, value)
+        return ResourceCounters(
+            generated_tokens=cast(int, item["generated_tokens"]),
+            model_calls=cast(int, item["model_calls"]),
+            tool_calls=cast(int, item["tool_calls"]),
+            wall_clock_ms=cast(int, item["wall_clock_ms"]),
+        )
+
+    def calls(name: str, value: object) -> tuple[ToolCall, ...]:
+        return tuple(
+            ToolCall(
+                call_id=cast(str, mapping(f"{name}[{index}]", item)["call_id"]),
+                name=cast(str, mapping(f"{name}[{index}]", item)["name"]),
+                canonical_arguments_json=cast(
+                    str,
+                    mapping(f"{name}[{index}]", item)["canonical_arguments_json"],
+                ),
+            )
+            for index, item in enumerate(cast(list[object], value))
+        )
+
+    try:
+        caps = mapping("prefix_caps", receipt["prefix_caps"])
+        grade = mapping("y0_grade", receipt["y0_grade"])
+        verifier = mapping("verifier_receipt", receipt["verifier_receipt"])
+        return FrozenPrefixReceipt(
+            task_id=cast(str, receipt["task_id"]),
+            schedule_sha256=cast(str, receipt["schedule_sha256"]),
+            prefix_caps=PrefixCaps(
+                generated_tokens=cast(int, caps["generated_tokens"]),
+                model_calls=cast(int, caps["model_calls"]),
+                tool_calls=cast(int, caps["tool_calls"]),
+                wall_clock_ms=cast(int, caps["wall_clock_ms"]),
+            ),
+            snapshot_ref=ref(
+                "snapshot_ref",
+                receipt["snapshot_ref"],
+                "composite_snapshot",
+            ),
+            visible_context_ref=ref(
+                "visible_context_ref",
+                receipt["visible_context_ref"],
+                "visible_context",
+            ),
+            visible_sha256=cast(str, receipt["visible_sha256"]),
+            token_ids_ref=ref(
+                "token_ids_ref",
+                receipt["token_ids_ref"],
+                "token_ids",
+            ),
+            token_ids_sha256=cast(str, receipt["token_ids_sha256"]),
+            branch_pending_calls=calls(
+                "branch_pending_calls",
+                receipt["branch_pending_calls"],
+            ),
+            terminal_unexecuted_remainder=calls(
+                "terminal_unexecuted_remainder",
+                receipt["terminal_unexecuted_remainder"],
+            ),
+            trigger_reason=TriggerReason(cast(str, receipt["trigger_reason"])),
+            terminal_failure_kind=FailureKind(
+                cast(str, receipt["terminal_failure_kind"])
+            ),
+            y0_grade=GradeReceipt(
+                success=cast(int, grade["success"]),
+                partial_reward=cast(float, grade["partial_reward"]),
+                infrastructure_failure=cast(
+                    bool,
+                    grade["infrastructure_failure"],
+                ),
+                artifact_ref=ref(
+                    "y0_grade.artifact_ref",
+                    grade["artifact_ref"],
+                    "grade_evidence",
+                ),
+            ),
+            grade_execution_receipt_ref=ref(
+                "grade_execution_receipt_ref",
+                receipt["grade_execution_receipt_ref"],
+                "grade_evidence_receipt",
+            ),
+            verifier_receipt=FrozenVerifierReceipt(
+                task_id=cast(str, verifier["task_id"]),
+                schedule_sha256=cast(str, verifier["schedule_sha256"]),
+                snapshot_ref=ref(
+                    "verifier_receipt.snapshot_ref",
+                    verifier["snapshot_ref"],
+                    "composite_snapshot",
+                ),
+                verifier_artifact_ref=ref(
+                    "verifier_receipt.verifier_artifact_ref",
+                    verifier["verifier_artifact_ref"],
+                    "verifier_evidence",
+                ),
+                finding_count=cast(int, verifier["finding_count"]),
+            ),
+            verifier_execution_receipt_ref=ref(
+                "verifier_execution_receipt_ref",
+                receipt["verifier_execution_receipt_ref"],
+                "verifier_evidence_receipt",
+            ),
+            counters=counters("counters", receipt["counters"]),
+            simulator_counters=counters(
+                "simulator_counters",
+                receipt["simulator_counters"],
+            ),
+            call_seeds=tuple(
+                CallSeedReceipt(
+                    subject_role=cast(
+                        Literal["primary_subject", "user_simulator"],
+                        mapping(f"call_seeds[{index}]", seed)["subject_role"],
+                    ),
+                    call_index=cast(
+                        int,
+                        mapping(f"call_seeds[{index}]", seed)["call_index"],
+                    ),
+                    seed=cast(
+                        int,
+                        mapping(f"call_seeds[{index}]", seed)["seed"],
+                    ),
+                )
+                for index, seed in enumerate(cast(list[object], receipt["call_seeds"]))
+            ),
+            provider_attempts_ref=ref(
+                "provider_attempts_ref",
+                receipt["provider_attempts_ref"],
+                "provider_attempt_ledger",
+            ),
+            boundary_ledger_ref=ref(
+                "boundary_ledger_ref",
+                receipt["boundary_ledger_ref"],
+                "tool_boundary_ledger",
+            ),
+            provider_cost_ref=ref(
+                "provider_cost_ref",
+                receipt["provider_cost_ref"],
+                "provider_cost_closure",
+            ),
+        )
+    except RecordValidationError:
+        raise
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RecordValidationError(
+            f"{field} runtime record is invalid: {exc}"
+        ) from exc
 
 
 def _validate_prefix_receipt_semantics(
     receipt: Mapping[str, object],
     *,
     field: str,
+    schedule_sha256: str,
 ) -> None:
-    role_fields = {
-        "snapshot_ref": "composite_snapshot",
-        "visible_context_ref": "visible_context",
-        "token_ids_ref": "token_ids",
-        "provider_attempts_ref": "provider_attempt_ledger",
-        "boundary_ledger_ref": "tool_boundary_ledger",
-        "provider_cost_ref": "provider_cost_closure",
-        "grade_execution_receipt_ref": "grade_evidence_receipt",
-        "verifier_execution_receipt_ref": "verifier_evidence_receipt",
-    }
-    for name, role in role_fields.items():
-        _require_controller_receipt_ref(
-            receipt[name],
-            field=f"{field}.{name}",
-            role=role,
-        )
-    visible_ref = cast(Mapping[str, object], receipt["visible_context_ref"])
-    token_ref = cast(Mapping[str, object], receipt["token_ids_ref"])
-    if receipt["visible_sha256"] != visible_ref["sha256"]:
-        raise RecordValidationError(f"{field} visible digest differs from ref")
-    if receipt["token_ids_sha256"] != token_ref["sha256"]:
-        raise RecordValidationError(f"{field} token digest differs from ref")
-    grade = cast(Mapping[str, object], receipt["y0_grade"])
-    verifier = cast(Mapping[str, object], receipt["verifier_receipt"])
-    _require_controller_receipt_ref(
-        grade["artifact_ref"],
-        field=f"{field}.y0_grade.artifact_ref",
-        role="grade_evidence",
-    )
-    _require_controller_receipt_ref(
-        verifier["verifier_artifact_ref"],
-        field=f"{field}.verifier_receipt.verifier_artifact_ref",
-        role="verifier_evidence",
-    )
-    _require_controller_receipt_ref(
-        verifier["snapshot_ref"],
-        field=f"{field}.verifier_receipt.snapshot_ref",
-        role="composite_snapshot",
-    )
-    if (
-        verifier["task_id"] != receipt["task_id"]
-        or verifier["schedule_sha256"] != receipt["schedule_sha256"]
-        or verifier["snapshot_ref"] != receipt["snapshot_ref"]
-    ):
+    runtime = _decode_prefix_receipt_record(receipt, field=field)
+    if runtime.schedule_sha256 != schedule_sha256:
         raise RecordValidationError(
-            f"{field} verifier ancestry differs from frozen prefix"
+            f"{field}.schedule_sha256 differs from payload.schedule_ref"
         )
-    branch_calls = cast(list[object], receipt["branch_pending_calls"])
-    terminal_calls = cast(
-        list[object],
-        receipt["terminal_unexecuted_remainder"],
-    )
-    trigger = receipt["trigger_reason"]
-    failure = receipt["terminal_failure_kind"]
-    if branch_calls and terminal_calls:
-        raise RecordValidationError(f"{field} pending-call queues are exclusive")
-    for queue_name, queue in (
-        ("branch_pending_calls", branch_calls),
-        ("terminal_unexecuted_remainder", terminal_calls),
-    ):
-        call_ids = [item.get("call_id") for item in queue if isinstance(item, Mapping)]
-        if len(call_ids) != len(set(call_ids)):
-            raise RecordValidationError(
-                f"{field}.{queue_name} must have unique call_id values"
-            )
-    if trigger != "no_intervention_opportunity":
-        if failure != "none" or terminal_calls:
-            raise RecordValidationError(
-                f"{field} branch trigger requires NONE and no terminal remainder"
-            )
-    elif branch_calls:
-        raise RecordValidationError(f"{field} no-trigger forbids branch calls")
-    if terminal_calls and failure != "malformed_action":
+    if runtime.verifier_receipt.schedule_sha256 != schedule_sha256:
         raise RecordValidationError(
-            f"{field} terminal remainder requires malformed_action"
+            f"{field}.verifier_receipt.schedule_sha256 differs from "
+            "payload.schedule_ref"
         )
-    if (
-        trigger == "no_intervention_opportunity"
-        and failure != "none"
-        and (grade["success"] != 0 or grade["partial_reward"] != 0.0)
-    ):
-        raise RecordValidationError(f"{field} adverse no-trigger requires zero Y0")
-    primary = cast(Mapping[str, object], receipt["counters"])
-    simulator = cast(Mapping[str, object], receipt["simulator_counters"])
-    if primary["wall_clock_ms"] != simulator["wall_clock_ms"]:
-        raise RecordValidationError(f"{field} counter wall times must match")
-    if simulator["tool_calls"] != 0:
-        raise RecordValidationError(f"{field} simulator tool_calls must equal zero")
-    next_index = {"primary_subject": 0, "user_simulator": 0}
-    for index, seed in enumerate(
-        cast(list[Mapping[str, object]], receipt["call_seeds"])
-    ):
-        role = cast(str, seed["subject_role"])
-        if seed["call_index"] != next_index[role]:
-            raise RecordValidationError(
-                f"{field}.call_seeds[{index}] role-local index is not consecutive"
-            )
-        next_index[role] += 1
 
 
 def _validate_semantics(value: dict[str, object]) -> None:
@@ -256,6 +336,8 @@ def _validate_semantics(value: dict[str, object]) -> None:
         if len(task_ids) != len(set(task_ids)):
             raise RecordValidationError("payload.tasks must have unique task_id values")
     elif kind == "resampling_prefix_receipt":
+        schedule_ref = cast(Mapping[str, object], payload["schedule_ref"])
+        schedule_sha256 = cast(str, schedule_ref["sha256"])
         _semantic_unique(
             payload["task_receipts"],
             "payload.task_receipts",
@@ -267,6 +349,7 @@ def _validate_semantics(value: dict[str, object]) -> None:
             _validate_prefix_receipt_semantics(
                 receipt,
                 field=f"payload.task_receipts[{index}]",
+                schedule_sha256=schedule_sha256,
             )
     elif kind == "resampling_assignment_ledger":
         assignments = cast(list[Mapping[str, object]], payload["assignments"])

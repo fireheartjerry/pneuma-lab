@@ -21,6 +21,9 @@ _DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 _READ_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 _WRITE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
 _ROLE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+_MEDIA_TYPE_PATTERN = re.compile(
+    r"^[a-z0-9][a-z0-9!#$&^_.+*-]*/[a-z0-9][a-z0-9!#$&^_.+*-]*$"
+)
 _ARTIFACT_DIRECTORY = "controller-artifacts"
 _CHUNK_BYTES = 1024 * 1024
 
@@ -70,8 +73,10 @@ def _media_type(value: object) -> str:
     if type(value) is not str:
         raise TypeError("media_type must be exact text")
     media_type = value
-    if not media_type or any(character.isspace() for character in media_type):
-        raise ValueError("media_type must be non-empty and contain no whitespace")
+    if _MEDIA_TYPE_PATTERN.fullmatch(media_type) is None:
+        raise ValueError(
+            "media_type must be a lowercase canonical type/subtype without parameters"
+        )
     return media_type
 
 
@@ -165,77 +170,102 @@ class ControllerArtifactStore:
             raise TypeError("payload must be exact bytes")
         digest = hashlib.sha256(payload).hexdigest()
         role_descriptor = _mkdir_or_open(artifact_descriptor, validated_role)
+        owned: dict[str, int] = {"role": role_descriptor}
+        created = False
+
+        def close_owned(name: str, errors: list[Exception] | None = None) -> None:
+            descriptor = owned.pop(name, None)
+            if descriptor is None:
+                return
+            try:
+                os.close(descriptor)
+            except OSError as exc:
+                if errors is None:
+                    raise
+                errors.append(exc)
+
         try:
-            descriptor = os.open(
+            owned["write"] = os.open(
                 digest,
                 _WRITE_FLAGS,
                 0o600,
                 dir_fd=role_descriptor,
             )
-            try:
-                _write_all(descriptor, payload)
-                os.fsync(descriptor)
-            except Exception as write_error:
-                cleanup_errors: list[Exception] = []
-                try:
-                    os.close(descriptor)
-                except OSError as exc:
-                    cleanup_errors.append(exc)
-                try:
-                    os.unlink(digest, dir_fd=role_descriptor)
-                except OSError as exc:
-                    cleanup_errors.append(exc)
-                try:
-                    os.fsync(role_descriptor)
-                except OSError as exc:
-                    cleanup_errors.append(exc)
-                if cleanup_errors:
-                    raise ExceptionGroup(
-                        "controller artifact write cleanup is uncertain",
-                        [write_error, *cleanup_errors],
-                    )
-                raise
-            else:
-                os.close(descriptor)
+            created = True
+            _write_all(owned["write"], payload)
+            os.fsync(owned["write"])
+            close_owned("write")
             os.fsync(role_descriptor)
-            read_descriptor = os.open(
+            owned["read"] = os.open(
                 digest,
                 _READ_FLAGS,
                 dir_fd=role_descriptor,
             )
-            try:
-                metadata = os.fstat(read_descriptor)
-                if not stat.S_ISREG(metadata.st_mode):
-                    raise RecordValidationError(
-                        "new controller artifact is not a regular file"
-                    )
-                observed, observed_digest, observed_size = _read_and_hash(
-                    read_descriptor
+            metadata = os.fstat(owned["read"])
+            if not stat.S_ISREG(metadata.st_mode):
+                raise RecordValidationError(
+                    "new controller artifact is not a regular file"
                 )
-                named = os.stat(
-                    digest,
-                    dir_fd=role_descriptor,
-                    follow_symlinks=False,
-                )
-                if stat.S_ISLNK(named.st_mode) or (
-                    metadata.st_dev,
-                    metadata.st_ino,
-                ) != (named.st_dev, named.st_ino):
-                    raise RecordValidationError(
-                        "controller artifact identity changed after write"
-                    )
-            finally:
-                os.close(read_descriptor)
-        finally:
-            os.close(role_descriptor)
-        if (
-            observed != payload
-            or observed_digest != digest
-            or observed_size != len(payload)
-        ):
-            raise RecordValidationError(
-                "controller artifact bytes changed during verified write"
+            observed, observed_digest, observed_size = _read_and_hash(owned["read"])
+            named = os.stat(
+                digest,
+                dir_fd=role_descriptor,
+                follow_symlinks=False,
             )
+            if stat.S_ISLNK(named.st_mode) or (
+                metadata.st_dev,
+                metadata.st_ino,
+            ) != (named.st_dev, named.st_ino):
+                raise RecordValidationError(
+                    "controller artifact identity changed after write"
+                )
+            if (
+                observed != payload
+                or observed_digest != digest
+                or observed_size != len(payload)
+            ):
+                raise RecordValidationError(
+                    "controller artifact bytes changed during verified write"
+                )
+            close_owned("read")
+            close_owned("role")
+        except Exception as primary_error:
+            cleanup_errors: list[Exception] = []
+            close_owned("write", cleanup_errors)
+            close_owned("read", cleanup_errors)
+            cleanup_role = owned.get("role")
+            if cleanup_role is None and created:
+                try:
+                    cleanup_role = os.open(
+                        validated_role,
+                        _DIRECTORY_FLAGS,
+                        dir_fd=artifact_descriptor,
+                    )
+                    owned["cleanup_role"] = cleanup_role
+                except OSError as exc:
+                    cleanup_errors.append(exc)
+            if created and cleanup_role is not None:
+                try:
+                    os.unlink(digest, dir_fd=cleanup_role)
+                except OSError as exc:
+                    cleanup_errors.append(exc)
+                try:
+                    os.fsync(cleanup_role)
+                except OSError as exc:
+                    cleanup_errors.append(exc)
+            close_owned("role", cleanup_errors)
+            close_owned("cleanup_role", cleanup_errors)
+            if created or cleanup_errors:
+                message = (
+                    "controller artifact write cleanup is uncertain"
+                    if cleanup_errors
+                    else "controller artifact write transaction aborted"
+                )
+                raise ExceptionGroup(
+                    message,
+                    [primary_error, *cleanup_errors],
+                )
+            raise
         return ArtifactRef(
             role=validated_role,
             relative_path=f"{_ARTIFACT_DIRECTORY}/{validated_role}/{digest}",
@@ -313,16 +343,27 @@ class ControllerArtifactResolver:
             raise RuntimeError("controller artifact resolver is closed")
         return self._root_descriptor, self._artifact_descriptor
 
-    def resolve(self, ref: ArtifactRef, *, expected_role: str) -> bytes:
+    def resolve(
+        self,
+        ref: ArtifactRef,
+        *,
+        expected_role: str,
+        expected_media_type: str,
+    ) -> bytes:
         """Reopen and recompute role, path, hash, length, and exact bytes."""
 
         _root_descriptor, artifact_descriptor = self._require_open()
         if type(ref) is not ArtifactRef:
             raise TypeError("ref must be exact ArtifactRef")
         validated_role = _role(expected_role)
+        validated_media_type = _media_type(expected_media_type)
         if ref.role != validated_role:
             raise RecordValidationError(
                 "controller artifact role differs from controller expectation"
+            )
+        if ref.media_type != validated_media_type:
+            raise RecordValidationError(
+                "controller artifact media type differs from controller expectation"
             )
         expected_path = f"{_ARTIFACT_DIRECTORY}/{validated_role}/{ref.sha256}"
         if ref.relative_path != expected_path:

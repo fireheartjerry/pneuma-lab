@@ -33,6 +33,15 @@ from .types import (
 
 _U64_LIMIT = 2**64
 _SNAPSHOT_SCHEMA_VERSION = "0.1.0"
+_BINARY_CONTROLLER_ROLES = frozenset(
+    {
+        "environment_snapshot",
+        "grade_evidence",
+        "provider_response",
+        "tool_result",
+        "verifier_evidence",
+    }
+)
 
 
 def _exact_text(value: object, field: str) -> str:
@@ -93,6 +102,13 @@ def _controller_ref(value: object, field: str, *, role: str) -> ArtifactRef:
     expected_path = f"controller-artifacts/{role}/{ref.sha256}"
     if ref.relative_path != expected_path:
         raise ValueError(f"{field} path must equal {expected_path!r}")
+    expected_media_type = (
+        "application/octet-stream"
+        if role in _BINARY_CONTROLLER_ROLES
+        else "application/json"
+    )
+    if ref.media_type != expected_media_type:
+        raise ValueError(f"{field} media_type must equal {expected_media_type!r}")
     return ref
 
 
@@ -367,6 +383,8 @@ class CompletedToolBoundaryReceipt:
         _exact_bool(self.episode_terminal, "episode_terminal")
         if type(self.failure_kind) is not FailureKind:
             raise TypeError("failure_kind must be exact FailureKind")
+        if self.failure_kind is not FailureKind.NONE and not self.episode_terminal:
+            raise ValueError("a failure boundary must be terminal")
         _nonnegative_int(self.elapsed_ms, "elapsed_ms")
 
 

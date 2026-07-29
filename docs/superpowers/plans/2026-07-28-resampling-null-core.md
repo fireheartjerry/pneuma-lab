@@ -3622,6 +3622,10 @@ exact order. A terminal boundary cannot leave branch-pending calls.
 `EnvironmentAdapter.episode_terminal`
 separately decides clean text-only termination; model `finish_reason` alone is
 never task-terminal authority.
+Every completed tool boundary with `failure_kind != NONE` must set
+`episode_terminal == True`, and every terminal boundary must be the final
+ledger entry. A failed nonterminal boundary and any boundary after failure are
+invalid evidence, even when the ledger is otherwise chronological.
 
 Primary and simulator model-call counters increment at dispatch, including a
 failed or timed-out attempt. Generated-token counters include every
@@ -3674,8 +3678,21 @@ no-follow, create-exclusive, file-and-parent-fsynced, and incapable of
 overwrite. Confirmation may substitute only one manifest-qualified nominal
 backend with equivalent receipts. After close, the controller constructs a
 new resolver from the run root/manifest rather than accepting a caller loader;
-it reopens every artifact and requires exact role/path/hash/length/bytes
-equality. Provider-cost closure parents and reloads every dispatch intent,
+it reopens every artifact and requires an independently supplied expected
+role and expected media type plus exact path/hash/length/bytes equality.
+Controller media authority is purpose-bound: canonical JSON records use
+`application/json`; raw provider response, tool result, environment snapshot,
+grade evidence, and verifier evidence use `application/octet-stream`.
+Media types are already-canonical lowercase `type/subtype` tokens with no
+parameters or whitespace; callers are rejected rather than normalized.
+After create-exclusive publication begins, any write, sync, close, reopen,
+read, stat, identity, or byte-verification failure makes the transaction
+abort: all still-owned descriptors receive one close attempt, the digest file
+is unlinked, the role directory is fsynced, and the primary plus every cleanup
+failure is retained. A close that raises relinquishes ownership before the
+attempt because the descriptor may already have closed and been reused; cleanup
+reopens the role directory when necessary and never double-closes an uncertain
+descriptor. Provider-cost closure parents and reloads every dispatch intent,
 terminal attempt, and pinned provider event/settlement grammar, reconciles
 partial/late attempts, and derives exact non-negative microunits; it never
 sums client claims. Prefix-index sealing fails until every dispatch has exactly
@@ -3684,6 +3701,13 @@ immutable `CostClosure`. Assignment, packet construction, analysis, and
 release cannot parent an unsettled prefix candidate. The
 zero-spend synthetic path still emits a typed zero-attempt/zero-cost or
 attempt-bound zero-cost closure rather than omitting it.
+
+Prefix-index validation does not maintain a weaker mapping-only duplicate of
+the execution contract. It decodes each task receipt into exact `ToolCall`,
+`GradeReceipt`, `FrozenVerifierReceipt`, `PrefixCaps`, `ResourceCounters`,
+`CallSeedReceipt`, and `FrozenPrefixReceipt` values and converts every runtime
+type/value failure into `RecordValidationError`. Both the task receipt and its
+nested verifier schedule digest must equal `payload.schedule_ref.sha256`.
 The synthetic environment type has no simulator handle. Confirmation must
 additionally prove process/network isolation: the environment worker can emit
 a simulator context but cannot possess model-server credentials or reach the

@@ -37,9 +37,20 @@ def test_controller_store_is_create_only_content_addressed_and_freshly_resolved(
     with pytest.raises(RuntimeError):
         store.write(role="later", payload=b"x", media_type="text/plain")
     resolver = ControllerArtifactResolver(tmp_path)
-    assert resolver.resolve(ref, expected_role="provider_request") == payload
+    assert (
+        resolver.resolve(
+            ref,
+            expected_role="provider_request",
+            expected_media_type="application/octet-stream",
+        )
+        == payload
+    )
     with pytest.raises(RecordValidationError):
-        resolver.resolve(ref, expected_role="provider_response")
+        resolver.resolve(
+            ref,
+            expected_role="provider_response",
+            expected_media_type="application/octet-stream",
+        )
     resolver.close()
 
 
@@ -101,7 +112,11 @@ def test_controller_resolver_rejects_tamper_path_role_and_symlink(tmp_path) -> N
     target.write_bytes(b"tampered")
     resolver = ControllerArtifactResolver(tmp_path)
     with pytest.raises(RecordValidationError):
-        resolver.resolve(ref, expected_role="snapshot")
+        resolver.resolve(
+            ref,
+            expected_role="snapshot",
+            expected_media_type="application/json",
+        )
     resolver.close()
 
     other = tmp_path / "other"
@@ -110,7 +125,11 @@ def test_controller_resolver_rejects_tamper_path_role_and_symlink(tmp_path) -> N
     target.symlink_to(other)
     resolver = ControllerArtifactResolver(tmp_path)
     with pytest.raises(RecordValidationError):
-        resolver.resolve(ref, expected_role="snapshot")
+        resolver.resolve(
+            ref,
+            expected_role="snapshot",
+            expected_media_type="application/json",
+        )
     resolver.close()
 
     wrong_role = ArtifactRef(
@@ -122,8 +141,112 @@ def test_controller_resolver_rejects_tamper_path_role_and_symlink(tmp_path) -> N
     )
     resolver = ControllerArtifactResolver(tmp_path)
     with pytest.raises(RecordValidationError):
-        resolver.resolve(wrong_role, expected_role="snapshot")
+        resolver.resolve(
+            wrong_role,
+            expected_role="snapshot",
+            expected_media_type="application/json",
+        )
     resolver.close()
+
+
+def test_controller_resolver_rejects_forged_media_type_for_same_bytes(
+    tmp_path,
+) -> None:
+    store = ControllerArtifactStore(tmp_path)
+    ref = store.write(
+        role="snapshot",
+        payload=b"{}",
+        media_type="application/json",
+    )
+    store.close()
+    forged = ArtifactRef(
+        role=ref.role,
+        relative_path=ref.relative_path,
+        sha256=ref.sha256,
+        byte_count=ref.byte_count,
+        media_type="application/octet-stream",
+    )
+    resolver = ControllerArtifactResolver(tmp_path)
+    with pytest.raises(RecordValidationError, match="media type"):
+        resolver.resolve(
+            forged,
+            expected_role="snapshot",
+            expected_media_type="application/json",
+        )
+    resolver.close()
+
+
+@pytest.mark.parametrize(
+    "media_type",
+    ["Application/JSON", "application/json; charset=utf-8", " application/json"],
+)
+def test_controller_store_rejects_noncanonical_media_type(
+    tmp_path,
+    media_type: str,
+) -> None:
+    store = ControllerArtifactStore(tmp_path)
+    with pytest.raises(ValueError, match="media_type"):
+        store.write(role="snapshot", payload=b"{}", media_type=media_type)
+    store.close()
+
+
+def test_success_path_close_failure_removes_artifact_for_retry(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    store = ControllerArtifactStore(tmp_path)
+    real_close = os.close
+    close_calls = 0
+
+    def close_then_fail_once(descriptor: int) -> None:
+        nonlocal close_calls
+        close_calls += 1
+        real_close(descriptor)
+        if close_calls == 1:
+            raise OSError("injected successful-path close failure")
+
+    monkeypatch.setattr(controller_artifacts.os, "close", close_then_fail_once)
+    with pytest.raises(ExceptionGroup) as raised:
+        store.write(role="request", payload=b"x", media_type="text/plain")
+    assert "successful-path close failure" in str(raised.value.exceptions[0])
+    monkeypatch.setattr(controller_artifacts.os, "close", real_close)
+    ref = store.write(role="request", payload=b"x", media_type="text/plain")
+    assert ref.byte_count == 1
+    store.close()
+
+
+def test_verification_and_descriptor_close_failures_are_all_preserved(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    store = ControllerArtifactStore(tmp_path)
+    real_close = os.close
+    real_read_and_hash = controller_artifacts._read_and_hash
+    close_calls = 0
+
+    def corrupt_read(descriptor: int) -> tuple[bytes, str, int]:
+        return b"y", hashlib.sha256(b"y").hexdigest(), 1
+
+    def fail_read_and_role_close(descriptor: int) -> None:
+        nonlocal close_calls
+        close_calls += 1
+        real_close(descriptor)
+        if close_calls in (2, 3):
+            raise OSError(f"injected close failure {close_calls}")
+
+    monkeypatch.setattr(controller_artifacts, "_read_and_hash", corrupt_read)
+    monkeypatch.setattr(controller_artifacts.os, "close", fail_read_and_role_close)
+    with pytest.raises(ExceptionGroup) as raised:
+        store.write(role="request", payload=b"x", media_type="text/plain")
+    messages = " | ".join(str(error) for error in raised.value.exceptions)
+    assert "bytes changed" in messages
+    assert "injected close failure 2" in messages
+    assert "injected close failure 3" in messages
+    monkeypatch.setattr(controller_artifacts, "_read_and_hash", real_read_and_hash)
+    monkeypatch.setattr(controller_artifacts.os, "close", real_close)
+    ref = store.write(role="request", payload=b"x", media_type="text/plain")
+    assert ref.byte_count == 1
+    store.close()
 
 
 def test_store_close_attempts_both_descriptor_closures_after_fsync_error(

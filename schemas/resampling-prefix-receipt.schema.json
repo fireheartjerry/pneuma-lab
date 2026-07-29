@@ -24,7 +24,16 @@
             "type": "object",
             "required": ["schedule_ref", "task_receipts"],
             "properties": {
-                "schedule_ref": { "$ref": "#/$defs/artifact_ref" },
+                "schedule_ref": {
+                    "allOf": [
+                        { "$ref": "#/$defs/artifact_ref" },
+                        {
+                            "properties": {
+                                "media_type": { "const": "application/json" }
+                            }
+                        }
+                    ]
+                },
                 "task_receipts": {
                     "type": "array",
                     "minItems": 1,
@@ -68,68 +77,121 @@
                 },
                 "sha256": { "$ref": "#/$defs/sha256" },
                 "byte_count": { "type": "integer", "minimum": 0 },
-                "media_type": { "$ref": "#/$defs/nonempty" }
+                "media_type": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9!#$&^_.+*-]*/[a-z0-9][a-z0-9!#$&^_.+*-]*$"
+                }
             },
             "additionalProperties": false
         },
         "composite_snapshot_ref": {
             "allOf": [
                 { "$ref": "#/$defs/artifact_ref" },
-                { "properties": { "role": { "const": "composite_snapshot" } } }
+                {
+                    "properties": {
+                        "role": { "const": "composite_snapshot" },
+                        "media_type": { "const": "application/json" }
+                    }
+                }
             ]
         },
         "visible_context_ref": {
             "allOf": [
                 { "$ref": "#/$defs/artifact_ref" },
-                { "properties": { "role": { "const": "visible_context" } } }
+                {
+                    "properties": {
+                        "role": { "const": "visible_context" },
+                        "media_type": { "const": "application/json" }
+                    }
+                }
             ]
         },
         "token_ids_ref": {
             "allOf": [
                 { "$ref": "#/$defs/artifact_ref" },
-                { "properties": { "role": { "const": "token_ids" } } }
+                {
+                    "properties": {
+                        "role": { "const": "token_ids" },
+                        "media_type": { "const": "application/json" }
+                    }
+                }
             ]
         },
         "provider_attempt_ledger_ref": {
             "allOf": [
                 { "$ref": "#/$defs/artifact_ref" },
-                { "properties": { "role": { "const": "provider_attempt_ledger" } } }
+                {
+                    "properties": {
+                        "role": { "const": "provider_attempt_ledger" },
+                        "media_type": { "const": "application/json" }
+                    }
+                }
             ]
         },
         "tool_boundary_ledger_ref": {
             "allOf": [
                 { "$ref": "#/$defs/artifact_ref" },
-                { "properties": { "role": { "const": "tool_boundary_ledger" } } }
+                {
+                    "properties": {
+                        "role": { "const": "tool_boundary_ledger" },
+                        "media_type": { "const": "application/json" }
+                    }
+                }
             ]
         },
         "provider_cost_closure_ref": {
             "allOf": [
                 { "$ref": "#/$defs/artifact_ref" },
-                { "properties": { "role": { "const": "provider_cost_closure" } } }
+                {
+                    "properties": {
+                        "role": { "const": "provider_cost_closure" },
+                        "media_type": { "const": "application/json" }
+                    }
+                }
             ]
         },
         "grade_evidence_receipt_ref": {
             "allOf": [
                 { "$ref": "#/$defs/artifact_ref" },
-                { "properties": { "role": { "const": "grade_evidence_receipt" } } }
+                {
+                    "properties": {
+                        "role": { "const": "grade_evidence_receipt" },
+                        "media_type": { "const": "application/json" }
+                    }
+                }
             ]
         },
         "grade_evidence_ref": {
             "allOf": [
                 { "$ref": "#/$defs/artifact_ref" },
-                { "properties": { "role": { "const": "grade_evidence" } } }
+                {
+                    "properties": {
+                        "role": { "const": "grade_evidence" },
+                        "media_type": { "const": "application/octet-stream" }
+                    }
+                }
             ]
         },
         "verifier_evidence_receipt_ref": {
             "allOf": [
                 { "$ref": "#/$defs/artifact_ref" },
-                { "properties": { "role": { "const": "verifier_evidence_receipt" } } }
+                {
+                    "properties": {
+                        "role": { "const": "verifier_evidence_receipt" },
+                        "media_type": { "const": "application/json" }
+                    }
+                }
             ]
         },
         "verifier_evidence_ref": {
             "allOf": [
                 { "$ref": "#/$defs/artifact_ref" },
-                { "properties": { "role": { "const": "verifier_evidence" } } }
+                {
+                    "properties": {
+                        "role": { "const": "verifier_evidence" },
+                        "media_type": { "const": "application/octet-stream" }
+                    }
+                }
             ]
         },
         "resource_counters": {

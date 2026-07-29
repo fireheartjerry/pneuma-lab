@@ -913,7 +913,9 @@ terminal/failure/deadline checks precedence, and triggers at the first
 remaining nonterminal boundary where
 `(mutation_has_returned and verifier_eligible_after)` or the fourth
 subject-issued tool call has completed. A terminal boundary cannot retain
-branch-pending calls. Clean text-only termination comes from the environment's
+branch-pending calls. Every non-`none` failure boundary is terminal, and every
+terminal boundary is the last boundary; execution after failure is invalid
+evidence. Clean text-only termination comes from the environment's
 explicit terminal state; a model `finish_reason` is never sufficient.
 
 Primary/simulator model-call counters increment at dispatch, including failed
@@ -956,7 +958,19 @@ The local controller artifact store is a concrete final root-confined,
 no-follow, create-exclusive, fsynced component, not a caller protocol.
 Confirmation may use only a manifest-qualified nominal equivalent. After
 close, the controller constructs a new resolver and reopens every write,
-recomputing role, path, bytes, length, and SHA-256. The cost closure reloads
+requiring independently supplied expected role and expected media type and
+recomputing path, bytes, length, and SHA-256. JSON controller records use
+exactly `application/json`; raw provider response, tool result, environment
+snapshot, grade evidence, and verifier evidence use exactly
+`application/octet-stream`. Media tokens are canonical lowercase
+`type/subtype` values with no parameters or whitespace, never silently
+normalized. Once a digest file is created, any write/sync/close/reopen/read/
+stat/identity/verification failure aborts the transaction, attempts every
+still-owned close once, unlinks the digest, fsyncs the role directory, and
+preserves the primary plus every cleanup failure. Ownership is relinquished
+before a close attempt because a raised close may already have closed and
+recycled the descriptor; cleanup reopens the role directory rather than
+double-closing uncertain state. The cost closure reloads
 every dispatch intent, terminal attempt, and settlement event, including
 partial/late failures, before prefix-index sealing.
 The local zero-spend path emits a typed zero-attempt/zero-cost or
@@ -970,7 +984,11 @@ evidence edges used by downstream outcome and packet consumers. Separate
 required `grade_execution_receipt_ref` and
 `verifier_execution_receipt_ref` edges make each snapshot-bound restore
 instance/process/writable-root receipt reachable for independent reload and
-cross-checking. `NO_INTERVENTION_OPPORTUNITY` is valid only when the composite
+cross-checking. Artifact validation decodes the task mapping through exact
+runtime `ToolCall`, grade, verifier, caps, counter, seed, and frozen-prefix
+records; runtime exceptions fail closed as record-validation errors. The task
+and nested verifier schedule digests both equal the enclosing
+`payload.schedule_ref.sha256`. `NO_INTERVENTION_OPPORTUNITY` is valid only when the composite
 snapshot has `episode_terminal == true`; `FIRST_ELIGIBLE_MUTATION` and
 `FOURTH_TOOL_CALL` are valid only for a nonterminal composite snapshot. A cap,
 timeout, malformed action,

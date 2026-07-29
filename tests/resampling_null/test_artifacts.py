@@ -132,6 +132,11 @@ def _minimal_prefix_task_receipt() -> dict[str, object]:
         return _ref(
             f"controller-artifacts/{role}/{SHA_A}",
             role=role,
+            media_type=(
+                "application/octet-stream"
+                if role in {"grade_evidence", "verifier_evidence"}
+                else "application/json"
+            ),
         )
 
     return {
@@ -708,6 +713,60 @@ def test_t5_s02b_prefix_semantics_fail_closed(variant: str) -> None:
         receipt["snapshot_ref"]["role"] = "wrong"  # type: ignore[index]
     with pytest.raises(RecordValidationError):
         validate_record(_record("resampling_prefix_receipt", payload))
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "noncanonical_tool_arguments",
+        "successful_infrastructure_failure",
+        "task_schedule_drift",
+        "verifier_schedule_drift",
+    ],
+)
+def test_t5_s02b_prefix_runtime_records_and_schedule_are_exact(variant: str) -> None:
+    payload = _minimal_payload("resampling_prefix_receipt")
+    receipt = cast(list[dict[str, object]], payload["task_receipts"])[0]
+    if variant == "noncanonical_tool_arguments":
+        receipt["branch_pending_calls"] = [
+            {
+                "call_id": "call-1",
+                "name": "read",
+                "canonical_arguments_json": "not-json",
+            }
+        ]
+        receipt["trigger_reason"] = "first_eligible_mutation"
+    elif variant == "successful_infrastructure_failure":
+        grade = cast(dict[str, object], receipt["y0_grade"])
+        grade["success"] = 1
+        grade["infrastructure_failure"] = True
+    elif variant == "task_schedule_drift":
+        receipt["schedule_sha256"] = SHA_B
+        verifier = cast(dict[str, object], receipt["verifier_receipt"])
+        verifier["schedule_sha256"] = SHA_B
+    else:
+        verifier = cast(dict[str, object], receipt["verifier_receipt"])
+        verifier["schedule_sha256"] = SHA_B
+    with pytest.raises(RecordValidationError):
+        validate_record(_record("resampling_prefix_receipt", payload))
+
+
+@pytest.mark.parametrize("surface", ["schema", "custom"])
+def test_t5_s02b_prefix_media_type_rejects_whitespace(surface: str) -> None:
+    record = _record(
+        "resampling_prefix_receipt",
+        _minimal_payload("resampling_prefix_receipt"),
+    )
+    receipt = cast(list[dict[str, object]], record["payload"]["task_receipts"])[0]  # type: ignore[index]
+    snapshot_ref = cast(dict[str, object], receipt["snapshot_ref"])
+    snapshot_ref["media_type"] = " application/json"
+    if surface == "schema":
+        schema = pls.load_schema("resampling-prefix-receipt.schema.json")
+        errors = list(Draft202012Validator(schema).iter_errors(record))
+        assert errors
+    else:
+        with pytest.raises(RecordValidationError):
+            validate_record(record)
 
 
 def test_t3_s02_assignment_accepts_closed_no_trigger_arm() -> None:
