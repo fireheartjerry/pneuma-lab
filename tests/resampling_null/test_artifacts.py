@@ -3178,6 +3178,282 @@ def test_t3_s09_branch_assignment_is_derived_inside_assignment_lease(
         store._consume_into(handle, bytearray(32))  # type: ignore[arg-type]
 
 
+def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "triggered-assignment"
+    _build_full_study(
+        root,
+        completed_power_consumer_fixture=True,
+    )
+    forbidden = {
+        "resampling_assignment_ledger",
+        "resampling_packet_index",
+        "resampling_task_block",
+        "resampling_blinded_projection",
+        "resampling_analysis_freeze",
+        "resampling_analysis",
+        "resampling_unblind_receipt",
+        "resampling_artifact_root",
+    }
+    for path in root.rglob("*.json"):
+        try:
+            value = json.loads(path.read_bytes())
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if isinstance(value, dict) and value.get("record_kind") in forbidden:
+            path.unlink()
+
+    old_manifest = load_record(root / "study-manifest.json")
+    manifest_payload = cast(dict[str, object], old_manifest["payload"])
+    old_prefix = load_record(root / "prefix-receipt.json")
+    old_receipts = cast(
+        list[dict[str, object]],
+        old_prefix["payload"]["task_receipts"],  # type: ignore[index]
+    )
+    (root / "study-manifest.json").unlink()
+    (root / "prefix-schedule.json").unlink()
+    (root / "prefix-receipt.json").unlink()
+
+    third_task = {
+        "task_id": "task-third",
+        "benchmark": "swe",
+        "stratum": "python",
+        "lineage": "repo-002",
+        "groups": [
+            {"kind": "language", "value": "python"},
+            {"kind": "domain", "value": "software"},
+            {"kind": "issue_family", "value": "bug"},
+        ],
+        "tiers": [120, 160],
+    }
+    old_registry = json.loads(
+        (root / cast(dict[str, object], manifest_payload["task_registry_ref"])[
+            "relative_path"
+        ]).read_bytes()
+    )
+    old_roster = json.loads(
+        (root / cast(dict[str, object], manifest_payload["roster_ref"])[
+            "relative_path"
+        ]).read_bytes()
+    )
+    old_provider = json.loads(
+        (
+            root
+            / cast(
+                dict[str, object],
+                manifest_payload["provider_lane_plan_ref"],
+            )["relative_path"]
+        ).read_bytes()
+    )
+    old_registry["tasks"].append(
+        {key: value for key, value in third_task.items() if key != "tiers"}
+    )
+    old_roster["tasks"].append(third_task)
+    registry_ref = _write_blob(
+        root,
+        "sources/tasks-triggered.json",
+        canonical_json_bytes(old_registry, indent=None),
+    )
+    roster_ref = _write_blob(
+        root,
+        "sources/roster-triggered.json",
+        canonical_json_bytes(old_roster, indent=None),
+    )
+    old_provider["task_lanes"].append(
+        {
+            "task_id": "task-third",
+            "prefix_lane_ordinal": 0,
+            "lane_ordinals_by_execution_rank": [0, 1, 2, 3],
+        }
+    )
+    provider_ref = _write_blob(
+        root,
+        "sources/provider-triggered.json",
+        canonical_json_bytes(old_provider, indent=None),
+    )
+    manifest_payload["task_registry_ref"] = registry_ref
+    manifest_payload["roster_ref"] = roster_ref
+    manifest_payload["provider_lane_plan_ref"] = provider_ref
+    manifest_ref_value = _write_test_record(
+        root,
+        "study-manifest.json",
+        "resampling_study_manifest",
+        manifest_payload,
+    )
+    manifest_ref = ArtifactRef(**manifest_ref_value)
+
+    final_paths = [
+        path
+        for path in (root / "power").glob("*.json")
+        if load_record(path)["payload"]["stage"] == "final"  # type: ignore[index]
+    ]
+    assert len(final_paths) == 1
+    final_path = final_paths[0]
+    final_raw = final_path.read_bytes()
+    power_final_ref = ArtifactRef(
+        role="resampling_power_report",
+        relative_path=final_path.relative_to(root).as_posix(),
+        sha256=hashlib.sha256(final_raw).hexdigest(),
+        byte_count=len(final_raw),
+        media_type="application/json",
+    )
+    prefix_storage_lease = claim_local_test_storage(
+        transaction="prefix",
+        run_root=root,
+        manifest_ref=manifest_ref,
+        schedule_ref=None,
+    )
+    schedule_ref = seal_prefix_schedule(
+        manifest_ref,
+        power_final_ref,
+        schedule_seed_reveal=7,
+        storage_policy_lease=prefix_storage_lease,
+        run_root=root,
+        out=root / "prefix-schedule.json",
+    )
+
+    third_verifier = _write_blob(
+        root,
+        "sources/verifier-third.json",
+        canonical_json_bytes(
+            {
+                "record_kind": "synthetic_verifier_source_v1",
+                "schema_version": "1",
+                "task_id": "task-third",
+                "benchmark": "swe",
+                "components": [
+                    {"kind": "check_runner", "value": "pytest", "count": 1},
+                    {"kind": "failure_class", "value": "none", "count": 1},
+                ],
+                "objective_findings": [],
+            },
+            indent=None,
+        ),
+    )
+    third_report = _write_blob(
+        root,
+        "sources/report-third.json",
+        canonical_json_bytes(
+            {
+                "record_kind": "synthetic_verifier_report_v1",
+                "schema_version": "1",
+                "task_id": "task-third",
+                "report_text": "clean",
+            },
+            indent=None,
+        ),
+    )
+    third_features = _write_blob(
+        root,
+        "sources/features-third.json",
+        canonical_json_bytes(
+            {
+                "record_kind": "assignment_verifier_features_v1",
+                "schema_version": "1",
+                "task_id": "task-third",
+                "benchmark": "swe",
+                "source_verifier_ref": third_verifier,
+                "source_report_ref": third_report,
+                "components": [
+                    {"kind": "check_runner", "value": "pytest", "count": 1},
+                    {"kind": "failure_class", "value": "none", "count": 1},
+                ],
+                "objective_finding_count": 0,
+                "normalized_report_token_count": 1,
+            },
+            indent=None,
+        ),
+    )
+    receipts = deepcopy(old_receipts)
+    third_receipt = deepcopy(receipts[1])
+    third_receipt["task_id"] = "task-third"
+    cast(dict[str, object], third_receipt["verifier_receipt"])[
+        "task_id"
+    ] = "task-third"
+    cast(dict[str, object], third_receipt["verifier_receipt"])[
+        "verifier_artifact_ref"
+    ] = third_features
+    receipts.append(third_receipt)
+    for receipt in receipts:
+        receipt["schedule_sha256"] = schedule_ref.sha256
+        receipt["trigger_reason"] = "first_eligible_mutation"
+        verifier = cast(dict[str, object], receipt["verifier_receipt"])
+        verifier["schedule_sha256"] = schedule_ref.sha256
+    prefix_ref_value = _write_test_record(
+        root,
+        "prefix-receipt.json",
+        "resampling_prefix_receipt",
+        {
+            "schedule_ref": asdict(schedule_ref),
+            "task_receipts": receipts,
+        },
+    )
+    prefix_ref = ArtifactRef(**prefix_ref_value)
+
+    assignment_lease = claim_local_test_storage(
+        transaction="assignment",
+        run_root=root,
+        manifest_ref=manifest_ref,
+        schedule_ref=schedule_ref,
+    )
+    secret_path = tmp_path / "triggered-assignment-master.key"
+    secret_path.write_bytes(bytes(range(32)))
+    secret_path.chmod(0o400)
+    store = AssignmentSecretStore(secret_path)
+    handle = store.claim_assignment(
+        manifest_ref,
+        schedule_ref,
+        run_root=root,
+    )
+    ledger_ref = seal_branch_assignment(
+        schedule_ref,
+        prefix_ref,
+        assignment_secret_handle=handle,
+        matching_backend_session=None,
+        storage_policy_lease=assignment_lease,
+        run_root=root,
+        out=root / "assignment-ledger.json",
+    )
+    payload = cast(
+        dict[str, object],
+        load_record(root / ledger_ref.relative_path)["payload"],
+    )
+    proof_refs = cast(list[dict[str, object]], payload["matching_proof_refs"])
+    assert len(proof_refs) == 1
+    proof_ref = ArtifactRef(**proof_refs[0])
+    assert proof_ref.relative_path == (
+        f"blobs/matching/proof/{proof_ref.sha256}.json"
+    )
+    proof = json.loads((root / proof_ref.relative_path).read_bytes())
+    assert proof["proof_kind"] == "synthetic_cyclic_offset_v1"
+    assert proof["canonical_focal_task_ids"] == [
+        "task-1",
+        "task-donor",
+        "task-third",
+    ]
+    mapping = dict(proof["donor_by_task"])
+    assert set(mapping) == set(mapping.values()) == {
+        "task-1",
+        "task-donor",
+        "task-third",
+    }
+    assert all(focal != donor for focal, donor in mapping.items())
+    donor_receipts = cast(
+        list[dict[str, object]],
+        payload["donor_match_receipts"],
+    )
+    assert all(receipt["kind"] == "matched" for receipt in donor_receipts)
+    assert all(
+        receipt["matching_proof_ref"] == proof_refs[0]
+        for receipt in donor_receipts
+    )
+    assert all(
+        len(cast(list[object], receipt["candidates"])) == 2
+        for receipt in donor_receipts
+    )
+
+
 def _numeric_contract() -> dict[str, object]:
     return {
         "numpy_version": "2.0.0",

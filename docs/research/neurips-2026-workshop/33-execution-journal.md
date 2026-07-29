@@ -692,3 +692,36 @@ The next event after the archived migration boundary is appended below.
 - **Command:** Ran exactly one focused `t3_s09` behavioral selection and one combined Ruff+mypy static gate, each hard-capped at 60 seconds.
 - **Result:** GREEN, exit 0. One test passed with 216 unrelated tests deselected in 1.16 seconds. Ruff passed; mypy found no issues in three source files.
 - **Compact receipt:** stdout 176 bytes / 4 lines / SHA-256 `170cae229899b41a361fa1a728802e9fe8ffd24315238c6c81f0c155f0609e99`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0045/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0046 — publish storage-bound synthetic assignment slice
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Action:** Checked whitespace/status; staged exactly the new transaction module, focused authority fixture, and journal; checked staged scope; committed `feat(neurips): seal synthetic branch assignments`; pushed publicly; compared exact refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `756aa3f5eb487cf8a329bdb61031a208e3143a08`. Three files, 1,360 insertions and seven deletions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Compact receipt:** stdout 778 bytes / 14 lines / SHA-256 `70c7b91dc4e3508204c23e66c384da94f05cb80ae38d801cc1263d355d7599f6`; stderr 134 bytes / 2 lines / SHA-256 `1ccb7e9abd843b1a26717ee98c1a37f4be80079aaa0adfcfe113f8d4ba0d949f`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0046/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0047 — construct genuine three-lineage triggered authority fixture
+
+- **Action:** Reused the completed synthetic power chain while replacing only manifest-owned registry, roster, and provider-lane sources before resealing the manifest. Published a new three-task schedule through the real completed-power consumer; created closed verifier/report/feature parents; froze all three prefixes as triggered.
+- **First result:** RED, exit 1 in 1.03 seconds. The provider-lane plan covered only the original two tasks, correctly exposing an execution-confounding authority gap.
+- **Correction:** Extend the provider plan with the third task before manifest sealing.
+
+### EJ-20260729-0048 — triggered CAS transaction passes
+
+- **Result:** GREEN, exit 0. One focused `t3_s10` test passed, 217 unrelated tests deselected, runtime 1.47 seconds.
+- **Evidence:** Three distinct lineages form one triggered stratum; publication emits one digest-derived CAS proof; proof mapping is a complete self-free permutation; all three matched receipts reference that exact proof and retain two complete eligible candidates.
+- **Static correction:** Ruff found one unused fixture binding; an initially over-broad patch hit an older used binding, which was immediately restored while removing only the intended unused binding.
+- **Corrected static result:** GREEN, exit 0. Ruff passed; mypy found no issues in the transaction module.
+
+### EJ-20260729-0049 — hostile triggered-publication review
+
+- **Findings:** Proof bytes are compact canonical and path-derived from their digest; existing CAS accepts only byte identity. Matching completes before proof installation for each stratum. A later failure may leave unreachable immutable proof blobs, which authority explicitly permits; without the final ledger they are not published science. The ledger references exactly one proof per triggered stratum and is installed only by the committed storage transaction.
+- **Promotion:** Triggered synthetic publication is now defensible for the closed three-lineage fixture.
+- **Remaining gates:** No unkeyed proof-graph verifier or keyed assignment reconstruction exists yet. Confirmation matching remains unavailable and unclaimed.
+
+### EJ-20260729-0050 — final captured triggered-publication gate
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Command:** Ran exactly one focused `t3_s10` behavioral selection and one combined Ruff+mypy static gate, each hard-capped at 60 seconds.
+- **Result:** GREEN, exit 0. One test passed with 217 unrelated tests deselected in 1.16 seconds. Ruff passed; mypy found no issues in one source file.
+- **Compact receipt:** stdout 175 bytes / 4 lines / SHA-256 `d3b68b7107ef1aed83be09006c67979e81f4b0bdd081dc7feb0f847ec15e5804`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0050/` (ignored, retained through 2026-11-27).
