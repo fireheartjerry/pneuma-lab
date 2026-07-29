@@ -7357,3 +7357,1875 @@ exit "$neurips_exit"
   any Slice 2 task command.
 - `next_gate`: execute the pre-recorded B script once as EJ-0232, then append
   its actual result as the Slice 2 opening receipt before any other task.
+### EJ-20260728-0232 — Slice 1 delivery B verified; Slice 2 receipt chain opens
+
+- `receipt_mode`: live external-state delivery receipt allocated by the exact
+  repaired allocator; complete stdout and stderr surfaced.
+- `previous_event_id`: `EJ-20260728-0231`.
+- `occurred_at_local`: `2026-07-28T18:22:26-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:22:26+00:00`.
+- `actor`: Codex root agent.
+- `intent`: execute the single pre-recorded, hashed journal-only delivery-B
+  script, capture its actual immutable identity, and freshly verify the remote
+  ref before any Slice 2 task.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0232 from published EJ-0231 with the exact repaired
+  protocol.
+- `argv`: `bash build/research/neurips-2026-workshop/execution-journal/deliver-task3-s01-b.sh`.
+- `script_sha256`:
+  `94912d54160ba554faa6a645d3475ea7131685dfc56d00901e0cb842a713ca76`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0232/stdout.log`.
+- `stdout_bytes`: `565`.
+- `stdout_sha256`:
+  `db12c0c12c7a1ff73e4d02a2d2f19087138a56d02130454ac84d6a40c2970763`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0232/stderr.log`.
+- `stderr_bytes`: `110`.
+- `stderr_sha256`:
+  `90172576014b72c9c1fa808e90d3d389885766e55a97d35b1d6288e366242ee8`.
+- `commit_b_sha`: `b63325ef91039a9c3b02663e3478d9189c638838`.
+- `commit_b_parent`: `059981627851e99e66fbc8ed095fe78be00c6caa`.
+- `commit_b_tree`: `ddcbada8c70a4026a6d8d3cf98f3d5275878cf6d`.
+- `commit_b_subject`: `docs(neurips): record task 3 slice 1 delivery`.
+- `commit_b_stat`: one file changed, 95 insertions.
+- `push_argv`: `git push origin HEAD:refs/heads/codex/neurips-2026-empirical`.
+- `push_result`: GREEN; complete stderr reports
+  `0599816..b63325e HEAD -> codex/neurips-2026-empirical`.
+- `remote_verify_argv`: `git ls-remote --exit-code origin refs/heads/codex/neurips-2026-empirical`.
+- `remote_observed_sha`: `b63325ef91039a9c3b02663e3478d9189c638838`.
+- `post_delivery_status`: clean before this recursion-exempt opening append.
+- `result`: GREEN. Slice 1's paired A/B chain is complete and freshly observed
+  remotely. This receipt is the first uncommitted receipt of Slice 2 and will
+  be included in Slice 2 substantive A.
+- `next_gate`: run Slice 2 opening provenance: exact B/local/remote identity,
+  clean-except-journal scope, unchanged plan/design hashes, bootstrap-bound
+  interpreter/tool hashes, and the exact Slice 2 ownership table before any
+  schema test edit.
+### EJ-20260728-0233 — Slice 2 opening provenance GREEN
+
+- `receipt_mode`: live fail-closed slice-opening receipt allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0232`.
+- `occurred_at_local`: `2026-07-28T18:23:39-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:23:39+00:00`.
+- `actor`: Codex root agent.
+- `intent`: bind Slice 2 to delivered B, immutable authority, the reviewed
+  interpreter/toolchain, exact worktree scope, owned files, commands, and
+  zero-spend boundary before any schema edit.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0233 from published EJ-0232 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` atomic local/remote/status/authority/toolchain
+  assertions and nine-file pre-edit hash manifest.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0233/stdout.log`.
+- `stdout_bytes`: `2286`.
+- `stdout_sha256`:
+  `4e51a281a8efe508fbb023274f208a59f88deaa09cde77c1b1ce47499fe1cdaa`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0233/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN. Local and remote both equal B
+  `b63325ef91039a9c3b02663e3478d9189c638838`; worktree is journal-only;
+  plan/design equal DL-134; Python 3.12.3 path/digest and exact Ruff/mypy pins
+  match Slice 1 bootstrap. All nine owned files exist and their complete
+  before hashes are retained in raw stdout. Spend remains $0; no training,
+  cloud, or live ceremony.
+- `owned_files`: six listed resampling schemas, `artifacts.py`,
+  `test_artifacts.py`, and `tests/test_schema_loads.py`, exactly as the Slice 2
+  table.
+- `focused_red_green_argv`: `.venv/bin/python -m pytest tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q -k t3_s02`.
+- `required_schema_gate_argv`: `.venv/bin/python -m pytest tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q`.
+- `planned_commit`: `feat(resampling-null): close task 3 schemas`.
+- `next_gate`: inspect the complete detailed Task-3 schema-hardening authority
+  and map every required amendment to current schemas/tests before writing the
+  named RED.
+### EJ-20260728-0234 — inspect detailed Task-3 schema-hardening authority
+
+- `receipt_mode`: live authority-inspection receipt allocated by the exact
+  repaired allocator; complete selected range surfaced.
+- `previous_event_id`: `EJ-20260728-0233`.
+- `occurred_at_local`: `2026-07-28T18:24:16-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:24:16+00:00`.
+- `actor`: Codex root agent.
+- `intent`: reread the complete Step-6 schema/ancestry amendment and adjacent
+  donor-discriminator requirements before touching Slice 2 tests.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0234 from published EJ-0233 with the exact repaired
+  protocol.
+- `argv`: `sed -n '2935,3038p' docs/superpowers/plans/2026-07-28-resampling-null-core.md`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0234/stdout.log`.
+- `stdout_bytes`: `5974`; `stdout_lines`: `104`.
+- `stdout_sha256`:
+  `4a508ca28143217d558806c2b1e193117de9748d11db85d1745a7ef75ebb9a37`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0234/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: authority requires executable closed schemas for the manifest
+  commitments/import grammars, schedule decontamination/non-emptiness,
+  discriminated assignment/donor receipts and proof refs, closed matching
+  blobs, storage intent/publication receipts outside scientific closure,
+  selected/trigger coverage, and ancestry. No thirteenth scientific kind is
+  permitted; keyed reconstruction remains outside unkeyed root validation.
+- `next_gate`: inventory those exact fields/definitions across the six current
+  schemas, artifact code, and tests to distinguish already-green Task-2
+  baseline from the minimal Slice 2 RED surface.
+### EJ-20260728-0235 — inventory Task-3 schema amendment tokens
+
+- `receipt_mode`: live targeted-search receipt allocated by the exact repaired
+  allocator; complete 13-line result surfaced.
+- `previous_event_id`: `EJ-20260728-0234`.
+- `occurred_at_local`: `2026-07-28T18:25:03-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:25:03+00:00`.
+- `actor`: Codex root agent.
+- `intent`: determine which authority-critical Task-3 schema tokens already
+  exist in the current six schemas, artifact logic, and tests.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0235 from published EJ-0234 with the exact repaired
+  protocol.
+- `argv`: `rg -n` over all nine Slice 2-owned files for commitment, assignment,
+  donor, matching proof, storage transaction/publication, membership, and
+  power-final tokens.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0235/stdout.log`.
+- `stdout_bytes`: `1324`; `stdout_lines`: `13`.
+- `stdout_sha256`:
+  `deadebb7be3d01004b7b618fdb6386cdfd39686cec97a05313b6a79d6a324afe`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0235/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: the current Task-2 baseline is decisively stale for Task 3: it
+  retains generic `seed_commitment_sha256` and `assignment_mode =
+  "uniform_12"` while almost every required named commitment, donor
+  discriminator, matching-proof, storage transaction/publication,
+  selected-membership, and power-final token is absent.
+- `next_gate`: read every byte of all six current schemas before designing a
+  closed amended contract; no schema edit yet.
+### EJ-20260728-0236 — capture all six current schemas; surfaced view truncated
+
+- `receipt_mode`: live complete raw-capture receipt allocated by the exact
+  repaired allocator; tool display truncated while raw stdout remains complete.
+- `previous_event_id`: `EJ-20260728-0235`.
+- `occurred_at_local`: `2026-07-28T18:25:50-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:25:50+00:00`.
+- `actor`: Codex root agent.
+- `intent`: byte-read and emit all six current Slice 2 schemas with labeled
+  boundaries, sizes, line counts, and content hashes.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0236 from published EJ-0235 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` complete six-schema byte read and labeled
+  emission.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0236/stdout.log`.
+- `stdout_bytes`: `54069`; `stdout_lines`: `1372`.
+- `stdout_sha256`:
+  `3e4f239f9c1795395f0b2cdf4d15fa663b6e5881abcd0c44853ae671e3310cad`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0236/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: all six files are durably captured byte-complete, but the tool
+  display truncated 13,601 tokens in the middle of assignment/power content.
+  Manifest, schedule, prefix receipt, and artifact root were visibly inspected
+  in full. Complete assignment and power contents must be surfaced in bounded
+  chunks before editing.
+- `next_gate`: surface the complete assignment schema and first bounded half
+  of the power schema.
+### EJ-20260728-0237 — inspect assignment schema and power lines 1–360
+
+- `receipt_mode`: live bounded inspection receipt allocated by the exact
+  repaired allocator; complete requested ranges surfaced without truncation.
+- `previous_event_id`: `EJ-20260728-0236`.
+- `occurred_at_local`: `2026-07-28T18:26:37-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:26:37+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect every assignment-ledger schema line and the first 360 of
+  618 power-report lines omitted from EJ-0236's visible display.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0237 from published EJ-0236 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` labeled complete assignment emission plus power
+  lines 1–360.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0237/stdout.log`.
+- `stdout_bytes`: `20400`; `stdout_lines`: `521`.
+- `stdout_sha256`:
+  `4019e087d1486da691c795533c948225f2fb0a5f83076bb60618d7f9b7af52ee`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0237/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: assignment is the minimal Task-2 ledger: generic mode, no program/
+  master/view/proof ancestry, no donor receipts, no discriminator, and
+  underconstrained non-empty arrays. Power lines 1–360 define current
+  screen/shard/selection and begin Gaussian validation; later finalization
+  remains to inspect.
+- `next_gate`: surface power-report lines 361–618, completing the only
+  truncated schema.
+### EJ-20260728-0238 — inspect power-report lines 361–618
+
+- `receipt_mode`: live bounded inspection receipt allocated by the exact
+  repaired allocator; complete requested range surfaced.
+- `previous_event_id`: `EJ-20260728-0237`.
+- `occurred_at_local`: `2026-07-28T18:27:13-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:27:13+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect the remaining Gaussian/full-multiplier validation and
+  finalization schemas, completing the six-schema read.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0238 from published EJ-0237 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` exact power-report line-count assertion and
+  lines 361–618 emission.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0238/stdout.log`.
+- `stdout_bytes`: `10487`; `stdout_lines`: `260`.
+- `stdout_sha256`:
+  `9aa4e8a2cb0448cb231c240fc13076429206d899ba1f67338058b81a53e2a45a`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0238/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: all six current schemas are now visibly inspected end-to-end.
+  Power already carries the append-only attempt/finalization baseline, but
+  later Slice 7/11 authority fields remain absent; Slice 2 must avoid stealing
+  those later ownership repairs while closing the current schema contracts.
+- `next_gate`: inventory all artifact implementation entry points and current
+  artifact/schema tests, then read only the exact functions/fixtures that Slice
+  2 must amend.
+### EJ-20260728-0239 — inventory artifact implementation and tests
+
+- `receipt_mode`: live structural-search receipt allocated by the exact
+  repaired allocator; complete output surfaced.
+- `previous_event_id`: `EJ-20260728-0238`.
+- `occurred_at_local`: `2026-07-28T18:27:50-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:27:50+00:00`.
+- `actor`: Codex root agent.
+- `intent`: map constants, functions, record-validation entry points, manifest
+  sealing, ancestry/root verification, fixture builders, and every existing
+  test boundary in Slice 2 code/tests.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0239 from published EJ-0238 with the exact repaired
+  protocol.
+- `argv`: `rg -n` structural inventory over `artifacts.py`,
+  `test_artifacts.py`, and `test_schema_loads.py`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0239/stdout.log`.
+- `stdout_bytes`: `19099`; `stdout_lines`: `204`.
+- `stdout_sha256`:
+  `d1b255483dd76d95cc1a3f7db53262e5633ce04672d242ab5e1f9c3b66ac1795`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0239/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: schemas are dynamically selected by `SCHEMA_BY_KIND`;
+  `_validate_semantics` adds cross-field checks; `seal_study_manifest`
+  hardcodes the obsolete one-commitment template; `write_record` and
+  `_validate_scientific_ancestry` enforce current parent semantics; the test
+  suite has shared minimal/full-study builders that still encode
+  `seed_commitment_sha256` and `uniform_12`.
+- `next_gate`: inspect complete schema registry/semantic validation plus the
+  shared minimal fixtures and schema-loader tests before choosing the first
+  `t3_s02` RED.
+### EJ-20260728-0240 — inspect artifacts.py lines 1–360
+
+- `receipt_mode`: live bounded source-inspection receipt allocated by the exact
+  repaired allocator; complete requested range surfaced.
+- `previous_event_id`: `EJ-20260728-0239`.
+- `occurred_at_local`: `2026-07-28T18:29:01-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:29:01+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect schema routing, plain-JSON normalization, canonical
+  digests, uniqueness helpers, and the first half of semantic validation.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0240 from published EJ-0239 with the exact repaired
+  protocol.
+- `argv`: `sed -n '1,360p' src/pneuma_lab/resampling_null/artifacts.py`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0240/stdout.log`.
+- `stdout_bytes`: `14562`; `stdout_lines`: `360`.
+- `stdout_sha256`:
+  `b44749ee442d928e091081058509034ab6b31f0eeefb983f964c937e61411186`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0240/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: assignment semantics currently assume every row has a distinct
+  donor and only validate assignment/allocation uniqueness plus four-arm
+  coverage. They know nothing about N/A rows, donor receipts, proof refs, or
+  expanded ancestry. The remaining semantic branches and `validate_record`
+  boundary still require inspection.
+- `next_gate`: inspect `artifacts.py` lines 361–720, completing semantic/schema
+  validation and canonical loading.
+### EJ-20260728-0241 — inspect artifacts.py lines 361–720
+
+- `receipt_mode`: live bounded source-inspection receipt allocated by the exact
+  repaired allocator; complete requested range surfaced.
+- `previous_event_id`: `EJ-20260728-0240`.
+- `occurred_at_local`: `2026-07-28T18:29:38-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:29:38+00:00`.
+- `actor`: Codex root agent.
+- `intent`: complete semantic validation, schema invocation, strict JSON
+  loading, and record-load inspection.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0241 from published EJ-0240 with the exact repaired
+  protocol.
+- `argv`: `sed -n '361,720p' src/pneuma_lab/resampling_null/artifacts.py`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0241/stdout.log`.
+- `stdout_bytes`: `16247`; `stdout_lines`: `360`.
+- `stdout_sha256`:
+  `0362d3f0e904719f65f2aa89e9cb16cf7158dd5f5389001edac97488085c1de7`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0241/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: `validate_record` correctly delegates closed shape to Draft 2020-12
+  schemas, then runs semantic checks. Updating schema plus the assignment
+  semantic branch is sufficient for isolated validation; full ancestry/root
+  enforcement can remain in later owned slices. Strict JSON parsing already
+  rejects duplicate keys, BOM, invalid UTF-8, and nonfinite constants.
+- `next_gate`: inspect the complete schema-loader tests and shared minimal
+  artifact fixtures that every schema change will exercise.
+### EJ-20260728-0242 — inspect schema-loader tests and minimal record fixtures
+
+- `receipt_mode`: live bounded source-inspection receipt allocated by the exact
+  repaired allocator; complete requested ranges surfaced.
+- `previous_event_id`: `EJ-20260728-0241`.
+- `occurred_at_local`: `2026-07-28T18:30:17-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:30:17+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect all schema-registry/load/meta-schema tests and the shared
+  record/minimal-payload builders used by contract tests.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0242 from published EJ-0241 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` complete `test_schema_loads.py` plus
+  `test_artifacts.py` lines 1–235.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0242/stdout.log`.
+- `stdout_bytes`: `15930`; `stdout_lines`: `437`.
+- `stdout_sha256`:
+  `30c4e3f3720ef2f2ce506fb27529d081558795c4dca4013c5d0ec45bfb166889`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0242/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: registry correctly fixes the resampling count at 12, providing a
+  natural no-thirteenth-kind assertion. Minimal fixtures intentionally permit
+  empty prefix/assignment arrays and encode both obsolete fields; schema
+  hardening will require explicit valid non-empty replacement fixtures, not
+  merely schema-token introspection.
+- `next_gate`: inspect manifest sealing implementation/tests to define the
+  exact three-commitment production change and avoid breaking its source-copy
+  guarantees.
+### EJ-20260728-0243 — inspect manifest sealing implementation and tests
+
+- `receipt_mode`: live bounded source-inspection receipt allocated by the exact
+  repaired allocator; complete requested ranges surfaced.
+- `previous_event_id`: `EJ-20260728-0242`.
+- `occurred_at_local`: `2026-07-28T18:30:59-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:30:59+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect how the current seal validates a manifest template, copies
+  sources, constructs refs, freezes time, and tests sorted revisions.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0243 from published EJ-0242 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` `artifacts.py` lines 879–1110 and
+  `test_artifacts.py` lines 2250–2368.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0243/stdout.log`.
+- `stdout_bytes`: `11942`; `stdout_lines`: `355`.
+- `stdout_sha256`:
+  `87ddf14b1b2d680e8339e83212a439058534a655109eba7292f80f423fbd9dfc`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0243/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: the production seal hardcodes a template payload containing only
+  generic `seed_commitment_sha256`, then copies nine fixed source roles and
+  revisions. Slice 2 can safely TDD the three named commitments and schema
+  decontamination; adding later ceremony/storage source arguments prematurely
+  would violate the exclusive slice schedule.
+- `next_gate`: extract exact field names and record shapes for the three
+  commitments, schedule decontamination, and assignment discriminator/proof
+  contract from plan/design; then define a bounded Slice 2 test matrix.
+### EJ-20260728-0244 — extract exact Slice 2 authority field names
+
+- Prior event: `EJ-20260728-0243`.
+- Local start: `2026-07-28T18:31:46-07:00`.
+- UTC start: `2026-07-29T01:31:46+00:00`.
+- Command: targeted, read-only `rg -n -C 3` extraction across the authoritative execution plan and design for the Slice 2 commitment, matching-proof, donor-receipt, and ancestry field names.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0244/stdout.log`; `17,046` bytes; `143` lines; SHA-256 `0ab5582bbe1e886c2a954c730844e8b54c31e25eb29c19eb35d756244ac608ff`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0244/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: GREEN. Authority fixes `commitment_scheme = "resampling-null-key-ceremony-v1"` plus exactly `roster_local_nonce_commitment_sha256`, `schedule_seed_commitment_sha256`, and `assignment_master_key_commitment_sha256`; the generic seed commitment is obsolete. The manifest, schedule, prefix-receipt, and assignment-ledger payloads have explicit ancestry, non-empty scientific arrays, closed mode/algorithm vocabularies, unique conditional `matching_proof_refs`, and closed matched-versus-no-trigger task/donor discriminators. The scientific schema surface remains exactly twelve kinds; no thirteenth storage schema is permitted.
+- Next gate: formulate the bounded Slice 2 RED test matrix from these exact authority contracts before changing production code or schemas.
+### EJ-20260728-0245 — resolve the dated discovery-authority path
+
+- Prior event: `EJ-20260728-0244`.
+- Local start: `2026-07-28T18:34:44-07:00`.
+- UTC start: `2026-07-29T01:34:44+00:00`.
+- Command: read-only `rg --files docs/superpowers | rg '2026-07-22-neurips-execution-discovery'`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0245/stdout.log`; `72` bytes; `1` line; SHA-256 `40ed1cbaf0f6cd078fbc6d9bb4704e9c847e596a1bb98b23766da9a2bdfa6497`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0245/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: the dated discovery authority resolves to `docs/superpowers/specs/2026-07-22-neurips-execution-discovery-design.md`; the execution plan uses a different filename and will be resolved separately before quoting further line ranges.
+- Next gate: resolve the authoritative plan filename without guessing.
+### EJ-20260728-0246 — enumerate NeurIPS execution and plan documents
+
+- Prior event: `EJ-20260728-0245`.
+- Local start: `2026-07-28T18:35:12-07:00`.
+- UTC start: `2026-07-29T01:35:12+00:00`.
+- Command: read-only filename inventory `rg --files docs | rg 'neurips.*(execution|plan)|execution.*neurips'`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0246/stdout.log`; `530` bytes; `7` lines; SHA-256 `53dcf851e3a335a5197731b7a7d1bbf5a5cda14a64ed2545bb0d6a238061bed4`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0246/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: seven matching files under `docs/`; none is the active root execution plan identified by the handoff. Archived protocol plans remain non-authoritative.
+- Next gate: search the repository root-level inventory for the active execution plan path.
+### EJ-20260728-0247 — search the full Markdown inventory for the active plan
+
+- Prior event: `EJ-20260728-0246`.
+- Local start: `2026-07-28T18:35:39-07:00`.
+- UTC start: `2026-07-29T01:35:39+00:00`.
+- Command: repository-wide Markdown filename filter for VPS/NeurIPS plus plan/execution terms.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0247/stdout.log`; `530` bytes; `7` lines; SHA-256 `c35bb8282ee8cfa3c84121ea68f2a9a6dfcf2b9121363e5183ff44e7db37cb12`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0247/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: the broader filter returns the same seven documents and still does not expose the active plan by filename. The active handoff must therefore be queried for its explicit authority path rather than inferred from names.
+- Next gate: extract the exact active plan reference from `VPS_NEURIPS_2026_HANDOFF.md`.
+### EJ-20260728-0248 — recover active authority paths from the handoff
+
+- Prior event: `EJ-20260728-0247`.
+- Local start: `2026-07-28T18:36:11-07:00`.
+- UTC start: `2026-07-29T01:36:11+00:00`.
+- Command: read-only contextual search of `VPS_NEURIPS_2026_HANDOFF.md` for authority and execution-plan references.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0248/stdout.log`; `12,600` bytes; `101` lines; SHA-256 `7993a9cd5a32a3f814bd8490439fde6f7848f4b7234504976fd0ea51529e3420`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0248/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: active implementation authority is `docs/superpowers/plans/2026-07-28-resampling-null-core.md`; active scientific/technical authority is `docs/superpowers/specs/2026-07-28-neurips-resampling-null-design.md`. The prior dated discovery design is only conditional-compute context and must not substitute for either current file.
+- Next gate: inspect the exact Slice 2 schema table and stable assignment/donor record definitions from the recovered active authorities.
+### EJ-20260728-0249 — read active Slice 2 schema and assignment contracts
+
+- Prior event: `EJ-20260728-0248`.
+- Local start: `2026-07-28T18:36:41-07:00`.
+- UTC start: `2026-07-29T01:36:41+00:00`.
+- Command: line-numbered read of active plan ranges `430–475`, `1711–1960`, and `2935–3038`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0249/stdout.log`; `20,452` bytes; `400` lines; SHA-256 `96eae9da38c3fc84bf5cca6809078be29d895ce527953449c07818c35a6f0588`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0249/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: confirmed the exact twelve-kind schema table, three-commitment ceremony contract, schedule decontamination, all six required non-empty arrays, unique conditional matching proofs, closed `TaskAssignment` and donor-receipt arms, and the frozen assignment ancestry. Stable donor records use `kind`; task assignments use `donor_match_kind`. Slice 2 must harden these serialization contracts without creating a scientific storage record or claiming keyed reconstruction.
+- Next gate: inspect the current Slice 2 tests and schema fixtures at edit-level granularity, then add failing `t3_s02` tests only.
+### EJ-20260728-0250 — inspect current Slice 2 test fixtures and schema registry
+
+- Prior event: `EJ-20260728-0249`.
+- Local start: `2026-07-28T18:37:13-07:00`.
+- UTC start: `2026-07-29T01:37:13+00:00`.
+- Command: line-numbered reads of `tests/resampling_null/test_artifacts.py:1–320` and `tests/test_schema_loads.py:1–260`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0250/stdout.log`; `22,036` bytes; `518` lines; SHA-256 `e64f7105f8d9e6338ebcb5af09b74dc42fb241fe9f3d5a7e41bf8d4ded90645a`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0250/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: the existing minimal fixtures encode the superseded generic seed, contaminated schedule copies, empty receipt/ledger arrays, and `uniform_12`; the registry already freezes exactly twelve resampling schemas. Slice 2 needs new authority-focused tests plus fixture migration, while the twelve-kind count must remain unchanged.
+- Next gate: map all existing manifest/schedule/assignment/schema contract tests before inserting the RED cases.
+### EJ-20260728-0251 — map existing Slice 2-related artifact tests
+
+- Prior event: `EJ-20260728-0250`.
+- Local start: `2026-07-28T18:37:46-07:00`.
+- UTC start: `2026-07-29T01:37:46+00:00`.
+- Command: read-only symbol/token map over `test_artifacts.py` for manifest, schedule, assignment, schema, root, sealing, and obsolete contract terms.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0251/stdout.log`; `1,799` bytes; `28` lines; SHA-256 `ed01f9ac229ad084911b6e04c81b9bd621a27f1d0f5b82f8888c881790815aa5`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0251/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: obsolete fields appear in both the minimal fixture and a second shared ancestry fixture, plus two manifest-seal tests. Existing closed-schema coverage begins near line 384; manifest sealing near line 2254; downstream root/ancestry tests consume the shared fixtures afterward.
+- Next gate: inspect those exact fixture/test ranges before placing isolated `t3_s02` RED tests and planning the minimum coherent migration.
+### EJ-20260728-0252 — inspect shared ancestry fixtures and manifest-seal tests
+
+- Prior event: `EJ-20260728-0251`.
+- Local start: `2026-07-28T18:38:13-07:00`.
+- UTC start: `2026-07-29T01:38:13+00:00`.
+- Command: line-numbered reads of `test_artifacts.py:340–470`, `700–930`, and `2220–2375`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0252/stdout.log`; `21,409` bytes; `518` lines; SHA-256 `6a01192809a7db2234c3b350c06489395058a918277f34b261dcc1aa4e444859`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0252/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: the existing generic metadata test validates every minimal record, so authority hardening necessarily requires coherent minimal-fixture migration. The full-study builder also carries the obsolete generic commitment, schedule copies, and ledger mode; manifest sealing currently copies nine source families and preserves the frozen timestamp. New RED tests can isolate exact Slice 2 surface failures before that migration.
+- Next gate: add the bounded `t3_s02` schema-contract RED tests, then run only those tests to prove they fail for the intended missing contracts.
+### EJ-20260728-0253 — pin accepted assignment and matching literals
+
+- Prior event: `EJ-20260728-0252`.
+- Local start: `2026-07-28T18:39:22-07:00`.
+- UTC start: `2026-07-29T01:39:22+00:00`.
+- Command: contextual read of accepted Slice 1 enums and matching-pair authority in the active plan.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0253/stdout.log`; `7,896` bytes; `87` lines; SHA-256 `2b66a745b4f58bd0d08452ee7d0e93f12907186a19a1cd58f06e5ab401c2d6dc`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0253/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: exact closed pairs are `synthetic_derangement` with `synthetic_cyclic_offset_v1`, and `confirmation_lineage_matching` with `exact_constrained_min_cost_v1`; trigger literals are `first_eligible_mutation`, `fourth_tool_call`, and `no_intervention_opportunity`.
+- Next gate: add RED tests using only these accepted literals and exact stable record shapes.
+### EJ-20260728-0254 — cross-check manifest and schedule schema authority
+
+- Prior event: `EJ-20260728-0253`.
+- Local start: `2026-07-28T18:40:20-07:00`.
+- UTC start: `2026-07-29T01:40:20+00:00`.
+- Command: contextual cross-file extraction for the study-manifest, ceremony, storage-policy, power-grid/topology, and schedule contracts in the active plan and design.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0254/stdout.log`; `40,241` bytes; `313` lines; SHA-256 `f80e62acfbdf5964796b60e8177e37dad1db26a016adb8e975fc7751ba929e51`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0254/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: both authorities agree that the manifest owns the exact grid/topology and conditional roster evidence, while schedules derive authority/tier/membership and load assignment/provider inputs solely through `manifest_ref`. Scientific sealing must eventually copy the larger closed source set, but the bounded Slice 2 RED matrix will test the six owned schema corrections and local record semantics without pre-implementing later transaction constructors.
+- Next gate: patch only test files with the isolated `t3_s02` contract matrix.
+### EJ-20260728-0255 — add and whitespace-check the Slice 2 RED matrix
+
+- Prior event: `EJ-20260728-0254`.
+- Local start: `2026-07-28T18:42:11-07:00`.
+- UTC start: `2026-07-29T01:42:11+00:00`.
+- Action: patched only `tests/resampling_null/test_artifacts.py` and `tests/test_schema_loads.py` with `t3_s02` tests for exact ceremony commitments, schedule decontamination, non-empty prefix/ledger/candidate arrays, closed no-trigger/matched arms, conditional unique matching proofs, mode/algorithm pairing, and the fixed twelve-schema boundary.
+- Command: `git diff --check -- tests/resampling_null/test_artifacts.py tests/test_schema_loads.py`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0255/stdout.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0255/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Content hashes:
+  - `tests/resampling_null/test_artifacts.py`: `9f3aadf8b5445b934f9d0b8956d88df4cb22e82db1037043ae4b85bb9e3ffe1f`.
+  - `tests/test_schema_loads.py`: `26029c28d48d8d2c6b7c0365022b5f7a5d787e0f19a3643435da559e5bda341f`.
+- Result: patch is whitespace-clean. No production/schema file has changed.
+- Next gate: run the exact focused `-k t3_s02` test command and require a causally relevant RED.
+### EJ-20260728-0256 — prove focused Slice 2 RED
+
+- Prior event: `EJ-20260728-0255`.
+- Local start: `2026-07-28T18:42:48-07:00`.
+- UTC start: `2026-07-29T01:42:48+00:00`.
+- Command: `.venv/bin/python -m pytest tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q -k t3_s02`.
+- Exit: `1` (expected RED).
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0256/stdout.log`; `16,530` bytes; `217` lines; SHA-256 `b1e0aac0cc105d4d25aecc60ec16273c8f71c12df8709b9a32c6096034de239f`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0256/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: causally relevant RED: `8 failed, 2 passed, 349 deselected`. Failures expose the obsolete generic manifest commitment, contaminated schedule contract, empty prefix acceptance, missing ledger ancestry/discriminators/proofs, and absent candidate/non-empty enforcement. The output also revealed one test-fixture defect: placeholder capability strings violate the already-existing 64-hex contract and must be repaired before production changes.
+- Next gate: repair only the invalid capability placeholders, then re-run focused RED to ensure every remaining failure targets missing Slice 2 behavior.
+### EJ-20260728-0257 — repair the RED fixture’s capability digests
+
+- Prior event: `EJ-20260728-0256`.
+- Local start: `2026-07-28T18:43:27-07:00`.
+- UTC start: `2026-07-29T01:43:27+00:00`.
+- Action: replaced four non-digest `cap-*` placeholders with deterministic SHA-256 capability digests in the new no-trigger assignment fixture; no assertion or production file changed.
+- Command: `git diff --check -- tests/resampling_null/test_artifacts.py`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0257/stdout.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0257/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Content hash: `tests/resampling_null/test_artifacts.py` is `678cd942b082d315aeca21e6e2a4acc9d23f852432ea90aca5c843590e543b4e`.
+- Result: correction is whitespace-clean and removes the only failure caused by violating an already-implemented contract.
+- Next gate: repeat the focused RED and inspect that failures now isolate Slice 2 gaps.
+### EJ-20260728-0258 — confirm repaired focused RED
+
+- Prior event: `EJ-20260728-0257`.
+- Local start: `2026-07-28T18:43:55-07:00`.
+- UTC start: `2026-07-29T01:43:55+00:00`.
+- Command: repeat of `.venv/bin/python -m pytest tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q -k t3_s02`.
+- Exit: `1` (expected RED).
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0258/stdout.log`; `14,802` bytes; `217` lines; SHA-256 `2f6cab43f9421b719ed2d124555c77393e253b4a72a6e5ee0d2343f20ae29447`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0258/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: stable authority RED remains `8 failed, 2 passed, 349 deselected`; capability-format noise is gone. Every failure now traces to a missing Slice 2 schema or semantic invariant.
+- Next gate: inspect the exact current schema definition layout, then implement the smallest closed-contract patch that makes these tests meaningful.
+### EJ-20260728-0259 — inspect manifest, schedule, and prefix schemas before patching
+
+- Prior event: `EJ-20260728-0258`.
+- Local start: `2026-07-28T18:44:30-07:00`.
+- UTC start: `2026-07-29T01:44:30+00:00`.
+- Command: complete line-numbered reads of the current study-manifest, prefix-schedule, and prefix-receipt schemas.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0259/stdout.log`; `20,091` bytes; `445` lines; SHA-256 `f40c8fa638b7417c9e85d85b2b0bad6cc2c52f3e934b3f7f8fc9d06d4452cc5b`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0259/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: all three schemas are closed already, so the correction is surgical: replace manifest required/properties, replace schedule required/properties while retaining task grammar, and add one `minItems: 1` to prefix receipts.
+- Next gate: inspect the full assignment-ledger schema layout and current semantic validator before a single coherent production patch.
+### EJ-20260728-0260 — inspect assignment schema and locate semantic hooks
+
+- Prior event: `EJ-20260728-0259`.
+- Local start: `2026-07-28T18:45:01-07:00`.
+- UTC start: `2026-07-29T01:45:01+00:00`.
+- Command: complete line-numbered assignment-ledger schema read plus contextual semantic-hook search in `artifacts.py`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0260/stdout.log`; `11,951` bytes; `256` lines; SHA-256 `1c64724cb16f58a602a4f68e783332285f7525663910e2ee12fa81e8cb5a1f89`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0260/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: the ledger schema is compact and can be replaced in place: six missing ancestry fields, closed mode enum, three non-empty arrays, discriminated assignments, full allocations, and donor receipts. The broad hook search did not expose the core record-level branch, so that exact branch must be located before editing `artifacts.py`.
+- Next gate: locate and read the current `resampling_assignment_ledger` semantic branch exactly.
+### EJ-20260728-0261 — read the current record-level ledger semantics
+
+- Prior event: `EJ-20260728-0260`.
+- Local start: `2026-07-28T18:45:27-07:00`.
+- UTC start: `2026-07-29T01:45:27+00:00`.
+- Command: contextual search for every `resampling_assignment_ledger` branch in `artifacts.py`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0261/stdout.log`; `24,410` bytes; `574` lines; SHA-256 `f8dfbd8229334abb6355761d7cbdf5d7aab4e9c6ca683acb58baf8d49a66960b`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0261/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: current semantics enforce uniqueness, distinct matched donors/lineages, and exact four-arm permutations, but assume every assignment is matched and know nothing about donor receipts or conditional proofs. Later ancestry code also still compares schedule-copied assignment/provider refs, which the corrected schedule forbids.
+- Next gate: read the exact ancestry and manifest-sealing bodies that must be kept coherent with the schema patch.
+### EJ-20260728-0262 — read manifest sealing and schedule-to-ledger ancestry
+
+- Prior event: `EJ-20260728-0261`.
+- Local start: `2026-07-28T18:45:57-07:00`.
+- UTC start: `2026-07-29T01:45:57+00:00`.
+- Command: line-numbered reads of `artifacts.py:879–1110` and `1788–1920`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0262/stdout.log`; `16,114` bytes; `365` lines; SHA-256 `70250f3847e82627a430d8a161058b1ed70d00251efdb6ba2a357b47551ce8db`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0262/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: manifest sealing still accepts only the generic commitment and copies nine fixed source roles; ancestry still expects the two now-forbidden schedule copies. These are known downstream migration points, not reasons to weaken the corrected schema. After this read, four schemas and record-local ledger semantics were patched; their first verification command was attempted before this receipt and was correctly aborted by the allocator because raw path `EJ-20260728-0262` already existed. No verification task executed and no new raw event was created.
+- Next gate: allocate `EJ-20260728-0263`, parse/check the patched schemas and code, and record their content hashes.
+### EJ-20260728-0263 — parse and whitespace-check the first Slice 2 implementation
+
+- Prior event: `EJ-20260728-0262`.
+- Local start: `2026-07-28T18:49:31-07:00`.
+- UTC start: `2026-07-29T01:49:31+00:00`.
+- Action: patched the manifest, schedule, prefix-receipt, and assignment-ledger schemas plus record-local ledger semantics. Added no schema kind and no operational record.
+- Command: parse all four JSON schemas with `.venv/bin/python -m json.tool`, then run targeted `git diff --check`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0263/stdout.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0263/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Content hashes:
+  - manifest schema: `51e0570a86e3284cca8aba4b57d2c2f1b6ac1b1cb55f280b06949b825235d352`.
+  - schedule schema: `5919c0d6b0a6d13f6f9057442b3a5cdad83240966827bca6290cce5b3997d859`.
+  - prefix-receipt schema: `a87c4b776f6734c1201234e66c6d45595d657a4b84df4e52c1c4b81825a44a28`.
+  - assignment-ledger schema: `03e60cc8936f25c27ce2a3dcb20ed8b13842fc96d0b9353676721c81d01653a5`.
+  - `artifacts.py`: `d26c3c1b6278bddaa5b3dc14c1ee84acd50205972888557f443a08b93f911ada`.
+- Result: all edited JSON parses and the patch is whitespace-clean. This is syntax evidence only, not GREEN evidence.
+- Next gate: run the exact focused `t3_s02` suite and inspect every remaining failure.
+### EJ-20260728-0264 — achieve focused Slice 2 GREEN
+
+- Prior event: `EJ-20260728-0263`.
+- Local start: `2026-07-28T18:50:07-07:00`.
+- UTC start: `2026-07-29T01:50:07+00:00`.
+- Command: `.venv/bin/python -m pytest tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q -k t3_s02`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0264/stdout.log`; `115` bytes; `2` lines; SHA-256 `a7ecba015d99b513d05d1835ad6c645e10528235d6737510dcaebcc1de9ba19e`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0264/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: GREEN, `10 passed, 349 deselected in 0.43s`. The new schema surface and record-local semantics satisfy the focused authority matrix.
+- Next gate: run the complete Slice 2 schema gate to enumerate all legacy-fixture and sealing regressions before migration.
+### EJ-20260728-0265 — inventory complete-gate regressions after schema hardening
+
+- Prior event: `EJ-20260728-0264`.
+- Local start: `2026-07-28T18:50:36-07:00`.
+- UTC start: `2026-07-29T01:50:36+00:00`.
+- Command: `.venv/bin/python -m pytest tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q`.
+- Exit: `1` (expected migration RED).
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0265/stdout.log`; `244,992` bytes; `4,042` lines; SHA-256 `e023ec40a9fb94fffc6837bdbed103a939e8e15ab7161174ee6c7934dcb3bd40`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0265/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: `73 failed, 286 passed in 17.30s`. The failure list is a broad cascade from two shared legacy manifest fixtures plus the obsolete manifest-seal template; the first failure consistently reports the removed generic commitment and nine newly required manifest fields. This is fixture migration evidence, not 73 independent product defects.
+- Next gate: inspect the complete shared builder assignment block and call surface, then migrate shared fixtures before reassessing residual failures.
+### EJ-20260728-0266 — inspect shared full-study builder through schedule publication
+
+- Prior event: `EJ-20260728-0265`.
+- Local start: `2026-07-28T18:51:53-07:00`.
+- UTC start: `2026-07-29T01:51:53+00:00`.
+- Command: line-numbered read of `test_artifacts.py:620–1050`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0266/stdout.log`; `19,019` bytes; `431` lines; SHA-256 `27d089bf05e0c750a9a8185cab2f1f24f8dd197539b23e8f9ab993c3064d6d3e`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0266/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: the builder publishes manifest then schedule and supports synthetic/roster authority variants; it has existing raw grid/topology inputs but lacks storage policy. Two obsolete variants explicitly inject assignment/provider refs into the schedule and will need removal or re-expression as fail-closed schema tests.
+- Next gate: inspect the prefix and complete assignment-ledger builder block before editing shared fixtures.
+### EJ-20260728-0267 — inspect prefix and assignment portions of the shared builder
+
+- Prior event: `EJ-20260728-0266`.
+- Local start: `2026-07-28T18:52:19-07:00`.
+- UTC start: `2026-07-29T01:52:19+00:00`.
+- Command: line-numbered read of `test_artifacts.py:1050–1240`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0267/stdout.log`; `7,874` bytes; `191` lines; SHA-256 `d9e3eea432d67b4ee59df961691141b46edf74bf79bdfc0c8015af7770dd5feb`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0267/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: the builder has two scheduled tasks; task 1 is triggered only in packet/adversarial variants and the donor task is always no-trigger. The old ledger falsely assigns donors to both tasks. Migration must emit a matched receipt/proof only when task 1 actually triggers and explicit N/A assignments/receipts otherwise, while preserving both allocations.
+- Next gate: map the two obsolete schedule-variant tests, then patch minimal and full fixtures coherently.
+### EJ-20260728-0268 — map obsolete schedule-copy adversarial variants
+
+- Prior event: `EJ-20260728-0267`.
+- Local start: `2026-07-28T18:53:04-07:00`.
+- UTC start: `2026-07-29T01:53:04+00:00`.
+- Command: contextual search for `schedule-assignment-program` and `schedule-provider-lane` variants.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0268/stdout.log`; `3,070` bytes; `81` lines; SHA-256 `6bd4e4b6d803f7367be9af95ddd4c97b0447bc11ebc9fd1b39dbe6225a6799ff`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0268/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: both variants live inside a `pytest.raises` ancestry test. Normal fixtures can remove the copied fields, while each adversarial variant can still inject one forbidden field and satisfy the stronger fail-closed expectation at schema validation.
+- Next gate: migrate minimal and full fixtures, retaining these two variants only as forbidden-field attacks.
+### EJ-20260728-0269 — migrate shared fixtures to the corrected schema surface
+
+- Prior event: `EJ-20260728-0268`.
+- Local start: `2026-07-28T18:54:51-07:00`.
+- UTC start: `2026-07-29T01:54:51+00:00`.
+- Action: migrated minimal and full-study fixtures to the named ceremony commitments, manifest-owned storage/grid/topology refs, decontaminated schedule fields, non-empty prefix receipts, closed assignment modes, full allocation receipts, and trigger-conditioned matched/N/A donor receipts. Obsolete schedule-copy variants now inject forbidden properties only on their explicit attack paths.
+- Command: compile `test_artifacts.py` and run its targeted whitespace check.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0269/stdout.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0269/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Content hash: `tests/resampling_null/test_artifacts.py` is `facd3ddc70ece0e5e53e4047eb7ba005397aaa632d7463cbacc698743b4dbae4`.
+- Result: migrated test module compiles and is whitespace-clean.
+- Next gate: re-run focused `t3_s02` tests before widening again.
+### EJ-20260728-0270 — detect helper drift after fixture migration
+
+- Prior event: `EJ-20260728-0269`.
+- Local start: `2026-07-28T18:55:21-07:00`.
+- UTC start: `2026-07-29T01:55:21+00:00`.
+- Command: focused `t3_s02` suite.
+- Exit: `1`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0270/stdout.log`; `1,909` bytes; `38` lines; SHA-256 `35349787946476a67ff4fe2033152d27bdac616f9016daa7c1013a16d70ce737`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0270/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: `2 failed, 8 passed, 349 deselected`. Both failures are helper drift: the authority helpers still delete obsolete keys that the migrated minimal fixtures no longer contain. No production regression appeared.
+- Next gate: simplify those two helpers to detached copies of the now-authoritative minimal fixtures, then repeat focused tests.
+### EJ-20260728-0271 — restore focused GREEN after helper simplification
+
+- Prior event: `EJ-20260728-0270`.
+- Local start: `2026-07-28T18:55:59-07:00`.
+- UTC start: `2026-07-29T01:55:59+00:00`.
+- Action: simplified the manifest and schedule authority helpers to deep-copy the migrated canonical fixtures; assertions were unchanged.
+- Command: focused `t3_s02` suite.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0271/stdout.log`; `115` bytes; `2` lines; SHA-256 `a894566adefe2a1202965c3da39911dd1ad38d9943950e896854d362e437b67d`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0271/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Content hash: `tests/resampling_null/test_artifacts.py` is `87684dc8327c967a34c8f5729e30a8b3e59ae30059790b9ed3b2222140a250e9`.
+- Result: GREEN, `10 passed, 349 deselected in 0.52s`.
+- Next gate: repeat the complete schema gate and classify the now-residual failures.
+### EJ-20260728-0272 — isolate the stale ancestry crash
+
+- Prior event: `EJ-20260728-0271`.
+- Local start: `2026-07-28T18:56:32-07:00`.
+- UTC start: `2026-07-29T01:56:32+00:00`.
+- Command: complete Slice 2 schema gate.
+- Exit: `1`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0272/stdout.log`; `285,419` bytes; `5,849` lines; SHA-256 `b3680996ee3406f7b00dd5d7b2b93cb9c01af71455bc155440e3ae8062a272e0`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0272/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: `84 failed, 275 passed in 38.84s`. Nearly all builder-dependent failures now share one production crash: `_validate_scientific_ancestry` indexes forbidden `schedule_payload["assignment_program_ref"]`. The remaining independent failure is the known obsolete manifest sealer. The correct repair is to remove those schedule comparisons and enforce ledger-to-manifest, manifest-owned matching-program, and commitment ancestry instead.
+- Next gate: patch that exact ancestry branch, then rerun a narrow builder smoke test before the full gate.
+### EJ-20260728-0273 — advance builder smoke test past schedule-copy crash
+
+- Prior event: `EJ-20260728-0272`.
+- Local start: `2026-07-28T18:58:00-07:00`.
+- UTC start: `2026-07-29T01:58:00+00:00`.
+- Action: removed stale schedule-copy ancestry reads and added assignment manifest, manifest-owned matching-program, and assignment-key commitment checks.
+- Command: single builder/root smoke test `test_artifact_root_follows_raw_refs_and_detects_byte_changes`.
+- Exit: `1`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0273/stdout.log`; `19,029` bytes; `408` lines; SHA-256 `a0c6d365e56e59e3824eedcbf26367679f63976603dc8507b06f500777fe5f35`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0273/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Content hash: `artifacts.py` is `7fb58a884d007ef41da67e0a15ea4717b0619571a4e22f82a3a5962a7cfb341d`.
+- Result: the former `KeyError` is gone and the smoke test advances through the corrected ancestry checks into a later semantic failure. The displayed excerpt ends before the terminal exception, so the raw tail must be inspected rather than guessed.
+- Next gate: read the bounded tail of this retained stdout and identify the exact next defect.
+### EJ-20260728-0274 — inspect the retained builder-smoke traceback tail
+
+- Prior event: `EJ-20260728-0273`.
+- Local start: `2026-07-28T18:58:32-07:00`.
+- UTC start: `2026-07-29T01:58:32+00:00`.
+- Command: bounded `tail -n 120` of retained `EJ-20260728-0273/stdout.log`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0274/stdout.log`; `5,301` bytes; `120` lines; SHA-256 `38edf7ee0b0f69a1c0955866059c9a6a1bad4c5c136594761f37280248404dff`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0274/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: exact defect identified: downstream ancestry casts an explicit N/A donor ID `None` to a string and rejects it as unscheduled. This branch still assumes every task has a donor. It must condition on `donor_match_kind`, require no-trigger prefix evidence for N/A, and perform donor schedule/lineage checks only for matched tasks.
+- Next gate: patch that discriminated ancestry branch and repeat the same one-test smoke gate.
+### EJ-20260728-0275 — read the exact donor-assignment ancestry loop
+
+- Prior event: `EJ-20260728-0274`.
+- Local start: `2026-07-28T18:59:09-07:00`.
+- UTC start: `2026-07-29T01:59:09+00:00`.
+- Command: line-numbered read of `artifacts.py:2265–2355`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0275/stdout.log`; `4,539` bytes; `91` lines; SHA-256 `98a2adb750d40d3f63f6a40cdd67c6d10f2d780cc810a2b1a5085f67fc08ea7b`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0275/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: donor schedule/lineage checks are a compact unconditional block. The same loop already has schedule and prefix maps, so it can enforce exact donor-receipt order and trigger-kind equivalence without new I/O or secret reconstruction.
+- Next gate: make that loop discriminator-aware and repeat the identical smoke test.
+### EJ-20260728-0276 — advance smoke test to root-ref identity
+
+- Prior event: `EJ-20260728-0275`.
+- Local start: `2026-07-28T18:59:58-07:00`.
+- UTC start: `2026-07-29T01:59:58+00:00`.
+- Action: made assignment ancestry discriminator-aware, enforced donor-receipt schedule order, and bound matched/N/A kinds exactly to frozen trigger evidence.
+- Command: repeated `test_artifact_root_follows_raw_refs_and_detects_byte_changes`.
+- Exit: `1`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0276/stdout.log`; `4,565` bytes; `93` lines; SHA-256 `c588c7d0ab23f3b9180c0520754f515474602d75012c6fd04f9b5ace696fb3a4`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0276/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Content hash: `artifacts.py` is `7e14eb9b7a0c374eefec4b84c67d6e3c651b0bff44da34990572574d5a5e772a`.
+- Result: builder and ancestry now pass. Root sealing rejects one fixture-only metadata conflict because the same `raw/power-config.json` bytes are referenced once with role `source` and once with role `power_final`. ArtifactRef identity is intentionally strict; the fixture must reuse the original ref byte-for-byte.
+- Next gate: remove only that role rewrite and repeat the same smoke test.
+### EJ-20260728-0277 — restore full-study builder/root smoke GREEN
+
+- Prior event: `EJ-20260728-0276`.
+- Local start: `2026-07-28T19:00:41-07:00`.
+- UTC start: `2026-07-29T02:00:41+00:00`.
+- Action: reused the original power-config ArtifactRef unchanged as the temporary fixture’s schedule power-final ref, eliminating role metadata conflict.
+- Command: repeated `test_artifact_root_follows_raw_refs_and_detects_byte_changes`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0277/stdout.log`; `98` bytes; `2` lines; SHA-256 `b632ba3b5d75d336650a26fbf5403abf707ec37cfb411ae61bc5620f7427d6ca`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0277/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Content hash: `tests/resampling_null/test_artifacts.py` is `a83c13ad30937fbcaad3841cb9d21c2d496b8a1a770ed0e50794032e1a4bce49`.
+- Result: GREEN, `1 passed in 1.31s`; builder, ancestry, root closure, and byte-change detection all execute successfully.
+- Next gate: rerun the complete schema gate and classify the residual failures.
+### EJ-20260728-0278 — reduce the complete gate to the manifest sealer
+
+- Prior event: `EJ-20260728-0277`.
+- Local start: `2026-07-28T19:01:14-07:00`.
+- UTC start: `2026-07-29T02:01:14+00:00`.
+- Command: complete Slice 2 schema gate.
+- Exit: `1`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0278/stdout.log`; `5,333` bytes; `107` lines; SHA-256 `05c664b6af40696f01f8994531ff5556cdeaaf60e95c948bf996d0d821fe8fcd`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0278/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: `1 failed, 358 passed in 45.37s`. The only failure is `test_study_manifest_seal_copies_all_sources_without_reading_clock`; its template and sealer still use the removed generic commitment and omit storage/grid/topology plus conditional refs.
+- Next gate: update the sealer and its two direct tests to the exact named-commitment/source-copy contract, then run those tests alone.
+### EJ-20260728-0279 — make manifest sealing source-complete and commitment-exact
+
+- Prior event: `EJ-20260728-0278`.
+- Local start: `2026-07-28T19:03:26-07:00`.
+- UTC start: `2026-07-29T02:03:26+00:00`.
+- Action: expanded `seal_study_manifest` to require and copy storage-policy, power-grid, and screen-topology sources; accept conditional eligibility/policy only as a pair; require the constant ceremony scheme plus three named digests; emit null conditional refs for the synthetic arm; and preserve deterministic source copying. Migrated both direct sealer tests.
+- Command: two direct manifest-sealing tests.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0279/stdout.log`; `98` bytes; `2` lines; SHA-256 `a65a2e135668904da5355e90568a4d7e06f5ac7b4e108ec7fe1b6ab82d6a1587`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0279/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Content hashes:
+  - `artifacts.py`: `8d9f1b48bf6ac0b809991400fff87d53ea4cc4786ba3ccc52f9763e292fb20fb`.
+  - `test_artifacts.py`: `643f6283bc27396af51d7a1b7477c5572292de3e47b42fca3987e613ac7a1525`.
+- Result: GREEN, `2 passed in 0.67s`.
+- Next gate: run the exact complete Slice 2 schema gate.
+### EJ-20260728-0280 — achieve complete Slice 2 schema GREEN
+
+- Prior event: `EJ-20260728-0279`.
+- Local start: `2026-07-28T19:03:56-07:00`.
+- UTC start: `2026-07-29T02:03:56+00:00`.
+- Command: `.venv/bin/python -m pytest tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0280/stdout.log`; `421` bytes; `6` lines; SHA-256 `0d8d575825c6de40cc5d83ee150a645fd5a95f33dd8c3f274ca4b24656a0ebce`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0280/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: GREEN, `359 passed in 48.77s`. Focused schema, registry, sealing, ancestry, artifact-root, packet, task, and existing power-contract tests all pass.
+- Next gate: run Ruff and mypy on the Slice 2 Python surface before adversarial diff review.
+### EJ-20260728-0281 — run Slice 2 lint and first type check
+
+- Prior event: `EJ-20260728-0280`.
+- Local start: `2026-07-28T19:05:22-07:00`.
+- UTC start: `2026-07-29T02:05:22+00:00`.
+- Commands: Ruff on the edited source/test modules; mypy on `artifacts.py`.
+- Exit: aggregate `1`; Ruff `0`; mypy `1`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0281/stdout.log`; `540` bytes; `6` lines; SHA-256 `b1dd1d8eba175b4d06781420f1841ab21fad3d6a04fb686933790f00ccee1a38`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0281/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: Ruff is GREEN (`All checks passed!`). Mypy reports only the pre-existing untyped `jsonschema` import and explicitly recommends either adding third-party stubs or ignoring missing imports. The project’s accepted artifact-module gate uses `--ignore-missing-imports`; no dependency will be added merely to silence this.
+- Next gate: repeat mypy with the repository’s accepted missing-import policy.
+### EJ-20260728-0282 — pass the accepted Slice 2 type gate
+
+- Prior event: `EJ-20260728-0281`.
+- Local start: `2026-07-28T19:05:51-07:00`.
+- UTC start: `2026-07-29T02:05:51+00:00`.
+- Command: `.venv/bin/mypy --ignore-missing-imports src/pneuma_lab/resampling_null/artifacts.py`.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0282/stdout.log`; `42` bytes; `1` line; SHA-256 `5d4b6d285b77932e3d08212c3b4974d0a803f98ec60408ac6ccf6a063fa6c19e`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0282/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: GREEN, `Success: no issues found in 1 source file`.
+- Next gate: perform a hostile diff/stale-token audit before accepting the current GREEN as sufficient.
+### EJ-20260728-0283 — hostile stale-token and diff-surface audit
+
+- Prior event: `EJ-20260728-0282`.
+- Local start: `2026-07-28T19:06:55-07:00`.
+- UTC start: `2026-07-29T02:06:55+00:00`.
+- Commands: `git diff --stat`, full `git diff --check`, and an exact-word stale-token search for `seed_commitment_sha256`, `study_seed`, and `uniform_12` across the Slice 2 surface.
+- Exit: `0`; the search intentionally found one adversarial legacy-field injection.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0283/stdout.log`; `668` bytes; `10` lines; SHA-256 `2e6b48de206256c8d4efd3a6e2d93a2383f0da46ae9745e9dda99ab0041818e4`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0283/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: no whitespace errors; no stale production/schema terms. The only obsolete token is the deliberate negative-test injection at `test_artifacts.py:551`. Hostile semantic review nevertheless identified three gaps: manifest conditional refs are not schema-paired, record-local ledger arrays can be reordered while retaining set coverage, and `stratum_key` was given an unsupported uniqueness restriction absent from the frozen dataclass.
+- Next gate: encode all three findings as focused RED tests before repairing production/schema behavior.
+### EJ-20260728-0284 — prove hostile-review RED on three loopholes
+
+- Prior event: `EJ-20260728-0283`.
+- Local start: `2026-07-28T19:08:05-07:00`.
+- UTC start: `2026-07-29T02:08:05+00:00`.
+- Action: added three focused adversarial tests for paired manifest conditionals, ordered cross-array task coverage, and tuple-preserving repeated stratum components.
+- Command: focused `t3_s02` suite.
+- Exit: `1` (expected RED).
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0284/stdout.log`; `6,667` bytes; `125` lines; SHA-256 `bd1cf011fb096363a5e727f118f9fdefec54757bbcf74b38c6b6eb1f561db68a`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0284/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: causally exact RED, `3 failed, 10 passed, 349 deselected`. Current schema accepts split conditional refs, rejects a legitimate repeated tuple component, and accepts donor-receipt reordering.
+- Next gate: repair exactly those three contracts, then repeat focused and complete gates.
+### EJ-20260728-0285 — close three hostile-review loopholes
+
+- Prior event: `EJ-20260728-0284`.
+- Local start: `2026-07-28T19:09:00-07:00`.
+- UTC start: `2026-07-29T02:09:00+00:00`.
+- Action: made manifest conditional refs a closed both-null/both-ArtifactRef pair, removed the unsupported set constraint from ordered `stratum_key`, and required assignment/allocation/donor arrays to share exact task order.
+- Command: focused `t3_s02` suite.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0285/stdout.log`; `115` bytes; `2` lines; SHA-256 `0bbcdb8e2a6d1326ce9a69ed96ee808694ccf50a4e73fa50371018177604c996`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0285/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: GREEN, `13 passed, 349 deselected in 0.48s`.
+- Next gate: rerun the complete schema gate after hostile repairs.
+### EJ-20260728-0286 — restore complete GREEN after hostile repairs
+
+- Prior event: `EJ-20260728-0285`.
+- Local start: `2026-07-28T19:09:28-07:00`.
+- UTC start: `2026-07-29T02:09:28+00:00`.
+- Command: complete Slice 2 schema gate.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0286/stdout.log`; `501` bytes; `7` lines; SHA-256 `2a325df64499cf095e66d5176f934a221918822646d1dcec3905d91235061275`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0286/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: GREEN, `362 passed in 48.08s`.
+- Next gate: re-read the authoritative Slice 2 row and adjacent ownership rows to prevent premature closure or work theft from later slices.
+### EJ-20260728-0287 — re-confirm exclusive Slice 2 ownership
+
+- Prior event: `EJ-20260728-0286`.
+- Local start: `2026-07-28T19:10:48-07:00`.
+- UTC start: `2026-07-29T02:10:48+00:00`.
+- Command: contextual read of the authoritative eleven-slice table and closure gate.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0287/stdout.log`; `7,220` bytes; `59` lines; SHA-256 `f1c6ba18ecbc75d2d34a55e64483fa17b84471a89dec2ba838f53de050f7e1e6`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0287/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: Slice 2 exclusively owns six schemas, including `resampling-power-report` and `resampling-artifact-root`; slices 7 and 11 may reopen them later for consumer gating and reconstruction closure. Current GREEN cannot close Slice 2 until both untouched owned schemas are explicitly audited against the Slice 2 contract.
+- Next gate: inspect the current power/root schema structures and the exact Task-3-required additions before deciding whether RED tests or no-change evidence is warranted.
+### EJ-20260728-0288 — structurally probe owned power/root schemas
+
+- Prior event: `EJ-20260728-0287`.
+- Local start: `2026-07-28T19:11:34-07:00`.
+- UTC start: `2026-07-29T02:11:34+00:00`.
+- Command: `jq` structural summaries for the owned power-report and artifact-root schemas.
+- Exit: shell `0`, with one `jq` diagnostic from the power shape.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0288/stdout.log`; `630` bytes; `31` lines; SHA-256 `71686783c9090b78364ff68659dda06858e0953ea007b63588ed3d962db27c9b`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0288/stderr.log`; `88` bytes; `1` line; SHA-256 `b06bef2fff39f1937e2c8fba5bfc4bab514897ef6e89a7a9c299b42bd8a95ba2`.
+- Result: artifact-root already has the exact five required payload keys and closed supporting definitions. The generic query could not summarize power because its payload is arm-composed rather than a direct `properties` object; treating the partial result as complete would be a review failure.
+- Next gate: inspect the power payload’s actual composition and summarize each arm with a shape-aware query.
+### EJ-20260728-0289 — inspect the current power-report composition
+
+- Prior event: `EJ-20260728-0288`.
+- Local start: `2026-07-28T19:12:06-07:00`.
+- UTC start: `2026-07-29T02:12:06+00:00`.
+- Command: line-numbered read of power schema lines `1–150` plus a shape-aware `jq` summary.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0289/stdout.log`; `7,864` bytes; `178` lines; SHA-256 `4b0f41d17bc24a294ca22d9b5ab64518953222ce709b2eb908a236b85aab9eb5`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0289/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: power payload is a six-arm closed `oneOf`, but every arm still uses the Task-2 common fields: no `authority_ref`, membership digest, RNG-contract digest, kernel ID, or frozen shard count, and it calls topology `topology_ref`. This owned schema is substantively stale.
+- Next gate: extract the exact frozen power record fields and allowed kernel/topology semantics from current authority before writing new RED tests.
+### EJ-20260728-0290 — extract current power-authority and common-field contract
+
+- Prior event: `EJ-20260728-0289`.
+- Local start: `2026-07-28T19:12:40-07:00`.
+- UTC start: `2026-07-29T02:12:40+00:00`.
+- Command: broad contextual extraction of all six missing common power fields across the active plan and design.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0290/stdout.log`; `125,823` bytes; `1,132` lines; SHA-256 `e55ab3109716eb9c37d9063bb7f6bad6e9a35edae3e512944312df6d5d4e9ad5`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0290/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: authority is explicit: every stage carries the same authority ArtifactRef, derived authority/roster/membership mirrors, exact manifest-owned grid/topology refs, grid-derived RNG digest, phase/stage-derived kernel, screen-frozen shard count, and parents. The identity key uses `authority_ref.sha256`, not the mirrored string. No thirteenth power-authority record is allowed.
+- Next gate: extract exact kernel literals/derivation and inspect all six current schema arm requirements before writing power RED tests.
+### EJ-20260728-0291 — inspect power kernel authority
+
+- Prior event: `EJ-20260728-0290`.
+- Local start: `2026-07-28T19:13:19-07:00`.
+- UTC start: `2026-07-29T02:13:19+00:00`.
+- Command: targeted contextual search for kernel IDs and derivation language across active authorities.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0291/stdout.log`; `21,090` bytes; `185` lines; SHA-256 `87995b06429b64e19c12cc7c4f7a1d30fb33ca299a4a5b0b2278caed434e6744`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0291/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: finalization literals are exact (`power-final-gaussian-v1`, `power-final-full-multiplier-v1`) and final stores selected/terminal kernel/count. The extraction confirms stage/phase derivation but does not enumerate every non-final literal.
+- Next gate: enumerate all authoritative `power-*-v1` literals and map them to stage/phase.
+### EJ-20260728-0292 — enumerate authoritative quoted power literals
+
+- Prior event: `EJ-20260728-0291`.
+- Local start: `2026-07-28T19:13:56-07:00`.
+- UTC start: `2026-07-29T02:13:56+00:00`.
+- Command: unique extraction of quoted `power-*-v1` literals from active plan/design.
+- Exit: `0`.
+- Compact streams:
+  - stdout: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0292/stdout.log`; `119` bytes; `5` lines; SHA-256 `53a0d6642705d94139ca4126e1fe5f373c10347fb310276022e7ec8f6ea06bfa`.
+  - stderr: `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0292/stderr.log`; `0` bytes; SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- Result: only final kernel literals are directly quoted; the remaining three strings are RNG algorithm/frame labels. Non-final kernel IDs must therefore be recovered from the derivation contract rather than invented from filename-shaped guesses.
+- Next gate: locate the kernel derivation function/type directly.
+
+### EJ-20260728-0293 — recover the exact power kernel table
+
+- **Prior event:** `EJ-20260728-0292`
+- **Action:** Searched the binding resampling-null plan and design for the derivation rule and exact identifiers governing power-report `kernel_id`, plus final selected/terminal kernel and shard-count fields.
+- **Compact receipt:** local `2026-07-28T19:14:24-07:00`; UTC `2026-07-29T02:14:24+00:00`; exit `0`; stdout `78,684` bytes / `646` lines / SHA-256 `f5a19b027babcdaba82a303f15fb7197f8e37bd6d0c433ad8b7e5df4b2e30444`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** Recovered all nine authorized `(stage, phase) -> kernel_id` mappings: screen/Gaussian `power-screen-gaussian-v1`; shard/Gaussian `power-grid-gaussian-v1`; selection/Gaussian `power-worst-five-selection-v1`; validation/Gaussian `power-gaussian-vs-multiplier-validation-v1`; final/Gaussian `power-final-gaussian-v1`; screen/full-fallback `power-screen-full-multiplier-v1`; shard/full-fallback `power-grid-full-multiplier-v1`; validation/full-fallback `power-full-grid-validation-v1`; final/full-fallback `power-final-full-multiplier-v1`. Selection under the fallback phase is forbidden. The screen freezes a positive `shard_count`; every descendant rechecks it. Every power report carries `authority_ref`, derived authority mirrors, exact manifest grid/topology references, RNG-contract digest, phase/generation/stage, and derived kernel/shard identity. Finalization additionally records selected or terminal kernel/count according to outcome.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0293/`
+- **Next gate:** Enumerate every current power-payload arm’s required keys, then write the Slice 2 RED tests before changing implementation.
+
+### EJ-20260728-0294 — enumerate all live power-payload arms
+
+- **Prior event:** `EJ-20260728-0293`
+- **Recovery context:** Three shell launch attempts and one patch attempt failed before task execution while the temporary restricted profile could not initialize `bwrap`; none acquired the allocator lock or changed repository state. A read-only browser audit was treated only as a recovery aid. After unrestricted execution returned, the canonical allocator proved the heading and raw path absent and consumed this event normally.
+- **Action:** Parsed the live uncommitted `schemas/resampling-power-report.schema.json` and enumerated the `required` array plus sorted property keys for all six payload arms.
+- **Compact receipt:** exit `0`; stdout `3,102` bytes / `1` line / SHA-256 `f30428a8764f9e0f9d6946f69e1ae1b06276fd5f716dac75e62e7ffd4de8d34c`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Receipt defect:** The raw `receipt.json` correctly retained stream counts and hashes but serialized `event_id`, `prior_event`, timestamps, and `exit_code` as `null` because the `jq` object expression omitted the required `$` prefixes. The command itself returned process exit `0`. This is preserved as evidence; the next event must recover filesystem times and replace the faulty serializer before any scientific command.
+- **Result:** All six arms still use stale `topology_ref`. None carries `authority_ref`, `tier_membership_sha256`, `screen_topology_ref`, `rng_contract_sha256`, or `kernel_id`; only the shard arm has `shard_count`. Finalization therefore cannot yet prove selected/terminal kernel and frozen shard-count ancestry. This is a cross-arm authority hole, not a cosmetic rename.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0294/`
+- **Next gate:** Recover the raw event times, verify the serialized command/result, and repair the receipt serializer before inspecting fixtures or adding tests.
+
+### EJ-20260728-0295 — recover EJ-0294 times and repair receipt serialization
+
+- **Prior event:** `EJ-20260728-0294`
+- **Action:** Inspected all four raw files for `EJ-20260728-0294`, recovered their birth/modification times, independently hashed each file, re-read the malformed receipt, and changed the allocator’s `jq` expression to explicit `$variable` values for this and future events.
+- **Compact receipt:** local `2026-07-28T19:31:37-07:00`; UTC `2026-07-29T02:31:37+00:00`; exit `0`; stdout `1,666` bytes / `9` lines / SHA-256 `ee365aefbc25196c61eecd9357d0dbde6436fbddc69c43b35055b5f2e319ab22`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Recovery result:** `EJ-0294` command creation was `2026-07-28 19:30:50.303586917 -0700`; stdout/stderr creation was `19:30:50.307586763 -0700`; receipt creation was `19:30:50.332585795 -0700`. Independent SHA-256 values are command `8b9b249aa4de1dd89f5fac42b14bc1abeac9c69a14c0e4dc1516eb7eefb1ccd6`, stdout `f30428a8764f9e0f9d6946f69e1ae1b06276fd5f716dac75e62e7ffd4de8d34c`, empty stderr `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`, and malformed receipt `bcc6f4e6ca3e8d5f4a5c2f1b295226148ad8f2f217898bead6f6fa9157bb4ee9`.
+- **Serializer verification:** This event’s own raw receipt contains non-null event IDs, timestamps, process exit, and stream metadata. The forensic defect is closed prospectively; the original `EJ-0294/receipt.json` remains untouched.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0295/`
+- **Next gate:** Inspect the live power fixture builder, finalization definitions, and artifact semantic checks before adding RED tests.
+
+### EJ-20260728-0296 — map power fixtures and semantic enforcement
+
+- **Prior event:** `EJ-20260728-0295`
+- **Action:** Located every live power identity/finalization reference in the artifact tests and verifier, captured the `_power_payload` fixture builder with context, and extracted the finalization schema definitions.
+- **Compact receipt:** local `2026-07-28T19:32:20-07:00`; UTC `2026-07-29T02:32:20+00:00`; exit `0`; stdout `14,819` bytes / `268` lines / SHA-256 `2aec79cf1b376407cec2b553246b15d40e46a8604ab4b5c45af9ec2188649881`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** The shared fixture builder at `tests/resampling_null/test_artifacts.py:2451` injects stale `topology_ref` and no authority, membership, RNG-contract, or kernel identity. It gives `shard_count` only to shard reports. The full-study builder overwrites finalization independently in multiple Gaussian, fallback, and no-go branches. Verifier logic is concentrated in `_validate_power_attempt_topology` and `_validate_power_identities`, with finalization checks spanning completed and terminal paths; therefore a schema-only fix would be insufficient and likely admit cross-parent identity drift.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0296/`
+- **Next gate:** Read the complete fixture tail, finalization definitions, and verifier identity/topology functions before designing the RED matrix.
+
+### EJ-20260728-0297 — inspect the exact power fixture tail
+
+- **Prior event:** `EJ-20260728-0296`
+- **Action:** Read the complete shared `_power_payload` builder and attempted to enumerate named finalization definitions from the power schema.
+- **Compact receipt:** local `2026-07-28T19:32:58-07:00`; UTC `2026-07-29T02:32:58+00:00`; exit `0`; stdout `3,394` bytes / `96` lines / SHA-256 `8db7af4f4d4e108b76017ebcacdb8dfe793479ef0802ef6647343fc6bf5e1a15`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** The fixture’s final arm defaults to `feasibility_no_go` with terminal attempt/stage, reason, tier, and decision only. The schema has no separately named `$defs` entry matching `finalization`; its contract is inline under `final_payload`, so the initial definition query correctly returned `{}` and cannot prove field coverage.
+- **Adversarial implication:** Adding final kernel/count fields only to completed fixtures would leave the default no-go path unbound. Both selected and terminal provenance must be modeled and negatively tested.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0297/`
+- **Next gate:** Extract the inline finalization union and then read the verifier’s topology/identity functions.
+
+### EJ-20260728-0298 — read inline finalization and verifier authority logic
+
+- **Prior event:** `EJ-20260728-0297`
+- **Action:** Extracted the inline finalization union plus the live verifier’s power payload, attempt-topology, and identity/finalization logic.
+- **Compact receipt:** local `2026-07-28T19:33:30-07:00`; UTC `2026-07-29T02:33:30+00:00`; exit `0`; stdout `22,689` bytes / `575` lines / SHA-256 `48d204c078179aea716c446a05171beb6b102b9922db8285b30c9b8a9806c0c9`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** Finalization is a three-arm union: Gaussian completed, full-multiplier completed, or feasibility no-go. The verifier currently groups reports solely by the low-entropy `decision_authority` label, compares roster/grid/topology/config/numeric sources, and identifies attempts by authority label, phase, generation, stage, and optional shard index. It never binds `authority_ref.sha256`, membership digest, RNG digest, derived kernel, or frozen shard count. Existing completed/no-go logic validates selected documents and terminal stage/reason but cannot prove the selected/terminal algorithm identity.
+- **Hostile finding:** A report chain can preserve `decision_authority` while changing the unseen authority artifact or kernel derivation; today that chain can remain structurally valid. The fix must make the cryptographic authority identity and derived mirrors common across all stages, then re-check final selected/terminal provenance.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0298/`
+- **Next gate:** Extract exact completed/no-go required fields and the existing topology invariants, then encode the RED mutation matrix.
+
+### EJ-20260728-0299 — recover exact finalization arms and topology invariants
+
+- **Prior event:** `EJ-20260728-0298`
+- **Action:** Extracted all three finalization definitions, every payload arm’s property schemas, and the full attempt-topology verifier.
+- **Compact receipt:** local `2026-07-28T19:34:10-07:00`; UTC `2026-07-29T02:34:10+00:00`; exit `0`; stdout `23,064` bytes / `860` lines / SHA-256 `02cc950f9b4c2bc04874f937d4f921b7eaeb32512db69a73b0e3e629537f823f`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** Gaussian and full-multiplier completed arms lack `selected_kernel_id` and `selected_shard_count`; no-go lacks `terminal_kernel_id` and `terminal_shard_count`. The topology verifier currently freezes shard count only after shards exist and only compares it within the shard set. It does not enforce the screen-frozen positive count on screen, selection, validation, or final reports.
+- **Attack surface:** A malicious chain can change algorithm identity across stages, omit shard-count ancestry outside shard reports, or finalize a terminal attempt under an unrecorded kernel/count. Existing parent topology and cell coverage checks are strong but orthogonal; they do not close this authority gap.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0299/`
+- **Next gate:** Re-read the binding authority’s exact power dataclasses and derivation table, then write one RED matrix covering field presence, phase/stage kernel legality, cross-stage mirrors, and finalization provenance.
+
+### EJ-20260728-0300 — re-bind power hardening to the authority
+
+- **Prior event:** `EJ-20260728-0299`
+- **Action:** Re-read the binding plan/design passages for power authority, RNG identity, kernel derivation, report fields, screen discrimination, and all finalization dataclasses.
+- **Compact receipt:** local `2026-07-28T19:34:43-07:00`; UTC `2026-07-29T02:34:43+00:00`; exit `0`; stdout `42,737` bytes / `389` lines / SHA-256 `3a75166377499d39e5ff55b4cfa8f888b2e6561a8176d04d4dc7bcc7deb64717`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Authority result:** Every stage requires `authority_ref`, derived authority/roster/membership mirrors, exact grid/topology refs, and the grid-derived RNG digest. Every non-final stage requires a phase/stage-derived `kernel_id` and the positive screen-frozen `shard_count`; finalization carries the selected/terminal final-kernel ID and count. Gaussian screen forbids a fallback trigger; fallback screen requires the failed Gaussian validation both explicitly and in `parent_refs`. Fallback selection is forbidden.
+- **New hostile finding:** The live schema has only three finalization arms, but authority requires four. It entirely lacks synthetic-only `synthetic_validation_failed`, including its terminal phase/kernel/count and `CONDITIONAL_ONLY` decision. This is not deferrable: the power schema is Slice 2-owned.
+- **Exact final kernels:** Gaussian final `power-final-gaussian-v1`; fallback final `power-final-full-multiplier-v1`. Completed arms use `selected_kernel_id`/`selected_shard_count`; failed arms use `terminal_phase`/`terminal_kernel_id`/`terminal_shard_count`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0300/`
+- **Next gate:** Inspect existing `t3_s02` and power mutation-test structure, then add RED coverage for all authority gaps—including the missing fourth arm.
+
+### EJ-20260728-0301 — locate the power mutation-test seam
+
+- **Prior event:** `EJ-20260728-0300`
+- **Action:** Located all existing Slice 2 tests and the power schema/topology/finalization mutation tests, then read the current late-file power no-go and verdict test block.
+- **Compact receipt:** local `2026-07-28T19:35:40-07:00`; UTC `2026-07-29T02:35:40+00:00`; exit `0`; stdout `11,587` bytes / `286` lines / SHA-256 `16f9a0a0f01150ae330c039d65c0fee06ec8ebc4b90dd1357770587a38446305`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** Existing tests strongly cover count bounds, topology completeness, verdict authority, no-go reason/stage coupling, and full-validation verdict consistency. They do not cover the newly binding common power identity, exact kernel table, screen trigger discrimination, screen-frozen count across non-shard stages, or synthetic-failure finalization.
+- **Test placement decision:** Add a self-contained Slice 2 authority-bound fixture adapter immediately after `_power_payload`, preserving legacy fixture behavior until the RED suite proves the desired schema contract. Semantic chain mutations will follow after schema RED is closed.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0301/`
+- **Next gate:** Add schema-level RED tests only; run the exact focused `-k t3_s02` command and require failures attributable to missing power authority fields/arm.
+
+### EJ-20260728-0302 — establish power-authority RED
+
+- **Prior event:** `EJ-20260728-0301`
+- **Test edit:** Added a desired-state authority-bound power fixture adapter and Slice 2 tests covering all nine legal stage/phase kernels, all required common mirrors, stale topology rejection, fallback-selection prohibition, phase-discriminated screen triggers, synthetic-failure finalization, and selected/terminal final identity fields. Edited test-file SHA-256: `5881f20318dcb51855e074a8cae8e5377479358eea48e4a2b7bafec5688dbc25`.
+- **Command:** `.venv/bin/python -m pytest tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q -k t3_s02`
+- **Compact receipt:** local start `2026-07-28T19:38:03-07:00`; finish `19:38:06-07:00`; UTC start `2026-07-29T02:38:03+00:00`; finish `02:38:06+00:00`; expected exit `1`; stdout `87,545` bytes / `839` lines / SHA-256 `1dfbcdf34a715927147230c7b78faeadb246eaa45a82a60b61025927d808988d`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **RED result:** Fifteen desired-state cases fail. All nine exact authority-bound arms are rejected by the legacy schema; the two synthetic-failure positive cases and four completed-finalization positive preconditions also fail. Existing Slice 2 tests and negative mutations remain green. Failures originate in `validate_record` because the schema lacks the new fields/arm, exactly matching the intended implementation gap.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0302/`
+- **Next gate:** Confirm the exact failure summary and inspect schema line layout, then implement only the schema changes needed to turn this matrix green.
+
+### EJ-20260728-0303 — confirm RED cardinality and number the schema
+
+- **Prior event:** `EJ-20260728-0302`
+- **Action:** Read the exact RED summary and captured the complete power schema with stable line numbers for a reviewable patch.
+- **Compact receipt:** local `2026-07-28T19:38:44-07:00`; UTC `2026-07-29T02:38:44+00:00`; exit `0`; stdout `36,362` bytes / `653` lines / SHA-256 `0d489d65ec702ffbf5806bd7e96d9d44d7405aee74f385e5e4ca6ee00af7abe2`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Exact RED:** `15 failed, 35 passed, 349 deselected in 3.26s`. Failures are precisely the nine desired stage arms, two synthetic-failure arms, and four completed-finalization positive preconditions.
+- **Schema layout:** The 618-line schema duplicates common properties in all six stage arms, permits fallback selection, has one undifferentiated screen arm, and defines only three finalization arms. A minimal truthful patch must touch every duplicated arm plus three existing finalization definitions and add the fourth.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0303/`
+- **Next gate:** Implement the authority-bound schema without changing tests; validate JSON syntax, then rerun the exact focused matrix.
+
+### EJ-20260728-0304 — close the power schema RED matrix
+
+- **Prior event:** `EJ-20260728-0303`
+- **Implementation:** Removed the unused stale base-property definition; added common authority/membership/topology/RNG fields to every arm; added exact non-final kernel/count fields; discriminated Gaussian/fallback screens; forbade fallback selection; added selected/terminal final identity; and added the missing `synthetic_validation_failed` arm.
+- **Schema SHA-256:** `23abc2ac92689221f6261d0f68a76fda211c307201ee1670dccc7cc862eec1fa`.
+- **Commands:** JSON parse with `.venv/bin/python -m json.tool`, then the exact Slice 2 focused pytest command with `-k t3_s02`.
+- **Compact receipt:** local `2026-07-28T19:40:53-07:00` to `19:40:54-07:00`; UTC `2026-07-29T02:40:53+00:00` to `02:40:54+00:00`; exit `0`; stdout `225` bytes / `3` lines / SHA-256 `d9081c8c782b9a6661a0cb91f748feb4335fe5e64bc0b809774d22b5c78ce1ab`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **GREEN result:** `50 passed, 349 deselected in 0.83s`.
+- **Scope caveat:** This proves the desired schema surface only. Legacy full-study fixtures and semantic artifact verification have not yet been migrated, so no Slice 2 completion claim is allowed.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0304/`
+- **Next gate:** Run the complete owned test pair to enumerate every legacy fixture/semantic failure before implementation migration.
+
+### EJ-20260728-0305 — enumerate complete-suite migration failures
+
+- **Prior event:** `EJ-20260728-0304`
+- **Command:** `.venv/bin/python -m pytest tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q`
+- **Compact receipt:** local `2026-07-28T19:41:45-07:00` to `19:42:23-07:00`; UTC `2026-07-29T02:41:45+00:00` to `02:42:23+00:00`; expected exit `1`; stdout `297,274` bytes / `3,879` lines / SHA-256 `ca9e1d51f72a5f4fe63735f6f1ee4353c331dd98f77ec625850b8525f8ce4304`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** `65 failed, 334 passed in 37.23s`. The first failures prove both the minimal registry fixture and the shared `_power_payload` remain legacy-shaped. The remaining failures fan out through every full-study artifact-root test because `_build_full_study` serializes those stale reports. No unrelated schema family regressed.
+- **Migration diagnosis:** This is one fixture-source failure amplified across 60+ causal tests, not 65 independent implementation defects. The correct next move is to migrate the shared builders once, then rerun and classify residual semantic failures.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0305/`
+- **Next gate:** Inspect `_minimal_payload`, `_bind_power_sources`, and every finalization construction site before one mechanical fixture migration patch.
+
+### EJ-20260728-0306 — map every legacy power fixture constructor
+
+- **Prior event:** `EJ-20260728-0305`
+- **Action:** Read the minimal registry payload, shared power source binder, full-study common power map, and every completed/no-go/synthetic finalization literal in the test module.
+- **Compact receipt:** local `2026-07-28T19:42:57-07:00` to `19:42:58-07:00`; UTC `2026-07-29T02:42:57+00:00` to `02:42:58+00:00`; exit `0`; stdout `29,325` bytes / `749` lines / SHA-256 `2e7498d7783f4472bf5b0590c09a53936c15483e3404939bc7c4f26b17f95e31`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** Three shared seams control almost all failures: `_minimal_payload`, `_power_payload`, and `_build_full_study.bind_power`. Seven completed/no-go finalization construction sites additionally need derived selected/terminal identity. The current full-study `common_power` map has no authority artifact ref or membership/RNG digest.
+- **Migration rule:** Promote the desired authority-bound shape into `_power_payload`; make `bind_power` recompute phase-derived kernels and inject exact raw refs/digests; update each finalization literal explicitly. Do not paper over failures with optional schema fields.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0306/`
+- **Next gate:** Inspect raw-source creation and helper binders so authority refs are real reachable artifacts, not fabricated fixture pointers.
+
+### EJ-20260728-0307 — prove authority refs can be reachable fixture artifacts
+
+- **Prior event:** `EJ-20260728-0306`
+- **Action:** Read `_build_full_study` raw-blob creation and the shared `_bind_power_sources` mutation helper with context.
+- **Compact receipt:** local/UTC `2026-07-28T19:43:33-07:00` / `2026-07-29T02:43:33+00:00`; exit `0`; stdout `12,989` bytes / `323` lines / SHA-256 `bdd37649a3551c8fa7e985afba1e217137374631bac6af8e392886aa4d702b16`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** Full-study raw artifacts are created centrally in `raws`, so the authority fixture can be a real reachable `raw/power-authority.json` blob keyed to `decision_authority`, not a dangling synthetic ref. `_bind_power_sources` still mutates stale `topology_ref` and must migrate to `authority_ref` plus `screen_topology_ref`.
+- **Boundary:** The raw authority blob remains a fixture placeholder in Slice 2; parsing/recomputing its canonical membership is later producer/verifier work. Slice 2 will nevertheless require exact ref/digest mirrors and cross-chain equality, preventing fabricated per-stage identities.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0307/`
+- **Next gate:** Enumerate every fallback-screen bind site and no-go rewrite literal before patching the shared builders.
+
+### EJ-20260728-0308 — enumerate fallback and finalization migration sites
+
+- **Prior event:** `EJ-20260728-0307`
+- **Action:** Enumerated every direct fallback phase assignment, every `bind_power(...full_multiplier_fallback)` call, every completed/no-go literal, and the late full-screen no-go rewrite.
+- **Compact receipt:** local/UTC `2026-07-28T19:44:33-07:00` / `2026-07-29T02:44:33+00:00`; exit `0`; stdout `21,028` bytes / `488` lines / SHA-256 `93e37fa65186d548a43aae28861e92eee0345d11961a2ef7d54b280e401acb15`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Exact migration inventory:** Two direct schema-test fallback conversions; initial fallback screen/shards/validation; fallback retry screen/shards/validation; later-partial fallback screen; six completed finalization literals outside the new TDD helper; three no-go literals plus the default and late rewrite. Every fallback screen currently sets only `parent_refs`, not explicit `fallback_trigger_ref`.
+- **Decision:** Extend `_power_payload` with a phase argument and derived fields, but keep full-study `bind_power` responsible for replacing fixture refs and recomputing phase/stage kernel identity. Add explicit trigger equality at each fallback-screen construction.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0308/`
+- **Next gate:** Apply one mechanical fixture migration patch, then run focused schema tests before the full owned pair.
+
+### EJ-20260728-0309 — migrate shared power fixtures without weakening RED
+
+- **Prior event:** `EJ-20260728-0308`
+- **Implementation:** Promoted authority-bound fields into `_power_payload`; made minimal payload reuse it; added reachable raw power authority; migrated full-study common refs/digests and phase-derived kernels/counts; added explicit fallback-screen triggers; updated completed/no-go final identities; migrated helper source rewrites; simplified the TDD adapter to the production-shaped fixture.
+- **Edited test-file SHA-256:** `a0538e0b99913dfd9cb091070e6699de68cec426f5739596a879e57c6d56ad36`.
+- **Command:** Exact focused Slice 2 pytest command with `-k t3_s02`.
+- **Compact receipt:** local `2026-07-28T19:46:19-07:00` to `19:46:21-07:00`; UTC `2026-07-29T02:46:19+00:00` to `02:46:21+00:00`; exit `0`; stdout `221` bytes / `3` lines / SHA-256 `9196a4a5b24e60db526c008e827faebe67f9106db23d8d2ed10c75868fe5f1a1`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** `50 passed, 349 deselected in 0.97s`. Fixture migration preserved every new authority mutation gate.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0309/`
+- **Next gate:** Rerun the complete owned pair and classify only residual failures; broad green is not assumed from focused green.
+
+### EJ-20260728-0310 — reach the semantic verifier failure boundary
+
+- **Prior event:** `EJ-20260728-0309`
+- **Command:** Complete owned test pair.
+- **Compact receipt:** local `2026-07-28T19:46:51-07:00` to `19:47:48-07:00`; UTC `2026-07-29T02:46:51+00:00` to `02:47:48+00:00`; expected exit `1`; stdout `236,237` bytes / `5,228` lines / SHA-256 `71d5bc73511053be0102e8a80c34476f67ae741ba24ee2676c9d09bfb3fbbe2b`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** `62 failed, 337 passed in 55.93s`. All fixture/schema-only failures closed. Every remaining artifact-root cluster is masked by one verifier crash: `_validate_power_attempt_topology` still indexes removed `topology_ref`, raising `KeyError` before semantic validation.
+- **Interpretation:** We have successfully moved from schema migration to verifier migration. Directly renaming the key would restore many tests but would not prove authority, membership, RNG, kernel/count, or finalization binding.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0310/`
+- **Next gate:** Add targeted full-chain mutations for every new identity mirror and selected/terminal provenance, then implement verifier enforcement against those RED cases.
+
+### EJ-20260728-0311 — identify semantic mutation seams
+
+- **Prior event:** `EJ-20260728-0310`
+- **Action:** Read the Gaussian shard/selection/validation construction, final write seam, later/retry attempts, and existing power identity/ancestry tests.
+- **Compact receipt:** local/UTC `2026-07-28T19:48:42-07:00` / `2026-07-29T02:48:42+00:00`; exit `0`; stdout `18,397` bytes / `463` lines / SHA-256 `f678fe3adf0765b49a6ae9f9cd57fef0f693fb74833ab919025ae2b8305bf6ed`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Mutation plan:** Inject schema-valid drift into the second Gaussian shard for authority ref, membership digest, RNG digest, topology ref, and authority label; inject screen-frozen count drift into selection; inject selected final count drift; inject terminal phase/kernel/count drift in roster no-go; and add a positive synthetic-failure chain.
+- **Why schema-valid:** Each mutation preserves the field’s local type/enum. Only cross-document semantic verification can reject it. This prevents the new tests from merely re-testing JSON Schema.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0311/`
+- **Next gate:** Add the mutation variants and focused semantic tests, then require RED before touching `artifacts.py`.
+
+### EJ-20260728-0312 — establish semantic power-identity RED
+
+- **Prior event:** `EJ-20260728-0311`
+- **Test edit:** Added seven schema-valid authority/identity drift variants, three schema-valid terminal-identity drift variants, and one positive synthetic-failure chain. Edited test-file SHA-256: `89854b3f28582a77589283b3b578c15f87c452cd28832bf4d0c111baf696d8be`.
+- **Command:** Exact focused Slice 2 pytest command.
+- **Compact receipt:** local `2026-07-28T19:49:56-07:00` to `19:50:05-07:00`; UTC `2026-07-29T02:49:56+00:00` to `02:50:05+00:00`; expected exit `1`; stdout `41,078` bytes / `929` lines / SHA-256 `7c4575ae3883c6bd87c1741b1dd6a559d839d782df1c2d7dee89ecd7c9a9beba`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Exact RED:** `11 failed, 50 passed, 349 deselected in 9.41s`. All eleven new cases reach the stale verifier and fail via `KeyError: topology_ref`, proving the tests are exercising artifact semantics rather than local schema validation.
+- **Required GREEN behavior:** Convert crashes to `RecordValidationError` for all ten drift attacks; accept the synthetic-only failure chain; preserve the existing 50 schema tests.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0312/`
+- **Next gate:** Implement authority-ref identity grouping, common mirror equality, per-attempt kernel/count derivation, fallback-trigger equality, and selected/terminal final provenance in `artifacts.py`.
+
+### EJ-20260728-0313 — capture the exact verifier before patching
+
+- **Prior event:** `EJ-20260728-0312`
+- **Action:** Read the complete power topology/identity/finalization verifier range immediately before implementation.
+- **Compact receipt:** local/UTC `2026-07-28T19:51:19-07:00` / `2026-07-29T02:51:19+00:00`; exit `0`; stdout `29,971` bytes / `706` lines / SHA-256 `85eb369a4d7afa48101afffca6644f6b21c5684089c0bafe3a5f85163d57c392`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Confirmed gaps:** Grouping and duplicate identity use the authority label rather than `authority_ref.sha256`; common equality omits authority/membership/RNG and uses stale topology; shard count is checked only among shards; kernel derivation is never rechecked; fallback screen has no explicit-trigger equality; completed/no-go finalization ignores new identity fields; every non-completed arm is treated as roster-only no-go.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0313/`
+- **Next gate:** Read the final downstream-stage tail, then patch with exact existing control flow preserved.
+
+### EJ-20260728-0314 — inspect no-go downstream-tail invariants
+
+- **Prior event:** `EJ-20260728-0313`
+- **Action:** Read the no-go terminal reason, terminal-ref metadata, phase/generation attempt selection, and downstream-stage closure tail.
+- **Compact receipt:** local/UTC `2026-07-28T19:51:48-07:00` / `2026-07-29T02:51:48+00:00`; exit `0`; stdout `5,166` bytes / `116` lines / SHA-256 `f0e71f0e895ce94ff160b265261155ee4c23bbda46219e96cd2c56bfae47626b`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Preservation requirement:** Keep the existing stage-specific reason and fictitious-downstream checks intact. Insert authority-arm discrimination and terminal phase/kernel/count checks before them; use synthetic-specific validation reason only for `synthetic_validation_failed`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0314/`
+- **Next gate:** Patch verifier logic and rerun the 61-case focused matrix.
+
+### EJ-20260728-0315 — close semantic power-identity RED
+
+- **Prior event:** `EJ-20260728-0314`
+- **Implementation:** Grouped by `authority_ref.sha256`; required one exact authority ref per artifact root; compared authority/roster/grid/topology/config/numeric refs plus decision-authority, membership, and RNG mirrors; re-derived every non-final kernel; required each attempt’s reports to equal its screen-frozen shard count; equated fallback screen trigger and parent; bound completed selected kernel/count; bound failed terminal phase/kernel/count; and discriminated roster no-go from synthetic failure.
+- **Content hashes:** verifier `5c43f631e50089e9cafb12d088c009513c2d60426db4bdef1d18aac73182360f`; tests `89854b3f28582a77589283b3b578c15f87c452cd28832bf4d0c111baf696d8be`.
+- **Command:** Exact focused Slice 2 pytest command.
+- **Compact receipt:** local `2026-07-28T19:53:07-07:00` to `19:53:13-07:00`; UTC `2026-07-29T02:53:07+00:00` to `02:53:13+00:00`; exit `0`; stdout `331` bytes / `4` lines / SHA-256 `0205524b61f9d0329cb1334518f961714a3c3e80088cdfec025d74c07588e40f`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **GREEN result:** `61 passed, 349 deselected in 5.98s`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0315/`
+- **Next gate:** Run the complete owned pair; then repair only evidence-backed residuals.
+
+### EJ-20260728-0316 — isolate one stale no-go unit fixture
+
+- **Prior event:** `EJ-20260728-0315`
+- **Command:** Complete owned test pair.
+- **Compact receipt:** local `2026-07-28T19:53:46-07:00` to `19:54:31-07:00`; UTC `2026-07-29T02:53:46+00:00` to `02:54:31+00:00`; expected exit `1`; stdout `6,409` bytes / `53` lines / SHA-256 `6f481a0ce623ec5682f171097250731f6be4ecf485b5c4ce84ba739fa4a4262a`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Result:** `1 failed, 409 passed in 44.76s`.
+- **Root cause:** `test_validation_gate_failure_has_closed_no_tier_no_go_verdict` starts from the now-correct synthetic-failure fixture but mutates it to roster-only reason `power_or_type_i_gate_failed` and decision `NO_GO` without changing its arm or authority. The four-arm authority intentionally rejects this hybrid.
+- **Correction:** Make the test explicitly roster-bound and switch its finalization kind to `feasibility_no_go`; preserve its original tier/decision negative assertions.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0316/`
+- **Next gate:** Correct that one fixture and rerun both focused and complete owned gates.
+
+### EJ-20260728-0317 — restore focused and complete owned GREEN
+
+- **Prior event:** `EJ-20260728-0316`
+- **Fixture correction:** Made the validation gate-failure unit explicitly `roster_bound_selection` + `feasibility_no_go`, preserving its negative tier/decision mutations. Test-file SHA-256: `46012ed0d3ee2c219563a12f91740589e90a7c2d948a8e3135d52acba700dc90`.
+- **Commands:** Exact focused Slice 2 pytest command, fail-closed before the complete owned pair.
+- **Compact receipt:** local `2026-07-28T19:55:10-07:00` to `19:56:03-07:00`; UTC `2026-07-29T02:55:10+00:00` to `02:56:03+00:00`; exit `0`; stdout `722` bytes / `10` lines / SHA-256 `fb2cb832e0587f6fff28f108b0ead5e6d27315cec3bdae7476fcd747ef6e9c43`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Focused GREEN:** `61 passed, 349 deselected in 6.57s`.
+- **Complete owned GREEN:** `410 passed in 45.65s`.
+- **Scope caveat:** Behavioral tests are green, but formatting, lint, type analysis, stale-token search, artifact-root authority audit, and hostile diff review remain open.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0317/`
+- **Next gate:** Run Ruff format-check/lint, mypy, JSON-schema meta-validation, whitespace, and stale-token searches on the edited surface.
+
+### EJ-20260728-0318 — interrupted Ruff receipt serialization
+
+- **Prior event:** `EJ-20260728-0317`
+- **Intended action:** Run Ruff format-check and lint on the two edited Python files.
+- **Observed process result:** External wrapper exit `1`; no terminal output was emitted by the wrapper.
+- **Receipt defect:** The task body used shell braces and called `exit` to combine the two Ruff statuses. Because braces do not create a subshell, that `exit` terminated the allocator wrapper before stream hashing and `receipt.json` creation. The event ID and raw task streams were already created and are preserved; no scientific/source edit occurred.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0318/`
+- **Next gate:** Recover and hash the raw Ruff streams, identify the actual format/lint result, and rerun with status assignment rather than `exit`.
+
+### EJ-20260728-0319 — recover Ruff evidence and expose two cleanup failures
+
+- **Prior event:** `EJ-20260728-0318`
+- **Recovery:** `EJ-0318` began at `2026-07-28 19:56:52.766947705 -0700`. Its raw hashes are command `01f66a5a1f1aa8b49112b328e7cb447d9d15bda44a4ffcea32118982190d52e9`, stdout `09454cdc2321804037a9d588a3d6b8934ec95ca0dd7d36972c823f10a5f5bda7`, and empty stderr `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Rerun action:** Replayed Ruff format-check and lint with safe status aggregation.
+- **Compact receipt:** local/UTC `2026-07-28T19:57:30-07:00` / `2026-07-29T02:57:30+00:00`; expected exit `1`; stdout `2,477` bytes / `41` lines / SHA-256 `cf2fd75f2d8355f9e4f4c3345e1d8d12bfb91fe5cc9cd874df42e4358fbd22a8`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Failures:** Ruff would reformat both edited Python files. Lint also finds one unused `assignment_by_task` local at `artifacts.py:201`, introduced on the earlier assignment-semantic work and now exposed by the full edited-surface gate.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0319/`
+- **Next gate:** Remove the dead local with an explicit patch, mechanically format both files, then rerun Ruff and behavioral gates because formatting changes content hashes.
+
+### EJ-20260728-0320 — remove dead local and close Ruff gates
+
+- **Prior event:** `EJ-20260728-0319`
+- **Cleanup:** Removed the unused `assignment_by_task` local with an explicit patch, then mechanically formatted the two edited Python files.
+- **Content hashes:** Before format: verifier `412bd0a75a8abe806aafab5f449fde29d85ece8fd2fa5b0aa31f36b90f4ac8e3`, tests `46012ed0d3ee2c219563a12f91740589e90a7c2d948a8e3135d52acba700dc90`. After format: verifier `79e9c06f8edaf1e09ceae9d5f04108064f8f5e43832559349e6a2db2f57422f4`, tests `fc1ead98d26ea8aed78e2490a06893c45517dc0bae26f271491d448a7d656b5c`.
+- **Compact receipt:** local/UTC `2026-07-28T19:58:15-07:00` / `2026-07-29T02:58:15+00:00`; exit `0`; stdout `549` bytes / `8` lines / SHA-256 `152093a3239e0a03b6e0083ee079c9c334e9b68ef9b812742b6c9e2a24fda858`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **GREEN:** Ruff format-write `0`, format-check `0`, lint `0`; `All checks passed!`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0320/`
+- **Next gate:** Run mypy on the verifier/tests and JSON Schema meta-validation on the power schema.
+
+### EJ-20260728-0321 — broaden mypy and expose test-module debt
+
+- **Prior event:** `EJ-20260728-0320`
+- **Actions:** Ran mypy on the edited verifier and test module; independently ran Draft 2020-12 meta-schema validation on the edited power schema.
+- **Compact receipt:** local `2026-07-28T19:58:49-07:00` to `19:58:56-07:00`; UTC `2026-07-29T02:58:49+00:00` to `02:58:56+00:00`; exit `1`; stdout `4,691` bytes / `36` lines / SHA-256 `d7da22ba9ba7b7b03dbac7703a5f085a04308b4e1babfe54ce8750169120d2b8`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **GREEN evidence:** `resampling-power-report.schema.json` passes `Draft202012Validator.check_schema`. Mypy reports all 17 errors in `tests/resampling_null/test_artifacts.py`; the edited verifier source has no reported type error.
+- **Debt inventory:** Invalid `asdict(object)` narrowing; stale ignore codes; invariant inferred dicts passed as `dict[str, object]`; one object/dict assignment; two un-narrowed object indexes; two legacy positional `seal_study_manifest` calls; one iterable narrowing; one missing generic annotation.
+- **Decision:** Do not narrow the gate back to source-only. The test module is Slice 2-owned and should be mypy-clean.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0321/`
+- **Next gate:** Inspect all 17 locations, apply explicit casts/annotations and current keyword calls, then rerun mypy + Ruff + behavior.
+
+### EJ-20260728-0322 — inspect all mypy error contexts
+
+- **Prior event:** `EJ-20260728-0321`
+- **Action:** Captured numbered source context around all 17 mypy locations.
+- **Compact receipt:** local/UTC `2026-07-28T19:59:33-07:00` / `2026-07-29T02:59:33+00:00`; exit `0`; stdout `19,927` bytes / `460` lines / SHA-256 `f095fafaed8f5b2e45f87cba7daec0c5b28f7daf69e44e0ee53b3cd19586454d`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Fix classes:** One `Any`/dataclass narrowing; two list casts; four explicit `dict[str, object]` annotations; one local rename to avoid incompatible inference; one manifest payload cast; two current keyword-style `seal_study_manifest` calls; one typed receipt list; and several precise cast-based nested mutations.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0322/`
+- **Next gate:** Read imports, inferred-variable definitions, and the current sealer signature before applying type-only fixes.
+
+### EJ-20260728-0323 — resolve type-fix design against live signatures
+
+- **Prior event:** `EJ-20260728-0322`
+- **Action:** Read imports, all inferred dict definitions, outage-variable scopes, the current `seal_study_manifest` signature and canonical call, and nested receipt-mutation helpers.
+- **Compact receipt:** local `2026-07-28T20:00:17-07:00`; UTC `2026-07-29T03:00:17+00:00`; exit `0`; stdout `17,117` bytes / `438` lines / SHA-256 `62a9257d0efba1a768ddeb15e7161534af8a7c739074d7d35ad164f0c64e821e`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Fix decision:** Use explicit `dict[str, object]` annotations rather than widening production helpers; narrow nested objects with `cast`; rename the second `outage` local; replace variadic legacy sealer calls with a typed local keyword-call helper; and introduce typed receipt/attempt lists before comprehensions/mutations.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0323/`
+- **Next gate:** Apply type-only test cleanup, format, and rerun mypy before behavior.
+
+### EJ-20260728-0324 — close broadened Ruff and mypy gates
+
+- **Prior event:** `EJ-20260728-0323`
+- **Type cleanup:** Added explicit dataclass/list/dict narrowing; annotated invariant payload maps; renamed the shadowed outage local; converted legacy sealer calls to a typed keyword helper; and typed nested receipt/attempt mutations. No production behavior changed.
+- **Actions:** Formatted the test module, linted both edited Python files, and reran mypy across both.
+- **Compact receipt:** local `2026-07-28T20:01:34-07:00` to `20:01:35-07:00`; UTC `2026-07-29T03:01:34+00:00` to `03:01:35+00:00`; exit `0`; stdout `322` bytes / `6` lines / SHA-256 `167ae2cb6cb4a65f8ef42ffee9065c1db6968e0f78c0992fd80a05e006ee151c`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **GREEN:** Ruff `All checks passed!`; mypy `Success: no issues found in 2 source files`.
+- **Content hashes:** verifier `79e9c06f8edaf1e09ceae9d5f04108064f8f5e43832559349e6a2db2f57422f4`; tests `b3ddc9d55dfc429439511f4fc025734e4dad49c1cf7265d6d5d127e803598d68`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0324/`
+- **Next gate:** Rerun focused and complete behavior after type/format edits.
+### EJ-20260728-0325 — verify behavior after type cleanup
+
+- **Prior event:** `EJ-20260728-0324`
+- **Local interval:** `2026-07-28T20:02:10-07:00` to `2026-07-28T20:03:03-07:00`
+- **UTC interval:** `2026-07-29T03:02:10+00:00` to `2026-07-29T03:03:03+00:00`
+- **Action:** Re-ran the Task 3 Slice 2 focused and complete owned-test gates after the test typing cleanup and formatter pass.
+- **Result:** GREEN. Focused gate: `61 passed, 349 deselected in 5.97s`. Complete owned pair: `410 passed in 46.92s`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `616` bytes / `9` lines / SHA-256 `efd530bd6f10613af09b58753d8b4fe0641edf63b6498bff2b820e5bbeda3774`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0325/` (local, ignored, retained through `2026-11-27`; inspect only when raw stdout/stderr is needed).
+- **Next gate:** Run whitespace, stale-token, schema-shape, worktree, and hostile diff review before any Slice 2 delivery claim.
+### EJ-20260728-0326 — inspect journal receipt placement
+
+- **Prior event:** `EJ-20260728-0325`
+- **Local interval:** `2026-07-28T20:04:51-07:00` to `2026-07-28T20:04:51-07:00`
+- **UTC interval:** `2026-07-29T03:04:51+00:00` to `2026-07-29T03:04:51+00:00`
+- **Action:** Inspected the first 20 and final 26 journal lines to verify where the prior context-free patch placed `EJ-20260728-0325`.
+- **Result:** Inspection completed successfully; raw output retained for the corrective placement audit.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `4239` bytes / `46` lines / SHA-256 `14649001626155516aeb5322cd92880bde92906abbd351eb31faa4bce598e76e`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0326/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Correct any misplaced receipt blocks, then resume the Slice 2 hostile static/diff audit.
+### EJ-20260728-0327 — confirm append-only journal order
+
+- **Prior event:** `EJ-20260728-0326`
+- **Local interval:** `2026-07-28T20:05:22-07:00` to `2026-07-28T20:05:22-07:00`
+- **UTC interval:** `2026-07-29T03:05:22+00:00` to `2026-07-29T03:05:22+00:00`
+- **Action:** Re-inspected the journal head and tail, intentionally exposing only this bounded raw read, to decide whether receipt placement required correction.
+- **Result:** GREEN. The journal header is intact and `EJ-20260728-0325` then `EJ-20260728-0326` are correctly appended after `EJ-20260728-0324`; no correction or history rewrite is required.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `3566` bytes / `48` lines / SHA-256 `4221692d3c25315973a2549e2036de63e6607b1de501fc04a6b8177ca17803d3`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0327/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run the Slice 2 whitespace, stale-token, schema-shape, status, hash, and hostile diff audit.
+### EJ-20260728-0328 — run Slice 2 static and scope audit
+
+- **Prior event:** `EJ-20260728-0327`
+- **Local interval:** `2026-07-28T20:06:05-07:00` to `2026-07-28T20:06:05-07:00`
+- **UTC interval:** `2026-07-29T03:06:05+00:00` to `2026-07-29T03:06:05+00:00`
+- **Action:** Ran `git diff --check`; rejected stale `base_properties` and `assignment_by_task` tokens; constrained `topology_ref` to its one intentional negative-test occurrence; extracted all power-schema arms; and recorded worktree, diff-stat, and owned-file hashes.
+- **Result:** GREEN. All enforced assertions passed with exit `0`. The bounded stderr is retained for inspection before interpreting the audit as release evidence.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `4015` bytes / `50` lines / SHA-256 `e60d3453313cbcb300debb6d6f9e076e7f6a2144bd6fb3e96d689bae6e77ed8f`; stderr `96` bytes / `1` line / SHA-256 `84590e3cd16f74fe4edd81063c49c8bc2bc11e5daface88189fecb8df5c5d982`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0328/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect the bounded audit output, especially stderr and power-arm extraction, then conduct line-level hostile diff review.
+### EJ-20260728-0329 — invalidate false-green static audit
+
+- **Prior event:** `EJ-20260728-0328`
+- **Corrects event IDs:** `EJ-20260728-0328`
+- **Local interval:** `2026-07-28T20:06:34-07:00` to `2026-07-28T20:06:34-07:00`
+- **UTC interval:** `2026-07-29T03:06:34+00:00` to `2026-07-29T03:06:34+00:00`
+- **Action:** Inspected the bounded raw stdout/stderr from `EJ-20260728-0328`.
+- **Result:** `EJ-20260728-0328` is **not valid GREEN evidence**. Its capture wrapper disabled fail-fast for the task subshell, so a failed topology-count assertion and a `jq` path error were masked by a later successful hash command. The stale-token output itself shows the search also matched the legitimate `screen_topology_ref` substring, making that assertion incorrectly specified. No product defect is established; the audit command is defective and must be rerun with explicit status propagation and an exact-word stale-alias search.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `4111` bytes / `51` lines / SHA-256 `fb70e45e895c468785e71e55cd20a6c63425ab35fc6e5f8cde93a7c80994e65f`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0329/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect the schema’s actual top-level shape and rerun every `EJ-20260728-0328` assertion under a genuinely fail-fast task subshell.
+### EJ-20260728-0330 — locate exact stale alias and power-schema arms
+
+- **Prior event:** `EJ-20260728-0329`
+- **Local interval:** `2026-07-28T20:07:10-07:00` to `2026-07-28T20:07:10-07:00`
+- **UTC interval:** `2026-07-29T03:07:10+00:00` to `2026-07-29T03:07:10+00:00`
+- **Action:** Under an explicitly fail-fast captured task, searched for the exact stale `topology_ref` token and inspected the power schema’s real top-level and `$defs` structure.
+- **Result:** GREEN discovery. Exactly one stale-alias occurrence exists, intentionally injected by the negative test at `tests/resampling_null/test_artifacts.py:2661`. The legal power arms are named definitions referenced through the top-level `payload`, not a top-level `oneOf`; the corrected audit must traverse those definitions.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `882` bytes / `2` lines / SHA-256 `ce1b906022811a1b929d0a81a6bfd1a3bfeb066e1f2859dffc4b924118ab26d2`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0330/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Rerun the full static audit against exact tokens and the named payload definitions with real fail-fast propagation.
+### EJ-20260728-0331 — rerun static audit with fail-fast semantics
+
+- **Prior event:** `EJ-20260728-0330`
+- **Local interval:** `2026-07-28T20:07:49-07:00` to `2026-07-28T20:07:49-07:00`
+- **UTC interval:** `2026-07-29T03:07:49+00:00` to `2026-07-29T03:07:49+00:00`
+- **Action:** Reran the whitespace, stale-token, schema-shape, worktree, diff-stat, and hash audit in a captured subshell with `set -euo pipefail`.
+- **Result:** RED, correctly propagated. Whitespace and both removed-symbol checks passed; the exact stale `topology_ref` occurrence matched only the intentional negative test. The next assertion, expecting eight references directly at `.properties.payload.oneOf`, failed. Later checks did not run. This is an audit-model error until the actual payload indirection is inspected, not evidence of a product defect.
+- **Exit status:** `1`
+- **Compact receipt:** stdout `106` bytes / `1` line / SHA-256 `530558631d9a489659845f08cab1128f980548c76e3816500130a06113914c3f`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0331/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect `.properties.payload` exactly, correct the structural assertion, and rerun the remaining checks.
+### EJ-20260728-0332 — inspect power payload indirection
+
+- **Prior event:** `EJ-20260728-0331`
+- **Local interval:** `2026-07-28T20:08:20-07:00` to `2026-07-28T20:08:20-07:00`
+- **UTC interval:** `2026-07-29T03:08:20+00:00` to `2026-07-29T03:08:20+00:00`
+- **Action:** Inspected the top-level power payload union and summarized the named screen, shard, selection, validation, completed-chain, and terminal definitions.
+- **Result:** GREEN discovery. The top-level union correctly has six stage refs: screen, shard, selection, Gaussian validation, full-multiplier validation, and a nested final payload. The nested final payload contains the four terminal arms. All nine named component definitions and their required arrays were found; screen discrimination is represented through `allOf`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `4489` bytes / `10` lines / SHA-256 `76bce6d0681f0bf7135b21cf03ff057d442c45d6c4da0a6464e16ca669ad29d2`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0332/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Assert the six-plus-four union explicitly, rerun the remaining static audit, and then inspect the substantive diff.
+### EJ-20260728-0333 — assert corrected six-plus-four power shape
+
+- **Prior event:** `EJ-20260728-0332`
+- **Local interval:** `2026-07-28T20:08:59-07:00` to `2026-07-28T20:08:59-07:00`
+- **UTC interval:** `2026-07-29T03:08:59+00:00` to `2026-07-29T03:08:59+00:00`
+- **Action:** Attempted the corrected fail-fast audit with exact stale-token checks, the six-stage-plus-four-final-arm structure, common authority-field assertions, worktree scope, and hashes.
+- **Result:** RED with correctly propagated exit `1`, but no task stdout/stderr. The failure occurred before the first deferred output, so the individual structural assertions must be isolated. No GREEN claim is made and later status/hash commands did not run.
+- **Exit status:** `1`
+- **Compact receipt:** stdout `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0333/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Isolate each structural assertion and repair the audit expression without weakening the underlying contract.
+### EJ-20260728-0334 — isolate power-shape assertion failure
+
+- **Prior event:** `EJ-20260728-0333`
+- **Local interval:** `2026-07-28T20:09:34-07:00` to `2026-07-28T20:09:34-07:00`
+- **UTC interval:** `2026-07-29T03:09:34+00:00` to `2026-07-29T03:09:34+00:00`
+- **Action:** Printed the six payload refs, the complete final payload definition, and the missing-common-field set for each nonfinal stage definition.
+- **Result:** GREEN discovery. The six payload refs exactly match the contract. The four final arms are correctly nested at `$defs.final_payload.properties.finalization.oneOf`, not directly under `$defs.final_payload.oneOf`. Every audited nonfinal definition is missing zero required common fields. The `EJ-20260728-0333` failure was solely the wrong final-arm query path.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `1833` bytes / `7` lines / SHA-256 `c43c300c232ed66f41431314fa7cd2a1b4d2ad842d74b8b6bbd378bda92a1819`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0334/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Rerun the corrected complete static audit using the actual finalization-union path.
+### EJ-20260728-0335 — complete corrected Slice 2 static audit
+
+- **Prior event:** `EJ-20260728-0334`
+- **Local interval:** `2026-07-28T20:10:12-07:00` to `2026-07-28T20:10:12-07:00`
+- **UTC interval:** `2026-07-29T03:10:12+00:00` to `2026-07-29T03:10:12+00:00`
+- **Action:** Reran the complete static audit with fail-fast propagation, exact stale-symbol matching, exact six-stage and four-final-arm reference lists, required common power fields, worktree scope, diff-stat, and content hashes.
+- **Result:** GREEN. `git diff --check` passed; removed symbols are absent; only the intentional negative-test `topology_ref` alias remains; the six-plus-four power union and all common-field requirements match the asserted contract; the expected nine files are modified. Owned hashes remain: power schema `23abc2ac92689221f6261d0f68a76fda211c307201ee1670dccc7cc862eec1fa`, verifier `79e9c06f8edaf1e09ceae9d5f04108064f8f5e43832559349e6a2db2f57422f4`, artifact tests `b3ddc9d55dfc429439511f4fc025734e4dad49c1cf7265d6d5d127e803598d68`, schema tests `26029c28d48d8d2c6b7c0365022b5f7a5d787e0f19a3643435da559e5bda341f`, unchanged artifact-root schema `7fe613ee6a760b66f96dc28437fdca09b183a94129d15299d55411cd66c97bb5`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `2082` bytes / `26` lines / SHA-256 `6a046d9bd0917d4e572fc2696000e5fedc070167cffdb5ffd1a69a472ffab1fe`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0335/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Conduct line-level hostile diff review and explicit artifact-root boundary audit before release verification.
+### EJ-20260728-0336 — inspect owned schema diff
+
+- **Prior event:** `EJ-20260728-0335`
+- **Local interval:** `2026-07-28T20:10:51-07:00` to `2026-07-28T20:10:51-07:00`
+- **UTC interval:** `2026-07-29T03:10:51+00:00` to `2026-07-29T03:10:51+00:00`
+- **Action:** Read the five owned operational-schema diffs with five context lines, retaining the complete raw diff locally while exposing a bounded rendering for direct review.
+- **Result:** Read completed successfully. Raw diff size is `47,821` bytes / `1,170` lines. Initial hostile review confirms fail-closed object shapes and the intended manifest, scheduling, assignment, and power vocabulary changes; no release conclusion is made because the rendered view was truncated and verifier/test coherence remains to be reviewed.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `47821` bytes / `1170` lines / SHA-256 `e5de4147a0da701c3b8f1a29bbf6b4e88112578ff645d5d681694636ba32fcbb`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0336/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect verifier changes and targeted omitted schema regions, then either add adversarial tests/fixes or proceed to artifact-root and full-suite gates.
+### EJ-20260728-0337 — inspect verifier diff
+
+- **Prior event:** `EJ-20260728-0336`
+- **Local interval:** `2026-07-28T20:11:24-07:00` to `2026-07-28T20:11:24-07:00`
+- **UTC interval:** `2026-07-29T03:11:24+00:00` to `2026-07-29T03:11:24+00:00`
+- **Action:** Read the verifier diff with eight context lines, retaining the complete raw diff and exposing a bounded rendering for direct hostile review.
+- **Result:** Read completed successfully. Raw diff size is `83,523` bytes / `1,862` lines, including formatter-only churn. Reviewed regions show explicit assignment/allocation/donor order binding, no-trigger discrimination, proof-stratum coverage, schedule ancestry, authority-ref grouping, common authority mirroring, screen-frozen shard counts, and derived kernel checks. No release conclusion is made because the rendered view omitted part of the power finalization tail.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `83523` bytes / `1862` lines / SHA-256 `d88b9e5fa9ac9d1559f77f58c0ac62db764b1967ece486ac0ea60a9d3117360e`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0337/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect the omitted power-finalization verifier tail and test matrix before deciding whether new adversarial cases are required.
+### EJ-20260728-0338 — inspect power topology verifier body
+
+- **Prior event:** `EJ-20260728-0337`
+- **Local interval:** `2026-07-28T20:11:52-07:00` to `2026-07-28T20:11:52-07:00`
+- **UTC interval:** `2026-07-29T03:11:52+00:00` to `2026-07-29T03:11:52+00:00`
+- **Action:** Read verifier source lines `2680–3150`, covering the power grid, authority grouping, attempt topology, fallback transition, immutable attempt identity, and the start of finalization logic.
+- **Result:** Read completed successfully. The inspected code derives nonfinal kernels from stage/phase, freezes shard count at screen, requires Gaussian screens to be parentless, binds fallback trigger refs to the terminal failed Gaussian validation, forbids fallback selection, enforces complete ordered coverage before downstream stages, requires exactly one final, and makes its attempt-parent sets exhaustive. Review remains open at the truncated finalization tail.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `19667` bytes / `471` lines / SHA-256 `7d4a8997c873c81efe4457c13a94e82def8a821b230fc035c8e5b8a41f3eea31`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0338/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect the remainder of finalization logic and probe synthetic-validation terminal semantics.
+### EJ-20260728-0339 — inspect power finalization verifier tail
+
+- **Prior event:** `EJ-20260728-0338`
+- **Local interval:** `2026-07-28T20:12:39-07:00` to `2026-07-28T20:12:39-07:00`
+- **UTC interval:** `2026-07-29T03:12:39+00:00` to `2026-07-29T03:12:39+00:00`
+- **Action:** Read verifier source lines `3150–3450`, covering completed Gaussian/fallback selection and terminal failure finalization.
+- **Result:** Review found two hostile-review candidates requiring falsification before release: selected and terminal refs are initially resolved by `relative_path` without an immediately visible exact four-field identity comparison, and the terminal-failure branch does not yet visibly require its selected attempt to be chronologically and structurally last. These may be covered by an earlier global reference verifier or downstream code, so they are hypotheses—not defects—until targeted tests/inspection resolve them.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `13804` bytes / `301` lines / SHA-256 `ca590cafb0158505452e6b302f84d1722214e0dc6f9d3d0b654ad3b4a9f7c8e4`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0339/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Finish the terminal branch, inspect global reference validation, then write targeted RED tests for any surviving exploit.
+### EJ-20260728-0340 — falsify terminal-finalization exploit hypotheses
+
+- **Prior event:** `EJ-20260728-0339`
+- **Local interval:** `2026-07-28T20:13:20-07:00` to `2026-07-28T20:13:20-07:00`
+- **UTC interval:** `2026-07-29T03:13:20+00:00` to `2026-07-29T03:13:20+00:00`
+- **Action:** Inspected the rest of the terminal branch and located every global ArtifactRef walker/read site.
+- **Result:** Both `EJ-20260728-0339` exploit hypotheses are falsified by existing code. The terminal ref receives an exact four-field identity comparison; stage-specific checks forbid fictitious downstream documents; shard failure must name the last contiguous shard; and no later phase/generation may exist. Separately, the scientific-root verifier walks every ArtifactRef in every document through `_read_ref`, so selected refs with forged digest/size/media metadata fail before path-based selection resolution.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `5100` bytes / `106` lines / SHA-256 `09be4e9dbd2d937895f8f2698ad90906ef9c2aee39f56a97828a27b0c46e0fc4`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0340/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect the final residual terminal checks and the explicit test matrix, focusing on synthetic-validation failure and authority discrimination.
+### EJ-20260728-0341 — inspect residual terminal checks and power-test inventory
+
+- **Prior event:** `EJ-20260728-0340`
+- **Local interval:** `2026-07-28T20:13:50-07:00` to `2026-07-28T20:13:50-07:00`
+- **UTC interval:** `2026-07-29T03:13:50+00:00` to `2026-07-29T03:13:50+00:00`
+- **Action:** Read the residual terminal-order/global-reference checks and enumerated Slice 2 power schema/semantic test functions.
+- **Result:** GREEN inspection. The terminal branch additionally forbids superseding an earlier terminal validation, and the root builder rejects conflicting metadata for the same relative path before exact document-entry comparison. The test inventory contains schema-arm, required-mirror, stale-alias, kernel, fallback-selection, trigger, synthetic-failure, identity-drift, authority-drift, and terminal-drift coverage. The synthetic failure chain has one named positive/authority test; its exact stage variants still require inspection.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `5062` bytes / `108` lines / SHA-256 `9356d2fad4eda5477da1adc688854e14a6ff52f2d58b2c1257f94e0fecc3a13c`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0341/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Read the semantic power tests and determine whether validation-stage synthetic failure needs a new positive/negative test.
+### EJ-20260728-0342 — inspect synthetic-failure test coverage
+
+- **Prior event:** `EJ-20260728-0341`
+- **Local interval:** `2026-07-28T20:14:19-07:00` to `2026-07-28T20:14:19-07:00`
+- **UTC interval:** `2026-07-29T03:14:19+00:00` to `2026-07-29T03:14:19+00:00`
+- **Action:** Read the Slice 2 semantic power tests, schema-level finalization tests, and all synthetic-validation-failure references in the artifact test file.
+- **Result:** Coverage gap confirmed. Schema tests accept both phase variants and semantic tests accept a synthetic-authority failure terminating at `screen`, but no semantic positive fixture proves the distinct validation-stage `synthetic_validation_gate_failed` path, and no negative test proves that reason is rejected at a non-validation stage. This is a contract-significant branch, so Slice 2 is not yet shippable.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `7460` bytes / `234` lines / SHA-256 `97df420ee784de1f958cb0203bae5e5cf8bf072a9bcc4c4bc94a113000d2b564`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0342/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Extend the full-study fixture minimally, write RED semantic tests for validation-stage synthetic failure and stage/reason mismatch, then implement only if RED exposes a verifier defect.
+### EJ-20260728-0343 — inspect full-study power fixture for TDD extension
+
+- **Prior event:** `EJ-20260728-0342`
+- **Local interval:** `2026-07-28T20:14:52-07:00` to `2026-07-28T20:14:52-07:00`
+- **UTC interval:** `2026-07-29T03:14:52+00:00` to `2026-07-29T03:14:52+00:00`
+- **Action:** Read the full-study power fixture construction and indexed all no-go/variant branches before editing tests.
+- **Result:** The fixture already supports a Gaussian validation terminal, explicit `no_go_reason`, and synthetic authority. A validation-stage positive can therefore be added without production or fixture-helper changes by selecting `no_go_stage=\"validation\"`, `no_go_reason=\"synthetic_validation_gate_failed\"`, and `decision_authority=\"synthetic_validation\"`. Existing later no-go tests may already cover reason/stage mismatch and must be inspected before adding duplicates.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `20733` bytes / `502` lines / SHA-256 `ac66cc3f1f6fd8254081df2b7312df5c56e53f2812df162f18534bac1aae1dfb`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0343/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect existing no-go semantic tests to avoid redundant coverage, then add only the missing validation-stage synthetic case(s).
+### EJ-20260728-0344 — inspect existing no-go semantic coverage
+
+- **Prior event:** `EJ-20260728-0343`
+- **Local interval:** `2026-07-28T20:15:23-07:00` to `2026-07-28T20:15:23-07:00`
+- **UTC interval:** `2026-07-29T03:15:23+00:00` to `2026-07-29T03:15:23+00:00`
+- **Action:** Read all indexed terminal no-go semantic-test regions to distinguish existing generic coverage from the missing synthetic-authority branch.
+- **Result:** Existing tests already cover all roster-authority terminal stages, valid Gaussian screen reasons, cross-stage reason mismatches, persisted validation misuse, retry-after-terminal attacks, and malformed terminal chains. They do not cover a valid validation-stage `synthetic_validation_gate_failed` chain or that synthetic-only reason placed at screen. Two narrowly scoped synthetic tests are justified.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `8188` bytes / `268` lines / SHA-256 `70043e751108d8934514a0b513531479ab1971e0cbbf39528844e34463ca4110`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0344/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Add the two synthetic-authority characterization tests and run their focused gate.
+### EJ-20260728-0345 — add and run synthetic validation-terminal tests
+
+- **Prior event:** `EJ-20260728-0344`
+- **Local interval:** `2026-07-28T20:16:35-07:00` to `2026-07-28T20:16:37-07:00`
+- **UTC interval:** `2026-07-29T03:16:35+00:00` to `2026-07-29T03:16:37+00:00`
+- **Action:** Extended the synthetic-failure semantic test to cover both screen and validation terminals, added a negative screen-stage attack using `synthetic_validation_gate_failed`, inspected the resulting test diff, and ran `pytest -k t3_s02_synthetic`.
+- **Result:** GREEN characterization. Existing production code accepts the valid validation-terminal synthetic chain and rejects the stage/reason mismatch; no production change was required. Exact pytest counts remain in the compact raw receipt and will be extracted before broader verification.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `3536` bytes / `92` lines / SHA-256 `dfce09b460d53aee93371634e40e143c69e29d5581798136da944db656bba796`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0345/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Extract the focused count and updated test hash, then rerun the full owned pair and static/type gates.
+### EJ-20260728-0346 — extract synthetic-test count and updated hash
+
+- **Prior event:** `EJ-20260728-0345`
+- **Local interval:** `2026-07-28T20:17:05-07:00` to `2026-07-28T20:17:05-07:00`
+- **UTC interval:** `2026-07-29T03:17:05+00:00` to `2026-07-29T03:17:05+00:00`
+- **Action:** Extracted the focused pytest summary from `EJ-20260728-0345` and recomputed the artifact-test content hash.
+- **Result:** GREEN: `3 passed, 208 deselected in 1.64s`. Updated `tests/resampling_null/test_artifacts.py` SHA-256 is `e931d9cbc0e375ebc9deb65a462ba3eee7110758a73b0c07783bbde7aed5a2e4`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `422` bytes / `9` lines / SHA-256 `e80cf8ff2980bad2b4f25a43b4321b1ef15b415031f4322dc6f36a88519985f7`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0346/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Rerun formatting, lint, type, focused Slice 2, and complete owned-test gates on the new source state.
+### EJ-20260728-0347 — rerun owned gate stack after synthetic tests
+
+- **Prior event:** `EJ-20260728-0346`
+- **Local interval:** `2026-07-28T20:17:42-07:00` to `2026-07-28T20:17:42-07:00`
+- **UTC interval:** `2026-07-29T03:17:42+00:00` to `2026-07-29T03:17:42+00:00`
+- **Action:** Started the exact-source formatting, lint, type, focused Slice 2, and complete owned-test gate stack under fail-fast capture.
+- **Result:** RED at the first gate. Ruff reported `tests/test_schema_loads.py` would be reformatted; the other two checked files were already formatted. Lint, type, and pytest commands correctly did not run. This pre-existing Slice 2 formatting defect blocks release until mechanically corrected and all gates are rerun.
+- **Exit status:** `1`
+- **Compact receipt:** stdout `98` bytes / `2` lines / SHA-256 `f1b540f60425bb4f8bc37deaa9b42a172ea47de5dcc0ab2ef10b04c299717fcc`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0347/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Apply Ruff’s mechanical formatting to the exact three owned Python files, inspect the resulting diff/hash, and rerun the full gate stack.
+### EJ-20260728-0348 — mechanically format owned Python files
+
+- **Prior event:** `EJ-20260728-0347`
+- **Local interval:** `2026-07-28T20:18:10-07:00` to `2026-07-28T20:18:10-07:00`
+- **UTC interval:** `2026-07-29T03:18:10+00:00` to `2026-07-29T03:18:10+00:00`
+- **Action:** Ran Ruff’s formatter on the exact three owned Python files, captured the resulting schema-test diff, and recomputed both test-file hashes.
+- **Result:** GREEN mechanical edit with exit `0`; one file was reformatted and no semantic source change was requested. The raw receipt contains the exact diff and hashes; all behavioral and static gates must be rerun on this new content state.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `1337` bytes / `26` lines / SHA-256 `7b0553d2d0968a8f023533f48ee7e0baf359e120879183bf98a95b6d950cf014`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0348/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Rerun formatting, lint, type, focused Slice 2, and complete owned tests on the formatted state.
+### EJ-20260728-0349 — rerun owned gate stack after formatting
+
+- **Prior event:** `EJ-20260728-0348`
+- **Local interval:** `2026-07-28T20:18:43-07:00` to `2026-07-28T20:18:51-07:00`
+- **UTC interval:** `2026-07-29T03:18:43+00:00` to `2026-07-29T03:18:51+00:00`
+- **Action:** Reran format-check, lint, mypy, focused Slice 2 tests, and complete owned tests under fail-fast capture.
+- **Result:** RED at mypy. Format-check (`3 files already formatted`) and Ruff lint (`All checks passed!`) were GREEN. Mypy then reported two `import-untyped` errors because `jsonschema` stubs were unavailable to the invoked environment; pytest correctly did not run. This conflicts with the earlier GREEN mypy receipt and must be resolved as an environment/dependency provenance issue, not suppressed.
+- **Exit status:** `1`
+- **Compact receipt:** stdout `683` bytes / `8` lines / SHA-256 `047f0faf19daa433e8e9980a275020f58cc40fc4bd9ff76203ee212c11a3f0dd`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0349/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect the pinned dev dependency/config state and installed distribution inventory, then restore the deterministic type environment without weakening checks.
+### EJ-20260728-0350 — diagnose mypy stub-environment mismatch
+
+- **Prior event:** `EJ-20260728-0349`
+- **Local interval:** `2026-07-28T20:19:34-07:00` to `2026-07-28T20:19:34-07:00`
+- **UTC interval:** `2026-07-29T03:19:34+00:00` to `2026-07-29T03:19:34+00:00`
+- **Action:** Inspected pyproject dependency declarations, lockfile entries, installed interpreter/tool versions, and the availability of `types-jsonschema`.
+- **Result:** Root cause confirmed. The deterministic dev extra pins mypy `2.3.0` and Ruff `0.15.22`, and the environment contains mypy `2.3.0` plus jsonschema `4.26.0`, but neither `pyproject.toml` nor `uv.lock` declares `types-jsonschema`. The virtual environment intentionally lacks pip. The earlier GREEN mypy receipt was therefore not reproducible under the now-recorded exact invocation and cannot be trusted as the final type gate.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `12454` bytes / `58` lines / SHA-256 `4a4b1dd5cc303c6073557e181b5f3e84db3996ff6f548fb5cf64bb9c7bde541f`; stderr `262` bytes / `2` lines / SHA-256 `8a9ec1027ee9d7852e6c1fcafc38b02faddd30046eefd403d8633521585a10fe` (expected missing-pip notice and jsonschema version deprecation warning).
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0350/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Recheck the authority plan’s Slice 1 tooling contract, then add a pinned stub dependency only if that is the contract-consistent fix.
+### EJ-20260728-0351 — recheck authority-prescribed type gate
+
+- **Prior event:** `EJ-20260728-0350`
+- **Local interval:** `2026-07-28T20:20:16-07:00` to `2026-07-28T20:20:16-07:00`
+- **UTC interval:** `2026-07-29T03:20:16+00:00` to `2026-07-29T03:20:16+00:00`
+- **Action:** Re-read the active plan passages governing Task 3 tooling, invocation provenance, and per-slice static gates.
+- **Result:** Authority resolves the mismatch. The plan intentionally pins only Ruff `0.15.22` and mypy `2.3.0`, requires module invocation through `.venv/bin/python`, and prescribes `.venv/bin/python -m mypy --ignore-missing-imports src/pneuma_lab/resampling_null`. `EJ-20260728-0349` used a stricter, non-authoritative direct-binary/test-inclusive command without the prescribed flag. Adding an undeclared stub dependency in Slice 2 would improperly reopen Slice 1 and is not justified. The stricter probe remains useful diagnostic evidence but is not the release gate.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `8946` bytes / `65` lines / SHA-256 `6e5f61d7a5ae1bd9c3b1277d2eda596459cd9d61e53b697b2ecd186258bbc12c`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0351/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run the exact authority-prescribed module-based Ruff/mypy commands, then the focused and complete Slice 2 schema gates.
+### EJ-20260728-0352 — pass authority-prescribed Slice 2 gate stack
+
+- **Prior event:** `EJ-20260728-0351`
+- **Local interval:** `2026-07-28T20:20:51-07:00` to `2026-07-28T20:21:48-07:00`
+- **UTC interval:** `2026-07-29T03:20:51+00:00` to `2026-07-29T03:21:48+00:00`
+- **Action:** Ran the exact module-based authority gates: Ruff over the full resampling source/test directories, mypy with the prescribed missing-import policy over the full resampling source package, the focused `t3_s02` pair, and the complete owned schema/artifact pair.
+- **Result:** GREEN, exit `0`, zero stderr. Exact lint/type/test summaries are retained in the compact raw receipt and will be extracted with the artifact-root audit.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `678` bytes / `11` lines / SHA-256 `8bb04a504cacbd3de9fd8d8e0a0bbb8769252ef5183f05058b4fb8ce2c2e885f`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0352/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Extract exact gate counts and explicitly prove the unchanged artifact-root schema contains only its five payload keys and eleven scientific upstream kinds.
+### EJ-20260728-0353 — extract gate counts and inspect artifact-root scope
+
+- **Prior event:** `EJ-20260728-0352`
+- **Local interval:** `2026-07-28T20:22:20-07:00` to `2026-07-28T20:22:20-07:00`
+- **UTC interval:** `2026-07-29T03:22:20+00:00` to `2026-07-29T03:22:20+00:00`
+- **Action:** Extracted exact `EJ-20260728-0352` summaries and inspected the artifact-root payload plus every enum.
+- **Result:** Authority gates: Ruff `All checks passed!`; mypy `Success: no issues found in 3 source files`; focused `63 passed, 349 deselected in 6.80s`; complete owned pair `412 passed in 47.49s`. Artifact-root inspection shows exactly five required payload properties and a constant list of eleven scientific document kinds; entry kinds remain only `scientific_record` and `referenced_blob`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `1733` bytes / `13` lines / SHA-256 `3b22d6633ad4cefcf290b9167fc5e1bdb58a202a5eed2fdabe5609044c2c0fa1`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0353/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Convert artifact-root observations into exact fail-fast assertions, including absence of operational/non-scientific kinds.
+### EJ-20260728-0354 — assert artifact-root boundary exactly
+
+- **Prior event:** `EJ-20260728-0353`
+- **Local interval:** `2026-07-28T20:22:57-07:00` to `2026-07-28T20:22:57-07:00`
+- **UTC interval:** `2026-07-29T03:22:57+00:00` to `2026-07-29T03:22:57+00:00`
+- **Action:** Attempted fail-fast assertions for the exact five payload keys, eleven scientific kinds, two entry kinds, and absence of operational vocabulary.
+- **Result:** RED with no task output. At least one guessed `$defs.artifact_entry` property path is wrong; because fail-fast worked, no boundary GREEN is claimed. The prior inspection remains descriptive only until the actual definition keys are queried and the exact assertions rerun.
+- **Exit status:** `1`
+- **Compact receipt:** stdout `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0354/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect the exact artifact-entry definition keys, isolate the failed expression, and rerun without weakening the intended boundary.
+### EJ-20260728-0355 — locate artifact-entry kind definitions
+
+- **Prior event:** `EJ-20260728-0354`
+- **Local interval:** `2026-07-28T20:23:25-07:00` to `2026-07-28T20:23:25-07:00`
+- **UTC interval:** `2026-07-29T03:23:25+00:00` to `2026-07-29T03:23:25+00:00`
+- **Action:** Printed the exact payload requirements/properties/constants and complete `$defs.artifact_entry` definition.
+- **Result:** The first three boundary expressions are structurally correct. The failed query guessed `artifact_entry.properties.record_kind`; the schema correctly names this nullable/ref-backed field `document_kind`, whose scientific enum lives at `$defs.upstream_kind`. `entry_kind` is directly defined and has exactly the two expected values.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `1116` bytes / `1` line / SHA-256 `c8ce0a78aed42da641e7c1664611217e1ba01af7d2f8f5e09995ec1d70d7fdf5`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0355/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Rerun the exact boundary assertions against `$defs.upstream_kind` and the actual `entry_kind` path.
+### EJ-20260728-0356 — prove unchanged artifact-root boundary
+
+- **Prior event:** `EJ-20260728-0355`
+- **Local interval:** `2026-07-28T20:24:01-07:00` to `2026-07-28T20:24:01-07:00`
+- **UTC interval:** `2026-07-29T03:24:01+00:00` to `2026-07-29T03:24:01+00:00`
+- **Action:** Reran fail-fast artifact-root assertions using the actual `$defs.upstream_kind` and `entry_kind` paths.
+- **Result:** GREEN. The unchanged schema has exactly five payload keys, exactly the eleven frozen upstream scientific kinds in both the root constant and upstream enum, exactly two entry kinds, and none of the searched operational ceremony/storage/secret receipt vocabulary. Schema SHA-256 remains `7fe613ee6a760b66f96dc28437fdca09b183a94129d15299d55411cd66c97bb5`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `195` bytes / `2` lines / SHA-256 `6a650911e6def91cef0299c012ae04298949675404ce9b616cafa5ff2e3b468d`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0356/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run the broader resampling suite, status/lock/schema/whitespace checks, then complete the final hostile diff and delivery audit.
+### EJ-20260728-0357 — run broader Slice 2 release gates
+
+- **Prior event:** `EJ-20260728-0356`
+- **Local interval:** `2026-07-28T20:24:33-07:00` to `2026-07-28T20:25:20-07:00`
+- **UTC interval:** `2026-07-29T03:24:33+00:00` to `2026-07-29T03:25:20+00:00`
+- **Action:** Checked the Python 3.12 lock, canonical project status, JSON parsing of every schema, the complete resampling test directory, and whitespace.
+- **Result:** GREEN, exit `0`. The bounded one-line stderr is retained and must be inspected before final interpretation; exact status and pytest summaries will be extracted next.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `491` bytes / `7` lines / SHA-256 `7a97c9f89725e7ca45e8ff8cda7e4fee907f99f188a7f9d828b08546bdafa4ef`; stderr `29` bytes / `1` line / SHA-256 `62c45c5770ea8899e7a0b96773fd6ad2a9f5b7e6e29706530611d6b22bc37779`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0357/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect the bounded output/stderr, then run the full project suite if no warning invalidates the gate.
+### EJ-20260728-0358 — interpret broader release-gate output
+
+- **Prior event:** `EJ-20260728-0357`
+- **Local interval:** `2026-07-28T20:25:47-07:00` to `2026-07-28T20:25:47-07:00`
+- **UTC interval:** `2026-07-29T03:25:47+00:00` to `2026-07-29T03:25:47+00:00`
+- **Action:** Inspected the bounded stdout/stderr from the lock/status/schema/resampling/whitespace gate.
+- **Result:** GREEN interpretation. Lock check resolved `133` packages in `2ms`; canonical status reports schema-valid and checkout-coherent; all schemas parsed; the resampling suite reports `302 passed in 45.84s`; whitespace passed silently. The one stderr line was uv’s normal resolution summary, not a warning or failure.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `520` bytes / `8` lines / SHA-256 `d2673b08d63ca977d2a7485b33169dff3feab7cd3070307177dac21f8c915904`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0358/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run the complete project test suite on the exact Slice 2 state.
+### EJ-20260728-0359 — attempt complete project test suite
+
+- **Prior event:** `EJ-20260728-0358`
+- **Local interval:** `2026-07-28T20:26:14-07:00` to `2026-07-28T20:26:16-07:00`
+- **UTC interval:** `2026-07-29T03:26:14+00:00` to `2026-07-29T03:26:16+00:00`
+- **Action:** Ran the repository-wide `pytest tests/ -q` command from `AGENTS.md`.
+- **Result:** ENVIRONMENT RED during collection: eight foundation test modules could not import optional `torch`; pytest stopped with `14 skipped, 405 deselected, 8 errors in 1.86s`. No Slice 2/resampling test failed, but this is not a full-suite GREEN. The frozen Task 3 dev environment intentionally installed only the `dev` extra, so optional foundation dependency policy/cache cost must be inspected before deciding whether to materialize a second environment or report the gate as unavailable.
+- **Exit status:** `2`
+- **Compact receipt:** stdout `9716` bytes / `181` lines / SHA-256 `4a6debef06aadd01d0a0b4ba939d42cddda8a029746079ab45f381489236420c`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0359/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect foundation extras, lock/cache footprint, and existing policy before any optional dependency installation; do not let an unrelated heavy environment silently alter the Task 3 bootstrap.
+### EJ-20260728-0360 — inspect foundation-extra footprint without mutation
+
+- **Prior event:** `EJ-20260728-0359`
+- **Local interval:** `2026-07-28T20:26:50-07:00` to `2026-07-28T20:26:50-07:00`
+- **UTC interval:** `2026-07-29T03:26:50+00:00` to `2026-07-29T03:26:50+00:00`
+- **Action:** Read the optional-dependency policy and ran a frozen dry-run of `dev+foundation`; no environment mutation occurred.
+- **Result:** Installing foundation would add `55` packages, including Torch `2.13.0`, Triton, CUDA 13 libraries, bitsandbytes, and a Git-pinned Transformers build. Pytest policy explicitly says foundation is ~52% of the suite, filesystem-heavy, and off the NeurIPS paper critical path. Materializing that stack merely to bypass collection-time imports would contaminate the reviewed Task 3 dev bootstrap and is disproportionate. The correct scoped release evidence is the full non-foundation suite, while the collection-time optional-dependency defect remains explicitly disclosed.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `2659` bytes / `63` lines / SHA-256 `4a024fd2a2814248cae133f536e707d8f4bafd4cd365546ea20d9be32226985a`; stderr `1396` bytes / `57` lines / SHA-256 `04598c6f450085c426404b248ab2e0e4a11da848204e9098d1fa68c5ec7f4389` (uv dry-run package plan).
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0360/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run every non-foundation test by explicitly ignoring `tests/test_foundation_*.py`; retain the full-suite collection failure as a disclosed out-of-scope environment limitation.
+### EJ-20260728-0361 — run broad non-foundation suite
+
+- **Prior event:** `EJ-20260728-0360`
+- **Local interval:** `2026-07-28T20:27:23-07:00` to `2026-07-28T20:34:08-07:00`
+- **UTC interval:** `2026-07-29T03:27:23+00:00` to `2026-07-29T03:34:08+00:00`
+- **Action:** Ran all tests while explicitly ignoring `tests/test_foundation_*.py`; after six minutes without completion, sent one clean interrupt so the capture wrapper could seal partial evidence.
+- **Result:** RED and interrupted, not a GREEN suite. Progress reached approximately `52%` and had already recorded three setup errors plus two failures. The visible setup errors are unrelated research tests requiring ignored local artifact `build/research/neurips-p0/p0-power-report.json`; the two failure identities and final interrupted state require raw-tail inspection. This broad gate exposes additional non-hermetic project-test dependencies beyond foundation and does not invalidate the already-GREEN Slice 2 owned/resampling gates.
+- **Exit status:** `2`
+- **Compact receipt:** stdout `14125` bytes / `266` lines / SHA-256 `29159c4c954e7a216b79b031535e37be7fd4e5dd3560c4c0db7bb287ecb10ced`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0361/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect the raw failure/interrupt tail, classify each failure against Slice 2 scope, and run a hermetic non-research/non-foundation regression subset if justified.
+### EJ-20260728-0362 — classify broad-suite failures
+
+- **Prior event:** `EJ-20260728-0361`
+- **Local interval:** `2026-07-28T20:34:38-07:00` to `2026-07-28T20:34:38-07:00`
+- **UTC interval:** `2026-07-29T03:34:38+00:00` to `2026-07-29T03:34:38+00:00`
+- **Action:** Extracted every failure/error identity and the final interrupted summary from `EJ-20260728-0361`.
+- **Result:** Classification is exact: `890 passed`; two `tests/research/test_paper_instrument_reuse.py` failures require missing ignored `gauge_verified_qwen2_5-coder_7b.json`; three correlation-surface setup errors require missing ignored `build/research/neurips-p0/p0-power-report.json`; interruption occurred in `pneuma_lab/gauge/resolution.py:99` after `404.93s`. None touches Slice 2 files or contracts. The appropriate hermetic regression gate excludes both optional foundation modules and artifact-dependent `tests/research/`; those research tests remain a separately disclosed artifact-materialization gate.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `7753` bytes / `114` lines / SHA-256 `b5e34b73fc5d7e6f636578bc67de6fe85717d2625c2524a286e824ae854266ea`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0362/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run the complete hermetic non-research/non-foundation suite, then finalize Slice 2 diff/status/hashes.
+### EJ-20260728-0363 — run hermetic non-research/non-foundation suite
+
+- **Prior event:** `EJ-20260728-0362`
+- **Local interval:** `2026-07-28T20:35:11-07:00` to `2026-07-28T20:41:59-07:00`
+- **UTC interval:** `2026-07-29T03:35:11+00:00` to `2026-07-29T03:41:59+00:00`
+- **Action:** Ran all tests excluding artifact-dependent `tests/research/` and optional `test_foundation_*`; interrupted after the same six-minute bound.
+- **Result:** PARTIAL GREEN: `485 passed in 407.85s` with no failure/error before interruption. Execution was inside `src/pneuma_lab/gauge/resolution.py:141`. This establishes broad regression progress but not suite completion; the exact collected test at position 486 must be identified and isolated as a slow-test gate.
+- **Exit status:** `2` due operator `KeyboardInterrupt`.
+- **Compact receipt:** stdout `807` bytes / `11` lines / SHA-256 `206cabdb4ebda345271c6ffed07ef4dd09959b12bb40ba530952a13a2c3debbf`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0363/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Map collection order around test 486 and inspect the gauge test’s declared runtime/marker contract before narrowing the final broad sweep.
+### EJ-20260728-0364 — identify the unbounded broad-suite test
+
+- **Prior event:** `EJ-20260728-0363`
+- **Local interval:** `2026-07-28T20:42:30-07:00` to `2026-07-28T20:42:31-07:00`
+- **UTC interval:** `2026-07-29T03:42:30+00:00` to `2026-07-29T03:42:31+00:00`
+- **Action:** Collected the hermetic suite in order around test 486 and indexed non-research gauge-resolution callers.
+- **Result:** The interrupted test is exactly `tests/test_gauge_card.py::test_cli_analyze_gates_on_an_uninterpretable_channel`; its predecessor (`test_cli_selftest_exits_zero_offline`) completed as pass 485. The slow test exercises an unrelated gauge CLI analysis path and has no marker or bounded runtime. It will be excluded by exact node name from the final broad regression sweep, while its six-minute timeout-like behavior remains disclosed rather than relabeled GREEN.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `9473` bytes / `115` lines / SHA-256 `5db5361d9c5de0bd0517aafdbee0d1687a28ea2bf21c61690c07513b09b16d87`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0364/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run the complete hermetic suite excluding only that exact unrelated slow test.
+### EJ-20260728-0365 — pass broad hermetic regression suite
+
+- **Prior event:** `EJ-20260728-0364`
+- **Local interval:** `2026-07-28T20:43:03-07:00` to `2026-07-28T20:49:44-07:00`
+- **UTC interval:** `2026-07-29T03:43:03+00:00` to `2026-07-29T03:49:44+00:00`
+- **Action:** Ran the complete non-research/non-foundation test suite while deselecting only the exact unrelated unbounded gauge CLI test identified in `EJ-20260728-0364`.
+- **Result:** GREEN, exit `0`, zero stderr, completing in `401s`. Exact pass/skip/deselect counts remain in the compact raw receipt and will be extracted next. This is the broadest hermetic regression evidence available without materializing ignored research artifacts or the 55-package foundation stack.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `1487` bytes / `19` lines / SHA-256 `ec2e870ecdda160489c67c591391c91195f25f4a41e1e05ed764f1771070ac82`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0365/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Extract exact counts, then perform final worktree/diff/hash/release-scope review before staging.
+### EJ-20260728-0366 — verify final Slice 2 worktree scope
+
+- **Prior event:** `EJ-20260728-0365`
+- **Local interval:** `2026-07-28T20:50:25-07:00` to `2026-07-28T20:50:25-07:00`
+- **UTC interval:** `2026-07-29T03:50:25+00:00` to `2026-07-29T03:50:25+00:00`
+- **Action:** Extracted the broad-suite tail; asserted the exact nine modified paths; reran whitespace; and captured status, diff-stat, and all eight non-journal content hashes.
+- **Result:** GREEN. Exact-path equality and `git diff --check` passed with zero stderr. The worktree contains only the journal plus the five owned schemas, verifier, artifact tests, and schema tests—no authority document, dependency, lockfile, artifact-root schema, or unrelated source drift.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `3437` bytes / `46` lines / SHA-256 `13b59f1f20932576045f340aad9a82b3987575d615c5d42df0245fb51f615957`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0366/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect exact broad-suite counts and final hashes, then perform the last staged-diff review before paired commits.
+### EJ-20260728-0367 — inspect final counts and content hashes
+
+- **Prior event:** `EJ-20260728-0366`
+- **Local interval:** `2026-07-28T20:50:56-07:00` to `2026-07-28T20:50:56-07:00`
+- **UTC interval:** `2026-07-29T03:50:56+00:00` to `2026-07-29T03:50:56+00:00`
+- **Action:** Inspected the complete `EJ-20260728-0366` output.
+- **Result:** Broad hermetic suite: `1236 passed, 1 deselected in 400.91s`. Final hashes: assignment schema `c4c1eec7de1a519dc01e8814efea2593fa51105ac393d331a6367cdb78ee221e`; power schema `23abc2ac92689221f6261d0f68a76fda211c307201ee1670dccc7cc862eec1fa`; prefix receipt `a87c4b776f6734c1201234e66c6d45595d657a4b84df4e52c1c4b81825a44a28`; prefix schedule `5919c0d6b0a6d13f6f9057442b3a5cdad83240966827bca6290cce5b3997d859`; study manifest `847eafd18a2251e79637c6c1931ff44aefbe6af07de0f04fcd4dfad1a567de7f`; verifier `79e9c06f8edaf1e09ceae9d5f04108064f8f5e43832559349e6a2db2f57422f4`; artifact tests `e931d9cbc0e375ebc9deb65a462ba3eee7110758a73b0c07783bbde7aed5a2e4`; schema tests `99bca49210ca6658496def58dbb8de7b00fcea62affa209b4e47653d4dde387d`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `3437` bytes / `46` lines / SHA-256 `13b59f1f20932576045f340aad9a82b3987575d615c5d42df0245fb51f615957`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0367/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Stage only the eight Slice 2 implementation/test files and review the staged boundary before commit A.
+### EJ-20260728-0368 — stage exact Slice 2 implementation boundary
+
+- **Prior event:** `EJ-20260728-0367`
+- **Local interval:** `2026-07-28T20:51:40-07:00` to `2026-07-28T20:51:40-07:00`
+- **UTC interval:** `2026-07-29T03:51:40+00:00` to `2026-07-29T03:51:40+00:00`
+- **Action:** Staged the exact eight Slice 2 schema/verifier/test files, asserted exact staged-name equality, asserted that only the journal remains unstaged, and reran staged whitespace/stat/numstat review.
+- **Result:** GREEN. The index contains exactly the intended eight paths; authority/design/plan/journal files are absent from commit A; the journal is the sole unstaged path; staged whitespace is clean.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `1392` bytes / `26` lines / SHA-256 `63c1e96e2c2fde505b0beba6191bf31b2c159305fe0326117554e6c69720ad6f`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0368/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Create commit A with the authority-prescribed Slice 2 message, verify its tree/path boundary, then stage journal-only commit B.
+### EJ-20260728-0369 — create Slice 2 implementation commit A
+
+- **Prior event:** `EJ-20260728-0368`
+- **Local interval:** `2026-07-28T20:52:12-07:00` to `2026-07-28T20:52:12-07:00`
+- **UTC interval:** `2026-07-29T03:52:12+00:00` to `2026-07-29T03:52:12+00:00`
+- **Action:** Created commit A with subject `feat(resampling-null): close task 3 schemas`, then captured its commit/parent/tree identities, changed-path summary, and post-commit status.
+- **Result:** GREEN, exit `0`, zero stderr. Commit identity and exact path list are retained in the raw receipt and will be extracted before journal staging.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `796` bytes / `17` lines / SHA-256 `338eb1a99b68f73d087ec5d69795fb693810f8228f8bba289e9772f3ff546adc`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0369/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Extract and assert commit A identity/path boundary, then stage journal only.
+### EJ-20260728-0370 — verify Slice 2 commit A identity
+
+- **Prior event:** `EJ-20260728-0369`
+- **Local interval:** `2026-07-28T20:52:47-07:00` to `2026-07-28T20:52:47-07:00`
+- **UTC interval:** `2026-07-29T03:52:47+00:00` to `2026-07-29T03:52:47+00:00`
+- **Action:** Inspected the commit-A receipt and independently asserted the expected parent, subject, and exact eight changed paths.
+- **Result:** GREEN. Commit A is `d2de06d9071cb0304a7fd4b0f907d4f1db3ef3f4`, parent `b63325ef91039a9c3b02663e3478d9189c638838`, tree `8b9368a5384ae5965bef2dde1efc929c768ef3b5`, subject `feat(resampling-null): close task 3 schemas`. It changes exactly the eight approved Slice 2 schema/verifier/test files; only the journal remains modified.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `894` bytes / `19` lines / SHA-256 `7d2a6f66e385c44a7b0e2282c74434d78962fa2b78e1bf9e008621a72a778729`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0370/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Stage the journal alone and create commit B `docs(neurips): record task 3 slice 2 delivery`.
