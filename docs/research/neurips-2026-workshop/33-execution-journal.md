@@ -469,3 +469,19 @@ The next event after the archived migration boundary is appended below.
 - **Compact receipt:** stdout `2175` bytes / `36` lines / SHA-256 `ee85c54dbbdc66ffbe11968aa11dbfd865590d077f65a0554b3ab0cfd9c34e9e`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 - **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0506/` (local, ignored, retained through `2026-11-27`).
 - **Next gate:** commit/push the two-file policy correction without running tests, then deliver Slice 4 from existing evidence.
+
+### EJ-20260728-0507 — commit and push lightweight-test research policy
+
+- **Prior event:** `EJ-20260728-0506`
+- **Local interval:** `2026-07-28T22:47:06-07:00` to `2026-07-28T22:47:08-07:00`
+- **UTC interval:** `2026-07-29T05:47:06+00:00` to `2026-07-29T05:47:08+00:00`
+- **Action:** Staged exactly `AGENTS.md` plus the journal, checked whitespace, committed `docs: keep tests subordinate to research`, pushed, and compared the exact public remote ref.
+- **Result:** GREEN, exit `0`. Commit and remote both equal `477b5413d51f7dcc4d1261bb7f66797530ef9f43`; parent `88e425e9f050446dfacdd3cd820108673097655f`; tree `97deb28736ff62ea168ea700759d0096ff16915e`.
+- **Compact receipt:** stdout `370` bytes / `7` lines / SHA-256 `16a930a867811a2e4f8f0d1524361ea92fda48529114db04f0f028b76b19f785`; stderr `110` bytes / `2` lines / SHA-256 `1156a26316737f683468dbc43ad467b4825bf0c3bd79c5de22c84833a8e444d4`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0507/` (local, ignored, retained through `2026-11-27`).
+
+### EJ-20260728-0508 — pre-record finite lightweight-test policy receipt B
+
+- **Prior event:** `EJ-20260728-0507`
+- **Planned B mechanics:** `git add -- docs/research/neurips-2026-workshop/33-execution-journal.md`; `git diff --cached --check`; `git commit -m "docs: record lightweight-test policy delivery"`; `git push origin HEAD:refs/heads/codex/neurips-2026-empirical`.
+- **Scope:** journal only. Reconcile B at the opening of Slice 4 delivery; do not run another test.
