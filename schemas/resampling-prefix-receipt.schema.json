@@ -114,7 +114,11 @@
             "required": ["subject_role", "call_index", "seed"],
             "properties": {
                 "subject_role": { "enum": ["primary_subject", "user_simulator"] },
-                "call_index": { "type": "integer", "minimum": 0 },
+                "call_index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 18446744073709551615
+                },
                 "seed": { "$ref": "#/$defs/seed" }
             },
             "additionalProperties": false
@@ -142,26 +146,39 @@
             "required": [
                 "task_id",
                 "schedule_sha256",
+                "prefix_caps",
                 "snapshot_ref",
                 "visible_context_ref",
                 "visible_sha256",
+                "token_ids_ref",
                 "token_ids_sha256",
-                "pending_tool_calls",
+                "branch_pending_calls",
+                "terminal_unexecuted_remainder",
                 "trigger_reason",
+                "terminal_failure_kind",
                 "y0_grade",
                 "verifier_receipt",
                 "counters",
+                "simulator_counters",
                 "call_seeds",
+                "provider_attempts_ref",
+                "boundary_ledger_ref",
                 "provider_cost_ref"
             ],
             "properties": {
                 "task_id": { "$ref": "#/$defs/nonempty" },
                 "schedule_sha256": { "$ref": "#/$defs/sha256" },
+                "prefix_caps": { "$ref": "#/$defs/resource_counters" },
                 "snapshot_ref": { "$ref": "#/$defs/artifact_ref" },
                 "visible_context_ref": { "$ref": "#/$defs/artifact_ref" },
                 "visible_sha256": { "$ref": "#/$defs/sha256" },
+                "token_ids_ref": { "$ref": "#/$defs/artifact_ref" },
                 "token_ids_sha256": { "$ref": "#/$defs/sha256" },
-                "pending_tool_calls": {
+                "branch_pending_calls": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/tool_call" }
+                },
+                "terminal_unexecuted_remainder": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/tool_call" }
                 },
@@ -172,14 +189,29 @@
                         "no_intervention_opportunity"
                     ]
                 },
+                "terminal_failure_kind": {
+                    "enum": [
+                        "none",
+                        "model",
+                        "malformed_action",
+                        "token_cap",
+                        "tool_cap",
+                        "timeout",
+                        "refusal",
+                        "infrastructure"
+                    ]
+                },
                 "y0_grade": { "$ref": "#/$defs/grade_receipt" },
                 "verifier_receipt": { "$ref": "#/$defs/verifier_receipt" },
                 "counters": { "$ref": "#/$defs/resource_counters" },
+                "simulator_counters": { "$ref": "#/$defs/resource_counters" },
                 "call_seeds": {
                     "type": "array",
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/call_seed_receipt" }
                 },
+                "provider_attempts_ref": { "$ref": "#/$defs/artifact_ref" },
+                "boundary_ledger_ref": { "$ref": "#/$defs/artifact_ref" },
                 "provider_cost_ref": { "$ref": "#/$defs/artifact_ref" }
             },
             "additionalProperties": false

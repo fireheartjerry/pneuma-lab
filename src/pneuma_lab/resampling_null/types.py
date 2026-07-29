@@ -46,6 +46,7 @@ class FailureKind(str, Enum):
     TOKEN_CAP = "token_cap"
     TOOL_CAP = "tool_cap"
     TIMEOUT = "timeout"
+    REFUSAL = "refusal"
     INFRASTRUCTURE = "infrastructure"
 
 

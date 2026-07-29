@@ -132,12 +132,21 @@ def _minimal_prefix_task_receipt() -> dict[str, object]:
     return {
         "task_id": "task-1",
         "schedule_sha256": SHA_A,
+        "prefix_caps": {
+            "generated_tokens": 0,
+            "model_calls": 0,
+            "tool_calls": 0,
+            "wall_clock_ms": 0,
+        },
         "snapshot_ref": shared_ref,
         "visible_context_ref": shared_ref,
         "visible_sha256": SHA_A,
+        "token_ids_ref": shared_ref,
         "token_ids_sha256": SHA_B,
-        "pending_tool_calls": [],
+        "branch_pending_calls": [],
+        "terminal_unexecuted_remainder": [],
         "trigger_reason": "no_intervention_opportunity",
+        "terminal_failure_kind": "none",
         "y0_grade": {
             "success": 0,
             "partial_reward": 0.0,
@@ -157,7 +166,15 @@ def _minimal_prefix_task_receipt() -> dict[str, object]:
             "tool_calls": 0,
             "wall_clock_ms": 0,
         },
+        "simulator_counters": {
+            "generated_tokens": 0,
+            "model_calls": 0,
+            "tool_calls": 0,
+            "wall_clock_ms": 0,
+        },
         "call_seeds": [],
+        "provider_attempts_ref": shared_ref,
+        "boundary_ledger_ref": shared_ref,
         "provider_cost_ref": shared_ref,
     }
 
@@ -1740,6 +1757,12 @@ def _build_full_study(
     prefix_task_receipt = {
         "task_id": "task-1",
         "schedule_sha256": prefix_schedule_sha,
+        "prefix_caps": {
+            "generated_tokens": 0,
+            "model_calls": 0,
+            "tool_calls": 0,
+            "wall_clock_ms": 0,
+        },
         "snapshot_ref": raws["shared"],
         "visible_context_ref": (
             {**raws["shared"], "role": "frankenstein"}
@@ -1747,8 +1770,10 @@ def _build_full_study(
             else raws["shared"]
         ),
         "visible_sha256": SHA_A,
+        "token_ids_ref": raws["shared"],
         "token_ids_sha256": SHA_B,
-        "pending_tool_calls": [],
+        "branch_pending_calls": [],
+        "terminal_unexecuted_remainder": [],
         "trigger_reason": (
             "first_eligible_mutation"
             if (
@@ -1759,6 +1784,7 @@ def _build_full_study(
             )
             else "no_intervention_opportunity"
         ),
+        "terminal_failure_kind": "none",
         "y0_grade": {
             "success": 0,
             "partial_reward": 0.0,
@@ -1784,7 +1810,15 @@ def _build_full_study(
             "tool_calls": 0,
             "wall_clock_ms": 0,
         },
+        "simulator_counters": {
+            "generated_tokens": 0,
+            "model_calls": 0,
+            "tool_calls": 0,
+            "wall_clock_ms": 0,
+        },
         "call_seeds": [],
+        "provider_attempts_ref": raws["shared"],
+        "boundary_ledger_ref": raws["shared"],
         "provider_cost_ref": (
             _ref(
                 "raw/missing.bin",
