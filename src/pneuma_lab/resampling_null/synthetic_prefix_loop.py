@@ -779,6 +779,7 @@ class SyntheticProviderActor:
                 for ref, payload in copied_payloads.items()
             )
         )
+        cursor = 0
         object.__setattr__(self, "_subject_role", subject_role)
         object.__setattr__(self, "_program_bytes", sealed_program)
         object.__setattr__(
@@ -789,7 +790,7 @@ class SyntheticProviderActor:
         object.__setattr__(self, "_program", program)
         object.__setattr__(self, "_role_rows", role_rows)
         object.__setattr__(self, "_payloads", MappingProxyType(copied_payloads))
-        object.__setattr__(self, "_cursor", 0)
+        object.__setattr__(self, "_cursor", cursor)
         object.__setattr__(
             self,
             "_seal",
@@ -797,6 +798,8 @@ class SyntheticProviderActor:
                 subject_role,
                 hashlib.sha256(sealed_program).hexdigest(),
                 len(sealed_program),
+                role_rows,
+                cursor,
                 payload_seal,
             ),
         )
@@ -807,7 +810,15 @@ class SyntheticProviderActor:
             raise AttributeError("SyntheticProviderActor state is sealed")
         object.__setattr__(self, name, value)
 
-    def _verify_seal(self) -> None:
+    def _verify_seal(
+        self,
+    ) -> tuple[SyntheticProviderTranscriptRow, ...]:
+        program = load_synthetic_prefix_program(self._program_bytes)
+        role_rows = tuple(
+            row
+            for row in program.provider_transcript
+            if row.subject_role == self._subject_role
+        )
         payload_seal = tuple(
             sorted(
                 (
@@ -823,14 +834,21 @@ class SyntheticProviderActor:
             self._subject_role,
             hashlib.sha256(self._program_bytes).hexdigest(),
             len(self._program_bytes),
+            self._role_rows,
+            self._cursor,
             payload_seal,
         )
         if (
             observed != self._seal
             or self._program_sha256 != observed[1]
+            or self._role_rows != role_rows
+            or type(self._cursor) is not int
+            or not 0 <= self._cursor <= len(role_rows)
+            or self._sealed is not True
             or synthetic_prefix_program_bytes(self._program) != self._program_bytes
         ):
             raise ValueError("provider actor sealed state drifted")
+        return role_rows
 
     def invoke(
         self,
@@ -844,7 +862,7 @@ class SyntheticProviderActor:
         remaining_caps: CallContractCaps,
         absolute_deadline_ms: int,
     ) -> RawProviderObservation:
-        self._verify_seal()
+        role_rows = self._verify_seal()
         if (
             subject_role != self._subject_role
             or type(remaining_caps) is not CallContractCaps
@@ -853,7 +871,7 @@ class SyntheticProviderActor:
         ):
             raise ValueError("provider invocation differs from registered actor")
         try:
-            row = self._role_rows[self._cursor]
+            row = role_rows[self._cursor]
         except IndexError as exc:
             raise ValueError("provider actor transcript is exhausted") from exc
         if (
@@ -881,7 +899,20 @@ class SyntheticProviderActor:
             provider_event_bytes=self._payloads[row.provider_event_ref],
             completion_kind=row.completion_kind,
         )
-        object.__setattr__(self, "_cursor", self._cursor + 1)
+        cursor = self._cursor + 1
+        object.__setattr__(self, "_cursor", cursor)
+        object.__setattr__(
+            self,
+            "_seal",
+            (
+                self._subject_role,
+                self._program_sha256,
+                len(self._program_bytes),
+                role_rows,
+                cursor,
+                self._seal[-1],
+            ),
+        )
         return observation
 
 
@@ -1486,7 +1517,14 @@ def _execute_open_loop(
                     terminate(FailureKind.TIMEOUT, pending)
                     break
                 primary = counters["primary_subject"]
-                if primary.generated_tokens >= authority.prefix_caps.generated_tokens:
+                tool_token_cap = min(
+                    authority.prefix_caps.generated_tokens,
+                    authority.subject_contract_caps.aggregate_generated_tokens,
+                )
+                # Aggregate and per-call overshoot are resolved immediately after
+                # provider completion. Tools consume no generated tokens, so exact
+                # equality remains admissible while a queued tool is executed.
+                if primary.generated_tokens > tool_token_cap:
                     terminate(FailureKind.TOKEN_CAP, pending)
                     break
                 if primary.tool_calls >= authority.prefix_caps.tool_calls:

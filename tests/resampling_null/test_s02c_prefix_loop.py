@@ -16,6 +16,7 @@ from pneuma_lab.resampling_null.prefix_contracts import (
     RawProviderCompletionKind,
     RawProviderObservation,
     SyntheticClockRead,
+    load_synthetic_prefix_program,
 )
 from pneuma_lab.resampling_null.synthetic_prefix_loop import (
     REGISTERED_LOOP_DESCRIPTOR_FIELDS,
@@ -338,6 +339,15 @@ def test_discrete_caps_are_inclusive_and_block_only_the_next_action() -> None:
             contract_caps=contract_caps,
         )
         is FailureKind.NONE
+    )
+    assert (
+        _pre_dispatch_failure(
+            counters=ResourceCounters(10, 0, 0, 10),
+            parsed_turns=0,
+            prefix_caps=prefix_caps,
+            contract_caps=contract_caps,
+        )
+        is FailureKind.TOKEN_CAP
     )
     assert (
         _pre_dispatch_failure(
@@ -834,6 +844,36 @@ def test_private_loop_reaches_fourth_tool_and_closes_every_zero_cost_attempt(
         result.close()
 
 
+def test_token_cap_equality_allows_queued_tools_and_fourth_tool_trigger(
+    tmp_path: Path,
+) -> None:
+    authority = _loop_authority(tmp_path)
+    program = json.loads((tmp_path / authority.program_ref.relative_path).read_bytes())
+    generated = program["provider_transcript"][0]["reported_generated_tokens"]
+    assert isinstance(generated, int)
+    authority = replace(
+        authority,
+        prefix_caps=replace(
+            authority.prefix_caps,
+            generated_tokens=generated,
+        ),
+        subject_contract_caps=replace(
+            authority.subject_contract_caps,
+            aggregate_generated_tokens=generated,
+            per_call_generated_tokens=generated,
+        ),
+    )
+
+    result = _open_prefix_loop(run_root=tmp_path, authority=authority)
+    try:
+        assert result.primary_counters.generated_tokens == generated
+        assert result.primary_counters.tool_calls == 4
+        assert result.trigger_reason is TriggerReason.FOURTH_TOOL_CALL
+        assert result.failure_kind is FailureKind.NONE
+    finally:
+        result.close()
+
+
 def _rewrite_program(
     root: Path,
     authority: PrefixExecutionAuthority,
@@ -876,6 +916,66 @@ def test_provider_actor_has_exact_closed_invoke_surface() -> None:
         "remaining_caps",
         "absolute_deadline_ms",
     )
+
+
+def test_provider_actor_rejects_derived_row_and_cursor_drift_before_observation(
+    tmp_path: Path,
+) -> None:
+    authority = _loop_authority(tmp_path)
+    program_bytes = (tmp_path / authority.program_ref.relative_path).read_bytes()
+    program = load_synthetic_prefix_program(program_bytes)
+    row = next(
+        item
+        for item in program.provider_transcript
+        if item.subject_role == "primary_subject"
+    )
+    refs = (
+        row.expected_request_ref,
+        row.provider_event_ref,
+        *(() if row.response_ref is None else (row.response_ref,)),
+    )
+    payloads = {ref: (tmp_path / ref.relative_path).read_bytes() for ref in refs}
+    actor = SyntheticProviderActor(
+        subject_role="primary_subject",
+        program_bytes=program_bytes,
+        payloads=payloads,
+    )
+    assert row.typed_turn is not None
+    object.__setattr__(
+        actor,
+        "_role_rows",
+        (replace(row, typed_turn=replace(row.typed_turn, text="drifted")),),
+    )
+
+    with pytest.raises(ValueError, match="sealed state drifted"):
+        actor.invoke(
+            request_bytes=payloads[row.expected_request_ref],
+            dispatch_intent_sha256="d" * 64,
+            subject_role="primary_subject",
+            call_index=row.call_index,
+            seed=row.seed,
+            model_contract_sha256=row.model_contract_sha256,
+            remaining_caps=authority.subject_contract_caps,
+            absolute_deadline_ms=authority.prefix_caps.wall_clock_ms,
+        )
+
+    actor = SyntheticProviderActor(
+        subject_role="primary_subject",
+        program_bytes=program_bytes,
+        payloads=payloads,
+    )
+    object.__setattr__(actor, "_cursor", 1)
+    with pytest.raises(ValueError, match="sealed state drifted"):
+        actor.invoke(
+            request_bytes=payloads[row.expected_request_ref],
+            dispatch_intent_sha256="d" * 64,
+            subject_role="primary_subject",
+            call_index=row.call_index,
+            seed=row.seed,
+            model_contract_sha256=row.model_contract_sha256,
+            remaining_caps=authority.subject_contract_caps,
+            absolute_deadline_ms=authority.prefix_caps.wall_clock_ms,
+        )
 
 
 def test_loop_rejects_descriptor_registry_drift_before_execution(
