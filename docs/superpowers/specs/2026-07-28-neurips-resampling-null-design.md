@@ -604,23 +604,24 @@ chat template, tool schema, global guideline, persona configuration, turn cap,
 and per-call seed recorded. The controller calls the local server directly;
 the upstream run-level `UserSimulator` seed and LiteLLM `drop_params` path are
 not used. For role `user_simulator` and zero-based call index `k`, the server
-seed is derived by the same frozen frame:
+seed uses the same controller-wide frame as the primary subject:
 
 ```text
 seed_k = UINT64_FROM_BE(SHA256(FRAME(
-    "tau-user-call-seed-v1",
+    "call-seed-v1",
     [
         U64(slot_or_prefix_root_seed),
-        TEXT(task_opaque_id),
-        TEXT(branch_or_prefix_id),
+        TEXT("user_simulator"),
         U64(k),
     ],
 ))[0:8])
 ```
 
-The root seed and `k` must be in `[0, 2^64)`. The frame's strict text and length
-rules apply before a model call. No decimal stringification, alternate
-normalization, or delimiter-based concatenation is permitted.
+The root seed was derived from the schedule seed, controller task ID, and
+prefix/slot role; the receipt binds the exact schedule digest. The root seed
+and `k` must be in `[0, 2^64)`. The frame's strict text and length rules apply
+before a model call. No decimal stringification, alternate normalization, or
+delimiter-based concatenation is permitted.
 
 The persisted receipt binds call index, input token IDs, seed, output token
 IDs, tool-call bytes, model/tokenizer/template/prompt/tool-schema/container
@@ -847,6 +848,131 @@ and token-ID digests must still match.
 
 Prefix scoring and verifier execution happen on disposable clones. Their cache,
 filesystem, timing, and output cannot flow back into any focal branch.
+
+#### 5.3.1 Controller evidence authority (DL-136)
+
+The controller must prove the prefix transaction from sealed parent bytes; an
+adapter method named `grade_clone`, an arbitrary returned `ArtifactRef`, or a
+copied digest is not evidence. `run_prefix` therefore receives the sealed
+schedule ref and task ID, reloads the schedule and manifest, follows the
+manifest-pinned `provider_lane_plan_v2`, and derives the exact task, prefix
+seed, lane, caps, subject contract, optional simulator contract, parser
+contract, and meter contract internally. The selected task-lane row also pins
+the canonical task input plus closed environment, restore, grader, verifier,
+and isolation contracts. Every nested contract binds nominal implementation
+type/build, runtime/container/source revisions, task/benchmark identity, and a
+closed raw-evidence grammar; study sealing copies and validates every nested
+ref. A supplied factory or client must attest exact equality to those
+contracts. Naked `TaskSchedule`, `PrefixCaps`, task input, or structural
+factory inputs have no scientific authority.
+
+Each provider lane freezes separate primary-subject and simulator constraints.
+Primary generated-token/model-call and subject-issued tool-call ceilings define
+the causal allowance. Simulator tokens/calls have exact aggregate and per-call
+ceilings;
+simulator latency still consumes the common elapsed-wall allowance and its cost
+enters the same provider closure. Unused prefix allowance never enlarges a
+branch. A response that returns after its absolute controller deadline is a
+timeout outcome even if provider cancellation was delayed.
+
+Every primary and simulator dispatch uses the role/index-separated
+`call-seed-v1` program with the scheduled prefix or slot root. Those roots were
+already derived from the schedule seed, task ID, and prefix/slot role, and the
+call receipt is bound to the exact schedule digest. This unified rule
+supersedes the historical τ³-only `tau-user-call-seed-v1` frame. Every
+dispatch first publishes an immutable intent containing role, next consecutive
+role-local index, seed, request/input tokens, model contract, and deadline.
+The terminal attempt separately parents that intent and is published exactly
+once after completion/failure. A closed attempt union represents completion,
+refusal, malformed response, provider error, infrastructure error, timeout
+without response, and timeout with a late response. Missing response/output
+refs are legal only when no bytes arrived; partial and late evidence remains
+referenced. The controller re-tokenizes request and every available response
+under the pinned tokenizer, derives counts, and rejects any
+role/index/seed/model/token/usage mismatch. Final cost closure parents every
+dispatch intent, terminal attempt, and pinned provider settlement. Prefix
+index sealing fails until every intent has exactly one terminal attempt and
+every attempt has final cost; assignment, packet construction, analysis, and
+release cannot parent an unsettled candidate. Clients never self-certify
+ArtifactRefs.
+
+The pinned controller parser reconstructs and byte-compares the exact ordered
+tool queue from raw provider bytes; omission, insertion, reorder, duplicate
+call ID, or parser drift blocks the prefix index as pipeline-invalid. A valid
+terminal-with-remainder state is retained as adverse
+`no_intervention_opportunity` / `malformed_action` evidence in a distinct
+`terminal_unexecuted_remainder`; its branch-pending queue is empty. A
+branchable trigger has an empty terminal remainder and retains its exact
+executable queue separately. The controller owns
+the completed-tool count, cumulative `mutation_has_returned`, and boundary
+order. Each completed boundary binds the executed call ID, canonical call
+bytes, result bytes, edge-local mutation commit, state-after verifier
+eligibility, explicit episode-terminal state, failure kind, and elapsed
+evidence. After every validated result it updates cumulative state, gives
+terminal/failure/deadline checks precedence, and triggers at the first
+remaining nonterminal boundary where
+`(mutation_has_returned and verifier_eligible_after)` or the fourth
+subject-issued tool call has completed. A terminal boundary cannot retain
+branch-pending calls. Clean text-only termination comes from the environment's
+explicit terminal state; a model `finish_reason` is never sufficient.
+
+Primary/simulator model-call counters increment at dispatch, including failed
+attempts. Generated-token counters include every controller-tokenized partial
+or complete output. Completed-tool counters increment only after a validated
+boundary; attempted and pending calls remain in the ledgers. Allowance is
+checked before and after each action; crossing the absolute deadline always
+yields timeout.
+
+The controller writes one closed canonical composite snapshot envelope with
+exact schema/study/task/schedule/task-input/environment/isolation refs;
+environment bytes; distinct branch-pending and terminal-unexecuted arrays;
+visible context/digest; exact token
+IDs/digest; boundary and provider-attempt ledgers; primary/simulator counters
+and remaining quotas; cumulative mutation/terminal/failure state;
+stateless-client attestations; and runtime/container/source revisions. Every
+duplicated outer field must byte-equal the envelope. Restore reproduces
+environment bytes, queue, visible state/tokens, terminal state, and all
+interaction-dependent τ³ simulator transcript/state/RNG. Subject and simulator
+clients are stateless seeded call clients. Before any provider dispatch, a
+verified initial snapshot/fresh-restore gate must pass for the canonical task.
+Failure there is pipeline-invalid and blocks prefix sealing rather than
+deleting or adversely scoring a randomized task. Later provider/simulator/tool
+failures freeze the last verified state and retain raw clone grade/verifier
+evidence. The synthetic environment is a
+closed named type with no simulator handle. A confirmation environment can
+emit simulator context but cannot hold simulator credentials or reach its
+endpoint; only the controller can call the simulator.
+
+Grade and verifier execution each start from a separate new environment
+instance and writable root, record distinct instance/process/root and restore
+receipts, restore-check the same composite snapshot, verify visible state and
+exact token IDs, and return closed raw evidence containing no ArtifactRef. The
+controller alone stores evidence and constructs grade/verifier receipts.
+Neither transaction receives or may alias the live environment object.
+Synthetic exact types prove distinct objects/roots; confirmation requires a
+manifest-pinned no-shared-writable-state qualification.
+
+The local controller artifact store is a concrete final root-confined,
+no-follow, create-exclusive, fsynced component, not a caller protocol.
+Confirmation may use only a manifest-qualified nominal equivalent. After
+close, the controller constructs a new resolver and reopens every write,
+recomputing role, path, bytes, length, and SHA-256. The cost closure reloads
+every dispatch intent, terminal attempt, and settlement event, including
+partial/late failures, before prefix-index sealing.
+The local zero-spend path emits a typed zero-attempt/zero-cost or
+attempt-bound zero-cost closure; it does not treat missing evidence as zero.
+
+The prefix receipt records schedule-bound caps, exact token-ID and
+provider-attempt refs, the boundary ledger ref, distinct primary/simulator
+counters, and a terminal failure kind. A cap, timeout, malformed action,
+refusal, model error, or infrastructure error before a branchable boundary is
+retained as `no_intervention_opportunity` with its adverse terminal kind.
+Ordinary termination uses `none` and copies clone-derived `Y_0`. For every
+adverse no-trigger, the raw clone grade remains audit evidence but scientific
+`Y_0.success`, partial reward, and all four outcomes are forcibly zero. This
+preserves the fixed denominator without pretending operational failure is
+natural task completion or allowing a pre-failure successful snapshot to
+become a successful outcome.
 
 ### 5.4 Assignment prefix view
 

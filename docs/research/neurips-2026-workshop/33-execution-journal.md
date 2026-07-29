@@ -1055,3 +1055,21 @@ The next event after the archived migration boundary is appended below.
 - **Fresh behavior gate:** `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_controller.py -q`; GREEN, exit 0, four tests passed in 0.21 seconds.
 - **Fresh static gate:** Ruff over controller, types, exports, and the focused test passed; mypy over the three source files reported no issues; every process was capped at 60 seconds. `git diff --check` passed.
 - **Final content hashes:** controller `0f032ef5d581275abdf5d2fe07c6dabdc6ac187d59b1b0c192f4a00273b5f12c`; types `143a492b76045be7b71434e13dcc31e210235652ef0d77027784c01f958275e4`; exports `2e270d1f192a1b5fca0d22e4985689c1892f8caaf58891e641a9164c8979d5c2`; focused test `bda9b1be4e588de27cec75b320d0efb5c7458e5fa93de39f505430b993849604`.
+
+### EJ-20260729-0101 — hostile Task-5 prefix-authority stop
+
+- **Finding:** The approved pre-DL-136 `run_prefix` sketch could not prove its mandatory schedule digest or provider-cost ref, passed caller schedules/caps, let adapters self-certify counts/refs/terminal state, treated `grade_clone` and `verify_clone` names as isolation, omitted subject/simulator state from snapshots, and provided no verified create-only artifact closure. Implementing it would have made the shared causal prefix self-consistent but unauthoritative.
+- **Action boundary:** Stopped T5-S02 code before adding receipt or runner behavior. Commissioned a read-only hostile contract audit as an untrusted proposal; the root agent retained scientific and decision authority. No subprocess, provider, cloud, model, experiment, training, or spend action ran.
+
+### EJ-20260729-0102 — promote controller evidence authority into DL-136
+
+- **Authority repair:** Amended the plan and design and appended DL-136. `provider_lane_plan_v2` now pins task input, primary/simulator/parser/meter, environment/restore/grader/verifier, isolation, caps, builds, source revisions, and closed evidence grammars. The controller must derive them from sealed schedule ancestry.
+- **Execution closure:** Added immutable dispatch-intent to terminal-attempt to final-cost ancestry; complete failure/late/partial attempt states; controller tokenization; cumulative earliest-trigger state; separate terminal remainder and branch-pending queues; exact primary/simulator accounting; a closed composite snapshot; initial restore qualification; distinct grade/verify instance/process/root receipts; raw ref-free grade/verifier evidence; concrete create-exclusive fsynced storage plus fresh resolver readback; and schedule-derived prefix-index coverage.
+- **ITT correction:** Natural no-trigger copies clone-derived `Y_0`. Adverse pre-trigger failure retains raw grade/verifier audit evidence but forces scientific `Y_0.success`, partial reward, and all four outcomes to zero. This prevents a successful last snapshot from converting timeout/refusal into success.
+- **Review loop:** The first advisory review rejected caller-selected environment authority, success-only cost receipts, nominal fresh factories, ambiguous cumulative mutation, incomplete cap/parser/snapshot semantics, and schema ownership. The second rejected mutable dispatch persistence, unsettled-cost sealing, terminal queue contradiction, and caller coverage. The third found the adverse-`Y_0` contradiction. Each issue was repaired before the same reviewer approved with no remaining critical or important finding.
+
+### EJ-20260729-0103 — DL-136 authority hashes and non-claims
+
+- **Hash verification:** Plan SHA-256 `4c1e5bb3a17c887a3c0bfa8ecf917b9ea0360ab41822486283d89e9021f72a4f`; design SHA-256 `57b3ee0b8d98ec8f7c1baed5f1e4ef20554d5facb73576dac0c6820a2d23ced3`. DL-136 records those exact values; independent recomputation matched.
+- **Static gate:** `git diff --check` passed. This is docs/authority only, so no software test or scientific experiment was substituted for review.
+- **Boundary:** DL-136 authorizes no provider call, spend, confirmation run, model execution, empirical result, or claim promotion. Existing T5-S01 primitives remain implemented; provider-plan v2, receipt schema, verified evidence primitives, prefix engine, and prefix publication remain unimplemented next gates.

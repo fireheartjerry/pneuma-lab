@@ -2302,12 +2302,46 @@ outcomes, precomputed bands, and raw refs inside the capability-minimal
 `AssignmentPrefixView` are forbidden.
 
 The provider-lane plan is the closed object
-`{record_kind="provider_lane_plan_v1", schema_version="1", lanes, task_lanes}`.
+`{record_kind="provider_lane_plan_v2", schema_version="2", lanes, task_lanes}`.
 `lanes` is a non-empty authoritative array of unique rows with exactly
-zero-based contiguous `ordinal` and strict-text `lane_id`; `task_lanes` is a
-canonical task-ID-sorted complete array whose rows have exactly `task_id`,
-`prefix_lane_ordinal`, and four `lane_ordinals_by_execution_rank`. For each benchmark the
-assignment program also freezes one ordered `stratum_key` JSON-string array:
+zero-based contiguous `ordinal`, strict-text `lane_id`, closed `prefix_caps`
+and `branch_caps`, closed aggregate `simulator_caps`, and exact
+`subject_contract_ref`, `simulator_contract_ref`, `tool_parser_contract_ref`,
+and `meter_contract_ref` ArtifactRefs.
+`simulator_contract_ref` is null only for a lane whose selected tasks cannot
+invoke a user simulator. The subject and simulator contracts pin the model,
+tokenizer, template, tool schema, request/response grammar, seeded-call
+attempt grammar, stateless-client attestation, aggregate and per-call
+output/turn caps, exact nominal implementation type/build, and every
+manifest-copied source-revision ref.
+The meter contract pins the controller clock/watchdog source, cost units,
+provider-event/settlement grammar, exact nominal implementation type/build,
+and zero-cost synthetic closure. `prefix_caps` and
+`branch_caps` carry exact primary-subject generated-token/model-call,
+subject-issued tool-call, and total elapsed-wall ceilings; branch caps also
+set `pending_prefix_calls_count_against_tool_cap = true`. Simulator
+model/token counters are separately bounded by its contract and never consume
+the primary-subject generated-token/model-call ceilings. Simulator latency
+does consume the total elapsed-wall ceiling, and all subject plus simulator
+costs enter the same provider-cost closure.
+
+`task_lanes` is a canonical task-ID-sorted complete array whose rows have
+exactly `task_id`, `prefix_lane_ordinal`, four
+`lane_ordinals_by_execution_rank`, and exact `task_input_ref`,
+`environment_contract_ref`, `grader_contract_ref`,
+`verifier_contract_ref`, and `isolation_contract_ref` ArtifactRefs. Those
+closed contracts bind the canonical executable task payload, environment
+factory/build/type, snapshot/restore grammar, raw grade/verifier grammar,
+runtime/container/source revisions, and distinct-instance/process/root plus
+no-shared-writable-state isolation requirements. Study sealing follows,
+copies, byte-verifies, and grammar-validates every nested ref and requires its
+task ID/benchmark/revisions to equal the task registry and manifest. Schedule
+loading repeats those checks. `run_prefix` rejects a supplied implementation
+whose nominal type/build/qualification receipt differs from the selected
+contract; a caller cannot choose task or environment semantics.
+
+For each benchmark the assignment program also freezes one ordered
+`stratum_key` JSON-string array:
 SWE is `["benchmark","language","check_runner","failure_class",
 "finding_count_band","report_length_band"]`; TAU is
 `["benchmark","domain","evaluator_component_multiset",
@@ -3386,13 +3420,276 @@ git commit -m "feat(resampling-null): build audited verifier packets"
 
 ## Task 5: Two-stage snapshot-paired synthetic controller
 
+### DL-136 Task-5 authority amendment
+
+The original Task-5 record sketch and protocol fragments below are historical
+where they conflict with this amendment. They could dispatch a deterministic
+fixture, but they could not prove schedule ancestry, provider use/cost,
+earliest-trigger semantics, complete snapshots, verified content addressing,
+or clone isolation. Implement the corrected authority in the following
+reviewable slices:
+
+1. **T5-S02A — execution authority:** upgrade the manifest-pinned
+   `provider_lane_plan_v2` grammar and schedule loader; derive caps and exact
+   subject/simulator/meter contracts from `schedule_ref`, never a naked caller
+   value.
+2. **T5-S02B — verified evidence primitives:** add exact provider-attempt and
+   tool-boundary receipts, a read-after-write verified create-only CAS, the
+   composite snapshot envelope, and the amended pre-release
+   `resampling-prefix-receipt` v0.1.0 schema.
+3. **T5-S02C — prefix engine:** implement the controller-owned subject,
+   simulator, tool, cap, terminal, snapshot, clone-grade, and clone-verify
+   transaction against closed synthetic adapters.
+4. **T5-S02D — prefix publication:** independently reload every parent and raw
+   artifact, verify exact selected-schedule coverage and chronology, and seal
+   the prefix index before assignment or packet construction.
+
+The corrected prefix entry adds:
+
+```python
+@dataclass(frozen=True, slots=True)
+class ProviderDispatchIntent:
+    subject_role: Literal["primary_subject", "user_simulator"]
+    call_index: int
+    seed: int
+    request_ref: ArtifactRef
+    input_token_ids_ref: ArtifactRef
+    model_contract_ref: ArtifactRef
+    absolute_deadline_ms: int
+
+
+class ProviderAttemptStatus(str, Enum):
+    COMPLETED = "completed"
+    TIMEOUT_NO_RESPONSE = "timeout_no_response"
+    TIMEOUT_LATE_RESPONSE = "timeout_late_response"
+    REFUSAL = "refusal"
+    MALFORMED_RESPONSE = "malformed_response"
+    PROVIDER_ERROR = "provider_error"
+    INFRASTRUCTURE_ERROR = "infrastructure_error"
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderCallAttemptReceipt:
+    dispatch_intent_ref: ArtifactRef
+    subject_role: Literal["primary_subject", "user_simulator"]
+    call_index: int
+    seed: int
+    status: ProviderAttemptStatus
+    request_ref: ArtifactRef
+    input_token_ids_ref: ArtifactRef
+    response_ref: ArtifactRef | None
+    output_token_ids_ref: ArtifactRef | None
+    model_contract_ref: ArtifactRef
+    generated_tokens: int
+    elapsed_ms: int
+    provider_event_ref: ArtifactRef
+
+
+@dataclass(frozen=True, slots=True)
+class CompletedToolBoundaryReceipt:
+    call_id: str
+    tool_call_ref: ArtifactRef
+    tool_result_ref: ArtifactRef
+    mutation_committed: bool
+    verifier_eligible_after: bool
+    episode_terminal: bool
+    failure_kind: FailureKind
+    elapsed_ms: int
+
+
+@dataclass(frozen=True, slots=True)
+class FrozenPrefixReceipt:
+    task_id: str
+    schedule_sha256: str
+    prefix_caps: PrefixCaps
+    snapshot_ref: ArtifactRef
+    visible_context_ref: ArtifactRef
+    visible_sha256: str
+    token_ids_ref: ArtifactRef
+    token_ids_sha256: str
+    branch_pending_calls: tuple[ToolCall, ...]
+    terminal_unexecuted_remainder: tuple[ToolCall, ...]
+    trigger_reason: TriggerReason
+    terminal_failure_kind: FailureKind
+    y0_grade: GradeReceipt
+    verifier_receipt: FrozenVerifierReceipt
+    counters: ResourceCounters
+    simulator_counters: ResourceCounters
+    call_seeds: tuple[CallSeedReceipt, ...]
+    provider_attempts_ref: ArtifactRef
+    boundary_ledger_ref: ArtifactRef
+    provider_cost_ref: ArtifactRef
+```
+
+`counters.generated_tokens` and `counters.model_calls` count only primary
+subject calls; `counters.tool_calls` counts completed subject-issued tool
+calls; `counters.wall_clock_ms` is total controller-observed elapsed time and
+therefore includes simulator and tool latency. `simulator_counters` separately
+records simulator tokens/calls and repeats the same total elapsed wall value;
+its tool-call count is zero. A cap, timeout, malformed response, refusal,
+model failure, or infrastructure failure before an eligible boundary retains
+the task as `no_intervention_opportunity` with the corresponding
+`terminal_failure_kind`; ordinary clean termination uses `FailureKind.NONE`.
+Natural no-trigger stores the clone-derived `Y_0` and copies it four times.
+Adverse no-trigger retains raw clone grade and verifier evidence for audit,
+but the controller constructs scientific `y0_grade.success = 0` and
+`partial_reward = 0.0`; all four downstream outcomes copy that forced zero.
+Such outcomes are never silently retried.
+
+The authoritative entry point is:
+
+```python
+def run_prefix(
+    *,
+    run_root: Path,
+    schedule_ref: ArtifactRef,
+    task_id: str,
+    environment_factory: EnvironmentFactory,
+    subject: SeededStatelessSubject,
+    user_simulator: SeededStatelessSimulator | None,
+    artifact_store: ControllerArtifactStore,
+    monotonic_meter: MonotonicMeter,
+) -> FrozenPrefixReceipt:
+    ...
+```
+
+It byte-verifies and loads `schedule_ref`, follows the manifest's
+`provider_lane_plan_v2`, selects exactly one task/lane, and internally obtains
+the root seed, caps, exact task input, environment/restore/grader/verifier/
+parser/isolation contracts, and exact model/meter contracts. Synthetic
+execution accepts only closed named fixture implementations and byte-equal
+fixture task inputs. Confirmation accepts an adapter only after its exact
+type/build/source/runtime/task/network/credential/isolation qualification and
+contract refs are manifest-pinned and separately verified; a structural
+bring-your-own protocol is not confirmation authority.
+
+The controller supplies each primary/simulator call with the remaining
+role-specific allowance and an absolute deadline. The call returns raw
+request/response/token/provider evidence, not an `ArtifactRef`; the controller
+writes it, reads it back, recomputes bytes/hash/length, and constructs the
+attempt receipt. Before invocation it immutably publishes a
+`ProviderDispatchIntent` containing role, next consecutive role-local index,
+seed, request/input-token refs, model contract, and absolute deadline. The
+terminal `ProviderCallAttemptReceipt` separately parents that intent and is
+published exactly once after completion or failure. The closed status union
+represents completed, refusal, malformed, provider-error,
+infrastructure-error, timeout-without-response, and timeout-with-late-response
+attempts; response/output refs are conditionally null only when no bytes
+arrived. Partial bytes and partial usage remain referenced. The controller
+re-tokenizes request and every available output with the pinned tokenizer and
+derives token counts; it never trusts a client count. A returned seed, role,
+index, model contract, usage, or token stream that differs from dispatch or
+controller reconstruction rejects. A response observed after the deadline is
+a timeout outcome even if cancellation was delayed. The generic
+`call-seed-v1` frame remains authoritative for both roles: its root seed was
+already derived from the schedule seed, task ID, and prefix/slot role, and the
+receipt is bound to the exact schedule digest. This supersedes the older
+τ³-only `tau-user-call-seed-v1` prose.
+
+The pinned controller parser, not the environment, reconstructs the exact
+ordered tool-call queue from raw provider response bytes and byte-compares it
+with the typed calls. Omission, insertion, reorder, duplicate call ID, parser
+drift blocks the prefix index as pipeline-invalid. A valid terminal boundary
+with unexecuted remainder is retained exactly in
+`terminal_unexecuted_remainder` as adverse
+`no_intervention_opportunity` / `MALFORMED_ACTION` evidence;
+`branch_pending_calls` must be empty. On a branchable trigger,
+`terminal_unexecuted_remainder` is empty and `branch_pending_calls` stores the
+exact executable remainder. Work is never silently discarded.
+`EnvironmentAdapter.execute_tool`
+returns raw result bytes plus the executed `call_id`, edge-local
+`mutation_committed`, state-after
+`verifier_eligible_after`, explicit `episode_terminal`, failure kind, and
+elapsed evidence. The controller owns `mutation_has_returned` and the
+cumulative completed-tool count. After each validated completed result it
+updates those values, then gives terminal/failure and elapsed-cap checks
+precedence, then triggers at the first remaining nonterminal boundary where
+`(mutation_has_returned and verifier_eligible_after)` or
+`completed_tool_calls == 4`. The controller freezes the unexecuted queue in
+exact order. A terminal boundary cannot leave branch-pending calls.
+`EnvironmentAdapter.episode_terminal`
+separately decides clean text-only termination; model `finish_reason` alone is
+never task-terminal authority.
+
+Primary and simulator model-call counters increment at dispatch, including a
+failed or timed-out attempt. Generated-token counters include every
+controller-tokenized partial/complete output token received. Completed-tool
+counters increment only after a validated result boundary; attempted calls and
+unexecuted pending calls remain derivable from the provider and boundary
+ledgers. The controller checks remaining allowance before every dispatch or
+tool execution and total elapsed time before and after each boundary. Terminal
+or explicit provider/tool failure observed within the deadline wins over a
+later cap check; crossing the absolute deadline always yields `TIMEOUT`.
+Aggregate simulator token/call ceilings are exact fields in
+`simulator_caps`; per-call caps cannot replace them. `FailureKind` adds the
+closed `REFUSAL` member.
+
+The composite snapshot is canonical controller-owned bytes with exactly:
+schema version; study/task/schedule/task-input/environment/isolation refs;
+environment snapshot ref; branch-pending-call array;
+terminal-unexecuted-remainder array; visible-context ref and digest;
+exact token-ID ref and digest; boundary-ledger ref; provider-attempt-ledger
+ref; primary/simulator counters and remaining quotas; cumulative mutation and
+terminal/failure state; subject/simulator stateless-attestation refs; and
+runtime/container/source-revision refs. Every duplicated outer receipt field
+must be byte-equal to its envelope field. Environment restore must reproduce
+the environment bytes, pending queue, visible digest, token IDs, terminal
+state, and all interaction-dependent simulator transcript/state/RNG.
+Before the first provider dispatch, the controller must already have a
+verified initial environment snapshot and fresh-restore receipt. Failure to
+start, snapshot, or restore the selected canonical task is a pipeline-invalid
+qualification failure, not a randomized task outcome; no prefix index,
+assignment, or packet may seal. After that gate, provider/simulator/tool
+failures can always freeze the last verified state and remain fixed-denominator
+adverse outcomes. Their raw clone grade/verifier evidence remains referenced,
+but only natural no-trigger may use the clone grade as scientific `Y_0`;
+adverse no-trigger uses the forced-zero rule above.
+Subject and simulator clients must be certified stateless across calls; all
+interaction-dependent simulator transcript/state/RNG lives in the environment
+snapshot. Each grade and verifier transaction creates a new environment from
+the factory, records a distinct instance/process/root identity plus restore
+receipt, restores and byte-verifies the same composite snapshot, checks visible
+digest and exact token IDs, then emits closed raw `GradeEvidence` or
+`VerifierEvidence` containing no ArtifactRef. The controller alone stores that
+evidence and constructs `GradeReceipt`/`FrozenVerifierReceipt`. Exact
+synthetic factories must return distinct objects with disjoint writable roots;
+confirmation additionally supplies the manifest-pinned no-shared-writable-
+state qualification. Returning the live object, a singleton, or a reused root
+rejects.
+
+`ControllerArtifactStore` is a concrete final local component: root-confined,
+no-follow, create-exclusive, file-and-parent-fsynced, and incapable of
+overwrite. Confirmation may substitute only one manifest-qualified nominal
+backend with equivalent receipts. After close, the controller constructs a
+new resolver from the run root/manifest rather than accepting a caller loader;
+it reopens every artifact and requires exact role/path/hash/length/bytes
+equality. Provider-cost closure parents and reloads every dispatch intent,
+terminal attempt, and pinned provider event/settlement grammar, reconciles
+partial/late attempts, and derives exact non-negative microunits; it never
+sums client claims. Prefix-index sealing fails until every dispatch has exactly
+one terminal attempt and every attempt has one final settlement in the
+immutable `CostClosure`. Assignment, packet construction, analysis, and
+release cannot parent an unsettled prefix candidate. The
+zero-spend synthetic path still emits a typed zero-attempt/zero-cost or
+attempt-bound zero-cost closure rather than omitting it.
+The synthetic environment type has no simulator handle. Confirmation must
+additionally prove process/network isolation: the environment worker can emit
+a simulator context but cannot possess model-server credentials or reach the
+simulator endpoint.
+
 **Files:**
 
 - Create: `src/pneuma_lab/resampling_null/controller.py`
 - Create: `src/pneuma_lab/resampling_null/synthetic.py`
 - Create: `tests/resampling_null/test_controller.py`
+- Modify: `schemas/resampling-prefix-receipt.schema.json`
+- Modify: `src/pneuma_lab/resampling_null/schedule.py`
+- Modify: `src/pneuma_lab/resampling_null/artifacts.py`
 - Modify: `src/pneuma_lab/resampling_null/types.py`
 - Modify: `src/pneuma_lab/resampling_null/__init__.py`
+- Modify: `tests/resampling_null/test_artifacts.py`
+- Modify: `tests/resampling_null/test_assignment.py`
+- Modify: `tests/test_schema_loads.py`
 
 ### Step 1: Write failing controller tests
 
@@ -3460,6 +3757,7 @@ class FailureKind(str, Enum):
     TOKEN_CAP = "token_cap"
     TOOL_CAP = "tool_cap"
     TIMEOUT = "timeout"
+    REFUSAL = "refusal"
     INFRASTRUCTURE = "infrastructure"
 
 
@@ -3518,16 +3816,23 @@ class CallSeedReceipt:
 class FrozenPrefixReceipt:
     task_id: str
     schedule_sha256: str
+    prefix_caps: PrefixCaps
     snapshot_ref: ArtifactRef
     visible_context_ref: ArtifactRef
     visible_sha256: str
+    token_ids_ref: ArtifactRef
     token_ids_sha256: str
-    pending_tool_calls: tuple[ToolCall, ...]
+    branch_pending_calls: tuple[ToolCall, ...]
+    terminal_unexecuted_remainder: tuple[ToolCall, ...]
     trigger_reason: TriggerReason
+    terminal_failure_kind: FailureKind
     y0_grade: GradeReceipt
     verifier_receipt: FrozenVerifierReceipt
     counters: ResourceCounters
+    simulator_counters: ResourceCounters
     call_seeds: tuple[CallSeedReceipt, ...]
+    provider_attempts_ref: ArtifactRef
+    boundary_ledger_ref: ArtifactRef
     provider_cost_ref: ArtifactRef
 
 
@@ -3659,22 +3964,13 @@ class EnvironmentAdapter(Protocol):
     ) -> None:
         ...
 
-    def grade_clone(self, snapshot: bytes) -> "GradeReceipt":
+    def episode_terminal(self, state: "RuntimeState") -> bool:
         ...
 
-    def verify_clone(self, snapshot: bytes) -> FrozenVerifierReceipt:
+    def grade_restored(self, state: "RuntimeState") -> "RawGradeEvidence":
         ...
 
-
-class BinaryArtifactStore(Protocol):
-    def put_bytes(
-        self,
-        relative_path: str,
-        value: bytes,
-        *,
-        media_type: str,
-        role: str,
-    ) -> ArtifactRef:
+    def verify_restored(self, state: "RuntimeState") -> "RawVerifierEvidence":
         ...
 
 
@@ -3792,24 +4088,10 @@ class TaskBlock:
     pipeline_valid: bool
     validity_codes: tuple[str, ...]
 
-
-def run_prefix(
-    schedule: "TaskSchedule",
-    *,
-    environment: EnvironmentAdapter,
-    subject: Subject,
-    user_simulator: UserSimulator | None,
-    prefix_caps: "PrefixCaps",
-    artifact_store: BinaryArtifactStore,
-) -> "FrozenPrefixReceipt":
-    ...
-
-
 def seal_prefix_index(
     receipts: Sequence["FrozenPrefixReceipt"],
     *,
     schedule_ref: ArtifactRef,
-    expected_task_ids: Collection[str],
     run_root: Path,
     out: Path,
 ) -> ArtifactRef:
@@ -3971,7 +4253,9 @@ first registered eligible boundary, snapshots both runtime state and pending
 calls, records exact visible-context token IDs, scores a disposable clone, runs
 the verifier on another disposable clone, and returns a frozen task receipt
 whose raw artifacts are already content-addressed. After every task is present,
-`seal_prefix_index` verifies exact selected-schedule coverage and writes the single
+`seal_prefix_index` derives exact selected-task membership only by loading the
+byte-verified `schedule_ref`; it accepts no caller roster/coverage argument,
+verifies exact receipt coverage and order, and writes the single
 schema-valid `resampling-prefix-receipt` index.
 The orchestrator must finish all `run_prefix` calls before Task 3 materializes
 the branch assignment and Task 4 constructs packets.
@@ -4050,7 +4334,7 @@ Expected: pass.
 ### Step 5: Commit
 
 ```powershell
-git add src/pneuma_lab/resampling_null/types.py src/pneuma_lab/resampling_null/__init__.py src/pneuma_lab/resampling_null/controller.py src/pneuma_lab/resampling_null/synthetic.py tests/resampling_null/test_controller.py
+git add schemas/resampling-prefix-receipt.schema.json src/pneuma_lab/resampling_null/types.py src/pneuma_lab/resampling_null/__init__.py src/pneuma_lab/resampling_null/schedule.py src/pneuma_lab/resampling_null/artifacts.py src/pneuma_lab/resampling_null/controller.py src/pneuma_lab/resampling_null/synthetic.py tests/resampling_null/test_controller.py tests/resampling_null/test_artifacts.py tests/resampling_null/test_assignment.py tests/test_schema_loads.py
 git commit -m "feat(resampling-null): run snapshot-paired blocks"
 ```
 
