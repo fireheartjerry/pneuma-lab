@@ -19,10 +19,12 @@ from pneuma_lab.resampling_null.prefix_contracts import (
 )
 from pneuma_lab.resampling_null.synthetic_prefix_loop import (
     REGISTERED_LOOP_DESCRIPTOR_FIELDS,
+    SyntheticProviderActor,
     SyntheticTraceMeter,
     _derive_provider_status,
     _open_prefix_loop,
     _pre_dispatch_failure,
+    _pre_provider_action_failure,
     _render_request,
     _validate_provider_observation,
 )
@@ -862,6 +864,20 @@ def test_private_loop_has_no_fixture_codec_store_or_script_seam() -> None:
     )
 
 
+def test_provider_actor_has_exact_closed_invoke_surface() -> None:
+    assert tuple(inspect.signature(SyntheticProviderActor.invoke).parameters) == (
+        "self",
+        "request_bytes",
+        "dispatch_intent_sha256",
+        "subject_role",
+        "call_index",
+        "seed",
+        "model_contract_sha256",
+        "remaining_caps",
+        "absolute_deadline_ms",
+    )
+
+
 def test_loop_rejects_descriptor_registry_drift_before_execution(
     tmp_path: Path,
 ) -> None:
@@ -883,6 +899,19 @@ def test_loop_rejects_descriptor_registry_drift_before_execution(
     with pytest.raises(ValueError, match="descriptor"):
         _open_prefix_loop(run_root=tmp_path, authority=authority)
 
+    assert not (tmp_path / "prefix-environments").exists()
+
+
+def test_loop_requires_every_copied_descriptor_source_before_fixture_use(
+    tmp_path: Path,
+) -> None:
+    authority = _loop_authority(tmp_path)
+    (tmp_path / "sources" / "synthetic_prefix_loop.py").unlink()
+
+    with pytest.raises(BaseExceptionGroup, match="prefix loop") as raised:
+        _open_prefix_loop(run_root=tmp_path, authority=authority)
+
+    assert "source" in repr(raised.value.exceptions).lower()
     assert not (tmp_path / "prefix-environments").exists()
 
 
@@ -916,6 +945,7 @@ def test_token_overshoot_preserves_the_exact_known_tool_queue(
         clock = value["clock_trace"]
         assert isinstance(clock, list)
         value["clock_trace"] = clock[:3]
+        value["tool_observations"] = []
 
     authority = _rewrite_program(tmp_path, authority, mutate)
     authority = replace(
@@ -943,3 +973,47 @@ def test_token_overshoot_preserves_the_exact_known_tool_queue(
         )
     finally:
         result.close()
+
+
+def test_tool_observations_are_consumed_in_exact_program_order(
+    tmp_path: Path,
+) -> None:
+    authority = _loop_authority(tmp_path)
+
+    def mutate(value: dict[str, object]) -> None:
+        observations = value["tool_observations"]
+        assert isinstance(observations, list)
+        value["tool_observations"] = list(reversed(observations))
+
+    authority = _rewrite_program(tmp_path, authority, mutate)
+    with pytest.raises(BaseExceptionGroup, match="prefix loop failed"):
+        _open_prefix_loop(run_root=tmp_path, authority=authority)
+
+
+def test_deadline_precedes_discrete_cap_at_next_action_boundary() -> None:
+    prefix_caps = PrefixCaps(100, 1, 4, 10)
+    contract_caps = CallContractCaps(100, 1, 1, 100, 1)
+    counters = ResourceCounters(10, 1, 0, 10)
+
+    assert (
+        _pre_provider_action_failure(
+            now_ms=11,
+            deadline_ms=11,
+            counters=counters,
+            parsed_turns=1,
+            prefix_caps=prefix_caps,
+            contract_caps=contract_caps,
+        )
+        is FailureKind.TIMEOUT
+    )
+    assert (
+        _pre_provider_action_failure(
+            now_ms=10,
+            deadline_ms=11,
+            counters=counters,
+            parsed_turns=1,
+            prefix_caps=prefix_caps,
+            contract_caps=contract_caps,
+        )
+        is FailureKind.MODEL_CALL_CAP
+    )

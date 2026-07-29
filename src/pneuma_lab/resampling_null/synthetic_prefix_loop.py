@@ -37,6 +37,7 @@ from .prefix_contracts import (
     SyntheticProviderTranscriptRow,
     StableSourceProvenance,
     load_synthetic_prefix_program,
+    synthetic_prefix_program_bytes,
 )
 from .synthetic_environment import (
     InitialQualificationAuthority,
@@ -510,6 +511,34 @@ def _pre_dispatch_failure(
     return FailureKind.NONE
 
 
+def _pre_provider_action_failure(
+    *,
+    now_ms: int,
+    deadline_ms: int,
+    counters: ResourceCounters,
+    parsed_turns: int,
+    prefix_caps: PrefixCaps,
+    contract_caps: CallContractCaps,
+) -> FailureKind:
+    """Apply wall, token, then discrete pre-dispatch precedence."""
+
+    if (
+        type(now_ms) is not int
+        or type(deadline_ms) is not int
+        or now_ms < 0
+        or deadline_ms < 0
+    ):
+        raise TypeError("pre-dispatch times must be nonnegative exact integers")
+    if now_ms >= deadline_ms:
+        return FailureKind.TIMEOUT
+    return _pre_dispatch_failure(
+        counters=counters,
+        parsed_turns=parsed_turns,
+        prefix_caps=prefix_caps,
+        contract_caps=contract_caps,
+    )
+
+
 def _render_request(
     *,
     subject_role: Literal["primary_subject", "user_simulator"],
@@ -689,6 +718,28 @@ def _selected_task_bytes(authority: PrefixExecutionAuthority) -> bytes:
 
 @final
 class SyntheticProviderActor:
+    _cursor: int
+    _payloads: Mapping[ArtifactRef, bytes]
+    _program: SyntheticPrefixProgram
+    _program_bytes: bytes
+    _program_sha256: str
+    _role_rows: tuple[SyntheticProviderTranscriptRow, ...]
+    _seal: tuple[object, ...]
+    _sealed: bool
+    _subject_role: Literal["primary_subject", "user_simulator"]
+
+    __slots__ = (
+        "_cursor",
+        "_payloads",
+        "_program",
+        "_program_bytes",
+        "_program_sha256",
+        "_role_rows",
+        "_seal",
+        "_sealed",
+        "_subject_role",
+    )
+
     def __init_subclass__(cls, **kwargs: object) -> None:
         raise TypeError("SyntheticProviderActor is final")
 
@@ -696,12 +747,90 @@ class SyntheticProviderActor:
         self,
         *,
         subject_role: Literal["primary_subject", "user_simulator"],
-        program: SyntheticPrefixProgram,
+        program_bytes: bytes,
         payloads: Mapping[ArtifactRef, bytes],
     ) -> None:
-        self._subject_role = subject_role
-        self._program = program
-        self._payloads = payloads
+        if subject_role not in ("primary_subject", "user_simulator"):
+            raise ValueError("provider actor role is not registered")
+        if type(program_bytes) is not bytes:
+            raise TypeError("provider actor program_bytes must be exact bytes")
+        if not isinstance(payloads, Mapping):
+            raise TypeError("provider actor payloads must be a mapping")
+        copied_payloads: dict[ArtifactRef, bytes] = {}
+        for ref, payload in payloads.items():
+            if type(ref) is not ArtifactRef or type(payload) is not bytes:
+                raise TypeError("provider actor payload state is not exact")
+            copied_payloads[ref] = bytes(payload)
+        sealed_program = bytes(program_bytes)
+        program = load_synthetic_prefix_program(sealed_program)
+        role_rows = tuple(
+            row
+            for row in program.provider_transcript
+            if row.subject_role == subject_role
+        )
+        payload_seal = tuple(
+            sorted(
+                (
+                    ref.relative_path,
+                    ref.sha256,
+                    hashlib.sha256(payload).hexdigest(),
+                    len(payload),
+                )
+                for ref, payload in copied_payloads.items()
+            )
+        )
+        object.__setattr__(self, "_subject_role", subject_role)
+        object.__setattr__(self, "_program_bytes", sealed_program)
+        object.__setattr__(
+            self,
+            "_program_sha256",
+            hashlib.sha256(sealed_program).hexdigest(),
+        )
+        object.__setattr__(self, "_program", program)
+        object.__setattr__(self, "_role_rows", role_rows)
+        object.__setattr__(self, "_payloads", MappingProxyType(copied_payloads))
+        object.__setattr__(self, "_cursor", 0)
+        object.__setattr__(
+            self,
+            "_seal",
+            (
+                subject_role,
+                hashlib.sha256(sealed_program).hexdigest(),
+                len(sealed_program),
+                payload_seal,
+            ),
+        )
+        object.__setattr__(self, "_sealed", True)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if getattr(self, "_sealed", False):
+            raise AttributeError("SyntheticProviderActor state is sealed")
+        object.__setattr__(self, name, value)
+
+    def _verify_seal(self) -> None:
+        payload_seal = tuple(
+            sorted(
+                (
+                    ref.relative_path,
+                    ref.sha256,
+                    hashlib.sha256(payload).hexdigest(),
+                    len(payload),
+                )
+                for ref, payload in self._payloads.items()
+            )
+        )
+        observed = (
+            self._subject_role,
+            hashlib.sha256(self._program_bytes).hexdigest(),
+            len(self._program_bytes),
+            payload_seal,
+        )
+        if (
+            observed != self._seal
+            or self._program_sha256 != observed[1]
+            or synthetic_prefix_program_bytes(self._program) != self._program_bytes
+        ):
+            raise ValueError("provider actor sealed state drifted")
 
     def invoke(
         self,
@@ -714,8 +843,8 @@ class SyntheticProviderActor:
         model_contract_sha256: str,
         remaining_caps: CallContractCaps,
         absolute_deadline_ms: int,
-        transcript_position: int,
     ) -> RawProviderObservation:
+        self._verify_seal()
         if (
             subject_role != self._subject_role
             or type(remaining_caps) is not CallContractCaps
@@ -724,9 +853,9 @@ class SyntheticProviderActor:
         ):
             raise ValueError("provider invocation differs from registered actor")
         try:
-            row = self._program.provider_transcript[transcript_position]
+            row = self._role_rows[self._cursor]
         except IndexError as exc:
-            raise ValueError("provider transcript is exhausted") from exc
+            raise ValueError("provider actor transcript is exhausted") from exc
         if (
             row.subject_role,
             row.call_index,
@@ -740,7 +869,7 @@ class SyntheticProviderActor:
         response = (
             None if row.response_ref is None else self._payloads[row.response_ref]
         )
-        return RawProviderObservation(
+        observation = RawProviderObservation(
             subject_role=subject_role,
             call_index=call_index,
             seed=seed,
@@ -752,6 +881,8 @@ class SyntheticProviderActor:
             provider_event_bytes=self._payloads[row.provider_event_ref],
             completion_kind=row.completion_kind,
         )
+        object.__setattr__(self, "_cursor", self._cursor + 1)
+        return observation
 
 
 @dataclass(frozen=True, slots=True)
@@ -779,7 +910,7 @@ def _construct_components(
     return _LoopComponents(
         subject=SyntheticProviderActor(
             subject_role="primary_subject",
-            program=program,
+            program_bytes=program_bytes,
             payloads=payloads,
         ),
         simulator=(
@@ -787,7 +918,7 @@ def _construct_components(
             if authority.simulator_contract_ref is None
             else SyntheticProviderActor(
                 subject_role="user_simulator",
-                program=program,
+                program_bytes=program_bytes,
                 payloads=payloads,
             )
         ),
@@ -931,13 +1062,21 @@ def _open_prefix_loop(
     qualification: _InitialQualificationResult | None = None
     try:
         for purpose, descriptor in descriptors.items():
-            if purpose not in ("environment", "tokenizer"):
-                loop_provenances.append(
-                    StableSourceProvenance(
-                        _SOURCE_ROOT,
-                        _SOURCE_PATH_BY_PURPOSE[purpose],
-                        descriptor.implementation_source_ref,
-                    )
+            authority_provenance = StableSourceProvenance(
+                root,
+                Path(descriptor.implementation_source_ref.relative_path),
+                descriptor.implementation_source_ref,
+            )
+            loop_provenances.append(authority_provenance)
+            local_provenance = StableSourceProvenance(
+                _SOURCE_ROOT,
+                _SOURCE_PATH_BY_PURPOSE[purpose],
+                descriptor.implementation_source_ref,
+            )
+            loop_provenances.append(local_provenance)
+            if authority_provenance.payload != local_provenance.payload:
+                raise ValueError(
+                    f"{purpose} copied source differs from registered local source"
                 )
         with ControllerArtifactStore(root) as task_store:
             task_ref = task_store.write(
@@ -1030,6 +1169,7 @@ def _execute_open_loop(
     settlements: list[ProviderSettlement] = []
     boundaries: list[CompletedToolBoundaryReceipt] = []
     transcript_position = 0
+    tool_observation_position = 0
     trigger = TriggerReason.NO_INTERVENTION_OPPORTUNITY
     terminal_failure = FailureKind.NONE
     branch_pending: tuple[ToolCall, ...] = ()
@@ -1094,17 +1234,6 @@ def _execute_open_loop(
                 raise ValueError("transcript role differs from environment actor")
             role_prefix_caps, contract_caps, model_ref = role_caps(role)
             role_counter = counters[role]
-            cap_failure = _pre_dispatch_failure(
-                counters=role_counter,
-                parsed_turns=parsed_turns[role],
-                prefix_caps=role_prefix_caps,
-                contract_caps=contract_caps,
-            )
-            if contract_caps.per_call_turns == 0:
-                cap_failure = FailureKind.TURN_CAP
-            if cap_failure is not FailureKind.NONE:
-                terminate(cap_failure, ())
-                break
 
             before_label = f"before_{role}_{call_indexes[role]}"
             before = meter.read(
@@ -1112,8 +1241,21 @@ def _execute_open_loop(
                 program_sha256=program_sha256,
             )
             elapsed = max(0, before - epoch)
-            if before >= deadline:
-                terminate(FailureKind.TIMEOUT, ())
+            pre_action_failure = _pre_provider_action_failure(
+                now_ms=before,
+                deadline_ms=deadline,
+                counters=role_counter,
+                parsed_turns=parsed_turns[role],
+                prefix_caps=role_prefix_caps,
+                contract_caps=contract_caps,
+            )
+            if (
+                pre_action_failure is FailureKind.NONE
+                and contract_caps.per_call_turns == 0
+            ):
+                pre_action_failure = FailureKind.TURN_CAP
+            if pre_action_failure is not FailureKind.NONE:
+                terminate(pre_action_failure, ())
                 break
             context = (
                 handle.visible_context()
@@ -1194,7 +1336,6 @@ def _execute_open_loop(
                     turns=parsed_turns[role],
                 ),
                 absolute_deadline_ms=deadline,
-                transcript_position=transcript_position,
             )
             completion = meter.read(
                 label=f"after_{role}_{call_indexes[role]}",
@@ -1345,21 +1486,42 @@ def _execute_open_loop(
                     terminate(FailureKind.TIMEOUT, pending)
                     break
                 primary = counters["primary_subject"]
+                if primary.generated_tokens >= authority.prefix_caps.generated_tokens:
+                    terminate(FailureKind.TOKEN_CAP, pending)
+                    break
                 if primary.tool_calls >= authority.prefix_caps.tool_calls:
                     terminate(FailureKind.TOOL_CAP, pending)
                     break
+                if tool_observation_position >= len(program.tool_observations):
+                    raise ValueError("tool observation program is exhausted")
+                expected_tool = program.tool_observations[tool_observation_position]
+                if expected_tool.call_id != call.call_id:
+                    raise ValueError("tool observation order differs from parsed queue")
                 executed_id, result_bytes = handle.execute_tool(call)
-                matches = [
-                    item
-                    for item in program.tool_observations
-                    if item.call_id == call.call_id
-                ]
                 if (
-                    len(matches) != 1
-                    or executed_id != call.call_id
-                    or result_bytes != payloads[matches[0].result_ref]
+                    executed_id != call.call_id
+                    or result_bytes != payloads[expected_tool.result_ref]
                 ):
                     raise ValueError("tool result differs from sealed observation")
+                mutation = handle.mutation_committed()
+                mutation_has_returned = mutation_has_returned or mutation
+                eligible = handle.verifier_eligible()
+                terminal = handle.episode_terminal()
+                failure = handle.failure_kind()
+                if (
+                    mutation != expected_tool.mutation_committed
+                    or eligible != expected_tool.verifier_eligible
+                    or terminal != expected_tool.episode_terminal
+                    or failure is not expected_tool.failure_kind
+                ):
+                    raise ValueError(
+                        "independent tool state differs from sealed observation"
+                    )
+                completion_tool = meter.read(
+                    label=f"after_tool_{call.call_id}",
+                    program_sha256=program_sha256,
+                )
+                elapsed = max(0, completion_tool - epoch)
                 call_ref = store.write(
                     role="tool_call",
                     payload=canonical_json_bytes(_call_mapping(call), indent=None),
@@ -1370,16 +1532,6 @@ def _execute_open_loop(
                     payload=result_bytes,
                     media_type="application/octet-stream",
                 )
-                mutation = handle.mutation_committed()
-                mutation_has_returned = mutation_has_returned or mutation
-                eligible = handle.verifier_eligible()
-                terminal = handle.episode_terminal()
-                failure = handle.failure_kind()
-                completion_tool = meter.read(
-                    label=f"after_tool_{call.call_id}",
-                    program_sha256=program_sha256,
-                )
-                elapsed = max(0, completion_tool - epoch)
                 primary = ResourceCounters(
                     primary.generated_tokens,
                     primary.model_calls,
@@ -1398,6 +1550,7 @@ def _execute_open_loop(
                     elapsed_ms=elapsed,
                 )
                 boundaries.append(boundary)
+                tool_observation_position += 1
                 remainder = queue[tool_index + 1 :]
                 if failure is not FailureKind.NONE:
                     handle.terminate(failure, remainder)
@@ -1430,6 +1583,8 @@ def _execute_open_loop(
 
         if program.expected_trigger_reason is not trigger:
             raise ValueError("derived trigger differs from sealed post-hoc expectation")
+        if tool_observation_position != len(program.tool_observations):
+            raise ValueError("tool observation program has unconsumed rows")
         meter.assert_exhausted()
         final_observation = _decode_snapshot_state(handle.snapshot())
         if trigger is TriggerReason.NO_INTERVENTION_OPPORTUNITY:
