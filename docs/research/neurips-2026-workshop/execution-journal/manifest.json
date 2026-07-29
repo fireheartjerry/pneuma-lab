@@ -1,10 +1,10 @@
 {
-  "archived_original_bytes": 686661,
-  "archived_original_lines": 10419,
-  "archived_original_sha256": "ecddbb64c20323a0200131a6181215b344105ec211080703ae374e96360b618c",
-  "event_count": 468,
+  "archived_original_bytes": 749791,
+  "archived_original_lines": 10946,
+  "archived_original_sha256": "91e615b381d75cdc6b0a92c18db509a8dd8c3ff76bbc3d03afe4b91b5963ee24",
+  "event_count": 518,
   "first_event_id": "EJ-20260728-0001",
-  "last_event_id": "EJ-20260728-0468",
+  "last_event_id": "EJ-20260728-0518",
   "schema_version": 1,
   "segments": [
     {
@@ -94,6 +94,14 @@
       "lines": 212,
       "path": "events-20260728-0451-0468.md",
       "sha256": "b4650b694d1ae64110288a094a1dc315f38e7a505a2228dd16c1fe5d3ba106c4"
+    },
+    {
+      "bytes": 63130,
+      "first_event_id": "EJ-20260728-0469",
+      "last_event_id": "EJ-20260728-0518",
+      "lines": 527,
+      "path": "events-20260728-0469-0518.md",
+      "sha256": "fded85af1a8adb5a743e3fa6e89705e01033b281f2a05e19d475975b2ae8b16d"
     }
   ]
 }

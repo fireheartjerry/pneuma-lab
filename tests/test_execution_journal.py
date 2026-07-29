@@ -117,3 +117,47 @@ def test_migration_never_spans_date_boundaries_in_a_shard(
         "events-20260728-0001-0002.md",
         "events-20260729-0001-0002.md",
     ]
+
+
+def test_migration_appends_only_a_contiguous_live_prefix(tmp_path: Path) -> None:
+    journal = tmp_path / "33-execution-journal.md"
+    archive = tmp_path / "execution-journal"
+    journal.write_bytes(
+        _journal_bytes(
+            [f"EJ-20260728-{sequence:04d}" for sequence in range(1, 4)]
+        )
+    )
+    manifest_path = migrate_journal(
+        journal,
+        archive,
+        cutoff_event_id="EJ-20260728-0003",
+        shard_size=2,
+    )
+    with journal.open("ab") as stream:
+        stream.write(
+            _journal_bytes(
+                [f"EJ-20260728-{sequence:04d}" for sequence in range(4, 8)]
+            ).split(b"Keep every event.\n\n", 1)[1]
+        )
+
+    migrate_journal(
+        journal,
+        archive,
+        cutoff_event_id="EJ-20260728-0005",
+        shard_size=2,
+    )
+
+    verified = verify_journal(journal, manifest_path)
+    manifest = json.loads(manifest_path.read_text())
+    assert verified == {
+        "status": "ok",
+        "archived_sha256": manifest["archived_original_sha256"],
+        "archived_event_count": 5,
+        "current_event_count": 2,
+        "last_event_id": "EJ-20260728-0007",
+    }
+    assert manifest["segments"][-1]["path"] == (
+        "events-20260728-0004-0005.md"
+    )
+    assert "### EJ-20260728-0004 " not in journal.read_text()
+    assert "### EJ-20260728-0006 " in journal.read_text()

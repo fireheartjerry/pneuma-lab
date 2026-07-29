@@ -156,6 +156,163 @@ The next event after the archived migration boundary is appended below.
 """.encode()
 
 
+def _event_segment_payloads(
+    payload: bytes,
+    events: list[Event],
+    *,
+    shard_size: int,
+    final_offset: int | None = None,
+) -> list[tuple[dict[str, Any], bytes]]:
+    groups: list[list[Event]] = []
+    for event in events:
+        if groups and (
+            len(groups[-1]) == shard_size or groups[-1][0].date != event.date
+        ):
+            groups.append([])
+        if not groups:
+            groups.append([])
+        groups[-1].append(event)
+    event_index = {event.event_id: index for index, event in enumerate(events)}
+    result: list[tuple[dict[str, Any], bytes]] = []
+    for group in groups:
+        start = group[0].offset
+        next_index = event_index[group[-1].event_id] + 1
+        end = (
+            events[next_index].offset
+            if next_index < len(events)
+            else (len(payload) if final_offset is None else final_offset)
+        )
+        segment = payload[start:end]
+        path = (
+            f"events-{group[0].date}-{group[0].sequence:04d}-"
+            f"{group[-1].sequence:04d}.md"
+        )
+        result.append(
+            (
+                _segment_record(
+                    path=path,
+                    payload=segment,
+                    first_event_id=group[0].event_id,
+                    last_event_id=group[-1].event_id,
+                ),
+                segment,
+            )
+        )
+    return result
+
+
+def _replace_bytes(path: Path, payload: bytes, *, mode: int) -> None:
+    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}")
+    if temporary.exists():
+        raise JournalIntegrityError(f"temporary path already exists: {temporary}")
+    with temporary.open("xb") as stream:
+        stream.write(payload)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.chmod(temporary, mode)
+    os.replace(temporary, path)
+
+
+def _append_journal_archive(
+    journal_path: Path,
+    archive_dir: Path,
+    *,
+    cutoff_event_id: str,
+    shard_size: int,
+) -> Path:
+    manifest_path = archive_dir / "manifest.json"
+    verify_journal(journal_path, manifest_path)
+    manifest_bytes = manifest_path.read_bytes()
+    manifest = json.loads(manifest_bytes)
+    live = journal_path.read_bytes()
+    events = _events(live)
+    cutoff_index = next(
+        (
+            index
+            for index, event in enumerate(events)
+            if event.event_id == cutoff_event_id
+        ),
+        None,
+    )
+    if cutoff_index is None:
+        raise JournalIntegrityError(
+            f"cutoff {cutoff_event_id} is not in the current volume"
+        )
+    selected = events[: cutoff_index + 1]
+    if not selected:
+        raise JournalIntegrityError("append migration selected no events")
+    expected_previous = manifest["last_event_id"]
+    _require_contiguous(
+        [
+            Event(
+                event_id=expected_previous,
+                date=expected_previous.split("-")[1],
+                sequence=int(expected_previous.rsplit("-", 1)[1]),
+                offset=0,
+            ),
+            selected[0],
+        ]
+    )
+    tail_offset = (
+        events[cutoff_index + 1].offset
+        if cutoff_index + 1 < len(events)
+        else len(live)
+    )
+    additions = _event_segment_payloads(
+        live,
+        selected,
+        shard_size=shard_size,
+        final_offset=tail_offset,
+    )
+    existing_paths = {
+        cast_segment["path"] for cast_segment in manifest["segments"]
+    }
+    if any(record["path"] in existing_paths for record, _payload in additions):
+        raise JournalIntegrityError("append migration segment path collision")
+
+    existing_payloads = [
+        (archive_dir / segment["path"]).read_bytes()
+        for segment in manifest["segments"]
+    ]
+    reconstructed = b"".join(
+        existing_payloads + [payload for _record, payload in additions]
+    )
+    updated = dict(manifest)
+    updated["last_event_id"] = selected[-1].event_id
+    updated["event_count"] = manifest["event_count"] + len(selected)
+    updated["archived_original_bytes"] = len(reconstructed)
+    updated["archived_original_lines"] = _line_count(reconstructed)
+    updated["archived_original_sha256"] = _sha256(reconstructed)
+    updated["segments"] = manifest["segments"] + [
+        record for record, _payload in additions
+    ]
+    updated_manifest_bytes = (
+        json.dumps(updated, indent=2, sort_keys=True) + "\n"
+    ).encode()
+    updated_live = _live_index(updated) + live[tail_offset:]
+    journal_mode = stat.S_IMODE(journal_path.stat().st_mode)
+    manifest_mode = stat.S_IMODE(manifest_path.stat().st_mode)
+    installed: list[Path] = []
+    try:
+        for record, payload in additions:
+            path = archive_dir / record["path"]
+            with path.open("xb") as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            installed.append(path)
+        _replace_bytes(manifest_path, updated_manifest_bytes, mode=manifest_mode)
+        _replace_bytes(journal_path, updated_live, mode=journal_mode)
+        verify_journal(journal_path, manifest_path)
+    except BaseException:
+        _replace_bytes(manifest_path, manifest_bytes, mode=manifest_mode)
+        _replace_bytes(journal_path, live, mode=journal_mode)
+        for path in reversed(installed):
+            path.unlink(missing_ok=True)
+        raise
+    return manifest_path
+
+
 def migrate_journal(
     journal_path: Path,
     archive_dir: Path,
@@ -163,11 +320,16 @@ def migrate_journal(
     cutoff_event_id: str,
     shard_size: int = 50,
 ) -> Path:
-    """Archive the entire current journal and replace it with a live index."""
+    """Create or append a byte-verifiable archive and rotate the live prefix."""
     if shard_size < 1:
         raise JournalIntegrityError("shard_size must be positive")
     if archive_dir.exists():
-        raise JournalIntegrityError(f"archive path already exists: {archive_dir}")
+        return _append_journal_archive(
+            journal_path,
+            archive_dir,
+            cutoff_event_id=cutoff_event_id,
+            shard_size=shard_size,
+        )
 
     original = journal_path.read_bytes()
     events = _events(original)
@@ -191,36 +353,9 @@ def migrate_journal(
             prologue,
         )
     )
-    groups: list[list[Event]] = []
-    for event in events:
-        if groups and (
-            len(groups[-1]) == shard_size or groups[-1][0].date != event.date
-        ):
-            groups.append([])
-        if not groups:
-            groups.append([])
-        groups[-1].append(event)
-    event_index = {event.event_id: index for index, event in enumerate(events)}
-    for group in groups:
-        start = group[0].offset
-        next_index = event_index[group[-1].event_id] + 1
-        end = events[next_index].offset if next_index < len(events) else len(original)
-        payload = original[start:end]
-        path = (
-            f"events-{group[0].date}-{group[0].sequence:04d}-"
-            f"{group[-1].sequence:04d}.md"
-        )
-        segment_payloads.append(
-            (
-                _segment_record(
-                    path=path,
-                    payload=payload,
-                    first_event_id=group[0].event_id,
-                    last_event_id=group[-1].event_id,
-                ),
-                payload,
-            )
-        )
+    segment_payloads.extend(
+        _event_segment_payloads(original, events, shard_size=shard_size)
+    )
 
     reconstructed = b"".join(payload for _, payload in segment_payloads)
     if reconstructed != original:
