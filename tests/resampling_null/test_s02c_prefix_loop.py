@@ -667,14 +667,28 @@ def _loop_authority(root: Path) -> PrefixExecutionAuthority:
         root,
         role="tool_schema",
         name="tools.json",
-        payload=canonical_json_bytes({"tools": [{"name": "read"}]}, indent=None),
+        payload=canonical_json_bytes(
+            {
+                "record_kind": "synthetic_tool_schema_asset_v1",
+                "schema_version": "1",
+                "tools": [{"name": "read"}],
+            },
+            indent=None,
+        ),
         media_type="application/json",
     )
     grade_ref = _write_source(
         root,
         role="synthetic_grade_result",
         name="grade.json",
-        payload=canonical_json_bytes({"success": 0}, indent=None),
+        payload=canonical_json_bytes(
+            {
+                "success": 0,
+                "partial_reward": 0.0,
+                "infrastructure_failure": False,
+            },
+            indent=None,
+        ),
         media_type="application/json",
     )
     verifier_ref = _write_source(

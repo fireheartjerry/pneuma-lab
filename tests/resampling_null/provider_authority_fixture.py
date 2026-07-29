@@ -56,6 +56,9 @@ def _build_provider_authority_fixture(
     scheduled_lane: str = "lane-0",
     requires_simulator: bool = True,
     foreign_requires_simulator: bool | None = None,
+    foreign_task_input_extra: bool = False,
+    foreign_environment_extra: bool = False,
+    foreign_grade_partial_reward: float | None = None,
     simulator_present: bool = True,
     simulator_aggregate_generated_tokens: int = 40,
     lane_simulator_aggregate_generated_tokens: int | None = None,
@@ -112,12 +115,20 @@ def _build_provider_authority_fixture(
 
     deep_leaf_ref = blob(
         "sources/deep-leaf.json",
-        {"leaf": "authority"},
+        {
+            "record_kind": "synthetic_deep_authority_leaf_v1",
+            "schema_version": "1",
+            "value_id": "authority",
+        },
         role="deep_authority_asset",
     )
     deep_ref = blob(
         "sources/deep.json",
-        {"nested_ref": ref_value(deep_leaf_ref)},
+        {
+            "record_kind": "synthetic_deep_authority_link_v1",
+            "schema_version": "1",
+            "nested_ref": ref_value(deep_leaf_ref),
+        },
         role="deep_authority_asset",
     )
     revision_ref = blob(
@@ -149,37 +160,65 @@ def _build_provider_authority_fixture(
         loop_revision_ref = revision_ref
     tokenizer_ref = blob(
         "sources/tokenizer.json",
-        {"tokenizer": "fixture-v1"},
+        {
+            "record_kind": "synthetic_tokenizer_asset_v1",
+            "schema_version": "1",
+            "tokenizer_id": "fixture-v1",
+        },
         role="tokenizer",
     )
     prompt_ref = blob(
         "sources/prompt.json",
-        {"template": "fixture-v1"},
+        {
+            "record_kind": "synthetic_prompt_template_asset_v1",
+            "schema_version": "1",
+            "template_id": "fixture-v1",
+        },
         role="prompt_template",
     )
     tool_schema_ref = blob(
         "sources/tools.json",
-        {"tools": [{"name": name} for name in tool_names]},
+        {
+            "record_kind": "synthetic_tool_schema_asset_v1",
+            "schema_version": "1",
+            "tools": [{"name": name} for name in tool_names],
+        },
         role="tool_schema",
     )
     alternate_tool_schema_ref = blob(
         "sources/tools-alternate.json",
-        {"tools": [{"name": "drift"}]},
+        {
+            "record_kind": "synthetic_tool_schema_asset_v1",
+            "schema_version": "1",
+            "tools": [{"name": "drift"}],
+        },
         role="tool_schema",
     )
     clock_ref = blob(
         "sources/clock.txt",
-        {"clock": "fixture-v1"},
+        {
+            "record_kind": "synthetic_clock_asset_v1",
+            "schema_version": "1",
+            "clock_id": "fixture-v1",
+        },
         role="clock_source",
     )
     watchdog_ref = blob(
         "sources/watchdog.txt",
-        {"watchdog": "fixture-v1"},
+        {
+            "record_kind": "synthetic_watchdog_asset_v1",
+            "schema_version": "1",
+            "watchdog_id": "fixture-v1",
+        },
         role="watchdog_source",
     )
     qualification_ref = blob(
         "sources/qualification.json",
-        {"qualification": "fixture-v1"},
+        {
+            "record_kind": "synthetic_isolation_qualification_asset_v1",
+            "schema_version": "1",
+            "qualification_id": "fixture-v1",
+        },
         role="isolation_qualification",
     )
     synthetic_grade_ref = blob(
@@ -390,6 +429,12 @@ def _build_provider_authority_fixture(
             ),
         ),
     ):
+        program_partial_reward = (
+            foreign_grade_partial_reward
+            if task_id == "task-foreign"
+            and foreign_grade_partial_reward is not None
+            else 0.0
+        )
         program_ref = blob(
             f"sources/{task_id}-program.json",
             {
@@ -403,7 +448,7 @@ def _build_provider_authority_fixture(
                 "grade_result": {
                     "evidence_ref": ref_value(synthetic_grade_ref),
                     "success": 0,
-                    "partial_reward": 0.0,
+                    "partial_reward": program_partial_reward,
                     "infrastructure_failure": False,
                 },
                 "verifier_result": {
@@ -424,20 +469,23 @@ def _build_provider_authority_fixture(
             },
             role="synthetic_execution_program",
         )
+        task_input: dict[str, object] = {
+            "record_kind": "prefix_task_input_v1",
+            "schema_version": "1",
+            "task_id": task_id,
+            "benchmark": "swe",
+            "requires_user_simulator": task_requires_simulator,
+            "synthetic_execution_program_ref": ref_value(program_ref),
+            "canonical_task_payload": {
+                "instruction": task_id,
+                "deep_ref": ref_value(deep_ref),
+            },
+        }
+        if task_id == "task-foreign" and foreign_task_input_extra:
+            task_input["open"] = True
         task_input_ref = blob(
             f"sources/{task_id}-input.json",
-            {
-                "record_kind": "prefix_task_input_v1",
-                "schema_version": "1",
-                "task_id": task_id,
-                "benchmark": "swe",
-                "requires_user_simulator": task_requires_simulator,
-                "synthetic_execution_program_ref": ref_value(program_ref),
-                "canonical_task_payload": {
-                    "instruction": task_id,
-                    "deep_ref": ref_value(deep_ref),
-                },
-            },
+            task_input,
             role="task_input",
         )
         contract_refs: dict[str, ArtifactRef] = {}
@@ -553,6 +601,12 @@ def _build_provider_authority_fixture(
                         "qualification_ref": ref_value(qualification_ref),
                     }
                 )
+            if (
+                task_id == "task-foreign"
+                and kind == "environment"
+                and foreign_environment_extra
+            ):
+                common["open"] = True
             contract_refs[kind] = blob(
                 f"sources/{task_id}-{kind}.json",
                 common,

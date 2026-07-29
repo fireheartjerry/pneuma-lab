@@ -1,4 +1,5 @@
 from dataclasses import asdict, fields, replace
+import hashlib
 import inspect
 import json
 import os
@@ -7,6 +8,9 @@ from pathlib import Path
 import pytest
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
+import pneuma_lab.resampling_null.authority_refs as authority_refs
+import pneuma_lab.resampling_null.controller_artifacts as controller_artifacts
+from pneuma_lab.resampling_null.authority_refs import AuthorityRefReader
 from pneuma_lab.resampling_null.controller_artifacts import (
     ControllerArtifactResolver,
     ControllerArtifactStore,
@@ -34,6 +38,7 @@ from pneuma_lab.resampling_null.execution_authority import (
     load_prefix_execution_authority,
 )
 from pneuma_lab.resampling_null.prefix_contracts import (
+    AUTHORITY_ASSET_ROLE_MEDIA,
     CONTROLLER_ROLE_MEDIA,
     load_initial_restore_qualification_receipt,
     load_prefix_candidate_receipt,
@@ -42,6 +47,8 @@ from pneuma_lab.resampling_null.prefix_contracts import (
 )
 import pneuma_lab.resampling_null.synthetic_prefix_loop as prefix_loop
 import pneuma_lab.resampling_null.prefix_contracts as prefix_contracts
+import pneuma_lab.resampling_null.scientific_records as scientific_records
+from pneuma_lab.resampling_null.scientific_records import ScientificRefReader
 from pneuma_lab.resampling_null.synthetic_prefix_loop import (
     _controller_nested_refs,
     _fresh_reload_candidate_graph,
@@ -127,20 +134,20 @@ def test_t5_s02cd_closes_one_transferred_store_before_fresh_reload(
     events: list[str] = []
     close_count_after_loop = [0]
     original_close = ControllerArtifactStore.close
-    original_resolve = ControllerArtifactResolver.resolve
+    original_resolve = ControllerArtifactResolver.resolve_bound
     original_open = prefix_loop._open_prefix_loop
 
     def close(self: ControllerArtifactStore) -> None:
         events.append("store-close")
         original_close(self)
 
-    def resolve(
+    def resolve_bound(
         self: ControllerArtifactResolver,
         ref: ArtifactRef,
         *,
         expected_role: str,
         expected_media_type: str,
-    ) -> bytes:
+    ):
         events.append(f"resolve:{ref.role}")
         assert events.count("store-close") == close_count_after_loop[0] + 1
         return original_resolve(
@@ -156,7 +163,11 @@ def test_t5_s02cd_closes_one_transferred_store_before_fresh_reload(
         return opened
 
     monkeypatch.setattr(ControllerArtifactStore, "close", close)
-    monkeypatch.setattr(ControllerArtifactResolver, "resolve", resolve)
+    monkeypatch.setattr(
+        ControllerArtifactResolver,
+        "resolve_bound",
+        resolve_bound,
+    )
     monkeypatch.setattr(prefix_loop, "_open_prefix_loop", open_loop)
 
     candidate_ref = run_prefix(
@@ -452,6 +463,413 @@ def test_t5_s02cd_authority_leaf_decoders_reject_opaque_json_shapes() -> None:
         )
     with pytest.raises((TypeError, ValueError)):
         prefix_contracts.load_synthetic_tool_result_payload(b'{"call_id":false}\n')
+
+
+@pytest.mark.parametrize(
+    ("role", "record_kind", "payload_field", "payload_value"),
+    [
+        ("tokenizer", "synthetic_tokenizer_asset_v1", "tokenizer_id", "byte-v1"),
+        (
+            "prompt_template",
+            "synthetic_prompt_template_asset_v1",
+            "template_id",
+            "prompt-v1",
+        ),
+        (
+            "tool_schema",
+            "synthetic_tool_schema_asset_v1",
+            "tools",
+            [{"name": "read"}],
+        ),
+        ("clock_source", "synthetic_clock_asset_v1", "clock_id", "clock-v1"),
+        (
+            "watchdog_source",
+            "synthetic_watchdog_asset_v1",
+            "watchdog_id",
+            "watchdog-v1",
+        ),
+        (
+            "isolation_qualification",
+            "synthetic_isolation_qualification_asset_v1",
+            "qualification_id",
+            "isolation-v1",
+        ),
+        (
+            "deep_authority_asset",
+            "synthetic_deep_authority_leaf_v1",
+            "value_id",
+            "leaf-v1",
+        ),
+    ],
+)
+def test_t5_s02cd_promoted_authority_decoders_are_closed_and_typed(
+    role: str,
+    record_kind: str,
+    payload_field: str,
+    payload_value: object,
+) -> None:
+    valid = {
+        "record_kind": record_kind,
+        "schema_version": "1",
+        payload_field: payload_value,
+    }
+    decoded = prefix_contracts.load_promoted_authority_asset(
+        role=role,
+        payload=canonical_json_bytes(valid, indent=None),
+    )
+    assert decoded.role == role
+    for bad in (
+        {**valid, "extra": True},
+        {**valid, "record_kind": "wrong"},
+        {**valid, payload_field: False},
+    ):
+        with pytest.raises((TypeError, ValueError)):
+            prefix_contracts.load_promoted_authority_asset(
+                role=role,
+                payload=canonical_json_bytes(bad, indent=None),
+            )
+
+
+def test_t5_s02cd_authority_decoder_registry_has_no_fallback() -> None:
+    assert set(prefix_loop.AUTHORITY_ASSET_DECODER_BY_ROLE) == set(
+        AUTHORITY_ASSET_ROLE_MEDIA
+    )
+    assert len(AUTHORITY_ASSET_ROLE_MEDIA) == 26
+
+
+def test_t5_s02cd_deep_authority_link_is_closed_and_same_role() -> None:
+    nested = ArtifactRef(
+        "deep_authority_asset",
+        "sources/deep-leaf.json",
+        "a" * 64,
+        1,
+        "application/json",
+    )
+    link = {
+        "record_kind": "synthetic_deep_authority_link_v1",
+        "schema_version": "1",
+        "nested_ref": asdict(nested),
+    }
+    decoded = prefix_contracts.load_promoted_authority_asset(
+        role="deep_authority_asset",
+        payload=canonical_json_bytes(link, indent=None),
+    )
+    assert decoded.nested_refs == (nested,)
+    with pytest.raises(ValueError, match="deep_authority_asset"):
+        prefix_contracts.load_promoted_authority_asset(
+            role="deep_authority_asset",
+            payload=canonical_json_bytes(
+                {
+                    **link,
+                    "nested_ref": {
+                        **asdict(nested),
+                        "role": "tool_schema",
+                    },
+                },
+                indent=None,
+            ),
+        )
+
+
+def test_t5_s02cd_authority_read_binds_bytes_and_inode_on_same_fd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "run"
+    source = root / "sources" / "asset.json"
+    source.parent.mkdir(parents=True)
+    payload = b'{"record_kind":"x"}\n'
+    source.write_bytes(payload)
+    ref = ArtifactRef(
+        "deep_authority_asset",
+        "sources/asset.json",
+        hashlib.sha256(payload).hexdigest(),
+        len(payload),
+        "application/json",
+    )
+    replacement = root / "replacement.json"
+    replacement.write_bytes(payload)
+    original_stat = authority_refs.os.stat
+    swapped = [False]
+
+    def stat(path, *args, **kwargs):
+        if path == "asset.json" and kwargs.get("dir_fd") is not None and not swapped[0]:
+            swapped[0] = True
+            os.replace(replacement, source)
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(authority_refs.os, "stat", stat)
+    with AuthorityRefReader(root) as reader:
+        with pytest.raises(ValueError, match="identity changed"):
+            reader.read_bound(ref)
+
+
+def test_t5_s02cd_authority_reader_aggregates_traversal_and_close_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "run"
+    (root / "sources").mkdir(parents=True)
+    reader = AuthorityRefReader(root)
+    original_close = authority_refs.os.close
+
+    with pytest.raises(BaseExceptionGroup) as captured:
+        with reader:
+            root_descriptor = reader._root_descriptor
+
+            def close(descriptor: int) -> None:
+                if descriptor == root_descriptor:
+                    original_close(descriptor)
+                    raise OSError("injected reader close failure")
+                original_close(descriptor)
+
+            monkeypatch.setattr(authority_refs.os, "close", close)
+            raise ValueError("injected traversal failure")
+
+    assert [type(item) for item in captured.value.exceptions] == [
+        ValueError,
+        OSError,
+    ]
+    assert reader._root_descriptor is None
+
+
+def test_t5_s02cd_controller_reader_aggregates_traversal_and_close_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "run"
+    root.mkdir()
+    with ControllerArtifactStore(root):
+        pass
+    resolver = ControllerArtifactResolver(root)
+    original_close = controller_artifacts.os.close
+
+    with pytest.raises(BaseExceptionGroup) as captured:
+        with resolver:
+            owned = {
+                resolver._root_descriptor,
+                resolver._artifact_descriptor,
+            }
+
+            def close(descriptor: int) -> None:
+                original_close(descriptor)
+                if descriptor in owned:
+                    raise OSError(f"injected close failure {descriptor}")
+
+            monkeypatch.setattr(controller_artifacts.os, "close", close)
+            raise ValueError("injected traversal failure")
+
+    assert [type(item) for item in captured.value.exceptions] == [
+        ValueError,
+        OSError,
+        OSError,
+    ]
+    assert resolver._root_descriptor is None
+    assert resolver._artifact_descriptor is None
+
+
+def test_t5_s02cd_scientific_reader_aggregates_traversal_and_close_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "run"
+    root.mkdir()
+    reader = ScientificRefReader(root)
+    original_close = scientific_records.os.close
+
+    with pytest.raises(BaseExceptionGroup) as captured:
+        with reader:
+            root_descriptor = reader._root_descriptor
+
+            def close(descriptor: int) -> None:
+                original_close(descriptor)
+                if descriptor == root_descriptor:
+                    raise OSError("injected scientific close failure")
+
+            monkeypatch.setattr(scientific_records.os, "close", close)
+            raise ValueError("injected traversal failure")
+
+    assert [type(item) for item in captured.value.exceptions] == [
+        ValueError,
+        OSError,
+    ]
+    assert reader._root_descriptor is None
+
+
+def test_t5_s02cd_controller_read_binds_bytes_and_inode_on_same_fd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "run"
+    root.mkdir()
+    payload = b"controller bytes"
+    with ControllerArtifactStore(root) as store:
+        ref = store.write(
+            role="provider_response",
+            payload=payload,
+            media_type="application/octet-stream",
+        )
+    replacement = root / "replacement.bin"
+    replacement.write_bytes(payload)
+    target = root / ref.relative_path
+    original_stat = controller_artifacts.os.stat
+    swapped = [False]
+
+    def stat(path, *args, **kwargs):
+        if path == ref.sha256 and kwargs.get("dir_fd") is not None and not swapped[0]:
+            swapped[0] = True
+            os.replace(replacement, target)
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(controller_artifacts.os, "stat", stat)
+    with ControllerArtifactResolver(root) as resolver:
+        with pytest.raises(ValueError, match="identity changed"):
+            resolver.resolve_bound(
+                ref,
+                expected_role=ref.role,
+                expected_media_type=ref.media_type,
+            )
+
+
+def test_t5_s02cd_scientific_read_binds_bytes_and_inode_on_same_fd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "run"
+    fixture = ProviderAuthorityFixture.build(root)
+    ref = fixture.schedule_ref
+    target = root / ref.relative_path
+    replacement = root / "replacement.json"
+    replacement.write_bytes(target.read_bytes())
+    original_stat = scientific_records.os.stat
+    swapped = [False]
+
+    def stat(path, *args, **kwargs):
+        if (
+            path == ref.relative_path
+            and kwargs.get("dir_fd") is not None
+            and not swapped[0]
+        ):
+            swapped[0] = True
+            os.replace(replacement, target)
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(scientific_records.os, "stat", stat)
+    with ScientificRefReader(root) as reader:
+        with pytest.raises(ValueError, match="identity changed"):
+            reader.read_bound(ref)
+
+
+@pytest.mark.parametrize(
+    "fixture_kwargs",
+    [
+        {"foreign_task_input_extra": True},
+        {"foreign_environment_extra": True},
+    ],
+)
+def test_t5_s02cd_open_foreign_task_or_contract_is_rejected(
+    tmp_path: Path,
+    fixture_kwargs: dict[str, object],
+) -> None:
+    fixture = ProviderAuthorityFixture.build(
+        tmp_path / "run",
+        **fixture_kwargs,
+    )
+    with pytest.raises(ValueError, match="open or incomplete shape"):
+        load_prefix_execution_authority(
+            run_root=tmp_path / "run",
+            schedule_ref=fixture.schedule_ref,
+            task_id="task-1",
+        )
+
+
+def test_t5_s02cd_shared_grade_ref_is_checked_per_program_occurrence(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "run"
+    fixture = ProviderAuthorityFixture.build(
+        root,
+        executable_sources=True,
+        requires_simulator=False,
+        simulator_present=False,
+        foreign_grade_partial_reward=0.5,
+    )
+    with pytest.raises(BaseExceptionGroup) as captured:
+        run_prefix(
+            run_root=root,
+            schedule_ref=fixture.schedule_ref,
+            task_id="task-1",
+        )
+    assert captured.value.subgroup(
+        lambda error: isinstance(error, ValueError)
+        and "grade evidence fields differ" in str(error)
+    ) is not None
+
+
+@pytest.mark.parametrize(
+    "grade_value",
+    [
+        {
+            "success": False,
+            "partial_reward": 0.0,
+            "infrastructure_failure": False,
+        },
+        {"success": 0, "infrastructure_failure": False},
+        {
+            "success": 0,
+            "partial_reward": 0.0,
+            "infrastructure_failure": False,
+            "extra": 0,
+        },
+        {
+            "success": 0,
+            "partial_reward": 0,
+            "infrastructure_failure": False,
+        },
+    ],
+)
+def test_t5_s02cd_grade_decodes_direct_exact_values(
+    tmp_path: Path,
+    grade_value: object,
+) -> None:
+    authority = _loop_authority(tmp_path)
+    opened = prefix_loop._open_prefix_loop(run_root=tmp_path, authority=authority)
+    try:
+        grade_bytes = canonical_json_bytes(grade_value, indent=None)
+        with pytest.raises((TypeError, ValueError)):
+            prefix_loop.SyntheticGradeCodec().decode(
+                payload=grade_bytes,
+                program=opened._program,
+                expected_payload=grade_bytes,
+            )
+    finally:
+        opened.close()
+
+
+@pytest.mark.parametrize(
+    "verifier_value",
+    [
+        {"finding_count": False},
+        {},
+        {"finding_count": 0, "extra": 0},
+    ],
+)
+def test_t5_s02cd_verifier_decodes_direct_exact_values(
+    tmp_path: Path,
+    verifier_value: object,
+) -> None:
+    authority = _loop_authority(tmp_path)
+    opened = prefix_loop._open_prefix_loop(run_root=tmp_path, authority=authority)
+    try:
+        verifier_bytes = canonical_json_bytes(verifier_value, indent=None)
+        with pytest.raises((TypeError, ValueError)):
+            prefix_loop.SyntheticVerifierCodec().decode(
+                payload=verifier_bytes,
+                program=opened._program,
+                expected_payload=verifier_bytes,
+            )
+    finally:
+        opened.close()
 
 
 def test_t5_s02cd_reloaded_provider_and_tool_records_reject_cross_wiring(

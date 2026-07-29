@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal, cast
@@ -13,6 +14,7 @@ from .preflight import validate_task_registry
 from .prefix_contracts import (
     AUTHORITY_ASSET_ROLE_MEDIA,
     ImplementationDescriptor,
+    PRODUCTION_VALIDATED_AUTHORITY_ROLES,
 )
 from .provider_contracts import (
     ValidatedProviderPlan,
@@ -291,11 +293,12 @@ def _project_task_authority(
     )
 
 
-def load_prefix_execution_authority(
+def _load_prefix_execution_authority_with_reader(
     *,
     run_root: Path,
     schedule_ref: ArtifactRef,
     task_id: str,
+    reader: AuthorityRefReader,
 ) -> PrefixExecutionAuthority:
     """Reconstruct one selected task's execution policy from sealed ancestry."""
 
@@ -345,7 +348,7 @@ def load_prefix_execution_authority(
         field="selected schedule task",
     )
     manifest_payload = cast(dict[str, object], manifest.value["payload"])
-    with AuthorityRefReader(root) as reader:
+    with nullcontext(reader):
         registry_ref = decode_artifact_ref(
             manifest_payload["task_registry_ref"],
             field="manifest task_registry_ref",
@@ -363,6 +366,7 @@ def load_prefix_execution_authority(
         ):
             raise RecordValidationError("task registry has wrong shape or identity")
         validate_task_registry(registry)
+        reader.mark_semantically_validated(registry_ref)
         _validate_registry_binding(
             selected,
             registry,
@@ -411,6 +415,38 @@ def load_prefix_execution_authority(
             schedule_authority=schedule_authority,
             require_execution_program=True,
         )
+        validated_refs = {
+            provider_ref,
+            *(
+                ref
+                for lane in validated_plan.lanes
+                for ref in (
+                    lane.subject_contract_ref,
+                    lane.tool_parser_contract_ref,
+                    lane.meter_contract_ref,
+                    *(
+                        ()
+                        if lane.simulator_contract_ref is None
+                        else (lane.simulator_contract_ref,)
+                    ),
+                )
+            ),
+            *(
+                ref
+                for row in validated_plan.task_lanes
+                for ref in (
+                    row.task_input_ref,
+                    row.environment_contract_ref,
+                    row.grader_contract_ref,
+                    row.verifier_contract_ref,
+                    row.isolation_contract_ref,
+                )
+            ),
+        }
+        if {ref.role for ref in validated_refs} - PRODUCTION_VALIDATED_AUTHORITY_ROLES:
+            raise RuntimeError("production validator proof role coverage drifted")
+        for validated_ref in validated_refs:
+            reader.mark_semantically_validated(validated_ref)
     return _project_task_authority(
         schedule_ref=schedule_ref,
         manifest_ref=manifest_ref,
@@ -425,6 +461,24 @@ def load_prefix_execution_authority(
         tokenizer_ref=tokenizer_ref,
         source_revision_refs=revisions,
     )
+
+
+def load_prefix_execution_authority(
+    *,
+    run_root: Path,
+    schedule_ref: ArtifactRef,
+    task_id: str,
+) -> PrefixExecutionAuthority:
+    """Reconstruct authority with one fresh shared authority-asset reader."""
+
+    root = Path(run_root).resolve(strict=True)
+    with AuthorityRefReader(root) as reader:
+        return _load_prefix_execution_authority_with_reader(
+            run_root=root,
+            schedule_ref=schedule_ref,
+            task_id=task_id,
+            reader=reader,
+        )
 
 
 __all__ = (

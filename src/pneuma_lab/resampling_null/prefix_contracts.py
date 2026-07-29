@@ -96,6 +96,22 @@ AUTHORITY_ASSET_ROLE_MEDIA: Mapping[str, str] = MappingProxyType(
     }
 )
 
+PRODUCTION_VALIDATED_AUTHORITY_ROLES = frozenset(
+    {
+        "task_registry",
+        "provider_lane_plan",
+        "task_input",
+        "environment_contract",
+        "grader_contract",
+        "verifier_contract",
+        "isolation_contract",
+        "subject_contract",
+        "simulator_contract",
+        "tool_parser_contract",
+        "meter_contract",
+    }
+)
+
 SCIENTIFIC_PARENT_KIND: Mapping[str, str] = MappingProxyType(
     {
         "resampling_prefix_schedule": "resampling_prefix_schedule",
@@ -1013,6 +1029,141 @@ def load_synthetic_tool_result_payload(
     if payload != canonical_json_bytes({"call_id": result.call_id}, indent=None):
         raise ValueError("synthetic tool result must be compact canonical JSON")
     return result
+
+
+@dataclass(frozen=True, slots=True)
+class PromotedAuthorityAsset:
+    """One exact DL-142 synthetic-only authority asset."""
+
+    role: str
+    record_kind: str
+    value: object
+    nested_refs: tuple[ArtifactRef, ...] = ()
+
+    def __post_init__(self) -> None:
+        _exact_text(self.role, "promoted authority role")
+        _exact_text(self.record_kind, "promoted authority record_kind")
+        _exact_tuple(self.nested_refs, "nested_refs", ArtifactRef)
+
+
+_PROMOTED_AUTHORITY_KIND_AND_FIELD: Mapping[str, tuple[str, str]] = (
+    MappingProxyType(
+        {
+            "tokenizer": ("synthetic_tokenizer_asset_v1", "tokenizer_id"),
+            "prompt_template": (
+                "synthetic_prompt_template_asset_v1",
+                "template_id",
+            ),
+            "clock_source": ("synthetic_clock_asset_v1", "clock_id"),
+            "watchdog_source": (
+                "synthetic_watchdog_asset_v1",
+                "watchdog_id",
+            ),
+            "isolation_qualification": (
+                "synthetic_isolation_qualification_asset_v1",
+                "qualification_id",
+            ),
+        }
+    )
+)
+
+
+def load_promoted_authority_asset(
+    *,
+    role: str,
+    payload: bytes,
+) -> PromotedAuthorityAsset:
+    """Decode one exact synthetic-only DL-142 authority record."""
+
+    if type(role) is not str:
+        raise TypeError("role must be exact text")
+    if type(payload) is not bytes:
+        raise TypeError("payload must be exact bytes")
+    value = load_json_bytes(payload, source=Path(f"<{role}>"))
+    if payload != canonical_json_bytes(value, indent=None):
+        raise ValueError(f"{role} must be compact canonical JSON")
+    if role == "tool_schema":
+        mapping = _closed(
+            value,
+            ("record_kind", "schema_version", "tools"),
+            "synthetic tool schema",
+        )
+        if (
+            mapping["record_kind"] != "synthetic_tool_schema_asset_v1"
+            or mapping["schema_version"] != "1"
+        ):
+            raise ValueError("synthetic tool schema identity is invalid")
+        tools = mapping["tools"]
+        if type(tools) is not list:
+            raise TypeError("synthetic tool schema tools must be an exact array")
+        names: list[str] = []
+        for index, item in enumerate(cast(list[object], tools)):
+            row = _closed(item, ("name",), f"tools[{index}]")
+            names.append(_exact_text(row["name"], f"tools[{index}].name"))
+        if len(names) != len(set(names)):
+            raise ValueError("synthetic tool schema names must be unique")
+        return PromotedAuthorityAsset(
+            role=role,
+            record_kind="synthetic_tool_schema_asset_v1",
+            value=tuple(names),
+        )
+    if role == "deep_authority_asset":
+        if not isinstance(value, Mapping):
+            raise ValueError("synthetic deep authority asset must be one object")
+        record_kind = value.get("record_kind")
+        if record_kind == "synthetic_deep_authority_leaf_v1":
+            mapping = _closed(
+                value,
+                ("record_kind", "schema_version", "value_id"),
+                "synthetic deep authority leaf",
+            )
+            if mapping["schema_version"] != "1":
+                raise ValueError("synthetic deep authority leaf version is invalid")
+            return PromotedAuthorityAsset(
+                role=role,
+                record_kind=cast(str, record_kind),
+                value=_exact_text(mapping["value_id"], "value_id"),
+            )
+        if record_kind == "synthetic_deep_authority_link_v1":
+            mapping = _closed(
+                value,
+                ("record_kind", "schema_version", "nested_ref"),
+                "synthetic deep authority link",
+            )
+            if mapping["schema_version"] != "1":
+                raise ValueError("synthetic deep authority link version is invalid")
+            nested = _decode_ref(
+                mapping["nested_ref"],
+                "nested_ref",
+                "deep_authority_asset",
+            )
+            return PromotedAuthorityAsset(
+                role=role,
+                record_kind=cast(str, record_kind),
+                value=nested,
+                nested_refs=(nested,),
+            )
+        raise ValueError("synthetic deep authority variant is invalid")
+    specification = _PROMOTED_AUTHORITY_KIND_AND_FIELD.get(role)
+    if specification is None:
+        raise ValueError("role is not a promoted synthetic authority role")
+    expected_kind, payload_field = specification
+    mapping = _closed(
+        value,
+        ("record_kind", "schema_version", payload_field),
+        f"promoted authority {role}",
+    )
+    if (
+        mapping["record_kind"] != expected_kind
+        or mapping["schema_version"] != "1"
+    ):
+        raise ValueError(f"promoted authority {role} identity is invalid")
+    exact_value = _exact_text(mapping[payload_field], payload_field)
+    return PromotedAuthorityAsset(
+        role=role,
+        record_kind=expected_kind,
+        value=exact_value,
+    )
 
 
 def _decode_ref(value: object, field: str, role: str) -> ArtifactRef:

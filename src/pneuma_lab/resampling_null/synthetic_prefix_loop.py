@@ -9,10 +9,9 @@ from __future__ import annotations
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 import hashlib
-import os
+from math import isfinite
 from pathlib import Path
 from pathlib import PurePosixPath
-import stat
 from types import MappingProxyType
 from typing import Callable, Literal, Mapping, cast, final
 
@@ -73,11 +72,13 @@ from .evidence import (
 )
 from .execution_authority import (
     PrefixExecutionAuthority,
+    _load_prefix_execution_authority_with_reader,
     load_prefix_execution_authority,
 )
 from .prefix_contracts import (
     AUTHORITY_ASSET_ROLE_MEDIA,
     CONTROLLER_ROLE_MEDIA,
+    PRODUCTION_VALIDATED_AUTHORITY_ROLES,
     REF_LOAD_CLASS_BY_ROLE,
     ImplementationDescriptor,
     RawProviderCompletionKind,
@@ -90,6 +91,7 @@ from .prefix_contracts import (
     SyntheticToolResultPayload,
     StableSourceProvenance,
     load_initial_restore_qualification_receipt,
+    load_promoted_authority_asset,
     load_prefix_candidate_receipt,
     load_snapshot_restore_receipt,
     load_synthetic_request_payload,
@@ -122,7 +124,10 @@ from .types import (
     ToolCall,
     TriggerReason,
 )
-from .scientific_records import load_scientific_parent
+from .scientific_records import (
+    ScientificRefReader,
+    decode_scientific_parent,
+)
 
 
 TransportKind = Literal[
@@ -469,27 +474,35 @@ class SyntheticGradeCodec:
         if payload != expected_payload:
             raise ValueError("grade evidence differs from sealed program bytes")
         value = load_json_bytes(payload, source=Path("<synthetic-grade-evidence>"))
-        if not isinstance(value, Mapping):
-            raise ValueError("grade evidence must be one object")
+        mapping = closed_mapping(
+            value,
+            fields=("success", "partial_reward", "infrastructure_failure"),
+            field="grade evidence",
+        )
+        success = mapping["success"]
+        partial_reward = mapping["partial_reward"]
+        infrastructure_failure = mapping["infrastructure_failure"]
+        if type(success) is not int or success not in (0, 1):
+            raise TypeError("grade evidence success must be exact int 0 or 1")
+        if type(partial_reward) is not float or not isfinite(partial_reward):
+            raise TypeError("grade evidence partial_reward must be finite exact float")
+        if type(infrastructure_failure) is not bool:
+            raise TypeError(
+                "grade evidence infrastructure_failure must be exact bool"
+            )
         result = program.grade_result
         if (
-            value.get("success") != result.success
-            or (
-                "partial_reward" in value
-                and value["partial_reward"] != result.partial_reward
-            )
-            or (
-                "infrastructure_failure" in value
-                and value["infrastructure_failure"] is not result.infrastructure_failure
-            )
+            success != result.success
+            or partial_reward != result.partial_reward
+            or infrastructure_failure is not result.infrastructure_failure
         ):
             raise ValueError("grade evidence fields differ from sealed result")
         if payload != canonical_json_bytes(value, indent=None):
             raise ValueError("grade evidence must be compact canonical JSON")
         return GradeEvidence(
-            success=result.success,
-            partial_reward=result.partial_reward,
-            infrastructure_failure=result.infrastructure_failure,
+            success=success,
+            partial_reward=partial_reward,
+            infrastructure_failure=infrastructure_failure,
             raw_payload=payload,
         )
 
@@ -509,15 +522,23 @@ class SyntheticVerifierCodec:
         if payload != expected_payload:
             raise ValueError("verifier evidence differs from sealed program bytes")
         value = load_json_bytes(payload, source=Path("<synthetic-verifier-evidence>"))
+        mapping = closed_mapping(
+            value,
+            fields=("finding_count",),
+            field="verifier evidence",
+        )
+        finding_count = mapping["finding_count"]
+        if type(finding_count) is not int or finding_count < 0:
+            raise TypeError(
+                "verifier evidence finding_count must be nonnegative exact int"
+            )
         if (
-            not isinstance(value, Mapping)
-            or set(value) != {"finding_count"}
-            or value["finding_count"] != program.verifier_result.finding_count
+            finding_count != program.verifier_result.finding_count
             or payload != canonical_json_bytes(value, indent=None)
         ):
             raise ValueError("verifier evidence differs from sealed result")
         return VerifierEvidence(
-            finding_count=program.verifier_result.finding_count,
+            finding_count=finding_count,
             raw_payload=payload,
         )
 
@@ -2654,66 +2675,179 @@ _CONTROLLER_TYPED_LOADERS: Mapping[str, Callable[[bytes], object]] = MappingProx
 )
 
 
-class _NoFollowIdentityReader:
-    """Observe stable physical identity through one held root dirfd."""
+AuthorityAssetDecoder = Callable[
+    [ArtifactRef, bytes, object | None, frozenset[ArtifactRef]],
+    tuple[ArtifactRef, ...],
+]
 
-    def __init__(self, run_root: Path) -> None:
-        self._root_fd = os.open(
-            Path(run_root),
-            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+
+def _decode_prevalidated_authority_asset(
+    ref: ArtifactRef,
+    _payload: bytes,
+    value: object | None,
+    prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    if ref not in prevalidated_refs:
+        raise ValueError(
+            f"{ref.role} lacks a fresh exact production-validator proof"
         )
+    return walk_artifact_refs(value)
 
-    def __enter__(self) -> _NoFollowIdentityReader:
-        return self
 
-    def __exit__(self, *_exception: object) -> None:
-        os.close(self._root_fd)
+def _decode_promoted_authority_asset(
+    ref: ArtifactRef,
+    payload: bytes,
+    _value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    return load_promoted_authority_asset(
+        role=ref.role,
+        payload=payload,
+    ).nested_refs
 
-    def identity(self, relative_path: str) -> tuple[int, int]:
-        relative = PurePosixPath(relative_path)
-        if (
-            relative.is_absolute()
-            or not relative.parts
-            or relative.as_posix() != relative_path
-            or any(part in ("", ".", "..") for part in relative.parts)
-        ):
-            raise ValueError("identity path is not normalized and relative")
-        descriptors: list[int] = []
-        parent = self._root_fd
-        try:
-            for component in relative.parts[:-1]:
-                child = os.open(
-                    component,
-                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
-                    dir_fd=parent,
-                )
-                descriptors.append(child)
-                parent = child
-            descriptor = os.open(
-                relative.parts[-1],
-                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
-                dir_fd=parent,
-            )
-            try:
-                metadata = os.fstat(descriptor)
-                named = os.stat(
-                    relative.parts[-1],
-                    dir_fd=parent,
-                    follow_symlinks=False,
-                )
-                if (
-                    not stat.S_ISREG(metadata.st_mode)
-                    or stat.S_ISLNK(named.st_mode)
-                    or (metadata.st_dev, metadata.st_ino)
-                    != (named.st_dev, named.st_ino)
-                ):
-                    raise ValueError("artifact identity changed during observation")
-                return metadata.st_dev, metadata.st_ino
-            finally:
-                os.close(descriptor)
-        finally:
-            for descriptor in reversed(descriptors):
-                os.close(descriptor)
+
+def _decode_source_revision(
+    _ref: ArtifactRef,
+    _payload: bytes,
+    value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    if value is not None:
+        raise ValueError("source_revision must remain byte-only")
+    return ()
+
+
+def _decode_program_asset(
+    _ref: ArtifactRef,
+    payload: bytes,
+    value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    load_synthetic_prefix_program(payload)
+    return walk_artifact_refs(value)
+
+
+def _decode_request_asset(
+    _ref: ArtifactRef,
+    payload: bytes,
+    _value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    load_synthetic_request_payload(payload)
+    return ()
+
+
+def _decode_response_asset(
+    _ref: ArtifactRef,
+    payload: bytes,
+    _value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    SyntheticResponseParser().parse(payload)
+    return ()
+
+
+def _decode_provider_event_asset(
+    _ref: ArtifactRef,
+    payload: bytes,
+    _value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    _decode_raw_event(payload)
+    return ()
+
+
+def _decode_tool_result_asset(
+    _ref: ArtifactRef,
+    payload: bytes,
+    _value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    load_synthetic_tool_result_payload(payload)
+    return ()
+
+
+def _decode_grade_result_asset(
+    _ref: ArtifactRef,
+    payload: bytes,
+    _value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    value = load_json_bytes(payload, source=Path("<synthetic-grade-evidence>"))
+    mapping = closed_mapping(
+        value,
+        fields=("success", "partial_reward", "infrastructure_failure"),
+        field="grade evidence",
+    )
+    if type(mapping["success"]) is not int or mapping["success"] not in (0, 1):
+        raise TypeError("grade evidence success must be exact int 0 or 1")
+    if (
+        type(mapping["partial_reward"]) is not float
+        or not isfinite(cast(float, mapping["partial_reward"]))
+    ):
+        raise TypeError("grade evidence partial_reward must be finite exact float")
+    if type(mapping["infrastructure_failure"]) is not bool:
+        raise TypeError("grade evidence infrastructure_failure must be exact bool")
+    return ()
+
+
+def _decode_verifier_result_asset(
+    _ref: ArtifactRef,
+    payload: bytes,
+    _value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    value = load_json_bytes(payload, source=Path("<synthetic-verifier-evidence>"))
+    mapping = closed_mapping(
+        value,
+        fields=("finding_count",),
+        field="verifier evidence",
+    )
+    if type(mapping["finding_count"]) is not int or mapping["finding_count"] < 0:
+        raise TypeError(
+            "verifier evidence finding_count must be nonnegative exact int"
+        )
+    return ()
+
+
+_PROMOTED_AUTHORITY_ROLES = frozenset(
+    {
+        "tokenizer",
+        "prompt_template",
+        "tool_schema",
+        "clock_source",
+        "watchdog_source",
+        "isolation_qualification",
+        "deep_authority_asset",
+    }
+)
+
+AUTHORITY_ASSET_DECODER_BY_ROLE: Mapping[
+    str,
+    AuthorityAssetDecoder,
+] = MappingProxyType(
+    {
+        **{
+            role: _decode_prevalidated_authority_asset
+            for role in PRODUCTION_VALIDATED_AUTHORITY_ROLES
+        },
+        **{
+            role: _decode_promoted_authority_asset
+            for role in _PROMOTED_AUTHORITY_ROLES
+        },
+        "synthetic_execution_program": _decode_program_asset,
+        "synthetic_request": _decode_request_asset,
+        "synthetic_response": _decode_response_asset,
+        "synthetic_provider_event": _decode_provider_event_asset,
+        "synthetic_tool_result": _decode_tool_result_asset,
+        "synthetic_grade_result": _decode_grade_result_asset,
+        "synthetic_verifier_result": _decode_verifier_result_asset,
+        "source_revision": _decode_source_revision,
+    }
+)
+
+if set(AUTHORITY_ASSET_DECODER_BY_ROLE) != set(AUTHORITY_ASSET_ROLE_MEDIA):
+    raise RuntimeError("authority asset decoder registry coverage drifted")
 
 
 def _reconcile_reloaded_execution_records(
@@ -3064,13 +3198,6 @@ def _fresh_reload_candidate_graph(
     allowed_prior_controller_refs: frozenset[ArtifactRef],
 ) -> None:
     root = Path(run_root).resolve(strict=True)
-    fresh_authority = load_prefix_execution_authority(
-        run_root=root,
-        schedule_ref=authority.schedule_ref,
-        task_id=authority.task_schedule.task.task_id,
-    )
-    if fresh_authority != authority:
-        raise ValueError("fresh schedule ancestry differs from executed authority")
     visited: dict[ArtifactRef, str] = {}
     path_bindings: dict[str, ArtifactRef] = {}
     physical_bindings: dict[tuple[int, int], ArtifactRef] = {}
@@ -3101,8 +3228,19 @@ def _fresh_reload_candidate_graph(
     with (
         ControllerArtifactResolver(root) as resolver,
         AuthorityRefReader(root) as authority_reader,
-        _NoFollowIdentityReader(root) as identity_reader,
+        ScientificRefReader(root) as scientific_reader,
     ):
+        fresh_authority = _load_prefix_execution_authority_with_reader(
+            run_root=root,
+            schedule_ref=authority.schedule_ref,
+            task_id=authority.task_schedule.task.task_id,
+            reader=authority_reader,
+        )
+        if fresh_authority != authority:
+            raise ValueError("fresh schedule ancestry differs from executed authority")
+        prevalidated_authority_refs = (
+            authority_reader.semantically_validated_refs
+        )
         while pending:
             ref = pending.pop()
             load_authority = REF_LOAD_CLASS_BY_ROLE.get(ref.role)
@@ -3130,11 +3268,13 @@ def _fresh_reload_candidate_graph(
             visited[ref] = load_class
             path_bindings[ref.relative_path] = ref
             if load_class == "controller_artifact":
-                payload = resolver.resolve(
+                bound = resolver.resolve_bound(
                     ref,
                     expected_role=ref.role,
                     expected_media_type=expected,
                 )
+                payload = bound.payload
+                physical = (bound.st_dev, bound.st_ino)
                 retained_payload = expected_controller_payloads.get(ref)
                 if retained_payload is not None:
                     if payload != retained_payload:
@@ -3186,7 +3326,10 @@ def _fresh_reload_candidate_graph(
             elif load_class == "authority_asset":
                 if ref.media_type != expected:
                     raise ValueError("authority asset media differs from registry")
-                payload = authority_reader.read_bytes(ref)
+                bound = authority_reader.read_bound(ref)
+                payload = bound.payload
+                physical = (bound.st_dev, bound.st_ino)
+                value: object | None = None
                 if ref.media_type == "application/json":
                     value = load_json_bytes(
                         payload,
@@ -3220,20 +3363,31 @@ def _fresh_reload_candidate_graph(
                         synthetic_grade_payloads[ref] = payload
                     elif ref.role == "synthetic_verifier_result":
                         synthetic_verifier_payloads[ref] = payload
-                    nested = walk_artifact_refs(value)
-                else:
-                    nested = ()
+                try:
+                    decoder = AUTHORITY_ASSET_DECODER_BY_ROLE[ref.role]
+                except KeyError as exc:
+                    raise ValueError(
+                        f"authority asset has no decoder for {ref.role!r}"
+                    ) from exc
+                nested = decoder(
+                    ref,
+                    payload,
+                    value,
+                    prevalidated_authority_refs,
+                )
             else:
                 if ref.media_type != "application/json":
                     raise ValueError("scientific parent media must be application/json")
-                record = load_scientific_parent(
-                    asdict(ref),
+                bound = scientific_reader.read_bound(ref)
+                physical = (bound.st_dev, bound.st_ino)
+                record = decode_scientific_parent(
+                    ref,
+                    bound,
                     run_root=root,
                     field=ref.role,
                     expected_kind=expected,
                 )
                 nested = walk_artifact_refs(record.value)
-            physical = identity_reader.identity(ref.relative_path)
             previous_physical = physical_bindings.get(physical)
             if previous_physical is not None and previous_physical != ref:
                 raise ValueError(
@@ -3290,13 +3444,17 @@ def _fresh_reload_candidate_graph(
         for candidate_program in synthetic_programs.values()
         for observation in candidate_program.tool_observations
     }
-    expected_grade_refs = {
-        candidate_program.grade_result.evidence_ref
-        for candidate_program in synthetic_programs.values()
-    }
+    grade_occurrences = tuple(
+        (program_ref, candidate_program.grade_result.evidence_ref)
+        for program_ref, candidate_program in synthetic_programs.items()
+    )
+    verifier_occurrences = tuple(
+        (program_ref, candidate_program.verifier_result.evidence_ref)
+        for program_ref, candidate_program in synthetic_programs.items()
+    )
+    expected_grade_refs = {ref for _program_ref, ref in grade_occurrences}
     expected_verifier_refs = {
-        candidate_program.verifier_result.evidence_ref
-        for candidate_program in synthetic_programs.values()
+        ref for _program_ref, ref in verifier_occurrences
     }
     for observed_refs, expected_refs, field in (
         (set(synthetic_requests), expected_request_refs, "request"),
@@ -3308,8 +3466,8 @@ def _fresh_reload_candidate_graph(
     ):
         if observed_refs != expected_refs:
             raise ValueError(f"synthetic authority {field} coverage differs")
-    for candidate_program in synthetic_programs.values():
-        grade_ref = candidate_program.grade_result.evidence_ref
+    for program_ref, grade_ref in grade_occurrences:
+        candidate_program = synthetic_programs[program_ref]
         verifier_ref = candidate_program.verifier_result.evidence_ref
         _reconcile_reloaded_authority_leaves(
             program=candidate_program,

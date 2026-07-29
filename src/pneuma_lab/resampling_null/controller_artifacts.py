@@ -13,6 +13,7 @@ import re
 import stat
 from typing import final
 
+from .authority_refs import BoundArtifactRead
 from .errors import RecordValidationError
 from .prefix_contracts import CONTROLLER_ROLE_MEDIA
 from .types import ArtifactRef
@@ -154,8 +155,26 @@ class ControllerArtifactStore:
         self._require_open()
         return self
 
-    def __exit__(self, *_exception: object) -> None:
-        self.close()
+    def __exit__(
+        self,
+        _exception_type: object,
+        exception: BaseException | None,
+        _traceback: object,
+    ) -> None:
+        try:
+            self.close()
+        except BaseException as cleanup_error:
+            if exception is not None:
+                cleanup_errors = (
+                    list(cleanup_error.exceptions)
+                    if isinstance(cleanup_error, BaseExceptionGroup)
+                    else [cleanup_error]
+                )
+                raise BaseExceptionGroup(
+                    "controller traversal and cleanup both failed",
+                    [exception, *cleanup_errors],
+                ) from None
+            raise
 
     def _require_open(self) -> tuple[int, int]:
         if self._root_descriptor is None or self._artifact_descriptor is None:
@@ -410,8 +429,26 @@ class ControllerArtifactResolver:
         self._require_open()
         return self
 
-    def __exit__(self, *_exception: object) -> None:
-        self.close()
+    def __exit__(
+        self,
+        _exception_type: object,
+        exception: BaseException | None,
+        _traceback: object,
+    ) -> None:
+        try:
+            self.close()
+        except BaseException as cleanup_error:
+            if exception is not None:
+                cleanup_errors = (
+                    list(cleanup_error.exceptions)
+                    if isinstance(cleanup_error, BaseExceptionGroup)
+                    else [cleanup_error]
+                )
+                raise BaseExceptionGroup(
+                    "controller traversal and cleanup both failed",
+                    [exception, *cleanup_errors],
+                ) from None
+            raise
 
     def _require_open(self) -> tuple[int, int]:
         if self._root_descriptor is None or self._artifact_descriptor is None:
@@ -426,6 +463,21 @@ class ControllerArtifactResolver:
         expected_media_type: str,
     ) -> bytes:
         """Reopen and recompute role, path, hash, length, and exact bytes."""
+
+        return self.resolve_bound(
+            ref,
+            expected_role=expected_role,
+            expected_media_type=expected_media_type,
+        ).payload
+
+    def resolve_bound(
+        self,
+        ref: ArtifactRef,
+        *,
+        expected_role: str,
+        expected_media_type: str,
+    ) -> BoundArtifactRead:
+        """Resolve bytes and identity from one continuously held descriptor."""
 
         _root_descriptor, artifact_descriptor = self._require_open()
         if type(ref) is not ArtifactRef:
@@ -458,59 +510,99 @@ class ControllerArtifactResolver:
             raise RecordValidationError(
                 "controller artifact path does not bind role and digest"
             )
+        role_descriptor: int | None = None
+        descriptor: int | None = None
+        result: BoundArtifactRead | None = None
+        primary_error: BaseException | None = None
         try:
             role_descriptor = os.open(
                 validated_role,
                 _DIRECTORY_FLAGS,
                 dir_fd=artifact_descriptor,
             )
-            try:
-                descriptor = os.open(
-                    ref.sha256,
-                    _READ_FLAGS,
-                    dir_fd=role_descriptor,
+            descriptor = os.open(
+                ref.sha256,
+                _READ_FLAGS,
+                dir_fd=role_descriptor,
+            )
+            before = os.fstat(descriptor)
+            if not stat.S_ISREG(before.st_mode):
+                raise RecordValidationError(
+                    "controller artifact must be a regular file"
                 )
-                try:
-                    metadata = os.fstat(descriptor)
-                    if not stat.S_ISREG(metadata.st_mode):
-                        raise RecordValidationError(
-                            "controller artifact must be a regular file"
-                        )
-                    physical = (metadata.st_dev, metadata.st_ino)
-                    previous_physical = self._physical_bindings.get(physical)
-                    if previous_physical is not None and previous_physical != ref:
-                        raise RecordValidationError(
-                            "controller artifact physical file is aliased"
-                        )
-                    self._physical_bindings[physical] = ref
-                    payload, digest, size = _read_and_hash(descriptor)
-                    named = os.stat(
-                        ref.sha256,
-                        dir_fd=role_descriptor,
-                        follow_symlinks=False,
-                    )
-                    if stat.S_ISLNK(named.st_mode) or (
-                        metadata.st_dev,
-                        metadata.st_ino,
-                    ) != (named.st_dev, named.st_ino):
-                        raise RecordValidationError(
-                            "controller artifact identity changed during read"
-                        )
-                finally:
-                    os.close(descriptor)
-            finally:
-                os.close(role_descriptor)
-        except RecordValidationError:
-            raise
+            payload, digest, size = _read_and_hash(descriptor)
+            after = os.fstat(descriptor)
+            named = os.stat(
+                ref.sha256,
+                dir_fd=role_descriptor,
+                follow_symlinks=False,
+            )
+            physical = (before.st_dev, before.st_ino)
+            if (
+                physical != (after.st_dev, after.st_ino)
+                or physical != (named.st_dev, named.st_ino)
+                or not stat.S_ISREG(after.st_mode)
+                or not stat.S_ISREG(named.st_mode)
+            ):
+                raise RecordValidationError(
+                    "controller artifact identity changed during read"
+                )
+            previous_physical = self._physical_bindings.get(physical)
+            if previous_physical is not None and previous_physical != ref:
+                raise RecordValidationError(
+                    "controller artifact physical file is aliased"
+                )
+            result = BoundArtifactRead(
+                payload=payload,
+                sha256=digest,
+                byte_count=size,
+                st_dev=before.st_dev,
+                st_ino=before.st_ino,
+            )
+        except RecordValidationError as exc:
+            primary_error = exc
         except OSError as exc:
-            raise RecordValidationError(
+            primary_error = RecordValidationError(
                 "controller artifact could not be safely resolved"
-            ) from exc
-        if digest != ref.sha256 or size != ref.byte_count:
+            )
+            primary_error.__cause__ = exc
+        cleanup_errors: list[BaseException] = []
+        if descriptor is not None:
+            owned_descriptor = descriptor
+            descriptor = None
+            try:
+                os.close(owned_descriptor)
+            except BaseException as exc:
+                cleanup_errors.append(exc)
+        if role_descriptor is not None:
+            owned_descriptor = role_descriptor
+            role_descriptor = None
+            try:
+                os.close(owned_descriptor)
+            except BaseException as exc:
+                cleanup_errors.append(exc)
+        if primary_error is not None and cleanup_errors:
+            raise BaseExceptionGroup(
+                "controller read and cleanup both failed",
+                [primary_error, *cleanup_errors],
+            ) from None
+        if primary_error is not None:
+            raise primary_error
+        if cleanup_errors:
+            if len(cleanup_errors) == 1:
+                raise cleanup_errors[0]
+            raise BaseExceptionGroup(
+                "multiple controller cleanup operations failed",
+                cleanup_errors,
+            )
+        if result is None:
+            raise AssertionError("controller read produced no result")
+        if result.sha256 != ref.sha256 or result.byte_count != ref.byte_count:
             raise RecordValidationError(
                 "controller artifact digest or length does not match"
             )
-        return payload
+        self._physical_bindings[(result.st_dev, result.st_ino)] = ref
+        return result
 
     def close(self) -> None:
         artifact_descriptor = self._artifact_descriptor

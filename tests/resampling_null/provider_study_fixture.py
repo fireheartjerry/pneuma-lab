@@ -130,7 +130,11 @@ def build_provider_study_fixture(
     }
     revision_deep_source = write_json(
         external / "sources" / "provider-authority" / "revision-deep.json",
-        {"deep": "revision-authority"},
+        {
+            "record_kind": "synthetic_deep_authority_leaf_v1",
+            "schema_version": "1",
+            "value_id": "revision-authority",
+        },
     )
     revision_deep_ref = external_ref(
         revision_deep_source,
@@ -148,7 +152,11 @@ def build_provider_study_fixture(
         ),
         "tokenizer": write_json(
             external / "tokenizer.json",
-            {"tokenizer": "fixture-v1"},
+            {
+                "record_kind": "synthetic_tokenizer_asset_v1",
+                "schema_version": "1",
+                "tokenizer_id": "fixture-v1",
+            },
         ),
         "revision": write_json(
             external / "revision.json",
@@ -274,27 +282,47 @@ def build_provider_study_fixture(
 
     prompt_ref = authority_asset(
         "prompt.json",
-        {"template": "fixture-v1"},
+        {
+            "record_kind": "synthetic_prompt_template_asset_v1",
+            "schema_version": "1",
+            "template_id": "fixture-v1",
+        },
         role="prompt_template",
     )
     tool_schema_ref = authority_asset(
         "tools.json",
-        {"tools": []},
+        {
+            "record_kind": "synthetic_tool_schema_asset_v1",
+            "schema_version": "1",
+            "tools": [],
+        },
         role="tool_schema",
     )
     clock_ref = authority_asset(
         "clock.json",
-        {"clock": "fixture-v1"},
+        {
+            "record_kind": "synthetic_clock_asset_v1",
+            "schema_version": "1",
+            "clock_id": "fixture-v1",
+        },
         role="clock_source",
     )
     watchdog_ref = authority_asset(
         "watchdog.json",
-        {"watchdog": "fixture-v1"},
+        {
+            "record_kind": "synthetic_watchdog_asset_v1",
+            "schema_version": "1",
+            "watchdog_id": "fixture-v1",
+        },
         role="watchdog_source",
     )
     qualification_ref = authority_asset(
         "qualification.json",
-        {"qualification": "fixture-v1"},
+        {
+            "record_kind": "synthetic_isolation_qualification_asset_v1",
+            "schema_version": "1",
+            "qualification_id": "fixture-v1",
+        },
         role="isolation_qualification",
     )
     common_call = {

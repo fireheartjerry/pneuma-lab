@@ -20,6 +20,7 @@ from .prefix_contracts import (
     ImplementationDescriptor,
     ImplementationPurpose,
     SyntheticPrefixProgram,
+    load_promoted_authority_asset,
     load_synthetic_prefix_program,
 )
 from .types import (
@@ -705,37 +706,22 @@ def validate_task_input(
         raise RecordValidationError(f"{field} program is invalid: {exc}") from exc
     if program.task_id != task_id:
         raise RecordValidationError(f"{field} program task binding mismatch")
-    tool_schema = reader.decode_json(
+    reader.decode_json(
         program.tool_schema_ref,
         field=f"{field} program tool schema",
         canonical=True,
         expected_role="tool_schema",
     )
-    schema = _closed_mapping(
-        tool_schema,
-        fields={"tools"},
-        field=f"{field} program tool schema",
-    )
-    tools = schema["tools"]
-    if type(tools) is not list:
+    try:
+        decoded_schema = load_promoted_authority_asset(
+            role="tool_schema",
+            payload=reader.read_bytes(program.tool_schema_ref),
+        )
+    except (TypeError, ValueError) as exc:
         raise RecordValidationError(
-            f"{field} program tool schema tools must be an exact array"
-        )
-    tool_names: list[str] = []
-    for index, candidate in enumerate(cast(list[object], tools)):
-        item = _closed_mapping(
-            candidate,
-            fields={"name"},
-            field=f"{field} program tool schema tools[{index}]",
-        )
-        tool_names.append(
-            _exact_text(
-                item["name"],
-                field=f"{field} program tool schema tools[{index}].name",
-            )
-        )
-    if len(tool_names) != len(set(tool_names)):
-        raise RecordValidationError(f"{field} program tool schema names must be unique")
+            f"{field} program tool schema is invalid: {exc}"
+        ) from exc
+    tool_names = cast(tuple[str, ...], decoded_schema.value)
     if (
         program.expected_trigger_reason is not TriggerReason.NO_INTERVENTION_OPPORTUNITY
         and not tool_names

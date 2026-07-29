@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection, Mapping
+from dataclasses import dataclass
 import hashlib
 import json
 import os
@@ -29,6 +30,17 @@ _DIRECTORY_FLAGS = (
 )
 _READ_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 _HASH_CHUNK_BYTES = 1024 * 1024
+
+
+@dataclass(frozen=True, slots=True)
+class BoundArtifactRead:
+    """Bytes and physical identity proven by one continuously held descriptor."""
+
+    payload: bytes
+    sha256: str
+    byte_count: int
+    st_dev: int
+    st_ino: int
 
 
 def closed_mapping(
@@ -151,9 +163,10 @@ class AuthorityRefReader:
             raise NotADirectoryError(self.run_root)
         self._root_descriptor: int | None = None
         self._decoded: dict[ArtifactRef, object] = {}
-        self._payloads: dict[ArtifactRef, bytes] = {}
+        self._bound_reads: dict[ArtifactRef, BoundArtifactRead] = {}
         self._path_bindings: dict[str, ArtifactRef] = {}
         self._physical_bindings: dict[tuple[int, int], ArtifactRef] = {}
+        self._semantic_proofs: set[ArtifactRef] = set()
 
     def __enter__(self) -> AuthorityRefReader:
         descriptor = os.open(self.run_root, _DIRECTORY_FLAGS)
@@ -174,10 +187,25 @@ class AuthorityRefReader:
         self._root_descriptor = descriptor
         return self
 
-    def __exit__(self, *_exception: object) -> None:
-        if self._root_descriptor is not None:
-            os.close(self._root_descriptor)
-            self._root_descriptor = None
+    def __exit__(
+        self,
+        _exception_type: object,
+        exception: BaseException | None,
+        _traceback: object,
+    ) -> None:
+        descriptor = self._root_descriptor
+        self._root_descriptor = None
+        if descriptor is None:
+            return
+        try:
+            os.close(descriptor)
+        except BaseException as cleanup_error:
+            if exception is not None:
+                raise BaseExceptionGroup(
+                    "authority traversal and cleanup both failed",
+                    [exception, cleanup_error],
+                ) from None
+            raise
 
     def _require_root(self) -> int:
         if self._root_descriptor is None:
@@ -200,7 +228,9 @@ class AuthorityRefReader:
             )
         return parts
 
-    def read_bytes(self, ref: ArtifactRef) -> bytes:
+    def read_bound(self, ref: ArtifactRef) -> BoundArtifactRead:
+        """Read, hash, and bind ``ref`` to one stable held file descriptor."""
+
         parts = self._parts(ref.relative_path)
         bound_ref = self._path_bindings.get(ref.relative_path)
         if bound_ref is not None and bound_ref != ref:
@@ -208,11 +238,14 @@ class AuthorityRefReader:
                 f"artifact_ref relative path alias: {ref.relative_path!r}"
             )
         self._path_bindings[ref.relative_path] = ref
-        cached = self._payloads.get(ref)
+        cached = self._bound_reads.get(ref)
         if cached is not None:
             return cached
         descriptors: list[int] = []
+        file_descriptor: int | None = None
         parent = self._require_root()
+        result: BoundArtifactRead | None = None
+        primary_error: BaseException | None = None
         try:
             for component in parts[:-1]:
                 child = os.open(
@@ -222,67 +255,118 @@ class AuthorityRefReader:
                 )
                 descriptors.append(child)
                 parent = child
-            descriptor = os.open(
+            file_descriptor = os.open(
                 parts[-1],
                 _READ_FLAGS,
                 dir_fd=parent,
             )
-            try:
-                metadata = os.fstat(descriptor)
-                if not stat.S_ISREG(metadata.st_mode):
-                    raise RecordValidationError(
-                        "artifact_ref must identify a regular file: "
-                        f"{ref.relative_path!r}"
-                    )
-                physical_identity = (metadata.st_dev, metadata.st_ino)
-                physical_ref = self._physical_bindings.get(physical_identity)
-                if physical_ref is not None and physical_ref != ref:
-                    raise RecordValidationError(
-                        "artifact_ref physical file alias: "
-                        f"{ref.relative_path!r}"
-                    )
-                self._physical_bindings[physical_identity] = ref
-                digest = hashlib.sha256()
-                chunks: list[bytes] = []
-                size = 0
-                while chunk := os.read(descriptor, _HASH_CHUNK_BYTES):
-                    chunks.append(chunk)
-                    digest.update(chunk)
-                    size += len(chunk)
-                named = os.stat(
-                    parts[-1],
-                    dir_fd=parent,
-                    follow_symlinks=False,
+            before = os.fstat(file_descriptor)
+            if not stat.S_ISREG(before.st_mode):
+                raise RecordValidationError(
+                    "artifact_ref must identify a regular file: "
+                    f"{ref.relative_path!r}"
                 )
-                if (metadata.st_dev, metadata.st_ino) != (
-                    named.st_dev,
-                    named.st_ino,
-                ):
-                    raise RecordValidationError(
-                        "artifact_ref identity changed during read: "
-                        f"{ref.relative_path!r}"
-                    )
-            finally:
-                os.close(descriptor)
-        except (FileNotFoundError, NotADirectoryError, OSError) as exc:
-            if isinstance(exc, RecordValidationError):
-                raise
-            raise RecordValidationError(
+            digest = hashlib.sha256()
+            chunks: list[bytes] = []
+            size = 0
+            while chunk := os.read(file_descriptor, _HASH_CHUNK_BYTES):
+                chunks.append(chunk)
+                digest.update(chunk)
+                size += len(chunk)
+            after = os.fstat(file_descriptor)
+            named = os.stat(
+                parts[-1],
+                dir_fd=parent,
+                follow_symlinks=False,
+            )
+            identity = (before.st_dev, before.st_ino)
+            if (
+                identity != (after.st_dev, after.st_ino)
+                or identity != (named.st_dev, named.st_ino)
+                or not stat.S_ISREG(after.st_mode)
+                or not stat.S_ISREG(named.st_mode)
+            ):
+                raise RecordValidationError(
+                    "artifact_ref identity changed during read: "
+                    f"{ref.relative_path!r}"
+                )
+            physical_ref = self._physical_bindings.get(identity)
+            if physical_ref is not None and physical_ref != ref:
+                raise RecordValidationError(
+                    "artifact_ref physical file alias: "
+                    f"{ref.relative_path!r}"
+                )
+            payload = b"".join(chunks)
+            result = BoundArtifactRead(
+                payload=payload,
+                sha256=digest.hexdigest(),
+                byte_count=size,
+                st_dev=before.st_dev,
+                st_ino=before.st_ino,
+            )
+        except OSError as exc:
+            primary_error = RecordValidationError(
                 f"dangling artifact_ref {ref.relative_path!r}"
-            ) from exc
-        finally:
-            for descriptor in reversed(descriptors):
+            )
+            primary_error.__cause__ = exc
+        except BaseException as exc:
+            primary_error = exc
+        cleanup_errors: list[BaseException] = []
+        if file_descriptor is not None:
+            descriptor = file_descriptor
+            file_descriptor = None
+            try:
                 os.close(descriptor)
-        payload = b"".join(chunks)
+            except BaseException as exc:
+                cleanup_errors.append(exc)
+        while descriptors:
+            descriptor = descriptors.pop()
+            try:
+                os.close(descriptor)
+            except BaseException as exc:
+                cleanup_errors.append(exc)
+        if primary_error is not None and cleanup_errors:
+            raise BaseExceptionGroup(
+                "authority read and cleanup both failed",
+                [primary_error, *cleanup_errors],
+            ) from None
+        if primary_error is not None:
+            raise primary_error
+        if cleanup_errors:
+            if len(cleanup_errors) == 1:
+                raise cleanup_errors[0]
+            raise BaseExceptionGroup(
+                "multiple authority cleanup operations failed",
+                cleanup_errors,
+            )
+        if result is None:
+            raise AssertionError("authority read produced no result")
         if (
-            digest.hexdigest() != ref.sha256
-            or size != ref.byte_count
+            result.sha256 != ref.sha256
+            or result.byte_count != ref.byte_count
         ):
             raise RecordValidationError(
                 f"artifact_ref bytes mismatch: {ref.relative_path!r}"
             )
-        self._payloads[ref] = payload
-        return payload
+        self._physical_bindings[(result.st_dev, result.st_ino)] = ref
+        self._bound_reads[ref] = result
+        return result
+
+    def read_bytes(self, ref: ArtifactRef) -> bytes:
+        return self.read_bound(ref).payload
+
+    def mark_semantically_validated(self, ref: ArtifactRef) -> None:
+        if ref not in self._decoded:
+            raise RuntimeError("semantic proof requires a decoded JSON ref")
+        self._semantic_proofs.add(ref)
+
+    @property
+    def semantically_validated_refs(self) -> frozenset[ArtifactRef]:
+        return frozenset(self._semantic_proofs)
+
+    @property
+    def decoded_json_refs(self) -> frozenset[ArtifactRef]:
+        return frozenset(self._decoded)
 
     def decode_json(
         self,
