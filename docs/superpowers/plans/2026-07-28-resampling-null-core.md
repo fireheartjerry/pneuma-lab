@@ -3444,6 +3444,394 @@ reviewable slices:
    artifact, verify exact selected-schedule coverage and chronology, and seal
    the prefix index before assignment or packet construction.
 
+### DL-139 T5-S02C executable synthetic authority
+
+DL-139 hardens DL-136--DL-138 for the prefix engine only. All historical Task-5
+prose below is superseded where it permits confirmation execution, caller-owned
+codecs or stores, logical clone identities, self-reported time/status/cost, or
+prefix-index publication during S02C. T5-S02C is
+`schedule_authority == "synthetic_validation"` only. It may execute exact local
+deterministic fixture calls, but never a provider/model/network call, credential
+use, spend, scientific experiment, branch, assignment, packet construction,
+prefix-index seal, empirical result, or claim. Its only successful return is
+one unsealed `FrozenPrefixReceipt`, which is the candidate task receipt. T5-S02D
+must independently reopen it and every reachable parent/raw blob, verify exact
+selected-schedule coverage, order, caps, cost, and chronology, and alone seal a
+`PrefixIndex`.
+
+Implement S02C in four separately reviewable internal slices:
+
+1. **S02C-a — contracts, source attestation, and idempotent CAS:** extend typed
+   execution authority, close the synthetic program and raw-observation
+   grammars, attest actual loaded implementation bytes, and harden
+   `ControllerArtifactStore` for verified idempotent reuse.
+2. **S02C-b — initial restore and OS identities:** implement exact
+   subprocess-backed fixture environments, controller-created/fstat-bound
+   writable roots, pairwise process/root isolation, and the initial
+   qualification receipt.
+3. **S02C-c — provider/simulator/tool loop:** implement controller rendering,
+   tokenization, dispatch/attempt evidence, clock/cap precedence, independently
+   observed tool state, trigger selection, and zero-cost settlement.
+4. **S02C-d — final snapshot and clone transactions:** build the composite
+   snapshot, perform fresh grade/verifier restores, write the candidate receipt,
+   close the store, construct a fresh resolver, and reload every referenced
+   controller artifact before returning. Prefix publication remains S02D.
+
+The only executable entry point is:
+
+```python
+def run_prefix(
+    *,
+    run_root: Path,
+    schedule_ref: ArtifactRef,
+    task_id: str,
+    environment_factory: SyntheticEnvironmentFactory,
+    subject: SyntheticSeededStatelessSubject,
+    user_simulator: SyntheticSeededStatelessSimulator | None,
+    monotonic_meter: SyntheticMonotonicMeter,
+) -> FrozenPrefixReceipt:
+    ...
+```
+
+Every supplied fixture argument is an exact registered `@final` synthetic type;
+subclasses, structural substitutes, dynamic plugins, and confirmation types
+reject. `run_prefix` constructs the exact final `ControllerArtifactStore`
+itself. It accepts no store, loader, parser, tokenizer, renderer, grader,
+verifier, event codec, settlement codec, task script, cap, or contract value.
+The tokenizer, request renderer, response/tool parser, grade/verifier codecs,
+provider-event codec, and settlement codec are instantiated internally from a
+closed in-module registry keyed by sealed typed contract descriptors; unknown
+or duplicate keys reject. The store is closed exactly once after the complete
+candidate graph is materialized. Only then does `run_prefix` construct the
+exact final `ControllerArtifactResolver` and reload every candidate-reachable
+controller artifact, including idempotently reused blobs, with independently
+supplied expected role/media/bytes before returning.
+
+The supplied final fixtures have one minimal exact surface. Subject and
+simulator expose only:
+
+```python
+invoke(
+    *,
+    request_bytes: bytes,
+    dispatch_intent_sha256: str,
+    subject_role: Literal["primary_subject", "user_simulator"],
+    call_index: int,
+    seed: int,
+    model_contract_sha256: str,
+    remaining_caps: CallContractCaps,
+    absolute_deadline_ms: int,
+) -> RawProviderObservation
+```
+
+The meter exposes only `read(*, label: str, program_sha256: str) -> int` and
+must consume the next sealed trace row. The factory exposes only
+`open_environment(*, writable_root: Path, instance_ordinal: int,
+task_input_bytes: bytes, program_bytes: bytes) ->
+SyntheticEnvironmentHandle`. The controller creates and fstats the root; the
+returned exact final handle owns a real `subprocess.Popen`, from which the
+controller reads `pid`. The handle's closed operations are `start()`,
+`snapshot() -> bytes`, `restore(snapshot_bytes)`, `visible_context() -> bytes`,
+`append_assistant_turn(SubjectTurn)`,
+`append_simulator_turn(SubjectTurn)`,
+`execute_tool(ToolCall) -> (call_id, result_bytes)`, the four separate state
+queries `mutation_committed()`,
+`verifier_eligible()`, `episode_terminal()`, and `failure_kind()`,
+`terminate(FailureKind, tuple[ToolCall, ...])`, `grade() -> bytes`,
+`verify() -> bytes`, and `close()`. The two append methods cannot cross roles,
+and terminate receives the exact controller-owned pending queue it must
+preserve. No operation accepts a store/ref, supplies counters/time, or combines
+execution with the independent state queries. Each supplied factory, subject,
+simulator, and meter contains frozen `program_bytes` and
+`program_sha256`; both must byte/digest-equal the resolved canonical synthetic
+program before qualification, so exact type alone cannot hide caller-selected
+state. The meter's sealed trace/program digest must match the same bytes.
+
+`PrefixExecutionAuthority` additionally exposes exact
+`schedule_authority`, the manifest `tokenizer_ref`, the complete ordered
+`source_revision_refs`, and frozen/slotted typed implementation descriptors
+for subject, optional simulator, parser, meter, environment factory, grader,
+verifier, tokenizer, request renderer, provider-event codec, and settlement
+codec. A descriptor contains exactly its purpose, fully-qualified
+`nominal_type`, `build_id`, applicable request/response/snapshot/restore/raw-
+evidence/event/settlement grammars, applicable `runtime_id` and
+`container_digest`, and nonempty ordered `implementation_source_refs`. Those
+refs are manifest members and resolve the literal implementation-module bytes,
+not a prose revision label. The controller opens the actual loaded module file
+for each executing final type, hashes its bytes, and requires exact equality to
+the corresponding source artifact as well as exact nominal type/build
+identity. This attests only the local synthetic mechanism used by this fixture;
+it is not production, provider, model, network, or confirmation attestation.
+Confirmation remains unavailable.
+
+The selected `prefix_task_input_v1.canonical_task_payload` contains directly,
+or through exactly one manifest-reachable `synthetic_execution_program_ref`, a
+closed `synthetic_prefix_program_v1`. It has exactly `schema_version`,
+`expected_trigger_reason`, `tool_schema_ref`, ordered primary and simulator
+`provider_observations`, ordered `tool_observations`, `grade_result`,
+`verifier_result`, `failure_injection`, and `clock_trace`. Its tool-schema ref
+must equal the selected subject/parser contract ref. The program pins all
+response bytes, typed turns where conditionally required, tool behavior, raw
+grade/verifier result bytes and decoded values, injected transport/parser/tool
+failure point or exact `none`, and every named clock read. No caller script or
+mutable iterator is accepted. A program expected to reach either branch
+trigger must reference a canonical nonempty synthetic tool-schema object; an
+empty schema, a response-named tool absent from it, or a trigger program with
+no tool definition rejects before execution. `expected_trigger_reason` is
+checked only after execution against the controller-derived trigger; it never
+selects, advances, or overrides that trigger.
+
+The provider fixture returns one closed value:
+
+```python
+class RawProviderCompletionKind(str, Enum):
+    COMPLETED = "completed"
+    TIMEOUT_NO_RESPONSE = "timeout_no_response"
+    TIMEOUT_LATE_RESPONSE = "timeout_late_response"
+    REFUSAL = "refusal"
+    MALFORMED_RESPONSE = "malformed_response"
+    PROVIDER_ERROR = "provider_error"
+    INFRASTRUCTURE_ERROR = "infrastructure_error"
+
+
+@dataclass(frozen=True, slots=True)
+class RawProviderObservation:
+    subject_role: Literal["primary_subject", "user_simulator"]
+    call_index: int
+    seed: int
+    model_contract_sha256: str
+    response_bytes: bytes | None
+    typed_turn: SubjectTurn | None
+    reported_output_token_ids: tuple[int, ...] | None
+    reported_generated_tokens: int
+    provider_event_bytes: bytes
+    completion_kind: RawProviderCompletionKind
+```
+
+Role/index/seed/model digest must equal the published intent. Response bytes
+and reported output IDs are both present or both absent; absent response
+requires zero reported tokens and no typed turn. For every full response the
+controller tokenizes the raw bytes and attempts the sealed parser. Parser
+success requires a typed turn and byte-for-byte equality of the full exact
+`SubjectTurn`, including text, ordered queue, generated count, and finish
+reason; parser failure requires no typed turn. Reported token IDs/count must
+equal controller reconstruction but never become authority. The controller
+derives terminal attempt status from response presence, parser/refusal grammar,
+validated transport event, and observed clock. The fixture's
+`completion_kind` is only a consistency claim and cannot override those bytes.
+The controller renders and tokenizes the request, writes request/input-token
+bytes and `ProviderDispatchIntent`, and verifies them before invoking the
+fixture.
+
+The synthetic meter is a sealed named trace of exact `(label, uint64_ms)`
+observations. Initial snapshot/restore qualification consumes no prefix time.
+Immediately after it succeeds, exactly one `prefix_epoch` observation begins
+the prefix. Subsequent labels and values must match the program in order with
+no missing or extra read and must be monotonically nondecreasing. Computing
+`absolute_deadline_ms = prefix_epoch + prefix_caps.wall_clock_ms` uses checked
+uint64 arithmetic; overflow rejects the candidate. Before any provider,
+simulator, or tool action, `now >= absolute_deadline_ms` forbids starting it.
+An action completing at the deadline is on time; completion greater than the
+deadline is late and terminates as `TIMEOUT`. Grade and verifier transactions
+occur after the final prefix observation and consume no prefix wall allowance.
+Controller counters use observed `max(0, completion - prefix_epoch)`. Remaining
+allowance is always `max(0, cap - used)`; overshoot is preserved in `used`, so
+`used + remaining == cap` is not required.
+
+`FailureKind` adds exact `MODEL_CALL_CAP` and `TURN_CAP` members. The failure
+mapping is closed: either role exhausting generated output is `TOKEN_CAP`;
+either role exhausting its aggregate model-call ceiling is `MODEL_CALL_CAP`;
+either role exhausting its aggregate turn ceiling is `TURN_CAP`; the primary
+subject exhausting completed subject-issued tool calls is `TOOL_CAP`; a
+deadline violation is `TIMEOUT`; validated refusal/parser/model/transport
+failures map respectively to `REFUSAL`, `MALFORMED_ACTION`, `MODEL`, or
+`INFRASTRUCTURE`. There is no retry. Before each action the controller applies
+already-observed explicit failure, environment terminal state, deadline, then
+role-local cap checks; after each action it applies explicit failure,
+environment terminal state, deadline, caps, and only then trigger predicates.
+Thus failure/terminal/deadline always precedes trigger selection. An initially
+clean terminal environment may return a natural no-trigger candidate with zero
+provider attempts. Model calls count at dispatch; generated tokens count every
+controller-tokenized received byte sequence; turns count only parser-valid
+typed turns, including a parser-valid refusal. Completion exactly at the
+deadline remains admissible for an observed terminal state or trigger; if
+neither occurs, the next action is forbidden and the controller terminates
+with `TIMEOUT`.
+
+The controller owns one exact
+`terminate(failure_kind, pending_queue)` transition for adverse nonterminal
+state. It freezes the last verified environment state, sets
+`episode_terminal = true`, preserves the actual non-`none` failure, clears
+`branch_pending_calls`, and copies the known unexecuted queue in order to
+`terminal_unexecuted_remainder`; an unknown queue yields an empty remainder.
+Consequently an exact terminal remainder is legal for any adverse stop with a
+known queue, not only malformed action. Natural clean termination requires
+`FailureKind.NONE` and an empty remainder. A branch trigger requires nonterminal
+state and an empty terminal remainder.
+
+Initial restore qualification is reachable only through a new required
+`CompositeSnapshotEnvelope.initial_restore_qualification_ref`; duplicating that
+edge directly on the outer candidate is forbidden:
+
+```python
+@dataclass(frozen=True, slots=True)
+class EnvironmentProcessIdentity:
+    instance_ordinal: int
+    writable_root_relative_path: str
+    writable_root_st_dev: int
+    writable_root_st_ino: int
+    child_pid: int
+
+
+@dataclass(frozen=True, slots=True)
+class InitialRestoreQualificationReceipt:
+    schedule_ref: ArtifactRef
+    task_ref: ArtifactRef
+    task_input_ref: ArtifactRef
+    environment_contract_ref: ArtifactRef
+    isolation_contract_ref: ArtifactRef
+    initial_environment_snapshot_ref: ArtifactRef
+    observed_resnapshot_sha256: str
+    observed_resnapshot_byte_count: int
+    visible_context_ref: ArtifactRef
+    visible_sha256: str
+    token_ids_ref: ArtifactRef
+    token_ids_sha256: str
+    branch_pending_calls: tuple[ToolCall, ...]
+    terminal_unexecuted_remainder: tuple[ToolCall, ...]
+    episode_terminal: bool
+    failure_kind: FailureKind
+    live_identity: EnvironmentProcessIdentity
+    fresh_restore_identity: EnvironmentProcessIdentity
+    verified: Literal[True]
+```
+
+It byte-binds the initial snapshot to the fresh observed resnapshot, repeats
+and verifies visible/token digests, queues, terminal/failure state, and records
+both controller-observed identities. The controller fresh-validates exact
+resnapshot bytes, not digest/length alone. A verified qualification requires
+`failure_kind is FailureKind.NONE`; a clean terminal state is allowed.
+Qualification failure is pipeline-invalid and returns no candidate.
+
+Every clone transaction uses:
+
+```python
+@dataclass(frozen=True, slots=True)
+class SnapshotRestoreReceipt:
+    purpose: Literal["grade", "verify"]
+    schedule_ref: ArtifactRef
+    task_ref: ArtifactRef
+    task_input_ref: ArtifactRef
+    environment_contract_ref: ArtifactRef
+    isolation_contract_ref: ArtifactRef
+    composite_snapshot_ref: ArtifactRef
+    environment_snapshot_ref: ArtifactRef
+    observed_resnapshot_sha256: str
+    observed_resnapshot_byte_count: int
+    branch_pending_calls: tuple[ToolCall, ...]
+    terminal_unexecuted_remainder: tuple[ToolCall, ...]
+    visible_context_ref: ArtifactRef
+    visible_sha256: str
+    token_ids_ref: ArtifactRef
+    token_ids_sha256: str
+    episode_terminal: bool
+    failure_kind: FailureKind
+    restored_identity: EnvironmentProcessIdentity
+    verified: Literal[True]
+
+
+@dataclass(frozen=True, slots=True)
+class GradeExecutionReceipt:
+    restore_receipt_ref: ArtifactRef
+    grade_evidence_ref: ArtifactRef
+
+
+@dataclass(frozen=True, slots=True)
+class VerifierExecutionReceipt:
+    restore_receipt_ref: ArtifactRef
+    verifier_evidence_ref: ArtifactRef
+```
+
+The grade execution receipt parents the purpose-`grade`
+`SnapshotRestoreReceipt` and direct raw grade evidence; the verifier execution
+receipt parents the purpose-`verify` restore receipt and direct raw verifier
+evidence. Every repeated ancestry/state field must equal the composite
+snapshot. `EnvironmentProcessIdentity` is controller-created evidence, never a
+fixture string: it contains an exact controller-assigned instance ordinal, a
+controller-created root-confined writable-root path, root `fstat` device and
+inode, and the real child PID observed by the controller from its own
+`subprocess.Popen`. The ordinal, device, inode, and PID are exact nonnegative
+integers, with PID positive; the root is one nonempty normalized relative path
+confined under the controller-created environment-root directory. The exact
+synthetic factory creates subprocess-backed fixtures. The live,
+initial-restore, grade, and verifier environments must remain pairwise
+distinct by object, PID, and `(st_dev, st_ino)` through all checks; logical IDs
+alone are invalid, and no process/root may exit or alias before its last
+observation.
+
+The exact tool fixture `execute_tool` returns only executed call ID and raw
+result bytes. After it returns, the controller independently queries the
+source-attested environment for mutation committed, verifier eligibility,
+terminal state, and failure kind, and samples the meter for elapsed time. The
+controller then builds the canonical tool-result and boundary records; a
+fixture-returned boundary/counter/elapsed claim is forbidden. Tool-call/result
+order and IDs must equal the parser-produced queue and sealed synthetic
+program.
+
+Synthetic provider events use compact canonical
+`synthetic_provider_event_v1` JSON with exactly `schema_version`,
+`subject_role`, `call_index`, `seed`, `model_contract_sha256`,
+`dispatch_intent_sha256`, `completion_kind`, nullable `response_sha256`,
+`observed_at_ms`, and `cost_microunits = 0`. After the attempt is stored, its
+settlement uses compact canonical `synthetic_provider_settlement_v1` JSON with
+exactly `schema_version`, the same role/index/seed,
+`dispatch_intent_sha256`, `attempt_sha256`, `provider_event_sha256`,
+`final = true`, `currency = "synthetic_microunit"`, and
+`cost_microunits = 0`. This acyclic pair binds intent, event, attempt, finality,
+and exact zero cost. Any nonempty attempt ledger requires
+`AttemptBoundZeroCostClosure`; the zero-attempt closure is legal only when no
+dispatch intent exists.
+
+`ControllerArtifactStore.write` remains create-exclusive but treats `EEXIST`
+as a verified idempotent-reuse path, never as permission to overwrite. It
+independently reopens the existing role/digest path with no-follow flags and
+verifies canonical role/media, path, regular-file identity, hash, length, and
+exact bytes before returning the one exact `ArtifactRef`. Any mismatch,
+unexpected collision, unsafe identity, or reopen/read/close failure rejects;
+canonical role has exactly one DL-138 media type, so caller metadata cannot
+invent an alternate media binding. The pre-existing blob is never unlinked.
+The DL-138 post-create cleanup and
+error aggregation remain mandatory only for a blob newly created by the
+current call.
+
+Prioritized RED tests for S02C are:
+
+1. **P0 authority/source:** reject non-synthetic schedules; injected codecs,
+   stores, scripts, subclasses, wrong exact types/builds, source-byte drift,
+   unknown registry keys, empty trigger tool schema, or confirmation paths.
+2. **P0 identity/restore:** reject logical or caller PID/root claims, aliased
+   object/PID/inode across live/initial/grade/verifier environments, altered
+   resnapshot/state/queue/visible/token bytes, missing initial-only snapshot
+   edge, or grade/verifier purpose/ancestry cross-wire.
+3. **P0 provider/status:** reject request-before-intent order, role/index/seed/
+   model mismatch, reported-token drift, full parsed turn/text/queue mismatch,
+   trusted completion kind, response/status nullability violations, retries,
+   unbound/nonfinal/nonzero settlements, or zero-attempt closure after dispatch.
+4. **P0 clock/caps/trigger:** reject missing/reordered/decreasing clock labels,
+   uint64 deadline overflow, action start at deadline, completion-after-deadline
+   acceptance, grade/verify time charged to prefix, equality-forced overshoot,
+   wrong role-local model/turn/token/tool failure, or trigger chosen before
+   failure/terminal/deadline.
+5. **P0 terminal/tool:** accept clean initial terminal with zero attempts and
+   preserve any known queue for every adverse stop; reject silent queue loss,
+   forced `MALFORMED_ACTION`, environment-returned boundary claims, mismatched
+   executed call IDs/results, or trigger before a completed observed boundary.
+6. **P1 CAS/candidate boundary:** accept exact EEXIST reuse; reject same-path
+   role/media/bytes/hash/length/identity mismatch without deleting the existing
+   blob; preserve DL-138 cleanup for new creates; reject return before
+   store-close/fresh-resolve of every reachable artifact; prove S02C emits no
+   prefix index, assignment, packet, branch, provider/network/spend, or claim.
+
 The corrected prefix entry adds:
 
 ```python
@@ -3548,38 +3936,21 @@ composite snapshot: `NO_INTERVENTION_OPPORTUNITY` requires
 `episode_terminal == True`, while `FIRST_ELIGIBLE_MUTATION` and
 `FOURTH_TOOL_CALL` require `episode_terminal == False`.
 
-The authoritative entry point is:
-
-```python
-def run_prefix(
-    *,
-    run_root: Path,
-    schedule_ref: ArtifactRef,
-    task_id: str,
-    environment_factory: EnvironmentFactory,
-    subject: SeededStatelessSubject,
-    user_simulator: SeededStatelessSimulator | None,
-    artifact_store: ControllerArtifactStore,
-    monotonic_meter: MonotonicMeter,
-) -> FrozenPrefixReceipt:
-    ...
-```
+The authoritative entry point is the exact DL-139 signature above.
 
 It byte-verifies and loads `schedule_ref`, follows the manifest's
 `provider_lane_plan_v2`, selects exactly one task/lane, and internally obtains
 the root seed, caps, exact task input, environment/restore/grader/verifier/
 parser/isolation contracts, and exact model/meter contracts. Synthetic
 execution accepts only closed named fixture implementations and byte-equal
-fixture task inputs. Confirmation accepts an adapter only after its exact
-type/build/source/runtime/task/network/credential/isolation qualification and
-contract refs are manifest-pinned and separately verified; a structural
-bring-your-own protocol is not confirmation authority.
+fixture task inputs. S02C rejects confirmation authority and every structural
+bring-your-own protocol.
 
 The controller supplies each primary/simulator call with the remaining
-role-specific allowance and an absolute deadline. The call returns raw
-request/response/token/provider evidence, not an `ArtifactRef`; the controller
-writes it, reads it back, recomputes bytes/hash/length, and constructs the
-attempt receipt. Before invocation it immutably publishes a
+role-specific allowance and an absolute deadline. The call returns the closed
+raw response/token/provider observation, not request bytes or an `ArtifactRef`;
+the controller writes it, reads it back, recomputes bytes/hash/length, and
+constructs the attempt receipt. Before invocation it immutably publishes a
 `ProviderDispatchIntent` containing role, next consecutive role-local index,
 seed, request/input-token refs, model contract, and absolute deadline. The
 terminal `ProviderCallAttemptReceipt` separately parents that intent and is
@@ -3601,19 +3972,18 @@ receipt is bound to the exact schedule digest. This supersedes the older
 The pinned controller parser, not the environment, reconstructs the exact
 ordered tool-call queue from raw provider response bytes and byte-compares it
 with the typed calls. Omission, insertion, reorder, duplicate call ID, parser
-drift blocks the prefix index as pipeline-invalid. A valid terminal boundary
-with unexecuted remainder is retained exactly in
-`terminal_unexecuted_remainder` as adverse
-`no_intervention_opportunity` / `MALFORMED_ACTION` evidence;
+drift blocks the prefix index as pipeline-invalid. Under DL-139, any adverse
+terminal stop with a known unexecuted remainder retains it exactly in
+`terminal_unexecuted_remainder` with the actual failure kind;
 `branch_pending_calls` must be empty. On a branchable trigger,
 `terminal_unexecuted_remainder` is empty and `branch_pending_calls` stores the
 exact executable remainder. Work is never silently discarded.
-`EnvironmentAdapter.execute_tool`
-returns raw result bytes plus the executed `call_id`, edge-local
-`mutation_committed`, state-after
-`verifier_eligible_after`, explicit `episode_terminal`, failure kind, and
-elapsed evidence. The controller owns `mutation_has_returned` and the
-cumulative completed-tool count. After each validated completed result it
+The exact synthetic environment's `execute_tool` returns only raw result bytes
+and executed `call_id`; the controller separately queries edge-local
+`mutation_committed`, state-after `verifier_eligible_after`, explicit
+`episode_terminal`, and failure kind, and derives elapsed evidence from the
+meter. The controller owns `mutation_has_returned` and the cumulative
+completed-tool count. After each validated completed result it
 updates those values, then gives terminal/failure and elapsed-cap checks
 precedence, then triggers at the first remaining nonterminal boundary where
 `(mutation_has_returned and verifier_eligible_after)` or
@@ -3637,8 +4007,8 @@ tool execution and total elapsed time before and after each boundary. Terminal
 or explicit provider/tool failure observed within the deadline wins over a
 later cap check; crossing the absolute deadline always yields `TIMEOUT`.
 Aggregate simulator token/call ceilings are exact fields in
-`simulator_caps`; per-call caps cannot replace them. `FailureKind` adds the
-closed `REFUSAL` member.
+`simulator_caps`; per-call caps cannot replace them. `FailureKind` includes the
+closed `REFUSAL`, `MODEL_CALL_CAP`, and `TURN_CAP` members.
 
 The composite snapshot is canonical controller-owned bytes with exactly:
 schema version; study/task/schedule/task-input/environment/isolation refs;
@@ -3675,9 +4045,8 @@ rejects.
 
 `ControllerArtifactStore` is a concrete final local component: root-confined,
 no-follow, create-exclusive, file-and-parent-fsynced, and incapable of
-overwrite. Confirmation may substitute only one manifest-qualified nominal
-backend with equivalent receipts. After close, the controller constructs a
-new resolver from the run root/manifest rather than accepting a caller loader;
+overwrite. S02C permits no substitute backend. After close, the controller
+constructs a new resolver from the run root/manifest rather than accepting a caller loader;
 it reopens every artifact and requires an independently supplied expected
 role and expected media type plus exact path/hash/length/bytes equality.
 Controller media authority is purpose-bound: canonical JSON records use

@@ -1001,6 +1001,173 @@ preserves the fixed denominator without pretending operational failure is
 natural task completion or allowing a pre-failure successful snapshot to
 become a successful outcome.
 
+#### 5.3.2 Executable synthetic prefix closure (DL-139)
+
+DL-139 narrows S02C to `synthetic_validation`. It may execute only exact local
+deterministic fixture calls and returns one unsealed `FrozenPrefixReceipt` as a
+candidate task receipt. It cannot execute confirmation, provider/model/network
+or credential access, spend, branches, assignment, packet construction,
+prefix-index publication, a scientific experiment, an empirical result, or a
+claim. S02D remains a separate transaction: it independently reloads every
+candidate parent and raw blob, verifies selected-schedule coverage, chronology,
+ordering, caps, and cost closure, and alone seals the prefix index.
+
+The S02C entry accepts only `run_root`, `schedule_ref`, `task_id`, and exact
+final synthetic environment-factory, subject, optional simulator, and
+monotonic-meter instances. The controller constructs the exact final
+`ControllerArtifactStore`; caller stores/loaders, caps, task scripts, parsers,
+tokenizers, renderers, graders, verifiers, provider-event codecs, settlement
+codecs, plugins, subclasses, and structural substitutes are forbidden. A
+closed local registry instantiates those codecs from sealed typed contract
+descriptors. After all candidate artifacts are written, the controller closes
+the store, constructs an exact fresh resolver, and reopens every reachable
+controller artifact with independent expected role, media, and bytes before
+return.
+
+Subject and simulator expose only an `invoke` taking controller-rendered request
+bytes, intent digest, role/index/seed/model digest, remaining typed caps, and
+deadline and returning the raw observation. The meter exposes only one labeled
+read bound to the sealed program digest. The factory opens an environment from
+the controller-created root, instance ordinal, and sealed task/program bytes,
+returning an exact handle around a real child process. That handle has only
+start, snapshot, restore, visible-context, distinct role-safe
+append-assistant-turn and append-simulator-turn operations, execute-tool, four
+separate mutation/eligibility/terminal/failure queries, two-argument
+terminate-with-exact-pending-queue, grade, verify, and close operations; tool
+execution returns only ID/raw bytes.
+Factory, subject, simulator, and meter each carry frozen program bytes/digest
+that must exactly equal the canonical task program before qualification.
+
+`PrefixExecutionAuthority` exposes the exact schedule authority, manifest
+tokenizer ref, complete ordered source-revision refs, and frozen typed
+descriptors for subject, optional simulator, parser, meter, environment
+factory, grader, verifier, tokenizer, request renderer, provider-event codec,
+and settlement codec. Each descriptor closes purpose, fully-qualified nominal
+type, build, applicable grammars, runtime/container identities, and nonempty
+ordered implementation-source refs. Every source ref is a manifest member
+whose bytes are the literal implementation module. The controller hashes the
+actual loaded module file for each executing final type and matches both those
+bytes and exact nominal/build identity. This is local synthetic mechanism
+provenance only, not production, provider, model, network, or confirmation
+attestation.
+
+The selected canonical task payload directly embeds, or has one exact
+manifest-reachable ref to, a closed `synthetic_prefix_program_v1`. It fixes the
+expected trigger, exact tool-schema ref, ordered primary/simulator raw observations, tool
+observations, grade/verifier results, exact failure injection or `none`, and a
+named clock trace. There is no caller script. A program expected to trigger
+must pin a canonical nonempty synthetic tool schema, and every named tool must
+exist in it. The expected trigger is checked only after execution against the
+controller-derived result; it never selects or overrides the trigger.
+
+A raw provider observation closes role, role-local index, call seed, model
+contract digest, optional response bytes, conditional exact typed
+`SubjectTurn`, optional reported output-token IDs, reported count, canonical
+provider-event bytes, and a closed completion-kind claim. Request rendering,
+tokenization, request/input-token storage, and dispatch-intent storage and
+verification all occur before invocation. Response and token IDs co-occur;
+their absence requires zero count and no typed turn. The controller parses
+every full raw response and compares the complete typed turn—text, ordered
+queue, generated count, and finish reason—and independently reconstructs token
+IDs/count. It derives attempt status from raw response/parser/refusal/event/
+clock evidence; a fixture completion kind or count is never authority.
+
+Initial restore qualification is outside prefix time. Exactly one
+`prefix_epoch` clock read occurs after it; every later read has a sealed label,
+uint64 value, exact order, and nondecreasing value. Deadline addition rejects
+uint64 overflow. `now >= deadline` before an action forbids starting it;
+completion equal to the deadline is on time and completion greater than it is
+late. Grade/verify time is excluded. Observed used time preserves overshoot,
+while each remaining quota is `max(0, cap - used)` rather than an equality
+assertion.
+
+`FailureKind` adds exact `MODEL_CALL_CAP` and `TURN_CAP`. Generated-token,
+model-call, and turn exhaustion map to `TOKEN_CAP`, `MODEL_CALL_CAP`, and
+`TURN_CAP` for both primary and simulator; primary completed subject-issued
+tool exhaustion maps to `TOOL_CAP`. Deadline, refusal, parser, model, and
+transport failures map exactly to `TIMEOUT`, `REFUSAL`, `MALFORMED_ACTION`,
+`MODEL`, and `INFRASTRUCTURE`. There is no retry. Before and after an action,
+explicit failure, environment terminal state, deadline, and caps take
+precedence over a trigger. An initially clean terminal task is a legal natural
+no-trigger candidate with zero attempts. Calls count at dispatch, tokens count
+controller-tokenized received bytes, and turns count only parser-valid typed
+turns, including a parser-valid refusal. Completion exactly at deadline may
+produce the observed terminal state or trigger; otherwise no next action can
+start and the controller terminates with timeout.
+
+The controller's single
+`terminate(failure_kind, pending_queue)` transition freezes the last verified
+state, makes the adverse state terminal, preserves the actual non-`none`
+failure, clears the branch queue, and preserves any known pending queue in
+exact order as `terminal_unexecuted_remainder`. Therefore any adverse stop may
+carry a known terminal remainder; it is not forced to malformed action.
+Natural clean termination has failure `none` and no remainder. A branch trigger
+is nonterminal and has no terminal remainder.
+
+One required `CompositeSnapshotEnvelope.initial_restore_qualification_ref` is
+the only route to a closed `InitialRestoreQualificationReceipt`. That receipt
+binds schedule, selected task, task input, environment/isolation contracts,
+initial environment snapshot, observed resnapshot digest/length, visible and
+token refs plus explicit digests, both queues, terminal/failure state, live and
+fresh-restore controller-observed identities, and exact `verified = true`.
+Fresh validation compares exact resnapshot bytes, not only digest/length, and
+a verified qualification requires failure `none` while allowing a clean
+terminal state. Qualification failure is pipeline-invalid and emits no
+candidate.
+
+Exact `GradeExecutionReceipt` and `VerifierExecutionReceipt` records each
+parent a purpose-specific `SnapshotRestoreReceipt` plus their direct raw
+evidence. The restore receipt binds
+all schedule/task/input/environment/isolation ancestry, final composite and
+environment snapshots, observed resnapshot digest/length, both queues,
+visible/token refs and explicit digests, terminal/failure state,
+controller-observed identity, and exact verified result. All repeated state
+equals the composite snapshot, and the exact observed resnapshot bytes are
+freshly compared. Raw grade/verifier refs retain their DL-137 direct-evidence
+semantics.
+
+`EnvironmentProcessIdentity` is a closed frozen record of exact nonnegative
+instance ordinal, one normalized nonempty root-confined relative writable
+path, exact nonnegative root `fstat` device/inode, and positive real child PID
+observed from the controller's own spawn. Exact fixtures are subprocess-backed.
+Live, initial-restore, grade, and verifier environments remain pairwise
+disjoint by object, PID, and root device/inode through their last checks;
+caller strings and logical IDs prove nothing.
+
+The source-attested tool fixture returns only executed call ID and raw result
+bytes. The controller separately queries post-action mutation commit, verifier
+eligibility, terminal state, and failure, and obtains elapsed time from the
+meter. It alone constructs tool-result/boundary evidence, checks parser queue
+order and ID, and applies terminal/failure/deadline precedence before trigger.
+
+Synthetic provider events are compact canonical
+`synthetic_provider_event_v1` JSON binding role/index/seed, model contract,
+dispatch intent, completion kind, nullable response digest, observed time, and
+zero cost. Post-attempt compact canonical
+`synthetic_provider_settlement_v1` binds the same identity plus intent,
+attempt, event, `final = true`, fixed synthetic currency, and exact zero cost.
+The acyclic pair binds intent/event/attempt/finality. Any attempt requires
+`AttemptBoundZeroCostClosure`; zero-attempt closure is legal only with no
+dispatch.
+
+CAS remains no-overwrite. `EEXIST` enters a verified idempotent-reuse path:
+independently reopen with no-follow semantics and verify canonical role/media/
+path, regular-file identity, hash, length, and exact bytes before returning the
+same ref. Mismatch or collision fails and never unlinks the pre-existing blob.
+Canonical role has exactly one DL-138 media type; caller metadata cannot invent
+another binding. DL-138 post-create cleanup remains unchanged for a blob
+created by the current call.
+
+The implementation is reviewed in four internal slices: contracts/source
+attestation plus CAS reuse; initial restore plus subprocess identities;
+provider/simulator/tool loop; and final snapshot plus grade/verify/fresh-
+resolver candidate. The prioritized falsification matrix rejects: non-synthetic
+authority or injection/source drift; root/PID/inode aliasing or restore drift;
+intent-order/status/turn/token/event/settlement inconsistencies; clock order,
+overflow, boundary, overshoot, cap, and precedence errors; queue loss or
+environment-self-certified tool state; EEXIST mismatch; and any return before
+fresh resolution or any S02C publication/branch/network/spend path.
+
 ### 5.4 Assignment prefix view
 
 Post-prefix donor matching consumes a canonical `AssignmentPrefixView`, not the
