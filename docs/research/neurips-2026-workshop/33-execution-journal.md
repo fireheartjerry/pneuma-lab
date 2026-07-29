@@ -635,3 +635,60 @@ The next event after the archived migration boundary is appended below.
 - **Command:** Ran exactly one focused `t3_s08` behavioral selection, then one combined Ruff+mypy static gate; both process groups were hard-capped at 60 seconds.
 - **Result:** GREEN, exit 0. One focused test passed with 82 unrelated tests deselected in 0.22 seconds. Ruff passed; mypy found no issues in the two changed source files.
 - **Compact receipt:** stdout 175 bytes / 4 lines / SHA-256 `3a2cf90d5981650ee368e5eb0c661e2183f09278a72cc9d84513d1d00053d086`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0036/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0037 — publish synthetic assignment-algorithm slice
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Action:** Checked whitespace and worktree scope; staged exactly assignment/types source, the single focused test, and live journal; checked staged whitespace/stat; committed `feat(neurips): freeze synthetic assignment algorithms`; pushed the public branch; compared exact local/remote refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `2d8344398cceb077c0f98df6934e0c0966eaf1cd`. Four files, 702 insertions and one deletion. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Compact receipt:** stdout 816 bytes / 15 lines / SHA-256 `ca3b9362aa7dff25024247b9d09710d31bdeb7ae518030067508b71be771115f`; stderr 134 bytes / 2 lines / SHA-256 `dfc793a7f46f8ba540b84231dd913777929f4d32c2793e3fdf3427f6d3023a6d`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0037/` (ignored, retained through 2026-11-27).
+- **Claim boundary:** This commit freezes the synthetic donor/allocation algorithms only. It does not yet establish sealed assignment publication, confirmation matching, unkeyed verification, or keyed reconstruction.
+
+### EJ-20260729-0038 — open assignment-publication transaction boundary
+
+- **Action:** Inspected the exact local lease lifecycle/publication API, schedule producer, secret-handle custody, assignment-ledger schema, prefix-receipt grammar, and completed-power fixture topology.
+- **Decision:** Implement the authority-derived transaction rather than a free ledger writer. Confirmation remains nominal/fail-closed because the trusted provider registry and matching backend adapters do not exist.
+
+### EJ-20260729-0039 — implement first storage-bound assignment transaction
+
+- **Action:** Added `branch_assignment.py` with schedule/prefix/manifest ancestry loading, closed typed schedule reconstruction, verifier-feature loading, synthetic strata/matching, allocation, global capability uniqueness, CAS proof installation, key wiping, schema validation, and publication through the existing assignment-bound storage transaction.
+- **Initial focused result:** RED, exit 1 in 0.95 seconds. Upgrading the manifest master-key commitment exposed a legacy fixture assignment ledger still pinned to `aaaa…`; study construction correctly rejected the split ancestry.
+- **Correction:** Bind the setup ledger to the manifest commitment, then remove all ledger/later records before testing the actual transaction.
+
+### EJ-20260729-0040 — initial transaction behavior passes; static typing blocks
+
+- **Focused result:** GREEN, exit 0. One `t3_s09` test passed, 216 unrelated tests deselected, runtime 1.42 seconds.
+- **Static result:** RED, exit 1. Ruff passed; mypy found one overly narrow inferred dictionary type in the candidate receipt row.
+- **Correction:** Declare the heterogeneous closed receipt as `dict[str, object]`.
+
+### EJ-20260729-0041 — hostile review blocks trusted derived features
+
+- **Blocking attack:** The first implementation validated a feature blob but did not independently recompute it from its source verifier/report. An attacker could steer donor strata and distances using a schema-valid forged feature blob.
+- **Correction:** Freeze closed synthetic normalizer/tokenizer descriptors and typed verifier/report parents; inside the live lease, reload parents and recompute component rows, objective-finding count, and normalized report token count before accepting the feature blob.
+- **Additional closure:** Reload nested prefix snapshot, visible-context, provider-cost, verifier-snapshot, verifier-feature, and grade refs.
+
+### EJ-20260729-0042 — completed-power ancestry rejects hand-authored schedule
+
+- **Focused result:** RED, exit 1 in 1.13 seconds after adding independent completed-power consumption. The legacy fixture schedule named a dummy `sources/power-config.json`, not the actual final power report.
+- **Correction:** In the focused fixture, delete the hand-authored schedule, publish a new schedule through `seal_prefix_schedule` from the actual completed final, then rebuild the prefix receipt against the exact new schedule digest.
+- **Corrected result:** GREEN, exit 0. One focused test passed, 216 unrelated tests deselected, runtime 1.13 seconds.
+
+### EJ-20260729-0043 — hostile review blocks unaccepted schedule replay
+
+- **Blocking attack:** A digest-valid schedule file could reach assignment without proving the fixed prefix storage acceptance receipt and durable registry proof.
+- **Correction:** Require the closed prefix receipt, recompute its intent digest and deterministic commit ID, verify manifest/root/lease/mount/science path/digest bindings, load the unique durable registry proof, and byte-compare it with the fixed receipt before assignment publication.
+- **Adversarial case:** Forge only the fixed receipt's scientific digest. Assignment rejects before lease begin or secret consumption; restore the original receipt and the same lease/handle then complete successfully.
+
+### EJ-20260729-0044 — corrected narrow transaction gates pass
+
+- **Focused result:** GREEN, exit 0. One `t3_s09` transaction test passed with 216 unrelated tests deselected in 1.07 seconds.
+- **Static result:** GREEN, exit 0. Ruff passed the transaction/core/types plus focused fixture; mypy found no issues in three source files.
+- **Evidence covered:** Actual completed-power-derived schedule; exact prefix coverage/order; accepted prefix storage proof; source-recomputed no-trigger prefix view; key commitment/one-use consumption; two complete four-arm allocations; global capability uniqueness; ledger schema; durable assignment receipt; no ledger/later-record precondition.
+- **Claim boundary:** Triggered synthetic CAS proofs are implemented but not promoted by this event because the current complete authority fixture has only two no-trigger tasks. A dedicated three-lineage triggered transaction/falsification fixture is the next gate. Confirmation remains unavailable and unclaimed.
+
+### EJ-20260729-0045 — final captured all-no-trigger transaction gate
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Command:** Ran exactly one focused `t3_s09` behavioral selection and one combined Ruff+mypy static gate, each hard-capped at 60 seconds.
+- **Result:** GREEN, exit 0. One test passed with 216 unrelated tests deselected in 1.16 seconds. Ruff passed; mypy found no issues in three source files.
+- **Compact receipt:** stdout 176 bytes / 4 lines / SHA-256 `170cae229899b41a361fa1a728802e9fe8ffd24315238c6c81f0c155f0609e99`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0045/` (ignored, retained through 2026-11-27).

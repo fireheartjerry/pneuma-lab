@@ -33,11 +33,14 @@ from pneuma_lab.resampling_null.artifacts import (
     write_record,
 )
 from pneuma_lab.resampling_null.assignment import (
+    BytesField,
     U64Field,
     commitment_sha256,
     require_schedulable_power_final,
 )
+from pneuma_lab.resampling_null.branch_assignment import seal_branch_assignment
 from pneuma_lab.resampling_null.schedule import seal_prefix_schedule
+from pneuma_lab.resampling_null.secrets import AssignmentSecretStore
 from pneuma_lab.resampling_null.storage import (
     ConfirmationStorageLease,
     LocalTestStorageLease,
@@ -1076,8 +1079,30 @@ def _build_full_study(
         if variant == "schedule-roster-subset":
             roster_tasks.append({"task_id": "task-uncovered"})
         registry_tasks = roster_tasks
-    normalizer_ref = raw("normalizer.py", b"normalizer")
-    tokenizer_ref = raw("tokenizer.json", {"name": "tokenizer"})
+    normalizer_ref = raw(
+        "normalizer.py",
+        (
+            {
+                "record_kind": "synthetic_assignment_normalizer_v1",
+                "schema_version": "1",
+                "algorithm": "closed_fixture_components_v1",
+            }
+            if completed_power_consumer_fixture
+            else b"normalizer"
+        ),
+    )
+    tokenizer_ref = raw(
+        "tokenizer.json",
+        (
+            {
+                "record_kind": "synthetic_report_tokenizer_v1",
+                "schema_version": "1",
+                "algorithm": "unicode_whitespace_v1",
+            }
+            if completed_power_consumer_fixture
+            else {"name": "tokenizer"}
+        ),
+    )
     raws = {
         "tasks": raw(
             "tasks.json",
@@ -1230,10 +1255,59 @@ def _build_full_study(
         "numeric_fixture": raw("numeric-fixture.json", {"digest": SHA_A}),
         "matching_proof": raw("matching-proof.json", {"status": "OPTIMAL"}),
         "alternate": raw("alternate.bin", b"alternate"),
-        "focal_verifier": raw("focal-verifier.json", {"task_id": "task-1"}),
+        "focal_verifier": raw(
+            "focal-verifier.json",
+            (
+                {
+                    "record_kind": "synthetic_verifier_source_v1",
+                    "schema_version": "1",
+                    "task_id": "task-1",
+                    "benchmark": "swe",
+                    "components": [
+                        {"kind": "check_runner", "value": "pytest", "count": 1},
+                        {"kind": "failure_class", "value": "none", "count": 1},
+                    ],
+                    "objective_findings": [],
+                }
+                if completed_power_consumer_fixture
+                else {"task_id": "task-1"}
+            ),
+        ),
         "donor_verifier": raw(
             "donor-verifier.json",
-            {"task_id": "task-donor"},
+            (
+                {
+                    "record_kind": "synthetic_verifier_source_v1",
+                    "schema_version": "1",
+                    "task_id": "task-donor",
+                    "benchmark": "swe",
+                    "components": [
+                        {"kind": "check_runner", "value": "pytest", "count": 1},
+                        {"kind": "failure_class", "value": "none", "count": 1},
+                    ],
+                    "objective_findings": [],
+                }
+                if completed_power_consumer_fixture
+                else {"task_id": "task-donor"}
+            ),
+        ),
+        "report_task": raw(
+            "report-task.json",
+            {
+                "record_kind": "synthetic_verifier_report_v1",
+                "schema_version": "1",
+                "task_id": "task-1",
+                "report_text": "clean",
+            },
+        ),
+        "report_donor": raw(
+            "report-donor.json",
+            {
+                "record_kind": "synthetic_verifier_report_v1",
+                "schema_version": "1",
+                "task_id": "task-donor",
+                "report_text": "clean",
+            },
         ),
         "real_packet": raw("real-packet.bin", b"real"),
         "sham_packet": raw("sham-packet.bin", b"sham"),
@@ -1248,6 +1322,41 @@ def _build_full_study(
         "adverse_2": raw("adverse-2.json", {"slot_id": "slot-2"}),
         "adverse_3": raw("adverse-3.json", {"slot_id": "slot-3"}),
     }
+    if completed_power_consumer_fixture:
+        raws["features_task"] = raw(
+            "features-task.json",
+            {
+                "record_kind": "assignment_verifier_features_v1",
+                "schema_version": "1",
+                "task_id": "task-1",
+                "benchmark": "swe",
+                "source_verifier_ref": raws["focal_verifier"],
+                "source_report_ref": raws["report_task"],
+                "components": [
+                    {"kind": "check_runner", "value": "pytest", "count": 1},
+                    {"kind": "failure_class", "value": "none", "count": 1},
+                ],
+                "objective_finding_count": 0,
+                "normalized_report_token_count": 1,
+            },
+        )
+        raws["features_donor"] = raw(
+            "features-donor.json",
+            {
+                "record_kind": "assignment_verifier_features_v1",
+                "schema_version": "1",
+                "task_id": "task-donor",
+                "benchmark": "swe",
+                "source_verifier_ref": raws["donor_verifier"],
+                "source_report_ref": raws["report_donor"],
+                "components": [
+                    {"kind": "check_runner", "value": "pytest", "count": 1},
+                    {"kind": "failure_class", "value": "none", "count": 1},
+                ],
+                "objective_finding_count": 0,
+                "normalized_report_token_count": 1,
+            },
+        )
 
     manifest_payload: dict[str, object] = {
         "task_registry_ref": raws["tasks"],
@@ -1292,6 +1401,14 @@ def _build_full_study(
         "assignment_master_key_commitment_sha256": SHA_A,
         "required_document_kinds_ref": raws["required"],
     }
+    if completed_power_consumer_fixture:
+        manifest_payload["assignment_master_key_commitment_sha256"] = (
+            commitment_sha256(
+                "assignment-master-key",
+                "study-1",
+                BytesField(bytes(range(32))),
+            )
+        )
     manifest_ref = _write_test_record(
         root,
         "study-manifest.json",
@@ -1369,7 +1486,9 @@ def _build_full_study(
             "schedule_sha256": verifier_schedule_sha,
             "snapshot_ref": raws["shared"],
             "verifier_artifact_ref": (
-                raws["focal_verifier"]
+                raws["features_task"]
+                if completed_power_consumer_fixture
+                else raws["focal_verifier"]
                 if packet_pair or failed_second_task
                 else raws["shared"]
             ),
@@ -1400,7 +1519,11 @@ def _build_full_study(
         donor_receipt["verifier_receipt"]["task_id"] = "task-donor"  # type: ignore[index]
         donor_receipt["verifier_receipt"][  # type: ignore[index]
             "verifier_artifact_ref"
-        ] = raws["donor_verifier"]
+        ] = (
+            raws["features_donor"]
+            if completed_power_consumer_fixture
+            else raws["donor_verifier"]
+        )
         prefix_task_receipts.append(donor_receipt)
     prefix_ref = _write_test_record(
         root,
@@ -1440,7 +1563,11 @@ def _build_full_study(
         "schedule_ref": schedule_ref,
         "prefix_index_ref": prefix_ref,
         "matching_program_ref": raws["assignment"],
-        "assignment_master_key_commitment_sha256": SHA_A,
+        "assignment_master_key_commitment_sha256": (
+            manifest_payload["assignment_master_key_commitment_sha256"]
+            if completed_power_consumer_fixture
+            else SHA_A
+        ),
         "assignment_prefix_view_sha256": SHA_B,
         "assignment_mode": assignment_mode,
         "matching_proof_refs": ([matching_proof_ref] if task_1_triggered else []),
@@ -2899,6 +3026,156 @@ def test_t3_s07_prefix_schedule_is_derived_and_published_inside_lease(
         (root / "operational/storage-policy/prefix.json").read_bytes()
     )
     assert receipt["publication_commit"]["scientific_sha256"] == schedule_ref.sha256
+
+
+def test_t3_s09_branch_assignment_is_derived_inside_assignment_lease(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "branch-assignment"
+    installed = _build_full_study(
+        root,
+        completed_power_consumer_fixture=True,
+    )
+    forbidden = {
+        "resampling_assignment_ledger",
+        "resampling_packet_index",
+        "resampling_task_block",
+        "resampling_blinded_projection",
+        "resampling_analysis_freeze",
+        "resampling_analysis",
+        "resampling_unblind_receipt",
+        "resampling_artifact_root",
+    }
+    for path in root.rglob("*.json"):
+        try:
+            value = json.loads(path.read_bytes())
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if isinstance(value, dict) and value.get("record_kind") in forbidden:
+            path.unlink()
+
+    manifest_ref = ArtifactRef(
+        **cast(dict[str, Any], installed["manifest_ref"])
+    )
+    old_prefix = load_record(root / "prefix-receipt.json")
+    old_prefix_payload = cast(dict[str, object], old_prefix["payload"])
+    (root / "prefix-receipt.json").unlink()
+    (root / "prefix-schedule.json").unlink()
+    final_paths = [
+        path
+        for path in (root / "power").glob("*.json")
+        if load_record(path)["payload"]["stage"] == "final"  # type: ignore[index]
+    ]
+    assert len(final_paths) == 1
+    final_path = final_paths[0]
+    final_raw = final_path.read_bytes()
+    power_final_ref = ArtifactRef(
+        role="resampling_power_report",
+        relative_path=final_path.relative_to(root).as_posix(),
+        sha256=hashlib.sha256(final_raw).hexdigest(),
+        byte_count=len(final_raw),
+        media_type="application/json",
+    )
+    prefix_storage_lease = claim_local_test_storage(
+        transaction="prefix",
+        run_root=root,
+        manifest_ref=manifest_ref,
+        schedule_ref=None,
+    )
+    schedule_ref = seal_prefix_schedule(
+        manifest_ref,
+        power_final_ref,
+        schedule_seed_reveal=7,
+        storage_policy_lease=prefix_storage_lease,
+        run_root=root,
+        out=root / "prefix-schedule.json",
+    )
+    old_prefix_payload["schedule_ref"] = asdict(schedule_ref)
+    for receipt in cast(
+        list[dict[str, object]],
+        old_prefix_payload["task_receipts"],
+    ):
+        receipt["schedule_sha256"] = schedule_ref.sha256
+        cast(dict[str, object], receipt["verifier_receipt"])[
+            "schedule_sha256"
+        ] = schedule_ref.sha256
+    prefix_ref_value = _write_test_record(
+        root,
+        "prefix-receipt.json",
+        "resampling_prefix_receipt",
+        old_prefix_payload,
+    )
+    prefix_ref = ArtifactRef(**prefix_ref_value)
+    lease = claim_local_test_storage(
+        transaction="assignment",
+        run_root=root,
+        manifest_ref=manifest_ref,
+        schedule_ref=schedule_ref,
+    )
+    secret_path = tmp_path / "assignment-master.key"
+    secret_path.write_bytes(bytes(range(32)))
+    secret_path.chmod(0o400)
+    store = AssignmentSecretStore(secret_path)
+    handle = store.claim_assignment(
+        manifest_ref,
+        schedule_ref,
+        run_root=root,
+    )
+    prefix_storage_receipt_path = (
+        root / "operational/storage-policy/prefix.json"
+    )
+    prefix_storage_receipt_bytes = prefix_storage_receipt_path.read_bytes()
+    forged_prefix_storage_receipt = json.loads(prefix_storage_receipt_bytes)
+    forged_prefix_storage_receipt["publication_commit"][
+        "scientific_sha256"
+    ] = SHA_A
+    prefix_storage_receipt_path.write_bytes(
+        canonical_json_bytes(forged_prefix_storage_receipt, indent=None)
+    )
+    with pytest.raises(RecordValidationError, match="accepted schedule"):
+        seal_branch_assignment(
+            schedule_ref,
+            prefix_ref,
+            assignment_secret_handle=handle,
+            matching_backend_session=None,
+            storage_policy_lease=lease,
+            run_root=root,
+            out=root / "assignment-ledger.json",
+        )
+    prefix_storage_receipt_path.write_bytes(prefix_storage_receipt_bytes)
+    ledger_ref = seal_branch_assignment(
+        schedule_ref,
+        prefix_ref,
+        assignment_secret_handle=handle,
+        matching_backend_session=None,
+        storage_policy_lease=lease,
+        run_root=root,
+        out=root / "assignment-ledger.json",
+    )
+    ledger = load_record(root / ledger_ref.relative_path)
+    payload = cast(dict[str, object], ledger["payload"])
+    assert payload["assignment_mode"] == "synthetic_derangement"
+    assert payload["matching_proof_refs"] == []
+    assert [
+        assignment["task_id"]
+        for assignment in cast(list[dict[str, object]], payload["assignments"])
+    ] == ["task-1", "task-donor"]
+    assert all(
+        receipt["kind"] == "not_applicable_no_trigger"
+        for receipt in cast(
+            list[dict[str, object]],
+            payload["donor_match_receipts"],
+        )
+    )
+    storage_receipt = json.loads(
+        (root / "operational/storage-policy/assignment.json").read_bytes()
+    )
+    assert (
+        storage_receipt["publication_commit"]["scientific_sha256"]
+        == ledger_ref.sha256
+    )
+    with pytest.raises(ValueError, match="consumed"):
+        store._consume_into(handle, bytearray(32))  # type: ignore[arg-type]
 
 
 def _numeric_contract() -> dict[str, object]:
