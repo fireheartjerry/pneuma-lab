@@ -5,6 +5,7 @@ import inspect
 import os
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
@@ -24,12 +25,16 @@ from pneuma_lab.resampling_null.synthetic_environment import (
     _EnvironmentFleet,
     _InitialObservation,
     _assert_pairwise_isolated,
+    _cleanup_owned_root,
     _cleanup_process,
+    _decode_snapshot_state,
     _open_qualified_initial_restore,
     _open_root,
     _open_workspace,
+    _observe_initial,
     _qualify_initial_restore,
     _validate_initial_observation,
+    _write_frame_fd,
 )
 from pneuma_lab.resampling_null.types import ArtifactRef, FailureKind
 
@@ -40,7 +45,11 @@ def _ref(role: str, name: str, *, media_type: str = "application/json") -> Artif
     relative_path = (
         f"controller-artifacts/{role}/{digest}"
         if role == "selected_task"
-        else f"sources/{name}"
+        else (
+            "prefix-schedule.json"
+            if role == "resampling_prefix_schedule"
+            else f"sources/{name}"
+        )
     )
     return ArtifactRef(
         role=role,
@@ -141,6 +150,34 @@ def _authority() -> InitialQualificationAuthority:
         ),
         task_input_bytes=task_input_bytes,
         program_bytes=program_bytes,
+    )
+
+
+def _snapshot_bytes(
+    *,
+    program_sha256: str = "a" * 64,
+    visible_context: bytes = b"visible",
+    simulator_context: bytes | None = None,
+    turns: object = (),
+) -> bytes:
+    import base64
+
+    return canonical_json_bytes(
+        {
+            "branch_pending_calls": [],
+            "episode_terminal": False,
+            "failure_kind": "none",
+            "program_sha256": program_sha256,
+            "simulator_context": (
+                None
+                if simulator_context is None
+                else base64.b64encode(simulator_context).decode("ascii")
+            ),
+            "terminal_unexecuted_remainder": [],
+            "turns": list(turns) if isinstance(turns, tuple) else turns,
+            "visible_context": base64.b64encode(visible_context).decode("ascii"),
+        },
+        indent=None,
     )
 
 
@@ -262,11 +299,16 @@ def test_workspace_symlink_and_exhausted_stale_names_fail_without_mutation(
         external,
         target_is_directory=True,
     )
-    with pytest.raises(RecordValidationError, match="workspace is unsafe"):
+    with pytest.raises(BaseExceptionGroup) as raised:
         _qualify_initial_restore(
             run_root=symlink_root,
             authority=_authority(),
         )
+    assert any(
+        isinstance(error, RecordValidationError)
+        and "workspace is unsafe" in str(error)
+        for error in _exception_leaves(raised.value)
+    )
     assert not any(external.iterdir())
 
     collision_root = tmp_path / "collision-root"
@@ -426,6 +468,107 @@ def test_ipc_creation_is_transactional_for_every_acquisition(
     monkeypatch.setattr(synthetic_environment.os, "fdopen", injected_fdopen)
     with pytest.raises(BaseException):
         synthetic_environment.ControllerEnvironmentIPC.create()
+    assert len(os.listdir("/proc/self/fd")) == before
+
+
+def test_bounded_frame_write_handles_partial_progress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    read_fd, write_fd = os.pipe()
+    real_write = synthetic_environment.os.write
+
+    def partial_write(descriptor: int, payload: object) -> int:
+        view = memoryview(payload)  # type: ignore[arg-type]
+        return real_write(descriptor, view[: max(1, len(view) // 2)])
+
+    monkeypatch.setattr(synthetic_environment.os, "write", partial_write)
+    try:
+        _write_frame_fd(write_fd, b'{"ok":true}', timeout_seconds=0.2)
+        assert os.read(read_fd, 100) == b'{"ok":true}\n'
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+def test_bounded_frame_write_rejects_zero_progress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    read_fd, write_fd = os.pipe()
+    monkeypatch.setattr(synthetic_environment.os, "write", lambda *_args: 0)
+    try:
+        with pytest.raises(OSError, match="no progress"):
+            _write_frame_fd(write_fd, b"{}", timeout_seconds=0.2)
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+@pytest.mark.parametrize(
+    ("frame", "close_response"),
+    [
+        (b'{"ok":true,"ok":true,"value":null}\n', False),
+        (b'{"ok": true, "value": null}\n', False),
+        (b'{"ok":true,"value":NaN}\n', False),
+        (b'{"ok":true,"value":null}', True),
+    ],
+)
+def test_ipc_rejects_noncanonical_or_unframed_response(
+    frame: bytes,
+    close_response: bool,
+) -> None:
+    before = len(os.listdir("/proc/self/fd"))
+    ipc = synthetic_environment.ControllerEnvironmentIPC.create()
+    _request_read, response_write = ipc.child_fds
+    os.write(response_write, frame)
+    if close_response:
+        os.close(response_write)
+        ipc._response_write_fd = None
+    try:
+        with pytest.raises(RecordValidationError, match="frame is invalid"):
+            ipc.exchange("snapshot")
+    finally:
+        ipc.close()
+    assert len(os.listdir("/proc/self/fd")) == before
+
+
+def test_ipc_rejects_oversized_and_stalled_or_dead_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ValueError, match="byte cap"):
+        _write_frame_fd(
+            0,
+            b"x" * (synthetic_environment._IPC_MAX_FRAME_BYTES + 1),
+            timeout_seconds=0.01,
+        )
+
+    monkeypatch.setattr(synthetic_environment, "_IPC_TIMEOUT_SECONDS", 0.01)
+    for dead in (False, True):
+        before = len(os.listdir("/proc/self/fd"))
+        ipc = synthetic_environment.ControllerEnvironmentIPC.create()
+        if dead:
+            response_write = ipc.child_fds[1]
+            os.close(response_write)
+            ipc._response_write_fd = None
+        try:
+            with pytest.raises(RecordValidationError, match="frame is invalid"):
+                ipc.exchange("snapshot")
+        finally:
+            ipc.close()
+        assert len(os.listdir("/proc/self/fd")) == before
+
+
+def test_ipc_rejects_oversized_response_without_leaking_fds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before = len(os.listdir("/proc/self/fd"))
+    monkeypatch.setattr(synthetic_environment, "_IPC_MAX_FRAME_BYTES", 64)
+    ipc = synthetic_environment.ControllerEnvironmentIPC.create()
+    os.write(ipc.child_fds[1], b"x" * 65 + b"\n")
+    try:
+        with pytest.raises(RecordValidationError, match="frame is invalid"):
+            ipc.exchange("snapshot")
+    finally:
+        ipc.close()
     assert len(os.listdir("/proc/self/fd")) == before
 
 
@@ -633,10 +776,14 @@ def test_process_cleanup_waits_after_terminate_and_kill_failures() -> None:
             raise OSError("kill failed")
 
     process = CleanupProcess()
-    errors = _cleanup_process(process)  # type: ignore[arg-type]
+    cleanup = _cleanup_process(process)  # type: ignore[arg-type]
 
     assert process.calls == ["terminate", "wait:1", "kill", "wait:1"]
-    assert [str(error) for error in errors] == ["terminate failed", "kill failed"]
+    assert cleanup.reaped is True
+    assert [str(error) for error in cleanup.errors] == [
+        "terminate failed",
+        "kill failed",
+    ]
 
 
 def test_process_cleanup_preserves_poll_failure_and_still_attempts_policy() -> None:
@@ -659,10 +806,120 @@ def test_process_cleanup_preserves_poll_failure_and_still_attempts_policy() -> N
             self.calls.append("kill")
 
     process = PollFailureProcess()
-    errors = _cleanup_process(process)  # type: ignore[arg-type]
+    cleanup = _cleanup_process(process)  # type: ignore[arg-type]
 
     assert process.calls == ["poll", "terminate", "wait:1"]
-    assert [str(error) for error in errors] == ["poll failed"]
+    assert cleanup.reaped is True
+    assert [str(error) for error in cleanup.errors] == ["poll failed"]
+
+
+def test_process_cleanup_reports_preexited_nonzero_as_reaped_failure() -> None:
+    class ExitedProcess:
+        def poll(self) -> int:
+            return 17
+
+    cleanup = _cleanup_process(ExitedProcess())  # type: ignore[arg-type]
+
+    assert cleanup.reaped is True
+    assert [str(error) for error in cleanup.errors] == [
+        "environment process exited nonzero before cleanup"
+    ]
+
+
+def test_process_cleanup_kills_after_wait_oserror_confirms_process_live() -> None:
+    class LiveAfterWaitErrorProcess:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+            self.polls = 0
+            self.waits = 0
+
+        def poll(self) -> None:
+            self.calls.append("poll")
+            self.polls += 1
+            return None
+
+        def terminate(self) -> None:
+            self.calls.append("terminate")
+
+        def wait(self, *, timeout: int) -> int:
+            self.calls.append(f"wait:{timeout}")
+            self.waits += 1
+            if self.waits == 1:
+                raise OSError("wait failed")
+            return 0
+
+        def kill(self) -> None:
+            self.calls.append("kill")
+
+    process = LiveAfterWaitErrorProcess()
+    cleanup = _cleanup_process(process)  # type: ignore[arg-type]
+
+    assert process.calls == [
+        "poll",
+        "terminate",
+        "wait:1",
+        "poll",
+        "kill",
+        "wait:1",
+    ]
+    assert cleanup.reaped is True
+    assert [str(error) for error in cleanup.errors] == ["wait failed"]
+
+
+def test_uncertain_process_reap_preserves_owned_root(
+    tmp_path: Path,
+) -> None:
+    class UncertainProcess:
+        def __init__(self) -> None:
+            self.polls = 0
+
+        def poll(self) -> None:
+            self.polls += 1
+            if self.polls == 2:
+                raise OSError("repoll failed")
+            return None
+
+        def terminate(self) -> None:
+            return None
+
+        def wait(self, *, timeout: int) -> int:
+            raise OSError("wait failed")
+
+        def kill(self) -> None:
+            raise AssertionError("uncertain state must not kill blindly")
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    owned = workspace / "owned"
+    owned.mkdir()
+    (owned / "evidence").write_text("preserve")
+    workspace_fd = os.open(workspace, os.O_RDONLY | os.O_DIRECTORY)
+    root_fd = os.open(owned, os.O_RDONLY | os.O_DIRECTORY)
+    metadata = os.fstat(root_fd)
+    cleanup = _cleanup_process(UncertainProcess())  # type: ignore[arg-type]
+    try:
+        root_errors = _cleanup_owned_root(
+            workspace_fd=workspace_fd,
+            root_name="owned",
+            expected_identity=(metadata.st_dev, metadata.st_ino),
+            root_fd=root_fd,
+            allow_removal=cleanup.reaped,
+        )
+    finally:
+        os.close(workspace_fd)
+
+    assert cleanup.reaped is False
+    assert [str(error) for error in cleanup.errors] == [
+        "wait failed",
+        "repoll failed",
+        "environment process reap state remains uncertain",
+    ]
+    assert [str(error) for error in root_errors] == [
+        "writable root preserved because process reap is uncertain"
+    ]
+    assert (owned / "evidence").read_text() == "preserve"
+    with pytest.raises(OSError):
+        os.fstat(root_fd)
 
 
 def test_qualification_rejects_unsealed_bytes_and_environment_descriptor() -> None:
@@ -690,6 +947,54 @@ def test_qualification_rejects_unsealed_bytes_and_environment_descriptor() -> No
     assert SyntheticByteTokenizer().encode(b"\x00\xff") == (0, 255)
 
 
+def test_authority_rejects_noncanonical_ref_media_and_path() -> None:
+    authority = _authority()
+    with pytest.raises(ValueError, match="program_ref"):
+        replace(
+            authority,
+            program_ref=replace(
+                authority.program_ref,
+                media_type="application/octet-stream",
+            ),
+        )
+    with pytest.raises(ValueError, match="program_ref"):
+        replace(
+            authority,
+            program_ref=replace(
+                authority.program_ref,
+                relative_path="controller-artifacts/program",
+            ),
+        )
+
+
+@pytest.mark.parametrize("drift", ["bytes", "ref", "descriptor"])
+def test_authority_use_time_seal_rejects_post_init_drift(drift: str) -> None:
+    authority = _authority()
+    if drift == "bytes":
+        object.__setattr__(authority, "program_bytes", b"drift")
+    elif drift == "ref":
+        object.__setattr__(
+            authority,
+            "task_ref",
+            replace(authority.task_ref, sha256="f" * 64),
+        )
+    else:
+        object.__setattr__(
+            authority.environment_descriptor,
+            "build_id",
+            "drift",
+        )
+
+    with pytest.raises(
+        (RecordValidationError, ValueError),
+        match="seal|descriptor|task_ref",
+    ):
+        _open_qualified_initial_restore(
+            run_root=Path("/does-not-need-to-exist"),
+            authority=authority,
+        )
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -700,6 +1005,8 @@ def test_qualification_rejects_unsealed_bytes_and_environment_descriptor() -> No
         ("terminal_unexecuted_remainder", (object(),)),
         ("episode_terminal", True),
         ("failure_kind", FailureKind.INFRASTRUCTURE),
+        ("mutation_committed", True),
+        ("verifier_eligible", True),
     ],
 )
 def test_initial_restore_rejects_every_byte_and_state_mismatch(
@@ -712,6 +1019,8 @@ def test_initial_restore_rejects_every_byte_and_state_mismatch(
         resnapshot_bytes=snapshot,
         visible_context=b"visible",
         restored_visible_context=b"visible",
+        simulator_context=None,
+        restored_simulator_context=None,
         token_ids=(1, 2, 3),
         restored_token_ids=(1, 2, 3),
         branch_pending_calls=(),
@@ -722,6 +1031,10 @@ def test_initial_restore_rejects_every_byte_and_state_mismatch(
         restored_episode_terminal=False,
         failure_kind=FailureKind.NONE,
         restored_failure_kind=FailureKind.NONE,
+        mutation_committed=False,
+        restored_mutation_committed=False,
+        verifier_eligible=False,
+        restored_verifier_eligible=False,
     )
 
     if field in ("visible_context", "token_ids"):
@@ -731,6 +1044,8 @@ def test_initial_restore_rejects_every_byte_and_state_mismatch(
         "terminal_unexecuted_remainder",
         "episode_terminal",
         "failure_kind",
+        "mutation_committed",
+        "verifier_eligible",
     ):
         changed = replace(observation, **{f"restored_{field}": value})
     else:
@@ -738,6 +1053,63 @@ def test_initial_restore_rejects_every_byte_and_state_mismatch(
 
     with pytest.raises(ValueError, match="initial restore"):
         _validate_initial_observation(changed)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b'{"program_sha256":"x","program_sha256":"y"}\n',
+        b'{"value":NaN}\n',
+        _snapshot_bytes().replace(b'"visible_context":"', b'"visible_context":"!'),
+        _snapshot_bytes(turns={}),
+        _snapshot_bytes()[:-1] + b" \n",
+    ],
+)
+def test_snapshot_decoder_rejects_open_or_noncanonical_state(payload: bytes) -> None:
+    with pytest.raises(RecordValidationError):
+        _decode_snapshot_state(payload)
+
+
+def test_byte_identical_snapshot_rejects_inconsistent_queried_context() -> None:
+    snapshot = _snapshot_bytes(visible_context=b"embedded")
+
+    class FakeHandle:
+        def start(self) -> None:
+            pass
+
+        def snapshot(self) -> bytes:
+            return snapshot
+
+        def restore(self, snapshot_bytes: bytes) -> None:
+            assert snapshot_bytes == snapshot
+
+        def visible_context(self) -> bytes:
+            return b"queried-drift"
+
+        def simulator_context(self) -> None:
+            return None
+
+        def episode_terminal(self) -> bool:
+            return False
+
+        def failure_kind(self) -> FailureKind:
+            return FailureKind.NONE
+
+        def mutation_committed(self) -> bool:
+            return False
+
+        def verifier_eligible(self) -> bool:
+            return False
+
+    live = SimpleNamespace(handle=FakeHandle())
+    restored = SimpleNamespace(handle=FakeHandle())
+    with pytest.raises(ValueError, match="embedded snapshot state mismatch"):
+        _observe_initial(
+            live,  # type: ignore[arg-type]
+            restored,  # type: ignore[arg-type]
+            SyntheticByteTokenizer(),
+            "a" * 64,
+        )
 
 
 def test_identity_checks_reject_object_pid_root_alias_and_dead_process(
@@ -798,6 +1170,104 @@ def test_cleanup_replacement_race_preserves_new_name_target(tmp_path: Path) -> N
     )
     assert (owned / "replacement").read_text() == "keep"
     assert moved.is_dir()
+
+
+def test_retained_close_orders_workers_then_source_verify_then_source_close(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _open_qualified_initial_restore(
+        run_root=tmp_path,
+        authority=_authority(),
+    )
+    events: list[str] = []
+    real_handle_close = SyntheticEnvironmentHandle.close
+    real_verify = synthetic_environment.StableSourceProvenance.verify_again
+    real_source_close = synthetic_environment.StableSourceProvenance.close
+
+    def handle_close(self: SyntheticEnvironmentHandle) -> None:
+        events.append("worker_close")
+        real_handle_close(self)
+
+    def verify_again(
+        self: synthetic_environment.StableSourceProvenance,
+    ) -> bytes:
+        events.append("source_verify")
+        return real_verify(self)
+
+    def source_close(
+        self: synthetic_environment.StableSourceProvenance,
+    ) -> None:
+        events.append("source_close")
+        real_source_close(self)
+
+    monkeypatch.setattr(SyntheticEnvironmentHandle, "close", handle_close)
+    monkeypatch.setattr(
+        synthetic_environment.StableSourceProvenance,
+        "verify_again",
+        verify_again,
+    )
+    monkeypatch.setattr(
+        synthetic_environment.StableSourceProvenance,
+        "close",
+        source_close,
+    )
+
+    result.close()
+
+    assert events.count("worker_close") == 2
+    assert events.count("source_verify") == 2
+    assert events.count("source_close") == 2
+    assert max(
+        index for index, event in enumerate(events) if event == "worker_close"
+    ) < min(index for index, event in enumerate(events) if event == "source_verify")
+    assert max(
+        index for index, event in enumerate(events) if event == "source_verify"
+    ) < min(index for index, event in enumerate(events) if event == "source_close")
+
+
+def test_pre_fleet_factory_failure_still_verifies_and_closes_all_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    real_verify = synthetic_environment.StableSourceProvenance.verify_again
+    real_close = synthetic_environment.StableSourceProvenance.close
+
+    def fail_factory(self: SyntheticEnvironmentFactory, **kwargs: object) -> None:
+        raise KeyboardInterrupt("factory primary")
+
+    def verify(
+        self: synthetic_environment.StableSourceProvenance,
+    ) -> bytes:
+        events.append("verify")
+        return real_verify(self)
+
+    def close(
+        self: synthetic_environment.StableSourceProvenance,
+    ) -> None:
+        events.append("close")
+        real_close(self)
+
+    monkeypatch.setattr(SyntheticEnvironmentFactory, "__init__", fail_factory)
+    monkeypatch.setattr(
+        synthetic_environment.StableSourceProvenance,
+        "verify_again",
+        verify,
+    )
+    monkeypatch.setattr(
+        synthetic_environment.StableSourceProvenance,
+        "close",
+        close,
+    )
+    with pytest.raises(BaseExceptionGroup) as raised:
+        _open_qualified_initial_restore(
+            run_root=tmp_path,
+            authority=_authority(),
+        )
+
+    assert isinstance(_exception_leaves(raised.value)[0], KeyboardInterrupt)
+    assert events == ["verify", "verify", "close", "close"]
 
 
 def test_cleanup_aggregates_baseexception_and_removes_only_owned_roots(

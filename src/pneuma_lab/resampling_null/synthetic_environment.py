@@ -7,15 +7,20 @@ provider, model, network, experiment, spend, branch, or publication action.
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 import hashlib
 import json
 import os
 from pathlib import Path
+import select
 import stat
 import subprocess
 import sys
+import time
 from typing import BinaryIO, cast, final
+
+_IPC_MAX_FRAME_BYTES = 1024 * 1024
+_IPC_TIMEOUT_SECONDS = 2.0
 
 
 def _worker_canonical(value: object) -> bytes:
@@ -26,6 +31,111 @@ def _worker_canonical(value: object) -> bytes:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
+
+
+def _strict_compact_json(payload: bytes) -> object:
+    try:
+        text = payload.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise ValueError("IPC frame is not strict UTF-8") from exc
+
+    def reject_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"IPC frame repeats key {key!r}")
+            result[key] = value
+        return result
+
+    try:
+        value = json.loads(
+            text,
+            object_pairs_hook=reject_duplicates,
+            parse_constant=lambda constant: (_ for _ in ()).throw(
+                ValueError(f"IPC frame contains {constant!r}")
+            ),
+        )
+    except json.JSONDecodeError as exc:
+        raise ValueError("IPC frame is not strict JSON") from exc
+    if _worker_canonical(value) != payload:
+        raise ValueError("IPC frame is not compact canonical JSON")
+    return value
+
+
+def _write_frame_fd(
+    descriptor: int,
+    payload: bytes,
+    *,
+    timeout_seconds: float,
+) -> None:
+    if type(payload) is not bytes or len(payload) > _IPC_MAX_FRAME_BYTES:
+        raise ValueError("IPC frame exceeds the exact byte cap")
+    frame = payload + b"\n"
+    view = memoryview(frame)
+    offset = 0
+    deadline = time.monotonic() + timeout_seconds
+    while offset < len(view):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("IPC frame write timed out")
+        _readable, writable, _exceptional = select.select(
+            [],
+            [descriptor],
+            [],
+            remaining,
+        )
+        if not writable:
+            raise TimeoutError("IPC frame write timed out")
+        try:
+            written = os.write(descriptor, view[offset:])
+        except BlockingIOError:
+            continue
+        if written <= 0:
+            raise OSError("IPC frame write made no progress")
+        offset += written
+
+
+def _read_frame_fd(
+    descriptor: int,
+    *,
+    timeout_seconds: float,
+    allow_clean_eof: bool = False,
+) -> bytes | None:
+    chunks = bytearray()
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("IPC frame read timed out")
+        readable, _writable, _exceptional = select.select(
+            [descriptor],
+            [],
+            [],
+            remaining,
+        )
+        if not readable:
+            raise TimeoutError("IPC frame read timed out")
+        try:
+            chunk = os.read(
+                descriptor,
+                min(65536, _IPC_MAX_FRAME_BYTES + 2 - len(chunks)),
+            )
+        except BlockingIOError:
+            continue
+        if not chunk:
+            if allow_clean_eof and not chunks:
+                return None
+            raise EOFError("IPC frame ended before one newline")
+        chunks.extend(chunk)
+        newline = chunks.find(b"\n")
+        if newline >= 0:
+            if newline != len(chunks) - 1:
+                raise ValueError("IPC read contains multiple or trailing frames")
+            if newline > _IPC_MAX_FRAME_BYTES:
+                raise ValueError("IPC frame exceeds the exact byte cap")
+            return bytes(chunks[:newline])
+        if len(chunks) > _IPC_MAX_FRAME_BYTES:
+            raise ValueError("IPC frame exceeds the exact byte cap")
 
 
 def _worker_decoded(value: object) -> bytes:
@@ -50,20 +160,51 @@ def _synthetic_worker_main() -> int:
     with open(__file__, "rb") as source:
         if hashlib.sha256(source.read()).hexdigest() != arguments.source_sha256:
             raise ValueError("executed worker source differs from reviewed descriptor")
-    request = os.fdopen(arguments.request_fd, "rb", buffering=0)
-    response = os.fdopen(arguments.response_fd, "wb", buffering=0)
+    os.set_blocking(arguments.request_fd, False)
+    os.set_blocking(arguments.response_fd, False)
     state: dict[str, object] | None = None
 
     def encoded(value: bytes) -> str:
         return base64.b64encode(value).decode("ascii")
 
     def reply(value: object) -> None:
-        response.write(_worker_canonical({"ok": True, "value": value}) + b"\n")
+        _write_frame_fd(
+            arguments.response_fd,
+            _worker_canonical({"ok": True, "value": value}),
+            timeout_seconds=_IPC_TIMEOUT_SECONDS,
+        )
 
-    while line := request.readline():
+    expected_keys = {
+        "start": {"operation", "program_bytes", "task_input_bytes"},
+        "snapshot": {"operation"},
+        "restore": {"operation", "snapshot_bytes"},
+        "visible_context": {"operation"},
+        "simulator_context": {"operation"},
+        "mutation_committed": {"operation"},
+        "verifier_eligible": {"operation"},
+        "episode_terminal": {"operation"},
+        "failure_kind": {"operation"},
+        "close": {"operation"},
+    }
+    while True:
         try:
-            message = json.loads(line)
+            frame = _read_frame_fd(
+                arguments.request_fd,
+                timeout_seconds=_IPC_TIMEOUT_SECONDS,
+                allow_clean_eof=True,
+            )
+            if frame is None:
+                break
+            message = _strict_compact_json(frame)
+            if type(message) is not dict:
+                raise ValueError("worker request must be one exact object")
             operation = message["operation"]
+            if (
+                type(operation) is not str
+                or operation not in expected_keys
+                or set(message) != expected_keys[operation]
+            ):
+                raise ValueError("worker request has an open operation shape")
             if operation == "start":
                 task_bytes = _worker_decoded(message["task_input_bytes"])
                 program_bytes = _worker_decoded(message["program_bytes"])
@@ -117,14 +258,15 @@ def _synthetic_worker_main() -> int:
             else:
                 raise ValueError("operation is unavailable")
         except BaseException as exc:
-            response.write(
+            _write_frame_fd(
+                arguments.response_fd,
                 _worker_canonical(
                     {"error": f"{type(exc).__name__}: {exc}", "ok": False}
-                )
-                + b"\n"
+                ),
+                timeout_seconds=_IPC_TIMEOUT_SECONDS,
             )
-    request.close()
-    response.close()
+    os.close(arguments.request_fd)
+    os.close(arguments.response_fd)
     return 0
 
 
@@ -137,6 +279,8 @@ from pneuma_lab.foundation.artifacts import canonical_json_bytes  # noqa: E402
 from .controller_artifacts import ControllerArtifactStore  # noqa: E402
 from .errors import RecordValidationError  # noqa: E402
 from .prefix_contracts import (  # noqa: E402
+    AUTHORITY_ASSET_ROLE_MEDIA,
+    CONTROLLER_ROLE_MEDIA,
     EnvironmentProcessIdentity,
     ImplementationDescriptor,
     InitialRestoreQualificationReceipt,
@@ -201,8 +345,94 @@ class InitialQualificationAuthority:
     tokenizer_descriptor: ImplementationDescriptor
     task_input_bytes: bytes
     program_bytes: bytes
+    _seal: tuple[object, ...] = dataclass_field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     def __post_init__(self) -> None:
+        self._validate_canonical()
+        object.__setattr__(self, "_seal", self._seal_value())
+
+    @staticmethod
+    def _ref_value(ref: ArtifactRef) -> tuple[object, ...]:
+        return (
+            ref.role,
+            ref.relative_path,
+            ref.sha256,
+            ref.byte_count,
+            ref.media_type,
+        )
+
+    @classmethod
+    def _descriptor_value(
+        cls,
+        descriptor: ImplementationDescriptor,
+    ) -> tuple[object, ...]:
+        return (
+            descriptor.purpose,
+            descriptor.nominal_type,
+            descriptor.build_id,
+            descriptor.request_grammar,
+            descriptor.response_grammar,
+            descriptor.snapshot_grammar,
+            descriptor.restore_grammar,
+            descriptor.evidence_grammar,
+            descriptor.runtime_id,
+            descriptor.container_digest,
+            cls._ref_value(descriptor.implementation_source_ref),
+        )
+
+    def _seal_value(self) -> tuple[object, ...]:
+        return (
+            *(self._ref_value(getattr(self, field)) for field in (
+                "schedule_ref",
+                "task_ref",
+                "task_input_ref",
+                "environment_contract_ref",
+                "isolation_contract_ref",
+                "program_ref",
+            )),
+            self._descriptor_value(self.environment_descriptor),
+            self._descriptor_value(self.tokenizer_descriptor),
+            hashlib.sha256(self.task_input_bytes).hexdigest(),
+            len(self.task_input_bytes),
+            hashlib.sha256(self.program_bytes).hexdigest(),
+            len(self.program_bytes),
+        )
+
+    @staticmethod
+    def _validate_authority_ref(ref: ArtifactRef, field: str, role: str) -> None:
+        if role == "resampling_prefix_schedule":
+            if (
+                ref.media_type != "application/json"
+                or ref.relative_path != "prefix-schedule.json"
+            ):
+                raise ValueError(f"{field} has noncanonical scientific path/media")
+            return
+        if role in CONTROLLER_ROLE_MEDIA:
+            if (
+                ref.media_type != CONTROLLER_ROLE_MEDIA[role]
+                or ref.relative_path
+                != f"controller-artifacts/{role}/{ref.sha256}"
+            ):
+                raise ValueError(f"{field} has noncanonical controller path/media")
+            return
+        if role in AUTHORITY_ASSET_ROLE_MEDIA:
+            path = Path(ref.relative_path)
+            if (
+                ref.media_type != AUTHORITY_ASSET_ROLE_MEDIA[role]
+                or not ref.relative_path.startswith("sources/")
+                or path.is_absolute()
+                or ".." in path.parts
+                or path.as_posix() != ref.relative_path
+            ):
+                raise ValueError(f"{field} has noncanonical authority path/media")
+            return
+        raise ValueError(f"{field} has unregistered role")
+
+    def _validate_canonical(self) -> None:
         for field, role in (
             ("schedule_ref", "resampling_prefix_schedule"),
             ("task_ref", "selected_task"),
@@ -214,6 +444,7 @@ class InitialQualificationAuthority:
             value = getattr(self, field)
             if type(value) is not ArtifactRef or value.role != role:
                 raise TypeError(f"{field} must be an exact {role} ArtifactRef")
+            self._validate_authority_ref(value, field, role)
         task_input_bytes = _exact_bytes(self.task_input_bytes, "task_input_bytes")
         program_bytes = _exact_bytes(self.program_bytes, "program_bytes")
         for field, ref, payload in (
@@ -241,6 +472,20 @@ class InitialQualificationAuthority:
             raise ValueError(
                 "tokenizer_descriptor is not the registered tokenizer descriptor"
             )
+        for field, descriptor in (
+            ("environment_descriptor", descriptor),
+            ("tokenizer_descriptor", tokenizer_descriptor),
+        ):
+            self._validate_authority_ref(
+                descriptor.implementation_source_ref,
+                f"{field}.implementation_source_ref",
+                "source_revision",
+            )
+
+    def verify_seal(self) -> None:
+        self._validate_canonical()
+        if self._seal_value() != self._seal:
+            raise RecordValidationError("initial qualification authority seal drifted")
 
 
 @final
@@ -285,6 +530,7 @@ class ControllerEnvironmentIPC:
             raw_fds.extend((response_read, response_write))
             request_stream_fd = os.dup(request_write)
             raw_fds.append(request_stream_fd)
+            os.set_blocking(request_stream_fd, False)
             request_writer = cast(
                 BinaryIO,
                 os.fdopen(request_stream_fd, "wb", buffering=0),
@@ -293,6 +539,7 @@ class ControllerEnvironmentIPC:
             streams.append(request_writer)
             response_stream_fd = os.dup(response_read)
             raw_fds.append(response_stream_fd)
+            os.set_blocking(response_stream_fd, False)
             response_reader = cast(
                 BinaryIO,
                 os.fdopen(response_stream_fd, "rb", buffering=0),
@@ -348,17 +595,24 @@ class ControllerEnvironmentIPC:
             raise RuntimeError("environment IPC is closed")
         message = {"operation": operation, **values}
         payload = canonical_json_bytes(message, indent=None)
-        self._request_writer.write(
-            payload if payload.endswith(b"\n") else payload + b"\n"
-        )
-        line = self._response_reader.readline()
-        if not line:
-            raise RecordValidationError("synthetic environment IPC ended unexpectedly")
+        if payload.endswith(b"\n"):
+            payload = payload[:-1]
         try:
-            response = json.loads(line)
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            _write_frame_fd(
+                self._request_writer.fileno(),
+                payload,
+                timeout_seconds=_IPC_TIMEOUT_SECONDS,
+            )
+            frame = _read_frame_fd(
+                self._response_reader.fileno(),
+                timeout_seconds=_IPC_TIMEOUT_SECONDS,
+            )
+            if frame is None:
+                raise EOFError("synthetic environment response ended")
+            response = _strict_compact_json(frame)
+        except (EOFError, OSError, TimeoutError, ValueError) as exc:
             raise RecordValidationError(
-                "synthetic environment returned malformed IPC"
+                "synthetic environment IPC frame is invalid"
             ) from exc
         if (
             type(response) is not dict
@@ -601,6 +855,10 @@ class SyntheticEnvironmentHandle:
 
 @dataclass(frozen=True, slots=True)
 class _SnapshotState:
+    program_sha256: str
+    visible_context: bytes
+    simulator_context: bytes | None
+    turns: tuple[object, ...]
     branch_pending_calls: tuple[ToolCall, ...]
     terminal_unexecuted_remainder: tuple[ToolCall, ...]
     episode_terminal: bool
@@ -613,6 +871,8 @@ class _InitialObservation:
     resnapshot_bytes: bytes
     visible_context: bytes
     restored_visible_context: bytes
+    simulator_context: bytes | None
+    restored_simulator_context: bytes | None
     token_ids: tuple[int, ...]
     restored_token_ids: tuple[int, ...]
     branch_pending_calls: tuple[ToolCall, ...]
@@ -623,6 +883,10 @@ class _InitialObservation:
     restored_episode_terminal: bool
     failure_kind: FailureKind
     restored_failure_kind: FailureKind
+    mutation_committed: bool
+    restored_mutation_committed: bool
+    verifier_eligible: bool
+    restored_verifier_eligible: bool
 
 
 def _decode_calls(value: object, field: str) -> tuple[ToolCall, ...]:
@@ -648,8 +912,9 @@ def _decode_calls(value: object, field: str) -> tuple[ToolCall, ...]:
 
 def _decode_snapshot_state(payload: bytes) -> _SnapshotState:
     try:
-        value = json.loads(payload)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        compact_payload = payload[:-1] if payload.endswith(b"\n") else payload
+        value = _strict_compact_json(compact_payload)
+    except ValueError as exc:
         raise RecordValidationError("environment snapshot is not strict JSON") from exc
     expected = {
         "branch_pending_calls",
@@ -665,6 +930,24 @@ def _decode_snapshot_state(payload: bytes) -> _SnapshotState:
         raise RecordValidationError("environment snapshot has an open shape")
     if canonical_json_bytes(value, indent=None) != payload:
         raise RecordValidationError("environment snapshot is not canonical")
+    program_sha256 = value["program_sha256"]
+    if (
+        type(program_sha256) is not str
+        or len(program_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in program_sha256)
+    ):
+        raise RecordValidationError("snapshot program digest is not canonical")
+    try:
+        visible_context = _worker_decoded(value["visible_context"])
+        simulator_value = value["simulator_context"]
+        simulator_context = (
+            None if simulator_value is None else _worker_decoded(simulator_value)
+        )
+    except (TypeError, ValueError) as exc:
+        raise RecordValidationError("snapshot context encoding is invalid") from exc
+    turns_value = value["turns"]
+    if type(turns_value) is not list:
+        raise RecordValidationError("snapshot turns must be one exact array")
     if type(value["episode_terminal"]) is not bool:
         raise RecordValidationError("snapshot terminal state must be exact bool")
     try:
@@ -672,6 +955,10 @@ def _decode_snapshot_state(payload: bytes) -> _SnapshotState:
     except (TypeError, ValueError) as exc:
         raise RecordValidationError("snapshot failure kind is unknown") from exc
     return _SnapshotState(
+        program_sha256=program_sha256,
+        visible_context=visible_context,
+        simulator_context=simulator_context,
+        turns=tuple(turns_value),
         branch_pending_calls=_decode_calls(
             value["branch_pending_calls"],
             "branch_pending_calls",
@@ -694,6 +981,11 @@ def _validate_initial_observation(observation: _InitialObservation) -> None:
             "visible context",
             observation.visible_context,
             observation.restored_visible_context,
+        ),
+        (
+            "simulator context",
+            observation.simulator_context,
+            observation.restored_simulator_context,
         ),
         ("token IDs", observation.token_ids, observation.restored_token_ids),
         (
@@ -722,6 +1014,13 @@ def _validate_initial_observation(observation: _InitialObservation) -> None:
             raise ValueError(f"initial restore {label} mismatch")
     if observation.failure_kind is not FailureKind.NONE:
         raise ValueError("initial restore qualification requires no failure")
+    if (
+        observation.mutation_committed
+        or observation.restored_mutation_committed
+        or observation.verifier_eligible
+        or observation.restored_verifier_eligible
+    ):
+        raise ValueError("initial restore must start without mutation or eligibility")
 
 
 @dataclass(frozen=True, slots=True)
@@ -838,6 +1137,7 @@ def _cleanup_owned_root(
     root_name: str,
     expected_identity: tuple[int, int] | None,
     root_fd: int | None,
+    allow_removal: bool = True,
 ) -> list[BaseException]:
     errors: list[BaseException] = []
     named_is_owned = False
@@ -879,12 +1179,18 @@ def _cleanup_owned_root(
                 )
         except BaseException as exc:
             errors.append(exc)
-        if held_is_owned:
+        if held_is_owned and allow_removal:
             try:
                 _clear_directory(root_fd)
             except BaseException as exc:
                 errors.append(exc)
-    if named_is_owned and (root_fd is None or held_is_owned):
+    if not allow_removal:
+        errors.append(
+            RecordValidationError(
+                "writable root preserved because process reap is uncertain"
+            )
+        )
+    if allow_removal and named_is_owned and (root_fd is None or held_is_owned):
         try:
             os.rmdir(root_name, dir_fd=workspace_fd)
         except BaseException as exc:
@@ -958,11 +1264,26 @@ def _allocate_root(
     raise RecordValidationError("environment root suffix search exhausted")
 
 
-def _cleanup_process(process: subprocess.Popen[bytes]) -> list[BaseException]:
+@dataclass(frozen=True, slots=True)
+class _ProcessCleanupResult:
+    errors: tuple[BaseException, ...]
+    reaped: bool
+
+
+def _cleanup_process(
+    process: subprocess.Popen[bytes],
+) -> _ProcessCleanupResult:
     errors: list[BaseException] = []
     try:
-        if process.poll() is not None:
-            return errors
+        observed_returncode = process.poll()
+        if observed_returncode is not None:
+            if observed_returncode != 0:
+                errors.append(
+                    RecordValidationError(
+                        "environment process exited nonzero before cleanup"
+                    )
+                )
+            return _ProcessCleanupResult(tuple(errors), True)
     except BaseException as exc:
         errors.append(exc)
     try:
@@ -971,12 +1292,23 @@ def _cleanup_process(process: subprocess.Popen[bytes]) -> list[BaseException]:
         errors.append(exc)
     try:
         process.wait(timeout=1)
-        return errors
+        return _ProcessCleanupResult(tuple(errors), True)
     except subprocess.TimeoutExpired:
         pass
     except BaseException as exc:
         errors.append(exc)
-        return errors
+        try:
+            observed_returncode = process.poll()
+        except BaseException as poll_error:
+            errors.append(poll_error)
+            errors.append(
+                RecordValidationError(
+                    "environment process reap state remains uncertain"
+                )
+            )
+            return _ProcessCleanupResult(tuple(errors), False)
+        if observed_returncode is not None:
+            return _ProcessCleanupResult(tuple(errors), True)
     try:
         process.kill()
     except BaseException as exc:
@@ -985,7 +1317,13 @@ def _cleanup_process(process: subprocess.Popen[bytes]) -> list[BaseException]:
         process.wait(timeout=1)
     except BaseException as exc:
         errors.append(exc)
-    return errors
+        errors.append(
+            RecordValidationError(
+                "environment process was not confirmed reaped"
+            )
+        )
+        return _ProcessCleanupResult(tuple(errors), False)
+    return _ProcessCleanupResult(tuple(errors), True)
 
 
 class _EnvironmentFleet:
@@ -1075,13 +1413,19 @@ class _EnvironmentFleet:
                 except BaseException as exc:
                     errors.append(exc)
             if process is not None:
-                errors.extend(_cleanup_process(process))
+                process_cleanup = _cleanup_process(process)
+                errors.extend(process_cleanup.errors)
+            else:
+                process_cleanup = None
             errors.extend(
                 _cleanup_owned_root(
                     workspace_fd=self._workspace_fd,
                     root_name=root_name,
                     expected_identity=root_identity,
                     root_fd=root_fd,
+                    allow_removal=(
+                        process_cleanup is None or process_cleanup.reaped
+                    ),
                 )
             )
             raise BaseExceptionGroup("environment spawn failed", errors)
@@ -1104,7 +1448,8 @@ class _EnvironmentFleet:
                 instance.ipc.close()
             except BaseException as exc:
                 errors.append(exc)
-            errors.extend(_cleanup_process(instance.process))
+            process_cleanup = _cleanup_process(instance.process)
+            errors.extend(process_cleanup.errors)
             errors.extend(
                 _cleanup_owned_root(
                     workspace_fd=self._workspace_fd,
@@ -1114,6 +1459,7 @@ class _EnvironmentFleet:
                         instance.identity.writable_root_st_ino,
                     ),
                     root_fd=instance.root_fd,
+                    allow_removal=process_cleanup.reaped,
                 )
             )
         try:
@@ -1152,37 +1498,65 @@ class _InitialQualificationResult:
     _provenances: tuple[StableSourceProvenance, ...]
 
     def close(self) -> None:
-        errors: list[BaseException] = []
         fleet = self._fleet
         self._fleet = None
-        if fleet is not None:
-            try:
-                fleet.close()
-            except BaseException as exc:
-                errors.append(exc)
         provenances = self._provenances
         self._provenances = ()
-        for provenance in provenances:
-            try:
-                provenance.close()
-            except BaseException as exc:
-                errors.append(exc)
-        if errors:
-            raise BaseExceptionGroup(
-                "initial qualification resource cleanup failed",
-                errors,
-            )
+        _close_qualification_lifecycle(
+            fleet=fleet,
+            provenances=provenances,
+        )
+
+
+def _close_qualification_lifecycle(
+    *,
+    fleet: _EnvironmentFleet | None,
+    provenances: tuple[StableSourceProvenance, ...],
+    primary: BaseException | None = None,
+) -> None:
+    errors: list[BaseException] = []
+    if primary is not None:
+        errors.append(primary)
+    if fleet is not None:
+        try:
+            fleet.close()
+        except BaseException as exc:
+            errors.append(exc)
+    for provenance in provenances:
+        try:
+            provenance.verify_again()
+        except BaseException as exc:
+            errors.append(exc)
+    for provenance in provenances:
+        try:
+            provenance.close()
+        except BaseException as exc:
+            errors.append(exc)
+    if errors:
+        raise BaseExceptionGroup(
+            "initial qualification lifecycle failed",
+            errors,
+        )
 
 
 def _observe_initial(
     live: _OwnedEnvironment,
     restored: _OwnedEnvironment,
     tokenizer: SyntheticByteTokenizer,
+    program_sha256: str,
 ) -> _InitialObservation:
     live.handle.start()
     snapshot = live.handle.snapshot()
     visible = live.handle.visible_context()
+    simulator_context = live.handle.simulator_context()
     live_state = _decode_snapshot_state(snapshot)
+    if (
+        live_state.program_sha256 != program_sha256
+        or live_state.visible_context != visible
+        or live_state.simulator_context != simulator_context
+        or live_state.turns
+    ):
+        raise ValueError("initial restore live embedded snapshot state mismatch")
     if (
         live.handle.episode_terminal() != live_state.episode_terminal
         or live.handle.failure_kind() is not live_state.failure_kind
@@ -1192,7 +1566,15 @@ def _observe_initial(
     restored.handle.restore(snapshot)
     resnapshot = restored.handle.snapshot()
     restored_visible = restored.handle.visible_context()
+    restored_simulator_context = restored.handle.simulator_context()
     restored_state = _decode_snapshot_state(resnapshot)
+    if (
+        restored_state.program_sha256 != program_sha256
+        or restored_state.visible_context != restored_visible
+        or restored_state.simulator_context != restored_simulator_context
+        or restored_state.turns
+    ):
+        raise ValueError("initial restore fresh embedded snapshot state mismatch")
     if (
         restored.handle.episode_terminal() != restored_state.episode_terminal
         or restored.handle.failure_kind() is not restored_state.failure_kind
@@ -1203,6 +1585,8 @@ def _observe_initial(
         resnapshot_bytes=resnapshot,
         visible_context=visible,
         restored_visible_context=restored_visible,
+        simulator_context=simulator_context,
+        restored_simulator_context=restored_simulator_context,
         token_ids=tokenizer.encode(visible),
         restored_token_ids=tokenizer.encode(restored_visible),
         branch_pending_calls=live_state.branch_pending_calls,
@@ -1215,6 +1599,10 @@ def _observe_initial(
         restored_episode_terminal=restored_state.episode_terminal,
         failure_kind=live_state.failure_kind,
         restored_failure_kind=restored_state.failure_kind,
+        mutation_committed=live.handle.mutation_committed(),
+        restored_mutation_committed=restored.handle.mutation_committed(),
+        verifier_eligible=live.handle.verifier_eligible(),
+        restored_verifier_eligible=restored.handle.verifier_eligible(),
     )
 
 
@@ -1243,6 +1631,7 @@ def _open_qualified_initial_restore(
 
     if type(authority) is not InitialQualificationAuthority:
         raise TypeError("authority must be exact InitialQualificationAuthority")
+    authority.verify_seal()
     provenances: list[StableSourceProvenance] = []
     try:
         for descriptor in (
@@ -1257,13 +1646,12 @@ def _open_qualified_initial_restore(
                 )
             )
     except BaseException as primary:
-        errors: list[BaseException] = [primary]
-        for provenance in reversed(provenances):
-            try:
-                provenance.close()
-            except BaseException as exc:
-                errors.append(exc)
-        raise BaseExceptionGroup("fixture provenance setup failed", errors)
+        _close_qualification_lifecycle(
+            fleet=None,
+            provenances=tuple(provenances),
+            primary=primary,
+        )
+        raise AssertionError("unreachable")
     return _qualify_with_provenance(
         run_root=run_root,
         authority=authority,
@@ -1277,44 +1665,37 @@ def _qualify_with_provenance(
     authority: InitialQualificationAuthority,
     provenances: tuple[StableSourceProvenance, ...],
 ) -> _InitialQualificationResult:
-    factory = SyntheticEnvironmentFactory(
-        task_input_bytes=authority.task_input_bytes,
-        program_bytes=authority.program_bytes,
-        implementation_source_sha256=(
-            authority.environment_descriptor.implementation_source_ref.sha256
-        ),
-    )
-    tokenizer = SyntheticByteTokenizer()
+    fleet: _EnvironmentFleet | None = None
     try:
+        factory = SyntheticEnvironmentFactory(
+            task_input_bytes=authority.task_input_bytes,
+            program_bytes=authority.program_bytes,
+            implementation_source_sha256=(
+                authority.environment_descriptor.implementation_source_ref.sha256
+            ),
+        )
+        tokenizer = SyntheticByteTokenizer()
         fleet = _EnvironmentFleet(
             run_root=run_root,
             factory=factory,
             task_input_bytes=authority.task_input_bytes,
             program_bytes=authority.program_bytes,
         )
-    except BaseException as primary:
-        cleanup_errors: list[BaseException] = []
-        for provenance in provenances:
-            try:
-                provenance.close()
-            except BaseException as exc:
-                cleanup_errors.append(exc)
-        if cleanup_errors:
-            raise BaseExceptionGroup(
-                "environment fleet setup and provenance cleanup failed",
-                [primary, *cleanup_errors],
-            )
-        raise
-    try:
         live = fleet.spawn(0)
         restored = fleet.spawn(1)
-        observation = _observe_initial(live, restored, tokenizer)
+        observation = _observe_initial(
+            live,
+            restored,
+            tokenizer,
+            hashlib.sha256(authority.program_bytes).hexdigest(),
+        )
         _validate_initial_observation(observation)
         _assert_pairwise_isolated((live, restored))
         token_bytes = canonical_json_bytes(
             {"token_ids": list(observation.token_ids)},
             indent=None,
         )
+        authority.verify_seal()
         with ControllerArtifactStore(run_root) as store:
             snapshot_ref = store.write(
                 role="environment_snapshot",
@@ -1363,9 +1744,8 @@ def _qualify_with_provenance(
                 payload=initial_restore_qualification_receipt_bytes(receipt),
                 media_type="application/json",
             )
-        for provenance in provenances:
-            provenance.verify_again()
         _assert_pairwise_isolated((live, restored))
+        authority.verify_seal()
         result = _InitialQualificationResult(
             receipt=receipt,
             receipt_ref=receipt_ref,
@@ -1374,17 +1754,12 @@ def _qualify_with_provenance(
             _provenances=provenances,
         )
     except BaseException as primary:
-        errors: list[BaseException] = [primary]
-        try:
-            fleet.close()
-        except BaseException as exc:
-            errors.append(exc)
-        for provenance in provenances:
-            try:
-                provenance.close()
-            except BaseException as exc:
-                errors.append(exc)
-        raise BaseExceptionGroup("initial restore qualification failed", errors)
+        _close_qualification_lifecycle(
+            fleet=fleet,
+            provenances=provenances,
+            primary=primary,
+        )
+        raise AssertionError("unreachable")
     return result
 
 
