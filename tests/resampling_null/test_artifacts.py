@@ -46,6 +46,7 @@ from pneuma_lab.resampling_null.packets import (
     PacketInvalid,
     audit_and_seal_packet_index,
     derive_packet_rewrite_artifacts,
+    load_synthetic_packet_authority,
     normalize_synthetic_packet_findings,
     write_packet_candidate,
 )
@@ -1110,11 +1111,14 @@ def _build_full_study(
     tokenizer_ref = raw(
         "tokenizer.json",
         (
-            {
-                "record_kind": "synthetic_report_tokenizer_v1",
-                "schema_version": "1",
-                "algorithm": "unicode_whitespace_v1",
-            }
+            canonical_json_bytes(
+                {
+                    "record_kind": "synthetic_report_tokenizer_v1",
+                    "schema_version": "1",
+                    "algorithm": "unicode_whitespace_v1",
+                },
+                indent=None,
+            )
             if completed_power_consumer_fixture
             else {"name": "tokenizer"}
         ),
@@ -1254,9 +1258,49 @@ def _build_full_study(
             ),
         ),
         "tokenizer": tokenizer_ref,
-        "template": raw("template.json", {"name": "template"}),
-        "policy": raw("policy.json", {"name": "policy"}),
-        "pads": raw("pads.json", {"units": []}),
+        "template": raw(
+            "template.json",
+            canonical_json_bytes(
+                {
+                    "record_kind": "packet_template_v1",
+                    "schema_version": "1",
+                    "template_id": "canonical_json_private_verifier_guidance_v1",
+                    "guidance_record_kind": "private_verifier_guidance_v1",
+                    "field_order": [
+                        "finding_id",
+                        "component",
+                        "code",
+                        "severity",
+                        "evidence",
+                    ],
+                },
+                indent=None,
+            ),
+        ),
+        "policy": raw(
+            "policy.json",
+            canonical_json_bytes(
+                {
+                    "record_kind": "packet_policy_v1",
+                    "schema_version": "1",
+                    "max_findings": 8,
+                    "max_evidence_tokens": 256,
+                    "normalizer_version": "synthetic_typed_findings_v1",
+                },
+                indent=None,
+            ),
+        ),
+        "pads": raw(
+            "pads.json",
+            canonical_json_bytes(
+                {
+                    "record_kind": "packet_pad_units_v1",
+                    "schema_version": "1",
+                    "units": [" ."],
+                },
+                indent=None,
+            ),
+        ),
         "revision": raw("revision.md", b"revision"),
         "required": raw("required.json", list(FROZEN_UPSTREAM_KINDS)),
         "shared": raw("shared.bin", b"shared"),
@@ -3599,6 +3643,24 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
     assert rewrite.rewrite_count == 1
     assert "src/focal.py" in sham_text
     assert "src/third.py" not in sham_text
+    packet_authority = load_synthetic_packet_authority(
+        tokenizer_ref=ArtifactRef(
+            **cast(dict[str, Any], manifest_payload["tokenizer_ref"])
+        ),
+        packet_template_ref=ArtifactRef(
+            **cast(dict[str, Any], manifest_payload["packet_template_ref"])
+        ),
+        packet_policy_ref=ArtifactRef(
+            **cast(dict[str, Any], manifest_payload["packet_policy_ref"])
+        ),
+        pad_unit_set_ref=ArtifactRef(
+            **cast(dict[str, Any], manifest_payload["pad_unit_set_ref"])
+        ),
+        run_root=root,
+    )
+    assert packet_authority.policy.max_findings == 8
+    assert packet_authority.neutral_pad_units == (" .",)
+    assert len(packet_authority.tokenizer.encode("alpha beta")) == 2
 
     assignment_lease = claim_local_test_storage(
         transaction="assignment",

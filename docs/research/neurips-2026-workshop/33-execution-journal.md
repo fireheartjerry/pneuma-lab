@@ -950,3 +950,27 @@ The next event after the archived migration boundary is appended below.
 - **Behavior result:** GREEN, exit 0. Exactly one triggered authority fixture passed with 217 unrelated tests deselected in 1.53 seconds.
 - **Static command/result:** Ruff over touched source/export/fixture and mypy over the two source files, each capped at 60 seconds; GREEN, exit 0. `git diff --check` passed.
 - **Content hashes:** `packets.py` `4f76ec83a5dba4174e0bd40899acd30c802e6223f05d054da5e7e05bf2d1fda5`; exports `b773153ba2e5830bf7dd06e186ccd7acd6217c4e68295c9ccfb6d4508cc7b4ca`; fixture `7c1fa4aa37e54e9fbaafccc4dd548675d56dd1433b73228c988646476aaf7d82`.
+
+### EJ-20260729-0084 — publish canonical rewrite authority
+
+- **Action:** Staged exactly rewrite source/export, the reused triggered fixture, and journal; checked staged whitespace/scope; committed `feat(neurips): derive canonical sham findings`; pushed publicly; compared exact refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `cc7ff3c4d6da1733e2af18494006a84a78e75367`. Four files, 359 insertions and two deletions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Next gate:** Load closed manifest-pinned policy, pad, template, and tokenizer bytes into one internal synthetic packet authority; caller objects remain non-authoritative.
+
+### EJ-20260729-0085 — load closed synthetic packet authority
+
+- **Implementation:** Added frozen `PacketAuthority` and `load_synthetic_packet_authority`. It byte-verifies and parses only the manifest-pinned closed synthetic tokenizer, canonical packet template, exact policy, and ordered neutral pad-unit contracts. It rejects unknown keys/versions/algorithms, invalid policy types, another normalizer, unsafe/duplicate/unsorted pads, or any noncanonical byte representation.
+- **Tokenizer:** The internal `unicode_whitespace_v1` fixture tokenizer derives deterministic full SHA-256 integer token IDs from whitespace-separated tokens. Full 256-bit IDs replace an initial 64-bit truncation so the fixture does not create an avoidable collision attack.
+- **Caller boundary:** The returned tokenizer/policy/pads are reconstructed from ArtifactRef bytes. An injected `Tokenizer` or naked config object remains useful only for provisional pure construction and has no audit authority.
+
+### EJ-20260729-0086 — canonical-byte rejection and fixture repair
+
+- **First result:** RED, exit 1. The focused fixture reached the new authority loader, which correctly rejected `sources/tokenizer.json`: the fixture helper emitted compact sorted JSON without the project canonical terminal newline, so bytes did not equal `canonical_json_bytes(..., indent=None)`.
+- **Repair:** Materialize exactly the four packet-authority fixture sources—tokenizer, template, policy, pads—from `canonical_json_bytes` before study sealing. This changes fixture authority bytes and their manifest-bound refs; it does not weaken the canonical check.
+- **Corrected result:** GREEN, exit 0. One `t3_s10` fixture passed with 217 unrelated tests deselected in 1.41 seconds. Ruff passed; mypy found no issues in two source files.
+
+### EJ-20260729-0087 — packet-authority slice hashes
+
+- **Checks:** `git diff --check` passed. No broad suite, coverage, subprocess, spend, cloud action, or training ran.
+- **Content hashes:** `packets.py` `c4e448bdbe6055e635e696be8d27bdb46d4b260b48d13ab682db5e8d54a033e5`; exports `f67f15a2e1814b872a374ad744c5f46e874d5a7f067b68c2ac3a0e196ae66596`; fixture `d1f4270aa2f0618221fafb414292cb5b9d8b4a4010d61811318a8d61b24bd36c`.
+- **Next gate:** Refactor packet construction to consume canonical normalized focal/donor/SHAM/map plus reconstructed packet authority, eliminating provisional normalized-ref aliases and caller collision authority.

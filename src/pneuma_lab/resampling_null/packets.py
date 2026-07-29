@@ -107,6 +107,18 @@ class PacketPolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class PacketAuthority:
+    tokenizer: Tokenizer
+    policy: PacketPolicy
+    neutral_pad_units: tuple[str, ...]
+    field_order: tuple[str, ...]
+    tokenizer_ref: ArtifactRef
+    packet_template_ref: ArtifactRef
+    packet_policy_ref: ArtifactRef
+    pad_unit_set_ref: ArtifactRef
+
+
+@dataclass(frozen=True, slots=True)
 class TruncationReceipt:
     finding_id: str
     original_sha256: str
@@ -216,6 +228,19 @@ def _token_count(tokenizer: Tokenizer, text: str) -> int:
             "tokenizer must return a tuple of exact integer token IDs"
         )
     return len(encoded)
+
+
+class _UnicodeWhitespaceTokenizer:
+    def encode(self, text: str) -> tuple[int, ...]:
+        if type(text) is not str:
+            raise TypeError("tokenizer input must be exact text")
+        return tuple(
+            int.from_bytes(
+                hashlib.sha256(token.encode("utf-8")).digest(),
+                "big",
+            )
+            for token in text.split()
+        )
 
 
 def _bound_atoms(
@@ -765,6 +790,96 @@ def _strict_json_blob(ref: ArtifactRef, *, run_root: Path) -> dict[str, object]:
     if not isinstance(value, dict):
         raise PacketInvalid("packet audit source must be a JSON object")
     return cast(dict[str, object], value)
+
+
+def _canonical_json_blob(
+    ref: ArtifactRef,
+    *,
+    run_root: Path,
+) -> dict[str, object]:
+    value = _strict_json_blob(ref, run_root=run_root)
+    if canonical_json_bytes(value, indent=None) != _require_artifact_bytes(
+        ref,
+        run_root=run_root,
+    ):
+        raise PacketInvalid("packet authority blob is not compact canonical JSON")
+    return value
+
+
+def load_synthetic_packet_authority(
+    *,
+    tokenizer_ref: ArtifactRef,
+    packet_template_ref: ArtifactRef,
+    packet_policy_ref: ArtifactRef,
+    pad_unit_set_ref: ArtifactRef,
+    run_root: Path,
+) -> PacketAuthority:
+    """Load one closed manifest-pinned synthetic packet configuration."""
+
+    tokenizer_value = _canonical_json_blob(tokenizer_ref, run_root=run_root)
+    if tokenizer_value != {
+        "record_kind": "synthetic_report_tokenizer_v1",
+        "schema_version": "1",
+        "algorithm": "unicode_whitespace_v1",
+    }:
+        raise PacketInvalid("synthetic packet tokenizer authority is unsupported")
+    template_value = _canonical_json_blob(packet_template_ref, run_root=run_root)
+    if template_value != {
+        "record_kind": "packet_template_v1",
+        "schema_version": "1",
+        "template_id": "canonical_json_private_verifier_guidance_v1",
+        "guidance_record_kind": "private_verifier_guidance_v1",
+        "field_order": list(_FIELD_ORDER),
+    }:
+        raise PacketInvalid("synthetic packet template authority is unsupported")
+    policy_value = _canonical_json_blob(packet_policy_ref, run_root=run_root)
+    if set(policy_value) != {
+        "record_kind",
+        "schema_version",
+        "max_findings",
+        "max_evidence_tokens",
+        "normalizer_version",
+    } or (
+        policy_value.get("record_kind") != "packet_policy_v1"
+        or policy_value.get("schema_version") != "1"
+    ):
+        raise PacketInvalid("synthetic packet policy authority is unsupported")
+    try:
+        policy = PacketPolicy(
+            max_findings=cast(int, policy_value["max_findings"]),
+            max_evidence_tokens=cast(
+                int,
+                policy_value["max_evidence_tokens"],
+            ),
+            normalizer_version=cast(
+                str,
+                policy_value["normalizer_version"],
+            ),
+        )
+    except (TypeError, ValueError) as exc:
+        raise PacketInvalid("synthetic packet policy fields are invalid") from exc
+    if policy.normalizer_version != "synthetic_typed_findings_v1":
+        raise PacketInvalid("packet policy names another normalizer")
+    pad_value = _canonical_json_blob(pad_unit_set_ref, run_root=run_root)
+    if set(pad_value) != {"record_kind", "schema_version", "units"} or (
+        pad_value.get("record_kind") != "packet_pad_units_v1"
+        or pad_value.get("schema_version") != "1"
+        or not isinstance(pad_value.get("units"), list)
+    ):
+        raise PacketInvalid("synthetic pad-unit authority is unsupported")
+    units = _validated_pad_units(cast(list[str], pad_value["units"]))
+    if list(units) != pad_value["units"]:
+        raise PacketInvalid("pad-unit authority must be sorted and duplicate-free")
+    return PacketAuthority(
+        tokenizer=_UnicodeWhitespaceTokenizer(),
+        policy=policy,
+        neutral_pad_units=units,
+        field_order=_FIELD_ORDER,
+        tokenizer_ref=tokenizer_ref,
+        packet_template_ref=packet_template_ref,
+        packet_policy_ref=packet_policy_ref,
+        pad_unit_set_ref=pad_unit_set_ref,
+    )
 
 
 def _normalized_atom(value: object) -> PacketAtom:
