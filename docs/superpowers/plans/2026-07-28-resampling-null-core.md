@@ -4183,6 +4183,74 @@ and conversely, direct authority/scientific calls into
 `ControllerArtifactResolver`, cross-class aliases, omitted recursive refs, and
 double-loaded refs; each must fail before return/publication.
 
+### DL-142 exact authority leaves and same-open traversal evidence
+
+DL-142 hardens DL-141 only where the first S02C-d implementation exposed two
+unexecutable assumptions. Seven registered authority roles had no semantic
+grammar beyond canonical JSON, and a separately reopened inode was being used
+as evidence for bytes already read through another descriptor. Neither is an
+exact-decoder traversal.
+
+`AUTHORITY_ASSET_DECODER_BY_ROLE` is a closed, startup-validated registry whose
+keys equal `AUTHORITY_ASSET_ROLE_MEDIA`. It has no generic JSON fallback.
+Existing task registry, provider lane plan, task input, task/environment/call/
+parser/meter contracts, and synthetic program/request/response/event/result
+roles use their exact production validators. Every foreign task input is
+validated against its task identity and exact program ref; each reachable
+program is then reconciled to its own leaves rather than to the selected
+program. `source_revision` remains exact opaque bytes: its authority is only
+role, media, path, byte count, and SHA-256, and no code-execution claim follows.
+
+The previously unspecified JSON roles become exact synthetic-validation
+records. Each is compact canonical JSON with `schema_version == "1"`, its one
+literal `record_kind`, and only these payload fields:
+
+- `synthetic_tokenizer_asset_v1`: one nonempty `tokenizer_id`;
+- `synthetic_prompt_template_asset_v1`: one nonempty `template_id`;
+- `synthetic_tool_schema_asset_v1`: one ordered `tools` array of closed
+  `{"name": <nonempty exact text>}` objects with unique names;
+- `synthetic_clock_asset_v1`: one nonempty `clock_id`;
+- `synthetic_watchdog_asset_v1`: one nonempty `watchdog_id`;
+- `synthetic_isolation_qualification_asset_v1`: one nonempty
+  `qualification_id`; and
+- `synthetic_deep_authority_leaf_v1` with one nonempty `value_id`, or
+  `synthetic_deep_authority_link_v1` with exactly one
+  `nested_ref: ArtifactRef[deep_authority_asset]`.
+
+No arbitrary object, additional key, Boolean-as-integer, unknown deep variant,
+or implicit nested ref is accepted. The synthetic fixture bytes are migrated
+to those records; this is a grammar promotion, not a new empirical authority.
+Confirmation assets require their own reviewed decoders before use and cannot
+reuse these synthetic record kinds by structural coincidence.
+
+Raw synthetic grade evidence is exactly
+`{"success": int[0|1], "partial_reward": finite exact float,
+"infrastructure_failure": exact bool}` and raw verifier evidence is exactly
+`{"finding_count": nonnegative exact int}`. Their codecs return values decoded
+from those bytes and only then compare them with the owning program. They may
+not fill omitted values from program metadata. Traversal records program-to-
+leaf occurrences, not only sets: one content ref shared by multiple programs
+is accepted only when its direct decoded value satisfies every attribution;
+contradictory reuse, duplicate collapse, missing coverage, and extra coverage
+reject.
+
+Every fresh graph read obtains bytes, digest/count verification, canonical
+path binding, and `(st_dev, st_ino)` identity from the same held no-follow file
+descriptor, with stable pre/post `fstat` checks. The identity used for alias
+proof cannot come from a second reopen. This is cooperative-local stable-read
+evidence only, not protection from a hostile writer with filesystem authority.
+All graph readers relinquish descriptor ownership before each uncertain close,
+attempt each close once, and preserve both an active traversal error and close
+errors using the established causal cleanup aggregate.
+
+Required REDs cover every formerly opaque role, open/unknown foreign task
+input, wrong record kind or primitive type, omitted/extra grade and verifier
+fields, Boolean substitution, one evidence ref attributed to contradictory
+programs, replacement between byte read and identity proof, and simultaneous
+traversal-plus-close failure. S02C remains local deterministic candidate
+construction only; this amendment authorizes no S02D publication, provider,
+model, network, credential, spend, branch, experiment, result, or claim.
+
 The corrected prefix entry adds:
 
 ```python

@@ -1313,6 +1313,48 @@ decoders discover every nested ref into a `ref -> load_class` visited map.
 Before return/publication every reachable ref has been loaded successfully by
 exactly one class. Missing, duplicate, opaque, or unknown nested refs reject.
 
+#### 5.3.5 DL-142 exact authority-leaf and same-open closure
+
+DL-142 closes the gap between DL-141's no-opaque-leaf rule and the actual
+authority registry. A closed `AUTHORITY_ASSET_DECODER_BY_ROLE` must cover every
+registered authority role without a generic fallback. Existing scientific
+task/provider/contract validators and exact synthetic program/leaf codecs are
+reused. Foreign task inputs and their program edges are validated independently
+instead of receiving only a canonical-JSON walk. `source_revision` is the sole
+opaque-byte role and carries no semantic or execution claim beyond its exact
+ref and verified bytes.
+
+Synthetic validation gives the seven formerly untyped JSON roles explicit
+version-1 closed records:
+
+| role | literal record kind | exact payload |
+| --- | --- | --- |
+| `tokenizer` | `synthetic_tokenizer_asset_v1` | nonempty `tokenizer_id` |
+| `prompt_template` | `synthetic_prompt_template_asset_v1` | nonempty `template_id` |
+| `tool_schema` | `synthetic_tool_schema_asset_v1` | ordered unique closed tool-name rows |
+| `clock_source` | `synthetic_clock_asset_v1` | nonempty `clock_id` |
+| `watchdog_source` | `synthetic_watchdog_asset_v1` | nonempty `watchdog_id` |
+| `isolation_qualification` | `synthetic_isolation_qualification_asset_v1` | nonempty `qualification_id` |
+| `deep_authority_asset` | `synthetic_deep_authority_leaf_v1` or `synthetic_deep_authority_link_v1` | respectively one nonempty `value_id` or one exact same-role `nested_ref` |
+
+Every row also has exactly `schema_version: "1"` and no other field. These
+record kinds are synthetic-only; confirmation must register reviewed
+role-specific decoders and cannot pass through structural similarity.
+
+Grade bytes directly carry exactly an integer 0/1 success, finite exact-float
+partial reward, and exact-Boolean infrastructure failure. Verifier bytes
+directly carry exactly one nonnegative exact-integer finding count. Codecs
+decode those values from evidence before comparing them with every owning
+program. Program-to-leaf attribution is occurrence-aware, so set/dict collapse
+cannot hide contradictory shared refs.
+
+Fresh traversal binds the verified bytes and physical identity of each file
+from one held no-follow descriptor with stable pre/post `fstat`; a later reopen
+cannot supply the alias identity. All reader cleanup follows relinquish-before-
+uncertain-close and causal primary-plus-cleanup aggregation. This strengthens
+only cooperative-local reconstruction and makes no hostile-filesystem or
+executed-code attestation claim.
+
 ### 5.4 Assignment prefix view
 
 Post-prefix donor matching consumes a canonical `AssignmentPrefixView`, not the
