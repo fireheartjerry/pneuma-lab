@@ -112,14 +112,14 @@ def test_dl136_prefix_receipt_schema_accepts_exact_closed_shape() -> None:
             "grade_execution_receipt",
             {
                 "restore_receipt_ref": _ref("grade_restore_receipt"),
-                "raw_grade_evidence_ref": _ref("grade_evidence"),
+                "grade_evidence_ref": _ref("grade_evidence"),
             },
         ),
         (
             "verifier_execution_receipt",
             {
                 "restore_receipt_ref": _ref("verifier_restore_receipt"),
-                "raw_verifier_evidence_ref": _ref("verifier_evidence"),
+                "verifier_evidence_ref": _ref("verifier_evidence"),
             },
         ),
     ],

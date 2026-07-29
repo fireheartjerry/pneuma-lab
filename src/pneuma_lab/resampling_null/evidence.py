@@ -1132,12 +1132,12 @@ class GradeExecutionReceipt:
     """Exact grade restoration/evidence ancestry; identity lives in restore bytes."""
 
     restore_receipt_ref: ArtifactRef
-    raw_grade_evidence_ref: ArtifactRef
+    grade_evidence_ref: ArtifactRef
 
     def __post_init__(self) -> None:
         for name, role in (
             ("restore_receipt_ref", "grade_restore_receipt"),
-            ("raw_grade_evidence_ref", "grade_evidence"),
+            ("grade_evidence_ref", "grade_evidence"),
         ):
             _controller_ref(getattr(self, name), name, role=role)
 
@@ -1147,12 +1147,12 @@ class VerifierExecutionReceipt:
     """Exact verifier restoration/evidence ancestry; identity lives in restore bytes."""
 
     restore_receipt_ref: ArtifactRef
-    raw_verifier_evidence_ref: ArtifactRef
+    verifier_evidence_ref: ArtifactRef
 
     def __post_init__(self) -> None:
         for name, role in (
             ("restore_receipt_ref", "verifier_restore_receipt"),
-            ("raw_verifier_evidence_ref", "verifier_evidence"),
+            ("verifier_evidence_ref", "verifier_evidence"),
         ):
             _controller_ref(getattr(self, name), name, role=role)
 
@@ -1163,8 +1163,8 @@ def grade_execution_receipt_bytes(receipt: GradeExecutionReceipt) -> bytes:
     return canonical_json_bytes(
         {
             "restore_receipt_ref": _ref_mapping(receipt.restore_receipt_ref),
-            "raw_grade_evidence_ref": _ref_mapping(
-                receipt.raw_grade_evidence_ref
+            "grade_evidence_ref": _ref_mapping(
+                receipt.grade_evidence_ref
             ),
         },
         indent=None,
@@ -1177,7 +1177,7 @@ def load_grade_execution_receipt(payload: bytes) -> GradeExecutionReceipt:
     value = load_json_bytes(payload, source=Path("<grade-execution-receipt>"))
     mapping = _closed(
         value,
-        expected=("restore_receipt_ref", "raw_grade_evidence_ref"),
+        expected=("restore_receipt_ref", "grade_evidence_ref"),
         field="grade execution receipt",
     )
     receipt = GradeExecutionReceipt(
@@ -1185,9 +1185,9 @@ def load_grade_execution_receipt(payload: bytes) -> GradeExecutionReceipt:
             mapping["restore_receipt_ref"],
             "restore_receipt_ref",
         ),
-        raw_grade_evidence_ref=_decode_ref(
-            mapping["raw_grade_evidence_ref"],
-            "raw_grade_evidence_ref",
+        grade_evidence_ref=_decode_ref(
+            mapping["grade_evidence_ref"],
+            "grade_evidence_ref",
         ),
     )
     if payload != grade_execution_receipt_bytes(receipt):
@@ -1203,8 +1203,8 @@ def verifier_execution_receipt_bytes(
     return canonical_json_bytes(
         {
             "restore_receipt_ref": _ref_mapping(receipt.restore_receipt_ref),
-            "raw_verifier_evidence_ref": _ref_mapping(
-                receipt.raw_verifier_evidence_ref
+            "verifier_evidence_ref": _ref_mapping(
+                receipt.verifier_evidence_ref
             ),
         },
         indent=None,
@@ -1219,7 +1219,7 @@ def load_verifier_execution_receipt(
     value = load_json_bytes(payload, source=Path("<verifier-execution-receipt>"))
     mapping = _closed(
         value,
-        expected=("restore_receipt_ref", "raw_verifier_evidence_ref"),
+        expected=("restore_receipt_ref", "verifier_evidence_ref"),
         field="verifier execution receipt",
     )
     receipt = VerifierExecutionReceipt(
@@ -1227,9 +1227,9 @@ def load_verifier_execution_receipt(
             mapping["restore_receipt_ref"],
             "restore_receipt_ref",
         ),
-        raw_verifier_evidence_ref=_decode_ref(
-            mapping["raw_verifier_evidence_ref"],
-            "raw_verifier_evidence_ref",
+        verifier_evidence_ref=_decode_ref(
+            mapping["verifier_evidence_ref"],
+            "verifier_evidence_ref",
         ),
     )
     if payload != verifier_execution_receipt_bytes(receipt):

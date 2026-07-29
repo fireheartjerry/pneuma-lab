@@ -220,13 +220,13 @@
             "type": "object",
             "required": [
                 "restore_receipt_ref",
-                "raw_grade_evidence_ref"
+                "grade_evidence_ref"
             ],
             "properties": {
                 "restore_receipt_ref": {
                     "$ref": "#/$defs/grade_restore_receipt_ref"
                 },
-                "raw_grade_evidence_ref": {
+                "grade_evidence_ref": {
                     "$ref": "#/$defs/grade_evidence_ref"
                 }
             },
@@ -236,13 +236,13 @@
             "type": "object",
             "required": [
                 "restore_receipt_ref",
-                "raw_verifier_evidence_ref"
+                "verifier_evidence_ref"
             ],
             "properties": {
                 "restore_receipt_ref": {
                     "$ref": "#/$defs/verifier_restore_receipt_ref"
                 },
-                "raw_verifier_evidence_ref": {
+                "verifier_evidence_ref": {
                     "$ref": "#/$defs/verifier_evidence_ref"
                 }
             },

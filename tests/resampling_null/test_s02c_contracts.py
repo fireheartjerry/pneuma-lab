@@ -430,6 +430,16 @@ def test_failure_injection_target_requires_matching_adverse_semantics() -> None:
                 tool_call_id=None,
             ),
         )
+    with pytest.raises(ValueError, match="parser.*completion"):
+        replace(
+            program,
+            failure_injection=SyntheticFailureInjection(
+                stage="provider_parser",
+                subject_role="primary_subject",
+                call_index=0,
+                tool_call_id=None,
+            ),
+        )
     with pytest.raises(ValueError, match="tool.*adverse"):
         replace(
             program,
@@ -459,6 +469,22 @@ def test_failure_injection_target_requires_matching_adverse_semantics() -> None:
         parser_failure.failure_injection.stage
         == "provider_parser"
     )
+    late_row = replace(
+        program.provider_transcript[0],
+        completion_kind=RawProviderCompletionKind.TIMEOUT_LATE_RESPONSE,
+    )
+    for stage in ("provider_transport", "provider_parser"):
+        late_failure = replace(
+            program,
+            provider_transcript=(late_row,),
+            failure_injection=SyntheticFailureInjection(
+                stage=stage,  # type: ignore[arg-type]
+                subject_role="primary_subject",
+                call_index=0,
+                tool_call_id=None,
+            ),
+        )
+        assert late_failure.failure_injection.stage == stage
     with pytest.raises(ValueError):
         load_prefix_candidate_receipt(
             canonical_json_bytes(

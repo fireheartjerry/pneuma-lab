@@ -571,12 +571,16 @@ PROVIDER_FAILURE_COMPLETIONS_BY_STAGE: Mapping[
         "provider_transport": frozenset(
             {
                 RawProviderCompletionKind.TIMEOUT_NO_RESPONSE,
+                RawProviderCompletionKind.TIMEOUT_LATE_RESPONSE,
                 RawProviderCompletionKind.PROVIDER_ERROR,
                 RawProviderCompletionKind.INFRASTRUCTURE_ERROR,
             }
         ),
         "provider_parser": frozenset(
-            {RawProviderCompletionKind.MALFORMED_RESPONSE}
+            {
+                RawProviderCompletionKind.TIMEOUT_LATE_RESPONSE,
+                RawProviderCompletionKind.MALFORMED_RESPONSE,
+            }
         ),
     }
 )

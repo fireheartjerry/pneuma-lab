@@ -890,19 +890,19 @@ def test_raw_grade_and_verifier_evidence_contain_no_artifact_refs() -> None:
 def test_grade_and_verify_execution_receipts_are_exact_two_ref_records() -> None:
     grade = GradeExecutionReceipt(
         restore_receipt_ref=_ref("grade_restore_receipt", "grade"),
-        raw_grade_evidence_ref=_ref("grade_evidence"),
+        grade_evidence_ref=_ref("grade_evidence"),
     )
     verifier = VerifierExecutionReceipt(
         restore_receipt_ref=_ref("verifier_restore_receipt", "verify"),
-        raw_verifier_evidence_ref=_ref("verifier_evidence"),
+        verifier_evidence_ref=_ref("verifier_evidence"),
     )
     assert tuple(field.name for field in fields(grade)) == (
         "restore_receipt_ref",
-        "raw_grade_evidence_ref",
+        "grade_evidence_ref",
     )
     assert tuple(field.name for field in fields(verifier)) == (
         "restore_receipt_ref",
-        "raw_verifier_evidence_ref",
+        "verifier_evidence_ref",
     )
     assert load_grade_execution_receipt(
         grade_execution_receipt_bytes(grade)
@@ -913,7 +913,7 @@ def test_grade_and_verify_execution_receipts_are_exact_two_ref_records() -> None
     with pytest.raises((TypeError, ValueError)):
         GradeExecutionReceipt(
             restore_receipt_ref=_ref("verifier_restore_receipt"),
-            raw_grade_evidence_ref=_ref("grade_evidence"),
+            grade_evidence_ref=_ref("grade_evidence"),
         )
 
 
