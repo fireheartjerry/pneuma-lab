@@ -16,11 +16,14 @@ from .packets import (
     IdentifierAtom,
     IdentifierKind,
     LiteralAtom,
+    NoInterventionPacketMarker,
     PacketInvalid,
     PacketPairReceipt,
     PacketPolicy,
     VerifierFinding,
+    audit_and_seal_packet_index,
     build_packet_pair,
+    write_packet_candidate,
 )
 from .types import (
     Arm,
@@ -53,6 +56,7 @@ __all__ = (
     "BranchOutcome",
     "BranchSlot",
     "BranchSlotSet",
+    "audit_and_seal_packet_index",
     "build_packet_pair",
     "FrozenVerifierReceipt",
     "GroupKind",
@@ -61,6 +65,7 @@ __all__ = (
     "IdentifierKind",
     "LiteralAtom",
     "MatchingAlgorithm",
+    "NoInterventionPacketMarker",
     "PacketInvalid",
     "PacketPairReceipt",
     "PacketPolicy",
@@ -78,4 +83,5 @@ __all__ = (
     "VerifierFinding",
     "verify_result_bundle",
     "verify_synthetic_assignment_graph",
+    "write_packet_candidate",
 )

@@ -847,3 +847,36 @@ The next event after the archived migration boundary is appended below.
 - **Action:** Exported the builder, findings, identifier atoms/kinds, policy, receipt, and failure type from `pneuma_lab.resampling_null`.
 - **Package-export hash:** `src/pneuma_lab/resampling_null/__init__.py` SHA-256 `3766d1ecaf5bfbb806ba52e3131ad4e23efb33feccf8623063bcab27eb942923`.
 - **Claim boundary:** This is only a synthetic pure-construction slice. No sealed-prefix candidate audit, no donor eligibility index, no confirmation adapter, no real experiment, and no causal result exists or is claimed.
+
+### EJ-20260729-0068 — publish token-exact packet-pair slice
+
+- **Action:** Staged exactly the packet implementation, package exports, one focused tripwire, and journal; checked staged whitespace/scope; committed `feat(neurips): construct token-exact sham packets`; pushed to the public research branch; compared exact local and remote refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `4dfd0e0c6cb0a3ac408f52f6b34a716a71ad4655`. Four files, 748 insertions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Next research action:** Implement deterministic donor-candidate enumeration and sealed-prefix audit chronology. Do not expand software tests absent a concrete failure mode.
+
+### EJ-20260729-0069 — open candidate/seal chronology slice
+
+- **Authority and scope:** Continued immutable Task 4 using plan SHA-256 `a2ca4fc419f353e9a38350025e1e2996fd21d66eb16b2d8d011af2c2e1d491b1` and design SHA-256 `d2a3c5a20059574ab8dad92a45b29f06aeeaf2bd9dafbc8716c5449848a687db`. Work stayed on `codex/neurips-2026-empirical`; the checkout is a normal dedicated-branch workspace, not a linked Git worktree. No subagent, model subprocess, spend, cloud action, training, or confirmation ceremony occurred.
+- **User-directed verification budget:** Software checks remain tiny tripwires, never research deliverables: one focused command selecting only the packet constructor and packet chronology behavior, plus one source-static command, all hard-capped at 60 seconds.
+- **Intent:** Publish a non-authoritative candidate covering exact schedule order, then permit a sealed execution-authority index only where the audit can be reconstructed from parent bytes.
+
+### EJ-20260729-0070 — implement candidate publication and no-trigger sealing
+
+- **Implementation:** Added the typed `NoInterventionPacketMarker`; candidate publication loads and byte-verifies the assignment ledger, rejects empty/duplicate task coverage, binds every pair to assignment/prefix/tokenizer/template/policy/pad parents, rejects open claimed parity/leakage gates, and writes one immutable schema-valid candidate record. The audit loads exact candidate/assignment/schedule/prefix records, checks their byte digests and chronology, requires exact selected-schedule order and expected-roster equality, verifies manifest-frozen config bytes, and accepts only exact typed markers for no-trigger assignments before writing the sealed record.
+- **Mechanical correction:** The first patch accidentally inserted candidate helpers between REAL and SHAM persistence. Inspection caught it before execution; the SHAM write and receipt return were restored to the builder boundary and the helpers moved after the function.
+- **Hardening:** Added exact closed ArtifactRef decoding, exact integer-tuple tokenizer outputs, distinct focal/donor IDs, lowercase prefix digest validation, distinct REAL/SHAM requested paths, and rejection when the artifact store aliases or renames arm artifacts.
+
+### EJ-20260729-0071 — hostile seal audit blocks self-attested science
+
+- **Rejection attack:** The immutable seal signature receives tokenizer/template/policy/pad ArtifactRefs but no canonical normalized-finding values, no canonical identifier-map encoding, and no executable tokenizer reconstruction authority. Its first implementation could therefore re-read pair receipts and packet bytes but could not independently reproduce every `true` audit gate. A hostile reviewer would correctly call that self-attestation.
+- **Correction:** Removed the pseudo-independent triggered-pair audit. Candidate publication may retain triggered pair proposals, but `audit_and_seal_packet_index` now rejects every triggered packet with an explicit pending-recomputation-authority error. Only an all-no-trigger roster—where packet parity/collision gates are vacuous and marker/chronology/config-byte closure is directly provable—can be sealed.
+- **Required authority repair:** A future DL-135 must define canonical normalized REAL/SHAM artifacts, canonical identifier-map/policy/pad/template contracts, exact builder-to-ref byte binding, and an independently reconstructable tokenizer registry before triggered sealing or claim promotion.
+- **Claim boundary:** No triggered packet index, confirmation packet index, causal result, or independent semantic packet audit is claimed.
+
+### EJ-20260729-0072 — insignificant focused verification gate
+
+- **Behavior command:** `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_packets.py tests/resampling_null/test_artifacts.py -q -k 't4_s01 or t3_s09'`.
+- **Behavior result:** GREEN, exit 0. Exactly two relevant tripwires passed with 217 unrelated tests deselected in 1.09 seconds: token-exact pair construction and no-trigger candidate/seal chronology with a roster-forgery rejection.
+- **Static command:** Ruff over the two touched source files and two touched fixtures, then mypy over the two source files; each process hard-capped at 60 seconds.
+- **Static result:** GREEN, exit 0. Ruff passed; mypy found no issues. `git diff --check` passed.
+- **Final content hashes:** `packets.py` `ae625ec0692286ef12a16ce54e1b8f5d30fc3c49e53d555b4c67ac3df537fbda`; package exports `627be476c9d23118643f890bf87db79bc610137c1a7eb4aac684ab55d101d12a`; focused chronology fixture `db06464e0d0db1cd8a29d0f1380cd0e35af95987a7a44e71effe157bc0ad5676`.

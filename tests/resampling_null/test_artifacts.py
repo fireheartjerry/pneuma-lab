@@ -39,6 +39,12 @@ from pneuma_lab.resampling_null.assignment import (
     require_schedulable_power_final,
 )
 from pneuma_lab.resampling_null.branch_assignment import seal_branch_assignment
+from pneuma_lab.resampling_null.packets import (
+    NoInterventionPacketMarker,
+    PacketInvalid,
+    audit_and_seal_packet_index,
+    write_packet_candidate,
+)
 from pneuma_lab.resampling_null.assignment_verification import (
     _require_assignment_publication,
     require_assignment_reconstruction,
@@ -3180,6 +3186,68 @@ def test_t3_s09_branch_assignment_is_derived_inside_assignment_lease(
         storage_receipt["publication_commit"]["scientific_sha256"]
         == ledger_ref.sha256
     )
+    manifest = load_record(root / manifest_ref.relative_path)
+    manifest_payload = cast(dict[str, object], manifest["payload"])
+    tokenizer_ref = ArtifactRef(
+        **cast(dict[str, Any], manifest_payload["tokenizer_ref"])
+    )
+    packet_template_ref = ArtifactRef(
+        **cast(dict[str, Any], manifest_payload["packet_template_ref"])
+    )
+    packet_policy_ref = ArtifactRef(
+        **cast(dict[str, Any], manifest_payload["packet_policy_ref"])
+    )
+    pad_unit_set_ref = ArtifactRef(
+        **cast(dict[str, Any], manifest_payload["pad_unit_set_ref"])
+    )
+    packet_candidate_ref = write_packet_candidate(
+        [
+            NoInterventionPacketMarker(
+                task_id,
+                prefix_ref.sha256,
+                "no_intervention_opportunity",
+            )
+            for task_id in ("task-1", "task-donor")
+        ],
+        assignment_ref=ledger_ref,
+        prefix_index_ref=prefix_ref,
+        tokenizer_ref=tokenizer_ref,
+        packet_template_ref=packet_template_ref,
+        packet_policy_ref=packet_policy_ref,
+        pad_unit_set_ref=pad_unit_set_ref,
+        run_root=root,
+        out=root / "packet-candidate.json",
+    )
+    with pytest.raises(PacketInvalid, match="roster"):
+        audit_and_seal_packet_index(
+            packet_candidate_ref,
+            expected_task_ids={"task-1"},
+            assignment_ref=ledger_ref,
+            schedule_ref=schedule_ref,
+            prefix_index_ref=prefix_ref,
+            tokenizer_ref=tokenizer_ref,
+            packet_template_ref=packet_template_ref,
+            packet_policy_ref=packet_policy_ref,
+            pad_unit_set_ref=pad_unit_set_ref,
+            run_root=root,
+            out=root / "packet-index-rejected.json",
+        )
+    sealed_packet_ref = audit_and_seal_packet_index(
+        packet_candidate_ref,
+        expected_task_ids={"task-1", "task-donor"},
+        assignment_ref=ledger_ref,
+        schedule_ref=schedule_ref,
+        prefix_index_ref=prefix_ref,
+        tokenizer_ref=tokenizer_ref,
+        packet_template_ref=packet_template_ref,
+        packet_policy_ref=packet_policy_ref,
+        pad_unit_set_ref=pad_unit_set_ref,
+        run_root=root,
+        out=root / "packet-index.json",
+    )
+    assert load_record(root / sealed_packet_ref.relative_path)["payload"][
+        "stage"
+    ] == "sealed"
     with pytest.raises(ValueError, match="consumed"):
         store._consume_into(handle, bytearray(32))  # type: ignore[arg-type]
 

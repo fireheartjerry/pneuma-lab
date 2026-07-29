@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import asdict, dataclass
 from enum import Enum
 import hashlib
+from pathlib import Path
 import re
-from typing import Literal, Protocol
+from typing import Literal, Protocol, cast
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
+from .artifacts import RecordValidationError, load_record, write_record
 from .types import ArtifactRef
 
 
@@ -158,6 +160,21 @@ class PacketPairReceipt:
     truncation_receipts: tuple[TruncationReceipt, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class NoInterventionPacketMarker:
+    task_id: str
+    prefix_index_sha256: str
+    trigger_reason: Literal["no_intervention_opportunity"]
+
+    def __post_init__(self) -> None:
+        if type(self.task_id) is not str or not self.task_id:
+            raise ValueError("task_id must be non-empty exact text")
+        if not re.fullmatch(r"[0-9a-f]{64}", self.prefix_index_sha256):
+            raise ValueError("prefix_index_sha256 must be lowercase SHA-256")
+        if self.trigger_reason != "no_intervention_opportunity":
+            raise ValueError("no-intervention marker has an invalid reason")
+
+
 _FIELD_ORDER = (
     "finding_id",
     "component",
@@ -180,6 +197,18 @@ def _digest_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _token_count(tokenizer: Tokenizer, text: str) -> int:
+    encoded = tokenizer.encode(text)
+    if not isinstance(encoded, tuple) or any(
+        type(token_id) is not int
+        for token_id in encoded
+    ):
+        raise PacketInvalid(
+            "tokenizer must return a tuple of exact integer token IDs"
+        )
+    return len(encoded)
+
+
 def _bound_atoms(
     finding: VerifierFinding,
     *,
@@ -188,11 +217,11 @@ def _bound_atoms(
 ) -> tuple[tuple[PacketAtom, ...], TruncationReceipt]:
     original_text = _atoms_text(finding.atoms)
     retained = list(finding.atoms)
-    while retained and len(tokenizer.encode(_atoms_text(retained))) > budget:
+    while retained and _token_count(tokenizer, _atoms_text(retained)) > budget:
         retained.pop()
     retained_text = _atoms_text(retained)
-    original_tokens = len(tokenizer.encode(original_text))
-    retained_tokens = len(tokenizer.encode(retained_text))
+    original_tokens = _token_count(tokenizer, original_text)
+    retained_tokens = _token_count(tokenizer, retained_text)
     return tuple(retained), TruncationReceipt(
         finding_id=finding.finding_id,
         original_sha256=_digest_text(original_text),
@@ -248,7 +277,7 @@ def _padding_search(
         for padding in sorted(frontier, key=lambda value: value.encode("utf-8")):
             counts = frontier[padding]
             explored += 1
-            token_count = len(tokenizer.encode(_render(shorter, padding)))
+            token_count = _token_count(tokenizer, _render(shorter, padding))
             if token_count == target:
                 return padding, PaddingSearchReceipt(
                     pad_unit_set_sha256=unit_digest,
@@ -328,6 +357,24 @@ def build_packet_pair(
         raise TypeError("policy must be PacketPolicy")
     if not real or not donor:
         raise PacketInvalid("REAL and SHAM findings must be non-empty")
+    if (
+        type(task_id) is not str
+        or not task_id
+        or type(donor_task_id) is not str
+        or not donor_task_id
+        or task_id == donor_task_id
+    ):
+        raise PacketInvalid("focal and donor task IDs must be non-empty and distinct")
+    if not re.fullmatch(r"[0-9a-f]{64}", prefix_index_sha256):
+        raise PacketInvalid("prefix index digest must be lowercase SHA-256")
+    if (
+        type(real_relative_path) is not str
+        or not real_relative_path
+        or type(sham_relative_path) is not str
+        or not sham_relative_path
+        or real_relative_path == sham_relative_path
+    ):
+        raise PacketInvalid("REAL and SHAM artifact paths must be non-empty and distinct")
     units = _validated_pad_units(neutral_pad_units)
     retained_count = min(len(real), len(donor), policy.max_findings)
     focal = list(real[:retained_count])
@@ -438,8 +485,8 @@ def build_packet_pair(
 
     real_text = _render(bounded_real, "")
     sham_text = _render(bounded_sham, "")
-    real_count = len(tokenizer.encode(real_text))
-    sham_count = len(tokenizer.encode(sham_text))
+    real_count = _token_count(tokenizer, real_text)
+    sham_count = _token_count(tokenizer, sham_text)
     target = max(real_count, sham_count)
     if real_count < target:
         padding, padding_receipt = _padding_search(
@@ -467,8 +514,8 @@ def build_packet_pair(
             selected_unit_counts=tuple((unit, 0) for unit in units),
             search_algorithm="exact_dynamic_program_v1",
         )
-    real_count = len(tokenizer.encode(real_text))
-    sham_count = len(tokenizer.encode(sham_text))
+    real_count = _token_count(tokenizer, real_text)
+    sham_count = _token_count(tokenizer, sham_text)
     if real_count != sham_count:
         raise PacketInvalid("exact REAL/SHAM token parity is unreachable")
     forbidden = donor_identifiers | {donor_task_id}
@@ -485,6 +532,14 @@ def build_packet_pair(
         sham_text,
         role="private_guidance",
     )
+    if (
+        real_ref == sham_ref
+        or real_ref.relative_path != real_relative_path
+        or sham_ref.relative_path != sham_relative_path
+        or real_ref.role != "private_guidance"
+        or sham_ref.role != "private_guidance"
+    ):
+        raise PacketInvalid("artifact store did not preserve distinct packet identity")
     severity_multiset = tuple(sorted(finding.severity for finding in bounded_real))
     return PacketPairReceipt(
         task_id=task_id,
@@ -516,4 +571,322 @@ def build_packet_pair(
         unmapped_identifiers=(),
         donor_literal_collisions=(),
         truncation_receipts=tuple(truncations),
+    )
+
+
+def _require_parent_record(
+    ref: ArtifactRef,
+    *,
+    run_root: Path,
+    expected_kind: str,
+) -> dict[str, object]:
+    root = Path(run_root).resolve(strict=True)
+    path = (root / ref.relative_path).resolve(strict=True)
+    try:
+        path.relative_to(root)
+    except ValueError as exc:
+        raise RecordValidationError("packet parent escapes run_root") from exc
+    payload = path.read_bytes()
+    if (
+        len(payload) != ref.byte_count
+        or hashlib.sha256(payload).hexdigest() != ref.sha256
+    ):
+        raise RecordValidationError("packet parent bytes do not match ArtifactRef")
+    record = load_record(path)
+    if record.get("record_kind") != expected_kind:
+        raise RecordValidationError(
+            f"packet parent must be {expected_kind}"
+        )
+    return record
+
+
+def _candidate_entry(entry: PacketPairReceipt | NoInterventionPacketMarker) -> dict[str, object]:
+    return cast(dict[str, object], asdict(entry))
+
+
+def write_packet_candidate(
+    entries: Sequence[PacketPairReceipt | NoInterventionPacketMarker],
+    *,
+    assignment_ref: ArtifactRef,
+    prefix_index_ref: ArtifactRef,
+    tokenizer_ref: ArtifactRef,
+    packet_template_ref: ArtifactRef,
+    packet_policy_ref: ArtifactRef,
+    pad_unit_set_ref: ArtifactRef,
+    run_root: Path,
+    out: Path,
+) -> ArtifactRef:
+    """Publish an immutable candidate index; it is not execution authority."""
+
+    if not entries:
+        raise PacketInvalid("packet candidate must cover at least one task")
+    task_ids = [entry.task_id for entry in entries]
+    if len(set(task_ids)) != len(task_ids):
+        raise PacketInvalid("packet candidate task IDs must be unique")
+    assignment = _require_parent_record(
+        assignment_ref,
+        run_root=run_root,
+        expected_kind="resampling_assignment_ledger",
+    )
+    for entry in entries:
+        if entry.prefix_index_sha256 != prefix_index_ref.sha256:
+            raise PacketInvalid("packet entry names a different prefix index")
+        if isinstance(entry, NoInterventionPacketMarker):
+            continue
+        if (
+            entry.assignment_ref != assignment_ref
+            or entry.tokenizer_ref != tokenizer_ref
+            or entry.packet_template_ref != packet_template_ref
+            or entry.packet_policy_ref != packet_policy_ref
+            or entry.pad_unit_set_ref != pad_unit_set_ref
+        ):
+            raise PacketInvalid("packet pair ancestry differs from candidate parents")
+        if (
+            entry.real_token_count != entry.sham_token_count
+            or not entry.schema_parity
+            or not entry.field_parity
+            or not entry.severity_parity
+            or entry.focal_collision_count != 0
+            or entry.rewrite_expected != entry.rewrite_completed
+            or entry.unmapped_identifiers
+            or entry.donor_literal_collisions
+        ):
+            raise PacketInvalid("packet pair has an open parity or leakage gate")
+    record = {
+        "record_kind": "resampling_packet_index",
+        "schema_version": assignment["schema_version"],
+        "study_id": assignment["study_id"],
+        "frozen_created_at": assignment["frozen_created_at"],
+        "provenance": assignment["provenance"],
+        "payload": {
+            "stage": "candidate",
+            "assignment_ref": asdict(assignment_ref),
+            "prefix_index_ref": asdict(prefix_index_ref),
+            "tokenizer_ref": asdict(tokenizer_ref),
+            "packet_template_ref": asdict(packet_template_ref),
+            "packet_policy_ref": asdict(packet_policy_ref),
+            "pad_unit_set_ref": asdict(pad_unit_set_ref),
+            "entries": [_candidate_entry(entry) for entry in entries],
+        },
+    }
+    return write_record(
+        out,
+        record,
+        run_root=run_root,
+        role="packet_index_candidate",
+    )
+
+
+def _artifact_ref(value: object, *, field: str) -> ArtifactRef:
+    if not isinstance(value, Mapping):
+        raise PacketInvalid(f"{field} must be an ArtifactRef")
+    try:
+        if set(value) != {
+            "role",
+            "relative_path",
+            "sha256",
+            "byte_count",
+            "media_type",
+        }:
+            raise ValueError("ArtifactRef keys are not closed")
+        role = value["role"]
+        relative_path = value["relative_path"]
+        sha256 = value["sha256"]
+        byte_count = value["byte_count"]
+        media_type = value["media_type"]
+        if (
+            type(role) is not str
+            or type(relative_path) is not str
+            or type(sha256) is not str
+            or type(byte_count) is not int
+            or type(media_type) is not str
+        ):
+            raise TypeError("ArtifactRef fields have invalid exact types")
+        return ArtifactRef(
+            role,
+            relative_path,
+            sha256,
+            byte_count,
+            media_type,
+        )
+    except (TypeError, ValueError) as exc:
+        raise PacketInvalid(f"{field} is not a valid ArtifactRef") from exc
+
+
+def _require_artifact_bytes(ref: ArtifactRef, *, run_root: Path) -> bytes:
+    root = Path(run_root).resolve(strict=True)
+    path = (root / ref.relative_path).resolve(strict=True)
+    try:
+        path.relative_to(root)
+    except ValueError as exc:
+        raise PacketInvalid("packet artifact escapes run_root") from exc
+    payload = path.read_bytes()
+    if (
+        len(payload) != ref.byte_count
+        or hashlib.sha256(payload).hexdigest() != ref.sha256
+    ):
+        raise PacketInvalid("packet artifact bytes do not match ArtifactRef")
+    return payload
+
+
+def audit_and_seal_packet_index(
+    candidate_ref: ArtifactRef,
+    *,
+    expected_task_ids: Collection[str],
+    assignment_ref: ArtifactRef,
+    schedule_ref: ArtifactRef,
+    prefix_index_ref: ArtifactRef,
+    tokenizer_ref: ArtifactRef,
+    packet_template_ref: ArtifactRef,
+    packet_policy_ref: ArtifactRef,
+    pad_unit_set_ref: ArtifactRef,
+    run_root: Path,
+    out: Path,
+) -> ArtifactRef:
+    """Audit candidate ancestry/bytes and publish the only execution authority."""
+
+    candidate = _require_parent_record(
+        candidate_ref,
+        run_root=run_root,
+        expected_kind="resampling_packet_index",
+    )
+    assignment = _require_parent_record(
+        assignment_ref,
+        run_root=run_root,
+        expected_kind="resampling_assignment_ledger",
+    )
+    schedule = _require_parent_record(
+        schedule_ref,
+        run_root=run_root,
+        expected_kind="resampling_prefix_schedule",
+    )
+    prefix = _require_parent_record(
+        prefix_index_ref,
+        run_root=run_root,
+        expected_kind="resampling_prefix_receipt",
+    )
+    candidate_payload = cast(dict[str, object], candidate["payload"])
+    assignment_payload = cast(dict[str, object], assignment["payload"])
+    schedule_payload = cast(dict[str, object], schedule["payload"])
+    prefix_payload = cast(dict[str, object], prefix["payload"])
+    exact_candidate_parents = {
+        "assignment_ref": assignment_ref,
+        "prefix_index_ref": prefix_index_ref,
+        "tokenizer_ref": tokenizer_ref,
+        "packet_template_ref": packet_template_ref,
+        "packet_policy_ref": packet_policy_ref,
+        "pad_unit_set_ref": pad_unit_set_ref,
+    }
+    if candidate_payload.get("stage") != "candidate":
+        raise PacketInvalid("only a candidate packet index can be sealed")
+    for field, expected in exact_candidate_parents.items():
+        if _artifact_ref(candidate_payload.get(field), field=field) != expected:
+            raise PacketInvalid(f"candidate {field} ancestry mismatch")
+    for ref in (
+        tokenizer_ref,
+        packet_template_ref,
+        packet_policy_ref,
+        pad_unit_set_ref,
+    ):
+        _require_artifact_bytes(ref, run_root=run_root)
+    if (
+        _artifact_ref(assignment_payload.get("schedule_ref"), field="schedule_ref")
+        != schedule_ref
+        or _artifact_ref(
+            assignment_payload.get("prefix_index_ref"),
+            field="prefix_index_ref",
+        )
+        != prefix_index_ref
+        or _artifact_ref(prefix_payload.get("schedule_ref"), field="schedule_ref")
+        != schedule_ref
+    ):
+        raise PacketInvalid("assignment/prefix chronology is not closed")
+    schedule_rows = cast(list[dict[str, object]], schedule_payload["tasks"])
+    schedule_task_ids = [
+        cast(str, cast(dict[str, object], row["task"])["task_id"])
+        for row in schedule_rows
+    ]
+    if isinstance(expected_task_ids, (str, bytes)) or any(
+        type(task_id) is not str or not task_id
+        for task_id in expected_task_ids
+    ):
+        raise PacketInvalid("expected task roster must contain exact task IDs")
+    if len(expected_task_ids) != len(set(expected_task_ids)) or set(
+        expected_task_ids
+    ) != set(schedule_task_ids):
+        raise PacketInvalid("expected task roster differs from sealed schedule")
+    entries = cast(list[dict[str, object]], candidate_payload["entries"])
+    if [cast(str, entry["task_id"]) for entry in entries] != schedule_task_ids:
+        raise PacketInvalid("candidate entries do not have exact schedule coverage")
+    prefix_rows = cast(list[dict[str, object]], prefix_payload["task_receipts"])
+    assignments = cast(list[dict[str, object]], assignment_payload["assignments"])
+    if (
+        [cast(str, row["task_id"]) for row in prefix_rows] != schedule_task_ids
+        or [cast(str, row["task_id"]) for row in assignments] != schedule_task_ids
+    ):
+        raise PacketInvalid("prefix/assignment arrays differ from schedule order")
+    prefix_by_task = {
+        cast(str, row["task_id"]): row
+        for row in prefix_rows
+    }
+    assignment_by_task = {
+        cast(str, row["task_id"]): row
+        for row in assignments
+    }
+    for entry in entries:
+        task_id = cast(str, entry["task_id"])
+        prefix_row = prefix_by_task[task_id]
+        assignment_row = assignment_by_task[task_id]
+        no_trigger = (
+            prefix_row["trigger_reason"] == "no_intervention_opportunity"
+        )
+        is_marker = "trigger_reason" in entry and "real_ref" not in entry
+        if no_trigger:
+            if (
+                not is_marker
+                or entry.get("trigger_reason")
+                != "no_intervention_opportunity"
+                or entry.get("prefix_index_sha256") != prefix_index_ref.sha256
+                or assignment_row.get("donor_match_kind")
+                != "not_applicable_no_trigger"
+            ):
+                raise PacketInvalid("no-trigger task lacks its exact typed marker")
+            continue
+        if is_marker or assignment_row.get("donor_match_kind") != "matched":
+            raise PacketInvalid("triggered task lacks one matched packet pair")
+        raise PacketInvalid(
+            "triggered packet sealing requires the pending independent "
+            "normalization/tokenizer recomputation authority"
+        )
+    sealed = {
+        "record_kind": "resampling_packet_index",
+        "schema_version": candidate["schema_version"],
+        "study_id": candidate["study_id"],
+        "frozen_created_at": candidate["frozen_created_at"],
+        "provenance": candidate["provenance"],
+        "payload": {
+            "stage": "sealed",
+            "candidate_ref": asdict(candidate_ref),
+            **{
+                field: asdict(ref)
+                for field, ref in exact_candidate_parents.items()
+            },
+            "audit_gates": {
+                "roster_complete": True,
+                "ancestry_valid": True,
+                "token_parity": True,
+                "schema_parity": True,
+                "field_parity": True,
+                "severity_parity": True,
+                "rewrites_complete": True,
+                "identifier_collision_free": True,
+                "artifact_bytes_verified": True,
+            },
+        },
+    }
+    return write_record(
+        out,
+        sealed,
+        run_root=run_root,
+        role="packet_index_sealed",
     )
