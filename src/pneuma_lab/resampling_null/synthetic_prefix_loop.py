@@ -69,10 +69,18 @@ TransportKind = Literal[
 ParserKind = Literal["turn", "refusal", "malformed", "not_applicable"]
 
 
+def _freeze_descriptor_fields(
+    registry: dict[str, dict[str, object]],
+) -> Mapping[str, Mapping[str, object]]:
+    return MappingProxyType(
+        {purpose: MappingProxyType(fields) for purpose, fields in registry.items()}
+    )
+
+
 REGISTERED_LOOP_DESCRIPTOR_FIELDS: Mapping[
     str,
-    dict[str, object],
-] = MappingProxyType(
+    Mapping[str, object],
+] = _freeze_descriptor_fields(
     {
         "environment": {
             "purpose": "environment",
@@ -105,8 +113,8 @@ REGISTERED_LOOP_DESCRIPTOR_FIELDS: Mapping[
             "container_digest": None,
         },
         **{
-            purpose: {
-                "purpose": purpose,
+            item: {
+                "purpose": item,
                 "nominal_type": (
                     "pneuma_lab.resampling_null.synthetic_prefix_loop."
                     + {
@@ -119,17 +127,17 @@ REGISTERED_LOOP_DESCRIPTOR_FIELDS: Mapping[
                         "verifier": "SyntheticVerifierCodec",
                         "provider_event_codec": "SyntheticProviderEventCodec",
                         "settlement_codec": "SyntheticSettlementCodec",
-                    }[purpose]
+                    }[item]
                 ),
-                "build_id": f"synthetic-{purpose.replace('_', '-')}-v1",
+                "build_id": f"synthetic-{item.replace('_', '-')}-v1",
                 "request_grammar": (
                     "synthetic-request-v1"
-                    if purpose in ("subject", "simulator", "request_renderer")
+                    if item in ("subject", "simulator", "request_renderer")
                     else None
                 ),
                 "response_grammar": (
                     "synthetic-response-v1"
-                    if purpose in ("subject", "simulator", "response_parser")
+                    if item in ("subject", "simulator", "response_parser")
                     else None
                 ),
                 "snapshot_grammar": None,
@@ -141,16 +149,16 @@ REGISTERED_LOOP_DESCRIPTOR_FIELDS: Mapping[
                         "verifier": "synthetic-verifier-v1",
                         "provider_event_codec": "synthetic-provider-event-v1",
                         "settlement_codec": "synthetic-provider-settlement-v1",
-                    }.get(purpose)
+                    }.get(item)
                 ),
                 "runtime_id": (
-                    "cpython-3.12-local" if purpose in ("grader", "verifier") else None
+                    "cpython-3.12-local" if item in ("grader", "verifier") else None
                 ),
                 "container_digest": (
-                    "sha256:" + "0" * 64 if purpose in ("grader", "verifier") else None
+                    "sha256:" + "0" * 64 if item in ("grader", "verifier") else None
                 ),
             }
-            for purpose in (
+            for item in (
                 "subject",
                 "simulator",
                 "meter",
@@ -183,6 +191,24 @@ _SOURCE_PATH_BY_PURPOSE = MappingProxyType(
 class SyntheticTraceMeter:
     """Fresh zero-position meter over one sealed named trace."""
 
+    _last_value: int | None
+    _position: int
+    _program_bytes: bytes
+    _program_sha256: str
+    _seal: tuple[object, ...]
+    _sealed: bool
+    _trace: tuple[SyntheticClockRead, ...]
+
+    __slots__ = (
+        "_last_value",
+        "_position",
+        "_program_bytes",
+        "_program_sha256",
+        "_seal",
+        "_sealed",
+        "_trace",
+    )
+
     def __init_subclass__(cls, **kwargs: object) -> None:
         raise TypeError("SyntheticTraceMeter is final")
 
@@ -190,37 +216,103 @@ class SyntheticTraceMeter:
         self,
         *,
         program_bytes: bytes,
-        clock_trace: tuple[SyntheticClockRead, ...],
     ) -> None:
         if type(program_bytes) is not bytes:
             raise TypeError("program_bytes must be exact bytes")
-        if type(clock_trace) is not tuple or not all(
-            type(read) is SyntheticClockRead for read in clock_trace
+        sealed_program = bytes(program_bytes)
+        program = load_synthetic_prefix_program(sealed_program)
+        if synthetic_prefix_program_bytes(program) != sealed_program:
+            raise ValueError("meter program bytes are not canonical")
+        trace = program.clock_trace
+        digest = hashlib.sha256(sealed_program).hexdigest()
+        position = 0
+        last_value: int | None = None
+        object.__setattr__(self, "_program_bytes", sealed_program)
+        object.__setattr__(self, "_program_sha256", digest)
+        object.__setattr__(self, "_trace", trace)
+        object.__setattr__(self, "_position", position)
+        object.__setattr__(self, "_last_value", last_value)
+        object.__setattr__(
+            self,
+            "_seal",
+            (
+                digest,
+                len(sealed_program),
+                trace,
+                position,
+                last_value,
+            ),
+        )
+        object.__setattr__(self, "_sealed", True)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if getattr(self, "_sealed", False):
+            raise AttributeError("SyntheticTraceMeter state is sealed")
+        object.__setattr__(self, name, value)
+
+    def _verify_seal(self) -> tuple[SyntheticClockRead, ...]:
+        program = load_synthetic_prefix_program(self._program_bytes)
+        trace = program.clock_trace
+        observed = (
+            hashlib.sha256(self._program_bytes).hexdigest(),
+            len(self._program_bytes),
+            self._trace,
+            self._position,
+            self._last_value,
+        )
+        expected_last = (
+            None
+            if self._position == 0
+            else trace[self._position - 1].uint64_ms
+            if type(self._position) is int and 0 < self._position <= len(trace)
+            else None
+        )
+        if (
+            observed != self._seal
+            or self._program_sha256 != observed[0]
+            or self._trace != trace
+            or type(self._position) is not int
+            or not 0 <= self._position <= len(trace)
+            or self._last_value != expected_last
+            or self._sealed is not True
+            or synthetic_prefix_program_bytes(program) != self._program_bytes
         ):
-            raise TypeError("clock_trace must contain exact clock reads")
-        self._program_sha256 = hashlib.sha256(program_bytes).hexdigest()
-        self._trace = clock_trace
-        self._position = 0
-        self._last_value: int | None = None
+            raise ValueError("meter sealed state drifted")
+        return trace
 
     def read(self, *, label: str, program_sha256: str) -> int:
+        trace = self._verify_seal()
         if program_sha256 != self._program_sha256:
             raise ValueError("meter program digest differs from sealed program")
-        if self._position >= len(self._trace):
+        if self._position >= len(trace):
             raise ValueError("meter trace is exhausted")
-        row = self._trace[self._position]
+        row = trace[self._position]
         if row.label != label:
             raise ValueError(
                 f"meter label differs: expected {row.label!r}, received {label!r}"
             )
         if self._last_value is not None and row.uint64_ms < self._last_value:
             raise ValueError("meter trace decreased")
-        self._position += 1
-        self._last_value = row.uint64_ms
+        position = self._position + 1
+        last_value = row.uint64_ms
+        object.__setattr__(self, "_position", position)
+        object.__setattr__(self, "_last_value", last_value)
+        object.__setattr__(
+            self,
+            "_seal",
+            (
+                self._program_sha256,
+                len(self._program_bytes),
+                trace,
+                position,
+                last_value,
+            ),
+        )
         return row.uint64_ms
 
-    def assert_exhausted(self) -> None:
-        if self._position != len(self._trace):
+    def _assert_exhausted(self) -> None:
+        trace = self._verify_seal()
+        if self._position != len(trace):
             raise ValueError("meter trace has unread observations")
 
 
@@ -915,6 +1007,11 @@ class SyntheticProviderActor:
         )
         return observation
 
+    def _assert_exhausted(self) -> None:
+        role_rows = self._verify_seal()
+        if self._cursor != len(role_rows):
+            raise ValueError("provider actor has unconsumed role-local rows")
+
 
 @dataclass(frozen=True, slots=True)
 class _LoopComponents:
@@ -933,7 +1030,6 @@ class _LoopComponents:
 def _construct_components(
     *,
     authority: PrefixExecutionAuthority,
-    program: SyntheticPrefixProgram,
     program_bytes: bytes,
     payloads: Mapping[ArtifactRef, bytes],
 ) -> _LoopComponents:
@@ -955,7 +1051,6 @@ def _construct_components(
         ),
         meter=SyntheticTraceMeter(
             program_bytes=program_bytes,
-            clock_trace=program.clock_trace,
         ),
         tokenizer=SyntheticByteTokenizer(),
         renderer=SyntheticRequestRenderer(),
@@ -1018,9 +1113,11 @@ def _validate_descriptor_registry(
 ) -> dict[str, ImplementationDescriptor]:
     if type(authority) is not PrefixExecutionAuthority:
         raise TypeError("authority must be exact PrefixExecutionAuthority")
+    descriptors = authority.implementation_descriptors
+    if len(descriptors) != len({item.purpose for item in descriptors}):
+        raise ValueError("authority has duplicate descriptor purposes")
     by_purpose: dict[str, ImplementationDescriptor] = {
-        descriptor.purpose: descriptor
-        for descriptor in authority.implementation_descriptors
+        descriptor.purpose: descriptor for descriptor in descriptors
     }
     expected = set(REGISTERED_LOOP_DESCRIPTOR_FIELDS)
     if authority.simulator_contract_ref is None:
@@ -1174,7 +1271,6 @@ def _execute_open_loop(
     handle: SyntheticEnvironmentHandle = live.handle
     components = _construct_components(
         authority=authority,
-        program=program,
         program_bytes=program_bytes,
         payloads=payloads,
     )
@@ -1619,11 +1715,15 @@ def _execute_open_loop(
             ):
                 break
 
+        if transcript_position != len(program.provider_transcript):
+            raise ValueError("program has unconsumed provider transcript rows")
+        for actor in actors.values():
+            actor._assert_exhausted()
         if program.expected_trigger_reason is not trigger:
             raise ValueError("derived trigger differs from sealed post-hoc expectation")
         if tool_observation_position != len(program.tool_observations):
             raise ValueError("tool observation program has unconsumed rows")
-        meter.assert_exhausted()
+        meter._assert_exhausted()
         final_observation = _decode_snapshot_state(handle.snapshot())
         if trigger is TriggerReason.NO_INTERVENTION_OPPORTUNITY:
             if not final_observation.episode_terminal:

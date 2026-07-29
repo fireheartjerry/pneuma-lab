@@ -27,6 +27,7 @@ from pneuma_lab.resampling_null.synthetic_prefix_loop import (
     _pre_dispatch_failure,
     _pre_provider_action_failure,
     _render_request,
+    _validate_descriptor_registry,
     _validate_provider_observation,
 )
 from pneuma_lab.resampling_null.types import (
@@ -194,42 +195,76 @@ def test_provider_truth_table_rejects_every_unlisted_on_time_combination(
         )
 
 
-def test_trace_meter_enforces_program_digest_label_order_and_exhaustion() -> None:
-    program = b"sealed-program"
-    meter = SyntheticTraceMeter(
-        program_bytes=program,
-        clock_trace=(
-            SyntheticClockRead("prefix_epoch", 5),
-            SyntheticClockRead("before_primary_subject_0", 6),
-        ),
-    )
+def test_trace_meter_derives_and_seals_program_clock_state(tmp_path: Path) -> None:
+    authority = _loop_authority(tmp_path)
+    program_bytes = (tmp_path / authority.program_ref.relative_path).read_bytes()
+    program = load_synthetic_prefix_program(program_bytes)
+    meter = SyntheticTraceMeter(program_bytes=program_bytes)
 
     assert (
         meter.read(
             label="prefix_epoch",
-            program_sha256=hashlib.sha256(program).hexdigest(),
+            program_sha256=hashlib.sha256(program_bytes).hexdigest(),
         )
-        == 5
+        == program.clock_trace[0].uint64_ms
     )
     with pytest.raises(ValueError, match="label"):
         meter.read(
             label="wrong",
-            program_sha256=hashlib.sha256(program).hexdigest(),
+            program_sha256=hashlib.sha256(program_bytes).hexdigest(),
         )
-    assert (
+    for row in program.clock_trace[1:]:
         meter.read(
-            label="before_primary_subject_0",
-            program_sha256=hashlib.sha256(program).hexdigest(),
+            label=row.label,
+            program_sha256=hashlib.sha256(program_bytes).hexdigest(),
         )
-        == 6
-    )
-    meter.assert_exhausted()
+    meter._assert_exhausted()
 
     with pytest.raises(ValueError, match="digest"):
-        SyntheticTraceMeter(
-            program_bytes=program,
-            clock_trace=(SyntheticClockRead("prefix_epoch", 5),),
-        ).read(label="prefix_epoch", program_sha256="0" * 64)
+        SyntheticTraceMeter(program_bytes=program_bytes).read(
+            label="prefix_epoch",
+            program_sha256="0" * 64,
+        )
+
+
+def test_trace_meter_has_closed_program_only_surface_and_rejects_drift(
+    tmp_path: Path,
+) -> None:
+    authority = _loop_authority(tmp_path)
+    program_bytes = (tmp_path / authority.program_ref.relative_path).read_bytes()
+    program = load_synthetic_prefix_program(program_bytes)
+
+    assert tuple(inspect.signature(SyntheticTraceMeter).parameters) == (
+        "program_bytes",
+    )
+    with pytest.raises(TypeError, match="clock_trace"):
+        SyntheticTraceMeter(  # type: ignore[call-arg]
+            program_bytes=program_bytes,
+            clock_trace=(SyntheticClockRead("forged", 0),),
+        )
+
+    meter = SyntheticTraceMeter(program_bytes=program_bytes)
+    with pytest.raises(AttributeError, match="sealed"):
+        meter._trace = ()  # type: ignore[misc]
+    object.__setattr__(meter, "_trace", ())
+    with pytest.raises(ValueError, match="sealed state drifted"):
+        meter.read(
+            label=program.clock_trace[0].label,
+            program_sha256=hashlib.sha256(program_bytes).hexdigest(),
+        )
+
+    meter = SyntheticTraceMeter(program_bytes=program_bytes)
+    object.__setattr__(meter, "_position", 1)
+    with pytest.raises(ValueError, match="sealed state drifted"):
+        meter._assert_exhausted()
+
+    meter = SyntheticTraceMeter(program_bytes=program_bytes)
+    object.__setattr__(meter, "_program_sha256", "0" * 64)
+    with pytest.raises(ValueError, match="sealed state drifted"):
+        meter.read(
+            label=program.clock_trace[0].label,
+            program_sha256=hashlib.sha256(program_bytes).hexdigest(),
+        )
 
 
 def test_raw_provider_validation_derives_tokens_parser_event_and_status() -> None:
@@ -897,6 +932,61 @@ def _rewrite_program(
     )
 
 
+def test_loop_rejects_unconsumed_ordinary_provider_row(tmp_path: Path) -> None:
+    authority = _loop_authority(tmp_path)
+
+    def mutate(value: dict[str, object]) -> None:
+        transcript = value["provider_transcript"]
+        assert isinstance(transcript, list)
+        assert isinstance(transcript[0], dict)
+        extra = dict(transcript[0])
+        extra["call_index"] = 1
+        extra["seed"] = derive_call_seed(11, "primary_subject", 1)
+        transcript.append(extra)
+
+    authority = _rewrite_program(tmp_path, authority, mutate)
+    result = None
+    try:
+        with pytest.raises(BaseExceptionGroup, match="prefix loop failed") as raised:
+            result = _open_prefix_loop(run_root=tmp_path, authority=authority)
+        assert "unconsumed provider transcript" in repr(raised.value.exceptions)
+    finally:
+        if result is not None:
+            result.close()
+
+
+def test_loop_rejects_unconsumed_declared_provider_failure_target(
+    tmp_path: Path,
+) -> None:
+    authority = _loop_authority(tmp_path)
+
+    def mutate(value: dict[str, object]) -> None:
+        transcript = value["provider_transcript"]
+        assert isinstance(transcript, list)
+        assert isinstance(transcript[0], dict)
+        extra = dict(transcript[0])
+        extra["call_index"] = 1
+        extra["completion_kind"] = "provider_error"
+        extra["seed"] = derive_call_seed(11, "primary_subject", 1)
+        transcript.append(extra)
+        value["failure_injection"] = {
+            "call_index": 1,
+            "stage": "provider_transport",
+            "subject_role": "primary_subject",
+            "tool_call_id": None,
+        }
+
+    authority = _rewrite_program(tmp_path, authority, mutate)
+    result = None
+    try:
+        with pytest.raises(BaseExceptionGroup, match="prefix loop failed") as raised:
+            result = _open_prefix_loop(run_root=tmp_path, authority=authority)
+        assert "unconsumed provider transcript" in repr(raised.value.exceptions)
+    finally:
+        if result is not None:
+            result.close()
+
+
 def test_private_loop_has_no_fixture_codec_store_or_script_seam() -> None:
     assert tuple(inspect.signature(_open_prefix_loop).parameters) == (
         "run_root",
@@ -978,6 +1068,80 @@ def test_provider_actor_rejects_derived_row_and_cursor_drift_before_observation(
         )
 
 
+def test_provider_actor_role_interleaving_cannot_hide_unconsumed_cursor(
+    tmp_path: Path,
+) -> None:
+    authority = _loop_authority(tmp_path)
+
+    def mutate(value: dict[str, object]) -> None:
+        transcript = value["provider_transcript"]
+        assert isinstance(transcript, list)
+        assert isinstance(transcript[0], dict)
+        first = transcript[0]
+        first_turn = first["typed_turn"]
+        assert isinstance(first_turn, dict)
+        simulator = {
+            **first,
+            "call_index": 0,
+            "seed": derive_call_seed(11, "user_simulator", 0),
+            "subject_role": "user_simulator",
+            "typed_turn": {
+                **first_turn,
+                "finish_reason": "stop",
+                "text": "continue",
+                "tool_calls": [],
+            },
+        }
+        second_primary = {
+            **first,
+            "call_index": 1,
+            "seed": derive_call_seed(11, "primary_subject", 1),
+        }
+        value["provider_transcript"] = [
+            first,
+            simulator,
+            second_primary,
+        ]
+
+    authority = _rewrite_program(tmp_path, authority, mutate)
+    program_bytes = (tmp_path / authority.program_ref.relative_path).read_bytes()
+    program = load_synthetic_prefix_program(program_bytes)
+    primary_rows = tuple(
+        row
+        for row in program.provider_transcript
+        if row.subject_role == "primary_subject"
+    )
+    row = primary_rows[0]
+    refs = {
+        ref
+        for item in primary_rows
+        for ref in (
+            item.expected_request_ref,
+            item.provider_event_ref,
+            *(() if item.response_ref is None else (item.response_ref,)),
+        )
+    }
+    payloads = {ref: (tmp_path / ref.relative_path).read_bytes() for ref in refs}
+    actor = SyntheticProviderActor(
+        subject_role="primary_subject",
+        program_bytes=program_bytes,
+        payloads=payloads,
+    )
+    actor.invoke(
+        request_bytes=payloads[row.expected_request_ref],
+        dispatch_intent_sha256="d" * 64,
+        subject_role="primary_subject",
+        call_index=row.call_index,
+        seed=row.seed,
+        model_contract_sha256=row.model_contract_sha256,
+        remaining_caps=authority.subject_contract_caps,
+        absolute_deadline_ms=authority.prefix_caps.wall_clock_ms,
+    )
+
+    with pytest.raises(ValueError, match="unconsumed"):
+        actor._assert_exhausted()
+
+
 def test_loop_rejects_descriptor_registry_drift_before_execution(
     tmp_path: Path,
 ) -> None:
@@ -1000,6 +1164,31 @@ def test_loop_rejects_descriptor_registry_drift_before_execution(
         _open_prefix_loop(run_root=tmp_path, authority=authority)
 
     assert not (tmp_path / "prefix-environments").exists()
+
+
+def test_descriptor_registry_is_deeply_immutable_and_rejects_duplicates(
+    tmp_path: Path,
+) -> None:
+    fields = REGISTERED_LOOP_DESCRIPTOR_FIELDS["subject"]
+    with pytest.raises(TypeError):
+        fields["build_id"] = "unreviewed"  # type: ignore[index]
+    assert fields["build_id"] == "synthetic-subject-v1"
+
+    authority = _loop_authority(tmp_path)
+    subject = next(
+        item
+        for item in authority.implementation_descriptors
+        if item.purpose == "subject"
+    )
+    duplicated = replace(
+        authority,
+        implementation_descriptors=(
+            *authority.implementation_descriptors,
+            subject,
+        ),
+    )
+    with pytest.raises(ValueError, match="duplicate"):
+        _validate_descriptor_registry(duplicated)
 
 
 def test_loop_requires_every_copied_descriptor_source_before_fixture_use(
