@@ -757,3 +757,18 @@ The next event after the archived migration boundary is appended below.
 - **Planned mechanics:** stage those five paths; fail on whitespace; inspect staged names; commit `feat(resampling-null): import deterministic assignment authority`; push `HEAD` to public `origin/codex/neurips-2026-empirical`; compare local and exact remote refs.
 - **Evidence basis:** focused behavior EJ-0535 GREEN; static EJ-0536 GREEN; corrected authority/journal/whitespace EJ-0539 GREEN; final hostile source audit defects repaired.
 - **Self-reference break:** reconcile the resulting commit, push, remote SHA, and raw receipt in the next event before further substantive work.
+
+### EJ-20260728-0541 — deliver Task 3 Slice 5 to the public branch
+
+- **Predecessor:** `EJ-20260728-0540`
+- **Time:** `2026-07-28T23:14:48-07:00` to `2026-07-28T23:14:49-07:00` (`2026-07-29T06:14:48+00:00` to `2026-07-29T06:14:49+00:00` UTC)
+- **Action:** Staged exactly the five pre-recorded paths, checked staged whitespace and names fail-fast, committed `feat(resampling-null): import deterministic assignment authority`, pushed to the public working branch, and compared the exact local/remote refs.
+- **Result:** GREEN, exit `0`. Commit and public remote are exactly `be9c06aefa35059939ac1e4f325ba7c8930b8594`. Slice 5 is delivered; the only subsequent tracked delta is this reconciliation receipt.
+- **Scientific boundary:** This closes deterministic task-registry/assignment-program imports and ref-only schedule→manifest plus prefix authority loading. It does not claim live ceremony verification, storage/power scheduling, allocation, confirmation matching, or reconstruction; those remain owned by the immutable later slices.
+- **Compact receipt:** stdout `368 B`, `6 lines`, SHA-256 `00760d975f70f99040e84ef467164ee3e084aef169aa416499b505effd7d77e1`; stderr `110 B`, `2 lines`, SHA-256 `64c78ab4e50c05556f2bdece66ea19f031e5ab4b653a803adf7418b6147609de`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0541/`.
+
+### EJ-20260728-0542 — pre-record finite Slice 5 receipt commit
+
+- **Predecessor:** `EJ-20260728-0541`
+- **Planned mechanics:** stage only this live journal; check whitespace; commit `docs(neurips): record task 3 slice 5 delivery`; push to the public working branch; reconcile the exact remote at the next substantive opening event.
+- **Self-reference break:** the finite B commit intentionally records delivery through EJ-0542; its SHA and push receipt remain local until the next event.
