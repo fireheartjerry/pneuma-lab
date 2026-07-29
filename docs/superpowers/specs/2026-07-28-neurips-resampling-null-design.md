@@ -119,7 +119,7 @@ not enough.
 All revisions below are immutable inputs. A later upstream change creates a new
 experimental subject and cannot be pooled silently.
 
-### 4.0 Canonical derivation frame and three-key ceremony
+### 4.0 Canonical derivation frame and three-commitment ceremony
 
 Every commitment, seed derivation, HMAC ranking, assignment draw, capability,
 and unblind permit uses one typed binary frame. No KDF input may use formatted
@@ -183,7 +183,7 @@ commitments:
 
 | value | exact representation | commitment label | reveal/use contract |
 | --- | --- | --- | --- |
-| roster seed | 32 random bytes | `roster-seed` | commitment precedes the eligibility draw; the eligibility manifest later reveals the bytes and proves the draw from them |
+| roster local nonce | 32 random bytes named `roster_local_nonce` | `roster-local-nonce` | the externally timestamped precommit precedes the public beacon; the eligibility manifest later reveals the nonce and proves the final roster seed derived from it and the authenticated beacon |
 | schedule seed | one `U64` | `schedule-seed` | commitment is copied into the study manifest; schedule sealing reveals the integer and verifies it before deriving task/prefix/slot/order seeds |
 | assignment master key | 32 random bytes | `assignment-master-key` | commitment is copied into the study manifest; only the trusted post-prefix assignment and unblind processes may read the key and verify it in memory |
 
@@ -196,20 +196,71 @@ SHA256(FRAME(
 ))
 ```
 
-The eligibility manifest binds its study ID, pre-draw commitment receipt,
-roster-seed reveal receipt, complete accepted/rejected set, nested C120/C160
-membership, ordered reserves, group labels, and the roster bytes those fields
-produce. It is a pre-study canonical source blob and contains no study-manifest
-ArtifactRef, avoiding a reference cycle. For
+One canonical precommit binds the study ID, qualification-universe digest,
+future beacon chain/round, and all three commitment digests:
+`roster_local_nonce_commitment_sha256`,
+`schedule_seed_commitment_sha256`, and
+`assignment_master_key_commitment_sha256`. That exact precommit is externally
+timestamped before the target beacon. Once timestamped, there is no replacement
+nonce, commitment set, or beacon round.
+
+The eligibility manifest binds its study ID, precommit and timestamp receipts,
+authenticated beacon receipt, roster-local-nonce reveal receipt, final
+`roster_seed`, complete accepted/rejected set, nested C120/C160 membership,
+ordered reserves, group labels, and the roster bytes those fields produce. The
+final seed used by the unchanged roster-ranking HMACs is:
+
+```text
+roster_seed = SHA256(FRAME(
+    "roster-seed-v1",
+    [
+        BYTES(precommit_sha256),
+        BYTES(roster_local_nonce),
+        BYTES(beacon_chain_hash),
+        U64(beacon_round),
+        BYTES(beacon_randomness),
+    ],
+))
+```
+
+The eligibility manifest is a pre-study canonical source blob and contains no
+study-manifest ArtifactRef, avoiding a reference cycle. For
 `roster_kind = "eligible_confirmation"`, study sealing verifies that blob,
 copies it under the run root, and requires a non-null
 `eligibility_manifest_ref` to the exact copy. For
 `roster_kind = "synthetic_fixture"`, the same manifest field is required to be
 null and an eligibility source is forbidden. The study manifest independently
-binds `roster_seed_commitment_sha256`, `schedule_seed_commitment_sha256`, and
+binds `roster_local_nonce_commitment_sha256`,
+`schedule_seed_commitment_sha256`, and
 `assignment_master_key_commitment_sha256`; one generic `seed_commitment` field
 is forbidden. A reveal with the wrong representation, label, study ID, length,
-or commitment stops the transaction.
+commitment, precommit, or beacon receipt stops the transaction.
+
+The beacon authority is drand default mainnet: chain hash
+`8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce`,
+scheme `pedersen-bls-chained`, group hash
+`176f93498eac9ca337150b46d21dd58673ea4e3581185f869672e59fa4cb390a`,
+genesis Unix time `1595431050`, and 30-second period. Round 1's normative
+known-answer randomness is
+`101297f1ca7dc44ef6088d94ad5fb7ba03455dc33d53ddb412bbc4564ed986ec`.
+Verification uses official `drand-client` 1.4.2: package tar SHA-256
+`81de34afba38520b461152bf032cfb5139bb6ced205bf9f50bc8216fdc394eef`,
+integrity
+`sha512-jeNJmrVplfgIA/GVndxxJ5mo8y63BS2pEdNhk1siU4pQ+z/BnxsqRnxjH9ag1ip887s12SEgo0MTZPbQNz27NA==`,
+source commit `ef8c9260294f8699b5e8c27a6b764f8f0d768bea`, and extracted bundled
+CJS SHA-256
+`45cb65d533cc7e8527e9bba92df875c066511c3d6286adc7fcb293f0d03c7566`.
+
+The precommit anchor is a cryptographically verified Sigstore bundle v0.3 with
+exactly one RFC3161 timestamp and exactly one Rekor inclusion proof. Chronology
+uses the verified TSA `genTime`, never Rekor `integratedTime`. The target round
+must begin at least 24 hours after that `genTime`; approximately 48 hours
+(`+5760` rounds) is preferred. Cosign is pinned to v3.1.2 Windows x64 SHA-256
+`fe4d621d7ae5e900ee62089837c00f996ae9acb82027d573d1d157b6ee875cb2`
+with companion Sigstore JSON SHA-256
+`e8d7ea5dd91902b0c23e68a08136d9c43b3573a4974fdbdc89ba5a6890a4ab8b`.
+Ceremony commands must be checked against the installed version before use;
+remembered command syntax is not authority.
 
 The assignment process verifies the 32-byte master key and derives exactly five
 32-byte subkeys with RFC 5869 HKDF-SHA256:
@@ -261,25 +312,47 @@ unblind    19fd5926965155e44bc23ea0b2d804c7a1492a98183389e515eafb4b05290f6d
 Neither the assignment master key nor any derived subkey may appear as an argv
 value, environment variable, run-root file, scientific/operational record,
 exception, log, telemetry event, worker input, or packet capability. A CLI may
-receive only the path to an owner-only-readable key file outside the run root; the
-trusted process reads exactly 32 bytes, never copies the file, and best-effort
-zeroes mutable buffers after derivation. Workers receive only per-slot opaque
-capability IDs; the already-frozen whole-block rerun contract may replay the
-same work-order capability but cannot mint a replacement.
+receive only the path to an owner-only-readable key file outside the run root.
+The trusted process opens it unbuffered, preallocates `bytearray(32)`, performs
+one exact `readinto`, rejects a short read, attempts a one-byte `readinto` and
+rejects extra data, and never copies the file. Workers receive only per-slot
+opaque capability IDs; the already-frozen whole-block rerun contract may
+replay the same work-order capability but cannot mint a replacement.
 
-No public transaction accepts master/subkey bytes. Assignment,
-confirmation-verification, and unblind entry points receive an
-authority-bounded `AssignmentKeyProvider`. For each scoped call it loads
-exactly the trusted owner-only file, verifies the manifest commitment and exact
-manifest/schedule HKDF context, exposes only the five derived subkeys through a
-context manager, and best-effort zeroes mutable buffers on exit. The provider
-has no method that returns the master key. A confirmation verifier that cannot
-open `K_allocation`, `K_orientation`, and `K_capability` through that provider
-cannot claim to reconstruct the keyed ledger. The unblind transaction itself
-opens `K_unblind` through the same provider and recomputes the framed permit
-HMAC before parsing the clear assignment ledger. It never accepts a generic
-secret callback or caller-implemented `PermitVerifier`; accepting an object
-whose `verify()` method may be a no-op is not an authority boundary.
+No public transaction accepts master/subkey bytes or a caller-implemented
+secret source. The concrete trusted-controller `AssignmentSecretStore` is the
+only component that opens the owner-only master-key file. It binds the already
+open OS file identity plus manifest, schedule, run-root, and purpose into its
+private registry, then mints a nominal, non-subclassable, purpose-scoped,
+single-use `AssignmentSecretHandle` or `UnblindSecretHandle`. The store does
+not read or validate key bytes, verify a commitment/context, derive a subkey,
+or return a commitment verdict. Registry membership and unused state are
+checked again at consumption; copied, stale, wrong-purpose, cross-context, or
+reused handles reject.
+
+At handle consumption, trusted core code independently fills that preallocated
+master buffer, verifies the assignment-master-key commitment and exact
+manifest/schedule HKDF context, and only then derives the purpose-appropriate
+keys into private mutable application buffers. There is no public/frozen key
+wrapper and no key-returning API. Assignment and confirmation verification
+consume separately minted assignment handles and derive only `K_donor`,
+`K_allocation`, `K_orientation`, and `K_capability`. Unblinding consumes an
+unblind handle and derives only `K_unblind` long enough to recompute the framed
+permit HMAC before parsing the clear assignment ledger. Handles expose neither
+the master key nor any subkey, and no core scope derives all five subkeys.
+
+One outer `finally` overwrites every application-owned master, subkey, overread,
+and mutable transient buffer before closing the handle on every success and
+failure path. Tests retain private references and verify all-zero contents
+after normal completion and exceptions injected at read, commitment,
+derivation, draw, verification, and publication boundaries. This is a
+minimization guarantee for buffers the application owns, not a process-memory
+erasure claim: Python's allocator/interpreter and `hmac`/`hashlib`/OpenSSL may
+make immutable or internal copies that Python cannot reliably locate or scrub.
+No such key material is intentionally persisted, serialized, logged, returned,
+or placed in argv/environment. These entry points accept no generic secret
+callback, caller-implemented key store, `PermitVerifier`, or lookalike handle;
+an object whose `verify()` may be a no-op is not an authority boundary.
 
 For all bounded draws:
 
@@ -610,8 +683,9 @@ HMAC-SHA256(
 )
 ```
 
-The roster-seed commitment and eligibility-manifest preimage hash are sealed
-before the draw.
+The roster-local-nonce commitment, externally timestamped three-commitment
+precommit, authenticated beacon receipt, and eligibility-manifest preimage hash
+are sealed before the draw.
 Pilots, nested C120 prefixes, C160 extensions, and all ordered reserves freeze
 simultaneously. Controller task IDs—especially telecom IDs, which encode the
 fault—never enter subject/simulator prompts, worker environment variables, or
@@ -1024,16 +1098,28 @@ hashes the canonical problem, checks both authority digests, independently
 checks feasibility/objective, and reruns the same solver. A backend-native log
 is neither solver input nor proof.
 
-The zero-spend core exposes an injected `ExactMatchingSolver` protocol whose
-`authority_ref` and `backend_receipt_ref` must exactly match the manifest, plus
-a bounded exhaustive solver only for small hostile fixtures. It does not claim
-that fixture can serve C120/C160 and contains no production confirmation
-adapter. Confirmation remains unavailable until a separately reviewed
-benchmark-adapter implementation plan selects, implements, and pins a scalable
-backend before the study manifest and any prefix. Supplying a solver object
-afterward cannot repair an unpinned manifest. For any triggered confirmation
-stratum, absence or mismatch fails before ledger creation; an all-no-trigger
-ledger needs no solver or proof.
+The zero-spend core exposes no injected or structural solver protocol.
+Triggered confirmation consumes only an exact nominal,
+non-subclassable `ConfirmationMatchingBackendSession` opened by the trusted
+`ConfirmationPreflightRegistry`; it is never a caller-supplied scientific
+argument. The registry binds the session to the exact
+manifest/schedule/prefix tuple, manifest-pinned backend authority and receipt,
+one private registry nonce, one transaction, and the canonical solve
+sequence. The session accepts exactly the algorithm-derived primary,
+tie-trial, and final problems in order, launches the pinned runner for each,
+returns signed closed invocation receipts, and closes once with the complete
+ordered transcript. Copied/lookalike/stale sessions, subclasses, unexpected
+problem/order/count, solve after close, or second close reject.
+
+A bounded exhaustive solver remains reachable only through a test-only
+registry session for small hostile synthetic fixtures. It cannot serve
+C120/C160 or satisfy an eligible-confirmation manifest. The repository
+contains no scalable live adapter, so confirmation remains unavailable until a
+separately reviewed benchmark-adapter implementation plan selects, implements,
+and pins one before the study manifest and any prefix. Supplying an object
+afterward cannot repair absent authority. Any triggered confirmation stratum
+without the exact live session fails before ledger creation; all-no-trigger
+confirmation and every synthetic transaction require no session or proof.
 
 Among primary-cost-optimal solutions, selection is unique without relying on
 solver discovery order. For every edge compute:
@@ -2020,8 +2106,10 @@ Pilot rosters are disjoint from confirmation and reserve rosters:
 Before the first pilot starts, one eligibility-manifest transaction seals:
 
 1. every accepted/rejected task and qualification receipt;
-2. the already-published roster-seed commitment, its label/study binding, the
-   verified reveal, and ranking implementation digest;
+2. the already-published roster-local-nonce commitment, its label/study
+   binding, externally timestamped three-commitment precommit, authenticated
+   beacon, verified nonce/final-seed derivation, and ranking implementation
+   digest;
 3. the complete pilot roster;
 4. nested C120 confirmation membership;
 5. any eligible C160 extension; and
@@ -2135,8 +2223,10 @@ payload contract requires:
   grid and declared screen-topology ArtifactRefs, a required
   `eligibility_manifest_ref` discriminated as non-null for
   `eligible_confirmation` and null for `synthetic_fixture`,
-  `commitment_scheme = "resampling-null-key-ceremony-v1"` and the three
-  separately named roster/schedule/assignment-master commitment digests;
+  `commitment_scheme = "resampling-null-key-ceremony-v1"` and the exact
+  `roster_local_nonce_commitment_sha256`,
+  `schedule_seed_commitment_sha256`, and
+  `assignment_master_key_commitment_sha256` fields;
 - `resampling_prefix_schedule`: `manifest_ref`, completed `power_final_ref`,
   closed `schedule_authority`, derived `selected_tier`,
   `selected_membership_sha256`, verified `schedule_seed`, and non-empty
@@ -2337,10 +2427,15 @@ de-identified, license-compliant release bundle is promoted intentionally.
   through its ArtifactRef. It may read the master key after complete
   prefix/verifier freeze, construct only the allowlisted assignment prefix
   view, map arms, and emit commitments/receipts; it cannot read branch endpoint
-  outcomes. It and the confirmation verifier open scoped subkeys only through
-  the section-4.0 `AssignmentKeyProvider`; the latter cannot claim arm/
-  capability reconstruction without that keyed authority. The master and
-  derived keys follow section 4.0's non-persistence rule.
+  outcomes. It and the confirmation verifier consume separately minted,
+  registry-held `AssignmentSecretHandle` values from the concrete section-4.0
+  `AssignmentSecretStore`; the latter cannot claim arm/capability
+  reconstruction without that keyed authority. At each handle's consumption,
+  trusted core code uses exact `readinto` on a preallocated 32-byte mutable
+  buffer, rejects short/extra data, independently verifies the master
+  commitment and context, derives only the four assignment-purpose subkeys
+  into private mutable buffers, and follows section 4.0's single-use,
+  deterministic application-buffer wipe, and honest library-copy boundary.
 - The canonical clear assignment-ledger JSON persists only in an owner-only
   controller scientific run root backed by transparent encryption at rest.
   Trusted assignment, preparer, verifier, and unblind processes see its normal
@@ -2349,15 +2444,89 @@ de-identified, license-compliant release bundle is promoted intentionally.
   identities or the analysis author before unblinding. An envelope-object
   adapter is optional only if it presents the same trusted plaintext `Path`
   view; the core does not assume a new resolver.
-- A separate operational storage-envelope receipt records ciphertext digest/
-  size where available, storage volume/object and version, encryption
-  algorithm, envelope/KMS key version, and ACL/IAM-policy digest. It contains
-  no key bytes, clear arm map, or packet text and is outside the scientific
-  JSON/digest. Thus Path-based schema/hash validation remains unchanged while
-  underlying storage remains encrypted. Confirmation requires a measured
-  transparent-encryption and ACL/IAM receipt before any prefix or assignment
-  transaction. Local hostile tests use an owner-only temporary root plus a
-  mock storage-policy adapter/receipt and make no host-encryption claim.
+- The two and only two operational storage-policy receipts are fixed at
+  `operational/storage-policy/prefix.json` and
+  `operational/storage-policy/assignment.json`; both remain outside the
+  scientific JSON/digest. Before either scientific install, the controller
+  writes and fsyncs exactly one non-authoritative
+  `StorageTransactionIntent` at
+  `operational/storage-policy/intents/{prefix,assignment}.json`. The intent
+  embeds the transaction binding, immutable lease ID, begin, strictly ordered
+  renewals, confirmation-signed or closed-local-test non-releasing end, exact
+  prepared scientific path/digest, final generation/expiry, and complete
+  measured storage tuple. Every renewal
+  precedes the prior expiry and preserves the tuple; end is fresh, retains the
+  final generation/sequence, carries `releases_lease = false`, and forbids later
+  renewal. The intent file is replaceable only before scientific install and
+  is never a receipt or acceptance marker.
+- The controller next proves enough remaining lease lifetime for scientific
+  install, scientific-parent fsync, and one registry commit call. It installs
+  and fsyncs the exact prepared science under the same live lease, then presents
+  the original nominal handle, canonical intent bytes/digest, and exact
+  scientific path/digest to the registry. Before final expiry, the registry
+  rechecks the complete tuple and current time and prepares one canonical
+  `StoragePublicationCommit`. The proof binds a unique commit ID/time, intent
+  digest, scientific path/digest, final lease tuple,
+  `commit_recorded = true`, `lease_consumed = true`, and
+  `release_required = true`. The registry signs its confirmation arm, then
+  atomically stores those exact proof bytes, the unique commit ID, and
+  `end_observed -> committed_consumed` state before responding or attempting
+  release. No second commit or reuse is possible; release failure leaves
+  durable committed-consumed state with idempotent cleanup and cannot mutate
+  the proof.
+- `registry_commit_id` is 64 lowercase hex, unique across every stored commit
+  proof, and never freed by terminal cleanup. Confirmation draws 32
+  registry-CSPRNG bytes and collision retries before commit; `local_test` uses
+  `SHA256(b"local-test-storage-commit-v1\x00" || intent_digest_bytes)`.
+- Every confirmation storage attestation and publication-commit signature is
+  Ed25519 over compact canonical object bytes with its own
+  `attestation_signature_ed25519_hex` field omitted, using the exact
+  manifest-contract `registry_attestation_public_key_ed25519_hex`. That key is
+  required to differ from the measurement
+  `evidence_verifier_public_key_ed25519_hex`; neither role can authorize the
+  other. The closed `local_test` contract sets both keys null and its
+  observation/commit arms contain no signature field. Alternate
+  canonicalization, extra/missing fields, wrong/reused key, or signature-arm
+  mismatch rejects.
+- Only that durable commit proof authorizes the fixed receipt. The receipt
+  embeds the exact intent and proof and verifies every cross-binding, including
+  the required confirmation registry signature; the unsigned closed
+  `local_test` arm is accepted only by synthetic tests. The controller or
+  recovery constructs identical canonical receipt bytes, fsyncs a
+  same-directory temporary file, installs it once at the fixed path, and fsyncs
+  the parent. The outer receipt verifies
+  `fresh_at_publication_commit = true`,
+  `publication_commit_recorded = true`,
+  `publication_commit_consumes_lease = true`, and
+  `fixed_receipt_is_acceptance_marker = true`. Local acceptance is exactly the
+  canonical scientific file plus this validating fixed receipt with a
+  recomputing scientific digest. The receipt does not claim its own
+  install preceded lease expiry; the nested commit proof establishes that the
+  scientific bytes were durably committed while fresh. The fixed receipt and
+  post-science intent are immutable and remain outside scientific closure.
+- Crash recovery is closed. Before scientific install, an intent may be
+  replaced under the transaction lock only after proving the science path
+  absent and the registry commit nonexistent, then atomically transitioning
+  `end_observed -> aborted_consumed`, invalidating the old handle, and
+  attempting release. After scientific install but before registry commit,
+  science is permanently quarantined and recovery cannot request commit. After
+  durable registry commit but before fixed-receipt fsync, recovery may fetch
+  only the already recorded proof by its closed intent/lease binding and
+  deterministically finalize the same receipt; acceptance begins only when the
+  receipt and exact science are durable. Missing proof, intent or science
+  mismatch, free recovery fields, replay, or second terminal transition
+  rejects. Confirmation requires measured encryption, ACL/IAM, and
+  continuous-lease evidence; synthetic `local_test` records false
+  enforcement/null measurement fields and cannot satisfy confirmation.
+- The intent, confirmation-signed or closed-local-test commit proof, fixed
+  receipt, canonical implementation, and replay establish this ordering only
+  under the trusted controller OS, filesystem, clock, registry, and signing-key
+  boundary; they are not an external timestamp. Tests inject expiry, release,
+  tuple swap, and crash at every boundary from end through registry commit and
+  receipt fsync. They
+  require quarantine before commit, deterministic proof-only finalization after
+  commit, the exact two-file local acceptance predicate, and idempotent cleanup
+  for a committed proof whose release attempt failed.
 - A trusted preparer may resolve the clear ledger and packet index into four
   one-slot work orders. Each run worker receives only one opaque slot
   capability, its frozen snapshot/seed/caps, and at most one generically named
@@ -2380,12 +2549,18 @@ de-identified, license-compliant release bundle is promoted intentionally.
   The candidate is never a scientific record and is never stored under the run
   root. The analysis author receives only the sealed projection.
 - Only the hash-gated unblinder receives both opaque projection and clear
-  ledger. The entry point accepts the section-4.0 `AssignmentKeyProvider`,
-  derives `K_unblind` in memory, and internally recomputes the framed permit
-  HMAC binding study ID, manifest, schedule, prefix, assignment ledger,
-  projection, analysis freeze, and expected task count before it parses the
-  ledger. It accepts no caller-provided verifier, raw-key API, or generic
-  `secret` HMAC.
+  ledger. The entry point consumes one registry-held, single-use
+  `UnblindSecretHandle` minted by the concrete section-4.0
+  `AssignmentSecretStore`. Trusted core code reads exactly 32 bytes from the
+  handle's already-open file, independently verifies the master commitment and
+  manifest/schedule context, derives only `K_unblind` in memory, and internally
+  recomputes the framed permit HMAC binding study ID, manifest, schedule,
+  prefix, assignment ledger, projection, analysis freeze, and expected task
+  count before it parses the ledger. It zeroes the master/subkey buffers and
+  all other application-owned mutable key buffers in an outer `finally`, while
+  making no claim that Python/OpenSSL internal copies are scrubbable. It accepts
+  no caller-provided verifier, raw-key API, generic `secret` HMAC, or
+  assignment-purpose handle.
 - The analysis author cannot access the unblinding key until source and
   synthetic expected outputs are sealed.
 - A context that reads confirmation outcome bytes is outcome-tainted and cannot

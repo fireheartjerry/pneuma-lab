@@ -22,17 +22,55 @@
     `docs/superpowers/specs/2026-07-22-neurips-execution-discovery-design.md`
     §9.3; pending credits never bypass the §9.2 per-action approval gate.
 
+## Standing Hostile-Review and Release Standard
+
+- For every scientific, implementation, evidence, and release decision, model
+    the strongest possible NeurIPS reviewer: prodigiously capable, maximally
+    hostile, and personally motivated to reject the work. Proactively find the
+    strongest rejection argument, exploit, ambiguity, leakage path, causal
+    flaw, receipt mismatch, and reproducibility failure before making a claim.
+    Keep the review professional, specific, and evidence-based.
+- Preserve a forensic execution trail under the live contract in
+    `docs/research/neurips-2026-workshop/33-execution-journal.md`. The journal is
+    non-authoritative and append-only: it records commands, results, review,
+    deviations, and corrections but never rewrites scientific authority.
+- Cheap Claude/Codex CLI subprocesses may be used as expendable clerks for
+    bounded menial work only when their incremental cost is kept low and the
+    active governance/spend gates authorize the call. Record the exact task,
+    tool/model, best available cost bound or actual cost, and compact
+    input/output receipts. Treat every subprocess result as an untrusted
+    proposal until directly verified; never delegate scientific authority,
+    claim promotion, approval decisions, or final verification to it.
+- Treat honest `do not claim` statements as baselines, not automatically as
+    permanent endpoints. Maintain an evidence-to-claim upgrade ledger:
+    non-claim -> missing evidence or novelty -> build/experiment -> hostile
+    prior-art and causal audit -> falsification gate -> defensible promoted
+    claim. Never erase caveats rhetorically or overclaim; distinguish permanent
+    epistemic boundaries from unfinished or unrun work.
+- Paper production and submission have a fail-closed release gate. At that
+    time, freshly verify the manuscript and submission package against the live
+    official venue and workshop guidance and official LaTeX template; remembered
+    or previously cached rules are not authority. Verify anonymity, exact page
+    limits and what counts toward them, margins, fonts, style files,
+    bibliography/appendix/supplement policy, metadata, PDF build and visual
+    rendering, embedded fonts, filenames and size limits, submission-form
+    fields, and the deadline with its timezone. Any mismatch blocks release.
+
 ## Commands
 
 | Task | Command |
 |---|---|
-| Check current project status | `python -m pneuma_lab.status --check` |
-| Install dev extras | `pip install -e ".[dev]"` |
-| Check WSL2 foundation readiness | `python -m pneuma_lab.foundation doctor` |
-| Run the full suite | `python -m pytest tests/ -q` |
-| Run schema tests only | `python -m pytest tests/test_schema_loads.py -q` |
+| Check current project status | `.venv/bin/python -m pneuma_lab.status --check` |
+| Install current dev extras | `pip install -e ".[dev]"` |
+| Check WSL2 foundation readiness | `.venv/bin/python -m pneuma_lab.foundation doctor` |
+| Run the full suite | `.venv/bin/python -m pytest tests/ -q` |
+| Run schema tests only | `.venv/bin/python -m pytest tests/test_schema_loads.py -q` |
 | Check whitespace | `git diff --check` |
 | List tracked/untracked state | `git status --short` |
+
+`uv sync --frozen --python 3.12 --extra dev` is the deterministic Task 3
+target, but remains fail-closed until slice 1 regenerates `uv.lock` and
+`uv lock --check --python 3.12` passes.
 
 ## How To Do X
 

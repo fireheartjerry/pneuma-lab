@@ -436,7 +436,7 @@ Every schema has one closed `payload` with these required keys (stage-specific
 
 | record kind | required payload keys |
 | --- | --- |
-| `resampling_study_manifest` | `task_registry_ref`, `roster_ref`, required conditional `eligibility_manifest_ref` and `roster_ceremony_policy_ref` (ArtifactRefs for `eligible_confirmation`, null for `synthetic_fixture`), `assignment_program_ref`, `provider_lane_plan_ref`, required `storage_policy_contract_ref`, `power_grid_ref`, `power_screen_topology_ref`, `tokenizer_ref`, `packet_template_ref`, `packet_policy_ref`, `pad_unit_set_ref`, `source_revision_refs`, `commitment_scheme`, `roster_seed_commitment_sha256`, `schedule_seed_commitment_sha256`, `assignment_master_key_commitment_sha256`, `required_document_kinds_ref` |
+| `resampling_study_manifest` | `task_registry_ref`, `roster_ref`, required conditional `eligibility_manifest_ref` and `roster_ceremony_policy_ref` (ArtifactRefs for `eligible_confirmation`, null for `synthetic_fixture`), `assignment_program_ref`, `provider_lane_plan_ref`, required `storage_policy_contract_ref`, `power_grid_ref`, `power_screen_topology_ref`, `tokenizer_ref`, `packet_template_ref`, `packet_policy_ref`, `pad_unit_set_ref`, `source_revision_refs`, `commitment_scheme`, `roster_local_nonce_commitment_sha256`, `schedule_seed_commitment_sha256`, `assignment_master_key_commitment_sha256`, `required_document_kinds_ref` |
 | `resampling_prefix_schedule` | `manifest_ref`, completed `power_final_ref`, closed `schedule_authority`, derived `selected_tier`, recomputable `selected_membership_sha256`, `schedule_seed`, `tasks` |
 | `resampling_prefix_receipt` | `schedule_ref`, non-empty `task_receipts` |
 | `resampling_assignment_ledger` | `manifest_ref`, `schedule_ref`, `prefix_index_ref`, `matching_program_ref`, `assignment_master_key_commitment_sha256`, `assignment_prefix_view_sha256`, closed `assignment_mode`, `matching_proof_refs`, non-empty `assignments`, `allocation_receipts`, `donor_match_receipts` |
@@ -836,13 +836,204 @@ git commit -m "feat(resampling-null): add artifact contracts"
 - Modify: `src/pneuma_lab/resampling_null/types.py`
 - Modify: `tests/resampling_null/test_types.py`
 - Modify: `src/pneuma_lab/resampling_null/__init__.py`
+- Modify: `pyproject.toml`
+- Modify: `uv.lock`
 - Modify: `schemas/resampling-study-manifest.schema.json`
 - Modify: `schemas/resampling-prefix-schedule.schema.json`
 - Modify: `schemas/resampling-prefix-receipt.schema.json`
 - Modify: `schemas/resampling-assignment-ledger.schema.json`
+- Modify: `schemas/resampling-power-report.schema.json`
 - Modify: `schemas/resampling-artifact-root.schema.json`
 - Modify: `src/pneuma_lab/resampling_null/artifacts.py`
 - Modify: `tests/resampling_null/test_artifacts.py`
+- Modify: `tests/test_schema_loads.py`
+
+### Task 3 execution slicing and review gates
+
+Task 3 is not one implementation batch. Before any production edit, perform a
+docs-authority gate: reconcile this plan, the design, the latest handoff, and
+the append-only decision log; record the exact reviewed plan/design SHA-256
+values. A later review edit invalidates those hashes and requires a refreshed
+docs gate before implementation resumes.
+
+Every slice also appends granular receipts to
+`docs/research/neurips-2026-workshop/33-execution-journal.md`. That journal is
+explicitly non-authoritative: it records execution evidence but cannot change
+the handoff, project status, design, this plan, or the decision log. A conflict
+stops the slice, records a deviation, and is resolved in the authoritative
+document before work resumes.
+
+At minimum, each slice journals:
+
+1. opening authority/HEAD/worktree hashes, actor, intent, local and UTC time,
+   exact cwd, inputs, owned files, and next gate;
+2. every task command's exact argv, including read-only probes/searches,
+   environment/version checks, tests, validators, file/status/hash inspection,
+   and Git/remote operations; plus exit code, RED/GREEN role, compact
+   stdout/stderr summary, complete stream SHA-256/byte count, and local raw-log
+   path; a missed capture is an explicit deviation;
+3. every file touched plus before/after content hashes and any dependency,
+   lock, binary, interpreter, platform, or source provenance;
+4. expected and actual RED, minimal implementation, GREEN, schema/static/full
+   verification, deviations, and unresolved anomalies;
+5. each reviewer, finding, disposition, repair hash, and rerun evidence; and
+6. commit identity, exact push argv/result, remote/ref verification, and the
+   next authorized gate.
+
+Routine raw stdout/stderr is captured outside Git under the ignored
+`build/research/neurips-2026-workshop/execution-journal/<event-id>/` directory.
+Committed journal entries default to compact summaries plus hashes, byte
+counts, paths, and retention state; raw routine pytest output is not committed.
+Each event directory is an immutable, no-clobber slot. Allocation is serialized
+under one atomic parent lock directory: acquire the lock with plain `mkdir`,
+parse the last published journal ID and prove the proposed heading absent,
+atomically reserve the exact event directory with plain `mkdir`, then release
+the allocator lock before the task command begins. Failure to acquire the lock,
+a stale lock, an unparsable/noncontiguous last ID, an existing heading/path, or
+a failed reservation stops before task execution. `mkdir -p`, truncation or
+reuse of an existing event path, silent ID selection, and overwrite are
+forbidden. A stale allocator lock or collision is a journaled deviation and
+requires explicit review; the wrapper never reuses or truncates a slot.
+
+By default, one task command gets one event, one stdout stream, one stderr
+stream, and one exit code. Timestamping, reservation, hashing, byte counting,
+and receipt append mechanics do not turn several task commands into one task.
+If a genuinely atomic multi-check gate must be aggregated, it is one explicit
+script/process that records every component status and returns nonzero when any
+component fails. A `set +e` brace block whose final successful command masks an
+earlier failure is never authoritative fail-closed evidence.
+All captured streams remain locally inspectable at least through
+`2026-11-27`—90 days after the submission deadline—and are never
+automatically deleted. Debugging, anomaly, and decisive-failure streams also
+remain until the deviation is closed, if later. Cleanup requires explicit user
+direction plus a journaled hash/path manifest; no earlier availability deadline
+is valid unless the user explicitly approves it. Git promotion is explicit,
+reviewed, and exceptional, and must record destination/digest/classification/
+rationale while excluding secrets/private data.
+
+Delivery uses a finite paired-receipt protocol. Commit **A** is the substantive
+slice commit and includes every pre-commit journal receipt; push A. Before it
+exists, **B** pre-records the exact planned `git commit` and `git push` argv.
+B is journal-only and records A's immutable SHA, exact push result, remote/ref
+observation, journal review, and next gate; then execute the pre-recorded B
+commit/push mechanics. Those mechanics are exempt from an immediate in-band
+result commit. The opening receipt of the next substantive A must record B's
+actual SHA, push result, and fresh remote/ref verification before any slice
+command runs. Final handoff must name a terminal pending B if there is no next
+substantive A. Git content addressing is the evidence boundary; it does not
+magically create an external immutable anchor or prove an unobserved remote
+state. Commands whose only effect is appending the journal need not recursively
+log themselves, but journal content, review, and delivery still follow this
+A/B protocol.
+
+Before the slice-1 RED, add the official PyPI stable versions verified on
+2026-07-28, `ruff==0.15.22` and `mypy==2.3.0`, as exact pins in the `dev`
+extra, then bootstrap with the separately reviewed uv executable and the
+reviewed Python 3.12/Linux toolchain:
+
+```console
+uv lock --python 3.12
+uv lock --check --python 3.12
+uv sync --frozen --python 3.12 --extra dev
+.venv/bin/python -m ruff --version
+.venv/bin/python -m mypy --version
+.venv/bin/python -c "from hashlib import sha256; from importlib.metadata import version; from pathlib import Path; import platform, sys; expected = (Path.cwd() / '.venv/bin/python').absolute(); observed = Path(sys.executable).absolute(); assert observed == expected, (observed, expected); assert version('ruff') == '0.15.22'; assert version('mypy') == '2.3.0'; assert sys.version_info[:2] == (3, 12); assert platform.system() == 'Linux'; digest = sha256(expected.read_bytes()).hexdigest(); assert len(digest) == 64; print(f'python_path={observed}\\npython_version={platform.python_version()}\\npython_sha256={digest}')"
+```
+
+The bootstrap receipt binds the `pyproject.toml` and `uv.lock` digests; uv and
+the exact `.venv/bin/python` invocation path, version, and executable digest;
+Linux platform identity; exact command
+argv/stdout/stderr/exit codes; selected package artifact names/digests;
+installed-distribution evidence; and both version outputs. Ruff and mypy are
+invoked only as `.venv/bin/python -m` modules from this frozen project
+environment. Every later Task-3 slice opening receipt rechecks the exact
+bootstrap-bound interpreter path, version, and digest before its task command.
+Ambient/global installations and unpinned `uvx` execution have no authority.
+The commands above are shell-neutral; no slice assumes `pwsh` is installed.
+
+Name every new focused test with its slice token `t3_s01` through `t3_s11`.
+For each row, run the listed command before implementation and retain its
+intended assertion failure, then run the identical command after the minimal
+implementation and require it to pass. After every GREEN, run:
+
+```console
+.venv/bin/python -m ruff check src/pneuma_lab/resampling_null tests/resampling_null
+.venv/bin/python -m mypy --ignore-missing-imports src/pneuma_lab/resampling_null
+```
+
+Slices 2, 7, and 11 additionally run the complete schema gate:
+
+```console
+.venv/bin/python -m pytest tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q
+```
+
+The table is the implementation order and exclusive editing schedule. Shared
+hot files such as `assignment.py`, `preflight.py`, `artifacts.py`, and their
+tests are edited sequentially, never by concurrent slice workers.
+`pyproject.toml` and `uv.lock` are likewise sequential shared ownership: slice
+1 pins the development tools and freezes their bootstrap; slice 6 later adds
+the independent cryptography runtime pin and regenerates/reverifies the lock.
+
+| slice | owned files for this slice | focused RED/GREEN command | intended small commit |
+| --- | --- | --- | --- |
+| 1 — types and tool bootstrap | `pyproject.toml`<br>`uv.lock`<br>`src/pneuma_lab/resampling_null/types.py`<br>`src/pneuma_lab/resampling_null/__init__.py`<br>`tests/resampling_null/test_types.py` | `.venv/bin/python -m pytest tests/resampling_null/test_types.py -q -k t3_s01` | `build(resampling-null): pin task 3 tools and types` |
+| 2 — schema contracts | `schemas/resampling-study-manifest.schema.json`<br>`schemas/resampling-prefix-schedule.schema.json`<br>`schemas/resampling-prefix-receipt.schema.json`<br>`schemas/resampling-assignment-ledger.schema.json`<br>`schemas/resampling-power-report.schema.json`<br>`schemas/resampling-artifact-root.schema.json`<br>`src/pneuma_lab/resampling_null/artifacts.py`<br>`tests/resampling_null/test_artifacts.py`<br>`tests/test_schema_loads.py` | `.venv/bin/python -m pytest tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q -k t3_s02` | `feat(resampling-null): close task 3 schemas` |
+| 3 — derivation core | `src/pneuma_lab/resampling_null/assignment.py`<br>`tests/resampling_null/test_assignment.py` | `.venv/bin/python -m pytest tests/resampling_null/test_assignment.py -q -k t3_s03` | `feat(resampling-null): add framed assignment derivations` |
+| 4 — secret store | `src/pneuma_lab/resampling_null/secrets.py`<br>`src/pneuma_lab/resampling_null/assignment.py`<br>`src/pneuma_lab/resampling_null/__init__.py`<br>`tests/resampling_null/test_assignment.py` | `.venv/bin/python -m pytest tests/resampling_null/test_assignment.py -q -k t3_s04` | `feat(resampling-null): add purpose-bound secret store` |
+| 5 — deterministic imports | `src/pneuma_lab/resampling_null/preflight.py`<br>`src/pneuma_lab/resampling_null/assignment.py`<br>`tests/resampling_null/test_preflight.py`<br>`tests/resampling_null/test_assignment.py` | `.venv/bin/python -m pytest tests/resampling_null/test_preflight.py tests/resampling_null/test_assignment.py -q -k t3_s05` | `feat(resampling-null): import deterministic assignment authority` |
+| 6 — ceremony/signature capability | `src/pneuma_lab/resampling_null/preflight.py`<br>`src/pneuma_lab/resampling_null/assignment.py`<br>`pyproject.toml`<br>`uv.lock`<br>`tests/resampling_null/test_preflight.py`<br>`tests/resampling_null/test_assignment.py` | `.venv/bin/python -m pytest tests/resampling_null/test_preflight.py tests/resampling_null/test_assignment.py -q -k t3_s06` | `feat(resampling-null): validate signed preflight authority` |
+| 7 — storage and power-final consumer schedule | `src/pneuma_lab/resampling_null/types.py`<br>`src/pneuma_lab/resampling_null/preflight.py`<br>`src/pneuma_lab/resampling_null/assignment.py`<br>`src/pneuma_lab/resampling_null/artifacts.py`<br>`schemas/resampling-prefix-schedule.schema.json`<br>`schemas/resampling-prefix-receipt.schema.json`<br>`schemas/resampling-power-report.schema.json`<br>`tests/resampling_null/test_preflight.py`<br>`tests/resampling_null/test_assignment.py`<br>`tests/resampling_null/test_artifacts.py` | `.venv/bin/python -m pytest tests/resampling_null/test_preflight.py tests/resampling_null/test_assignment.py tests/resampling_null/test_artifacts.py -q -k t3_s07` | `feat(resampling-null): gate schedules on storage and power` |
+| 8 — allocation and prefix view | `src/pneuma_lab/resampling_null/assignment.py`<br>`tests/resampling_null/test_assignment.py` | `.venv/bin/python -m pytest tests/resampling_null/test_assignment.py -q -k t3_s08` | `feat(resampling-null): freeze allocation and prefix views` |
+| 9 — synthetic path | `src/pneuma_lab/resampling_null/assignment.py`<br>`src/pneuma_lab/resampling_null/preflight.py`<br>`tests/resampling_null/test_assignment.py`<br>`tests/resampling_null/test_preflight.py` | `.venv/bin/python -m pytest tests/resampling_null/test_assignment.py tests/resampling_null/test_preflight.py -q -k t3_s09` | `feat(resampling-null): seal synthetic assignments` |
+| 10 — confirmation path | `src/pneuma_lab/resampling_null/assignment.py`<br>`src/pneuma_lab/resampling_null/preflight.py`<br>`src/pneuma_lab/resampling_null/secrets.py`<br>`tests/resampling_null/test_assignment.py`<br>`tests/resampling_null/test_preflight.py` | `.venv/bin/python -m pytest tests/resampling_null/test_assignment.py tests/resampling_null/test_preflight.py -q -k t3_s10` | `feat(resampling-null): enforce confirmation assignment authority` |
+| 11 — reconstruction and closure | `src/pneuma_lab/resampling_null/assignment.py`<br>`src/pneuma_lab/resampling_null/artifacts.py`<br>`src/pneuma_lab/resampling_null/__init__.py`<br>`schemas/resampling-assignment-ledger.schema.json`<br>`schemas/resampling-power-report.schema.json`<br>`schemas/resampling-artifact-root.schema.json`<br>`tests/resampling_null/test_assignment.py`<br>`tests/resampling_null/test_artifacts.py`<br>`tests/test_schema_loads.py` | `.venv/bin/python -m pytest tests/resampling_null/test_assignment.py tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q -k t3_s11` | `feat(resampling-null): close assignment reconstruction ancestry` |
+
+Each slice receives spec and code-quality review before the next row starts; a
+review repair repeats that slice's RED/GREEN/static/commit/review gate.
+Confirmation remains unavailable in slice 10 unless a separately reviewed
+scalable backend adapter has been pinned and implemented; the bounded local
+solver is synthetic/test authority only.
+
+Slice 6 adds the base runtime pin `cryptography==49.0.0`, regenerates
+`uv.lock` with a separately reviewed uv toolchain for the project's exact
+Python 3.12 constraint, and verifies that frozen lock on the target Linux
+runtime before committing either file. The lock/installation gate is:
+
+```console
+uv lock --python 3.12
+uv lock --check --python 3.12
+uv sync --frozen --python 3.12 --extra dev
+.venv/bin/python -c "from hashlib import sha256; from pathlib import Path; import cryptography, platform, sys; expected = (Path.cwd() / '.venv/bin/python').absolute(); observed = Path(sys.executable).absolute(); assert observed == expected, (observed, expected); assert cryptography.__version__ == '49.0.0'; assert sys.version_info[:2] == (3, 12); assert platform.system() == 'Linux'; digest = sha256(expected.read_bytes()).hexdigest(); assert len(digest) == 64; print(f'python_path={observed}\\npython_version={platform.python_version()}\\npython_sha256={digest}')"
+```
+
+The reviewed receipt binds the uv executable version/digest and complete
+command output; an ambient unreviewed uv invocation is not authority. Slice
+6's GREEN gate includes an actual
+`Ed25519PublicKey.verify` path over canonical bytes plus valid, altered-payload,
+altered-signature, and wrong-key vectors; parsing a signature-shaped hex string
+is not verification. The recorded Windows cp311 abi3 wheel SHA-256
+`e5dfc1e64de5677cec922ffa8da89c546d0415bf6efdf081842e5d44c84e1f0e`
+is planning provenance only and cannot authorize the Python 3.12/Linux
+environment. The reviewed implementation receipt must instead bind the exact
+Linux artifacts selected by the regenerated lock and the frozen interpreter,
+platform, and installed-distribution evidence.
+
+Task 3 does **not** install or implement the official `drand-client`/Sigstore
+Node dependency graph, a pinned Node runtime lock, or the nominal live ceremony
+adapter. Those require their own reviewed adapter plan with exact Node/runtime
+artifacts, package lock, offline verification KATs, and capability boundary.
+Until that adapter is implemented and reviewed,
+`ConfirmationPreflightRegistry.claim_roster_ceremony` remains unavailable and
+fails closed for eligible confirmation. Synthetic fixtures, mocked signatures,
+or test-only ceremony evidence cannot be relabeled, wrapped, or promoted into
+an eligible-confirmation capability.
+
+Task 3 owns only the completed-final **consumer** contract. Slices 2 and 11
+freeze and close `resampling-power-report.schema.json`; slice 7 implements and
+tests `require_schedulable_power_final` against test-only, hand-authored
+complete authority chains. Task 3 creates no power attempt/final producer,
+simulator, or production fixture. Task 8 remains the sole producer and
+simulator of power reports.
 
 ### Step 1: Write failing assignment tests
 
@@ -857,16 +1048,25 @@ Test:
 - tags/identifiers reject non-NFC text, controls, format controls, private-use/
   unassigned code points, and lone surrogates before encoding;
 - task-registry, qualification receipt/evidence/universe, ceremony policy,
-  selection/precommit/anchor/reveal/eligibility/roster, assignment-program,
+  selection/precommit/Sigstore bundle/reveal/eligibility/roster,
+  assignment-program,
   provider-lane, storage contract/evidence, build/backend/KAT, and
   verifier-feature imports reject unknown fields, noncanonical text, booleans
   where exact integers are required, and incomplete benchmark component lists;
   only declared semantic-set source arrays reorder to byte-identical copies;
+- slice 6 pins `cryptography==49.0.0` in `pyproject.toml`, regenerates and
+  verifies `uv.lock` for the reviewed Python 3.12/Linux runtime, and exercises
+  actual Ed25519 verification of canonical bytes; a changed payload, signature,
+  or public key rejects, and the Windows cp311 wheel hash cannot satisfy the
+  Linux runtime receipt;
+- no installed Node/drand/Sigstore lock or nominal live adapter exists in this
+  core slice, so eligible-confirmation ceremony capability acquisition fails
+  closed; synthetic, mock, or test-only evidence cannot be relabeled as live;
 - the accepted/rejected qualification rows partition the registry and resolve
   exact task/base/image/gate evidence; naked/missing/alternate receipt bytes,
   post-precommit qualification/quota mutation, local/self timestamp, past or
   invalid beacon round, multiple study precommit, cross-study replay, seed
-  grinding, or forged log/beacon signature fails;
+  grinding, invalid Sigstore/TSA/Rekor evidence, or forged beacon proof fails;
 - pilots/tiers/reserves are accepted with exact disjointness/nesting/rank
   relations; roster IDs are exactly the supported-tier union, pilots/reserves
   never schedule, and for each benchmark/tier exactly `t` rows carry tier `t`
@@ -885,7 +1085,7 @@ Test:
   accepts only exact integers `1..2^64` and terminates at `upper == 2^64`;
 - an exhaustive small-word analogue proves equal accepted preimage counts for
   every result, while the production 64-bit limit formula is exact;
-- roster-nonce, schedule, and assignment-master commitments cannot substitute
+- roster-local-nonce, schedule, and assignment-master commitments cannot substitute
   for one another; the wrong value/label/study/length or beacon-derived final
   roster seed fails before a draw;
 - assignment master/subkeys never appear in argv values, environment, run-root
@@ -898,6 +1098,12 @@ Test:
   loads both only through `manifest_ref`, requires a completed
   `power_final_ref`, and rejects a manifest commitment or referenced asset
   mismatch;
+- the Task-3 `require_schedulable_power_final` consumer accepts only
+  test-only, hand-authored, schema-valid complete chains for its focused tests;
+  reloads the authority/grid/topology, every declared attempt, terminal arm,
+  roster/tier membership, selected decision, and parent closure; rejects
+  incomplete, orphaned, cross-authority, caller-mirrored, or post-final chains;
+  and exposes no power-report producer/simulator API;
 - an eligible-confirmation manifest contains the exact copied ceremony-policy
   and final eligibility refs whose nested A–E ancestry resolves; a synthetic
   manifest contains null for both and rejects every ceremony source/capability;
@@ -917,16 +1123,32 @@ Test:
   mount identity, and a naked digest, stale evidence, forged signer, or field
   mismatch rejects;
 - prefix and assignment leases begin before seed verification, secret access,
-  backend open, blob/raw writes, or destination creation, hold across the whole
-  transaction, remeasure the identical resource/version/mount/policy at end,
-  and emit distinct immutable
-  `operational/storage-policy/{prefix,assignment}.json` receipts; failure emits
-  neither output nor secret-bearing observable;
+  backend open, blob/raw writes, or destination creation; serialize the lease
+  ID, generation, expiry, every ordered renewal, end freshness, a fsynced
+  transaction-intent digest, and publication-commit freshness; hold one
+  continuous lease through the scientific commit point; remeasure the identical
+  resource/version/mount/policy at a confirmation-signed or closed-local-test
+  non-releasing end; bind the exact fsynced prepared scientific bytes/path and
+  final generation/expiry; publish and fsync the scientific parent before the
+  registry atomically records a publication-commit proof, signs it for
+  confirmation, consumes the lease, and attempts release;
+  then install and fsync the distinct immutable
+  `operational/storage-policy/{prefix,assignment}.json` receipt as the durable
+  local acceptance marker embedding the exact intent and commit proof; failure
+  before registry commit leaves no accepted output, and any quarantined
+  owner-only assignment bytes remain inaccessible to untrusted observers and
+  can never be promoted;
 - local-test observations explicitly claim neither encryption nor ACL and
   cannot satisfy confirmation; lookalike/copied/replayed/second-use leases,
-  begin/end swaps, and cross-study/schedule/root replay reject; crash after a
-  provisional receipt but before the scientific commit permits one fresh-
-  timestamp replacement under lock, while replacement after commit rejects;
+  begin/renewal/end/publication-commit swaps, renewal gaps/reordering, stale end
+  or commit proofs, and cross-study/schedule/root replay reject; forced expiry,
+  release, or resource/version/mount/policy swap after signed end and before
+  scientific install, scientific-parent fsync, or the atomic registry commit
+  can never return an accepted transaction; a crash before scientific install
+  may discard or replace only a non-authoritative intent under lock, a crash
+  after scientific install but before registry commit quarantines permanently,
+  and a crash after registry commit may only deterministically finalize the
+  proof-bound fixed receipt before acceptance;
 - `seal_branch_assignment` has no schedule object or free mode/program argument,
   loads the schedule only through `schedule_ref`, reloads the manifest through
   that schedule, and rejects an incomplete or wrong-parent prefix index;
@@ -1004,8 +1226,8 @@ Test:
 
 ### Step 2: Prove red
 
-```powershell
-python -m pytest tests/resampling_null/test_types.py tests/resampling_null/test_preflight.py tests/resampling_null/test_assignment.py tests/resampling_null/test_artifacts.py -q
+```console
+.venv/bin/python -m pytest tests/resampling_null/test_types.py tests/resampling_null/test_preflight.py tests/resampling_null/test_assignment.py tests/resampling_null/test_artifacts.py -q
 ```
 
 Expected: missing assignment module and pre-hardening schema/ancestry failures.
@@ -1041,25 +1263,33 @@ class UniformDraw:
     counter: int
 
 
-@dataclass(frozen=True, slots=True, repr=False)
-class AssignmentSubkeys:
-    donor: bytes
-    allocation: bytes
-    orientation: bytes
-    capability: bytes
+class _AssignmentKeyBuffers:
+    """Private mutable application-owned buffers; never returned or serialized."""
 
+    __slots__ = ("donor", "allocation", "orientation", "capability")
 
-@dataclass(frozen=True, slots=True, repr=False)
-class UnblindSubkey:
-    value: bytes
+    def __init__(self) -> None:
+        self.donor = bytearray(32)
+        self.allocation = bytearray(32)
+        self.orientation = bytearray(32)
+        self.capability = bytearray(32)
+
+    def wipe(self) -> None:
+        for buffer in (
+            self.donor,
+            self.allocation,
+            self.orientation,
+            self.capability,
+        ):
+            _wipe_bytearray(buffer)
 
 
 class AssignmentSecretHandle:
-    """Opaque, nominal, single-use assignment-purpose OS handle."""
+    """Opaque registry-held, nominal, single-use assignment-purpose OS handle."""
 
 
 class UnblindSecretHandle:
-    """Opaque, nominal, single-use unblind-purpose OS handle."""
+    """Opaque registry-held, nominal, single-use unblind-purpose OS handle."""
 
 
 class AssignmentSecretStore:
@@ -1090,7 +1320,7 @@ def kdf_frame(tag: str, fields: Sequence[FrameField]) -> bytes:
 
 def commitment_sha256(
     label: Literal[
-        "roster-seed",
+        "roster-local-nonce",
         "schedule-seed",
         "assignment-master-key",
     ],
@@ -1117,14 +1347,14 @@ def derive_seed(schedule_seed: int, task_id: str, role: str) -> int:
 
 
 def uniform_below(
-    key: bytes,
+    key: bytearray,
     message_frame: bytes,
     upper: int,
 ) -> UniformDraw:
     if type(upper) is not int or not 1 <= upper <= 2**64:
         raise ValueError("upper must be an integer in [1, 2**64]")
-    if type(key) is not bytes or len(key) != 32:
-        raise ValueError("key must be exactly 32 bytes")
+    if type(key) is not bytearray or len(key) != 32:
+        raise ValueError("key must be one private mutable 32-byte buffer")
     limit = (1 << 64) - ((1 << 64) % upper)
     for counter in range(1 << 64):
         digest = hmac.new(
@@ -1141,21 +1371,36 @@ def uniform_below(
     raise RuntimeError("64-bit rejection counter exhausted")
 
 
-def _derive_assignment_subkeys(
-    assignment_master_key: bytearray,
-    study_id: str,
-    manifest_ref: ArtifactRef,
-    schedule_ref: ArtifactRef,
-) -> AssignmentSubkeys:
+def _wipe_bytearray(buffer: bytearray) -> None:
+    for index in range(len(buffer)):
+        buffer[index] = 0
+
+
+def _read_exact_master_into(
+    assignment_secret_handle: AssignmentSecretHandle | UnblindSecretHandle,
+    destination: bytearray,
+) -> None:
+    """Use the handle's unbuffered readinto; reject a short read or any extra byte."""
     ...
 
 
-def _derive_unblind_subkey(
-    assignment_master_key: bytearray,
+def _derive_assignment_subkeys_into(
+    assignment_master_key: memoryview,
     study_id: str,
     manifest_ref: ArtifactRef,
     schedule_ref: ArtifactRef,
-) -> UnblindSubkey:
+    destination: _AssignmentKeyBuffers,
+) -> None:
+    ...
+
+
+def _derive_unblind_subkey_into(
+    assignment_master_key: memoryview,
+    study_id: str,
+    manifest_ref: ArtifactRef,
+    schedule_ref: ArtifactRef,
+    destination: bytearray,
+) -> None:
     ...
 ```
 
@@ -1164,23 +1409,36 @@ NFC/Unicode `C*` rejection, and raw-digest decoding rules in the design.
 `commitment_sha256` additionally enforces 32 bytes for roster/master keys and
 `U64Field` for the schedule seed. HKDF is RFC 5869 SHA-256, with the exact
 context and five exact labels in the design. Assignment-purpose code derives
-and exposes only donor/allocation/orientation/capability; unblind-purpose code
-derives and exposes only `K_unblind`. Both redacted wrappers hide bytes in
-`repr`, and no exception interpolates input or key bytes.
+and consumes only donor/allocation/orientation/capability inside the private
+transaction scope; unblind-purpose code derives and consumes only `K_unblind`.
+There is no public or frozen key wrapper, no key-returning API, and no exception
+interpolates input or key bytes.
 
 `AssignmentSecretStore` is one concrete final controller component bootstrapped
 from trusted local configuration, not a `Protocol` and not a scientific
-argument. It opens the owner-only secret with no-follow semantics, pins the OS
-file identity in a purpose-bound single-use nominal handle, and never returns a
-subkey or commitment verdict. Inside the core transaction, private code reads
-the exact 32 bytes from that already-open handle into a mutable buffer,
-independently recomputes the manifest commitment, derives only the
-purpose-appropriate keys, and best-effort zeroes master/subkey buffers before
-closing the handle. Exact type, registry membership, manifest/schedule binding,
-purpose, file identity, and one-use state are checked in core; copied,
-subclassed, wrong-purpose, stale, or second-use handles fail before a draw or
-ledger parse. This boundary assumes a trusted OS/controller process and honest
-operator; hostile Python already executing inside that process is out of scope.
+argument. It opens the owner-only secret unbuffered with no-follow semantics,
+pins the OS file identity in a purpose-bound single-use nominal handle, and
+never returns a subkey or commitment verdict. Inside the core transaction,
+private code preallocates `bytearray(32)`, passes its memoryview to the
+already-open handle's `readinto`, rejects any short read, attempts one further
+one-byte `readinto`, and rejects any extra byte. It independently recomputes
+the manifest commitment and derives only the purpose-appropriate keys into
+private mutable buffers. One outer `finally` wipes every application-owned
+master, subkey, one-byte overread, and transient mutable buffer before closing
+the handle, whether validation, derivation, drawing, or publication succeeds
+or fails. Tests retain private buffer references and assert all-zero contents
+after success and after injected exceptions at every stage.
+
+This is an application-buffer minimization guarantee, not a proof of process
+memory erasure. Python's `hmac`/`hashlib`, allocator, interpreter, and OpenSSL
+may create immutable or internal copies that Python cannot reliably locate or
+scrub. The process never intentionally persists, logs, serializes, returns, or
+places key material in argv/environment, and production isolation must treat
+the trusted controller process boundary accordingly. Exact type, registry
+membership, manifest/schedule binding, purpose, file identity, and one-use
+state are checked in core; copied, subclassed, wrong-purpose, stale, or
+second-use handles fail before a draw or ledger parse. Hostile Python already
+executing inside the trusted controller process remains out of scope.
 
 Pin all design known-answer vectors in tests. Also test the arithmetic proof:
 for each valid `upper`, `limit` is divisible by `upper`, every residue has
@@ -1218,6 +1476,7 @@ class LocalTestStoragePolicyContract:
     storage_resource_id: None
     measurement_evidence_ref: None
     evidence_verifier_public_key_ed25519_hex: None
+    registry_attestation_public_key_ed25519_hex: None
     max_measurement_age_seconds: None
     lease_kind: Literal["local_test_process_lock_v1"]
     encryption_at_rest: Literal[False]
@@ -1237,6 +1496,7 @@ class ConfirmationStoragePolicyContract:
     storage_resource_id: str
     measurement_evidence_ref: ArtifactRef
     evidence_verifier_public_key_ed25519_hex: str
+    registry_attestation_public_key_ed25519_hex: str
     max_measurement_age_seconds: int
     lease_kind: Literal["provider_resource_lease_v1"]
     encryption_at_rest: Literal[True]
@@ -1260,10 +1520,14 @@ class LocalTestStoragePolicyAttestation:
     transaction: Literal["prefix", "assignment"]
     manifest_sha256: str
     schedule_sha256: str | None
-    observation: Literal["begin", "end"]
+    observation: Literal["begin", "renewal", "end"]
     mode: Literal["local_test"]
     test_only: Literal[True]
     normalized_run_root_sha256: str
+    lease_id: str
+    lease_generation: int
+    lease_expires_at_utc: str
+    renewal_sequence: int
     storage_resource_id: None
     measurement_evidence_ref: None
     observed_at_utc: str
@@ -1275,6 +1539,7 @@ class LocalTestStoragePolicyAttestation:
     acl_enforced: Literal[False]
     acl_policy_sha256: None
     measurement_sha256: None
+    releases_lease: Literal[False]
 
 
 @dataclass(frozen=True, slots=True)
@@ -1285,10 +1550,14 @@ class ConfirmationStoragePolicyAttestation:
     transaction: Literal["prefix", "assignment"]
     manifest_sha256: str
     schedule_sha256: str | None
-    observation: Literal["begin", "end"]
+    observation: Literal["begin", "renewal", "end"]
     mode: Literal["confirmation"]
     test_only: Literal[False]
     normalized_run_root_sha256: str
+    lease_id: str
+    lease_generation: int
+    lease_expires_at_utc: str
+    renewal_sequence: int
     storage_resource_id: str
     measurement_evidence_ref: ArtifactRef
     observed_at_utc: str
@@ -1300,6 +1569,7 @@ class ConfirmationStoragePolicyAttestation:
     acl_enforced: Literal[True]
     acl_policy_sha256: str
     measurement_sha256: str
+    releases_lease: Literal[False]
     attestation_signature_ed25519_hex: str
 
 
@@ -1309,11 +1579,111 @@ StoragePolicyAttestation = (
 
 
 @dataclass(frozen=True, slots=True)
+class StorageTransactionIntent:
+    record_kind: Literal["storage_transaction_intent_v1"]
+    schema_version: Literal["1"]
+    transaction: Literal["prefix", "assignment"]
+    lease_id: str
+    begin: StoragePolicyAttestation
+    renewals: tuple[StoragePolicyAttestation, ...]
+    end: StoragePolicyAttestation
+    continuous_lease_held: Literal[True]
+    fresh_at_end: Literal[True]
+    end_releases_lease: Literal[False]
+    prepared_scientific_relative_path: str
+    prepared_scientific_sha256: str
+    final_lease_generation: int
+    final_lease_expires_at_utc: str
+
+
+@dataclass(frozen=True, slots=True)
+class LocalTestStoragePublicationCommit:
+    record_kind: Literal["storage_publication_commit_v1"]
+    schema_version: Literal["1"]
+    authority_ref: ArtifactRef
+    transaction: Literal["prefix", "assignment"]
+    manifest_sha256: str
+    schedule_sha256: str | None
+    mode: Literal["local_test"]
+    test_only: Literal[True]
+    normalized_run_root_sha256: str
+    lease_id: str
+    lease_generation: int
+    lease_expires_at_utc: str
+    renewal_sequence: int
+    committed_at_utc: str
+    transaction_intent_sha256: str
+    scientific_relative_path: str
+    scientific_sha256: str
+    storage_resource_id: None
+    measurement_evidence_ref: None
+    resource_version: None
+    mount_identity_sha256: str
+    encryption_at_rest: Literal[False]
+    encryption_algorithm: None
+    kms_key_version: None
+    acl_enforced: Literal[False]
+    acl_policy_sha256: None
+    measurement_sha256: None
+    registry_commit_id: str
+    commit_recorded: Literal[True]
+    lease_consumed: Literal[True]
+    release_required: Literal[True]
+
+
+@dataclass(frozen=True, slots=True)
+class ConfirmationStoragePublicationCommit:
+    record_kind: Literal["storage_publication_commit_v1"]
+    schema_version: Literal["1"]
+    authority_ref: ArtifactRef
+    transaction: Literal["prefix", "assignment"]
+    manifest_sha256: str
+    schedule_sha256: str | None
+    mode: Literal["confirmation"]
+    test_only: Literal[False]
+    normalized_run_root_sha256: str
+    lease_id: str
+    lease_generation: int
+    lease_expires_at_utc: str
+    renewal_sequence: int
+    committed_at_utc: str
+    transaction_intent_sha256: str
+    scientific_relative_path: str
+    scientific_sha256: str
+    storage_resource_id: str
+    measurement_evidence_ref: ArtifactRef
+    resource_version: str
+    mount_identity_sha256: str
+    encryption_at_rest: Literal[True]
+    encryption_algorithm: str
+    kms_key_version: str
+    acl_enforced: Literal[True]
+    acl_policy_sha256: str
+    measurement_sha256: str
+    registry_commit_id: str
+    commit_recorded: Literal[True]
+    lease_consumed: Literal[True]
+    release_required: Literal[True]
+    attestation_signature_ed25519_hex: str
+
+
+StoragePublicationCommit = (
+    LocalTestStoragePublicationCommit | ConfirmationStoragePublicationCommit
+)
+
+
+@dataclass(frozen=True, slots=True)
 class StoragePolicyReceipt:
     record_kind: Literal["storage_policy_receipt_v1"]
     schema_version: Literal["1"]
-    begin: StoragePolicyAttestation
-    end: StoragePolicyAttestation
+    transaction: Literal["prefix", "assignment"]
+    intent: StorageTransactionIntent
+    transaction_intent_sha256: str
+    publication_commit: StoragePublicationCommit
+    fresh_at_publication_commit: Literal[True]
+    publication_commit_recorded: Literal[True]
+    publication_commit_consumes_lease: Literal[True]
+    fixed_receipt_is_acceptance_marker: Literal[True]
 
 
 @dataclass(frozen=True, slots=True)
@@ -1724,23 +2094,29 @@ the exact deterministic paths shown:
    and reserve count; C160 is non-null iff tier 160 is supported.
 3. `inputs/roster/precommit.json` is `resampling_roster_precommit_v1` with
    exactly `schema_version`, `study_id`, qualification/program SHA-256s,
-   `roster_seed_commitment_sha256`, `ceremony_policy_sha256`,
-   `beacon_chain_hash`, and a strictly future exact-integer `beacon_round`.
-   The commitment binds the study ID and a 32-byte local nonce; it is not a
-   commitment to already-known final roster randomness.
-4. `inputs/roster/anchor.json` is
-   `resampling_roster_precommit_anchor_v1` with exactly `schema_version`,
-   `study_id`, `precommit_sha256`, `anchor_authority_id`, unique
-   `study_entry_key`, positive log `sequence`, canonical `anchored_at_utc`,
-   `signed_entry_hex`, and `authority_signature_ed25519_hex`.
+   `roster_local_nonce_commitment_sha256`,
+   `schedule_seed_commitment_sha256`,
+   `assignment_master_key_commitment_sha256`,
+   `ceremony_policy_sha256`, `beacon_chain_hash`, and a strictly future
+   exact-integer `beacon_round`. The first commitment binds the study ID and
+   32-byte `roster_local_nonce`; it is not a commitment to already-known final
+   roster randomness. This one precommit binds all three commitments before
+   any external timestamp or beacon observation.
+4. `inputs/roster/anchor.json` is the exact Sigstore bundle v0.3 for
+   `inputs/roster/precommit.json`. Its verified message digest equals
+   `precommit_sha256`; it contains exactly one RFC3161 timestamp and exactly one
+   Rekor inclusion proof. The verified TSA `genTime` is the sole chronology
+   time. Rekor `integratedTime` is recorded as bundle evidence but is never
+   interpreted as the precommit time.
 5. `inputs/roster/reveal.json` is `resampling_roster_seed_reveal_v1` with
    exactly `schema_version`, `study_id`, qualification/program/precommit/anchor
-   SHA-256s, `local_nonce_reveal_hex`, beacon chain/round/randomness/signature,
-   and `roster_seed_hex`. Both hex seeds are exactly 64 lowercase characters.
-   Import verifies the nonce commitment and signed future-beacon round, then
-   recomputes the final seed as
+   SHA-256s, `roster_local_nonce_hex`, beacon
+   chain/round/randomness/signature, and `roster_seed_hex`. The nonce and final
+   seed hex values are exactly 64 lowercase characters. Import verifies the
+   nonce commitment and authenticated future-beacon round, then recomputes the
+   final seed as
    `SHA256(FRAME("roster-seed-v1", [BYTES(precommit_sha256),
-   BYTES(local_nonce), BYTES(beacon_chain_hash), U64(beacon_round),
+   BYTES(roster_local_nonce), BYTES(beacon_chain_hash), U64(beacon_round),
    BYTES(beacon_randomness)]))`.
 6. `inputs/roster/eligibility.json` is
    `resampling_eligibility_manifest_v1` with exactly `schema_version`,
@@ -1769,41 +2145,65 @@ evidence before the precommit.
 
 `inputs/roster/ceremony-policy.json` is a seventh, manifest-conditional policy
 asset rather than a ceremony result. Its closed
-`resampling_roster_ceremony_policy_v1` grammar pins the append-only authority
-ID and Ed25519 public key, unique-study-key rule, canonical timestamp parser,
-and the exact League of Entropy quicknet beacon:
-`beacon_id = "quicknet"`, `scheme_id = "bls-unchained-g1-rfc9380"`,
-chain hash
-`52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971`,
-public key
-`83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a`,
-period 3, and genesis Unix time 1692803367. BLS is never hand-implemented
-with PyCA. The policy pins drand v2.1.6 source commit
-`a17b9dc80625c4d06c745c5a6ea6d93610041fc6`, Linux-amd64 release archive
-SHA-256
-`a5628cb55aec000ad9ac0e9f1810fb6385251c1bbc6d19b4d7072c89910aeae2`,
-extracted verifier SHA-256
-`32574fd778cd23bb77a1044a0c903dcd03ae30762cceb7a8139aa0e55c08beb3`,
-exact invocation argv, and a copied KAT ref for quicknet round 1000 whose
+`resampling_roster_ceremony_policy_v1` grammar pins Sigstore bundle v0.3,
+exactly one RFC3161 timestamp, exactly one Rekor inclusion proof, and drand
+default mainnet: chain hash
+`8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce`,
+scheme `pedersen-bls-chained`, group hash
+`176f93498eac9ca337150b46d21dd58673ea4e3581185f869672e59fa4cb390a`,
+genesis Unix time `1595431050`, and period 30 seconds. The round-1 KAT
 randomness is
-`fe290beca10872ef2fb164d2aa4442de4566183ec51c56ff3cd603d930e54fdd`
-and signature is
-`b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39`.
-Verifier source/binary/KAT refs each byte-equal a manifest
-`source_revision_ref`.
+`101297f1ca7dc44ef6088d94ad5fb7ba03455dc33d53ddb412bbc4564ed986ec`.
+
+Beacon verification uses official `drand-client` 1.4.2. The policy pins package
+tar SHA-256
+`81de34afba38520b461152bf032cfb5139bb6ced205bf9f50bc8216fdc394eef`,
+package integrity
+`sha512-jeNJmrVplfgIA/GVndxxJ5mo8y63BS2pEdNhk1siU4pQ+z/BnxsqRnxjH9ag1ip887s12SEgo0MTZPbQNz27NA==`,
+source commit `ef8c9260294f8699b5e8c27a6b764f8f0d768bea`, and extracted bundled
+CJS SHA-256
+`45cb65d533cc7e8527e9bba92df875c066511c3d6286adc7fcb293f0d03c7566`.
+The package/source/bundled-CJS/KAT refs each byte-equal a manifest
+`source_revision_ref`; BLS verification is never hand-implemented.
+
+Precommit anchoring uses cosign v3.1.2 Windows x64 SHA-256
+`fe4d621d7ae5e900ee62089837c00f996ae9acb82027d573d1d157b6ee875cb2`
+and companion Sigstore JSON SHA-256
+`e8d7ea5dd91902b0c23e68a08136d9c43b3573a4974fdbdc89ba5a6890a4ab8b`.
+Before ceremony use, the adapter records the installed version/help output and
+verifies the exact invocation against that installed build; remembered command
+syntax is not authority. The cosign binary, companion JSON, exact argv, verified
+bundle, certificate/identity policy, TSA trust material, and verification
+receipt are pinned and copied. Chronology uses verified TSA `genTime`, never
+Rekor `integratedTime`.
+
+The target drand round's mainnet time must be at least 24 hours after verified
+TSA `genTime`; selecting the round approximately 5,760 periods (48 hours)
+after `genTime` is preferred. The selected target round and
+`roster_local_nonce` are immutable after anchoring: no failure, delay, or
+unfavorable randomness authorizes a replacement nonce, commitment set, or
+round.
 The `ConfirmationPreflightRegistry` verifies the whole policy and assets 1–6,
-requires the unique external log entry to precede the authenticated beacon
-round, and mints one nominal capability bound to every source digest. Study
-seal consumes that exact capability before copying. A self/local timestamp,
-duplicate study key, alternate precommit, changed qualification/quota, past
-beacon round, invalid beacon signature, cross-study replay, or second capability
-use rejects. The external log plus future beacon makes post-anchor seed grinding
-independently detectable. It still proves binding and authority-relative order,
-not metaphysical chronology: a dishonest log/beacon authority, compromised
-controller, or hidden alternate study identity is outside this code's proof.
+requires verified TSA chronology to precede the authenticated target round,
+and mints one nominal capability bound to every source digest. Study seal
+consumes that exact capability before copying. A self/local timestamp, absent
+or duplicate RFC3161 timestamp, absent or duplicate Rekor proof, alternate
+precommit, changed qualification/quota/commitment, target less than 24 hours
+after `genTime`, invalid beacon proof, cross-study replay, replacement
+nonce/round, or second capability use rejects. The timestamp plus future beacon
+makes post-anchor grinding independently detectable. It still proves binding
+and authority-relative order, not metaphysical chronology: a dishonest
+TSA/drand authority, compromised controller, or hidden alternate study identity
+is outside this code's proof.
 Eligible confirmation remains unavailable until a reviewed nominal adapter
-implements the pinned append-only log and drand verifier; no generic beacon
-callback or unverified HTTP response can mint the ceremony capability.
+implements the pinned Sigstore/cosign and drand verifiers; no generic beacon,
+timestamp, signature callback, or unverified HTTP response can mint the
+ceremony capability. This core slice installs no official
+`drand-client`/Sigstore Node dependency lock, pins no executable Node runtime,
+and implements no nominal live adapter. A separate reviewed adapter plan must
+provide all three plus their KAT/runtime receipts. Until then the registry
+fails closed, and synthetic, mocked, or test-only evidence cannot be relabeled
+as an eligible-confirmation ceremony.
 
 Qualification accepted/rejected rows partition the registry. Pilots, every
 supported tier, and reserves are accepted; pilots are disjoint from all tiers
@@ -1940,16 +2340,20 @@ two-pass rule before optimization.
 The storage-policy contract is a closed `mode`-discriminated canonical object.
 `local_test` has `test_only = true`, `storage_resource_id = null`,
 `measurement_evidence_ref = null`, `evidence_verifier_public_key… = null`,
+`registry_attestation_public_key… = null`,
 `max_measurement_age_seconds = null`, process-lock lease kind, both enforcement
 booleans false, and null algorithm/KMS/ACL/measurement fields. It is legal only
 for a synthetic fixture and makes no host-encryption or ACL claim.
 `confirmation` has `test_only = false`, a non-empty immutable provider resource
-ID, non-null evidence ref, exact 32-byte Ed25519 verifier public key, positive
-exact measurement age, provider-resource lease kind, both enforcement booleans
-true, and non-empty encryption algorithm/KMS version plus lowercase
-raw-measurement and ACL-policy SHA-256 digests. It is required for eligible
-confirmation. Run-root identity is intentionally absent from this scientific
-contract so equivalent scratch roots retain byte-identical scientific inputs.
+ID, non-null evidence ref, separate exact 32-byte Ed25519 evidence-verifier and
+registry-attestation public keys, positive exact measurement age,
+provider-resource lease kind, both enforcement booleans true, and non-empty
+encryption algorithm/KMS version plus lowercase raw-measurement and ACL-policy
+SHA-256 digests. The two public keys must differ: evidence signatures never
+authorize registry state, and registry signatures never authorize measurement
+evidence. This arm is required for eligible confirmation. Run-root identity is
+intentionally absent from this scientific contract so equivalent scratch roots
+retain byte-identical scientific inputs.
 
 The evidence ref resolves the separately copied deterministic
 `inputs/storage/measurement-evidence.json` with media type
@@ -1972,7 +2376,11 @@ inside the validated manifest. It accepts no free task list, eligibility ref,
 program ref, provider-plan ref, authority, tier, membership, or claimed digest.
 Its only Task-8 seam is `require_schedulable_power_final`, which reloads the
 final and all attempts and returns only closed authority, selected tier, and
-selected task IDs—never Task-8 internals or caller mirrors. Roster-bound
+selected task IDs—never Task-8 internals or caller mirrors. Task 3 freezes and
+validates this completed-final consumer contract, including test-only
+hand-authored complete chains; it contains no attempt/final writer, simulator,
+or production fixture. Task 8 is the sole power-report producer and simulator.
+Roster-bound
 requires a completed `GO` chain and derives exactly the C120/C160 rows selected
 by its tier from the manifest-owned eligibility/roster. Synthetic requires a
 completed `CONDITIONAL_ONLY` chain with null tier and derives the complete
@@ -1984,27 +2392,87 @@ Before checking the schedule-seed reveal, it consumes the exact nominal
 bound to the manifest, null schedule, pinned evidence/resource, and current
 root; synthetic accepts only the exact local-test lease type. The core starts
 the lease before destination creation or scientific/raw writes and obtains the
-closed `begin` observation. It computes schedule bytes, requests the signed
-`end` remeasurement, and requires the same resource ID/version, mount identity,
-encryption/KMS/ACL fields, evidence ref, manifest, null schedule, and normalized
-operational root. It writes the canonical two-observation operational receipt
-at its fixed path, then atomically creates the schedule as the sole scientific
-commit point. Until the schedule exists, that receipt is explicitly
-provisional: while holding the same transaction lock, a retry may atomically
-replace it after a fresh valid lease even though timestamps/signatures differ.
-Once the schedule exists, the receipt is immutable. Any failed
-begin/end/seed/selection leaves no schedule.
+closed `begin` observation with lease ID, generation zero, expiry, and renewal
+sequence zero. Inside that still-live lease it performs the selected-membership
+check, schedule-seed verification, and deterministic schedule derivation
+specified below. Only after all of those succeed does it write the exact
+schedule bytes to a same-directory temporary file, fsync that file, and request
+the mode-valid non-releasing `end` remeasurement while the same lease and
+transaction lock remain live and unexpired. It renews only before that end as
+needed. The end attestation carries `releases_lease = false`. The
+`StorageTransactionIntent` serializes every strictly ordered renewal and proves
+no gap: each renewal occurs before the preceding expiry, retains the same
+lease/resource/version/mount/policy tuple, increments both generation and
+renewal sequence by one, and extends the expiry. The end observation matches
+the latest generation/sequence, is fresh before its expiry, and retains the
+same evidence ref, manifest, null schedule, and normalized operational root.
+The intent also binds the prepared scientific relative path and SHA-256, final
+generation and expiry, and `end_releases_lease = false`. The core writes those
+canonical intent bytes to
+`operational/storage-policy/intents/prefix.json`, fsyncs the file and parent,
+and records its SHA-256 before scientific install. This intent is operational
+write-ahead state, not a receipt or acceptance marker.
 
-The selected membership digest is SHA-256 over compact canonical JSON with the
-exact keys `rows`, `schedule_authority`, `schema_version`, and `selected_tier`.
+After the non-releasing end, the core permits no further renewal. It first
+proves the final expiry leaves enough bounded time for scientific install,
+scientific-parent fsync, and the registry publication-commit call, or fails
+before scientific install. It atomically installs the already-fsynced schedule
+bytes at the scientific path and fsyncs the parent while the same lease and
+transaction lock remain live. It then asks the trusted registry to recheck the
+same lease, binding tuple, intent digest, exact scientific path/digest, and
+current time. Before the unchanged final expiry, the registry prepares exactly
+one canonical `StoragePublicationCommit`. It binds the registry commit ID/time,
+intent digest, scientific path/digest, final
+generation/expiry/renewal sequence, complete storage tuple,
+`commit_recorded = true`, `lease_consumed = true`, and
+`release_required = true`. The registry signs that canonical proof in
+confirmation mode, then atomically writes the exact proof bytes, unique commit
+ID, and `end_observed -> committed_consumed` state. Only after that durable
+write may it respond or attempt provider/lock release. A release failure leaves
+a committed, consumed, non-reusable lease with idempotent cleanup pending; it
+does not mutate or erase the commit proof.
+
+Only a durable registry commit proof authorizes construction of the final
+receipt. The core embeds the exact intent and commit proof, recomputes their
+cross-bindings, writes canonical receipt bytes to a same-directory temporary
+file, fsyncs it, atomically installs it once at
+`operational/storage-policy/prefix.json`, and fsyncs that parent. The final
+receipt bytes are identical whether the original transaction or recovery
+finalizes them. Durable local acceptance is exactly the conjunction of the
+scientific file and this fixed validating receipt, whose nested signed commit
+proof (or closed test-only local commit) and intent bind the recomputing
+scientific digest. The fixed receipt is
+immutable after install; the intent remains immutable audit/recovery evidence
+outside scientific closure.
+
+A crash before scientific install may leave a non-authoritative intent.
+Replacement requires proof that the scientific path is absent and the registry
+has no commit; recovery must atomically transition the old lease
+`end_observed -> aborted_consumed`, invalidate its original handle, and attempt
+release before a fresh lease may replace the intent. A crash after scientific
+install but before registry commit leaves permanently quarantined bytes and
+recovery is forbidden to manufacture or request a commit. A crash after
+registry commit but before fixed-receipt fsync may only fetch the already
+durable proof by its intent/lease binding and deterministically finalize the
+same receipt; acceptance begins only when that receipt and exact science are
+durable. A missing/invalid proof, intent mismatch, science mismatch, second
+commit, or free-form recovery field rejects. Recovery may idempotently finish
+abort/release cleanup but cannot alter the proof, intent, science, or final
+receipt. Any failed begin/renewal/end/seed/selection before scientific install
+leaves no schedule.
+
+The selected membership digest used in that in-lease pre-write computation is
+SHA-256 over compact canonical JSON with the exact keys `rows`,
+`schedule_authority`, `schema_version`, and `selected_tier`.
 Each row has exactly `benchmark`, ordered `groups`, and `task_id`; rows are
 strict-UTF-8 sorted by `(benchmark, task_id)`. Authority is
 `synthetic_validation` or `roster_bound_selection`; tier is JSON null for
 synthetic and 120 or 160 for roster-bound. The schedule stores that recomputed
 digest and the exact final ref.
 
-Only then does it verify `schedule_seed_reveal` against the manifest's schedule
-commitment. Tasks are sorted by strict UTF-8
+Inside the live lease, after `begin` and before the temporary schedule write,
+it verifies `schedule_seed_reveal` against the manifest's schedule commitment.
+Tasks are sorted by strict UTF-8
 `(benchmark, stratum, lineage, task_id)`; group labels are ordered
 `language, domain, issue_family`, then by value bytes. Each task's `slots` array
 is canonical ordinal order `0..3`. The only schedule derivation roles are
@@ -2037,55 +2505,139 @@ manifest through `schedule.manifest_ref`, load the prefix receipt through
 - no packet, task block, endpoint, or later scientific record already exists.
 
 Before opening the assignment-purpose secret handle or backend session it
-consumes an assignment-bound storage lease and obtains the signed `begin`
+consumes an assignment-bound storage lease and obtains the mode-valid `begin`
 observation. A prefix lease/receipt cannot replay. The core independently
 verifies the master commitment, derives only the four assignment subkeys,
 builds the allowlisted prefix view, solves donors for triggered tasks, draws
 treatments for every task, zeroes buffers, and closes the backend session. It
 may idempotently stage immutable content-addressed matching blobs: an existing
 path is accepted only when canonical bytes and digest match exactly. It then
-requests the lease's signed `end` remeasurement and rejects any resource,
-version, mount, evidence, encryption/KMS/ACL, manifest/schedule, or root change.
-The fixed operational receipt is written, and the ledger is atomically created
-last as the sole scientific publication point. Until the ledger exists, that
-receipt is provisional and a transaction-lock-holding retry may atomically
-replace it after a fresh lease; after ledger creation it is immutable. A crash
-before that final create may leave unreachable CAS blobs or a provisional
-receipt; they confer no authority, retry safely reuses byte-identical CAS
-objects, and a later reachability GC may delete them. No branch endpoint is an
-input.
+serializes every in-interval renewal, writes and fsyncs the exact ledger bytes
+to a same-directory temporary file, requests the lease's mode-valid
+non-releasing `end` remeasurement, and rejects a gap, changed lease ID, nonconsecutive
+generation/renewal sequence, stale end, or any resource, version, mount,
+evidence, encryption/KMS/ACL, manifest/schedule, or root change. It embeds that
+closed lifecycle and the exact prepared ledger path/digest in a canonical
+`StorageTransactionIntent`, writes it at
+`operational/storage-policy/intents/assignment.json`, and fsyncs the file and
+parent before scientific install. The intent path is not a receipt or
+acceptance marker and may be replaced only before any ledger install.
+
+After proving sufficient remaining final-lease lifetime for ledger install,
+ledger-parent fsync, and registry commit—and forbidding every post-end
+renewal—the core installs and fsyncs the ledger while the same lease and
+transaction lock remain live. The registry rechecks the final tuple, current
+time, intent digest, and exact ledger path/digest, then prepares exactly one
+`StoragePublicationCommit`, signs it in confirmation mode, atomically stores
+the proof while transitioning `end_observed -> committed_consumed` before the
+final expiry, and only then attempts release. The proof records
+`release_required = true`; any release failure leaves
+a durable committed, consumed, non-reusable state with cleanup pending and
+cannot mutate that proof.
+
+The core constructs the unique final receipt from the exact intent and commit
+proof, writes/fsyncs it at a same-directory temporary path, installs it once at
+`operational/storage-policy/assignment.json`, and fsyncs that parent. The exact
+ledger-plus-fixed-receipt pair is the only durable local acceptance predicate.
+A crash after ledger install but before registry commit quarantines the ledger
+and forbids recovery commit; a crash after durable registry commit may only
+fetch the existing proof and deterministically finalize the same receipt.
+Before scientific install, a retry may replace the non-authoritative intent and
+safely reuse byte-identical unreachable CAS objects only after proving the
+ledger path absent and atomically aborting/consuming the old uncommitted lease;
+a later reachability GC may delete those blobs. Abort/release cleanup may be
+retried idempotently but cannot alter or authorize the accepted pair. No branch
+endpoint is an input.
 
 `ConfirmationStorageLease` is an exact non-subclassable nominal type with a
 private registry nonce, tuple binding, lease ID, and registry membership/state
 check; it is not a `Protocol`. The trusted registry verifies the
 manifest-pinned evidence signature and freshness, independently queries the
 provider/OS for that immutable resource, locks or leases the resource/mount, and
-signs begin/end observations. A copied/subclassed/lookalike lease, copied
-attestation, wrong tuple, expired evidence, stale/closed lease, second use, or
-provider/mount/policy swap rejects. The honest-operator boundary is explicit:
-the controller OS, provider control plane, registry signing key, and process are
-trusted; branch workers and arbitrary callers are not. A failure occurs before
-seed verification, secret-handle read, backend open, or destination creation.
+signs begin, ordered renewal, and non-releasing end observations. Each
+observation serializes the lease ID, registry-issued generation, expiry,
+renewal sequence, complete binding tuple, provider measurement, and
+`releases_lease = false`; observations never close the lease. The separate
+publication-commit call accepts only the original nominal live handle after
+end, the exact canonical transaction-intent bytes/digest, and the already
+fsynced scientific path/digest. The registry independently rechecks tuple and
+time, prepares the canonical proof and, in confirmation mode, its required
+signature, then atomically stores those exact bytes, the unique commit ID, and
+`live -> end_observed -> committed_consumed` state before responding or
+attempting release. If and only if the scientific path is absent and no commit
+exists, recovery may instead atomically change
+`end_observed -> aborted_consumed` before release and fresh-intent replacement.
+End and commit/abort each occur exactly once; no renewal follows end; no second
+terminal transition is possible; and release failure leaves the lease consumed,
+never reusable. Recovery can fetch an existing proof or abort an uncommitted
+no-science intent by their closed bindings but cannot invoke commit. A
+copied/subclassed/lookalike lease,
+copied or reordered attestation, wrong tuple, expiry gap, stale/closed lease,
+second use, or provider/mount/policy swap rejects. The honest-operator boundary
+is explicit: the controller OS, provider control plane, registry signing key,
+and process are trusted; branch workers and arbitrary callers are not. A
+failure occurs before seed verification, secret-handle read, backend open, or
+destination creation.
 
-The two and only two operational receipts are the canonical attestation bytes
+`registry_commit_id` is exactly 64 lowercase hex. Confirmation draws 32 bytes
+from the registry CSPRNG and retries locally until its durable uniqueness index
+is clear; `local_test` deterministically uses
+`SHA256(b"local-test-storage-commit-v1\x00" || intent_digest_bytes)`. The
+registry enforces uniqueness across all stored commit proofs and never frees an
+ID when terminal cleanup state changes, so one ID cannot name two transactions.
+
+Every confirmation storage attestation and publication-commit signature covers
+the compact canonical object with its own
+`attestation_signature_ed25519_hex` field omitted, using the exact public key
+in `registry_attestation_public_key_ed25519_hex`, never the distinct evidence
+verifier key. Extra/missing fields, alternate canonicalization, key-role reuse,
+a local-test object with a signature field, or a confirmation object without a
+valid signature rejects.
+
+The two and only two operational receipts are the canonical receipt bytes
 at `operational/storage-policy/prefix.json` and
 `operational/storage-policy/assignment.json`. The prefix arm binds the exact
 manifest and null schedule; the assignment arm binds that manifest and the
 exact schedule, so neither receipt can replay across transaction, study, root,
-or schedule. Each contains exactly its signed begin/end observations and
-records no key bytes, decrypted arm map, or packet text. It is written before,
-not crash-atomically with, the final scientific schedule/ledger; the latter is
-the publication point and changes receipt state from provisional to immutable.
-Replacement after that commit rejects. Operational receipts and root identity are excluded
-from scientific artifact-root closure.
+or schedule. Each embeds one exact `StorageTransactionIntent` with its lease
+ID, confirmation-signed or closed-local-test begin, ordered renewal, and
+non-releasing end,
+`continuous_lease_held = true`, `fresh_at_end = true`, prepared scientific
+path/digest, and final generation/expiry. It also embeds the registry's
+`StoragePublicationCommit`, whose confirmation arm is registry-signed and whose
+closed test-only local arm is not. It byte-binds that intent digest, the same
+scientific path/digest and final lease tuple, a unique commit ID/time,
+`commit_recorded = true`, `lease_consumed = true`, and the immutable release
+requirement. The outer receipt requires `fresh_at_publication_commit = true`,
+`publication_commit_recorded = true`,
+`publication_commit_consumes_lease = true`, and
+`fixed_receipt_is_acceptance_marker = true`; these are verified consequences,
+never caller claims. It records no key bytes, decrypted arm map, or packet
+text.
+
+The fixed receipt path remains absent until a durable registry commit proof
+exists. Scientific install and parent fsync precede that atomic commit; the
+complete fixed receipt is then installed once and its parent fsynced without
+claiming that marker installation itself occurred before lease expiry. A
+post-commit crash may deterministically finalize only the proof-bound receipt;
+a pre-commit crash cannot. Only the exact scientific-plus-fixed-receipt pair is
+locally accepted, and replacement after fixed-receipt install rejects.
+Operational intents, nested commit proofs, receipts, registry lookup state, and
+root identity are excluded from scientific artifact-root closure.
 `local_test` explicitly records false enforcement and null measurement fields;
-it is a synthetic-fixture-only test arm and makes no encryption or ACL claim.
+it is a synthetic-fixture-only process-lock arm and makes no encryption or ACL
+claim.
 Eligible confirmation requires the measured `confirmation` arm before either
 transaction. Its protected plaintext `Path` view remains visible only to
 trusted assignment, preparer, verification, and unblind processes and is never
 copied into, mounted in, or shared with branch workers or the analysis author
 before unblinding. No third storage-envelope receipt or post-hoc assertion can
-repair a failed lease.
+repair a pre-commit failure. The persisted intent, confirmation-signed or
+closed test-only commit proof, fixed receipt, canonical implementation, and
+replay establish the declared ordering
+only under the trusted OS, filesystem, clock, registry, and signing-key
+boundary. They are not an external post-commit timestamp and do not prove facts
+outside that boundary.
 
 The schema-valid `resampling-prefix-receipt` document is the complete
 prefix/verifier index: it nests one `FrozenVerifierReceipt` plus snapshot and
@@ -2443,8 +2995,19 @@ Make the schema table in Task 2 executable:
   manifest `source_revision_ref`, every matching ref path to equal its
   content-digest path, and every matching root entry to be ledger-reachable;
 - validate the manifest-pinned storage contract/evidence and the two closed
-  begin/end operational receipt arms before either scientific publication,
-  while keeping receipts/root identity outside the scientific closure;
+  operational receipt arms before either scientific publication; each receipt
+  embeds one fsynced `StorageTransactionIntent` binding the lease ID, begin,
+  strictly ordered renewal, non-releasing end, consecutive generations,
+  unexpired transitions, exact prepared scientific path/digest, and final
+  generation/expiry; then embeds one mode-valid
+  `StoragePublicationCommit` binding that exact intent and science with a fresh
+  unique registry commit ID/time, durable consumed state, and required release
+  cleanup; requires its registry signature for confirmation and its exact closed
+  local-test arm only for synthetic tests; accepts only the exact
+  scientific-plus-fixed-receipt pair, permits
+  proof-only deterministic finalization after commit, forbids recovery commit
+  before it, and keeps intents/receipts/root identity outside scientific
+  closure;
 - require manifest/schedule/prefix/program/key/view/proof ancestry in the
   assignment ledger; and
 - make `validate_record_ancestry`, `write_record`, and artifact-root
@@ -2453,23 +3016,29 @@ Make the schema table in Task 2 executable:
   keyed ordering/allocation/capability reconstruction remains exclusively in
   `require_assignment_reconstruction`.
 
-Do not create a thirteenth record kind. The matching solver transcript is a
-referenced blob under the assignment ledger.
+Do not create a thirteenth scientific record kind or schema. The operational
+intent/commit/receipt types stay outside scientific closure, and the matching
+solver transcript remains a referenced blob under the assignment ledger.
 
 ### Step 7: Prove green
 
-```powershell
-python -m pytest tests/resampling_null/test_types.py tests/resampling_null/test_preflight.py tests/resampling_null/test_assignment.py tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q
+```console
+.venv/bin/python -m pytest tests/resampling_null/test_types.py tests/resampling_null/test_preflight.py tests/resampling_null/test_assignment.py tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q
 ```
 
 Expected: pass.
 
-### Step 8: Commit
+### Step 8: Close Task 3 without an omnibus commit
 
-```powershell
-git add src/pneuma_lab/resampling_null/types.py src/pneuma_lab/resampling_null/__init__.py src/pneuma_lab/resampling_null/assignment.py src/pneuma_lab/resampling_null/preflight.py src/pneuma_lab/resampling_null/secrets.py src/pneuma_lab/resampling_null/artifacts.py schemas/resampling-study-manifest.schema.json schemas/resampling-prefix-schedule.schema.json schemas/resampling-prefix-receipt.schema.json schemas/resampling-assignment-ledger.schema.json schemas/resampling-artifact-root.schema.json tests/resampling_null/test_types.py tests/resampling_null/test_preflight.py tests/resampling_null/test_assignment.py tests/resampling_null/test_artifacts.py
-git commit -m "feat(resampling-null): seal four-slot assignments"
+```console
+git diff --check
+git status --short
 ```
+
+Expected: both commands produce no output after the eleven reviewed slice
+commits. Do not create a catch-all Task-3 commit. A closure repair reopens the
+owning slice, repeats its focused RED/GREEN/static/review gate, and receives a
+small scope-matched commit before this check repeats.
 
 ## Task 4: Token-exact REAL/SHAM packet construction
 
