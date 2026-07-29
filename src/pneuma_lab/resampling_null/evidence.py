@@ -1128,91 +1128,113 @@ class VerifierEvidence:
 
 
 @dataclass(frozen=True, slots=True)
-class RestoreIdentity:
-    """Nominal restored environment/process/writable-root identity."""
+class GradeExecutionReceipt:
+    """Exact grade restoration/evidence ancestry; identity lives in restore bytes."""
 
-    instance_id: str
-    process_id: int
-    writable_root_id: str
-
-    def __post_init__(self) -> None:
-        _exact_text(self.instance_id, "instance_id")
-        _nonnegative_int(self.process_id, "process_id")
-        _exact_text(self.writable_root_id, "writable_root_id")
-
-
-@dataclass(frozen=True, slots=True)
-class GradeEvidenceReceipt:
-    identity: RestoreIdentity
-    snapshot_ref: ArtifactRef
     restore_receipt_ref: ArtifactRef
-    evidence_ref: ArtifactRef
+    raw_grade_evidence_ref: ArtifactRef
 
     def __post_init__(self) -> None:
-        if type(self.identity) is not RestoreIdentity:
-            raise TypeError("identity must be exact RestoreIdentity")
         for name, role in (
-            ("snapshot_ref", "composite_snapshot"),
             ("restore_receipt_ref", "grade_restore_receipt"),
-            ("evidence_ref", "grade_evidence"),
+            ("raw_grade_evidence_ref", "grade_evidence"),
         ):
             _controller_ref(getattr(self, name), name, role=role)
 
 
 @dataclass(frozen=True, slots=True)
-class VerifierEvidenceReceipt:
-    identity: RestoreIdentity
-    snapshot_ref: ArtifactRef
+class VerifierExecutionReceipt:
+    """Exact verifier restoration/evidence ancestry; identity lives in restore bytes."""
+
     restore_receipt_ref: ArtifactRef
-    evidence_ref: ArtifactRef
+    raw_verifier_evidence_ref: ArtifactRef
 
     def __post_init__(self) -> None:
-        if type(self.identity) is not RestoreIdentity:
-            raise TypeError("identity must be exact RestoreIdentity")
         for name, role in (
-            ("snapshot_ref", "composite_snapshot"),
             ("restore_receipt_ref", "verifier_restore_receipt"),
-            ("evidence_ref", "verifier_evidence"),
+            ("raw_verifier_evidence_ref", "verifier_evidence"),
         ):
             _controller_ref(getattr(self, name), name, role=role)
 
 
-@dataclass(frozen=True, slots=True)
-class EvidenceExecutionPair:
-    """Controller proof that grade and verify used disjoint restorations."""
+def grade_execution_receipt_bytes(receipt: GradeExecutionReceipt) -> bytes:
+    if type(receipt) is not GradeExecutionReceipt:
+        raise TypeError("receipt must be exact GradeExecutionReceipt")
+    return canonical_json_bytes(
+        {
+            "restore_receipt_ref": _ref_mapping(receipt.restore_receipt_ref),
+            "raw_grade_evidence_ref": _ref_mapping(
+                receipt.raw_grade_evidence_ref
+            ),
+        },
+        indent=None,
+    )
 
-    grade: GradeEvidenceReceipt
-    verifier: VerifierEvidenceReceipt
 
-    def __post_init__(self) -> None:
-        if type(self.grade) is not GradeEvidenceReceipt:
-            raise TypeError("grade must be exact GradeEvidenceReceipt")
-        if type(self.verifier) is not VerifierEvidenceReceipt:
-            raise TypeError("verifier must be exact VerifierEvidenceReceipt")
-        if self.grade.snapshot_ref != self.verifier.snapshot_ref:
-            raise ValueError("grade and verifier must restore the same snapshot")
-        if self.grade.restore_receipt_ref == self.verifier.restore_receipt_ref:
-            raise ValueError("grade and verifier restore receipts must be distinct")
-        pairs = (
-            (
-                self.grade.identity.instance_id,
-                self.verifier.identity.instance_id,
-                "instance",
+def load_grade_execution_receipt(payload: bytes) -> GradeExecutionReceipt:
+    if type(payload) is not bytes:
+        raise TypeError("payload must be exact bytes")
+    value = load_json_bytes(payload, source=Path("<grade-execution-receipt>"))
+    mapping = _closed(
+        value,
+        expected=("restore_receipt_ref", "raw_grade_evidence_ref"),
+        field="grade execution receipt",
+    )
+    receipt = GradeExecutionReceipt(
+        restore_receipt_ref=_decode_ref(
+            mapping["restore_receipt_ref"],
+            "restore_receipt_ref",
+        ),
+        raw_grade_evidence_ref=_decode_ref(
+            mapping["raw_grade_evidence_ref"],
+            "raw_grade_evidence_ref",
+        ),
+    )
+    if payload != grade_execution_receipt_bytes(receipt):
+        raise ValueError("grade execution receipt must be compact canonical JSON")
+    return receipt
+
+
+def verifier_execution_receipt_bytes(
+    receipt: VerifierExecutionReceipt,
+) -> bytes:
+    if type(receipt) is not VerifierExecutionReceipt:
+        raise TypeError("receipt must be exact VerifierExecutionReceipt")
+    return canonical_json_bytes(
+        {
+            "restore_receipt_ref": _ref_mapping(receipt.restore_receipt_ref),
+            "raw_verifier_evidence_ref": _ref_mapping(
+                receipt.raw_verifier_evidence_ref
             ),
-            (
-                self.grade.identity.process_id,
-                self.verifier.identity.process_id,
-                "process",
-            ),
-            (
-                self.grade.identity.writable_root_id,
-                self.verifier.identity.writable_root_id,
-                "writable root",
-            ),
-        )
-        for grade_value, verifier_value, field in pairs:
-            if grade_value == verifier_value:
-                raise ValueError(f"grade and verifier {field} identities must differ")
+        },
+        indent=None,
+    )
+
+
+def load_verifier_execution_receipt(
+    payload: bytes,
+) -> VerifierExecutionReceipt:
+    if type(payload) is not bytes:
+        raise TypeError("payload must be exact bytes")
+    value = load_json_bytes(payload, source=Path("<verifier-execution-receipt>"))
+    mapping = _closed(
+        value,
+        expected=("restore_receipt_ref", "raw_verifier_evidence_ref"),
+        field="verifier execution receipt",
+    )
+    receipt = VerifierExecutionReceipt(
+        restore_receipt_ref=_decode_ref(
+            mapping["restore_receipt_ref"],
+            "restore_receipt_ref",
+        ),
+        raw_verifier_evidence_ref=_decode_ref(
+            mapping["raw_verifier_evidence_ref"],
+            "raw_verifier_evidence_ref",
+        ),
+    )
+    if payload != verifier_execution_receipt_bytes(receipt):
+        raise ValueError("verifier execution receipt must be compact canonical JSON")
+    return receipt
 
 
 @dataclass(frozen=True, slots=True)

@@ -336,6 +336,21 @@ def test_t5_s02c_optional_program_is_still_verified_outside_execution(
             )
 
 
+def test_t5_s02c_rejects_unregistered_canonical_task_payload_ref(
+    tmp_path: Path,
+) -> None:
+    schedule_ref, _refs = ProviderAuthorityFixture.build(
+        tmp_path / "run",
+        role_overrides={"sources/deep-leaf.json": "unknown_nested_asset"},
+    )
+    with pytest.raises(RecordValidationError, match="unregistered authority role"):
+        load_prefix_execution_authority(
+            run_root=tmp_path / "run",
+            schedule_ref=schedule_ref,
+            task_id="task-1",
+        )
+
+
 @pytest.mark.parametrize(
     "relative_path",
     [

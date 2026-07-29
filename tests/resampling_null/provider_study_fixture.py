@@ -135,7 +135,7 @@ def build_provider_study_fixture(
     revision_deep_ref = external_ref(
         revision_deep_source,
         relative_path="sources/provider-authority/revision-deep.json",
-        role="synthetic_tool_result",
+        role="deep_authority_asset",
     )
     sources = {
         "tasks": write_json(

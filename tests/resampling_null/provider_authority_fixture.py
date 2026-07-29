@@ -112,12 +112,12 @@ def _build_provider_authority_fixture(
     deep_leaf_ref = blob(
         "sources/deep-leaf.json",
         {"leaf": "authority"},
-        role="synthetic_tool_result",
+        role="deep_authority_asset",
     )
     deep_ref = blob(
         "sources/deep.json",
         {"nested_ref": ref_value(deep_leaf_ref)},
-        role="synthetic_tool_result",
+        role="deep_authority_asset",
     )
     revision_ref = blob(
         "sources/revision.json",

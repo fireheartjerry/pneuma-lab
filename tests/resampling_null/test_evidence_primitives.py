@@ -11,23 +11,25 @@ from pneuma_lab.resampling_null.evidence import (
     CompletedToolBoundaryReceipt,
     CompositeSnapshotEnvelope,
     CostClosure,
-    EvidenceExecutionPair,
     FrozenPrefixReceipt,
     GradeEvidence,
-    GradeEvidenceReceipt,
+    GradeExecutionReceipt,
     ProviderAttemptLedger,
     ProviderAttemptStatus,
     ProviderCallAttemptReceipt,
     ProviderDispatchIntent,
     ProviderSettlement,
-    RestoreIdentity,
     SyntheticZeroAttemptCostClosure,
     ToolBoundaryLedger,
     VerifierEvidence,
-    VerifierEvidenceReceipt,
+    VerifierExecutionReceipt,
     composite_snapshot_bytes,
+    grade_execution_receipt_bytes,
+    load_grade_execution_receipt,
     load_composite_snapshot,
+    load_verifier_execution_receipt,
     validate_snapshot_receipt_fields,
+    verifier_execution_receipt_bytes,
 )
 from pneuma_lab.resampling_null.types import (
     ArtifactRef,
@@ -885,35 +887,34 @@ def test_raw_grade_and_verifier_evidence_contain_no_artifact_refs() -> None:
     assert not hasattr(grade, "__dict__")
 
 
-def test_grade_and_verify_restore_identities_cannot_alias() -> None:
-    grade = GradeEvidenceReceipt(
-        identity=RestoreIdentity("grade-i", 10, "grade-root"),
-        snapshot_ref=_ref("composite_snapshot"),
+def test_grade_and_verify_execution_receipts_are_exact_two_ref_records() -> None:
+    grade = GradeExecutionReceipt(
         restore_receipt_ref=_ref("grade_restore_receipt", "grade"),
-        evidence_ref=_ref("grade_evidence"),
+        raw_grade_evidence_ref=_ref("grade_evidence"),
     )
-    verifier = VerifierEvidenceReceipt(
-        identity=RestoreIdentity("verify-i", 11, "verify-root"),
-        snapshot_ref=grade.snapshot_ref,
+    verifier = VerifierExecutionReceipt(
         restore_receipt_ref=_ref("verifier_restore_receipt", "verify"),
-        evidence_ref=_ref("verifier_evidence"),
+        raw_verifier_evidence_ref=_ref("verifier_evidence"),
     )
-    assert EvidenceExecutionPair(grade, verifier).grade.identity.process_id == 10
-    for identity in (
-        RestoreIdentity("grade-i", 11, "verify-root"),
-        RestoreIdentity("verify-i", 10, "verify-root"),
-        RestoreIdentity("verify-i", 11, "grade-root"),
-    ):
-        with pytest.raises(ValueError):
-            EvidenceExecutionPair(
-                grade,
-                VerifierEvidenceReceipt(
-                    identity=identity,
-                    snapshot_ref=grade.snapshot_ref,
-                    restore_receipt_ref=_ref("verifier_restore_receipt", "verify-2"),
-                    evidence_ref=_ref("verifier_evidence"),
-                ),
-            )
+    assert tuple(field.name for field in fields(grade)) == (
+        "restore_receipt_ref",
+        "raw_grade_evidence_ref",
+    )
+    assert tuple(field.name for field in fields(verifier)) == (
+        "restore_receipt_ref",
+        "raw_verifier_evidence_ref",
+    )
+    assert load_grade_execution_receipt(
+        grade_execution_receipt_bytes(grade)
+    ) == grade
+    assert load_verifier_execution_receipt(
+        verifier_execution_receipt_bytes(verifier)
+    ) == verifier
+    with pytest.raises((TypeError, ValueError)):
+        GradeExecutionReceipt(
+            restore_receipt_ref=_ref("verifier_restore_receipt"),
+            raw_grade_evidence_ref=_ref("grade_evidence"),
+        )
 
 
 def test_cost_closure_rejects_missing_duplicate_and_cross_wired_ancestry() -> None:

@@ -194,6 +194,60 @@
                 }
             ]
         },
+        "grade_restore_receipt_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                {
+                    "properties": {
+                        "role": { "const": "grade_restore_receipt" },
+                        "media_type": { "const": "application/json" }
+                    }
+                }
+            ]
+        },
+        "verifier_restore_receipt_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                {
+                    "properties": {
+                        "role": { "const": "verifier_restore_receipt" },
+                        "media_type": { "const": "application/json" }
+                    }
+                }
+            ]
+        },
+        "grade_execution_receipt": {
+            "type": "object",
+            "required": [
+                "restore_receipt_ref",
+                "raw_grade_evidence_ref"
+            ],
+            "properties": {
+                "restore_receipt_ref": {
+                    "$ref": "#/$defs/grade_restore_receipt_ref"
+                },
+                "raw_grade_evidence_ref": {
+                    "$ref": "#/$defs/grade_evidence_ref"
+                }
+            },
+            "additionalProperties": false
+        },
+        "verifier_execution_receipt": {
+            "type": "object",
+            "required": [
+                "restore_receipt_ref",
+                "raw_verifier_evidence_ref"
+            ],
+            "properties": {
+                "restore_receipt_ref": {
+                    "$ref": "#/$defs/verifier_restore_receipt_ref"
+                },
+                "raw_verifier_evidence_ref": {
+                    "$ref": "#/$defs/verifier_evidence_ref"
+                }
+            },
+            "additionalProperties": false
+        },
         "resource_counters": {
             "type": "object",
             "required": ["generated_tokens", "model_calls", "tool_calls", "wall_clock_ms"],

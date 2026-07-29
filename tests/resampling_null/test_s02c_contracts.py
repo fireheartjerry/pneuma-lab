@@ -416,6 +416,49 @@ def test_failure_injection_is_exact_and_reachable_by_shape() -> None:
             call_index=0,
             tool_call_id="call-1",
         )
+
+
+def test_failure_injection_target_requires_matching_adverse_semantics() -> None:
+    program = _program()
+    with pytest.raises(ValueError, match="transport.*completion"):
+        replace(
+            program,
+            failure_injection=SyntheticFailureInjection(
+                stage="provider_transport",
+                subject_role="primary_subject",
+                call_index=0,
+                tool_call_id=None,
+            ),
+        )
+    with pytest.raises(ValueError, match="tool.*adverse"):
+        replace(
+            program,
+            failure_injection=SyntheticFailureInjection(
+                stage="tool",
+                subject_role="primary_subject",
+                call_index=0,
+                tool_call_id="call-1",
+            ),
+        )
+    malformed_row = replace(
+        program.provider_transcript[0],
+        typed_turn=None,
+        completion_kind=RawProviderCompletionKind.MALFORMED_RESPONSE,
+    )
+    parser_failure = replace(
+        program,
+        provider_transcript=(malformed_row,),
+        failure_injection=SyntheticFailureInjection(
+            stage="provider_parser",
+            subject_role="primary_subject",
+            call_index=0,
+            tool_call_id=None,
+        ),
+    )
+    assert (
+        parser_failure.failure_injection.stage
+        == "provider_parser"
+    )
     with pytest.raises(ValueError):
         load_prefix_candidate_receipt(
             canonical_json_bytes(

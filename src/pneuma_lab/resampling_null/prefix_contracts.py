@@ -87,6 +87,7 @@ AUTHORITY_ASSET_ROLE_MEDIA: Mapping[str, str] = MappingProxyType({
     "watchdog_source": "application/json",
     "isolation_qualification": "application/json",
     "source_revision": "application/octet-stream",
+    "deep_authority_asset": "application/json",
 })
 
 SCIENTIFIC_PARENT_KIND: Mapping[str, str] = MappingProxyType({
@@ -562,6 +563,25 @@ class RawProviderCompletionKind(str, Enum):
     INFRASTRUCTURE_ERROR = "infrastructure_error"
 
 
+PROVIDER_FAILURE_COMPLETIONS_BY_STAGE: Mapping[
+    str,
+    frozenset[RawProviderCompletionKind],
+] = MappingProxyType(
+    {
+        "provider_transport": frozenset(
+            {
+                RawProviderCompletionKind.TIMEOUT_NO_RESPONSE,
+                RawProviderCompletionKind.PROVIDER_ERROR,
+                RawProviderCompletionKind.INFRASTRUCTURE_ERROR,
+            }
+        ),
+        "provider_parser": frozenset(
+            {RawProviderCompletionKind.MALFORMED_RESPONSE}
+        ),
+    }
+)
+
+
 @dataclass(frozen=True, slots=True)
 class RawProviderObservation:
     subject_role: Literal["primary_subject", "user_simulator"]
@@ -859,6 +879,47 @@ class SyntheticPrefixProgram:
         call_ids = [item.call_id for item in self.tool_observations]
         if len(call_ids) != len(set(call_ids)):
             raise ValueError("tool observations must not repeat call_id")
+        injection = self.failure_injection
+        if injection.stage in PROVIDER_FAILURE_COMPLETIONS_BY_STAGE:
+            target_rows = [
+                row
+                for row in self.provider_transcript
+                if row.subject_role == injection.subject_role
+                and row.call_index == injection.call_index
+            ]
+            if len(target_rows) != 1:
+                raise ValueError(
+                    "provider failure injection target is unreachable"
+                )
+            allowed = PROVIDER_FAILURE_COMPLETIONS_BY_STAGE[injection.stage]
+            if target_rows[0].completion_kind not in allowed:
+                raise ValueError(
+                    f"{injection.stage} injection requires a matching "
+                    "adverse completion"
+                )
+        elif injection.stage == "tool":
+            target_rows = [
+                row
+                for row in self.provider_transcript
+                if row.subject_role == injection.subject_role
+                and row.call_index == injection.call_index
+                and row.typed_turn is not None
+                and any(
+                    call.call_id == injection.tool_call_id
+                    for call in row.typed_turn.tool_calls
+                )
+            ]
+            target_observations = [
+                observation
+                for observation in self.tool_observations
+                if observation.call_id == injection.tool_call_id
+            ]
+            if len(target_rows) != 1 or len(target_observations) != 1:
+                raise ValueError("tool failure injection target is unreachable")
+            if target_observations[0].failure_kind is FailureKind.NONE:
+                raise ValueError(
+                    "tool failure injection requires matching adverse failure"
+                )
 
 
 def _closed(value: object, names: tuple[str, ...], field: str) -> dict[str, object]:
@@ -1528,6 +1589,7 @@ __all__ = (
     "EnvironmentProcessIdentity",
     "InitialRestoreQualificationReceipt",
     "ImplementationDescriptor",
+    "PROVIDER_FAILURE_COMPLETIONS_BY_STAGE",
     "RawProviderCompletionKind",
     "RawProviderObservation",
     "SCIENTIFIC_PARENT_KIND",

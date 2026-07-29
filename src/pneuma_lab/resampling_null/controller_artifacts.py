@@ -421,6 +421,15 @@ class ControllerArtifactResolver:
             raise TypeError("ref must be exact ArtifactRef")
         validated_role = _role(expected_role)
         validated_media_type = _media_type(expected_media_type)
+        authoritative_media_type = CONTROLLER_ROLE_MEDIA.get(validated_role)
+        if authoritative_media_type is None:
+            raise RecordValidationError(
+                "controller artifact role is not registered"
+            )
+        if validated_media_type != authoritative_media_type:
+            raise RecordValidationError(
+                "controller artifact expected media is not canonical"
+            )
         if ref.role != validated_role:
             raise RecordValidationError(
                 "controller artifact role differs from controller expectation"

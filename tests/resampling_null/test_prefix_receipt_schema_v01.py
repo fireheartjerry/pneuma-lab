@@ -105,6 +105,37 @@ def test_dl136_prefix_receipt_schema_accepts_exact_closed_shape() -> None:
     _validator().validate(_receipt())
 
 
+@pytest.mark.parametrize(
+    ("definition", "value"),
+    [
+        (
+            "grade_execution_receipt",
+            {
+                "restore_receipt_ref": _ref("grade_restore_receipt"),
+                "raw_grade_evidence_ref": _ref("grade_evidence"),
+            },
+        ),
+        (
+            "verifier_execution_receipt",
+            {
+                "restore_receipt_ref": _ref("verifier_restore_receipt"),
+                "raw_verifier_evidence_ref": _ref("verifier_evidence"),
+            },
+        ),
+    ],
+)
+def test_dl139_execution_receipt_schema_is_exact_two_ref_record(
+    definition: str,
+    value: dict[str, object],
+) -> None:
+    schema = schema_registry.load_schema("resampling-prefix-receipt.schema.json")
+    validator = _validator().evolve(schema=schema["$defs"][definition])
+    validator.validate(value)
+    value["logical_identity"] = "forbidden"
+    with pytest.raises(Exception):
+        validator.validate(value)
+
+
 def test_dl136_prefix_receipt_rejects_old_pending_tool_calls_only_shape() -> None:
     value = _receipt()
     task = value["payload"]["task_receipts"][0]  # type: ignore[index]

@@ -125,6 +125,28 @@ def test_controller_store_rejects_traversal_symlinks_and_subclassing(tmp_path) -
             pass
 
 
+def test_controller_resolver_rejects_unregistered_authority_before_open(
+    tmp_path,
+) -> None:
+    store = ControllerArtifactStore(tmp_path)
+    store.close()
+    ref = ArtifactRef(
+        role="unknown_controller_role",
+        relative_path="controller-artifacts/unknown_controller_role/" + "a" * 64,
+        sha256="a" * 64,
+        byte_count=0,
+        media_type="application/json",
+    )
+    resolver = ControllerArtifactResolver(tmp_path)
+    with pytest.raises(RecordValidationError, match="registered"):
+        resolver.resolve(
+            ref,
+            expected_role="unknown_controller_role",
+            expected_media_type="application/json",
+        )
+    resolver.close()
+
+
 def test_controller_store_rejects_root_identity_swap_during_binding(
     tmp_path,
     monkeypatch,

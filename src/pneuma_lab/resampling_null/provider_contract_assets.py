@@ -12,6 +12,7 @@ from .authority_refs import (
     decode_artifact_ref,
     exact_nonnegative_int,
     exact_text,
+    walk_artifact_refs,
 )
 from .errors import RecordValidationError
 from .prefix_contracts import (
@@ -158,6 +159,46 @@ def _read_json_ref(
         canonical=canonical,
         expected_role=expected_role,
     )
+
+
+def _verify_registered_authority_graph(
+    value: object,
+    *,
+    reader: AuthorityRefReader,
+    field: str,
+) -> None:
+    pending = list(walk_artifact_refs(value))
+    observed: set[ArtifactRef] = set()
+    ordered: list[ArtifactRef] = []
+    while pending:
+        ref = pending.pop(0)
+        if ref in observed:
+            continue
+        observed.add(ref)
+        expected_media = AUTHORITY_ASSET_ROLE_MEDIA.get(ref.role)
+        if expected_media is None:
+            raise RecordValidationError(
+                f"{field} ref has unregistered authority role"
+            )
+        if ref.media_type != expected_media:
+            raise RecordValidationError(
+                f"{field} ref has noncanonical media type"
+            )
+        ordered.append(ref)
+        if expected_media == "application/json":
+            nested = reader.decode_json(
+                ref,
+                field=f"{field} ref",
+                canonical=True,
+                expected_role=ref.role,
+            )
+            pending.extend(walk_artifact_refs(nested))
+    for index, ref in enumerate(ordered):
+        reader.verify_closure(
+            ref,
+            field=f"{field} ref {index}",
+            expected_role=ref.role,
+        )
 
 
 def _validate_source_revisions(
@@ -627,15 +668,11 @@ def validate_task_input(
         )
     if not isinstance(task_input["canonical_task_payload"], Mapping):
         raise RecordValidationError(f"{field}.canonical_task_payload must be an object")
-    from .authority_refs import walk_artifact_refs
-
-    for index, nested_ref in enumerate(
-        walk_artifact_refs(task_input["canonical_task_payload"])
-    ):
-        reader.verify_closure(
-            nested_ref,
-            field=f"{field}.canonical_task_payload ref {index}",
-        )
+    _verify_registered_authority_graph(
+        task_input["canonical_task_payload"],
+        reader=reader,
+        field=f"{field}.canonical_task_payload",
+    )
     has_program = "synthetic_execution_program_ref" in task_input
     if not has_program:
         return ValidatedTaskInput(
@@ -662,23 +699,11 @@ def validate_task_input(
     )
     if not isinstance(program_value, Mapping):
         raise RecordValidationError(f"{field} program must be a JSON object")
-    from .authority_refs import walk_artifact_refs
-
-    for index, nested_ref in enumerate(walk_artifact_refs(program_value)):
-        expected_media = AUTHORITY_ASSET_ROLE_MEDIA.get(nested_ref.role)
-        if expected_media is None:
-            raise RecordValidationError(
-                f"{field} program ref {index} has unregistered authority role"
-            )
-        if nested_ref.media_type != expected_media:
-            raise RecordValidationError(
-                f"{field} program ref {index} has noncanonical media type"
-            )
-        reader.verify_closure(
-            nested_ref,
-            field=f"{field} program ref {index}",
-            expected_role=nested_ref.role,
-        )
+    _verify_registered_authority_graph(
+        program_value,
+        reader=reader,
+        field=f"{field} program",
+    )
     program_bytes = reader.read_bytes(program_ref)
     try:
         program = load_synthetic_prefix_program(program_bytes)
