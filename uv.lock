@@ -1270,6 +1270,7 @@ name = "pneuma-lab"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "jsonschema" },
     { name = "numpy" },
     { name = "pyarrow" },
@@ -1303,6 +1304,7 @@ placebo = [
 requires-dist = [
     { name = "accelerate", marker = "extra == 'foundation'", specifier = "==1.14.0" },
     { name = "bitsandbytes", marker = "extra == 'foundation'", specifier = "==0.49.2" },
+    { name = "cryptography", specifier = "==49.0.0" },
     { name = "evalplus", marker = "extra == 'placebo'", specifier = ">=0.3" },
     { name = "huggingface-hub", marker = "extra == 'foundation'", specifier = "==1.23.0" },
     { name = "jsonschema", specifier = ">=4.20" },

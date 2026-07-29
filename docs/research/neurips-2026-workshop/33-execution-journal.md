@@ -328,3 +328,113 @@ The next event after the archived migration boundary is appended below.
 - **Delivery scope:** exactly the live journal, archive manifest, new EJ-0469–0518 shard, migrator, and focused migrator test.
 - **Planned mechanics:** stage those five paths; fail on whitespace and exact staged names; commit `feat(journal): support append-only archive rotation`; push the public working branch; compare exact local/remote refs.
 - **Self-reference break:** reconcile commit/push facts in the next event before opening scientific Slice 6.
+
+### EJ-20260728-0553 — deliver append-only journal rotation
+
+- **Predecessor:** `EJ-20260728-0552`
+- **Time:** `2026-07-28T23:22:45-07:00` to `2026-07-28T23:22:46-07:00` (`2026-07-29T06:22:45+00:00` to `2026-07-29T06:22:46+00:00` UTC)
+- **Action:** Staged exactly the five pre-recorded migration paths, checked whitespace and exact scope, committed `feat(journal): support append-only archive rotation`, pushed publicly, and compared exact local/remote refs.
+- **Result:** GREEN, exit `0`. Commit and public remote are exactly `b71044955bcb8d0d3d1d4c4da8d415420cb1ab1d`.
+- **Compact receipt:** stdout `351 B`, `5 lines`, SHA-256 `bce00853d297cd79b2967af2df2d5114e544abb91a4874520e03952c9b0cf7d3`; stderr `110 B`, `2 lines`, SHA-256 `2d90057ee49ce6981812aabc2a9769f98de219c737e53639cae27ba4846c9082`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0553/`.
+- **Next scientific gate:** open Task 3 Slice 6 ceremony/signature capability under the immutable plan, keeping eligible confirmation fail-closed without the separately reviewed live adapter.
+
+### EJ-20260728-0554 — open Task 3 Slice 6 authority
+
+- **Predecessor:** `EJ-20260728-0553`
+- **Time:** `2026-07-28T23:23:38-07:00` to `2026-07-28T23:23:38-07:00` (`2026-07-29T06:23:38+00:00` UTC)
+- **Action:** Reconciled the append-rotation commit against the public remote, confirmed only this journal is dirty, and captured Slice 6 dependency/API/signature authority plus the current preflight/test surface.
+- **Result:** Exit `0`, zero stderr. Local and public remote are exactly `b71044955bcb8d0d3d1d4c4da8d415420cb1ab1d`. The lock already contains `cryptography 49.0.0` and its Linux wheels transitively, but Slice 6 still must determine whether the direct project pin/runtime receipt is present and authoritative. Slice 6 owns actual Ed25519 canonical-byte verification plus nominal one-use capability behavior; it must not fabricate the absent official drand/Sigstore live adapter.
+- **Correction:** The dependency search overmatched the full `uv.lock` wheel list and produced a `72,496 B` capture. Narrow all follow-up reads to exact `pyproject.toml` declarations, installed distribution/runtime identity, and the stable capability block.
+- **Compact receipt:** stdout `72,496 B`, `1,113 lines`, SHA-256 `1feb350257ba19f02667226047fe9acf6a36fe0ea2c245873171466e9e811217`; stderr `0 B`, `0 lines`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0554/`.
+
+### EJ-20260728-0555 — direct cryptography pin is absent
+
+- **Predecessor:** `EJ-20260728-0554`
+- **Time:** `2026-07-28T23:24:15-07:00` to `2026-07-28T23:24:15-07:00` (`2026-07-29T06:24:15+00:00` UTC)
+- **Action:** Began a fail-fast narrow inspection of `pyproject.toml`, installed cryptography identity, and the stable Slice 6 authority.
+- **Result:** Expected opening RED, exit `1`. The first exact search proves `pyproject.toml` has no direct `cryptography` declaration; because the command was deliberately fail-fast, later runtime/authority reads did not execute. This is not a package-absence claim: the lock contains a transitive 49.0.0 entry, but that cannot satisfy the immutable requirement for a direct independently reviewed runtime pin. Add `cryptography==49.0.0` as a base runtime dependency, then regenerate/reverify rather than treating transitive resolution as authority.
+- **Compact receipt:** stdout `674 B`, `15 lines`, SHA-256 `4f6f8fd4b7a2be6c9548a762a1bf648dd8ebd02588cfb7b13eca8ce5bb632f4f`; stderr `126 B`, `3 lines`, SHA-256 `0f51dd2aeccbe9f0c9723c8d1011207c77ce6cd121f3c67e61ffbca3c677c904`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0555/`.
+
+### EJ-20260728-0556 — installed cryptography runtime is also absent
+
+- **Predecessor:** `EJ-20260728-0555`
+- **Time:** `2026-07-28T23:24:59-07:00` to `2026-07-28T23:25:00-07:00` (`2026-07-29T06:24:59+00:00` to `2026-07-29T06:25:00+00:00` UTC)
+- **Action:** Fail-fast queried the exact `.venv` cryptography distribution before reading the remaining capability contract.
+- **Result:** RED, exit `1`, zero stdout. The identical `126 B`/three-line stderr signature indicates the environment import failed before any authority read. Classify the raw error explicitly, then add/pin/sync the dependency through the immutable lock procedure. Do not infer installation from a transitive lock entry.
+- **Compact receipt:** stdout `0 B`, `0 lines`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; stderr `126 B`, `3 lines`, SHA-256 `0f51dd2aeccbe9f0c9723c8d1011207c77ce6cd121f3c67e61ffbca3c677c904`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0556/`.
+
+### EJ-20260728-0557 — classify missing cryptography runtime
+
+- **Predecessor:** `EJ-20260728-0556`
+- **Time:** `2026-07-28T23:25:31-07:00` to `2026-07-28T23:25:31-07:00` (`2026-07-29T06:25:31+00:00` UTC)
+- **Action:** Displayed exactly the prior three-line raw stderr.
+- **Result:** Confirmed `ModuleNotFoundError: No module named 'cryptography'` from the exact project interpreter. Slice 6 must add the direct base pin, regenerate/check the lock, sync the frozen environment, and record selected Linux/runtime evidence before implementing Ed25519 verification.
+- **Compact receipt:** stdout `126 B`, `3 lines`, SHA-256 `0f51dd2aeccbe9f0c9723c8d1011207c77ce6cd121f3c67e61ffbca3c677c904`; stderr `0 B`, `0 lines`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0557/`.
+
+### EJ-20260728-0558 — isolate Slice 6 implementation boundary
+
+- **Predecessor:** `EJ-20260728-0557`
+- **Time:** `2026-07-28T23:26:03-07:00` to `2026-07-28T23:26:03-07:00` (`2026-07-29T06:26:03+00:00` UTC)
+- **Action:** Read the exact dependency/installation gate, nominal registry API, ceremony trust boundary, current dependency declaration, and current capability/signature surface.
+- **Result:** Exit `0`, zero stderr. `pyproject.toml` confirms the direct base pin is missing; no existing resampling-null nominal ceremony capability or Ed25519 verifier exists. Implement actual canonical-byte Ed25519 verification and a non-forgeable one-use capability boundary, while the public `ConfirmationPreflightRegistry.claim_roster_ceremony` remains unavailable/fail-closed because official drand/Sigstore/Node runtime authority is explicitly outside Task 3.
+- **Trust statement:** Ed25519 proves possession relative to the pinned public key and exact canonical bytes. It does not prove timestamp chronology, beacon validity, or live-adapter provenance; those require the absent separately reviewed adapter and must not be simulated into authority.
+- **Compact receipt:** stdout `15,202 B`, `338 lines`, SHA-256 `c5055b3f09332683c737cbca3278ef18a88e832ac32e7ca8ce6c7dda42fdfead`; stderr `0 B`, `0 lines`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0558/`.
+
+### EJ-20260728-0559 — pin and install cryptography on reviewed Linux runtime
+
+- **Predecessor:** `EJ-20260728-0558`
+- **Time:** `2026-07-28T23:26:52-07:00` to `2026-07-28T23:26:53-07:00` (`2026-07-29T06:26:52+00:00` to `2026-07-29T06:26:53+00:00` UTC)
+- **Action:** Added direct base pin `cryptography==49.0.0`; bound the exact uv path/version/executable digest; regenerated and checked the Python 3.12 lock; synced the frozen dev environment; asserted exact project interpreter, Python 3.12/Linux, installed distribution 49.0.0; and hashed `pyproject.toml`/`uv.lock`. Every potentially longer uv operation had a 60-second hard ceiling.
+- **Result:** GREEN, exit `0`; total wall time under two seconds. Stderr contains ordinary uv resolver/install progress and must be classified, not assumed clean. Inspect the compact raw lines next to record exact tool/runtime/artifact identities.
+- **Compact receipt:** stdout `505 B`, `10 lines`, SHA-256 `c63967b2bd955d6fb0cac7d4577a7270ee4ea9f419f4466e2cd266d3b7f7f99b`; stderr `415 B`, `11 lines`, SHA-256 `853431858f1c1fa468929a761937085e97f0bbad09922a08c8ee0f0fff47586c`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0559/`.
+
+### EJ-20260728-0560 — classify exact Slice 6 environment receipt
+
+- **Predecessor:** `EJ-20260728-0559`
+- **Time:** `2026-07-28T23:27:28-07:00` to `2026-07-28T23:27:28-07:00` (`2026-07-29T06:27:28+00:00` UTC)
+- **Action:** Displayed the compact raw stdout/stderr from the environment gate to classify every identity and resolver line.
+- **Result:** GREEN. uv is `/home/ubuntu/.local/bin/uv`, version `0.11.32 (x86_64-unknown-linux-gnu)`, SHA-256 `da15297d6879b2cfbe5ea3cb03725c1613d51ba72892cc996468d871f0a532fb`. Frozen interpreter is `.venv/bin/python`, Python `3.12.3`, executable SHA-256 `1643dacd9feaedc58f3cc581e4d22577dfe25c09b10282936186ccf0f2e61118`; platform Linux; cryptography `49.0.0`. Resolver selected 133 packages and installed `cffi 2.1.0`, `cryptography 49.0.0`, `pycparser 3.0`, plus rebuilt the local package—ordinary successful progress, not warnings/errors.
+- **Authority hashes:** `pyproject.toml` `13b530facfa62b07fe441c1a7823cf42a2b0b2bbb04357c19dfccd7786a11834`; `uv.lock` `9f65e45fa12dfa1882e88c1c877702cd4931152354f397f9e4df4f6bad8aabb0`.
+- **Compact receipt:** stdout `966 B`, `23 lines`, SHA-256 `9ed2bab1397e25810c4ab0d8527db7bb8b90b3b8d6504bc997cb2e24c9c7bcfd`; stderr `0 B`, `0 lines`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0560/`.
+
+### EJ-20260728-0561 — pin nominal ceremony capability semantics
+
+- **Predecessor:** `EJ-20260728-0560`
+- **Time:** `2026-07-28T23:29:01-07:00` to `2026-07-28T23:29:01-07:00` (`2026-07-29T06:29:01+00:00` UTC)
+- **Action:** Located the exact `ConfirmationRosterCeremonyCapability` skeleton and every consumption/reference site.
+- **Result:** Exit `0`, zero stderr. The capability is opaque, nominal, single-use, non-publicly constructible, non-subclassable, and exposes only the seven source digests. Eligible study sealing later requires the consumed registered capability; synthetic sealing rejects any capability. Slice 6 can safely define the nominal/membership boundary now while leaving its registry empty and `claim_roster_ceremony` fail-closed until the official live adapter exists.
+- **Compact receipt:** stdout `6,914 B`, `203 lines`, SHA-256 `0c1a6f1c2e9f52669ed45550c0924192511d08c4047ba2d00df8f38609f218ac`; stderr `0 B`, `0 lines`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0561/`.
+
+### EJ-20260728-0562 — run sole focused Slice 6 behavior gate
+
+- **Predecessor:** `EJ-20260728-0561`
+- **Time:** `2026-07-28T23:31:18-07:00` to `2026-07-28T23:31:19-07:00` (`2026-07-29T06:31:18+00:00` to `2026-07-29T06:31:19+00:00` UTC)
+- **Action:** Ran exactly the immutable Slice 6 selector under a hard 60-second ceiling.
+- **Result:** GREEN, exit `0`, under one second, zero stderr. The focused behavior exercises actual `Ed25519PublicKey.verify` over canonical bytes; valid, altered payload, altered signature, and wrong key; the assignment runner wrapper; non-public/non-subclassable capability; and fail-closed live registry.
+- **Compact receipt:** stdout `113 B`, `2 lines`, SHA-256 `89ce1d951ae8e69bc5770b193fec835fc2daef5839be44bb9e40f9ec05e0e949`; stderr `0 B`, `0 lines`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0562/`.
+
+### EJ-20260728-0563 — run sole combined Slice 6 static gate
+
+- **Predecessor:** `EJ-20260728-0562`
+- **Time:** `2026-07-28T23:31:48-07:00` to `2026-07-28T23:31:48-07:00` (`2026-07-29T06:31:48+00:00` UTC)
+- **Action:** Ran one fail-closed static command containing the authority-prescribed Ruff and mypy invocations, each capped at 60 seconds.
+- **Result:** GREEN, exit `0`, zero stderr. Ruff and mypy both pass.
+- **Compact receipt:** stdout `62 B`, `2 lines`, SHA-256 `43d453bd2d33b121f758026f728256a1a5a2ba9ef1d758bf40a05ab302310ee9`; stderr `0 B`, `0 lines`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0563/`.
+
+### EJ-20260728-0564 — hostile-audit Slice 6 and selected Linux wheel
+
+- **Predecessor:** `EJ-20260728-0563`
+- **Time:** `2026-07-28T23:32:41-07:00` to `2026-07-28T23:32:42-07:00` (`2026-07-29T06:32:41+00:00` to `2026-07-29T06:32:42+00:00` UTC)
+- **Action:** Checked exact scope/whitespace/journal continuity/authority hashes; inspected installed wheel metadata and matching lock entries; reviewed the complete six-file implementation diff; and hashed every deliverable.
+- **Result:** GREEN, exit `0`, zero stderr. Installed artifact tag is `cp311-abi3-manylinux_2_34_x86_64`; its exact lock entry is cryptography 49.0.0 wheel SHA-256 `cbc77da8c523d5abd028635ba850a6966fcee2c82e2bf65a41d1d8afe0f98be9`, size `4,749,290`. The Windows hash is neither selected nor cited as runtime authority. Final source review found no unresolved in-scope defect.
+- **Adversarial boundary:** A generic JSON signature-shaped string cannot pass; canonical payload/key/signature changes fail actual Ed25519 verification. Conversely, Ed25519 alone cannot mint roster-ceremony authority: the nominal type has no public constructor/subclass, the core registry cannot be subclassed into a lookalike authority, and every claim fails closed until the separately reviewed official live adapter exists.
+- **Content hashes:** `pyproject.toml` `13b530facfa62b07fe441c1a7823cf42a2b0b2bbb04357c19dfccd7786a11834`; `uv.lock` `9f65e45fa12dfa1882e88c1c877702cd4931152354f397f9e4df4f6bad8aabb0`; `preflight.py` `515a97b2ac819e1af92dcade2540ed83c8d2c30bc7a8ec83f905d65c4681efb6`; `assignment.py` `098e4d9e14af6f3d7b3acc1beec752ffd8e76709cf4c4c73d08d733c2cc489f4`; `test_preflight.py` `8f87ef79cd88891cd6a93b99219ebdb4f4874857645e6d59f76a47a143cc5856`; `test_assignment.py` `c215e36007879b7641cbd23275e402815064c84a91d53550004ee9e029f2fa24`.
+- **Compact receipt:** stdout `18,185 B`, `409 lines`, SHA-256 `3d5e9d01824f340f4a9dccd25f525e3341393ca9498e65c209cc46f99cfef3a8`; stderr `0 B`, `0 lines`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0564/`.
+
+### EJ-20260728-0565 — pre-record finite Slice 6 delivery
+
+- **Predecessor:** `EJ-20260728-0564`
+- **Delivery scope:** exactly `pyproject.toml`, `uv.lock`, `preflight.py`, `assignment.py`, their two focused tests, and this journal.
+- **Planned mechanics:** stage exactly those seven paths; fail on whitespace/staged-name mismatch; commit `feat(resampling-null): validate signed preflight authority`; push publicly; compare exact local/remote refs.
+- **Evidence basis:** frozen environment EJ-0559/0560; focused behavior EJ-0562; static EJ-0563; hostile audit EJ-0564.
+- **Self-reference break:** reconcile finite delivery facts in the next event before Slice 7.

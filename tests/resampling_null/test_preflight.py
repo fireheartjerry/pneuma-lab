@@ -6,13 +6,21 @@ import json
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
 from pneuma_lab.resampling_null.artifacts import RecordValidationError
 from pneuma_lab.resampling_null.preflight import (
     ClosedJsonImport,
+    ConfirmationPreflightRegistry,
+    ConfirmationPreflightUnavailable,
+    ConfirmationRosterCeremonyCapability,
     import_assignment_program,
     import_closed_json,
     import_task_registry,
+    verify_ed25519_canonical_json,
 )
 
 
@@ -232,3 +240,68 @@ def test_t3_s05_concrete_import_validates_and_publishes_one_source_snapshot(
     with pytest.raises(RecordValidationError, match="other bytes"):
         import_task_registry(source, run_root=root)
     assert json.loads((root / imported.relative_path).read_bytes()) == valid
+
+
+def test_t3_s06_ed25519_verifies_exact_canonical_bytes() -> None:
+    private_key = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
+    public_key_hex = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    ).hex()
+    unsigned: dict[str, object] = {
+        "record_kind": "signed_fixture_v1",
+        "sequence": 7,
+    }
+    signature_hex = private_key.sign(
+        canonical_json_bytes(unsigned, indent=None)
+    ).hex()
+    signed = {**unsigned, "runner_signature_ed25519_hex": signature_hex}
+
+    digest = verify_ed25519_canonical_json(
+        signed,
+        public_key_ed25519_hex=public_key_hex,
+        signature_ed25519_hex=signature_hex,
+        signature_field="runner_signature_ed25519_hex",
+    )
+
+    assert len(digest) == 64
+    bad_signature = "00" * 64
+    for changed_value, changed_signature, changed_key in (
+        ({**signed, "sequence": 8}, signature_hex, public_key_hex),
+        (
+            {**signed, "runner_signature_ed25519_hex": bad_signature},
+            bad_signature,
+            public_key_hex,
+        ),
+        (signed, signature_hex, "00" * 32),
+    ):
+        with pytest.raises(RecordValidationError, match="verification failed"):
+            verify_ed25519_canonical_json(
+                changed_value,
+                public_key_ed25519_hex=changed_key,
+                signature_ed25519_hex=changed_signature,
+                signature_field="runner_signature_ed25519_hex",
+            )
+
+
+def test_t3_s06_live_ceremony_capability_fails_closed(tmp_path: Path) -> None:
+    with pytest.raises(TypeError, match="no public constructor"):
+        ConfirmationRosterCeremonyCapability()
+    with pytest.raises(TypeError, match="cannot be subclassed"):
+
+        class ForgedCapability(ConfirmationRosterCeremonyCapability):
+            pass
+
+    registry = ConfirmationPreflightRegistry()
+    sources = [tmp_path / f"source-{index}.json" for index in range(7)]
+    with pytest.raises(ConfirmationPreflightUnavailable, match="unavailable"):
+        registry.claim_roster_ceremony(
+            qualification_universe_source=sources[0],
+            selection_program_source=sources[1],
+            precommit_source=sources[2],
+            anchor_source=sources[3],
+            reveal_source=sources[4],
+            eligibility_source=sources[5],
+            ceremony_policy_source=sources[6],
+            study_id="study-1",
+        )

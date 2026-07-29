@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import hashlib
 import hmac
@@ -14,6 +14,7 @@ from .artifacts import (
     RecordValidationError,
     _load_direct_scientific_parent,
 )
+from .preflight import verify_ed25519_canonical_json
 from .secrets import (
     AssignmentSecretHandle,
     UnblindSecretHandle,
@@ -140,6 +141,26 @@ def load_assignment_authority(
         manifest_ref=manifest_ref,
         schedule_ref=schedule_ref,
         prefix_index_ref=prefix_index_ref,
+    )
+
+
+def verify_matching_invocation_signature(
+    receipt: Mapping[str, object],
+    *,
+    runner_public_key_ed25519_hex: str,
+) -> str:
+    """Verify one runner attestation over its canonical unsigned receipt."""
+
+    signature = receipt.get("runner_signature_ed25519_hex")
+    if type(signature) is not str:
+        raise RecordValidationError(
+            "runner_signature_ed25519_hex must be exact text"
+        )
+    return verify_ed25519_canonical_json(
+        receipt,
+        public_key_ed25519_hex=runner_public_key_ed25519_hex,
+        signature_ed25519_hex=signature,
+        signature_field="runner_signature_ed25519_hex",
     )
 
 

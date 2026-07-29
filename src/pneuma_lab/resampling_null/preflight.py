@@ -12,9 +12,17 @@ import stat
 from typing import cast
 import unicodedata
 
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
-from .artifacts import RecordValidationError, _load_json_bytes, _resolve_inside
+from .artifacts import (
+    RecordValidationError,
+    _load_json_bytes,
+    _plain_json,
+    _resolve_inside,
+)
 from .types import ArtifactRef
 
 
@@ -36,6 +44,123 @@ class ClosedJsonImport:
             raise ValueError("exact integer fields must belong to the closed grammar")
         if not self.semantic_set_fields <= self.fields:
             raise ValueError("semantic-set fields must belong to the closed grammar")
+
+
+class ConfirmationPreflightUnavailable(RecordValidationError):
+    """Raised while no reviewed live ceremony adapter is installed."""
+
+
+class ConfirmationRosterCeremonyCapability:
+    """Opaque live-only ceremony capability; no core mint path exists."""
+
+    __slots__ = ()
+
+    def __new__(cls) -> ConfirmationRosterCeremonyCapability:
+        raise TypeError(
+            "ceremony capabilities have no public constructor; "
+            "the reviewed live adapter is unavailable"
+        )
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        del cls, kwargs
+        raise TypeError("ceremony capabilities cannot be subclassed")
+
+    @property
+    def source_sha256s(self) -> tuple[str, str, str, str, str, str, str]:
+        raise ConfirmationPreflightUnavailable(
+            "no registered live ceremony capability exists"
+        )
+
+
+class ConfirmationPreflightRegistry:
+    """Fail-closed core placeholder for the separately reviewed live adapter."""
+
+    __slots__ = ()
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        del cls, kwargs
+        raise TypeError("the core preflight registry cannot be subclassed")
+
+    def claim_roster_ceremony(
+        self,
+        *,
+        qualification_universe_source: Path,
+        selection_program_source: Path,
+        precommit_source: Path,
+        anchor_source: Path,
+        reveal_source: Path,
+        eligibility_source: Path,
+        ceremony_policy_source: Path,
+        study_id: str,
+    ) -> ConfirmationRosterCeremonyCapability:
+        del (
+            qualification_universe_source,
+            selection_program_source,
+            precommit_source,
+            anchor_source,
+            reveal_source,
+            eligibility_source,
+            ceremony_policy_source,
+            study_id,
+        )
+        raise ConfirmationPreflightUnavailable(
+            "eligible confirmation is unavailable: no reviewed official "
+            "Sigstore/drand/Node live adapter is installed"
+        )
+
+
+def _lower_hex(value: object, *, field: str, byte_count: int) -> bytes:
+    if type(value) is not str:
+        raise RecordValidationError(f"{field} must be exact lowercase hex text")
+    text = cast(str, value)
+    if len(text) != byte_count * 2 or any(
+        character not in "0123456789abcdef" for character in text
+    ):
+        raise RecordValidationError(
+            f"{field} must encode exactly {byte_count} bytes as lowercase hex"
+        )
+    return bytes.fromhex(text)
+
+
+def verify_ed25519_canonical_json(
+    value: Mapping[str, object],
+    *,
+    public_key_ed25519_hex: str,
+    signature_ed25519_hex: str,
+    signature_field: str | None = None,
+) -> str:
+    """Verify Ed25519 over exact compact canonical JSON and return its digest."""
+
+    if not isinstance(value, Mapping):
+        raise RecordValidationError("signed value must be a mapping")
+    plain = _plain_json(value)
+    if not isinstance(plain, dict):
+        raise RecordValidationError("signed value must be a plain JSON object")
+    if signature_field is not None:
+        if type(signature_field) is not str or not signature_field:
+            raise RecordValidationError("signature_field must be non-empty text")
+        if plain.get(signature_field) != signature_ed25519_hex:
+            raise RecordValidationError(
+                "embedded signature differs from verification signature"
+            )
+        del plain[signature_field]
+    _require_canonical_text(plain)
+    payload = canonical_json_bytes(plain, indent=None)
+    public_key = _lower_hex(
+        public_key_ed25519_hex,
+        field="public_key_ed25519_hex",
+        byte_count=32,
+    )
+    signature = _lower_hex(
+        signature_ed25519_hex,
+        field="signature_ed25519_hex",
+        byte_count=64,
+    )
+    try:
+        Ed25519PublicKey.from_public_bytes(public_key).verify(signature, payload)
+    except (InvalidSignature, ValueError) as exc:
+        raise RecordValidationError("Ed25519 signature verification failed") from exc
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _require_canonical_text(value: object, *, path: str = "$") -> None:
@@ -615,8 +740,12 @@ def import_assignment_program(
 
 __all__ = [
     "ClosedJsonImport",
+    "ConfirmationPreflightRegistry",
+    "ConfirmationPreflightUnavailable",
+    "ConfirmationRosterCeremonyCapability",
     "import_assignment_program",
     "import_closed_json",
     "import_task_registry",
     "require_declared_fields",
+    "verify_ed25519_canonical_json",
 ]

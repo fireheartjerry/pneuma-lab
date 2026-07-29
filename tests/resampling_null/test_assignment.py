@@ -1112,3 +1112,32 @@ def test_t3_s05_assignment_authority_is_loaded_only_through_refs(
             prefix_ref,
             run_root=tmp_path,
         )
+
+
+def test_t3_s06_matching_invocation_requires_real_signature() -> None:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+        Ed25519PrivateKey,
+    )
+    from pneuma_lab.foundation.artifacts import canonical_json_bytes
+
+    private_key = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
+    public_key_hex = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    ).hex()
+    unsigned: dict[str, object] = {
+        "record_kind": "exact_matching_invocation_receipt_v1",
+        "sequence_index": 0,
+    }
+    signature_hex = private_key.sign(
+        canonical_json_bytes(unsigned, indent=None)
+    ).hex()
+    receipt = {**unsigned, "runner_signature_ed25519_hex": signature_hex}
+
+    assert len(
+        assignment_module.verify_matching_invocation_signature(
+            receipt,
+            runner_public_key_ed25519_hex=public_key_hex,
+        )
+    ) == 64
