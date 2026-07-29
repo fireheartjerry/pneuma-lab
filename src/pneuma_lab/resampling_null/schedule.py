@@ -26,6 +26,7 @@ from .assignment import (
     kdf_frame,
     require_schedulable_power_final,
 )
+from .execution_authority import _validate_provider_lane_plan
 from .preflight import _validate_assignment_program, _validate_task_registry
 from .storage import (
     LocalTestStorageLease,
@@ -73,86 +74,6 @@ def _load_manifest_asset(
     if not isinstance(value, dict):
         raise RecordValidationError(f"manifest {field} must reference an object")
     return ref, value
-
-
-def _validate_provider_plan(
-    value: dict[str, object],
-    *,
-    task_ids: set[str],
-) -> tuple[tuple[str, ...], dict[str, tuple[int, tuple[int, int, int, int]]]]:
-    if set(value) != {"record_kind", "schema_version", "lanes", "task_lanes"}:
-        raise RecordValidationError("provider lane plan has an open or incomplete shape")
-    if (
-        value["record_kind"] != "provider_lane_plan_v1"
-        or value["schema_version"] != "1"
-    ):
-        raise RecordValidationError("provider lane plan has wrong identity")
-    lanes_value = value["lanes"]
-    if not isinstance(lanes_value, list) or not lanes_value:
-        raise RecordValidationError("provider lane plan lanes must be non-empty")
-    lane_ids: list[str] = []
-    for ordinal, lane in enumerate(lanes_value):
-        if (
-            not isinstance(lane, Mapping)
-            or set(lane) != {"ordinal", "lane_id"}
-            or type(lane["ordinal"]) is not int
-            or lane["ordinal"] != ordinal
-            or not isinstance(lane["lane_id"], str)
-            or not lane["lane_id"]
-        ):
-            raise RecordValidationError(
-                "provider lanes must have contiguous ordinals and non-empty IDs"
-            )
-        lane_ids.append(cast(str, lane["lane_id"]))
-    if len(lane_ids) != len(set(lane_ids)):
-        raise RecordValidationError("provider lane IDs must be unique")
-
-    task_lanes = value["task_lanes"]
-    if not isinstance(task_lanes, list):
-        raise RecordValidationError("provider task_lanes must be an array")
-    bindings: dict[str, tuple[int, tuple[int, int, int, int]]] = {}
-    prior_task_id: bytes | None = None
-    for row in task_lanes:
-        if (
-            not isinstance(row, Mapping)
-            or set(row)
-            != {
-                "task_id",
-                "prefix_lane_ordinal",
-                "lane_ordinals_by_execution_rank",
-            }
-        ):
-            raise RecordValidationError("provider task lane row has wrong shape")
-        task_id = row["task_id"]
-        if not isinstance(task_id, str) or not task_id:
-            raise RecordValidationError("provider task_id must be non-empty text")
-        encoded_task_id = task_id.encode("utf-8")
-        if prior_task_id is not None and encoded_task_id <= prior_task_id:
-            raise RecordValidationError(
-                "provider task lanes are not strict task-ID sorted"
-            )
-        prior_task_id = encoded_task_id
-        prefix_ordinal = row["prefix_lane_ordinal"]
-        rank_ordinals = row["lane_ordinals_by_execution_rank"]
-        if (
-            type(prefix_ordinal) is not int
-            or not isinstance(rank_ordinals, list)
-            or len(rank_ordinals) != 4
-            or any(type(ordinal) is not int for ordinal in rank_ordinals)
-        ):
-            raise RecordValidationError("provider task lane ordinals are malformed")
-        all_ordinals = [prefix_ordinal, *rank_ordinals]
-        if any(ordinal < 0 or ordinal >= len(lane_ids) for ordinal in all_ordinals):
-            raise RecordValidationError("provider task lane ordinal is out of range")
-        bindings[task_id] = (
-            prefix_ordinal,
-            cast(tuple[int, int, int, int], tuple(rank_ordinals)),
-        )
-    if set(bindings) != task_ids:
-        raise RecordValidationError(
-            "provider task lanes do not exactly cover the task registry"
-        )
-    return tuple(lane_ids), bindings
 
 
 def _task_order_key(task: Mapping[str, object]) -> tuple[bytes, bytes, bytes, bytes]:
@@ -362,10 +283,21 @@ def seal_prefix_schedule(
             )
         selected_tasks = [registry_by_id[task_id] for task_id in selected_ids]
         selected_tasks.sort(key=_task_order_key)
-        lanes, lane_bindings = _validate_provider_plan(
+        validated_plan = _validate_provider_lane_plan(
             provider_plan,
-            task_ids=set(registry_by_id),
+            run_root=root,
+            registry=task_registry,
+            tokenizer_ref=tokenizer_ref,
+            manifest_revisions=tuple(revision_refs),
         )
+        lanes = tuple(lane.lane_id for lane in validated_plan.lanes)
+        lane_bindings = {
+            row.task_id: (
+                row.prefix_lane_ordinal,
+                row.lane_ordinals_by_execution_rank,
+            )
+            for row in validated_plan.task_lanes
+        }
         schedule_tasks: list[dict[str, object]] = []
         for task in selected_tasks:
             task_id = cast(str, task["task_id"])

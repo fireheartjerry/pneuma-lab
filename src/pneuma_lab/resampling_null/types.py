@@ -809,6 +809,23 @@ class BranchCaps:
 
 
 @dataclass(frozen=True, slots=True)
+class SimulatorCaps:
+    aggregate_generated_tokens: int
+    aggregate_model_calls: int
+    per_call_generated_tokens: int
+    per_call_turns: int
+
+    def __post_init__(self) -> None:
+        for name in (
+            "aggregate_generated_tokens",
+            "aggregate_model_calls",
+            "per_call_generated_tokens",
+            "per_call_turns",
+        ):
+            _require_exact_nonnegative_int(getattr(self, name), name)
+
+
+@dataclass(frozen=True, slots=True)
 class GradeReceipt:
     success: int
     partial_reward: float

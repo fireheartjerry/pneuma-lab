@@ -14,6 +14,10 @@ from .assignment_verification import (
 )
 from .branch_assignment import seal_branch_assignment
 from .controller import derive_call_seed
+from .execution_authority import (
+    PrefixExecutionAuthority,
+    load_prefix_execution_authority,
+)
 from .packets import (
     IdentifierAtom,
     IdentifierKind,
@@ -51,6 +55,7 @@ from .types import (
     GroupLabel,
     MatchingAlgorithm,
     ResourceCounters,
+    SimulatorCaps,
     OpaqueSlotIdentity,
     PrefixCaps,
     SubjectContext,
@@ -101,8 +106,11 @@ __all__ = (
     "PacketRewriteArtifacts",
     "OpaqueSlotIdentity",
     "PrefixCaps",
+    "PrefixExecutionAuthority",
     "SyntheticPacketArtifactStore",
     "ResourceCounters",
+    "SimulatorCaps",
+    "load_prefix_execution_authority",
     "require_assignment_reconstruction",
     "require_assignment_publication",
     "require_confirmation_assignment",

@@ -1207,31 +1207,7 @@ def _build_full_study(
         ),
         "provider": raw(
             "provider.json",
-            (
-                {
-                    "record_kind": "provider_lane_plan_v1",
-                    "schema_version": "1",
-                    "lanes": [
-                        {"ordinal": ordinal, "lane_id": f"lane-{ordinal}"}
-                        for ordinal in range(4)
-                    ],
-                    "task_lanes": [
-                        {
-                            "task_id": task["task_id"],
-                            "prefix_lane_ordinal": 0,
-                            "lane_ordinals_by_execution_rank": [0, 1, 2, 3],
-                        }
-                        for task in sorted(
-                            registry_tasks,
-                            key=lambda task: cast(str, task["task_id"]).encode(
-                                "utf-8"
-                            ),
-                        )
-                    ],
-                }
-                if completed_power_consumer_fixture
-                else {"lane": "lane-a"}
-            ),
+            {"lane": "lane-a"},
         ),
         "storage_policy": raw(
             "storage-policy.json",
@@ -1385,6 +1361,221 @@ def _build_full_study(
         "adverse_3": raw("adverse-3.json", {"slot_id": "slot-3"}),
     }
     if completed_power_consumer_fixture:
+        def authority_json(
+            name: str,
+            value: dict[str, object],
+            *,
+            role: str,
+        ) -> dict[str, object]:
+            ref = raw(name, canonical_json_bytes(value, indent=None))
+            ref["role"] = role
+            ref["media_type"] = "application/json"
+            return ref
+
+        source_revisions = [raws["revision"]]
+        aggregate_caps = {
+            "generated_tokens": 40,
+            "model_calls": 4,
+            "turns": 4,
+        }
+        per_call_caps = {"generated_tokens": 12, "turns": 1}
+        common_call_contract = {
+            "schema_version": "1",
+            "tokenizer_ref": raws["tokenizer"],
+            "prompt_template_ref": raws["template"],
+            "tool_schema_ref": raws["policy"],
+            "request_grammar": "synthetic-request-v1",
+            "response_grammar": "synthetic-response-v1",
+            "seeded_call_grammar": "call-seed-v1",
+            "stateless_client_attestation": "synthetic-stateless-v1",
+            "aggregate_caps": aggregate_caps,
+            "per_call_caps": per_call_caps,
+            "build_id": "synthetic-fixture-build",
+            "source_revision_refs": source_revisions,
+        }
+        subject_contract_ref = authority_json(
+            "subject-contract.json",
+            {
+                **common_call_contract,
+                "record_kind": "prefix_subject_contract_v1",
+                "model_id": "synthetic-subject",
+                "nominal_type": "SyntheticSubject",
+            },
+            role="subject_contract",
+        )
+        simulator_contract_ref = authority_json(
+            "simulator-contract.json",
+            {
+                **common_call_contract,
+                "record_kind": "prefix_simulator_contract_v1",
+                "model_id": "synthetic-simulator",
+                "nominal_type": "SyntheticSimulator",
+            },
+            role="simulator_contract",
+        )
+        parser_contract_ref = authority_json(
+            "parser-contract.json",
+            {
+                "record_kind": "prefix_tool_parser_contract_v1",
+                "schema_version": "1",
+                "nominal_type": "SyntheticToolParser",
+                "build_id": "synthetic-fixture-build",
+                "response_grammar": "synthetic-response-v1",
+                "tool_schema_ref": raws["policy"],
+                "source_revision_refs": source_revisions,
+            },
+            role="tool_parser_contract",
+        )
+        meter_contract_ref = authority_json(
+            "meter-contract.json",
+            {
+                "record_kind": "prefix_meter_contract_v1",
+                "schema_version": "1",
+                "nominal_type": "SyntheticMeter",
+                "build_id": "synthetic-fixture-build",
+                "clock_source_ref": raws["revision"],
+                "watchdog_source_ref": raws["revision"],
+                "cost_units": {
+                    "currency": "usd_micros",
+                    "generated_tokens": "tokens",
+                    "model_calls": "calls",
+                    "wall_clock": "milliseconds",
+                },
+                "provider_event_grammar": "synthetic-provider-event-v1",
+                "settlement_grammar": "synthetic-settlement-v1",
+                "zero_cost_synthetic_closure": True,
+                "source_revision_refs": source_revisions,
+            },
+            role="meter_contract",
+        )
+        task_lane_rows = []
+        for task in sorted(
+            registry_tasks,
+            key=lambda item: cast(str, item["task_id"]).encode("utf-8"),
+        ):
+            task_id = cast(str, task["task_id"])
+            benchmark = cast(str, task["benchmark"])
+            task_input_ref = authority_json(
+                f"authority/{task_id}-input.json",
+                {
+                    "record_kind": "prefix_task_input_v1",
+                    "schema_version": "1",
+                    "task_id": task_id,
+                    "benchmark": benchmark,
+                    "requires_user_simulator": False,
+                    "canonical_task_payload": {"task_id": task_id},
+                },
+                role="task_input",
+            )
+            common_task_contract = {
+                "schema_version": "1",
+                "task_id": task_id,
+                "benchmark": benchmark,
+                "build_id": "synthetic-fixture-build",
+                "source_revision_refs": source_revisions,
+            }
+            environment_ref = authority_json(
+                f"authority/{task_id}-environment.json",
+                {
+                    **common_task_contract,
+                    "record_kind": "prefix_environment_contract_v1",
+                    "nominal_factory_type": "SyntheticEnvironmentFactory",
+                    "snapshot_grammar": "synthetic-snapshot-v1",
+                    "restore_grammar": "synthetic-restore-v1",
+                    "raw_evidence_grammar": "synthetic-environment-evidence-v1",
+                    "runtime_id": "cpython-test",
+                    "container_digest": "sha256:" + SHA_A,
+                },
+                role="environment_contract",
+            )
+            grader_ref = authority_json(
+                f"authority/{task_id}-grader.json",
+                {
+                    **common_task_contract,
+                    "record_kind": "prefix_grader_contract_v1",
+                    "nominal_type": "SyntheticGrader",
+                    "raw_evidence_grammar": "synthetic-grade-evidence-v1",
+                    "runtime_id": "cpython-test",
+                    "container_digest": "sha256:" + SHA_A,
+                },
+                role="grader_contract",
+            )
+            verifier_ref = authority_json(
+                f"authority/{task_id}-verifier.json",
+                {
+                    **common_task_contract,
+                    "record_kind": "prefix_verifier_contract_v1",
+                    "nominal_type": "SyntheticVerifier",
+                    "raw_evidence_grammar": "synthetic-verifier-evidence-v1",
+                    "runtime_id": "cpython-test",
+                    "container_digest": "sha256:" + SHA_A,
+                },
+                role="verifier_contract",
+            )
+            isolation_ref = authority_json(
+                f"authority/{task_id}-isolation.json",
+                {
+                    **common_task_contract,
+                    "record_kind": "prefix_isolation_contract_v1",
+                    "distinct_environment_instances": True,
+                    "distinct_processes": True,
+                    "distinct_roots": True,
+                    "no_shared_writable_state": True,
+                    "qualification_ref": raws["revision"],
+                },
+                role="isolation_contract",
+            )
+            task_lane_rows.append(
+                {
+                    "task_id": task_id,
+                    "prefix_lane_ordinal": 0,
+                    "lane_ordinals_by_execution_rank": [0, 1, 2, 3],
+                    "task_input_ref": task_input_ref,
+                    "environment_contract_ref": environment_ref,
+                    "grader_contract_ref": grader_ref,
+                    "verifier_contract_ref": verifier_ref,
+                    "isolation_contract_ref": isolation_ref,
+                }
+            )
+        raws["provider"] = authority_json(
+            "provider-v2.json",
+            {
+                "record_kind": "provider_lane_plan_v2",
+                "schema_version": "2",
+                "lanes": [
+                    {
+                        "ordinal": ordinal,
+                        "lane_id": f"lane-{ordinal}",
+                        "prefix_caps": {
+                            "generated_tokens": 40,
+                            "model_calls": 4,
+                            "tool_calls": 4,
+                            "wall_clock_ms": 1_000,
+                        },
+                        "branch_caps": {
+                            "generated_tokens": 20,
+                            "model_calls": 2,
+                            "tool_calls": 4,
+                            "wall_clock_ms": 500,
+                            "pending_prefix_calls_count_against_tool_cap": True,
+                        },
+                        "simulator_caps": {
+                            "aggregate_generated_tokens": 40,
+                            "aggregate_model_calls": 4,
+                            "per_call_generated_tokens": 12,
+                            "per_call_turns": 1,
+                        },
+                        "subject_contract_ref": subject_contract_ref,
+                        "simulator_contract_ref": simulator_contract_ref,
+                        "tool_parser_contract_ref": parser_contract_ref,
+                        "meter_contract_ref": meter_contract_ref,
+                    }
+                    for ordinal in range(4)
+                ],
+                "task_lanes": task_lane_rows,
+            },
+            role="provider_lane_plan",
+        )
         raws["features_task"] = raw(
             "features-task.json",
             {
@@ -4567,6 +4758,382 @@ def test_study_manifest_seal_copies_all_sources_without_reading_clock(
     assert payload["schedule_seed_commitment_sha256"] == SHA_A
     assert payload["assignment_master_key_commitment_sha256"] == SHA_A
     assert manifest["frozen_created_at"] == FROZEN
+
+
+def test_t5_s02a_study_seal_copies_v2_provider_nested_refs(
+    tmp_path: Path,
+) -> None:
+    external = tmp_path / "external"
+    external.mkdir()
+
+    def write_json(path: Path, value: object) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(canonical_json_bytes(value, indent=None))
+        return path
+
+    def external_ref(
+        source: Path,
+        *,
+        relative_path: str,
+        role: str,
+        media_type: str = "application/json",
+    ) -> dict[str, object]:
+        payload = source.read_bytes()
+        return _ref(
+            relative_path,
+            role=role,
+            sha256=hashlib.sha256(payload).hexdigest(),
+            byte_count=len(payload),
+            media_type=media_type,
+        )
+
+    def planned_fixed_ref(
+        source: Path,
+        *,
+        subtree: str,
+        role: str,
+    ) -> dict[str, object]:
+        payload = source.read_bytes()
+        digest = hashlib.sha256(payload).hexdigest()
+        return _ref(
+            f"sources/{subtree}/{digest}-{source.name}",
+            role=role,
+            sha256=digest,
+            byte_count=len(payload),
+            media_type="application/json",
+        )
+
+    task = {
+        "task_id": "task-1",
+        "benchmark": "swe",
+        "stratum": "python",
+        "lineage": "repo-1",
+        "groups": [
+            {"kind": "language", "value": "python"},
+            {"kind": "domain", "value": "software"},
+            {"kind": "issue_family", "value": "bug"},
+        ],
+    }
+    sources = {
+        "tasks": write_json(
+            external / "tasks.json",
+            {
+                "record_kind": "resampling_task_registry_v1",
+                "schema_version": "1",
+                "tasks": [task],
+            },
+        ),
+        "tokenizer": write_json(
+            external / "tokenizer.json",
+            {"tokenizer": "fixture-v1"},
+        ),
+        "revision": write_json(
+            external / "revision.json",
+            {"revision": "fixture-v1"},
+        ),
+    }
+    for name in (
+        "roster",
+        "assignment",
+        "storage-policy",
+        "power-grid",
+        "power-topology",
+        "template",
+        "policy",
+        "pads",
+    ):
+        sources[name] = write_json(external / f"{name}.json", {"name": name})
+    sources["required"] = write_json(
+        external / "required.json",
+        list(FROZEN_UPSTREAM_KINDS),
+    )
+    tokenizer_ref = planned_fixed_ref(
+        sources["tokenizer"],
+        subtree="tokenizer",
+        role="tokenizer",
+    )
+    revision_ref = planned_fixed_ref(
+        sources["revision"],
+        subtree="revisions",
+        role="source_revision",
+    )
+
+    authority_dir = external / "sources" / "provider-authority"
+
+    def authority_asset(name: str, value: object, *, role: str) -> dict[str, object]:
+        source = write_json(authority_dir / name, value)
+        return external_ref(
+            source,
+            relative_path=f"sources/provider-authority/{name}",
+            role=role,
+        )
+
+    prompt_ref = authority_asset(
+        "prompt.json",
+        {"template": "fixture-v1"},
+        role="prompt_template",
+    )
+    tool_schema_ref = authority_asset(
+        "tools.json",
+        {"tools": []},
+        role="tool_schema",
+    )
+    clock_ref = authority_asset(
+        "clock.json",
+        {"clock": "fixture-v1"},
+        role="clock_source",
+    )
+    watchdog_ref = authority_asset(
+        "watchdog.json",
+        {"watchdog": "fixture-v1"},
+        role="watchdog_source",
+    )
+    qualification_ref = authority_asset(
+        "qualification.json",
+        {"qualification": "fixture-v1"},
+        role="isolation_qualification",
+    )
+    common_call = {
+        "schema_version": "1",
+        "tokenizer_ref": tokenizer_ref,
+        "prompt_template_ref": prompt_ref,
+        "tool_schema_ref": tool_schema_ref,
+        "request_grammar": "fixture-request-v1",
+        "response_grammar": "fixture-response-v1",
+        "seeded_call_grammar": "call-seed-v1",
+        "stateless_client_attestation": "fixture-stateless-v1",
+        "aggregate_caps": {
+            "generated_tokens": 40,
+            "model_calls": 4,
+            "turns": 4,
+        },
+        "per_call_caps": {"generated_tokens": 12, "turns": 1},
+        "build_id": "fixture-build",
+        "source_revision_refs": [revision_ref],
+    }
+    subject_ref = authority_asset(
+        "subject.json",
+        {
+            **common_call,
+            "record_kind": "prefix_subject_contract_v1",
+            "model_id": "fixture-subject",
+            "nominal_type": "FixtureSubject",
+        },
+        role="subject_contract",
+    )
+    simulator_ref = authority_asset(
+        "simulator.json",
+        {
+            **common_call,
+            "record_kind": "prefix_simulator_contract_v1",
+            "model_id": "fixture-simulator",
+            "nominal_type": "FixtureSimulator",
+        },
+        role="simulator_contract",
+    )
+    parser_ref = authority_asset(
+        "parser.json",
+        {
+            "record_kind": "prefix_tool_parser_contract_v1",
+            "schema_version": "1",
+            "nominal_type": "FixtureParser",
+            "build_id": "fixture-build",
+            "response_grammar": "fixture-response-v1",
+            "tool_schema_ref": tool_schema_ref,
+            "source_revision_refs": [revision_ref],
+        },
+        role="tool_parser_contract",
+    )
+    meter_ref = authority_asset(
+        "meter.json",
+        {
+            "record_kind": "prefix_meter_contract_v1",
+            "schema_version": "1",
+            "nominal_type": "FixtureMeter",
+            "build_id": "fixture-build",
+            "clock_source_ref": clock_ref,
+            "watchdog_source_ref": watchdog_ref,
+            "cost_units": {
+                "currency": "usd_micros",
+                "generated_tokens": "tokens",
+                "model_calls": "calls",
+                "wall_clock": "milliseconds",
+            },
+            "provider_event_grammar": "fixture-provider-event-v1",
+            "settlement_grammar": "fixture-settlement-v1",
+            "zero_cost_synthetic_closure": True,
+            "source_revision_refs": [revision_ref],
+        },
+        role="meter_contract",
+    )
+    task_input_ref = authority_asset(
+        "task-input.json",
+        {
+            "record_kind": "prefix_task_input_v1",
+            "schema_version": "1",
+            "task_id": "task-1",
+            "benchmark": "swe",
+            "requires_user_simulator": True,
+            "canonical_task_payload": {"instruction": "fixture"},
+        },
+        role="task_input",
+    )
+    common_task = {
+        "schema_version": "1",
+        "task_id": "task-1",
+        "benchmark": "swe",
+        "build_id": "fixture-build",
+        "source_revision_refs": [revision_ref],
+    }
+    environment_ref = authority_asset(
+        "environment.json",
+        {
+            **common_task,
+            "record_kind": "prefix_environment_contract_v1",
+            "nominal_factory_type": "FixtureEnvironmentFactory",
+            "snapshot_grammar": "fixture-snapshot-v1",
+            "restore_grammar": "fixture-restore-v1",
+            "raw_evidence_grammar": "fixture-environment-evidence-v1",
+            "runtime_id": "cpython-fixture",
+            "container_digest": "sha256:" + SHA_A,
+        },
+        role="environment_contract",
+    )
+    grader_ref = authority_asset(
+        "grader.json",
+        {
+            **common_task,
+            "record_kind": "prefix_grader_contract_v1",
+            "nominal_type": "FixtureGrader",
+            "raw_evidence_grammar": "fixture-grade-evidence-v1",
+            "runtime_id": "cpython-fixture",
+            "container_digest": "sha256:" + SHA_A,
+        },
+        role="grader_contract",
+    )
+    verifier_ref = authority_asset(
+        "verifier.json",
+        {
+            **common_task,
+            "record_kind": "prefix_verifier_contract_v1",
+            "nominal_type": "FixtureVerifier",
+            "raw_evidence_grammar": "fixture-verifier-evidence-v1",
+            "runtime_id": "cpython-fixture",
+            "container_digest": "sha256:" + SHA_A,
+        },
+        role="verifier_contract",
+    )
+    isolation_ref = authority_asset(
+        "isolation.json",
+        {
+            **common_task,
+            "record_kind": "prefix_isolation_contract_v1",
+            "distinct_environment_instances": True,
+            "distinct_processes": True,
+            "distinct_roots": True,
+            "no_shared_writable_state": True,
+            "qualification_ref": qualification_ref,
+        },
+        role="isolation_contract",
+    )
+    sources["provider"] = write_json(
+        external / "provider.json",
+        {
+            "record_kind": "provider_lane_plan_v2",
+            "schema_version": "2",
+            "lanes": [
+                {
+                    "ordinal": 0,
+                    "lane_id": "lane-0",
+                    "prefix_caps": {
+                        "generated_tokens": 40,
+                        "model_calls": 4,
+                        "tool_calls": 4,
+                        "wall_clock_ms": 1_000,
+                    },
+                    "branch_caps": {
+                        "generated_tokens": 20,
+                        "model_calls": 2,
+                        "tool_calls": 4,
+                        "wall_clock_ms": 500,
+                        "pending_prefix_calls_count_against_tool_cap": True,
+                    },
+                    "simulator_caps": {
+                        "aggregate_generated_tokens": 40,
+                        "aggregate_model_calls": 4,
+                        "per_call_generated_tokens": 12,
+                        "per_call_turns": 1,
+                    },
+                    "subject_contract_ref": subject_ref,
+                    "simulator_contract_ref": simulator_ref,
+                    "tool_parser_contract_ref": parser_ref,
+                    "meter_contract_ref": meter_ref,
+                }
+            ],
+            "task_lanes": [
+                {
+                    "task_id": "task-1",
+                    "prefix_lane_ordinal": 0,
+                    "lane_ordinals_by_execution_rank": [0, 0, 0, 0],
+                    "task_input_ref": task_input_ref,
+                    "environment_contract_ref": environment_ref,
+                    "grader_contract_ref": grader_ref,
+                    "verifier_contract_ref": verifier_ref,
+                    "isolation_contract_ref": isolation_ref,
+                }
+            ],
+        },
+    )
+    study = write_json(
+        external / "study.json",
+        _record(
+            "resampling_study_manifest",
+            {
+                "commitment_scheme": "resampling-null-key-ceremony-v1",
+                "roster_local_nonce_commitment_sha256": SHA_A,
+                "schedule_seed_commitment_sha256": SHA_A,
+                "assignment_master_key_commitment_sha256": SHA_A,
+            },
+        ),
+    )
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    manifest_ref = seal_study_manifest(
+        study,
+        sources["tasks"],
+        sources["roster"],
+        sources["assignment"],
+        sources["provider"],
+        sources["storage-policy"],
+        sources["power-grid"],
+        sources["power-topology"],
+        sources["tokenizer"],
+        sources["template"],
+        sources["policy"],
+        sources["pads"],
+        [sources["revision"]],
+        sources["required"],
+        run_root=run_root,
+        out=run_root / "study-manifest.json",
+    )
+    assert (run_root / manifest_ref.relative_path).is_file()
+    for ref in (
+        subject_ref,
+        simulator_ref,
+        parser_ref,
+        meter_ref,
+        task_input_ref,
+        environment_ref,
+        grader_ref,
+        verifier_ref,
+        isolation_ref,
+        prompt_ref,
+        tool_schema_ref,
+        clock_ref,
+        watchdog_ref,
+        qualification_ref,
+    ):
+        assert (run_root / cast(str, ref["relative_path"])).is_file()
 
 
 def test_source_revisions_must_be_nonempty_and_sorted(tmp_path: Path) -> None:

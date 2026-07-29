@@ -1064,6 +1064,90 @@ def _plan_source_copy(
     return _SourceCopy(source_path, payload, destination, ref)
 
 
+def _plan_provider_v2_closure(
+    provider_copy: _SourceCopy,
+    *,
+    known_copies: Sequence[_SourceCopy],
+    run_root: Path,
+) -> list[_SourceCopy]:
+    decoded = _load_json_bytes(
+        provider_copy.payload,
+        source=provider_copy.source,
+    )
+    if not isinstance(decoded, Mapping):
+        return []
+    if decoded.get("record_kind") != "provider_lane_plan_v2":
+        return []
+    if set(decoded) != {"record_kind", "schema_version", "lanes", "task_lanes"}:
+        raise RecordValidationError(
+            "provider lane plan has an open or incomplete shape"
+        )
+    source_root = provider_copy.source.parent.resolve(strict=True)
+    known_by_ref = {copy.ref: copy for copy in known_copies}
+    known_by_path = {
+        copy.ref.relative_path: copy.ref
+        for copy in known_copies
+    }
+    pending = list(_walk_artifact_refs(decoded))
+    planned: list[_SourceCopy] = []
+    observed: set[ArtifactRef] = set()
+    while pending:
+        ref = pending.pop(0)
+        if ref in observed:
+            continue
+        observed.add(ref)
+        known = known_by_ref.get(ref)
+        if known is not None:
+            continue
+        conflicting = known_by_path.get(ref.relative_path)
+        if conflicting is not None and conflicting != ref:
+            raise RecordValidationError(
+                "provider nested ref conflicts with an existing source path"
+            )
+        try:
+            source, relative = _resolve_inside(
+                provider_copy.source.parent / Path(ref.relative_path),
+                source_root,
+                require_exists=True,
+            )
+        except (FileNotFoundError, RecordValidationError) as exc:
+            raise RecordValidationError(
+                f"provider nested ref source is missing: {ref.relative_path!r}"
+            ) from exc
+        if (
+            relative != ref.relative_path
+            or not source.is_file()
+        ):
+            raise RecordValidationError(
+                f"provider nested ref source is not canonical: {ref.relative_path!r}"
+            )
+        payload = source.read_bytes()
+        if (
+            hashlib.sha256(payload).hexdigest() != ref.sha256
+            or len(payload) != ref.byte_count
+        ):
+            raise RecordValidationError(
+                f"provider nested ref bytes mismatch: {ref.relative_path!r}"
+            )
+        destination, destination_relative = _resolve_inside(
+            Path(run_root) / Path(ref.relative_path),
+            run_root,
+            require_exists=False,
+        )
+        if destination_relative != ref.relative_path:
+            raise RecordValidationError(
+                "provider nested destination path is not canonical"
+            )
+        copy = _SourceCopy(source, payload, destination, ref)
+        planned.append(copy)
+        known_by_ref[ref] = copy
+        known_by_path[ref.relative_path] = ref
+        if ref.media_type == "application/json":
+            nested = _load_json_bytes(payload, source=source)
+            pending.extend(_walk_artifact_refs(nested))
+    return planned
+
+
 def _ref_mapping(ref: ArtifactRef) -> dict[str, object]:
     return cast(dict[str, object], asdict(ref))
 
@@ -1221,7 +1305,20 @@ def seal_study_manifest(
                 role="roster_ceremony_policy",
             ),
         ]
-    all_copies = copies + revision_copies + conditional_copies
+    provider_copy = next(
+        copy for copy in copies if copy.ref.role == "provider_lane_plan"
+    )
+    provider_nested_copies = _plan_provider_v2_closure(
+        provider_copy,
+        known_copies=copies + revision_copies + conditional_copies,
+        run_root=root,
+    )
+    all_copies = (
+        copies
+        + revision_copies
+        + conditional_copies
+        + provider_nested_copies
+    )
     destinations = [copy.destination for copy in all_copies]
     if len(destinations) != len(set(destinations)):
         raise RecordValidationError("source copies have conflicting destinations")
@@ -1273,6 +1370,38 @@ def seal_study_manifest(
     for copy in all_copies:
         copy.destination.parent.mkdir(parents=True, exist_ok=True)
         write_atomic_bytes(copy.destination, copy.payload)
+    provider_value = _load_json_bytes(
+        provider_copy.payload,
+        source=provider_copy.source,
+    )
+    if (
+        isinstance(provider_value, Mapping)
+        and provider_value.get("record_kind") == "provider_lane_plan_v2"
+    ):
+        from .execution_authority import _validate_provider_lane_plan
+        from .preflight import _validate_task_registry
+
+        task_copy = next(
+            copy for copy in copies if copy.ref.role == "task_registry"
+        )
+        task_value = _load_json_bytes(task_copy.payload, source=task_copy.source)
+        if (
+            not isinstance(task_value, Mapping)
+            or set(task_value) != {"record_kind", "schema_version", "tasks"}
+            or task_value.get("record_kind") != "resampling_task_registry_v1"
+        ):
+            raise RecordValidationError(
+                "v2 provider plan requires a closed task registry"
+            )
+        registry = dict(task_value)
+        _validate_task_registry(registry)
+        _validate_provider_lane_plan(
+            provider_value,
+            run_root=root,
+            registry=registry,
+            tokenizer_ref=by_role["tokenizer"],
+            manifest_revisions=tuple(copy.ref for copy in revision_copies),
+        )
     return write_record(
         out_target,
         validated,
