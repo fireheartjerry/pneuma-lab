@@ -1,0 +1,580 @@
+"""Tests for the canonical resampling-null assignment derivation core."""
+
+from __future__ import annotations
+
+from collections.abc import Iterator, Sequence
+from dataclasses import FrozenInstanceError
+import hashlib
+from typing import cast
+
+import pytest
+
+from pneuma_lab.resampling_null.assignment import (
+    BytesField,
+    FrameField,
+    TextField,
+    U64Field,
+    UniformDraw,
+    _AssignmentKeyBuffers,
+    _derive_assignment_subkeys_into,
+    _derive_unblind_subkey_into,
+    _wipe_bytearray,
+    commitment_sha256,
+    derive_seed,
+    kdf_frame,
+    uniform_below,
+)
+from pneuma_lab.resampling_null.types import ArtifactRef
+
+
+FRAME_HEX = (
+    "706e65756d612d726573616d706c696e672d6e756c6c2d6672616d652d763100"
+    "0000000e6465726976652d736565642d763100000003"
+    "01000000080000000000000007"
+    "02000000067461736b2d31"
+    "0200000006707265666978"
+)
+FRAME_SHA256 = "d0f92ef02cc64124ae8d651ad65c1f799f94fac4bd9923804cefbec2928cb327"
+SCHEDULE_COMMITMENT = "9bc37b258cc847128e49ed05681652da344723220886ec59193e53a1c8577760"
+SUBKEY_HEX = {
+    "donor": "ba38f59248c6fddad640c1a047ee1ecf38a0420cc1546d2370f1b6534dc16517",
+    "allocation": "225e87f89450b1297025d2de9c5871785fba25ec1c4c8ea2dc3b1cc0dbaffc29",
+    "orientation": "1e69be341abf917e55156c95157c69fe70d3f0cd1d161fa6fbd11e189a8d6cf3",
+    "capability": "64e481fc16011d95a1bdff96b43c5fbfc2c49df0b8203f56fca38e4a6fc8266a",
+    "unblind": "19fd5926965155e44bc23ea0b2d804c7a1492a98183389e515eafb4b05290f6d",
+}
+
+
+def _manifest_ref() -> ArtifactRef:
+    return ArtifactRef(
+        "manifest",
+        "manifest.json",
+        "11" * 32,
+        1,
+        "application/json",
+    )
+
+
+def _schedule_ref() -> ArtifactRef:
+    return ArtifactRef(
+        "schedule",
+        "schedule.json",
+        "22" * 32,
+        1,
+        "application/json",
+    )
+
+
+class _TooManyFields(Sequence[FrameField]):
+    def __len__(self) -> int:
+        return 2**32
+
+    def __getitem__(self, index: int) -> FrameField:
+        raise IndexError(index)
+
+    def __iter__(self) -> Iterator[FrameField]:
+        raise AssertionError("oversized field count must reject before iteration")
+
+
+class _InconsistentFields(Sequence[FrameField]):
+    def __len__(self) -> int:
+        return 1
+
+    def __getitem__(self, index: int) -> FrameField:
+        if index == 0:
+            return TextField("first")
+        if index == 1:
+            return TextField("smuggled")
+        raise IndexError(index)
+
+
+def test_t3_s03_frame_known_answer_vector_is_byte_exact() -> None:
+    frame = kdf_frame(
+        "derive-seed-v1",
+        [U64Field(7), TextField("task-1"), TextField("prefix")],
+    )
+    assert frame.hex() == FRAME_HEX
+    assert hashlib.sha256(frame).hexdigest() == FRAME_SHA256
+    assert (
+        int.from_bytes(hashlib.sha256(frame).digest()[:8], "big")
+        == 15058118438168183076
+    )
+
+
+def test_t3_s03_frame_is_typed_length_prefixed_and_collision_resistant() -> None:
+    assert kdf_frame(
+        "frame-v1",
+        [TextField("a"), TextField("bc")],
+    ) != kdf_frame(
+        "frame-v1",
+        [TextField("ab"), TextField("c")],
+    )
+    assert kdf_frame("frame-v1", [TextField("7")]) != kdf_frame(
+        "frame-v1",
+        [U64Field(7)],
+    )
+    assert kdf_frame("frame-v1", [BytesField(b"7")]) != kdf_frame(
+        "frame-v1",
+        [TextField("7")],
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [-1, 2**64, True, 1.0, "7"],
+)
+def test_t3_s03_frame_rejects_invalid_u64(value: object) -> None:
+    with pytest.raises((TypeError, ValueError), match="(?i)(u64|integer|range)"):
+        kdf_frame("frame-v1", [U64Field(value)])  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "e\u0301",
+        "line\nbreak",
+        "join\u200der",
+        "private\ue000",
+        "unassigned\u0378",
+        "\ud800",
+    ],
+)
+def test_t3_s03_frame_rejects_noncanonical_or_category_c_text(value: str) -> None:
+    with pytest.raises(ValueError, match="(?i)(text|tag|unicode|nfc|category|empty)"):
+        kdf_frame("frame-v1", [TextField(value)])
+    with pytest.raises(ValueError, match="(?i)(text|tag|unicode|nfc|category|empty)"):
+        kdf_frame(value, [])
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        TextField(cast(str, b"text")),
+        BytesField(cast(bytes, bytearray(b"bytes"))),
+        object(),
+    ],
+)
+def test_t3_s03_frame_rejects_wrong_field_payload_or_variant(field: object) -> None:
+    with pytest.raises((TypeError, ValueError), match="(?i)(field|text|bytes|type)"):
+        kdf_frame("frame-v1", cast(Sequence[FrameField], [field]))
+
+
+def test_t3_s03_frame_rejects_non_string_tag_and_oversized_field_count() -> None:
+    with pytest.raises(TypeError, match="(?i)(tag|string)"):
+        kdf_frame(cast(str, b"frame-v1"), [])
+    with pytest.raises(ValueError, match="(?i)(field|count|32)"):
+        kdf_frame("frame-v1", _TooManyFields())
+
+
+def test_t3_s03_frame_rejects_sequence_that_lies_about_its_field_count() -> None:
+    with pytest.raises(ValueError, match="(?i)(field|count|sequence)"):
+        kdf_frame("frame-v1", _InconsistentFields())
+
+
+def test_t3_s03_frame_records_are_frozen_and_slotted() -> None:
+    values = [U64Field(7), TextField("text"), BytesField(b"bytes"), UniformDraw(1, 0)]
+    for value in values:
+        assert not hasattr(value, "__dict__")
+        with pytest.raises(FrozenInstanceError):
+            value.value = 2  # type: ignore[misc,union-attr]
+
+
+def test_t3_s03_commitment_known_answer_and_label_value_discrimination() -> None:
+    assert (
+        commitment_sha256("schedule-seed", "kat-study", U64Field(7))
+        == SCHEDULE_COMMITMENT
+    )
+    roster = commitment_sha256(
+        "roster-local-nonce",
+        "kat-study",
+        BytesField(bytes(range(32))),
+    )
+    master = commitment_sha256(
+        "assignment-master-key",
+        "kat-study",
+        BytesField(bytes(range(32))),
+    )
+    assert roster != master
+    assert len(roster) == len(master) == 64
+
+
+@pytest.mark.parametrize(
+    ("label", "value"),
+    [
+        ("schedule-seed", BytesField(b"\x00" * 32)),
+        ("roster-local-nonce", U64Field(7)),
+        ("assignment-master-key", U64Field(7)),
+        ("roster-local-nonce", BytesField(b"\x00" * 31)),
+        ("assignment-master-key", BytesField(b"\x00" * 33)),
+        ("unknown", BytesField(b"\x00" * 32)),
+    ],
+)
+def test_t3_s03_commitment_rejects_cross_label_or_wrong_width(
+    label: object,
+    value: object,
+) -> None:
+    with pytest.raises(
+        (TypeError, ValueError), match="(?i)(label|schedule|bytes|32|u64)"
+    ):
+        commitment_sha256(label, "study", value)  # type: ignore[arg-type]
+
+
+def test_t3_s03_derive_seed_matches_normative_vector() -> None:
+    assert derive_seed(7, "task-1", "prefix") == 15058118438168183076
+
+
+def test_t3_s03_hkdf_assignment_and_unblind_subkeys_match_normative_vectors() -> None:
+    master = bytearray(range(32))
+    assignment_keys = _AssignmentKeyBuffers()
+    unblind = bytearray(32)
+    _derive_assignment_subkeys_into(
+        memoryview(master),
+        "kat-study",
+        _manifest_ref(),
+        _schedule_ref(),
+        assignment_keys,
+    )
+    _derive_unblind_subkey_into(
+        memoryview(master),
+        "kat-study",
+        _manifest_ref(),
+        _schedule_ref(),
+        unblind,
+    )
+    assert assignment_keys.donor.hex() == SUBKEY_HEX["donor"]
+    assert assignment_keys.allocation.hex() == SUBKEY_HEX["allocation"]
+    assert assignment_keys.orientation.hex() == SUBKEY_HEX["orientation"]
+    assert assignment_keys.capability.hex() == SUBKEY_HEX["capability"]
+    assert unblind.hex() == SUBKEY_HEX["unblind"]
+
+
+def test_t3_s03_assignment_hkdf_extracts_once_and_expands_only_four_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pneuma_lab.resampling_null import assignment
+
+    original_new = assignment.hmac.new
+    messages: list[object] = []
+
+    def traced_new(key: object, message: object, digestmod: object) -> object:
+        messages.append(message)
+        return original_new(key, message, digestmod)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(assignment.hmac, "new", traced_new)
+    keys = _AssignmentKeyBuffers()
+    _derive_assignment_subkeys_into(
+        memoryview(bytearray(range(32))),
+        "kat-study",
+        _manifest_ref(),
+        _schedule_ref(),
+        keys,
+    )
+    assert len(messages) == 5
+    assert messages[1:] == [
+        kdf_frame("assignment-subkey-v1", [TextField(label)]) + b"\x01"
+        for label in ("donor", "allocation", "orientation", "capability")
+    ]
+
+
+@pytest.mark.parametrize(
+    "master_view",
+    [
+        memoryview(bytearray(33))[:32],
+        memoryview(bytearray(64))[16:48],
+    ],
+)
+def test_t3_s03_hkdf_requires_the_whole_exact_32_byte_master_buffer(
+    master_view: memoryview,
+) -> None:
+    with pytest.raises(ValueError, match="(?i)(master|mutable|32|view)"):
+        _derive_assignment_subkeys_into(
+            master_view,
+            "kat-study",
+            _manifest_ref(),
+            _schedule_ref(),
+            _AssignmentKeyBuffers(),
+        )
+
+
+def test_t3_s03_assignment_hkdf_wipes_partial_outputs_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pneuma_lab.resampling_null import assignment
+
+    original_new = assignment.hmac.new
+    call_count = 0
+
+    def failing_new(key: object, message: object, digestmod: object) -> object:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 3:
+            raise RuntimeError("injected derivation failure")
+        return original_new(key, message, digestmod)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(assignment.hmac, "new", failing_new)
+    keys = _AssignmentKeyBuffers()
+    with pytest.raises(RuntimeError, match="injected derivation failure"):
+        _derive_assignment_subkeys_into(
+            memoryview(bytearray(range(32))),
+            "kat-study",
+            _manifest_ref(),
+            _schedule_ref(),
+            keys,
+        )
+    assert all(
+        buffer == bytearray(32)
+        for buffer in (
+            keys.donor,
+            keys.allocation,
+            keys.orientation,
+            keys.capability,
+        )
+    )
+
+
+def test_t3_s03_assignment_hkdf_wipes_prk_after_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pneuma_lab.resampling_null import assignment
+
+    original_wipe = assignment._wipe_bytearray
+    wiped_buffers: list[bytearray] = []
+
+    def observed_wipe(buffer: bytearray) -> None:
+        wiped_buffers.append(buffer)
+        original_wipe(buffer)
+
+    monkeypatch.setattr(assignment, "_wipe_bytearray", observed_wipe)
+    _derive_assignment_subkeys_into(
+        memoryview(bytearray(range(32))),
+        "kat-study",
+        _manifest_ref(),
+        _schedule_ref(),
+        _AssignmentKeyBuffers(),
+    )
+    assert len(wiped_buffers) == 1
+    assert wiped_buffers[0] == bytearray(32)
+
+
+def test_t3_s03_assignment_hkdf_wipes_destinations_on_invalid_master() -> None:
+    keys = _AssignmentKeyBuffers()
+    for buffer in (
+        keys.donor,
+        keys.allocation,
+        keys.orientation,
+        keys.capability,
+    ):
+        buffer[:] = b"\xaa" * 32
+    with pytest.raises(ValueError, match="(?i)(master|mutable|32|view)"):
+        _derive_assignment_subkeys_into(
+            memoryview(bytearray(33))[:32],
+            "kat-study",
+            _manifest_ref(),
+            _schedule_ref(),
+            keys,
+        )
+    assert all(
+        buffer == bytearray(32)
+        for buffer in (
+            keys.donor,
+            keys.allocation,
+            keys.orientation,
+            keys.capability,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "corrupt_allocation",
+    [
+        bytearray(b"\xbb" * 31),
+        cast(bytearray, b"\xbb" * 32),
+    ],
+)
+def test_t3_s03_assignment_hkdf_rejects_corrupt_destinations_before_hmac(
+    monkeypatch: pytest.MonkeyPatch,
+    corrupt_allocation: bytearray,
+) -> None:
+    from pneuma_lab.resampling_null import assignment
+
+    def forbidden_new(key: object, message: object, digestmod: object) -> object:
+        raise AssertionError("HMAC must not run for a corrupt destination")
+
+    monkeypatch.setattr(assignment.hmac, "new", forbidden_new)
+    keys = _AssignmentKeyBuffers()
+    keys.donor[:] = b"\xaa" * 32
+    keys.allocation = corrupt_allocation
+    keys.orientation[:] = b"\xaa" * 32
+    keys.capability[:] = b"\xaa" * 32
+
+    with pytest.raises(ValueError, match="(?i)(destination|buffer|mutable|32)"):
+        _derive_assignment_subkeys_into(
+            memoryview(bytearray(range(32))),
+            "kat-study",
+            _manifest_ref(),
+            _schedule_ref(),
+            keys,
+        )
+
+    assert keys.donor == bytearray(32)
+    assert keys.orientation == bytearray(32)
+    assert keys.capability == bytearray(32)
+    if type(corrupt_allocation) is bytearray:
+        assert corrupt_allocation == bytearray(len(corrupt_allocation))
+
+
+def test_t3_s03_unblind_hkdf_extracts_once_and_expands_only_unblind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pneuma_lab.resampling_null import assignment
+
+    original_new = assignment.hmac.new
+    messages: list[object] = []
+
+    def traced_new(key: object, message: object, digestmod: object) -> object:
+        messages.append(message)
+        return original_new(key, message, digestmod)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(assignment.hmac, "new", traced_new)
+    destination = bytearray(32)
+    _derive_unblind_subkey_into(
+        memoryview(bytearray(range(32))),
+        "kat-study",
+        _manifest_ref(),
+        _schedule_ref(),
+        destination,
+    )
+    assert len(messages) == 2
+    assert messages[1] == (
+        kdf_frame("assignment-subkey-v1", [TextField("unblind")]) + b"\x01"
+    )
+    assert destination.hex() == SUBKEY_HEX["unblind"]
+
+
+def test_t3_s03_unblind_hkdf_wipes_destination_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pneuma_lab.resampling_null import assignment
+
+    original_new = assignment.hmac.new
+    call_count = 0
+
+    def failing_new(key: object, message: object, digestmod: object) -> object:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 2:
+            raise RuntimeError("injected unblind failure")
+        return original_new(key, message, digestmod)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(assignment.hmac, "new", failing_new)
+    destination = bytearray(b"\xaa" * 32)
+    with pytest.raises(RuntimeError, match="injected unblind failure"):
+        _derive_unblind_subkey_into(
+            memoryview(bytearray(range(32))),
+            "kat-study",
+            _manifest_ref(),
+            _schedule_ref(),
+            destination,
+        )
+    assert destination == bytearray(32)
+
+
+def test_t3_s03_unblind_hkdf_wipes_wrong_length_mutable_destination() -> None:
+    destination = bytearray(b"\xaa" * 31)
+    with pytest.raises(ValueError, match="(?i)(destination|mutable|32)"):
+        _derive_unblind_subkey_into(
+            memoryview(bytearray(range(32))),
+            "kat-study",
+            _manifest_ref(),
+            _schedule_ref(),
+            destination,
+        )
+    assert destination == bytearray(31)
+
+
+def test_t3_s03_uniform_draws_match_normative_vectors() -> None:
+    master = bytearray(range(32))
+    keys = _AssignmentKeyBuffers()
+    _derive_assignment_subkeys_into(
+        memoryview(master),
+        "kat-study",
+        _manifest_ref(),
+        _schedule_ref(),
+        keys,
+    )
+    allocation_frame = kdf_frame("allocation-v1", [TextField("task-1")])
+    orientation_frame = kdf_frame("orientation-v1", [TextField("task-1")])
+    assert uniform_below(keys.allocation, allocation_frame, 12) == UniformDraw(3, 0)
+    assert uniform_below(keys.orientation, orientation_frame, 2) == UniformDraw(0, 0)
+
+
+@pytest.mark.parametrize("upper", [0, -1, 2**64 + 1, True, 1.0, "2"])
+def test_t3_s03_uniform_rejects_invalid_upper_before_hmac(upper: object) -> None:
+    with pytest.raises(ValueError, match="(?i)(upper|integer|64)"):
+        uniform_below(bytearray(32), b"frame", upper)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "key",
+    [b"\x00" * 32, bytearray(31), bytearray(33), memoryview(bytearray(32))],
+)
+def test_t3_s03_uniform_requires_private_mutable_32_byte_key(key: object) -> None:
+    with pytest.raises(ValueError, match="(?i)(key|mutable|32)"):
+        uniform_below(key, b"frame", 2)  # type: ignore[arg-type]
+
+
+def test_t3_s03_uniform_rejection_path_is_counter_framed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pneuma_lab.resampling_null import assignment
+
+    values = iter([2**64 - 1, 5])
+    observed_frames: list[bytes] = []
+
+    class _FakeHmac:
+        def __init__(self, value: int) -> None:
+            self._value = value
+
+        def digest(self) -> bytes:
+            return self._value.to_bytes(8, "big") + b"\x00" * 24
+
+    def fake_new(key: object, message: bytes, digestmod: object) -> _FakeHmac:
+        assert type(key) is bytearray
+        assert digestmod is hashlib.sha256
+        observed_frames.append(message)
+        return _FakeHmac(next(values))
+
+    monkeypatch.setattr(assignment.hmac, "new", fake_new)
+    draw = uniform_below(bytearray(32), b"message-frame", 3)
+    assert draw == UniformDraw(value=2, counter=1)
+    assert observed_frames == [
+        kdf_frame(
+            "uniform-below-v1",
+            [BytesField(b"message-frame"), U64Field(0)],
+        ),
+        kdf_frame(
+            "uniform-below-v1",
+            [BytesField(b"message-frame"), U64Field(1)],
+        ),
+    ]
+
+
+@pytest.mark.parametrize("word_bits", range(1, 9))
+def test_t3_s03_rejection_arithmetic_is_exact_for_small_words(word_bits: int) -> None:
+    population = 1 << word_bits
+    for upper in range(1, population + 1):
+        limit = population - (population % upper)
+        assert limit % upper == 0
+        assert 0 <= population - limit < upper
+        residue_counts = [
+            sum(value % upper == residue for value in range(limit))
+            for residue in range(upper)
+        ]
+        assert residue_counts == [limit // upper] * upper
+
+
+def test_t3_s03_wipe_zeroes_application_owned_buffers() -> None:
+    buffer = bytearray(range(32))
+    _wipe_bytearray(buffer)
+    assert buffer == bytearray(32)
