@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from math import isfinite
 from pathlib import PurePosixPath
-from typing import cast
+from typing import Literal, cast
 
 
 class Arm(str, Enum):
@@ -24,6 +24,28 @@ class Treatment(str, Enum):
     REAL = "REAL"
     SHAM = "SHAM"
     NO_PACKET = "NO_PACKET"
+
+
+class TriggerReason(str, Enum):
+    """Closed reasons for freezing a packet-intervention opportunity."""
+
+    FIRST_ELIGIBLE_MUTATION = "first_eligible_mutation"
+    FOURTH_TOOL_CALL = "fourth_tool_call"
+    NO_INTERVENTION_OPPORTUNITY = "no_intervention_opportunity"
+
+
+class AssignmentMode(str, Enum):
+    """Closed study modes for donor assignment."""
+
+    SYNTHETIC = "synthetic_derangement"
+    CONFIRMATION = "confirmation_lineage_matching"
+
+
+class MatchingAlgorithm(str, Enum):
+    """Assignment algorithms permitted by each study mode."""
+
+    SYNTHETIC = "synthetic_cyclic_offset_v1"
+    CONFIRMATION = "exact_constrained_min_cost_v1"
 
 
 class GroupKind(str, Enum):
@@ -262,19 +284,29 @@ class FrozenVerifierReceipt:
 class TaskAssignment:
     task_id: str
     task_lineage: str
-    donor_task_id: str
-    donor_lineage: str
+    donor_match_kind: Literal["matched", "not_applicable_no_trigger"]
+    donor_task_id: str | None
+    donor_lineage: str | None
     slot_arms: tuple[tuple[str, Arm], ...]
     schedule_sha256: str
     prefix_index_sha256: str
 
     def __post_init__(self) -> None:
-        for name in ("task_id", "task_lineage", "donor_task_id", "donor_lineage"):
+        for name in ("task_id", "task_lineage"):
             _require_nonempty_string(getattr(self, name), name)
-        if self.task_id == self.donor_task_id:
-            raise ValueError("task_id and donor_task_id must differ")
-        if self.task_lineage == self.donor_lineage:
-            raise ValueError("task_lineage and donor_lineage must differ")
+        donor_match_kind = _require_nonempty_string(self.donor_match_kind, "donor_match_kind")
+        if donor_match_kind == "matched":
+            donor_task_id = _require_nonempty_string(self.donor_task_id, "donor_task_id")
+            donor_lineage = _require_nonempty_string(self.donor_lineage, "donor_lineage")
+            if self.task_id == donor_task_id:
+                raise ValueError("task_id and donor_task_id must differ")
+            if self.task_lineage == donor_lineage:
+                raise ValueError("task_lineage and donor_lineage must differ")
+        elif donor_match_kind == "not_applicable_no_trigger":
+            if self.donor_task_id is not None or self.donor_lineage is not None:
+                raise ValueError("not_applicable_no_trigger requires null donor fields")
+        else:
+            raise ValueError("donor_match_kind must be matched or not_applicable_no_trigger")
         if not isinstance(self.slot_arms, tuple):
             raise TypeError("slot_arms must be a tuple")
         if len(self.slot_arms) != 4:

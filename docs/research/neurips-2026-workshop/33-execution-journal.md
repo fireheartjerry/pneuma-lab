@@ -5257,3 +5257,2008 @@ exit "$neurips_exit"
   B is reported as terminal pending verification in the handoff.
 - `next_gate`: execute exactly the pre-recorded B mechanics; do not append an
   in-band self-referential result.
+### EJ-20260728-0169 — next-A opening receipt for journal-only commit B
+
+- `receipt_mode`: live terminal-mechanics receipt, now recorded as the required
+  opening receipt of the next substantive A.
+- `previous_event_id`: `EJ-20260728-0168`.
+- `occurred_at_local`: `2026-07-28T17:27:29-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:27:29+00:00`.
+- `actor`: Codex root agent.
+- `intent`: execute the exact pre-recorded journal-only B mechanics and bind
+  their actual result before any Task 3 slice command.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0169 from published EJ-0168 with the exact repaired
+  protocol.
+- `argv`: exactly the six ordered mechanics pre-recorded in EJ-0168, including
+  journal-only stage/commit, push, and remote equality assertion.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0169/stdout.log`.
+- `stdout_bytes`: `583`.
+- `stdout_sha256`:
+  `ec984fe6eede19a3efa899b9dd876d778f50a7878b05230604af93f9bcbc47f1`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0169/stderr.log`.
+- `stderr_bytes`: `110`.
+- `stderr_sha256`:
+  `381942040857840646339dd8f552d5a20ff1387b01e975d563be838bce961220`.
+- `result`: journal-only B
+  `02adc79bf924bae7165f40a76bb956befd4dbb6e` was created with parent A
+  `6d2dd2aaea6a6529e0dd30a6d911bf311fc447f8`; the committed diff assertion
+  found only `33-execution-journal.md`; push returned zero; and the in-command
+  `ls-remote` equality check observed B at
+  `refs/heads/codex/neurips-2026-empirical`.
+- `next_gate`: before any slice command, inspect all 583 stdout and 110 stderr
+  bytes and perform a new independent remote/ref observation.
+### EJ-20260728-0170 — next-A B verification GREEN
+
+- `receipt_mode`: live, single fail-fast aggregate receipt allocated by the
+  exact repaired allocator; complete B output and fresh remote result surfaced.
+- `previous_event_id`: `EJ-20260728-0169`.
+- `occurred_at_local`: `2026-07-28T17:28:17-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:28:17+00:00`.
+- `actor`: Codex root agent.
+- `intent`: satisfy the paired-receipt rule before the first Task 3 slice
+  command by completely inspecting B and independently re-observing the remote
+  ref.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0170 from published EJ-0169 with the exact repaired
+  protocol.
+- `argv`: complete EJ-0169 stdout/stderr inspection; `git rev-parse HEAD`;
+  fresh `git ls-remote --heads origin
+  refs/heads/codex/neurips-2026-empirical`; exact SHA and journal-only-worktree
+  assertions.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0170/stdout.log`.
+- `stdout_bytes`: `1083`.
+- `stdout_sha256`:
+  `24cbf28d2853611f2692179259d9b976d0258da7d5494b089bca82403af936d8`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0170/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN. All 583 B stdout bytes and 110 B stderr bytes were read;
+  local HEAD and the freshly observed remote ref both equal
+  `02adc79bf924bae7165f40a76bb956befd4dbb6e`; the pre-slice worktree contains
+  only this next-A journal receipt chain.
+- `next_gate`: Task 3 slice 1 opening authority/interpreter/dependency
+  provenance receipt, then exact ruff/mypy pin and lock bootstrap before RED.
+### EJ-20260728-0171 — Task 3 slice 1 opening provenance
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0170`.
+- `occurred_at_local`: `2026-07-28T17:29:27-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:29:27+00:00`.
+- `actor`: Codex root agent.
+- `intent`: bind slice-1 authority, HEAD/branch/worktree, exact owned-file
+  baselines, project interpreter, `uv` executable, and installed tool state
+  before dependency or source edits.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0171 from published EJ-0170 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` authority, Git, platform, binary, package, and
+  owned-file provenance assertions.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0171/stdout.log`.
+- `stdout_bytes`: `1429`.
+- `stdout_sha256`:
+  `402a8af5579a2b22ec7547a6bad1b9f8c88352db9c31d341ecfbe3319831f1dc`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0171/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN at B/remote-verified HEAD
+  `02adc79bf924bae7165f40a76bb956befd4dbb6e`; branch
+  `codex/neurips-2026-empirical`; journal-only worktree; exact DL-134 authority;
+  Python `3.12.3` at `.venv/bin/python` SHA-256
+  `1643dacd9feaedc58f3cc581e4d22577dfe25c09b10282936186ccf0f2e61118`;
+  `uv 0.11.32` at `/home/ubuntu/.local/bin/uv` SHA-256
+  `da15297d6879b2cfbe5ea3cb03725c1613d51ba72892cc996468d871f0a532fb`;
+  neither ruff nor mypy installed.
+- `owned_file_sha256_before`:
+  - `pyproject.toml`:
+    `ff70ee0b0ff067ce8e0ac13ecce1758739392c57b47979292ce67e7bf3d2b22b`;
+  - `uv.lock`:
+    `d3aab5ce1ad036a69af43b8a11ec1e9822dc04f04add1078cabb26b4eb7f98cd`;
+  - `types.py`:
+    `60f589d809aad564a7e88d408adb2b25b96a1e98ce0442e1f7416e056fe784e6`;
+  - `__init__.py`:
+    `9a2c2fe03f41abd9066deb2f94ed8d55927b9643aadb86ab565423926452685c`;
+  - `test_types.py`:
+    `07a9c7b6ce6cbbd41bb0896300f587e3ea1c74179c8c89b79e430022a9576089`.
+- `next_gate`: inspect the exact current dependency declarations and lock header
+  before applying only the authorized ruff/mypy pins.
+### EJ-20260728-0172 — slice-1 dependency-context inspection
+
+- `receipt_mode`: live, single fail-fast aggregate receipt allocated by the
+  exact repaired allocator; complete bounded source context surfaced.
+- `previous_event_id`: `EJ-20260728-0171`.
+- `occurred_at_local`: `2026-07-28T17:30:09-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:30:09+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect the complete current project declarations, lock header, and
+  existing project/ruff/mypy lock matches before editing the shared dependency
+  files.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0172 from published EJ-0171 with the exact repaired
+  protocol.
+- `argv`: complete `pyproject.toml`; first 80 lock lines; bounded project/ruff/
+  mypy lock matches.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0172/stdout.log`.
+- `stdout_bytes`: `8531`.
+- `stdout_sha256`:
+  `c3ecf00d5fc081d5329bdc740c288e790413e18deda4b0e8865f7e09cb38b495`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0172/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: current `dev` extra contains only lower-bounded pytest/jsonschema/
+  pyarrow; neither ruff nor mypy has a lock entry; lock revision is 3 for exact
+  Python 3.12.
+- `next_gate`: inspect the complete editable-project lock stanza, then apply the
+  two exact authorized pins.
+### EJ-20260728-0173 — editable-project lock-stanza inspection
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete bounded lock stanza surfaced.
+- `previous_event_id`: `EJ-20260728-0172`.
+- `occurred_at_local`: `2026-07-28T17:30:43-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:30:43+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect the complete current editable-project dependency/metadata
+  stanza before lock regeneration.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0173 from published EJ-0172 with the exact repaired
+  protocol.
+- `argv`: `sed -n 603,700p uv.lock`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0173/stdout.log`.
+- `stdout_bytes`: `8483`.
+- `stdout_sha256`:
+  `c60ffb87f8b2dc681afe22c7adeeeddc8b09943ea7e1e0f91af14907aeee18a8`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0173/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: current editable lock stanza confirms the three existing `dev`
+  dependencies and metadata; no ruff or mypy entry is present.
+- `next_gate`: add only `ruff==0.15.22` and `mypy==2.3.0` to `dev`, then verify
+  the exact declaration diff before resolving the lock.
+### EJ-20260728-0174 — exact ruff/mypy pin gate
+
+- `receipt_mode`: live, single fail-fast aggregate receipt allocated by the
+  exact repaired allocator; complete declaration diff surfaced.
+- `previous_event_id`: `EJ-20260728-0173`.
+- `occurred_at_local`: `2026-07-28T17:31:34-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:31:34+00:00`.
+- `actor`: Codex root agent.
+- `intent`: verify that the only dependency declaration change is the two exact
+  authorized tool pins and that `uv.lock` still has its baseline bytes before
+  resolution.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0174 from published EJ-0173 with the exact repaired
+  protocol.
+- `argv`: TOML exact-list assertion, baseline lock hash assertion, exact
+  two-path status assertion, and complete `pyproject.toml` diff.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0174/stdout.log`.
+- `stdout_bytes`: `1147`.
+- `stdout_sha256`:
+  `8d7620e0234c07b697ced0e764645891c16faf831c3db38a78b439f245e04c86`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0174/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN. `dev` is exactly jsonschema, `mypy==2.3.0`, pyarrow,
+  pytest, and `ruff==0.15.22`; new `pyproject.toml` SHA-256 is
+  `4a024fd2a2814248cae133f536e707d8f4bafd4cd365546ea20d9be32226985a`;
+  lock remains at baseline SHA-256 `d3aab5ce...`.
+- `next_gate`: run the authority-specified `uv lock --python 3.12`, retaining
+  complete resolver streams and the resulting lock digest.
+### EJ-20260728-0175 — Python-3.12 lock regeneration
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0174`.
+- `occurred_at_local`: `2026-07-28T17:32:12-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:32:12+00:00`.
+- `actor`: Codex root agent.
+- `intent`: regenerate `uv.lock` from the exact reviewed project declarations
+  under the bound Python 3.12 resolver.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0175 from published EJ-0174 with the exact repaired
+  protocol.
+- `argv`: `uv lock --python 3.12`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0175/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0175/stderr.log`.
+- `stderr_bytes`: `1603`.
+- `stderr_sha256`:
+  `6b27621a7d1a1c2de51ae27df8da4fb6f37f72564e2cafd1e9632c2c1a37747d`.
+- `result`: resolver returned zero and changed `uv.lock` from baseline
+  `d3aab5ce...` to SHA-256
+  `00dd9cd64e27e36147ad0af045f4183027687b3e2919f8b6c8944aa97cd0ab6a`;
+  complete resolver stderr remains to be inspected.
+- `next_gate`: inspect all 1603 resolver bytes, then audit the complete lock
+  delta and selected ruff/mypy artifacts.
+### EJ-20260728-0176 — complete lock-resolver output inspection
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; all resolver bytes surfaced.
+- `previous_event_id`: `EJ-20260728-0175`.
+- `occurred_at_local`: `2026-07-28T17:32:47-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:32:47+00:00`.
+- `actor`: Codex root agent.
+- `intent`: read every resolver byte before accepting the regenerated lock.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0176 from published EJ-0175 with the exact repaired
+  protocol.
+- `argv`: `sed -n 1,140p` over EJ-0175 stderr.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0176/stdout.log`.
+- `stdout_bytes`: `1603`.
+- `stdout_sha256`:
+  `6b27621a7d1a1c2de51ae27df8da4fb6f37f72564e2cafd1e9632c2c1a37747d`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0176/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: resolver added 60 previously absent packages and resolved 133
+  total, including exact mypy 2.3.0 and ruff 0.15.22. Cryptography 49.0.0 is
+  presently a transitive all-extras lock entry, not yet the slice-6 base
+  runtime declaration.
+- `next_gate`: require `uv lock --check --python 3.12` to pass on the exact
+  regenerated bytes.
+### EJ-20260728-0177 — frozen-lock check GREEN
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete 29-byte resolver output surfaced.
+- `previous_event_id`: `EJ-20260728-0176`.
+- `occurred_at_local`: `2026-07-28T17:33:27-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:33:27+00:00`.
+- `actor`: Codex root agent.
+- `intent`: prove the regenerated lock is current for exact Python 3.12 without
+  changing it.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0177 from published EJ-0176 with the exact repaired
+  protocol.
+- `argv`: `uv lock --check --python 3.12`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0177/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0177/stderr.log`.
+- `stderr_bytes`: `29`.
+- `stderr_sha256`:
+  `745bef78b79f5171f2fb0c46dad136da1a90020b0cc1191b89c3cea71b21dafa`.
+- `result`: GREEN, `Resolved 133 packages in 3ms`; `uv.lock` remained SHA-256
+  `00dd9cd64e27e36147ad0af045f4183027687b3e2919f8b6c8944aa97cd0ab6a`.
+- `next_gate`: install the exact frozen Python-3.12 `dev` environment.
+### EJ-20260728-0178 — frozen dev-environment synchronization
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0177`.
+- `occurred_at_local`: `2026-07-28T17:33:59-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:33:59+00:00`.
+- `actor`: Codex root agent.
+- `intent`: synchronize `.venv` to the exact frozen Python-3.12 `dev` lock,
+  including the two pinned slice tools.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0178 from published EJ-0177 with the exact repaired
+  protocol.
+- `argv`: `uv sync --frozen --python 3.12 --extra dev`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0178/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0178/stderr.log`.
+- `stderr_bytes`: `3146`.
+- `stderr_sha256`:
+  `e6e744b3951c175011a77ef5b87690a2ec9aa5d8c89e9e8297943b8304ec4f68`.
+- `result`: synchronization returned zero and did not change `uv.lock`; complete
+  installed/uninstalled package output remains to be inspected.
+- `next_gate`: inspect all 3146 synchronization bytes before accepting the
+  environment.
+### EJ-20260728-0179 — complete frozen-sync output inspection
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; all synchronization bytes surfaced.
+- `previous_event_id`: `EJ-20260728-0178`.
+- `occurred_at_local`: `2026-07-28T17:34:32-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:34:32+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect every package addition/removal from the frozen `dev`
+  synchronization before accepting the tool environment.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0179 from published EJ-0178 with the exact repaired
+  protocol.
+- `argv`: `sed -n 1,220p` over EJ-0178 stderr.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0179/stdout.log`.
+- `stdout_bytes`: `3146`.
+- `stdout_sha256`:
+  `e6e744b3951c175011a77ef5b87690a2ec9aa5d8c89e9e8297943b8304ec4f68`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0179/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: `uv` built the editable project, downloaded ruff/mypy/
+  ast-serialize, prepared and installed seven packages, and synchronized away
+  112 packages belonging to non-selected extras or the prior ambient
+  environment. Exact ruff 0.15.22 and mypy 2.3.0 are installed; foundation and
+  placebo extras are intentionally not selected by this `dev` command.
+- `next_gate`: run the exact bound ruff and mypy version commands separately,
+  then bind interpreter/distribution/artifact provenance.
+### EJ-20260728-0180 — bound ruff version
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete stdout surfaced.
+- `previous_event_id`: `EJ-20260728-0179`.
+- `occurred_at_local`: `2026-07-28T17:35:14-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:35:14+00:00`.
+- `actor`: Codex root agent.
+- `intent`: verify ruff through the exact project interpreter/module path.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0180 from published EJ-0179 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m ruff --version`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0180/stdout.log`.
+- `stdout_bytes`: `13`.
+- `stdout_sha256`:
+  `ab826482ac879ef0208d68e80363aa053ecfa116f001a9334f9a3d23abfc733b`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0180/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: exact output `ruff 0.15.22`.
+- `next_gate`: run the exact bound mypy version command.
+### EJ-20260728-0181 — bound mypy version
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete stdout surfaced.
+- `previous_event_id`: `EJ-20260728-0180`.
+- `occurred_at_local`: `2026-07-28T17:35:44-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:35:44+00:00`.
+- `actor`: Codex root agent.
+- `intent`: verify mypy through the exact project interpreter/module path.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0181 from published EJ-0180 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m mypy --version`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0181/stdout.log`.
+- `stdout_bytes`: `27`.
+- `stdout_sha256`:
+  `4324ecc2e3ffc44c620254f1a5c0cec85b7268d79bccf66e01c1527bf2c5aa20`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0181/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: exact output `mypy 2.3.0 (compiled: yes)`.
+- `next_gate`: run the plan's exact interpreter/version/executable-digest
+  assertion.
+### EJ-20260728-0182 — bound interpreter and tool assertion
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete stdout surfaced.
+- `previous_event_id`: `EJ-20260728-0181`.
+- `occurred_at_local`: `2026-07-28T17:36:17-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:36:17+00:00`.
+- `actor`: Codex root agent.
+- `intent`: execute the authority plan's exact interpreter path, package
+  version, Python version, Linux platform, and executable-digest assertion.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0182 from published EJ-0181 with the exact repaired
+  protocol.
+- `argv`: exact `.venv/bin/python -c` bootstrap assertion from the bound plan.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0182/stdout.log`.
+- `stdout_bytes`: `167`.
+- `stdout_sha256`:
+  `bfe310b2988657ec51aa3e19959d74b2b43b6123b9290171b2ea9277d4501180`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0182/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN: `.venv/bin/python`, Python 3.12.3, executable SHA-256
+  `1643dacd9feaedc58f3cc581e4d22577dfe25c09b10282936186ccf0f2e61118`,
+  ruff 0.15.22, mypy 2.3.0, Linux.
+- `next_gate`: bind locked compatible wheel filenames/digests and installed
+  distribution metadata for both tools.
+### EJ-20260728-0183 — locked-wheel and installed-distribution provenance
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0182`.
+- `occurred_at_local`: `2026-07-28T17:37:27-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:37:27+00:00`.
+- `actor`: Codex root agent.
+- `intent`: identify the exact compatible locked wheels and cryptographically
+  verify every SHA-256-bearing installed RECORD row for ruff and mypy.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0183 from published EJ-0182 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` TOML wheel-tag matching plus installed METADATA/
+  WHEEL/RECORD verification.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0183/stdout.log`.
+- `stdout_bytes`: `1832`.
+- `stdout_sha256`:
+  `0fd6050636edfe1f770607c112af0163e40f8d898a7013a1dcd5fea794e6aceb`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0183/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN.
+  - mypy wheel
+    `mypy-2.3.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl`,
+    locked SHA-256
+    `56c184d2c20ca6b6378d58d1960270a767f41f5e44acbbd27f05effef4f4e1d7`,
+    15,286,904 bytes; 1,470 installed RECORD hashes verified;
+  - ruff wheel
+    `ruff-0.15.22-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl`,
+    locked SHA-256
+    `365523eb91d9224e1bcb03b022fbf0facb8f9e23792a2c53d9d4b3924bdbdebb`,
+    11,399,422 bytes; 10 installed RECORD hashes verified;
+  - each distribution has only its self-referential unhashed RECORD row.
+- `lock_and_project_sha256`: `uv.lock`
+  `00dd9cd64e27e36147ad0af045f4183027687b3e2919f8b6c8944aa97cd0ab6a`;
+  `pyproject.toml`
+  `4a024fd2a2814248cae133f536e707d8f4bafd4cd365546ea20d9be32226985a`.
+- `next_gate`: semantically compare the regenerated lock to HEAD and fail on
+  any removal or mutation beyond the editable project metadata and exact
+  resolver additions.
+### EJ-20260728-0184 — first semantic lock-delta audit RED
+
+- `receipt_mode`: live, single-command captured negative receipt allocated by
+  the exact repaired allocator.
+- `previous_event_id`: `EJ-20260728-0183`.
+- `occurred_at_local`: `2026-07-28T17:38:40-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:38:40+00:00`.
+- `actor`: Codex root agent.
+- `intent`: require zero removed packages, zero changed existing nonproject
+  package objects, exact resolver/addition parity, and only authorized/current
+  editable-project metadata changes.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0184 from published EJ-0183 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` HEAD/current TOML semantic lock comparison.
+- `exit_code`: `1`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0184/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0184/stderr.log`.
+- `stderr_bytes`: `101`.
+- `stderr_sha256`:
+  `ca7475e6f684e4cfee5c4280596b147957e6d46d9070062f791da5bc9023817b`.
+- `result`: RED; exact failing assumption pending complete traceback
+  inspection. No lock byte was changed by the audit.
+- `next_gate`: inspect all 101 traceback bytes.
+### EJ-20260728-0185 — semantic-lock traceback inspection
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete traceback surfaced.
+- `previous_event_id`: `EJ-20260728-0184`.
+- `occurred_at_local`: `2026-07-28T17:39:29-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:39:29+00:00`.
+- `actor`: Codex root agent.
+- `intent`: identify the exact existing package object changed by lock
+  regeneration.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0185 from published EJ-0184 with the exact repaired
+  protocol.
+- `argv`: `sed -n 1,30p` over EJ-0184 stderr.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0185/stdout.log`.
+- `stdout_bytes`: `101`.
+- `stdout_sha256`:
+  `ca7475e6f684e4cfee5c4280596b147957e6d46d9070062f791da5bc9023817b`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0185/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: only existing package object `fsspec` changed; cause and field delta
+  remain unaccepted pending exact inspection.
+- `next_gate`: print the complete old/current `fsspec` lock objects and their
+  structural diff.
+### EJ-20260728-0186 — exact fsspec lock-delta inspection
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete old/current objects surfaced.
+- `previous_event_id`: `EJ-20260728-0185`.
+- `occurred_at_local`: `2026-07-28T17:40:02-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:40:02+00:00`.
+- `actor`: Codex root agent.
+- `intent`: determine whether `fsspec` changed version/artifacts or only gained
+  dependency-edge metadata required by newly restored extras.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0186 from published EJ-0185 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` complete HEAD/current `fsspec` object dump.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0186/stdout.log`.
+- `stdout_bytes`: `1958`.
+- `stdout_sha256`:
+  `de41dbf4a2eca2966e183f6e10fc7dcd4abb5f06d9b924350d152df52f8b0baf`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0186/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: version 2026.6.0, registry, sdist, wheel URL, size, upload time, and
+  both hashes are byte-identical. The sole delta is
+  `optional-dependencies.http = [{name = "aiohttp"}]`, required by the restored
+  all-extras dependency graph.
+- `next_gate`: rerun semantic lock acceptance allowing exactly that one
+  dependency-edge addition and no artifact mutation.
+### EJ-20260728-0187 — corrected semantic lock-delta audit RED
+
+- `receipt_mode`: negative, single-command captured receipt allocated by the
+  exact repaired allocator.
+- `previous_event_id`: `EJ-20260728-0186`.
+- `occurred_at_local`: `2026-07-28T17:40:56-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:40:56+00:00`.
+- `actor`: Codex root agent.
+- `intent`: rerun the semantic HEAD/current lock audit while allowing only the
+  exact, previously inspected `fsspec.optional-dependencies.http` edge.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0187 from published EJ-0186 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` HEAD/current TOML comparison with exact
+  `fsspec`, package-addition, project dependency, optional-extra, and
+  `requires-dist` assertions.
+- `exit_code`: `1`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0187/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0187/stderr.log`.
+- `stderr_bytes`: `93`.
+- `stderr_sha256`:
+  `e1ef847c01209d03dd3e36e895a07e0f9952531648d3e5a87604b6473f31adcd`.
+- `result`: RED; the exact remaining failing assumption is deliberately not
+  inferred from the exit code.
+- `next_gate`: inspect all 93 stderr bytes, then diagnose the named invariant
+  without weakening any unrelated assertion.
+### EJ-20260728-0188 — inspect complete EJ-0187 stderr
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; raw output surfaced intentionally for diagnosis.
+- `previous_event_id`: `EJ-20260728-0187`.
+- `occurred_at_local`: `2026-07-28T17:43:38-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:43:38+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect all 93 bytes of EJ-0187 stderr after independently
+  verifying its length and SHA-256.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0188 from published EJ-0187 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -c` read, length/hash assert, and byte-exact stdout
+  copy of `EJ-20260728-0187/stderr.log`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0188/stdout.log`.
+- `stdout_bytes`: `93`.
+- `stdout_sha256`:
+  `e1ef847c01209d03dd3e36e895a07e0f9952531648d3e5a87604b6473f31adcd`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0188/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: complete traceback inspected; the failing assertion was script
+  line 18 and carried diagnostic value `63`.
+- `next_gate`: run a labeled, read-only semantic diagnostic that maps value 63
+  to the precise lock invariant before changing the acceptance test.
+### EJ-20260728-0189 — label the remaining semantic lock delta
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; diagnostic stdout was surfaced for inspection.
+- `previous_event_id`: `EJ-20260728-0188`.
+- `occurred_at_local`: `2026-07-28T17:44:25-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:44:25+00:00`.
+- `actor`: Codex root agent.
+- `intent`: map EJ-0187's unlabeled value `63` to exact old/new lock objects,
+  package names, and project-metadata fields.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0189 from published EJ-0188 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` parse `git show HEAD:uv.lock` and working-tree
+  `uv.lock`, then emit labeled structural deltas.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0189/stdout.log`.
+- `stdout_bytes`: `4807`.
+- `stdout_sha256`:
+  `5358abe5efc8cb6c48f230763028e14b7ec47cac04570f3a0ccaa9ea7cc31451`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0189/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: old/new package counts are 70/133, so the failing value is the
+  exact added-package count: 63, not the previously assumed 60. There are zero
+  removals. Existing-object changes are exactly `fsspec` and `pneuma-lab`;
+  `fsspec` is the already accepted HTTP edge, while `pneuma-lab` exactly adds
+  pinned `mypy`/`ruff` to `dev` plus the pre-existing but formerly stale
+  `placebo = [evalplus]` extra. Base dependencies and `foundation` are
+  unchanged; `requires-dist` grows from 16 to the exact expected 19 entries.
+  The complete 63-name addition set and both project objects are retained in
+  raw stdout.
+- `next_gate`: rerun the semantic acceptance audit with the literal,
+  inspected 63-name set and exact two-object change policy; do not replace it
+  with a count-only assertion.
+### EJ-20260728-0190 — literal semantic lock acceptance audit RED
+
+- `receipt_mode`: negative, single-command captured receipt allocated by the
+  exact repaired allocator.
+- `previous_event_id`: `EJ-20260728-0189`.
+- `occurred_at_local`: `2026-07-28T17:45:53-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:45:53+00:00`.
+- `actor`: Codex root agent.
+- `intent`: accept only the literal 63-package addition set, zero removals,
+  exact `fsspec`/`pneuma-lab` object deltas, and exact source-project dev-pin
+  delta.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0190 from published EJ-0189 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` strict semantic HEAD/current TOML audit with
+  named assertions.
+- `exit_code`: `1`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0190/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0190/stderr.log`.
+- `stderr_bytes`: `122`.
+- `stderr_sha256`:
+  `d7adbf739fa16e3f72519cc686a5d0c54bfbffc02897abdd78c9232e52f78e50`.
+- `result`: RED at the named `lock top-level metadata changed` assertion.
+  Package-level assertions preceding it—including the literal 63-name set,
+  zero removals, and exact two changed existing objects—passed.
+- `next_gate`: inspect the complete non-package top-level old/current lock
+  objects and their structural delta; accept nothing by inference.
+### EJ-20260728-0191 — exact top-level lock-delta inspection
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete diagnostic stdout surfaced.
+- `previous_event_id`: `EJ-20260728-0190`.
+- `occurred_at_local`: `2026-07-28T17:46:29-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:46:29+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect every non-package top-level old/current lock field and emit
+  each unequal key.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0191 from published EJ-0190 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` complete non-package TOML object dump and
+  labeled key-level comparison.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0191/stdout.log`.
+- `stdout_bytes`: `661`.
+- `stdout_sha256`:
+  `1abd149912b8c6e87e32875c208855dea18d8192c27489cfd984a6701b383e7e`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0191/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: `version = 1`, `revision = 3`, and
+  `requires-python = "==3.12.*"` are unchanged. The only top-level addition is
+  the exact three-element `resolution-markers` partition for Windows,
+  Emscripten, and neither platform. No top-level value was removed or mutated.
+- `next_gate`: rerun the full strict semantic audit while allowing this exact
+  ordered marker partition and no other top-level delta.
+### EJ-20260728-0192 — strict semantic lock acceptance audit GREEN
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0191`.
+- `occurred_at_local`: `2026-07-28T17:47:36-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:47:36+00:00`.
+- `actor`: Codex root agent.
+- `intent`: prove the lock refresh contains exactly the fully inspected
+  dependency and metadata deltas and nothing else.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0192 from published EJ-0191 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` strict HEAD/current semantic TOML audit using a
+  literal 63-name package set, exact object reconstructions, exact ordered
+  resolution markers, and whole-`pyproject.toml` semantic equality.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0192/stdout.log`.
+- `stdout_bytes`: `196`.
+- `stdout_sha256`:
+  `9a68ec8f061fd83510b6422239cd6be6fed770eafd76464831138f776156b702`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0192/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN. Old/new package counts 70/133; exactly 63 literal
+  additions, zero removals, and exactly two changed existing objects
+  (`fsspec`, `pneuma-lab`). The sole top-level addition is the exact
+  three-marker resolution partition. The sole source-project semantic delta is
+  the two exact dev pins.
+- `next_gate`: retain and hash the complete raw textual `uv.lock` diff, then
+  inspect its compact statistics without emitting the diff by default.
+### EJ-20260728-0193 — retain complete textual uv.lock diff
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; compact receipt emitted and raw diff withheld by
+  default.
+- `previous_event_id`: `EJ-20260728-0192`.
+- `occurred_at_local`: `2026-07-28T17:48:12-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:48:12+00:00`.
+- `actor`: Codex root agent.
+- `intent`: preserve the byte-complete human-readable lock diff after semantic
+  acceptance without flooding the committed journal or routine tool output.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0193 from published EJ-0192 with the exact repaired
+  protocol.
+- `argv`: `git --no-pager diff --no-ext-diff --no-color -- uv.lock`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0193/stdout.log`.
+- `stdout_bytes`: `149877`.
+- `stdout_lines`: `1246`.
+- `stdout_sha256`:
+  `050e0e1d5d7a2acfeea60772a780ea8d6e4ec0c169af998bf5cc296ce21f94be`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0193/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: complete diff retained locally with 975 addition lines and one
+  deletion line. Semantic meaning is governed by EJ-0192; this receipt binds
+  the exact textual representation.
+- `next_gate`: run whitespace validation for the bootstrap diff, then inspect
+  the exact Slice 1 authority and current type/test surfaces before writing
+  the TDD RED test.
+### EJ-20260728-0194 — bootstrap diff whitespace gate GREEN
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0193`.
+- `occurred_at_local`: `2026-07-28T17:48:43-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:48:43+00:00`.
+- `actor`: Codex root agent.
+- `intent`: reject whitespace errors anywhere in the current working-tree
+  patch before beginning the Slice 1 TDD edit.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0194 from published EJ-0193 with the exact repaired
+  protocol.
+- `argv`: `git diff --check`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0194/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0194/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; no whitespace errors.
+- `next_gate`: inspect the exact Slice 1 authority plus the complete current
+  `types.py`, package exports, and type tests; only then write the named RED
+  test.
+### EJ-20260728-0195 — locate Slice 1 authority
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; search output surfaced for inspection.
+- `previous_event_id`: `EJ-20260728-0194`.
+- `occurred_at_local`: `2026-07-28T17:49:15-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:49:15+00:00`.
+- `actor`: Codex root agent.
+- `intent`: locate every plan reference that identifies Slice 1 files, test
+  token, focused command, and commit boundary.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0195 from published EJ-0194 with the exact repaired
+  protocol.
+- `argv`: `rg -n 'Slice 1|t3_s01|pin task 3 tools and types|resampling_null/types\\.py' docs/superpowers docs/research -g '*.md'`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0195/stdout.log`.
+- `stdout_bytes`: `3268`.
+- `stdout_sha256`:
+  `34ea32f1f69d238e3cd4a4b00159652a046f6c38b5207ac576ddc64f6e8b2593`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0195/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: the binding plan is
+  `docs/superpowers/plans/2026-07-28-resampling-null-core.md`; its first task
+  begins near line 84, its global slice-test naming rule is at line 954, and
+  the exact Slice 1 row is at line 979.
+- `next_gate`: inspect the complete first-task specification and execution
+  contract, then inspect the complete current Slice 1 code/test surfaces.
+### EJ-20260728-0196 — inspect binding Slice 1 authority
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; selected authority ranges surfaced in full.
+- `previous_event_id`: `EJ-20260728-0195`.
+- `occurred_at_local`: `2026-07-28T17:49:52-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:49:52+00:00`.
+- `actor`: Codex root agent.
+- `intent`: reread the complete core-record specification and the Task-3
+  bootstrap/slice execution contract immediately before the Slice 1 test edit.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0196 from published EJ-0195 with the exact repaired
+  protocol.
+- `argv`: `sed -n '1,290p;930,1005p' docs/superpowers/plans/2026-07-28-resampling-null-core.md`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0196/stdout.log`.
+- `stdout_bytes`: `17247`.
+- `stdout_lines`: `366`.
+- `stdout_sha256`:
+  `ce8b98b2dcae64fc2e9c58ef553a69771b5cd202ec2bcbee577172f8f3fec95e`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0196/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: authority confirms the stable records/invariants, exact frozen
+  tuple requirements, assignment ancestry rules, `t3_s01` naming, identical
+  focused RED/GREEN command, static gates, exclusive files, and intended
+  Slice 1 commit.
+- `next_gate`: inspect every byte of current `types.py`, `__init__.py`, and
+  `test_types.py`, plus their hashes, before designing the minimal new RED
+  assertions.
+### EJ-20260728-0197 — inspect complete current Slice 1 code/test surfaces
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete source and test contents surfaced.
+- `previous_event_id`: `EJ-20260728-0196`.
+- `occurred_at_local`: `2026-07-28T17:50:33-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:50:33+00:00`.
+- `actor`: Codex root agent.
+- `intent`: read every byte of the three current Slice 1 code/test surfaces and
+  bind their pre-edit sizes, line counts, and digests.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0197 from published EJ-0196 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` byte-read and labeled complete emission of
+  `types.py`, package `__init__.py`, and `test_types.py`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0197/stdout.log`.
+- `stdout_bytes`: `25772`.
+- `stdout_lines`: `695`.
+- `stdout_sha256`:
+  `89d52b3958ba36377f5dd6978b679de83780e59fd451e88af3447d8f548fa930`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0197/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: current sizes/lines/digests are `types.py`
+  10,931/298/`60f589d809aad564a7e88d408adb2b25b96a1e98ce0442e1f7416e056fe784e6`,
+  `__init__.py`
+  599/35/`9a2c2fe03f41abd9066deb2f94ed8d55927b9643aadb86ab565423926452685c`,
+  and `test_types.py`
+  13,635/356/`07a9c7b6ce6cbbd41bb0896300f587e3ea1c74179c8c89b79e430022a9576089`.
+  The original Task-1 records are already implemented and tested; Slice 1 must
+  add only the Task-3 amendment surface.
+- `next_gate`: inspect the Task-3 type-amendment authority immediately
+  preceding the slice execution table; do not mistake the already-green
+  original Task-1 contract for the new `t3_s01` target.
+### EJ-20260728-0198 — inspect Task-3 preamble and logging authority
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete selected authority range surfaced.
+- `previous_event_id`: `EJ-20260728-0197`.
+- `occurred_at_local`: `2026-07-28T17:51:10-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:51:10+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect Task 3's complete file scope, slicing mandate, evidence
+  contract, allocator protocol, raw-retention rule, paired delivery protocol,
+  and bootstrap preconditions.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0198 from published EJ-0197 with the exact repaired
+  protocol.
+- `argv`: `sed -n '760,935p' docs/superpowers/plans/2026-07-28-resampling-null-core.md`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0198/stdout.log`.
+- `stdout_bytes`: `9963`.
+- `stdout_lines`: `176`.
+- `stdout_sha256`:
+  `49c1e2ac1c5a617a0e7a9ef436bbb3fb9bf84efc0f398b8440deeb3f1970229a`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0198/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: the preamble confirms the current allocator/receipt/delivery
+  protocol and Slice 1 bootstrap order, but the concrete Task-3 type amendment
+  lies later in the detailed implementation steps.
+- `next_gate`: locate the detailed Task-3 step headings and type declarations,
+  then read the exact governing range before editing tests.
+### EJ-20260728-0199 — map Task-3 detailed implementation authority
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; search output surfaced.
+- `previous_event_id`: `EJ-20260728-0198`.
+- `occurred_at_local`: `2026-07-28T17:51:46-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:51:46+00:00`.
+- `actor`: Codex root agent.
+- `intent`: locate every detailed Task-3 step and declared type, including the
+  reconciled secret-store and crash-decidable storage transaction records.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0199 from published EJ-0198 with the exact repaired
+  protocol.
+- `argv`: `rg -n '^## Task|^### Step|^class [A-Za-z]|^@dataclass|StorageTransactionIntent|StoragePublicationCommit|AssignmentSecret' docs/superpowers/plans/2026-07-28-resampling-null-core.md`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0199/stdout.log`.
+- `stdout_bytes`: `12987`.
+- `stdout_sha256`:
+  `1265516dff708b470b9ebcbbe8104e62d177fa6709e1141346dfc533625810af`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0199/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: Task-3 failing-test authority begins at line 1038, derivation core
+  at 1235, and typed-view/storage transaction declarations at 1449. Later
+  changes to `types.py` are separately owned by Slice 7, so Slice 1 must be
+  separated from those later storage/power additions.
+- `next_gate`: inspect the complete Task-3 failing-test specification and
+  relevant type-declaration range, then identify the exact Slice 1-only record
+  delta.
+### EJ-20260728-0200 — inspect Task-3 failure contract and typed records
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete selected ranges surfaced.
+- `previous_event_id`: `EJ-20260728-0199`.
+- `occurred_at_local`: `2026-07-28T17:52:20-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:52:20+00:00`.
+- `actor`: Codex root agent.
+- `intent`: read every Task-3 adversarial test requirement and the complete
+  initial stable-record block through storage leases.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0200 from published EJ-0199 with the exact repaired
+  protocol.
+- `argv`: `sed -n '1038,1226p;1449,1705p' docs/superpowers/plans/2026-07-28-resampling-null-core.md`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0200/stdout.log`.
+- `stdout_bytes`: `20757`.
+- `stdout_lines`: `446`.
+- `stdout_sha256`:
+  `9015f2813d9982b33c2fe5d059d639d102107ff285b642089bd4045ac5fa0786`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0200/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: authority names three closed assignment-control enums before the
+  later storage records: `TriggerReason`, `AssignmentMode`, and
+  `MatchingAlgorithm`. It also confirms the storage intent/publication split
+  belongs to later Slice 7 governance. The precise ownership of the expanded
+  schedule/assignment records still requires inspection before Slice 1 is
+  reduced to those enums.
+- `next_gate`: inspect the remaining Task-3 record block and nearby prose for
+  module/ownership boundaries; then formulate the smallest `t3_s01` public
+  type contract that does not pre-implement later slices.
+### EJ-20260728-0201 — inspect remaining Task-3 stable record shapes
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete selected authority range surfaced.
+- `previous_event_id`: `EJ-20260728-0200`.
+- `occurred_at_local`: `2026-07-28T17:53:09-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:53:09+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect the stable record block from storage leases through
+  schedule selection, focusing on shapes that amend existing `types.py`.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0201 from published EJ-0200 with the exact repaired
+  protocol.
+- `argv`: `sed -n '1690,1975p' docs/superpowers/plans/2026-07-28-resampling-null-core.md`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0201/stdout.log`.
+- `stdout_bytes`: `7795`.
+- `stdout_lines`: `286`.
+- `stdout_sha256`:
+  `969001e5754499d196eff2d21a2f9f4ab4f7cee61feacd0fe8c63d10ce50ee36`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0201/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: Slice 1's existing-type amendment is now identified: add the three
+  closed enums and replace `TaskAssignment`'s unconditional donor ancestry
+  with the final discriminated shape
+  `donor_match_kind` plus nullable donor ID/lineage. Later matching, schedule,
+  lease, and ledger records live in later slice-owned modules.
+- `next_gate`: locate every normative statement governing
+  `donor_match_kind`/no-trigger validation and enum values, then encode that
+  contract in named `t3_s01` tests only.
+### EJ-20260728-0202 — bind Slice 1 discriminator and enum invariants
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; targeted authority context surfaced.
+- `previous_event_id`: `EJ-20260728-0201`.
+- `occurred_at_local`: `2026-07-28T17:53:54-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:53:54+00:00`.
+- `actor`: Codex root agent.
+- `intent`: collect every plan/design statement that normatively fixes the
+  three enum vocabularies and `TaskAssignment` donor discriminator.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0202 from published EJ-0201 with the exact repaired
+  protocol.
+- `argv`: `rg -n -C 3 'donor_match_kind|not_applicable_no_trigger|class TriggerReason|class AssignmentMode|class MatchingAlgorithm' docs/superpowers/plans/2026-07-28-resampling-null-core.md docs/superpowers/specs -g '*.md'`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0202/stdout.log`.
+- `stdout_bytes`: `9826`.
+- `stdout_lines`: `93`.
+- `stdout_sha256`:
+  `6cbecae92e328fa96174bf6be342935b5238ba623d5f39a64173e26f096239d2`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0202/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: both plan and design agree: the discriminator is mandatory;
+  `matched` requires both donor fields non-null and distinct from focal
+  ID/lineage; `not_applicable_no_trigger` requires both null; null alone never
+  implies the arm. Enum names, order, and values are exact.
+- `next_gate`: write only the named Slice 1 tests and helper-signature update,
+  bind the test-only diff hash, then execute the exact focused command and
+  require RED for the missing public type contract.
+### EJ-20260728-0203 — bind Slice 1 test-only edit
+
+- `receipt_mode`: live, fail-closed aggregate inspection allocated by the exact
+  repaired allocator; compact output surfaced and full diff retained only in
+  Git's working tree.
+- `previous_event_id`: `EJ-20260728-0202`.
+- `occurred_at_local`: `2026-07-28T17:55:24-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:55:24+00:00`.
+- `actor`: Codex root agent.
+- `intent`: verify the preceding `apply_patch` changed only the type-test
+  contract, introduced all four named `t3_s01` tests, and contains no
+  whitespace error before RED.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0203 from published EJ-0202 with the exact repaired
+  protocol.
+- `edit_tool`: `apply_patch`.
+- `touched_file`: `tests/resampling_null/test_types.py`.
+- `before_sha256`:
+  `07a9c7b6ce6cbbd41bb0896300f587e3ea1c74179c8c89b79e430022a9576089`.
+- `after_sha256`:
+  `8bd1e940708669233a6b21a4bfe4b2ace60200cdb67b0ff0775cc042e5445344`.
+- `after_bytes`: `16204`; `after_lines`: `426`.
+- `argv`: `.venv/bin/python -` atomic file hash, scoped `git diff --check`,
+  scoped textual diff hashing, and four test-token assertions.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0203/stdout.log`.
+- `stdout_bytes`: `412`.
+- `stdout_sha256`:
+  `6955a066ac72da096d7d02683e9e241d4007acd02d2b9f7eb36b8559e1d104eb`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0203/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN edit audit. The 3,825-byte/106-line test diff has SHA-256
+  `4844ea72bec99b7183744814d7af85a094539c65b6fee1e72713471727c27dc4`;
+  it adds four `t3_s01` contracts and no production edit.
+- `next_gate`: execute exactly
+  `.venv/bin/python -m pytest tests/resampling_null/test_types.py -q -k t3_s01`
+  and require a missing-public-type RED, not an unrelated environment failure.
+### EJ-20260728-0204 — Slice 1 focused RED
+
+- `receipt_mode`: decisive negative test receipt allocated by the exact
+  repaired allocator; complete decisive stdout surfaced and retained.
+- `previous_event_id`: `EJ-20260728-0203`.
+- `occurred_at_local`: `2026-07-28T17:56:02-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:56:02+00:00`.
+- `actor`: Codex root agent.
+- `intent`: prove the new Slice 1 tests fail against unchanged production code
+  for the intended missing public contract.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0204 from published EJ-0203 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m pytest tests/resampling_null/test_types.py -q -k t3_s01`.
+- `exit_code`: `2`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0204/stdout.log`.
+- `stdout_bytes`: `1036`.
+- `stdout_sha256`:
+  `6c709cc4ae7846f7c119b3ee5ccd6692467d76e942ee7b00fc373f7ab22bb3e6`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0204/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: intended RED during collection:
+  `ImportError: cannot import name 'AssignmentMode' from
+  'pneuma_lab.resampling_null'`. This is the exact absent stable public type,
+  not a dependency, interpreter, or environment failure.
+- `next_gate`: search all current `TaskAssignment` construction sites so the
+  mandatory discriminator change can be implemented without silently breaking
+  an out-of-slice consumer; then make the minimal production edit.
+### EJ-20260728-0205 — audit current TaskAssignment construction sites
+
+- `receipt_mode`: live, single-command captured receipt allocated by the exact
+  repaired allocator; complete one-line result surfaced.
+- `previous_event_id`: `EJ-20260728-0204`.
+- `occurred_at_local`: `2026-07-28T17:56:43-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:56:43+00:00`.
+- `actor`: Codex root agent.
+- `intent`: enumerate every current source/test constructor call before adding
+  a mandatory `TaskAssignment` field.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0205 from published EJ-0204 with the exact repaired
+  protocol.
+- `argv`: `rg -n 'TaskAssignment\\(' src tests`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0205/stdout.log`.
+- `stdout_bytes`: `102`; `stdout_lines`: `1`.
+- `stdout_sha256`:
+  `8e1ef8feb8c36c7b157f166414e4ed7f05fd7d52deffdf4358a57b2ffb6c76f1`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0205/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: the sole current constructor is the Slice 1-owned helper already
+  updated in `test_types.py`; there is no hidden source or out-of-slice test
+  caller requiring compatibility shims.
+- `next_gate`: minimally add the three enums, exact discriminated assignment
+  fields/validation, and public exports; then bind only those two production
+  file diffs before rerunning the identical focused command.
+### EJ-20260728-0206 — bind minimal Slice 1 production edit
+
+- `receipt_mode`: live, fail-closed aggregate inspection allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0205`.
+- `occurred_at_local`: `2026-07-28T17:57:54-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:57:54+00:00`.
+- `actor`: Codex root agent.
+- `intent`: verify the preceding `apply_patch` touched exactly the two
+  Slice 1 production surfaces and contains the required minimal tokens with no
+  whitespace error.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0206 from published EJ-0205 with the exact repaired
+  protocol.
+- `edit_tool`: `apply_patch`.
+- `touched_files`:
+  `src/pneuma_lab/resampling_null/types.py`,
+  `src/pneuma_lab/resampling_null/__init__.py`.
+- `types_before_sha256`:
+  `60f589d809aad564a7e88d408adb2b25b96a1e98ce0442e1f7416e056fe784e6`.
+- `types_after_sha256`:
+  `a686bf697051294cdf9d7967585a64753d4a4f6f5db3fbc6e47314ad35ed4cf6`;
+  12,298 bytes/330 lines.
+- `init_before_sha256`:
+  `9a2c2fe03f41abd9066deb2f94ed8d55927b9643aadb86ab565423926452685c`.
+- `init_after_sha256`:
+  `dc3f9ec1a6ba5137f1f8453e2015cfbb66e115e1887d3c73a688801d6fbcaa91`;
+  729 bytes/41 lines.
+- `argv`: `.venv/bin/python -` atomic scoped diff check, two file hashes,
+  scoped textual diff hash, and exact required-token assertions.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0206/stdout.log`.
+- `stdout_bytes`: `665`.
+- `stdout_sha256`:
+  `4fce430ccfff01df5b8575d10f62f802fb411c2f65a256ee683202f8c6fbf261`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0206/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN edit audit. The 4,180-byte/123-line scoped production diff
+  has SHA-256
+  `b86f99f816adfde16fd523cbf1d7efebbaa72e1827cd47da838b9a89c6deec54`;
+  it adds the three enums, discriminator validation, and exports only.
+- `next_gate`: rerun the byte-identical focused pytest argv from EJ-0204 and
+  require GREEN.
+### EJ-20260728-0207 — Slice 1 focused GREEN
+
+- `receipt_mode`: live positive test receipt allocated by the exact repaired
+  allocator.
+- `previous_event_id`: `EJ-20260728-0206`.
+- `occurred_at_local`: `2026-07-28T17:58:33-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:58:33+00:00`.
+- `actor`: Codex root agent.
+- `intent`: prove the minimal production edit satisfies the exact focused test
+  command that produced EJ-0204 RED.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0207 from published EJ-0206 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m pytest tests/resampling_null/test_types.py -q -k t3_s01`.
+- `argv_identity`: byte-identical task argv to EJ-0204.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0207/stdout.log`.
+- `stdout_bytes`: `113`.
+- `stdout_sha256`:
+  `d2b8d4e73bf0e095f10c90fa3a70febb636e8d827851162b902012e1900f99d4`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0207/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; 9 passed, 78 deselected in 0.11 seconds.
+- `next_gate`: run the plan-mandated full-package Ruff gate with the
+  bootstrap-bound module invocation.
+### EJ-20260728-0208 — Slice 1 Ruff gate GREEN
+
+- `receipt_mode`: live static-analysis receipt allocated by the exact repaired
+  allocator.
+- `previous_event_id`: `EJ-20260728-0207`.
+- `occurred_at_local`: `2026-07-28T17:59:05-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:59:05+00:00`.
+- `actor`: Codex root agent.
+- `intent`: execute the plan-mandated Ruff gate across the entire
+  resampling-null source and test packages.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0208 from published EJ-0207 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m ruff check src/pneuma_lab/resampling_null tests/resampling_null`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0208/stdout.log`.
+- `stdout_bytes`: `19`.
+- `stdout_sha256`:
+  `82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0208/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; `All checks passed!`.
+- `next_gate`: run the plan-mandated full-package mypy gate with the
+  bootstrap-bound module invocation.
+### EJ-20260728-0209 — Slice 1 mypy gate GREEN
+
+- `receipt_mode`: live static-analysis receipt allocated by the exact repaired
+  allocator.
+- `previous_event_id`: `EJ-20260728-0208`.
+- `occurred_at_local`: `2026-07-28T17:59:35-07:00`.
+- `occurred_at_utc`: `2026-07-29T00:59:35+00:00`.
+- `actor`: Codex root agent.
+- `intent`: execute the plan-mandated mypy gate across the entire
+  resampling-null source package.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0209 from published EJ-0208 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m mypy --ignore-missing-imports src/pneuma_lab/resampling_null`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0209/stdout.log`.
+- `stdout_bytes`: `43`.
+- `stdout_sha256`:
+  `8228fcc5ce46d42d01caf3cd941f4e9c5f2bcc372bb5b147a2f0572d2dd675a8`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0209/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; no issues in three source files.
+- `next_gate`: run the complete unfiltered type-record test file so the new
+  mandatory discriminator cannot regress the 78 pre-existing cases excluded
+  by the focused gate.
+### EJ-20260728-0210 — complete type-record suite GREEN
+
+- `receipt_mode`: live regression-test receipt allocated by the exact repaired
+  allocator.
+- `previous_event_id`: `EJ-20260728-0209`.
+- `occurred_at_local`: `2026-07-28T18:00:07-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:00:07+00:00`.
+- `actor`: Codex root agent.
+- `intent`: run every type-record test, including all pre-Slice-1 invariants,
+  after making the donor discriminator mandatory.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0210 from published EJ-0209 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m pytest tests/resampling_null/test_types.py -q`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0210/stdout.log`.
+- `stdout_bytes`: `179`.
+- `stdout_sha256`:
+  `4de4703e0ca936a695da10230ba8e1155dac648eec52cb0d778e01d582343db3`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0210/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; 87 passed in 0.17 seconds.
+- `next_gate`: perform a hostile, line-level Slice 1 diff review against the
+  literal plan/design invariants, including annotations, exports, branch
+  completeness, and tests that could pass for the wrong reason.
+### EJ-20260728-0211 — hostile line-level Slice 1 review
+
+- `receipt_mode`: live review receipt allocated by the exact repaired
+  allocator; complete non-lock substantive diff surfaced and retained.
+- `previous_event_id`: `EJ-20260728-0210`.
+- `occurred_at_local`: `2026-07-28T18:01:03-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:01:03+00:00`.
+- `actor`: Codex root agent acting as maximally hostile reviewer.
+- `intent`: inspect every changed line outside the generated lock/journal and
+  try to falsify the Slice 1 contract rather than merely restate green tests.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0211 from published EJ-0210 with the exact repaired
+  protocol.
+- `argv`: `git --no-pager diff --no-ext-diff --no-color -- pyproject.toml src/pneuma_lab/resampling_null/types.py src/pneuma_lab/resampling_null/__init__.py tests/resampling_null/test_types.py`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0211/stdout.log`.
+- `stdout_bytes`: `8692`; `stdout_lines`: `248`.
+- `stdout_sha256`:
+  `fd517c288bdb8ddeb52de63dc4de7e17150b58243a9b6fdf1e617a5120a46fba`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0211/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `review_findings`:
+  1. **MODERATE / valid:** the public-shape test proves dataclass field names
+     but not the authority-required exact `Literal` discriminator or nullable
+     donor annotations. An implementation could weaken all three annotations
+     to `object` and remain green.
+  2. **LOW / valid:** invalid-discriminator coverage tests one unknown string
+     but not empty, null, boolean, or numeric impostors; current implementation
+     rejects them, but the claim is under-tested.
+  3. **NO FINDING:** enum order/value, public imports, matched/N/A runtime
+     coherence, no compatibility default, dev pins, and source edit scope match
+     authority.
+- `disposition`: repair both valid findings in Slice 1 tests before broader
+  verification; no production expansion required.
+- `next_gate`: add exact type-hint assertions and discriminator type/emptiness
+  adversaries, bind the review-repair diff, then rerun focused/full/static
+  gates.
+### EJ-20260728-0212 — bind hostile-review test repair
+
+- `receipt_mode`: live, fail-closed repair inspection allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0211`.
+- `occurred_at_local`: `2026-07-28T18:02:21-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:02:21+00:00`.
+- `actor`: Codex root agent.
+- `intent`: verify the preceding `apply_patch` closes both EJ-0211 findings
+  without changing production code.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0212 from published EJ-0211 with the exact repaired
+  protocol.
+- `edit_tool`: `apply_patch`.
+- `touched_file`: `tests/resampling_null/test_types.py`.
+- `review_repair_before_sha256`:
+  `8bd1e940708669233a6b21a4bfe4b2ace60200cdb67b0ff0775cc042e5445344`.
+- `review_repair_after_sha256`:
+  `c2d41be45aab46f0a5509d0ade378cbda1c3293bb8c24433c1bf776837459b74`;
+  16,599 bytes/434 lines.
+- `argv`: `.venv/bin/python -` scoped diff check/hash plus exact annotation and
+  invalid-discriminator token assertions.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0212/stdout.log`.
+- `stdout_bytes`: `472`.
+- `stdout_sha256`:
+  `75f08079a897880e18e685d3c2c19e98ee3fdd467c6dd260507f67185d81bc79`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0212/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN repair audit. Three exact type-hint assertions and four
+  additional empty/null/bool/int discriminator adversaries are present. The
+  complete current test diff is 4,437 bytes/122 lines with SHA-256
+  `5613bf2b62e450081ce114616e9dc4a54ad6771eb7dc210cc330c1dc437200ca`.
+- `next_gate`: rerun the exact focused Slice 1 command after review repair.
+### EJ-20260728-0213 — post-review focused Slice 1 GREEN
+
+- `receipt_mode`: live positive test receipt allocated by the exact repaired
+  allocator.
+- `previous_event_id`: `EJ-20260728-0212`.
+- `occurred_at_local`: `2026-07-28T18:03:02-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:03:02+00:00`.
+- `actor`: Codex root agent.
+- `intent`: reverify the exact focused Slice 1 command after hostile-review
+  test hardening.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0213 from published EJ-0212 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m pytest tests/resampling_null/test_types.py -q -k t3_s01`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0213/stdout.log`.
+- `stdout_bytes`: `114`.
+- `stdout_sha256`:
+  `37fdaefdcdb87341bbcb816fa743ad3fd81f699e0a7e4ced127c745b9576b116`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0213/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; 13 passed, 78 deselected in 0.13 seconds.
+- `next_gate`: rerun the complete unfiltered type-record file after the review
+  repair.
+### EJ-20260728-0214 — post-review complete type suite GREEN
+
+- `receipt_mode`: live regression-test receipt allocated by the exact repaired
+  allocator.
+- `previous_event_id`: `EJ-20260728-0213`.
+- `occurred_at_local`: `2026-07-28T18:03:36-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:03:36+00:00`.
+- `actor`: Codex root agent.
+- `intent`: rerun every type-record test after hostile-review repair.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0214 from published EJ-0213 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m pytest tests/resampling_null/test_types.py -q`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0214/stdout.log`.
+- `stdout_bytes`: `179`.
+- `stdout_sha256`:
+  `8a71bcaed892e8e4980e1057ef2ea023ebcfba34c36cac40328e7533c1c78336`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0214/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; 91 passed in 0.16 seconds.
+- `next_gate`: rerun Ruff after review repair.
+### EJ-20260728-0215 — post-review Ruff gate GREEN
+
+- `receipt_mode`: live static-analysis receipt allocated by the exact repaired
+  allocator.
+- `previous_event_id`: `EJ-20260728-0214`.
+- `occurred_at_local`: `2026-07-28T18:04:09-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:04:09+00:00`.
+- `actor`: Codex root agent.
+- `intent`: rerun the plan-mandated package-wide Ruff gate after test repair.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0215 from published EJ-0214 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m ruff check src/pneuma_lab/resampling_null tests/resampling_null`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0215/stdout.log`.
+- `stdout_bytes`: `19`.
+- `stdout_sha256`:
+  `82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0215/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; `All checks passed!`.
+- `next_gate`: rerun mypy after review repair.
+### EJ-20260728-0216 — post-review mypy gate GREEN
+
+- `receipt_mode`: live static-analysis receipt allocated by the exact repaired
+  allocator.
+- `previous_event_id`: `EJ-20260728-0215`.
+- `occurred_at_local`: `2026-07-28T18:04:42-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:04:42+00:00`.
+- `actor`: Codex root agent.
+- `intent`: rerun the plan-mandated package-wide mypy gate after test repair.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0216 from published EJ-0215 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m mypy --ignore-missing-imports src/pneuma_lab/resampling_null`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0216/stdout.log`.
+- `stdout_bytes`: `43`.
+- `stdout_sha256`:
+  `8228fcc5ce46d42d01caf3cd941f4e9c5f2bcc372bb5b147a2f0572d2dd675a8`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0216/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; no issues in three source files.
+- `next_gate`: run the complete resampling-null test directory under the
+  freshly frozen base+dev environment to catch cross-module regressions.
+### EJ-20260728-0217 — complete resampling-null suite GREEN
+
+- `receipt_mode`: live cross-module regression receipt allocated by the exact
+  repaired allocator; routine raw output retained and only compact progress
+  surfaced.
+- `previous_event_id`: `EJ-20260728-0216`.
+- `occurred_at_local`: `2026-07-28T18:05:13-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:05:13+00:00`.
+- `actor`: Codex root agent.
+- `intent`: detect cross-module regressions from the public enum/export and
+  mandatory assignment-record changes.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0217 from published EJ-0216 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m pytest tests/resampling_null -q`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0217/stdout.log`.
+- `stdout_bytes`: `341`.
+- `stdout_sha256`:
+  `c4323992e0e5ac97b3e9caae2f8860a1e967be970d16a58dba968cb72832d097`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0217/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; 240 passed in 45.31 seconds.
+- `next_gate`: run the canonical status checker, then final lock/diff/journal
+  integrity gates before preparing Slice 1 substantive commit A.
+### EJ-20260728-0218 — canonical project status GREEN
+
+- `receipt_mode`: live status receipt allocated by the exact repaired
+  allocator.
+- `previous_event_id`: `EJ-20260728-0217`.
+- `occurred_at_local`: `2026-07-28T18:06:42-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:06:42+00:00`.
+- `actor`: Codex root agent.
+- `intent`: verify the machine-readable canonical project status remains
+  schema-valid and coherent with the checkout after Slice 1.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0218 from published EJ-0217 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -m pneuma_lab.status --check`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0218/stdout.log`.
+- `stdout_bytes`: `70`.
+- `stdout_sha256`:
+  `078f32ea9ec7b3bee0a7fb0cd54b184a179c2da796c01952f2adaafa97217aea`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0218/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; canonical status is schema-valid and checkout-coherent.
+- `next_gate`: recheck frozen lock freshness with the reviewed Python 3.12
+  resolver target.
+### EJ-20260728-0219 — final lock freshness command exits zero
+
+- `receipt_mode`: live validation receipt allocated by the exact repaired
+  allocator; routine stderr retained but not emitted by default.
+- `previous_event_id`: `EJ-20260728-0218`.
+- `occurred_at_local`: `2026-07-28T18:07:21-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:07:21+00:00`.
+- `actor`: Codex root agent.
+- `intent`: recheck that the committed dependency declaration and refreshed
+  lock are mutually fresh for Python 3.12.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0219 from published EJ-0218 with the exact repaired
+  protocol.
+- `argv`: `/home/ubuntu/.local/bin/uv lock --check --python 3.12`.
+- `tool_provenance`: reviewed uv 0.11.32 executable at the exact argv path,
+  SHA-256
+  `da15297d6879b2cfbe5ea3cb03725c1613d51ba72892cc996468d871f0a532fb`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0219/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0219/stderr.log`.
+- `stderr_bytes`: `29`.
+- `stderr_sha256`:
+  `62c45c5770ea8899e7a0b96773fd6ad2a9f5b7e6e29706530611d6b22bc37779`.
+- `result`: command exit is GREEN, but the non-empty 29-byte stderr remains
+  unclassified until byte-exact inspection; no closure claim yet.
+- `next_gate`: inspect all 29 stderr bytes after length/hash verification, then
+  classify lock freshness.
+### EJ-20260728-0220 — classify final lock-check stderr
+
+- `receipt_mode`: live inspection receipt allocated by the exact repaired
+  allocator; raw output surfaced intentionally.
+- `previous_event_id`: `EJ-20260728-0219`.
+- `occurred_at_local`: `2026-07-28T18:08:00-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:08:00+00:00`.
+- `actor`: Codex root agent.
+- `intent`: inspect all 29 non-empty stderr bytes from the zero-exit lock check
+  after independently verifying length and SHA-256.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0220 from published EJ-0219 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -c` byte-exact length/hash validation and copy of
+  `EJ-20260728-0219/stderr.log`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0220/stdout.log`.
+- `stdout_bytes`: `29`.
+- `stdout_sha256`:
+  `62c45c5770ea8899e7a0b96773fd6ad2a9f5b7e6e29706530611d6b22bc37779`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0220/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: the complete message is `Resolved 133 packages in 2ms`; it is
+  normal uv resolver progress. EJ-0219 is therefore fully classified GREEN and
+  the lock is fresh.
+- `next_gate`: run final whole-worktree whitespace validation.
+### EJ-20260728-0221 — final whole-worktree whitespace gate GREEN
+
+- `receipt_mode`: live validation receipt allocated by the exact repaired
+  allocator.
+- `previous_event_id`: `EJ-20260728-0220`.
+- `occurred_at_local`: `2026-07-28T18:08:39-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:08:39+00:00`.
+- `actor`: Codex root agent.
+- `intent`: reject whitespace errors anywhere in the complete pre-commit
+  Slice 1 patch.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0221 from published EJ-0220 with the exact repaired
+  protocol.
+- `argv`: `git diff --check`.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0221/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0221/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN; no whitespace errors.
+- `next_gate`: prove exact worktree scope and bind final substantive file
+  hashes, base HEAD/branch, and unchanged authority hashes.
+### EJ-20260728-0222 — exact pre-commit scope and hash manifest
+
+- `receipt_mode`: live fail-closed manifest receipt allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0221`.
+- `occurred_at_local`: `2026-07-28T18:09:36-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:09:36+00:00`.
+- `actor`: Codex root agent.
+- `intent`: prove the working tree contains exactly the six Slice 1 files,
+  bind every current content hash, verify base identity, and recheck immutable
+  plan/design authority hashes.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0222 from published EJ-0221 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` atomic porcelain-scope assertion, HEAD/branch
+  assertion, authority hash check, file hash manifest, and diff numstat.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0222/stdout.log`.
+- `stdout_bytes`: `1324`.
+- `stdout_sha256`:
+  `519a7ffe5fd0bb93f87327ca4be680e5ead3667ae340271f5eec4d999a0138d2`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0222/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN. Base is
+  `02adc79bf924bae7165f40a76bb956befd4dbb6e` on
+  `codex/neurips-2026-empirical`; exactly six tracked files are modified and
+  there are no staged or untracked paths. Final substantive hashes:
+  `pyproject.toml`
+  `4a024fd2a2814248cae133f536e707d8f4bafd4cd365546ea20d9be32226985a`,
+  `uv.lock`
+  `00dd9cd64e27e36147ad0af045f4183027687b3e2919f8b6c8944aa97cd0ab6a`,
+  `types.py`
+  `a686bf697051294cdf9d7967585a64753d4a4f6f5db3fbc6e47314ad35ed4cf6`,
+  `__init__.py`
+  `dc3f9ec1a6ba5137f1f8453e2015cfbb66e115e1887d3c73a688801d6fbcaa91`,
+  and `test_types.py`
+  `c2d41be45aab46f0a5509d0ade378cbda1c3293bb8c24433c1bf776837459b74`.
+  The journal's observed hash is provisional because appending this receipt is
+  recursion-exempt. Plan/design hashes still equal DL-134.
+- `next_gate`: audit published journal contiguity and every exact-allocator
+  stream receipt from EJ-0157 through this event against local raw bytes.
+### EJ-20260728-0223 — journal/raw integrity audit RED on historical scope
+
+- `receipt_mode`: negative fail-closed audit receipt allocated by the exact
+  repaired allocator; complete decisive traceback surfaced.
+- `previous_event_id`: `EJ-20260728-0222`.
+- `occurred_at_local`: `2026-07-28T18:11:05-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:11:05+00:00`.
+- `actor`: Codex root agent.
+- `intent`: verify contiguous headings, raw-directory coverage, allocator
+  cleanup/deviation evidence, retention, and byte/hash equality for every
+  stream from the exact allocator era.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0223 from published EJ-0222 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python - EJ-20260728-0223` journal/raw integrity audit.
+- `exit_code`: `1`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0223/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0223/stderr.log`.
+- `stderr_bytes`: `357`.
+- `stderr_sha256`:
+  `b82cdc274e6ea6fabd5d8be1b3b0ccdbda76616e7b3c232ea91843a3d2cec127`.
+- `result`: RED before stream verification because an over-broad global
+  equality assertion found no raw event directories for historical
+  EJ-0001..EJ-0012 and EJ-0024. There are no unexpected historical raw
+  directories. This does not yet identify whether those absences are already
+  disclosed pre-allocator receipts or a new integrity failure.
+- `next_gate`: inspect the complete thirteen historical receipt bodies and
+  nearby deviation declarations, classify each missing directory, then rerun
+  the exact-allocator audit without silently erasing historical exceptions.
+### EJ-20260728-0224 — inspect all thirteen historical raw-log exceptions
+
+- `receipt_mode`: live inspection receipt allocated by the exact repaired
+  allocator; every targeted historical receipt body surfaced in full.
+- `previous_event_id`: `EJ-20260728-0223`.
+- `occurred_at_local`: `2026-07-28T18:11:57-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:11:57+00:00`.
+- `actor`: Codex root agent.
+- `intent`: classify each historical journal heading lacking an event
+  directory using its complete committed body, not inference from filename
+  absence.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0224 from published EJ-0223 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` complete body extraction for EJ-0001..EJ-0012
+  and EJ-0024.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0224/stdout.log`.
+- `stdout_bytes`: `27838`; `stdout_lines`: `474`.
+- `stdout_sha256`:
+  `cb6cb99f7eba9d2d5fa6f777a7fe0c9281a68dbd9208fe3900d464e813fab05c`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0224/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: all thirteen absences are explicitly disclosed historical
+  exceptions, not lost exact-allocator evidence. EJ-0001..EJ-0012 document
+  authority/baseline/A0 work before durable capture became operational,
+  including explicit unavailable streams and the EJ-0011 capture-gap
+  deviation; EJ-0024 is a reconstructed recursion-exempt editorial receipt.
+  No receipt invents a raw path or stream digest.
+- `next_gate`: rerun integrity with the exact thirteen-item exception set
+  asserted literally, require no other missing/unexpected directory, and
+  byte/hash-verify every stream from EJ-0157 through EJ-0224.
+### EJ-20260728-0225 — corrected integrity audit RED on exception classifier
+
+- `receipt_mode`: negative fail-closed audit receipt allocated by the exact
+  repaired allocator; complete decisive traceback surfaced.
+- `previous_event_id`: `EJ-20260728-0224`.
+- `occurred_at_local`: `2026-07-28T18:13:12-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:13:12+00:00`.
+- `actor`: Codex root agent.
+- `intent`: assert the literal thirteen-directory exception set and verify all
+  exact-allocator stream bytes/hashes.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0225 from published EJ-0224 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python - EJ-20260728-0225` corrected journal/raw
+  integrity audit.
+- `exit_code`: `1`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0225/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0225/stderr.log`.
+- `stderr_bytes`: `107`.
+- `stderr_sha256`:
+  `322c38b408b42bec994700cfce0223d7296d2643f476978ca1eb6e0474df0fff`.
+- `result`: RED at the historical-body classifier for EJ-0012. The literal
+  directory-set assertions passed. EJ-0012 is already fully inspected in
+  EJ-0224 and is the journal seed implementation receipt; unlike the other
+  pre-capture events it does not use the word `unavailable`, so the generic
+  token assertion was too coarse.
+- `next_gate`: encode EJ-0012's exact `seed event becomes immutable` marker as
+  its distinct reviewed exception arm, retain every other directory/stream
+  assertion unchanged, and rerun.
+### EJ-20260728-0226 — integrity audit RED on unlabeled assertion
+
+- `receipt_mode`: negative fail-closed audit receipt allocated by the exact
+  repaired allocator; complete traceback surfaced.
+- `previous_event_id`: `EJ-20260728-0225`.
+- `occurred_at_local`: `2026-07-28T18:14:19-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:14:19+00:00`.
+- `actor`: Codex root agent.
+- `intent`: rerun the full directory/exception/stream audit with EJ-0012's
+  distinct seed marker.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0226 from published EJ-0225 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python - EJ-20260728-0226` corrected journal/raw
+  integrity audit v2.
+- `exit_code`: `1`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0226/stdout.log`.
+- `stdout_bytes`: `0`.
+- `stdout_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0226/stderr.log`.
+- `stderr_bytes`: `89`.
+- `stderr_sha256`:
+  `f944c60dad89251f722d1c2acc20a40e8a8eb997e159292d1b032139f62e1b50`.
+- `result`: RED at script line 37, but this assertion lacked a diagnostic
+  message. No cause is guessed and no integrity claim is made.
+- `review_finding`: the audit itself was insufficiently diagnosable; every
+  remaining predicate must be labeled before another acceptance run.
+- `next_gate`: run a read-only labeled predicate diagnostic covering every
+  historical marker and every EJ-0157+ receipt field/path/byte/hash condition,
+  then repair only the exact failed predicate.
+### EJ-20260728-0227 — labeled integrity predicate diagnostic
+
+- `receipt_mode`: live read-only diagnostic receipt allocated by the exact
+  repaired allocator; complete compact diagnostic surfaced.
+- `previous_event_id`: `EJ-20260728-0226`.
+- `occurred_at_local`: `2026-07-28T18:15:28-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:15:28+00:00`.
+- `actor`: Codex root agent.
+- `intent`: label every historical marker predicate and every
+  EJ-0157-through-EJ-0226 stream field/path/byte/hash predicate.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0227 from published EJ-0226 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` labeled historical-marker and stream-integrity
+  diagnostic.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0227/stdout.log`.
+- `stdout_bytes`: `729`.
+- `stdout_sha256`:
+  `0815e4df80497697696a3507e367a678a28ec9bebc991a20c76819cd9e49e808`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0227/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: all eleven `unavailable` markers, EJ-0012 seed marker, and EJ-0024
+  editorial marker are present. All 140 exact-allocator streams pass
+  field/path/byte/hash checks with zero failures. The sole false predicate is
+  EJ-0011's capture-gap phrase because Markdown wraps `being` and `constructed`
+  across a newline; the semantic phrase is visibly present in EJ-0224.
+- `next_gate`: replace only that brittle literal-space test with a
+  whitespace-flexible exact regex, keep all other assertions, and rerun the
+  acceptance audit.
+### EJ-20260728-0228 — journal/raw integrity acceptance GREEN
+
+- `receipt_mode`: live fail-closed audit receipt allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0227`.
+- `occurred_at_local`: `2026-07-28T18:16:35-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:16:35+00:00`.
+- `actor`: Codex root agent.
+- `intent`: accept the execution evidence only if headings, literal historical
+  exceptions, raw directory scope, allocator state, retention, and every
+  exact-allocator stream all verify.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0228 from published EJ-0227 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python - EJ-20260728-0228` journal/raw integrity audit v3
+  with labeled predicates.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0228/stdout.log`.
+- `stdout_bytes`: `444`.
+- `stdout_sha256`:
+  `a7b4595211eb389d2aaa68eaf35f643ab1407c3af960a99199286358000c6812`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0228/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `result`: GREEN. There are 227 contiguous published headings. The exact
+  disclosed historical no-directory set is EJ-0001..EJ-0012 plus EJ-0024,
+  with zero other missing or unexpected directories. All 142 streams for the
+  71 events EJ-0157..EJ-0227 match their unique receipt paths, byte counts, and
+  SHA-256 values; verified payload totals 350,596 bytes. The current event was
+  uniquely reserved, the allocator lock was absent during execution, the
+  legacy-flock deviation/archive remain disclosed and intact, and retention
+  remains through 2026-11-27.
+- `next_gate`: prepare and hash a local fail-closed substantive-delivery script
+  whose exact argv/components are recorded before executing Slice 1 commit A.
+### EJ-20260728-0229 — substantive delivery A preflight and pre-record
+
+- `receipt_mode`: live fail-closed delivery preflight allocated by the exact
+  repaired allocator.
+- `previous_event_id`: `EJ-20260728-0228`.
+- `occurred_at_local`: `2026-07-28T18:19:26-07:00`.
+- `occurred_at_utc`: `2026-07-29T01:19:26+00:00`.
+- `actor`: Codex root agent.
+- `intent`: bind and inspect the exact local script that will stage, validate,
+  commit, push, and remotely verify Slice 1 substantive commit A.
+- `cwd`: `/home/ubuntu/code/pneuma-lab-neurips`.
+- `allocator`: derived EJ-0229 from published EJ-0228 with the exact repaired
+  protocol.
+- `argv`: `.venv/bin/python -` delivery-script hash/syntax/token audit, exact
+  worktree/base/branch/remote check, user-identity presence check, and remote
+  ref observation.
+- `exit_code`: `0`.
+- `stdout_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0229/stdout.log`.
+- `stdout_bytes`: `539`.
+- `stdout_sha256`:
+  `d7b55c03792ecb029905382f96c7d84bd7ce0703e6f21a19564eea7e31e68ccd`.
+- `stderr_path`:
+  `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0229/stderr.log`.
+- `stderr_bytes`: `0`.
+- `stderr_sha256`:
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `script_path`:
+  `build/research/neurips-2026-workshop/execution-journal/deliver-task3-s01-a.sh`.
+- `script_bytes`: `2504`; `script_lines`: `77`.
+- `script_sha256`:
+  `4d6700177cb20e968291f1ad00e314a6a8185f1de89befa56c9585770b32e740`.
+- `result`: GREEN. Bash syntax passes; forbidden force/reset/checkout/delete
+  tokens are absent; the exact six modified paths remain unstaged; diff check
+  passes; local and remote both equal
+  `02adc79bf924bae7165f40a76bb956befd4dbb6e`; identity is configured.
+- `planned_delivery_a_argv`: `bash build/research/neurips-2026-workshop/execution-journal/deliver-task3-s01-a.sh`.
+- `planned_component_argv`:
+  1. `git add -- docs/research/neurips-2026-workshop/33-execution-journal.md pyproject.toml src/pneuma_lab/resampling_null/__init__.py src/pneuma_lab/resampling_null/types.py tests/resampling_null/test_types.py uv.lock`;
+  2. `.venv/bin/python -` exact staged/status scope assertion embedded in the
+     hashed script;
+  3. `git diff --cached --check`;
+  4. `git commit -m "build(resampling-null): pin task 3 tools and types"`;
+  5. `git push origin HEAD:refs/heads/codex/neurips-2026-empirical`;
+  6. `git ls-remote --exit-code origin refs/heads/codex/neurips-2026-empirical`.
+- `next_gate`: execute the pre-recorded hashed script once in EJ-0230; any
+  component failure makes the aggregate nonzero and must be recorded before
+  delivery B.

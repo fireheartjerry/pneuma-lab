@@ -5,24 +5,27 @@ from __future__ import annotations
 from dataclasses import FrozenInstanceError, asdict, fields
 import json
 from math import inf, nan
-from typing import get_type_hints
+from typing import Literal, get_type_hints
 
 import pytest
 
 from pneuma_lab.resampling_null import (
     Arm,
     ArtifactRef,
+    AssignmentMode,
     BranchOutcome,
     BranchSlot,
     BranchSlotSet,
     FrozenVerifierReceipt,
     GroupKind,
     GroupLabel,
+    MatchingAlgorithm,
     ResourceCounters,
     TaskAssignment,
     TaskSchedule,
     TaskSpec,
     Treatment,
+    TriggerReason,
     Verdict,
 )
 
@@ -314,6 +317,7 @@ def assignment(**overrides: object) -> TaskAssignment:
     values: dict[str, object] = {
         "task_id": "task-1",
         "task_lineage": "lineage-1",
+        "donor_match_kind": "matched",
         "donor_task_id": "task-2",
         "donor_lineage": "lineage-2",
         "slot_arms": tuple((f"slot-{index}", arm) for index, arm in enumerate(Arm)),
@@ -322,6 +326,80 @@ def assignment(**overrides: object) -> TaskAssignment:
     }
     values.update(overrides)
     return TaskAssignment(**values)  # type: ignore[arg-type]
+
+
+def test_t3_s01_assignment_control_enums_are_closed_and_canonical() -> None:
+    assert [(member.name, member.value) for member in TriggerReason] == [
+        ("FIRST_ELIGIBLE_MUTATION", "first_eligible_mutation"),
+        ("FOURTH_TOOL_CALL", "fourth_tool_call"),
+        ("NO_INTERVENTION_OPPORTUNITY", "no_intervention_opportunity"),
+    ]
+    assert [(member.name, member.value) for member in AssignmentMode] == [
+        ("SYNTHETIC", "synthetic_derangement"),
+        ("CONFIRMATION", "confirmation_lineage_matching"),
+    ]
+    assert [(member.name, member.value) for member in MatchingAlgorithm] == [
+        ("SYNTHETIC", "synthetic_cyclic_offset_v1"),
+        ("CONFIRMATION", "exact_constrained_min_cost_v1"),
+    ]
+
+
+def test_t3_s01_task_assignment_has_explicit_donor_match_discriminator() -> None:
+    assert tuple(field.name for field in fields(TaskAssignment)) == (
+        "task_id",
+        "task_lineage",
+        "donor_match_kind",
+        "donor_task_id",
+        "donor_lineage",
+        "slot_arms",
+        "schedule_sha256",
+        "prefix_index_sha256",
+    )
+    type_hints = get_type_hints(TaskAssignment)
+    assert type_hints["donor_match_kind"] == Literal["matched", "not_applicable_no_trigger"]
+    assert type_hints["donor_task_id"] == str | None
+    assert type_hints["donor_lineage"] == str | None
+
+
+def test_t3_s01_task_assignment_accepts_only_coherent_matched_or_no_trigger_ancestry() -> None:
+    matched = assignment()
+    assert matched.donor_match_kind == "matched"
+    assert (matched.donor_task_id, matched.donor_lineage) == ("task-2", "lineage-2")
+
+    no_trigger = assignment(
+        donor_match_kind="not_applicable_no_trigger",
+        donor_task_id=None,
+        donor_lineage=None,
+    )
+    assert no_trigger.donor_match_kind == "not_applicable_no_trigger"
+    assert no_trigger.donor_task_id is None
+    assert no_trigger.donor_lineage is None
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"donor_match_kind": "unknown"},
+        {"donor_match_kind": ""},
+        {"donor_match_kind": None},
+        {"donor_match_kind": True},
+        {"donor_match_kind": 1},
+        {"donor_match_kind": "matched", "donor_task_id": None},
+        {"donor_match_kind": "matched", "donor_lineage": None},
+        {"donor_match_kind": "not_applicable_no_trigger", "donor_task_id": "task-2", "donor_lineage": None},
+        {"donor_match_kind": "not_applicable_no_trigger", "donor_task_id": None, "donor_lineage": "lineage-2"},
+        {
+            "donor_match_kind": "not_applicable_no_trigger",
+            "donor_task_id": "task-2",
+            "donor_lineage": "lineage-2",
+        },
+    ],
+)
+def test_t3_s01_task_assignment_rejects_ambiguous_or_cross_arm_donor_fields(
+    overrides: dict[str, object],
+) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        assignment(**overrides)
 
 
 def test_task_assignment_maps_every_arm_once_across_four_unique_slots() -> None:
