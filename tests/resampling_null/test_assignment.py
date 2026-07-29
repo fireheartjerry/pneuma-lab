@@ -29,7 +29,19 @@ from pneuma_lab.resampling_null.assignment import (
     uniform_below,
 )
 import pneuma_lab.resampling_null.assignment as assignment_module
-from pneuma_lab.resampling_null.types import ArtifactRef
+from pneuma_lab.resampling_null.types import (
+    Arm,
+    ArtifactRef,
+    AssignmentPrefixTaskView,
+    AssignmentPrefixView,
+    BranchSlot,
+    BranchSlotSet,
+    GroupKind,
+    GroupLabel,
+    TaskSchedule,
+    TaskSpec,
+    TriggerReason,
+)
 
 
 FRAME_HEX = (
@@ -1141,3 +1153,114 @@ def test_t3_s06_matching_invocation_requires_real_signature() -> None:
             runner_public_key_ed25519_hex=public_key_hex,
         )
     ) == 64
+
+
+def test_t3_s08_synthetic_matching_and_allocation_are_exact_and_separated() -> None:
+    tasks = tuple(
+        AssignmentPrefixTaskView(
+            task_id=f"task-{index}",
+            benchmark="SWE",
+            stratum="python",
+            lineage=f"lineage-{index}",
+            sensitivity_groups=(
+                GroupLabel(GroupKind.LANGUAGE, "python"),
+            ),
+            trigger_reason=TriggerReason.FIRST_ELIGIBLE_MUTATION,
+            verifier_component_class="pytest",
+            objective_finding_count=index,
+            normalized_report_token_count=10 + index,
+            telecom_issue_family=None,
+        )
+        for index in range(1, 4)
+    )
+    view = AssignmentPrefixView("kat-study", "22" * 32, tasks)
+    view_sha256 = assignment_module.assignment_prefix_view_sha256(view)
+    keys = _AssignmentKeyBuffers()
+    _derive_assignment_subkeys_into(
+        memoryview(bytearray(range(32))),
+        "kat-study",
+        _manifest_ref(),
+        _schedule_ref(),
+        keys,
+    )
+    proof, donors = assignment_module._solve_synthetic_stratum(
+        tasks=tasks,
+        stratum_key=("SWE", "python", "pytest"),
+        assignment_prefix_view_sha256=view_sha256,
+        assignment_program_sha256="44" * 32,
+        donor_key=keys.donor,
+    )
+    assert proof["proof_kind"] == "synthetic_cyclic_offset_v1"
+    assert proof["selected_offset"] in (1, 2)
+    assert {
+        focal: donor.task_id for focal, donor in donors.items()
+    } == dict(cast(list[list[str]], proof["donor_by_task"]))
+    assert all(
+        focal != donor and tasks[int(focal[-1]) - 1].lineage
+        != tasks[int(donor[-1]) - 1].lineage
+        for focal, donor in cast(list[list[str]], proof["donor_by_task"])
+    )
+
+    task_schedule = TaskSchedule(
+        task=TaskSpec(
+            "task-1",
+            "SWE",
+            "python",
+            "lineage-1",
+            (GroupLabel(GroupKind.LANGUAGE, "python"),),
+        ),
+        prefix_seed=1,
+        slots=BranchSlotSet(
+            tuple(
+                BranchSlot(f"slot-{ordinal}", ordinal + 1, ordinal, ordinal)
+                for ordinal in range(4)
+            )
+        ),
+        provider_lane="local",
+    )
+    assignment, receipt = assignment_module._allocate_task(
+        study_id="kat-study",
+        manifest_sha256="11" * 32,
+        schedule_sha256="22" * 32,
+        prefix_index_sha256="33" * 32,
+        task_schedule=task_schedule,
+        donor_task=donors["task-1"],
+        allocation_key=keys.allocation,
+        orientation_key=keys.orientation,
+        capability_key=keys.capability,
+    )
+    assert receipt.treatment_allocation_index == 3
+    assert receipt.no_packet_orientation_bit == 0
+    assert assignment.slot_arms == (
+        ("slot-0", Arm.NONE),
+        ("slot-1", Arm.REAL),
+        ("slot-2", Arm.SHAM),
+        ("slot-3", Arm.RESAMPLE),
+    )
+    assert assignment_module._slot_capability(
+        key=keys.capability,
+        study_id="kat-study",
+        manifest_sha256="11" * 32,
+        schedule_sha256="22" * 32,
+        prefix_index_sha256="33" * 32,
+        task_id="task-1",
+        slot_id="slot-0",
+        arm=Arm.REAL,
+    ) == (
+        "37004070f63a631313c50aceb2d14db47eaa731d8635455d4d69cabd1818b7e2"
+    )
+
+    _, changed_prefix_receipt = assignment_module._allocate_task(
+        study_id="kat-study",
+        manifest_sha256="11" * 32,
+        schedule_sha256="22" * 32,
+        prefix_index_sha256="55" * 32,
+        task_schedule=task_schedule,
+        donor_task=donors["task-1"],
+        allocation_key=keys.allocation,
+        orientation_key=keys.orientation,
+        capability_key=keys.capability,
+    )
+    assert changed_prefix_receipt.treatment_allocation_index == 3
+    assert changed_prefix_receipt.no_packet_orientation_bit == 0
+    assert changed_prefix_receipt.slot_capabilities != receipt.slot_capabilities

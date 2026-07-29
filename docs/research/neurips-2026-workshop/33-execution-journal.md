@@ -517,3 +517,121 @@ The next event after the archived migration boundary is appended below.
 - **Time:** command metadata records exact local and UTC timestamps.
 - **Result:** GREEN, exit 0. Ruff passed; mypy found no issues in eight source files.
 - **Compact receipt:** stdout 86 bytes / 4 lines / SHA-256 `e6c3ec4c203d4605609414c799cc19d939ce33570b35e3d1a8dd5e9f53f7a937`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0017/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0018 — deliver Slice 7B2 deterministic prefix publication
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Checked whitespace/status, staged exactly schedule/storage source, focused fixture/tests, and live journal; checked staged scope; committed `feat(neurips): publish deterministic prefix schedules`; pushed publicly; compared refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `809141e2d9f093da2115d951f1950aaa5b2cedfb`. Four files, 1,413 insertions and eight deletions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Compact receipt:** stdout 876 bytes / 15 lines / SHA-256 `e37eede9687d65b06d0cf383962be1e81479b0a7c2823f61159a0799070bbd53`; stderr 134 bytes / 2 lines / SHA-256 `f282b8acde441f994057d5001ef0f6c10b8d36bab205f18c6495156c8711caa4`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0018/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0019 — reconcile next Task 3 slice and canonical status
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Enumerated immutable plan task/step/slice headings, inspected worktree scope, and ran the canonical status checker.
+- **Result:** Exit 0, zero stderr. Captured 72 lines for next-slice routing; canonical project status currently passes. The live journal and unrelated `raw_root_placeholder` remain the only expected open worktree items.
+- **Compact receipt:** stdout 3,365 bytes / 72 lines / SHA-256 `78e522eb74241c20147dac357af157e6c0a758e4cb7f7c94cb45e36b4b0b0364`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0019/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0020 — review next-task routing capture
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Result:** Exit 0. The immutable plan organizes Task 3 as one large eight-step task rather than named slices. Current work has not completed all of Task 3 Step 4/5: assignment sealing, prefix-view construction, matching, allocation, and reconstruction remain. Routing must therefore use the execution design's slice ledger rather than jumping prematurely to Task 4.
+- **Compact receipt:** stdout 3,365 bytes / 72 lines / SHA-256 `78e522eb74241c20147dac357af157e6c0a758e4cb7f7c94cb45e36b4b0b0364`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0020/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0021 — locate execution-design slice ledger and assignment remainder
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Search immutable design/plan plus current journal for the named Slice 7/8 boundary and remaining assignment reconstruction contract.
+- **Result:** Exit 0. The broad context capture is 433 lines and requires one bounded extraction before routing; no implementation conclusion is inferred from unreviewed matches.
+- **Compact receipt:** stdout 81,471 bytes / 433 lines / SHA-256 `703582516b2df947c1f06ecad7e5077d14b1e510dd5571b99c242b0c8e6179a5`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0021/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0022 — classify next Task 3 boundary as branch assignment
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Extract only named slice and branch-assignment matches from EJ-0021.
+- **Result:** Exit 0. The plan explicitly labels completed-power consumption as slice 7. The next unfinished transaction is `seal_branch_assignment`: it must accept only schedule/prefix refs, load the manifest transitively, prove prefix completeness and selected membership, consume an assignment-bound storage lease, then execute the frozen prefix-view/matching/allocation algorithms and reconstruction gate. Task 8 remains forbidden here because it exclusively owns power production/simulation.
+- **Compact receipt:** stdout 54,969 bytes / 310 lines / SHA-256 `ce646616138c762f7c3f2c9eb269f5263afdab60a6ffe6be07bd6c0b13fb6a3f`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0022/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0023 — open branch-assignment authority and current primitives
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Capture stable assignment value records, complete Step 4/5 prose, current assignment/secrets callables, and any pre-existing slice tests.
+- **Result:** Exit 0. Captured 641 lines for bounded classification; no implementation inference is accepted until its five authority sub-boundaries are extracted.
+- **Compact receipt:** stdout 32,941 bytes / 641 lines / SHA-256 `83e40708ab76181d787605f7347626dc4e09bb45ba23fbba001247637bad8b0a`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0023/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0024 — display branch-assignment capture; model-context truncation
+
+- **Time:** command metadata records exact local and UTC timestamps in the retained raw receipt.
+- **Action:** Displayed the complete EJ-0023 branch-assignment authority capture for review.
+- **Result:** Exit 0. The 641-line display exceeded the active model-context boundary and triggered compaction. No scientific or implementation inference is accepted from the truncated display.
+- **Forensic correction:** Preserve the raw receipt unchanged and compute its byte counts, line counts, and hashes in the next bounded receipt-inspection event. Do not guess that a displayed copy necessarily equals its source.
+- **Compact receipt:** stdout 32,941 bytes / 641 lines / SHA-256 `83e40708ab76181d787605f7347626dc4e09bb45ba23fbba001247637bad8b0a`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0024/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0025 — resume after compaction and inspect journal tail
+
+- **Time:** command metadata records the resumed command timing.
+- **Action:** Read the final 100 lines of the live journal to reconstruct the exact durable event boundary before taking substantive action.
+- **Result:** Exit 0. The journal ends at EJ-0023 and confirms EJ-0024 is the sole unclassified retained command. The current user testing standard is also reaffirmed: software tests remain insignificant tripwires, never research deliverables.
+- **Compact receipt:** exact byte/hash measurement unavailable because this resumed command predated restoration of the receipt wrapper; stdout was 100 rendered lines and stderr was empty. Its rendered command result is the forensic source. The initially drafted byte count was removed because tool token metadata is not a byte count.
+
+### EJ-20260729-0026 — classify retained EJ-0024 receipt exactly
+
+- **Time:** command metadata records exact timing.
+- **Action:** Listed the three retained receipt files and computed line counts, byte counts, and SHA-256 hashes without replaying raw authority output.
+- **Result:** Exit 0. EJ-0024 stdout is byte-for-byte identical to EJ-0023 stdout. Its metadata is 81 bytes / 3 lines / SHA-256 `2117850edef0b35b0abbf9d42f9ae869e8609cd26439c14e4c9a6f6abaf2d438`; stderr is empty.
+- **Compact receipt:** rendered stdout 195 tokens; stderr empty. This command also preceded restoration of the wrapper, so its rendered command result is the forensic source.
+
+### EJ-20260729-0027 — reaffirm research-first verification budget
+
+- **Decision:** User explicitly clarified that this is research, not a production SaaS, and software tests must remain a trivial, insignificant part of the work.
+- **Standing execution rule:** One narrow high-signal behavioral command and one static command per slice, each hard-capped at 60 seconds. Broad/repeated suites require a concrete shared-surface risk or explicit request. Scientific experiments and falsification remain separate evidence work.
+- **Repository authority:** `AGENTS.md` already contains this exact standing rule; no redundant policy edit was needed.
+
+### EJ-20260729-0028 — reconcile assignment-core worktree
+
+- **Action:** Inspected status/diff scope, the standing test policy, stable assignment value records, current key derivation tail, and storage-publication primitives.
+- **Result:** Only the live journal was modified; unrelated `raw_root_placeholder` remained untouched. Existing code had authority loading, completed-power consumption, exact KDF/HMAC primitives, and storage publication, but no allocation or synthetic matching implementation.
+
+### EJ-20260729-0029 — reopen exact allocation and capability authority
+
+- **Action:** Read the immutable Step-5 allocation table, prefix allowlist, synthetic-matching proof grammar, and exact capability frame/KAT.
+- **Result:** The scientific separation is explicit: allocation/orientation bind only task ID, while capabilities bind study plus manifest/schedule/prefix ancestry, task, slot, and realized arm.
+
+### EJ-20260729-0030 — implement assignment scientific core
+
+- **Action:** Added closed prefix-view/allocation value records; exact allowlist serialization; the 12-row treatment table; unbiased allocation and null-orientation draws; exact capability derivation; and the first-valid synthetic cyclic-offset proof with same-lineage and reciprocal-two-cycle rejection.
+- **Boundary:** This slice does not yet publish an assignment ledger or claim Task 3 completion. Caller-provided prefix views remain forbidden at the eventual public transaction boundary.
+
+### EJ-20260729-0031 — focused assignment check exposes KAT expectation error
+
+- **Command:** `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_assignment.py -q -k t3_s08`
+- **Result:** RED, exit 1 in 0.34 seconds. The test compared the published `slot-0/REAL` capability KAT against the realized `slot-0/NONE` capability from deterministic allocation row 3. The allocation and capability derivations were internally correct; the assertion conflated two different arms.
+- **Correction:** Factor exact capability derivation and evaluate the published KAT independently from the realized assignment map.
+
+### EJ-20260729-0032 — corrected focused assignment check
+
+- **Result:** GREEN, exit 0. One `t3_s08` test passed, 82 unrelated tests deselected, runtime 0.30 seconds.
+- **Coverage:** Exact synthetic proof/mapping agreement, no self/same-lineage donation, normative allocation/orientation draw, exact four-arm map, published capability KAT, and the causal metamorphism that prefix changes preserve arm draws but alter ancestry-bound capabilities.
+
+### EJ-20260729-0033 — initial narrow static check
+
+- **Result:** GREEN, exit 0. Ruff passed the two source files plus focused test; mypy found no issues in the two changed source files. Total wall time was below one second.
+
+### EJ-20260729-0034 — hostile diff review blocks permissive scalar grammar
+
+- **Action:** Reviewed the complete source/test diff against the immutable causal and serialization contracts.
+- **Blocking findings:** `bytes.fromhex` admitted uppercase ancestry digests; Python membership admitted booleans as orientation integers; prefix groups could be empty or duplicate dimensions; synthetic stratum/digest inputs were under-validated.
+- **Correction:** Require exact lowercase 64-hex, exact integer orientation, non-empty unique group dimensions, exact prefix-task tuple, non-empty strict-text stratum key, and closed digests.
+- **Nonblocking boundary:** Global capability uniqueness, internal verifier-feature reconstruction, no-trigger consistency, CAS proof publication, key wiping, and storage-bound ledger installation belong to the still-unfinished transaction orchestrator and remain unclaimed.
+
+### EJ-20260729-0035 — locate receipt mechanism
+
+- **Action:** Searched shell history and repository scripts for a reusable generic raw command-receipt wrapper.
+- **Result:** No generic wrapper exists; the research scripts are domain-specific. Final gates for this slice will therefore use a bounded local stdout/stderr capture under the ignored journal receipt root.
+
+### EJ-20260729-0036 — corrected final assignment-algorithm gate
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Command:** Ran exactly one focused `t3_s08` behavioral selection, then one combined Ruff+mypy static gate; both process groups were hard-capped at 60 seconds.
+- **Result:** GREEN, exit 0. One focused test passed with 82 unrelated tests deselected in 0.22 seconds. Ruff passed; mypy found no issues in the two changed source files.
+- **Compact receipt:** stdout 175 bytes / 4 lines / SHA-256 `3a2cf90d5981650ee368e5eb0c661e2183f09278a72cc9d84513d1d00053d086`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0036/` (ignored, retained through 2026-11-27).

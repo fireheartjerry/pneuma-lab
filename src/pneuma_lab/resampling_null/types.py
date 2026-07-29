@@ -313,6 +313,128 @@ class FrozenVerifierReceipt:
 
 
 @dataclass(frozen=True, slots=True)
+class AssignmentPrefixTaskView:
+    task_id: str
+    benchmark: str
+    stratum: str
+    lineage: str
+    sensitivity_groups: tuple[GroupLabel, ...]
+    trigger_reason: TriggerReason
+    verifier_component_class: str
+    objective_finding_count: int
+    normalized_report_token_count: int
+    telecom_issue_family: str | None
+
+    def __post_init__(self) -> None:
+        for name in (
+            "task_id",
+            "benchmark",
+            "stratum",
+            "lineage",
+            "verifier_component_class",
+        ):
+            _require_nonempty_string(getattr(self, name), name)
+        if not isinstance(self.sensitivity_groups, tuple) or not self.sensitivity_groups:
+            raise TypeError("sensitivity_groups must be a non-empty tuple")
+        if not all(
+            isinstance(group, GroupLabel) for group in self.sensitivity_groups
+        ):
+            raise TypeError("sensitivity_groups must be a tuple of GroupLabel records")
+        group_kinds = [group.kind for group in self.sensitivity_groups]
+        if len(group_kinds) != len(set(group_kinds)):
+            raise ValueError("sensitivity_groups must not repeat a GroupKind")
+        if not isinstance(self.trigger_reason, TriggerReason):
+            raise TypeError("trigger_reason must be TriggerReason")
+        _require_exact_nonnegative_int(
+            self.objective_finding_count,
+            "objective_finding_count",
+        )
+        _require_exact_nonnegative_int(
+            self.normalized_report_token_count,
+            "normalized_report_token_count",
+        )
+        if self.telecom_issue_family is not None:
+            _require_nonempty_string(
+                self.telecom_issue_family,
+                "telecom_issue_family",
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class AssignmentPrefixView:
+    study_id: str
+    schedule_sha256: str
+    tasks: tuple[AssignmentPrefixTaskView, ...]
+
+    def __post_init__(self) -> None:
+        _require_nonempty_string(self.study_id, "study_id")
+        _require_sha256(self.schedule_sha256, "schedule_sha256")
+        if not isinstance(self.tasks, tuple) or not self.tasks:
+            raise TypeError("tasks must be a non-empty tuple")
+        if not all(isinstance(task, AssignmentPrefixTaskView) for task in self.tasks):
+            raise TypeError("tasks must contain AssignmentPrefixTaskView records")
+        task_ids = [task.task_id for task in self.tasks]
+        if len(task_ids) != len(set(task_ids)):
+            raise ValueError("prefix-view task IDs must be unique")
+
+
+@dataclass(frozen=True, slots=True)
+class AllocationReceipt:
+    task_id: str
+    slot_ids_by_ordinal: tuple[str, str, str, str]
+    treatment_allocation_index: int
+    allocation_rejection_counter: int
+    no_packet_orientation_bit: int
+    orientation_rejection_counter: int
+    slot_capabilities: tuple[tuple[str, str], ...]
+
+    def __post_init__(self) -> None:
+        _require_nonempty_string(self.task_id, "task_id")
+        if (
+            not isinstance(self.slot_ids_by_ordinal, tuple)
+            or len(self.slot_ids_by_ordinal) != 4
+        ):
+            raise TypeError("slot_ids_by_ordinal must be an exact four-tuple")
+        for slot_id in self.slot_ids_by_ordinal:
+            _require_nonempty_string(slot_id, "slot_ids_by_ordinal item")
+        if len(set(self.slot_ids_by_ordinal)) != 4:
+            raise ValueError("slot_ids_by_ordinal must be unique")
+        if type(self.treatment_allocation_index) is not int or not (
+            0 <= self.treatment_allocation_index < 12
+        ):
+            raise ValueError("treatment_allocation_index must be in [0, 12)")
+        for name in (
+            "allocation_rejection_counter",
+            "orientation_rejection_counter",
+        ):
+            _require_exact_nonnegative_int(getattr(self, name), name)
+        if (
+            type(self.no_packet_orientation_bit) is not int
+            or self.no_packet_orientation_bit not in (0, 1)
+        ):
+            raise ValueError("no_packet_orientation_bit must be 0 or 1")
+        if (
+            not isinstance(self.slot_capabilities, tuple)
+            or len(self.slot_capabilities) != 4
+        ):
+            raise TypeError("slot_capabilities must be an exact four-tuple")
+        for expected_slot, entry in zip(
+            self.slot_ids_by_ordinal,
+            self.slot_capabilities,
+            strict=True,
+        ):
+            if not isinstance(entry, tuple) or len(entry) != 2:
+                raise TypeError("slot_capabilities entries must be pairs")
+            slot_id, capability = entry
+            if slot_id != expected_slot:
+                raise ValueError("slot_capabilities must use slot ordinal order")
+            _require_sha256(capability, "slot capability")
+        capabilities = [capability for _, capability in self.slot_capabilities]
+        if len(set(capabilities)) != 4:
+            raise ValueError("slot capabilities must be unique within a task")
+
+
+@dataclass(frozen=True, slots=True)
 class TaskAssignment:
     task_id: str
     task_lineage: str

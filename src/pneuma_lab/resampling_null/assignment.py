@@ -27,6 +27,16 @@ from .secrets import (
     _consume_assignment_handle_into,
 )
 from .types import ArtifactRef, ScheduleSelection
+from .types import (
+    AllocationReceipt,
+    Arm,
+    AssignmentPrefixTaskView,
+    AssignmentPrefixView,
+    TaskAssignment,
+    TaskSchedule,
+    Treatment,
+    TriggerReason,
+)
 
 
 _FRAME_MAGIC = b"pneuma-resampling-null-frame-v1\x00"
@@ -34,6 +44,20 @@ _MAX_U32 = 2**32 - 1
 _MAX_U64 = 2**64 - 1
 _SUBKEY_LABELS = frozenset(
     {"donor", "allocation", "orientation", "capability", "unblind"}
+)
+_ALLOCATION_TABLE: tuple[tuple[Treatment, Treatment, Treatment, Treatment], ...] = (
+    (Treatment.NO_PACKET, Treatment.NO_PACKET, Treatment.REAL, Treatment.SHAM),
+    (Treatment.NO_PACKET, Treatment.NO_PACKET, Treatment.SHAM, Treatment.REAL),
+    (Treatment.NO_PACKET, Treatment.REAL, Treatment.NO_PACKET, Treatment.SHAM),
+    (Treatment.NO_PACKET, Treatment.REAL, Treatment.SHAM, Treatment.NO_PACKET),
+    (Treatment.NO_PACKET, Treatment.SHAM, Treatment.NO_PACKET, Treatment.REAL),
+    (Treatment.NO_PACKET, Treatment.SHAM, Treatment.REAL, Treatment.NO_PACKET),
+    (Treatment.REAL, Treatment.NO_PACKET, Treatment.NO_PACKET, Treatment.SHAM),
+    (Treatment.REAL, Treatment.NO_PACKET, Treatment.SHAM, Treatment.NO_PACKET),
+    (Treatment.REAL, Treatment.SHAM, Treatment.NO_PACKET, Treatment.NO_PACKET),
+    (Treatment.SHAM, Treatment.NO_PACKET, Treatment.NO_PACKET, Treatment.REAL),
+    (Treatment.SHAM, Treatment.NO_PACKET, Treatment.REAL, Treatment.NO_PACKET),
+    (Treatment.SHAM, Treatment.REAL, Treatment.NO_PACKET, Treatment.NO_PACKET),
 )
 
 
@@ -726,3 +750,317 @@ def _derive_unblind_subkey_into(
         raise
     finally:
         _wipe_bytearray(prk)
+
+
+def _assignment_prefix_view_payload(view: AssignmentPrefixView) -> dict[str, object]:
+    """Serialize only the authority-approved pre-treatment allowlist."""
+
+    if type(view) is not AssignmentPrefixView:
+        raise TypeError("prefix view must be an exact AssignmentPrefixView")
+    return {
+        "study_id": view.study_id,
+        "schedule_sha256": view.schedule_sha256,
+        "tasks": [
+            {
+                "task_id": task.task_id,
+                "benchmark": task.benchmark,
+                "stratum": task.stratum,
+                "lineage": task.lineage,
+                "sensitivity_groups": [
+                    {"kind": group.kind.value, "value": group.value}
+                    for group in task.sensitivity_groups
+                ],
+                "trigger_reason": task.trigger_reason.value,
+                "verifier_component_class": task.verifier_component_class,
+                "objective_finding_count": task.objective_finding_count,
+                "normalized_report_token_count": (
+                    task.normalized_report_token_count
+                ),
+                "telecom_issue_family": task.telecom_issue_family,
+            }
+            for task in view.tasks
+        ],
+    }
+
+
+def assignment_prefix_view_sha256(view: AssignmentPrefixView) -> str:
+    """Digest the closed allowlist without accepting outcome or branch fields."""
+
+    from pneuma_lab.foundation.artifacts import canonical_json_bytes
+
+    return hashlib.sha256(
+        canonical_json_bytes(_assignment_prefix_view_payload(view), indent=None)
+    ).hexdigest()
+
+
+def _slot_capability(
+    *,
+    key: bytearray,
+    study_id: str,
+    manifest_sha256: str,
+    schedule_sha256: str,
+    prefix_index_sha256: str,
+    task_id: str,
+    slot_id: str,
+    arm: Arm,
+) -> str:
+    if type(key) is not bytearray or len(key) != 32:
+        raise ValueError("capability key must be one mutable 32-byte key")
+    if not isinstance(arm, Arm):
+        raise TypeError("capability arm must be an Arm")
+    return hmac.new(
+        key,
+        kdf_frame(
+            "slot-capability-v1",
+            [
+                TextField(study_id),
+                BytesField(bytes.fromhex(manifest_sha256)),
+                BytesField(bytes.fromhex(schedule_sha256)),
+                BytesField(bytes.fromhex(prefix_index_sha256)),
+                TextField(task_id),
+                TextField(slot_id),
+                TextField(arm.value),
+            ],
+        ),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _allocate_task(
+    *,
+    study_id: str,
+    manifest_sha256: str,
+    schedule_sha256: str,
+    prefix_index_sha256: str,
+    task_schedule: TaskSchedule,
+    donor_task: AssignmentPrefixTaskView | None,
+    allocation_key: bytearray,
+    orientation_key: bytearray,
+    capability_key: bytearray,
+) -> tuple[TaskAssignment, AllocationReceipt]:
+    """Apply the frozen 12-way table and independently oriented null pair."""
+
+    for name, digest in (
+        ("manifest_sha256", manifest_sha256),
+        ("schedule_sha256", schedule_sha256),
+        ("prefix_index_sha256", prefix_index_sha256),
+    ):
+        if (
+            type(digest) is not str
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise ValueError(f"{name} must be a lowercase SHA-256 digest")
+    for name, key in (
+        ("allocation_key", allocation_key),
+        ("orientation_key", orientation_key),
+        ("capability_key", capability_key),
+    ):
+        if type(key) is not bytearray or len(key) != 32:
+            raise ValueError(f"{name} must be one mutable 32-byte key")
+    if type(task_schedule) is not TaskSchedule:
+        raise TypeError("task_schedule must be an exact TaskSchedule")
+
+    task = task_schedule.task
+    slots = task_schedule.slots.slots
+    slot_ids = cast(
+        tuple[str, str, str, str],
+        tuple(slot.slot_id for slot in slots),
+    )
+    allocation = uniform_below(
+        allocation_key,
+        kdf_frame("allocation-v1", [TextField(task.task_id)]),
+        len(_ALLOCATION_TABLE),
+    )
+    treatments = _ALLOCATION_TABLE[allocation.value]
+    no_packet_ordinals = [
+        index
+        for index, treatment in enumerate(treatments)
+        if treatment is Treatment.NO_PACKET
+    ]
+    if len(no_packet_ordinals) != 2:
+        raise AssertionError("frozen allocation table row lacks two null slots")
+    orientation = uniform_below(
+        orientation_key,
+        kdf_frame("orientation-v1", [TextField(task.task_id)]),
+        2,
+    )
+    null_arms = (
+        (Arm.NONE, Arm.RESAMPLE)
+        if orientation.value == 0
+        else (Arm.RESAMPLE, Arm.NONE)
+    )
+    arms: list[Arm] = []
+    for ordinal, treatment in enumerate(treatments):
+        if treatment is Treatment.REAL:
+            arms.append(Arm.REAL)
+        elif treatment is Treatment.SHAM:
+            arms.append(Arm.SHAM)
+        else:
+            arms.append(
+                null_arms[no_packet_ordinals.index(ordinal)]
+            )
+
+    capabilities: list[tuple[str, str]] = []
+    for slot_id, arm in zip(slot_ids, arms, strict=True):
+        capability = _slot_capability(
+            key=capability_key,
+            study_id=study_id,
+            manifest_sha256=manifest_sha256,
+            schedule_sha256=schedule_sha256,
+            prefix_index_sha256=prefix_index_sha256,
+            task_id=task.task_id,
+            slot_id=slot_id,
+            arm=arm,
+        )
+        capabilities.append((slot_id, capability))
+
+    assignment = TaskAssignment(
+        task_id=task.task_id,
+        task_lineage=task.lineage,
+        donor_match_kind=(
+            "not_applicable_no_trigger" if donor_task is None else "matched"
+        ),
+        donor_task_id=None if donor_task is None else donor_task.task_id,
+        donor_lineage=None if donor_task is None else donor_task.lineage,
+        slot_arms=tuple(zip(slot_ids, arms, strict=True)),
+        schedule_sha256=schedule_sha256,
+        prefix_index_sha256=prefix_index_sha256,
+    )
+    receipt = AllocationReceipt(
+        task_id=task.task_id,
+        slot_ids_by_ordinal=slot_ids,
+        treatment_allocation_index=allocation.value,
+        allocation_rejection_counter=allocation.counter,
+        no_packet_orientation_bit=orientation.value,
+        orientation_rejection_counter=orientation.counter,
+        slot_capabilities=tuple(capabilities),
+    )
+    return assignment, receipt
+
+
+def _solve_synthetic_stratum(
+    *,
+    tasks: tuple[AssignmentPrefixTaskView, ...],
+    stratum_key: tuple[str, ...],
+    assignment_prefix_view_sha256: str,
+    assignment_program_sha256: str,
+    donor_key: bytearray,
+) -> tuple[dict[str, object], dict[str, AssignmentPrefixTaskView]]:
+    """Return the first valid frozen cyclic offset and its complete audit proof."""
+
+    if type(donor_key) is not bytearray or len(donor_key) != 32:
+        raise ValueError("donor_key must be one mutable 32-byte key")
+    if not isinstance(tasks, tuple) or not all(
+        type(task) is AssignmentPrefixTaskView for task in tasks
+    ):
+        raise TypeError("tasks must be a tuple of exact prefix-task views")
+    if (
+        not isinstance(stratum_key, tuple)
+        or not stratum_key
+        or not all(type(component) is str and component for component in stratum_key)
+    ):
+        raise ValueError("stratum_key must be a non-empty strict-text tuple")
+    for name, digest in (
+        ("assignment_prefix_view_sha256", assignment_prefix_view_sha256),
+        ("assignment_program_sha256", assignment_program_sha256),
+    ):
+        if (
+            type(digest) is not str
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise ValueError(f"{name} must be a lowercase SHA-256 digest")
+    triggered = tuple(
+        task
+        for task in tasks
+        if task.trigger_reason is not TriggerReason.NO_INTERVENTION_OPPORTUNITY
+    )
+    if len({task.lineage for task in triggered}) < 3:
+        raise RecordValidationError(
+            "synthetic triggered stratum requires at least three lineages"
+        )
+    canonical = tuple(sorted(triggered, key=lambda task: task.task_id.encode("utf-8")))
+    ordered = tuple(
+        sorted(
+            canonical,
+            key=lambda task: (
+                hmac.new(
+                    donor_key,
+                    kdf_frame(
+                        "synthetic-order-v1",
+                        [
+                            BytesField(
+                                bytes.fromhex(assignment_prefix_view_sha256)
+                            ),
+                            *(TextField(component) for component in stratum_key),
+                            TextField(task.task_id),
+                        ],
+                    ),
+                    hashlib.sha256,
+                ).digest(),
+                task.task_id.encode("utf-8"),
+            ),
+        )
+    )
+    cycle_rows = [
+        {
+            "order_hmac_sha256": hmac.new(
+                donor_key,
+                kdf_frame(
+                    "synthetic-order-v1",
+                    [
+                        BytesField(bytes.fromhex(assignment_prefix_view_sha256)),
+                        *(TextField(component) for component in stratum_key),
+                        TextField(task.task_id),
+                    ],
+                ),
+                hashlib.sha256,
+            ).hexdigest(),
+            "task_id": task.task_id,
+        }
+        for task in ordered
+    ]
+    trials: list[dict[str, object]] = []
+    selected: dict[str, AssignmentPrefixTaskView] | None = None
+    selected_offset: int | None = None
+    for offset in range(1, len(ordered)):
+        candidate = {
+            focal.task_id: ordered[(index + offset) % len(ordered)]
+            for index, focal in enumerate(ordered)
+        }
+        failure: str | None = None
+        for focal in canonical:
+            donor = candidate[focal.task_id]
+            if focal.lineage == donor.lineage:
+                failure = "same_lineage"
+                break
+            if candidate[donor.task_id].task_id == focal.task_id:
+                failure = "reciprocal_two_cycle"
+                break
+        valid = failure is None
+        trials.append(
+            {"failure_code": failure, "offset": offset, "valid": valid}
+        )
+        if valid:
+            selected = candidate
+            selected_offset = offset
+            break
+    if selected is None or selected_offset is None:
+        raise RecordValidationError("synthetic stratum has no valid cyclic offset")
+    proof: dict[str, object] = {
+        "assignment_prefix_view_sha256": assignment_prefix_view_sha256,
+        "assignment_program_sha256": assignment_program_sha256,
+        "canonical_focal_task_ids": [task.task_id for task in canonical],
+        "cycle_order": cycle_rows,
+        "donor_by_task": [
+            [task.task_id, selected[task.task_id].task_id] for task in canonical
+        ],
+        "invocation_receipt_refs": [],
+        "offset_trials": trials,
+        "proof_kind": "synthetic_cyclic_offset_v1",
+        "schema_version": "1",
+        "selected_offset": selected_offset,
+        "stratum_key": list(stratum_key),
+    }
+    return proof, selected
