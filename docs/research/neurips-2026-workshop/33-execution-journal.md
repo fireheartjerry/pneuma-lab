@@ -421,3 +421,32 @@ The next event after the archived migration boundary is appended below.
 - **Compact receipt:** stdout `1229` bytes / `25` lines / SHA-256 `0e2009443446216740938ab38b2ddaa9c2602f6946421203216896934ca60dfa`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 - **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0501/` (local, ignored, retained through `2026-11-27`).
 - **Next gate:** commit/push this user-directed policy separately, then resume the already-verified Slice 4 delivery.
+
+### EJ-20260728-0502 — commit permanent test-duration policy as isolated A
+
+- **Prior event:** `EJ-20260728-0501`
+- **Local interval:** `2026-07-28T22:43:04-07:00` to `2026-07-28T22:43:04-07:00`
+- **UTC interval:** `2026-07-29T05:43:04+00:00` to `2026-07-29T05:43:04+00:00`
+- **Action:** Restaged the latest journal receipt, asserted exactly two staged paths, checked whitespace, and ran `git commit -m "docs: cap test commands at 60 seconds"`.
+- **Result:** GREEN, exit `0`, zero stderr. Commit A `f384dfb88f1aaa6b3b048efe6e423782b3aeb34e`; parent `453b0ec9e954d7f3c193d67e106502b1a26f0cfa`; tree `4b53bf8e42590170f4f631777c398671675be26d`.
+- **Compact receipt:** stdout `301` bytes / `6` lines / SHA-256 `fa38ec8183869d5b368be23089cfb77860f166d1d53990a8712015b11aff037e`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0502/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** push A, verify the public remote ref, then make the finite receipt B.
+
+### EJ-20260728-0503 — push test-duration policy A and verify remote ref
+
+- **Prior event:** `EJ-20260728-0502`
+- **Local interval:** `2026-07-28T22:43:32-07:00` to `2026-07-28T22:43:34-07:00`
+- **UTC interval:** `2026-07-29T05:43:32+00:00` to `2026-07-29T05:43:34+00:00`
+- **Action:** Pushed A to the exact public working branch and compared its full SHA with `git ls-remote`.
+- **Result:** GREEN, exit `0`. Expected and observed remote SHA both equal `f384dfb88f1aaa6b3b048efe6e423782b3aeb34e`.
+- **Compact receipt:** stdout `100` bytes / `2` lines / SHA-256 `3a838aaa38cb7b54bd34161cb688080fdad9e9fa04522a9ae0d7b8a374095c87`; stderr `110` bytes / `2` lines / SHA-256 `5af657865e7926bccad4bd3fa9ebc10d3ecf8690fdabb2c5364b0d8d3691c01f`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0503/` (local, ignored, retained through `2026-11-27`).
+
+### EJ-20260728-0504 — pre-record finite test-policy receipt commit B
+
+- **Prior event:** `EJ-20260728-0503`
+- **Delivery facts:** policy commit A `f384dfb88f1aaa6b3b048efe6e423782b3aeb34e` is pushed and exactly observed at the public working branch.
+- **Planned B mechanics:** `git add -- docs/research/neurips-2026-workshop/33-execution-journal.md`; `git diff --cached --check`; `git commit -m "docs: record test-duration policy delivery"`; `git push origin HEAD:refs/heads/codex/neurips-2026-empirical`.
+- **Scope assertion:** B contains only EJ-0502 through EJ-0504. Slice 4 remains unstaged.
+- **Self-reference break:** reconcile B SHA/push/remote at the next substantive opening receipt before any further Slice 4 command.
