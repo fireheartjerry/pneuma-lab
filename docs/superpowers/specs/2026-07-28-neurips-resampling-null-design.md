@@ -1277,6 +1277,42 @@ source reads without execution-attestation overclaim, stale-root/liveness/
 cleanup behavior, every table row and excluded combination, deadline equality,
 late evidence retention, and raw/typed rejection before mutation.
 
+#### 5.3.4 DL-141 publication destination and loader partition
+
+S02D's exact entry is
+`seal_prefix_index(*, run_root, schedule_ref, candidate_refs, out) ->
+ArtifactRef`. `out` is an exact normalized absolute path strictly under the
+resolved run root, reached through held no-follow dirfds. It cannot contain
+symlink or `..` components or lie under `controller-artifacts/`,
+`controller-workspace/`, or operational `prefix-environments/`. Publication is
+create-exclusive/no-overwrite, complete-write plus file fsync, close, parent
+fsync, and reopen verification. Existing targets fail; applicable recovery
+remains under the existing publication protocol. S02C cannot call the sealer or
+write that destination.
+
+Recursive loading is partitioned by one closed, startup-validated role
+registry. `scientific_parent` contains exactly prefix schedule and study
+manifest roles with their exact record kinds. `controller_artifact` contains
+exactly the explicit controller role-to-media registry, including the candidate
+wrapper and every S02C-created evidence role. `authority_asset` contains
+exactly the explicit manifest-sealing authority role-to-media registry,
+excluding the scientific parents and including task/provider/contracts/
+tokenizer/prompt/tool/program/request-response/source/clock/watchdog/isolation
+assets. The three sets are disjoint and have no default.
+
+Scientific parents use a fresh scientific-record loader, controller artifacts
+use a fresh `ControllerArtifactResolver`, and authority assets use a separately
+fresh `AuthorityRefReader`. Each gets exact role/media/kind expectations and
+enforces its own canonical path/root identity. The controller resolver never
+loads authority or scientific refs. Unknown roles, cross-class paths/roles,
+media drift, path/ref aliasing, or one ref assigned to multiple classes reject.
+
+S02C traverses from the candidate wrapper; S02D traverses again from the
+schedule and every ordered candidate with entirely new loader instances. Exact
+decoders discover every nested ref into a `ref -> load_class` visited map.
+Before return/publication every reachable ref has been loaded successfully by
+exactly one class. Missing, duplicate, opaque, or unknown nested refs reject.
+
 ### 5.4 Assignment prefix view
 
 Post-prefix donor matching consumes a canonical `AssignmentPrefixView`, not the

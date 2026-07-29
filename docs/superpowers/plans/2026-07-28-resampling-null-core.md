@@ -3891,6 +3891,7 @@ def seal_prefix_index(
     run_root: Path,
     schedule_ref: ArtifactRef,
     candidate_refs: tuple[ArtifactRef, ...],
+    out: Path,
 ) -> ArtifactRef:
     ...
 ```
@@ -3902,6 +3903,16 @@ schedule ancestry, chronology, caps, trigger, restore isolation, and settled
 cost, embeds the decoded receipts into the `PrefixIndex`, and alone publishes
 the index. A naked in-memory receipt, missing/extra/reordered candidate, or S02C
 attempt to write an index rejects.
+
+`out` is an exact normalized absolute `Path` strictly confined beneath the
+resolved run root. Resolution through held no-follow dirfds rejects symlink
+components, `..`, non-normal form, and any target inside the exact reserved
+`controller-artifacts/`, `controller-workspace/`, or operational
+`prefix-environments/` subtrees. S02D creates the final target exclusively,
+never overwrites, writes and fsyncs the complete bytes, closes, fsyncs the
+parent directory, then reopens/verifies before returning its ref. An existing
+target fails; publication recovery remains governed by the existing publication
+protocol where applicable. S02C cannot call `seal_prefix_index` or write `out`.
 
 #### One controller-derived actor transcript
 
@@ -4111,6 +4122,66 @@ attestation claims; stale-root skip, direct Popen ownership, liveness/alias and
 cleanup aggregation; every truth-table row/unlisted combination; exact-
 deadline on-time behavior; late-byte retention; and raw/typed mismatch before
 environment mutation.
+
+### DL-141 S02C/S02D destination and reload-class closure
+
+DL-141 hardens DL-140 only at publication destination and recursive loading.
+The S02D signature and `out` rules above are exact; removing `out`, deriving it
+from a candidate, or publishing under a controller/operational subtree is
+forbidden.
+
+Fresh recursive loading uses one closed, import-time validated
+`REF_LOAD_CLASS_BY_ROLE` registry with exactly three disjoint classes:
+
+1. `scientific_parent` has exactly
+   `resampling_prefix_schedule -> resampling_prefix_schedule` and
+   `study_manifest -> resampling_study_manifest`, where the value is the
+   required scientific record kind.
+2. `controller_artifact` is exactly the keys of the closed
+   `CONTROLLER_ROLE_MEDIA` registry, including
+   `prefix_candidate_receipt` and every provider/tool/snapshot/restore/grade/
+   verifier/cost artifact role created by S02C; the value is its one canonical
+   media type.
+3. `authority_asset` is exactly the keys of the closed manifest-sealing
+   `AUTHORITY_ASSET_ROLE_MEDIA` registry after excluding the two scientific
+   parent roles; it includes task input, provider plan, contracts, tokenizer,
+   prompt/tool schema, synthetic program and its request/response/source/
+   clock/watchdog/isolation assets, with one canonical media per role.
+
+The two media registries and scientific map are explicit constants, not
+path-prefix guesses. Import/startup rejects duplicate roles, missing S02C
+roles, overlapping classes, or noncanonical media. For each newly decoded
+ArtifactRef, dispatch is solely by exact role:
+
+- scientific parents use a newly constructed scientific-record loader with the
+  exact expected kind;
+- controller artifacts use a newly constructed
+  `ControllerArtifactResolver.resolve` with exact expected role/media; and
+- copied authority assets use a separately newly constructed
+  `AuthorityRefReader` with exact expected role/media and closure validation.
+
+`ControllerArtifactResolver` never receives or opens an authority asset or
+scientific parent. `AuthorityRefReader` never receives controller/scientific
+refs, and the scientific loader never receives controller/authority refs.
+Each loader independently enforces its canonical path/root identity. A role
+whose path belongs to another class, unknown role, media mismatch, same
+relative path assigned to two refs, same ref discovered under two classes, or
+role/path/hash alias across classes rejects.
+
+Traversal starts from the candidate wrapper in S02C and from every ordered
+candidate plus schedule in S02D. It parses each loaded JSON object with its
+exact decoder, extracts every nested ArtifactRef, and maintains a closed
+`ref -> load_class` visited map. Every reachable ref must be loaded successfully
+by exactly one class—neither zero nor more than one—before S02C returns and
+again, using entirely fresh loader instances, before S02D publishes. Unknown
+JSON record/ref shapes reject rather than becoming opaque leaves.
+
+RED cases remove `out`, target a reserved/outside/symlink/non-normal/existing
+path, simulate write/close/parent-fsync failure, and attempt S02C publication.
+They also inject unknown/overlapping roles, controller refs on authority paths
+and conversely, direct authority/scientific calls into
+`ControllerArtifactResolver`, cross-class aliases, omitted recursive refs, and
+double-loaded refs; each must fail before return/publication.
 
 The corrected prefix entry adds:
 
