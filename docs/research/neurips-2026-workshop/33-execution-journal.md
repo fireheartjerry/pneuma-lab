@@ -382,3 +382,138 @@ The next event after the archived migration boundary is appended below.
 - **Command:** One combined Ruff+mypy gate after hostile runtime/path corrections.
 - **Result:** GREEN, exit 0. Ruff passed; mypy found no issues in seven source files.
 - **Compact receipt:** stdout 86 bytes / 4 lines / SHA-256 `1adc478a560d3a14d1ea46e6acabf21cf4deb367170dd8186ba95d5bd5c27185`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0613/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0614 — deliver Slice 7B1 nominal local storage capability
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Checked whitespace/status, staged exactly `storage.py`, the focused fixture/test file, and the live journal; checked staged scope; committed `feat(neurips): add nominal local storage lease`; pushed publicly; compared refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `b4b4a09da1f1ec0df722b078a4fb5e5f15652043`. Three files, 691 insertions and one deletion. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Compact receipt:** stdout 736 bytes / 13 lines / SHA-256 `24d2e348e1f0a3994f3d1565bb47282d9525a84097c5fc428f1327c334d4c062`; stderr 134 bytes / 2 lines / SHA-256 `d18a19e4aa4a6a5a4e3d89826448aba8d58d213038c9ef2079664daa3e22fdc9`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0614/` (ignored, retained through 2026-11-27).
+
+### EJ-20260728-0615 — open deterministic prefix-schedule derivation seam
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Inventory existing preflight loaders, provider-lane grammar, and schedule-seed commitment primitives before implementing schedule publication over the new lease.
+- **Result:** Exit 0. Captured 270 lines. The next implementation must reuse the closed manifest-owned asset parsers and existing typed KDF/commitment functions; no caller-supplied provider or task mirrors are needed.
+- **Compact receipt:** stdout 24,205 bytes / 270 lines / SHA-256 `209605a871647d9b05ba244ce271628a348722d3c866dbdbaccdd54d65f0fcc0`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0615/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0001 — roll journal date and resolve prefix derivation inputs
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Start the new local-date event sequence and review EJ-0615's exact loader/provider/commitment capture.
+- **Result:** Exit 0. Preflight exposes strict task-registry and assignment-program importers but no provider-plan consumer; Slice 7B2 must implement a closed provider-plan loader. Schedule seed verification reuses the existing typed `commitment_sha256("schedule-seed", study_id, U64Field(seed))`. Provider rows bind a canonical task-sorted complete mapping to prefix lane and four execution-rank lanes.
+- **Compact receipt:** stdout 24,205 bytes / 270 lines / SHA-256 `209605a871647d9b05ba244ce271628a348722d3c866dbdbaccdd54d65f0fcc0`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0001/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0002 — implement local publication happy path
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Added same-directory fsynced preparation, no-replace hard-link install, fsynced operational intent, bounded post-end lifetime check, durable deterministic local commit proof, fixed receipt construction, and parent fsync. Added one focused binding test covering science bytes, intent/commit digest equality, durable registry proof, acceptance marker, and consumed-lease reuse rejection.
+- **Result:** GREEN, exit 0. Four focused `t3_s07` tests passed; 211 unrelated tests deselected. Runtime 2.67 seconds.
+- **Caveat:** This proves the initial happy path only. Crash recovery, pre-install intent replacement, and the schedule-specific deterministic preparer remain unfinished and unclaimed.
+- **Compact receipt:** stdout 114 bytes / 2 lines / SHA-256 `d45e50186599622f5a27e6a7b3d2e5eda11495af566f1842dfef41a6d5e7ac14`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0002/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0003 — capture slot identity and schedule schema primitives
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Resolve authority for slot IDs, membership digest, execution ordering, task parsing, commitment verification, and stable schedule types before coding the preparer.
+- **Result:** Exit 0. Captured 503 lines for bounded analysis; no repository mutation outside the journal.
+- **Compact receipt:** stdout 21,501 bytes / 503 lines / SHA-256 `0de8b4fa5b4ff1e03ddfc72a9e4da6ed47b7d612fc943b2cb0ff1f309b1417d6`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0003/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0004 — resolve schedule ordering and slot-identity boundary
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Extract only slot, membership, and execution-order authority from EJ-0003.
+- **Result:** Exit 0. Authority fixes slot array ordinal order and seed/order roles but does not prescribe a separate free-form slot-ID derivation. To avoid a new derivation role, Slice 7B2 will use the full SHA-256 digest of the already-authorized `slot-{ordinal}` derive-seed frame as the opaque slot ID, while the seed stores its first eight bytes. Execution rank separately uses the full authorized `execution-order-{ordinal}` frame digest with ordinal collision fallback.
+- **Compact receipt:** stdout 13,751 bytes / 264 lines / SHA-256 `b89e825db9397af58f60c297903aec9c69e7f72900c0c21e05c9ec4f8e1d0447`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0004/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0005 — implement candidate deterministic schedule preparer
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Added `schedule.py` with manifest-only asset loading, full completed-power selection, typed seed-commitment verification, strict task/provider parsing, membership digest recomputation, canonical task/group ordering, authorized prefix/slot/order KDF roles, full-digest opaque slot IDs, deterministic execution ranks, frozen lane mapping, schema validation, and publication through the live lease. Privatized the generic publication helper. Captured the assignment-program grammar and fixture references for the next test fixture correction.
+- **Result:** Exit 0; `git diff --check` passed. This is an untested candidate; no schedule-publication claim is promoted.
+- **Compact receipt:** stdout 8,081 bytes / 134 lines / SHA-256 `32fa6cdc9f2bae36ee69c0b49deb74d1eb829d42811666909bad31f86f792be5`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0005/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0006 — review assignment-program grammar for schedule fixture
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Purpose:** Display the captured assignment-program validator and locate its canonical test fixture without another broad source read.
+- **Result:** Exit 0. The schedule fixture must supply the closed synthetic mode/algorithm, strict cutpoints, bound normalizer source/digest/tokenizer/components, CPython runtime identity, null backend, and ordered unique stratum keys. The candidate preparer must additionally enforce the top-level closed key set because `_validate_assignment_program` validates semantics but assumes its importer already enforced closure.
+- **Compact receipt:** stdout 8,081 bytes / 134 lines / SHA-256 `32fa6cdc9f2bae36ee69c0b49deb74d1eb829d42811666909bad31f86f792be5`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0006/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0007 — focused deterministic schedule publication gate passes
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Upgraded only the isolated Slice 7 fixture with a closed assignment program, complete provider-lane plan, and real purpose-bound schedule-seed commitment. Added one focused end-to-end schedule publication test.
+- **Result:** GREEN, exit 0. Five focused `t3_s07` tests passed; 211 unrelated tests deselected. Runtime 3.06 seconds. The test proves manifest/final-derived membership, seed commitment, two-task canonical schedule construction, distinct slot IDs, complete execution ranks, frozen lane mapping, durable publication, and receipt/science digest binding for the synthetic fixture.
+- **Compact receipt:** stdout 114 bytes / 2 lines / SHA-256 `9a4c6224c977a6a7d6c6b4be82c57e967e9f73dff5248e65eba6347d2db077c5`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0007/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0008 — schedule static gate finds one unused import
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Command:** Combined Ruff+mypy gate after schedule implementation.
+- **Result:** RED, exit 1. mypy passed eight source files. Ruff found exactly one unused `typing.Any` import in `schedule.py`; no behavioral or typing defect was reported.
+- **Correction:** Remove the unused import manually and repeat only the static gate.
+- **Compact receipt:** stdout 456 bytes / 17 lines / SHA-256 `025443e2799ba0cfe217fd0832b5db2312d484dfe749a9745c5de70d618cf5ae`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0008/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0009 — corrected schedule static gate passes, hostile review continues
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Result:** GREEN, exit 0. Ruff passed; mypy found no issues in eight source files.
+- **Blocking hostile findings:** The schedule entry point must explicitly prove that the exact lease is prefix-bound to the same manifest/root/null schedule and that assignment mode matches schedule authority. The publication layer also lacks the authority-required pre-install abort/intent replacement and post-commit fixed-receipt recovery paths. Slice 7B2 remains unpromoted until these are fixed.
+- **Compact receipt:** stdout 86 bytes / 4 lines / SHA-256 `e6c3ec4c203d4605609414c799cc19d939ce33570b35e3d1a8dd5e9f53f7a937`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0009/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0010 — recovery- and binding-corrected schedule gate passes
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Bound schedule publication to the exact prefix lease tuple and authority-compatible assignment mode. Added durable post-commit receipt recovery without preparer re-execution, rejection/quarantine when a unique proof is absent, and pre-install stale-intent abort proof/replacement when science and commit are absent. Extended the focused cases with wrong-seed no-write and post-commit deterministic recovery.
+- **Result:** GREEN, exit 0. Five focused `t3_s07` tests passed; 211 unrelated tests deselected. Runtime 3.82 seconds.
+- **Compact receipt:** stdout 114 bytes / 2 lines / SHA-256 `7d56196d9cd6f8f06ae701c536f4248ac3353b65a456eac5cc7451745e6c4b7a`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0010/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0011 — recovery static gate finds one unused import
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Result:** RED, exit 1. mypy passed eight source files. Ruff found one unused `collections.abc.Mapping` import in `storage.py`; the recovery implementation uses runtime `dict` checks instead.
+- **Correction:** Remove the unused import and repeat only the static gate.
+- **Compact receipt:** stdout 538 bytes / 17 lines / SHA-256 `7c212fa9a9b5768cdf66dee1f75b2a11944c535c3efcb551d571de56773a80da`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0011/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0012 — corrected recovery static gate passes; proof-splicing review blocks
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Result:** GREEN, exit 0. Ruff passed; mypy found no issues in eight source files.
+- **Blocking hostile finding:** Recovery still accepted a proof located by intent digest without fully closing and cross-binding its authority, lease, generation, expiry, root, mount, local-policy fields, deterministic commit ID/path, and commit freshness. That could turn recovery into a receipt-splicing oracle if operational bytes were tampered with.
+- **Correction implemented after capture:** Added exact intent/attestation lifecycle validation, exact proof shape, full tuple cross-binding, deterministic commit-ID/path recomputation, ordered/fresh timestamps, and a forged-extra-field recovery rejection case.
+- **Compact receipt:** stdout 86 bytes / 4 lines / SHA-256 `e6c3ec4c203d4605609414c799cc19d939ce33570b35e3d1a8dd5e9f53f7a937`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0012/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0013 — proof-splicing-resistant recovery gate passes
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Added closed local intent/attestation validation and fully cross-bound commit-proof recovery. Injected an extra-field forged proof, verified recovery rejected it without running the preparer, restored the original durable proof, and verified deterministic receipt finalization.
+- **Result:** GREEN, exit 0. Five focused `t3_s07` tests passed; 211 unrelated tests deselected. Runtime 3.47 seconds.
+- **Compact receipt:** stdout 114 bytes / 2 lines / SHA-256 `c98f326b373c65bc6932c235905b0b8f91e00616a5909ac3e2d972a56381367d`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0013/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0014 — final static gate for Slice 7B2 candidate
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Result:** GREEN, exit 0. Ruff passed; mypy found no issues in eight source files.
+- **Compact receipt:** stdout 86 bytes / 4 lines / SHA-256 `e6c3ec4c203d4605609414c799cc19d939ce33570b35e3d1a8dd5e9f53f7a937`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0014/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0015 — full diff review blocks incomplete assignment-asset closure
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Captured the full source/test diff and status for hostile pre-delivery review.
+- **Result:** Exit 0; whitespace passed. BLOCKING FINDING: schedule reloads and semantically validates the assignment program but does not yet resolve its normalizer implementation ref, prove exact manifest source-revision ownership, bind the report tokenizer digest, or compare the frozen CPython/Unicode runtime to the executing controller. A dangling or lookalike program dependency could therefore reach schedule publication.
+- **Correction:** Add all four independent checks and update only the isolated fixture's pinned sources/runtime.
+- **Compact receipt:** stdout 34,009 bytes / 918 lines / SHA-256 `60173604dd54b21f564054585577c329431fa86c1359243d8bd0084fc6dd4dd4`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0015/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0016 — complete assignment-asset closure gate passes
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Action:** Resolved and hashed the normalizer implementation, required exact manifest source-revision membership, resolved and bound the report tokenizer, and compared the frozen CPython/Unicode runtime to the executing controller. Also rechecked science absence immediately before stale-intent abort.
+- **Result:** GREEN, exit 0. Five focused `t3_s07` tests passed; 211 unrelated tests deselected. Runtime 3.40 seconds.
+- **Compact receipt:** stdout 114 bytes / 2 lines / SHA-256 `7bd9fc06a854c0ff669c55521f73e860a86c39c07273c0125912f300b134963c`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0016/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0017 — final static gate after dependency-closure correction
+
+- **Time:** command metadata records exact local and UTC timestamps.
+- **Result:** GREEN, exit 0. Ruff passed; mypy found no issues in eight source files.
+- **Compact receipt:** stdout 86 bytes / 4 lines / SHA-256 `e6c3ec4c203d4605609414c799cc19d939ce33570b35e3d1a8dd5e9f53f7a937`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0017/` (ignored, retained through 2026-11-27).

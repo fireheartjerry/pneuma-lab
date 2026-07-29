@@ -10,7 +10,9 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import sys
 from typing import Any, cast
+import unicodedata
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -30,11 +32,17 @@ from pneuma_lab.resampling_null.artifacts import (
     write_jsonl_artifact,
     write_record,
 )
-from pneuma_lab.resampling_null.assignment import require_schedulable_power_final
+from pneuma_lab.resampling_null.assignment import (
+    U64Field,
+    commitment_sha256,
+    require_schedulable_power_final,
+)
+from pneuma_lab.resampling_null.schedule import seal_prefix_schedule
 from pneuma_lab.resampling_null.storage import (
     ConfirmationStorageLease,
     LocalTestStorageLease,
     claim_local_test_storage,
+    _publish_local_test_scientific,
 )
 from pneuma_lab.resampling_null.types import ArtifactRef
 
@@ -1068,6 +1076,8 @@ def _build_full_study(
         if variant == "schedule-roster-subset":
             roster_tasks.append({"task_id": "task-uncovered"})
         registry_tasks = roster_tasks
+    normalizer_ref = raw("normalizer.py", b"normalizer")
+    tokenizer_ref = raw("tokenizer.json", {"name": "tokenizer"})
     raws = {
         "tasks": raw(
             "tasks.json",
@@ -1114,8 +1124,69 @@ def _build_full_study(
                 "tier_membership_sha256": SHA_A,
             },
         ),
-        "assignment": raw("assignment.py", b"assignment"),
-        "provider": raw("provider.json", {"lane": "lane-a"}),
+        "assignment": raw(
+            "assignment.json",
+            (
+                {
+                    "record_kind": "resampling_assignment_program_v1",
+                    "schema_version": "1",
+                    "assignment_mode": "synthetic_derangement",
+                    "matching_algorithm": "synthetic_cyclic_offset_v1",
+                    "finding_count_band_upper_bounds": [1, 3],
+                    "report_length_band_upper_bounds": [128, 512],
+                    "verifier_normalizer_contract": {
+                        "contract_id": "assignment-verifier-normalizer-v1",
+                        "normalizer_source_ref": normalizer_ref,
+                        "normalizer_source_sha256": normalizer_ref["sha256"],
+                        "report_tokenizer_sha256": tokenizer_ref["sha256"],
+                        "benchmark_component_kinds": {
+                            "SWE": ["check_runner", "failure_class"],
+                            "TAU": ["evaluator_component"],
+                        },
+                    },
+                    "assignment_runtime_contract": {
+                        "implementation": "CPython",
+                        "python_version": (
+                            f"{sys.version_info.major}.{sys.version_info.minor}."
+                            f"{sys.version_info.micro}"
+                        ),
+                        "unicodedata_unidata_version": unicodedata.unidata_version,
+                    },
+                    "backend_receipt_ref": None,
+                    "stratum_keys": ["benchmark", "language"],
+                }
+                if completed_power_consumer_fixture
+                else {"placeholder": "assignment"}
+            ),
+        ),
+        "provider": raw(
+            "provider.json",
+            (
+                {
+                    "record_kind": "provider_lane_plan_v1",
+                    "schema_version": "1",
+                    "lanes": [
+                        {"ordinal": ordinal, "lane_id": f"lane-{ordinal}"}
+                        for ordinal in range(4)
+                    ],
+                    "task_lanes": [
+                        {
+                            "task_id": task["task_id"],
+                            "prefix_lane_ordinal": 0,
+                            "lane_ordinals_by_execution_rank": [0, 1, 2, 3],
+                        }
+                        for task in sorted(
+                            registry_tasks,
+                            key=lambda task: cast(str, task["task_id"]).encode(
+                                "utf-8"
+                            ),
+                        )
+                    ],
+                }
+                if completed_power_consumer_fixture
+                else {"lane": "lane-a"}
+            ),
+        ),
         "storage_policy": raw(
             "storage-policy.json",
             (
@@ -1141,7 +1212,7 @@ def _build_full_study(
                 else {"mode": "local_test"}
             ),
         ),
-        "tokenizer": raw("tokenizer.json", {"name": "tokenizer"}),
+        "tokenizer": tokenizer_ref,
         "template": raw("template.json", {"name": "template"}),
         "policy": raw("policy.json", {"name": "policy"}),
         "pads": raw("pads.json", {"units": []}),
@@ -1206,10 +1277,18 @@ def _build_full_study(
         "packet_template_ref": raws["template"],
         "packet_policy_ref": raws["policy"],
         "pad_unit_set_ref": raws["pads"],
-        "source_revision_refs": [raws["revision"]],
+        "source_revision_refs": (
+            [raws["revision"], normalizer_ref]
+            if completed_power_consumer_fixture
+            else [raws["revision"]]
+        ),
         "commitment_scheme": "resampling-null-key-ceremony-v1",
         "roster_local_nonce_commitment_sha256": SHA_A,
-        "schedule_seed_commitment_sha256": SHA_A,
+        "schedule_seed_commitment_sha256": (
+            commitment_sha256("schedule-seed", "study-1", U64Field(7))
+            if completed_power_consumer_fixture
+            else SHA_A
+        ),
         "assignment_master_key_commitment_sha256": SHA_A,
         "required_document_kinds_ref": raws["required"],
     }
@@ -2658,6 +2737,168 @@ def test_t3_s07_local_storage_lease_is_nominal_exclusive_and_single_use(
             ),
             schedule_ref=None,
         )
+
+
+def test_t3_s07_local_storage_publication_binds_science_and_fixed_receipt(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "local-publication"
+    installed = _build_full_study(
+        root,
+        completed_power_consumer_fixture=True,
+    )
+    manifest_ref = ArtifactRef(
+        **cast(dict[str, Any], installed["manifest_ref"])
+    )
+    lease = claim_local_test_storage(
+        transaction="prefix",
+        run_root=root,
+        manifest_ref=manifest_ref,
+        schedule_ref=None,
+    )
+    prepared = b'{"prepared":"science"}'
+    ref = _publish_local_test_scientific(
+        lease,
+        out=root / "prepared-science.json",
+        role="test_science",
+        media_type="application/json",
+        prepare=lambda: prepared,
+    )
+    assert (root / ref.relative_path).read_bytes() == prepared
+    receipt_path = root / "operational/storage-policy/prefix.json"
+    receipt = json.loads(receipt_path.read_bytes())
+    assert receipt["fixed_receipt_is_acceptance_marker"] is True
+    assert receipt["publication_commit"]["scientific_sha256"] == ref.sha256
+    assert (
+        receipt["transaction_intent_sha256"]
+        == receipt["publication_commit"]["transaction_intent_sha256"]
+    )
+    commit_id = receipt["publication_commit"]["registry_commit_id"]
+    proof_path = (
+        root
+        / "operational"
+        / "storage-policy"
+        / "registry"
+        / "commits"
+        / f"{commit_id}.json"
+    )
+    assert proof_path.is_file()
+    receipt_path.unlink()
+    original_proof = proof_path.read_bytes()
+    forged_proof = json.loads(original_proof)
+    forged_proof["extra"] = "receipt-splice"
+    proof_path.write_bytes(canonical_json_bytes(forged_proof, indent=None))
+    forged_recovery_lease = claim_local_test_storage(
+        transaction="prefix",
+        run_root=root,
+        manifest_ref=manifest_ref,
+        schedule_ref=None,
+    )
+    with pytest.raises(RecordValidationError, match="proof"):
+        _publish_local_test_scientific(
+            forged_recovery_lease,
+            out=root / "prepared-science.json",
+            role="test_science",
+            media_type="application/json",
+            prepare=lambda: pytest.fail("forged recovery must not prepare science"),
+        )
+    proof_path.write_bytes(original_proof)
+    recovery_lease = claim_local_test_storage(
+        transaction="prefix",
+        run_root=root,
+        manifest_ref=manifest_ref,
+        schedule_ref=None,
+    )
+    recovered = _publish_local_test_scientific(
+        recovery_lease,
+        out=root / "prepared-science.json",
+        role="test_science",
+        media_type="application/json",
+        prepare=lambda: pytest.fail("post-commit recovery must not prepare science"),
+    )
+    assert recovered == ref
+    assert receipt_path.is_file()
+    with pytest.raises(RecordValidationError, match="cannot begin"):
+        lease._begin()
+
+
+def test_t3_s07_prefix_schedule_is_derived_and_published_inside_lease(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "prefix-schedule"
+    installed = _build_full_study(
+        root,
+        completed_power_consumer_fixture=True,
+    )
+    (root / "prefix-schedule.json").unlink()
+    manifest_ref = ArtifactRef(
+        **cast(dict[str, Any], installed["manifest_ref"])
+    )
+    final_paths = [
+        path
+        for path in (root / "power").glob("*.json")
+        if load_record(path)["payload"]["stage"] == "final"  # type: ignore[index]
+    ]
+    assert len(final_paths) == 1
+    final_path = final_paths[0]
+    final_bytes = final_path.read_bytes()
+    power_final_ref = ArtifactRef(
+        role="resampling_power_report",
+        relative_path=final_path.relative_to(root).as_posix(),
+        sha256=hashlib.sha256(final_bytes).hexdigest(),
+        byte_count=len(final_bytes),
+        media_type="application/json",
+    )
+    wrong_seed_lease = claim_local_test_storage(
+        transaction="prefix",
+        run_root=root,
+        manifest_ref=manifest_ref,
+        schedule_ref=None,
+    )
+    with pytest.raises(RecordValidationError, match="commitment"):
+        seal_prefix_schedule(
+            manifest_ref,
+            power_final_ref,
+            schedule_seed_reveal=8,
+            storage_policy_lease=wrong_seed_lease,
+            run_root=root,
+            out=root / "prefix-schedule.json",
+        )
+    assert not (root / "prefix-schedule.json").exists()
+    lease = claim_local_test_storage(
+        transaction="prefix",
+        run_root=root,
+        manifest_ref=manifest_ref,
+        schedule_ref=None,
+    )
+    schedule_ref = seal_prefix_schedule(
+        manifest_ref,
+        power_final_ref,
+        schedule_seed_reveal=7,
+        storage_policy_lease=lease,
+        run_root=root,
+        out=root / "prefix-schedule.json",
+    )
+    schedule = load_record(root / schedule_ref.relative_path)
+    payload = cast(dict[str, object], schedule["payload"])
+    assert payload["schedule_authority"] == "synthetic_validation"
+    assert payload["selected_tier"] is None
+    tasks = cast(list[dict[str, object]], payload["tasks"])
+    assert [cast(dict[str, object], task["task"])["task_id"] for task in tasks] == [
+        "task-1",
+        "task-donor",
+    ]
+    for task in tasks:
+        slots = cast(list[dict[str, object]], task["slots"])
+        assert len({slot["slot_id"] for slot in slots}) == 4
+        assert sorted(slot["execution_order"] for slot in slots) == [0, 1, 2, 3]
+        assert all(
+            slot["hardware_lane"] == slot["execution_order"] for slot in slots
+        )
+    receipt = json.loads(
+        (root / "operational/storage-policy/prefix.json").read_bytes()
+    )
+    assert receipt["publication_commit"]["scientific_sha256"] == schedule_ref.sha256
 
 
 def _numeric_contract() -> dict[str, object]:
