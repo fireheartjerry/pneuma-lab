@@ -438,3 +438,18 @@ The next event after the archived migration boundary is appended below.
 - **Planned mechanics:** stage exactly those seven paths; fail on whitespace/staged-name mismatch; commit `feat(resampling-null): validate signed preflight authority`; push publicly; compare exact local/remote refs.
 - **Evidence basis:** frozen environment EJ-0559/0560; focused behavior EJ-0562; static EJ-0563; hostile audit EJ-0564.
 - **Self-reference break:** reconcile finite delivery facts in the next event before Slice 7.
+
+### EJ-20260728-0566 — deliver Task 3 Slice 6 publicly
+
+- **Predecessor:** `EJ-20260728-0565`
+- **Time:** `2026-07-28T23:33:43-07:00` to `2026-07-28T23:33:45-07:00` (`2026-07-29T06:33:43+00:00` to `2026-07-29T06:33:45+00:00` UTC)
+- **Action:** Staged exactly the seven pre-recorded paths, checked whitespace and staged-name equality, committed `feat(resampling-null): validate signed preflight authority`, pushed publicly, and compared exact local/remote refs.
+- **Result:** GREEN, exit `0`. Commit and public remote are exactly `86cb060aa247aeca3eeb8a459ada658ba8bbb982`.
+- **Scientific boundary:** Actual canonical-byte Ed25519 verification and fail-closed nominal ceremony authority now exist. No roster ceremony is claimed verified and no eligible confirmation capability can be minted without the absent reviewed official adapter.
+- **Compact receipt:** stdout `253 B`, `4 lines`, SHA-256 `8f56eb4586cf11efb4ee84a7f95596fded1a5d5c1bc5b540ad0ed5a4b9957046`; stderr `110 B`, `2 lines`, SHA-256 `579f401ffe6cee9acc8589c89293c20a54478065f3bcc7956316e62d48d7285d`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0566/`.
+
+### EJ-20260728-0567 — pre-record finite Slice 6 receipt delivery
+
+- **Predecessor:** `EJ-20260728-0566`
+- **Planned mechanics:** stage only this live journal; check whitespace/scope; commit `docs(neurips): record task 3 slice 6 delivery`; push publicly; reconcile the exact ref as EJ-0568, completing the next exact 50-event live shard boundary.
+- **Self-reference break:** the B SHA/push receipt remains local until EJ-0568.
