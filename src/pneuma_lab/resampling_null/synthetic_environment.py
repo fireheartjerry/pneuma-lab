@@ -15,26 +15,140 @@ from pathlib import Path
 import stat
 import subprocess
 import sys
-from typing import final
+from typing import BinaryIO, cast, final
 
-from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
-from .controller_artifacts import ControllerArtifactStore
-from .errors import RecordValidationError
-from .prefix_contracts import (
+def _worker_canonical(value: object) -> bytes:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _worker_decoded(value: object) -> bytes:
+    if type(value) is not str:
+        raise ValueError("encoded bytes must be exact text")
+    return base64.b64decode(value, validate=True)
+
+
+def _synthetic_worker_main() -> int:
+    """Run the subprocess fixture from this exact reviewed source file."""
+
+    import argparse
+
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--synthetic-worker", action="store_true", required=True)
+    parser.add_argument("--request-fd", type=int, required=True)
+    parser.add_argument("--response-fd", type=int, required=True)
+    parser.add_argument("--task-sha256", required=True)
+    parser.add_argument("--program-sha256", required=True)
+    parser.add_argument("--source-sha256", required=True)
+    arguments = parser.parse_args()
+    with open(__file__, "rb") as source:
+        if hashlib.sha256(source.read()).hexdigest() != arguments.source_sha256:
+            raise ValueError("executed worker source differs from reviewed descriptor")
+    request = os.fdopen(arguments.request_fd, "rb", buffering=0)
+    response = os.fdopen(arguments.response_fd, "wb", buffering=0)
+    state: dict[str, object] | None = None
+
+    def encoded(value: bytes) -> str:
+        return base64.b64encode(value).decode("ascii")
+
+    def reply(value: object) -> None:
+        response.write(_worker_canonical({"ok": True, "value": value}) + b"\n")
+
+    while line := request.readline():
+        try:
+            message = json.loads(line)
+            operation = message["operation"]
+            if operation == "start":
+                task_bytes = _worker_decoded(message["task_input_bytes"])
+                program_bytes = _worker_decoded(message["program_bytes"])
+                if hashlib.sha256(task_bytes).hexdigest() != arguments.task_sha256:
+                    raise ValueError("task bytes differ from command binding")
+                if (
+                    hashlib.sha256(program_bytes).hexdigest()
+                    != arguments.program_sha256
+                ):
+                    raise ValueError("program bytes differ from command binding")
+                state = {
+                    "branch_pending_calls": [],
+                    "episode_terminal": False,
+                    "failure_kind": "none",
+                    "program_sha256": arguments.program_sha256,
+                    "simulator_context": None,
+                    "terminal_unexecuted_remainder": [],
+                    "turns": [],
+                    "visible_context": encoded(task_bytes),
+                }
+                reply(None)
+            elif state is None:
+                raise ValueError("environment has not started")
+            elif operation == "snapshot":
+                reply(encoded(_worker_canonical(state) + b"\n"))
+            elif operation == "restore":
+                candidate = _worker_decoded(message["snapshot_bytes"])
+                decoded = json.loads(candidate)
+                if (
+                    type(decoded) is not dict
+                    or _worker_canonical(decoded) + b"\n" != candidate
+                ):
+                    raise ValueError("snapshot is not a canonical object")
+                state = decoded
+                reply(None)
+            elif operation == "visible_context":
+                reply(state["visible_context"])
+            elif operation == "simulator_context":
+                reply(state["simulator_context"])
+            elif operation == "mutation_committed":
+                reply(False)
+            elif operation == "verifier_eligible":
+                reply(False)
+            elif operation == "episode_terminal":
+                reply(state["episode_terminal"])
+            elif operation == "failure_kind":
+                reply(state["failure_kind"])
+            elif operation == "close":
+                reply(None)
+                break
+            else:
+                raise ValueError("operation is unavailable")
+        except BaseException as exc:
+            response.write(
+                _worker_canonical(
+                    {"error": f"{type(exc).__name__}: {exc}", "ok": False}
+                )
+                + b"\n"
+            )
+    request.close()
+    response.close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_synthetic_worker_main())
+
+
+from pneuma_lab.foundation.artifacts import canonical_json_bytes  # noqa: E402
+
+from .controller_artifacts import ControllerArtifactStore  # noqa: E402
+from .errors import RecordValidationError  # noqa: E402
+from .prefix_contracts import (  # noqa: E402
     EnvironmentProcessIdentity,
     ImplementationDescriptor,
     InitialRestoreQualificationReceipt,
     StableSourceProvenance,
     initial_restore_qualification_receipt_bytes,
 )
-from .types import ArtifactRef, FailureKind, ToolCall
+from .types import ArtifactRef, FailureKind, ToolCall  # noqa: E402
 
 
 _DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 _ROOT_SUFFIX_ATTEMPTS = 16
 _WORKSPACE_NAME = "prefix-environments"
-_WORKER = Path(__file__).with_name("_synthetic_environment_worker.py")
 _SOURCE_ROOT = Path(__file__).parents[3]
 _SOURCE_PATH = Path("src/pneuma_lab/resampling_null/synthetic_environment.py")
 _ENVIRONMENT_DESCRIPTOR_FIELDS = {
@@ -151,35 +265,64 @@ class ControllerEnvironmentIPC:
         self,
         *,
         request_read_fd: int,
-        request_write_fd: int,
-        response_read_fd: int,
         response_write_fd: int,
+        request_writer: BinaryIO,
+        response_reader: BinaryIO,
     ) -> None:
         self._request_read_fd: int | None = request_read_fd
-        self._request_write_fd: int | None = request_write_fd
-        self._response_read_fd: int | None = response_read_fd
         self._response_write_fd: int | None = response_write_fd
-        self._request_writer = os.fdopen(
-            os.dup(request_write_fd),
-            "wb",
-            buffering=0,
-        )
-        self._response_reader = os.fdopen(
-            os.dup(response_read_fd),
-            "rb",
-            buffering=0,
-        )
+        self._request_writer = request_writer
+        self._response_reader = response_reader
 
     @classmethod
     def create(cls) -> ControllerEnvironmentIPC:
-        request_read, request_write = os.pipe()
-        response_read, response_write = os.pipe()
-        return cls(
-            request_read_fd=request_read,
-            request_write_fd=request_write,
-            response_read_fd=response_read,
-            response_write_fd=response_write,
-        )
+        raw_fds: list[int] = []
+        streams: list[BinaryIO] = []
+        try:
+            request_read, request_write = os.pipe()
+            raw_fds.extend((request_read, request_write))
+            response_read, response_write = os.pipe()
+            raw_fds.extend((response_read, response_write))
+            request_stream_fd = os.dup(request_write)
+            raw_fds.append(request_stream_fd)
+            request_writer = cast(
+                BinaryIO,
+                os.fdopen(request_stream_fd, "wb", buffering=0),
+            )
+            raw_fds.remove(request_stream_fd)
+            streams.append(request_writer)
+            response_stream_fd = os.dup(response_read)
+            raw_fds.append(response_stream_fd)
+            response_reader = cast(
+                BinaryIO,
+                os.fdopen(response_stream_fd, "rb", buffering=0),
+            )
+            raw_fds.remove(response_stream_fd)
+            streams.append(response_reader)
+            raw_fds.remove(request_write)
+            os.close(request_write)
+            raw_fds.remove(response_read)
+            os.close(response_read)
+            return cls(
+                request_read_fd=request_read,
+                response_write_fd=response_write,
+                request_writer=request_writer,
+                response_reader=response_reader,
+            )
+        except BaseException as primary:
+            errors: list[BaseException] = [primary]
+            for stream in streams:
+                try:
+                    stream.close()
+                except BaseException as exc:
+                    errors.append(exc)
+            while raw_fds:
+                descriptor = raw_fds.pop()
+                try:
+                    os.close(descriptor)
+                except BaseException as exc:
+                    errors.append(exc)
+            raise BaseExceptionGroup("environment IPC creation failed", errors)
 
     @property
     def child_fds(self) -> tuple[int, int]:
@@ -238,8 +381,6 @@ class ControllerEnvironmentIPC:
                 errors.append(exc)
         for name in (
             "_request_read_fd",
-            "_request_write_fd",
-            "_response_read_fd",
             "_response_write_fd",
         ):
             descriptor = getattr(self, name)
@@ -254,16 +395,61 @@ class ControllerEnvironmentIPC:
 
 
 @final
+@dataclass(frozen=True, slots=True, init=False)
 class SyntheticEnvironmentFactory:
     """Exact registered command and handle binder for the sealed worker."""
+
+    _task_input_bytes: bytes
+    _program_bytes: bytes
+    _program_sha256: str
+    _implementation_source_sha256: str
+    _seal: tuple[str, str, str]
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         raise TypeError("SyntheticEnvironmentFactory is final")
 
-    def __init__(self, *, task_input_bytes: bytes, program_bytes: bytes) -> None:
-        self.task_input_bytes = _exact_bytes(task_input_bytes, "task_input_bytes")
-        self.program_bytes = _exact_bytes(program_bytes, "program_bytes")
-        self.program_sha256 = hashlib.sha256(self.program_bytes).hexdigest()
+    def __init__(
+        self,
+        *,
+        task_input_bytes: bytes,
+        program_bytes: bytes,
+        implementation_source_sha256: str,
+    ) -> None:
+        task_bytes = _exact_bytes(task_input_bytes, "task_input_bytes")
+        sealed_program_bytes = _exact_bytes(program_bytes, "program_bytes")
+        if (
+            type(implementation_source_sha256) is not str
+            or len(implementation_source_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in implementation_source_sha256
+            )
+        ):
+            raise ValueError("implementation source digest is not canonical")
+        task_sha256 = hashlib.sha256(task_bytes).hexdigest()
+        program_sha256 = hashlib.sha256(sealed_program_bytes).hexdigest()
+        object.__setattr__(self, "_task_input_bytes", task_bytes)
+        object.__setattr__(self, "_program_bytes", sealed_program_bytes)
+        object.__setattr__(self, "_program_sha256", program_sha256)
+        object.__setattr__(
+            self,
+            "_implementation_source_sha256",
+            implementation_source_sha256,
+        )
+        object.__setattr__(
+            self,
+            "_seal",
+            (task_sha256, program_sha256, implementation_source_sha256),
+        )
+
+    def _verify_seal(self) -> None:
+        observed = (
+            hashlib.sha256(self._task_input_bytes).hexdigest(),
+            hashlib.sha256(self._program_bytes).hexdigest(),
+            self._implementation_source_sha256,
+        )
+        if observed != self._seal or self._program_sha256 != self._seal[1]:
+            raise RecordValidationError("factory state differs from sealed bytes")
 
     def command(
         self,
@@ -271,9 +457,10 @@ class SyntheticEnvironmentFactory:
         task_input_bytes: bytes,
         program_bytes: bytes,
     ) -> tuple[str, ...]:
+        self._verify_seal()
         if (
-            _exact_bytes(task_input_bytes, "task_input_bytes") != self.task_input_bytes
-            or _exact_bytes(program_bytes, "program_bytes") != self.program_bytes
+            _exact_bytes(task_input_bytes, "task_input_bytes") != self._task_input_bytes
+            or _exact_bytes(program_bytes, "program_bytes") != self._program_bytes
         ):
             raise RecordValidationError(
                 "factory command bytes differ from sealed bytes"
@@ -281,11 +468,14 @@ class SyntheticEnvironmentFactory:
         return (
             sys.executable,
             "-I",
-            str(_WORKER),
+            str(Path(__file__)),
+            "--synthetic-worker",
             "--task-sha256",
             hashlib.sha256(task_input_bytes).hexdigest(),
             "--program-sha256",
-            self.program_sha256,
+            self._program_sha256,
+            "--source-sha256",
+            self._implementation_source_sha256,
         )
 
     def bind(
@@ -296,6 +486,7 @@ class SyntheticEnvironmentFactory:
         writable_root_fd: int,
         instance_ordinal: int,
     ) -> SyntheticEnvironmentHandle:
+        self._verify_seal()
         if type(process) is not subprocess.Popen:
             raise TypeError("process must be the controller's exact Popen")
         if type(ipc) is not ControllerEnvironmentIPC:
@@ -310,8 +501,8 @@ class SyntheticEnvironmentFactory:
         return SyntheticEnvironmentHandle(
             process=process,
             ipc=ipc,
-            task_input_bytes=self.task_input_bytes,
-            program_bytes=self.program_bytes,
+            task_input_bytes=self._task_input_bytes,
+            program_bytes=self._program_bytes,
         )
 
 
@@ -616,12 +807,176 @@ def _open_workspace(root_fd: int) -> int:
     return workspace_fd
 
 
+def _directory_identity(metadata: os.stat_result) -> tuple[int, int]:
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise RecordValidationError("environment root is not a directory")
+    return metadata.st_dev, metadata.st_ino
+
+
+def _cleanup_owned_root(
+    *,
+    workspace_fd: int,
+    root_name: str,
+    expected_identity: tuple[int, int] | None,
+    root_fd: int | None,
+) -> list[BaseException]:
+    errors: list[BaseException] = []
+    named_is_owned = False
+    if expected_identity is None:
+        errors.append(
+            RecordValidationError(
+                "residual uncertainty: created root identity was not observed"
+            )
+        )
+    else:
+        try:
+            named_is_owned = (
+                _directory_identity(
+                    os.stat(
+                        root_name,
+                        dir_fd=workspace_fd,
+                        follow_symlinks=False,
+                    )
+                )
+                == expected_identity
+            )
+            if not named_is_owned:
+                errors.append(
+                    RecordValidationError(
+                        "residual uncertainty: root name no longer binds owned inode"
+                    )
+                )
+        except BaseException as exc:
+            errors.append(exc)
+    held_is_owned = False
+    if root_fd is not None:
+        try:
+            held_is_owned = _directory_identity(os.fstat(root_fd)) == expected_identity
+            if not held_is_owned:
+                errors.append(
+                    RecordValidationError(
+                        "residual uncertainty: held root identity changed"
+                    )
+                )
+        except BaseException as exc:
+            errors.append(exc)
+        if held_is_owned:
+            try:
+                _clear_directory(root_fd)
+            except BaseException as exc:
+                errors.append(exc)
+    if named_is_owned and (root_fd is None or held_is_owned):
+        try:
+            os.rmdir(root_name, dir_fd=workspace_fd)
+        except BaseException as exc:
+            errors.append(exc)
+    if root_fd is not None:
+        try:
+            os.close(root_fd)
+        except BaseException as exc:
+            errors.append(exc)
+    try:
+        os.fsync(workspace_fd)
+    except BaseException as exc:
+        errors.append(exc)
+    return errors
+
+
+def _allocate_root(
+    *,
+    workspace_fd: int,
+    ordinal: int,
+) -> tuple[str, int, tuple[int, int]]:
+    for suffix in range(_ROOT_SUFFIX_ATTEMPTS):
+        root_name = f"instance-{ordinal:04d}-{suffix:02d}"
+        try:
+            os.mkdir(root_name, mode=0o700, dir_fd=workspace_fd)
+        except FileExistsError:
+            continue
+        expected_identity: tuple[int, int] | None = None
+        root_fd: int | None = None
+        try:
+            expected_identity = _directory_identity(
+                os.stat(
+                    root_name,
+                    dir_fd=workspace_fd,
+                    follow_symlinks=False,
+                )
+            )
+            os.fsync(workspace_fd)
+            root_fd = os.open(root_name, _DIRECTORY_FLAGS, dir_fd=workspace_fd)
+            if _directory_identity(os.fstat(root_fd)) != expected_identity:
+                raise RecordValidationError(
+                    "new environment root identity changed during open"
+                )
+            if (
+                _directory_identity(
+                    os.stat(
+                        root_name,
+                        dir_fd=workspace_fd,
+                        follow_symlinks=False,
+                    )
+                )
+                != expected_identity
+            ):
+                raise RecordValidationError(
+                    "new environment root name changed during open"
+                )
+            return root_name, root_fd, expected_identity
+        except BaseException as primary:
+            cleanup_errors = _cleanup_owned_root(
+                workspace_fd=workspace_fd,
+                root_name=root_name,
+                expected_identity=expected_identity,
+                root_fd=root_fd,
+            )
+            message = (
+                "environment root allocation failed with residual uncertainty"
+                if cleanup_errors
+                else "environment root allocation failed"
+            )
+            raise BaseExceptionGroup(message, [primary, *cleanup_errors])
+    raise RecordValidationError("environment root suffix search exhausted")
+
+
+def _cleanup_process(process: subprocess.Popen[bytes]) -> list[BaseException]:
+    errors: list[BaseException] = []
+    try:
+        if process.poll() is not None:
+            return errors
+    except BaseException as exc:
+        errors.append(exc)
+    try:
+        process.terminate()
+    except BaseException as exc:
+        errors.append(exc)
+    try:
+        process.wait(timeout=1)
+        return errors
+    except subprocess.TimeoutExpired:
+        pass
+    except BaseException as exc:
+        errors.append(exc)
+        return errors
+    try:
+        process.kill()
+    except BaseException as exc:
+        errors.append(exc)
+    try:
+        process.wait(timeout=1)
+    except BaseException as exc:
+        errors.append(exc)
+    return errors
+
+
 class _EnvironmentFleet:
     def __init__(
         self,
         *,
         run_root: Path,
         factory: SyntheticEnvironmentFactory,
+        task_input_bytes: bytes,
+        program_bytes: bytes,
     ) -> None:
         self._root, self._root_fd = _open_root(run_root)
         try:
@@ -630,24 +985,16 @@ class _EnvironmentFleet:
             os.close(self._root_fd)
             raise
         self._factory = factory
+        self._task_input_bytes = _exact_bytes(task_input_bytes, "task_input_bytes")
+        self._program_bytes = _exact_bytes(program_bytes, "program_bytes")
         self.instances: list[_OwnedEnvironment] = []
         self._closed = False
 
     def spawn(self, ordinal: int) -> _OwnedEnvironment:
-        root_fd: int | None = None
-        root_name: str | None = None
-        for suffix in range(_ROOT_SUFFIX_ATTEMPTS):
-            candidate = f"instance-{ordinal:04d}-{suffix:02d}"
-            try:
-                os.mkdir(candidate, mode=0o700, dir_fd=self._workspace_fd)
-            except FileExistsError:
-                continue
-            root_name = candidate
-            os.fsync(self._workspace_fd)
-            root_fd = os.open(candidate, _DIRECTORY_FLAGS, dir_fd=self._workspace_fd)
-            break
-        if root_fd is None or root_name is None:
-            raise RecordValidationError("environment root suffix search exhausted")
+        root_name, root_fd, root_identity = _allocate_root(
+            workspace_fd=self._workspace_fd,
+            ordinal=ordinal,
+        )
         ipc: ControllerEnvironmentIPC | None = None
         process: subprocess.Popen[bytes] | None = None
         try:
@@ -655,8 +1002,8 @@ class _EnvironmentFleet:
             request_read, response_write = ipc.child_fds
             command = (
                 *self._factory.command(
-                    task_input_bytes=self._factory.task_input_bytes,
-                    program_bytes=self._factory.program_bytes,
+                    task_input_bytes=self._task_input_bytes,
+                    program_bytes=self._program_bytes,
                 ),
                 "--request-fd",
                 str(request_read),
@@ -671,12 +1018,11 @@ class _EnvironmentFleet:
                 env={},
             )
             ipc.release_child_ends()
-            metadata = os.fstat(root_fd)
             identity = EnvironmentProcessIdentity(
                 instance_ordinal=ordinal,
                 writable_root_relative_path=(f"{_WORKSPACE_NAME}/{root_name}"),
-                writable_root_st_dev=metadata.st_dev,
-                writable_root_st_ino=metadata.st_ino,
+                writable_root_st_dev=root_identity[0],
+                writable_root_st_ino=root_identity[1],
                 child_pid=process.pid,
             )
             handle = self._factory.bind(
@@ -703,20 +1049,16 @@ class _EnvironmentFleet:
                     ipc.close()
                 except BaseException as exc:
                     errors.append(exc)
-            if process is not None and process.poll() is None:
-                try:
-                    process.kill()
-                    process.wait(timeout=2)
-                except BaseException as exc:
-                    errors.append(exc)
-            try:
-                os.close(root_fd)
-            except BaseException as exc:
-                errors.append(exc)
-            try:
-                os.rmdir(root_name, dir_fd=self._workspace_fd)
-            except BaseException as exc:
-                errors.append(exc)
+            if process is not None:
+                errors.extend(_cleanup_process(process))
+            errors.extend(
+                _cleanup_owned_root(
+                    workspace_fd=self._workspace_fd,
+                    root_name=root_name,
+                    expected_identity=root_identity,
+                    root_fd=root_fd,
+                )
+            )
             raise BaseExceptionGroup("environment spawn failed", errors)
 
     def close(self, primary: BaseException | None = None) -> None:
@@ -737,69 +1079,18 @@ class _EnvironmentFleet:
                 instance.ipc.close()
             except BaseException as exc:
                 errors.append(exc)
-            if instance.process.poll() is None:
-                try:
-                    instance.process.terminate()
-                except BaseException as exc:
-                    errors.append(exc)
-                try:
-                    instance.process.wait(timeout=1)
-                except subprocess.TimeoutExpired:
-                    try:
-                        instance.process.kill()
-                    except BaseException as exc:
-                        errors.append(exc)
-                    try:
-                        instance.process.wait(timeout=1)
-                    except BaseException as exc:
-                        errors.append(exc)
-                except BaseException as exc:
-                    errors.append(exc)
-            root_verified = False
-            try:
-                metadata = os.fstat(instance.root_fd)
-                expected = (
-                    instance.identity.writable_root_st_dev,
-                    instance.identity.writable_root_st_ino,
+            errors.extend(_cleanup_process(instance.process))
+            errors.extend(
+                _cleanup_owned_root(
+                    workspace_fd=self._workspace_fd,
+                    root_name=instance.root_name,
+                    expected_identity=(
+                        instance.identity.writable_root_st_dev,
+                        instance.identity.writable_root_st_ino,
+                    ),
+                    root_fd=instance.root_fd,
                 )
-                if (metadata.st_dev, metadata.st_ino) != expected:
-                    raise RecordValidationError(
-                        "owned environment root changed before cleanup"
-                    )
-                named = os.stat(
-                    instance.root_name,
-                    dir_fd=self._workspace_fd,
-                    follow_symlinks=False,
-                )
-                if (
-                    not stat.S_ISDIR(named.st_mode)
-                    or (
-                        named.st_dev,
-                        named.st_ino,
-                    )
-                    != expected
-                ):
-                    raise RecordValidationError(
-                        "owned environment root name changed before cleanup"
-                    )
-                root_verified = True
-            except BaseException as exc:
-                errors.append(exc)
-            if root_verified:
-                try:
-                    _clear_directory(instance.root_fd)
-                except BaseException as exc:
-                    errors.append(exc)
-            try:
-                os.close(instance.root_fd)
-            except BaseException as exc:
-                errors.append(exc)
-            if root_verified:
-                try:
-                    os.rmdir(instance.root_name, dir_fd=self._workspace_fd)
-                    os.fsync(self._workspace_fd)
-                except BaseException as exc:
-                    errors.append(exc)
+            )
         try:
             os.close(self._workspace_fd)
         except BaseException as exc:
@@ -964,10 +1255,18 @@ def _qualify_with_provenance(
     factory = SyntheticEnvironmentFactory(
         task_input_bytes=authority.task_input_bytes,
         program_bytes=authority.program_bytes,
+        implementation_source_sha256=(
+            authority.environment_descriptor.implementation_source_ref.sha256
+        ),
     )
     tokenizer = SyntheticByteTokenizer()
     try:
-        fleet = _EnvironmentFleet(run_root=run_root, factory=factory)
+        fleet = _EnvironmentFleet(
+            run_root=run_root,
+            factory=factory,
+            task_input_bytes=authority.task_input_bytes,
+            program_bytes=authority.program_bytes,
+        )
     except BaseException as primary:
         cleanup_errors: list[BaseException] = []
         for provenance in provenances:

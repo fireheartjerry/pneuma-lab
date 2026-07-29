@@ -4,6 +4,7 @@ from dataclasses import replace
 import inspect
 import os
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -22,6 +23,7 @@ from pneuma_lab.resampling_null.synthetic_environment import (
     SyntheticByteTokenizer,
     _InitialObservation,
     _assert_pairwise_isolated,
+    _cleanup_process,
     _open_qualified_initial_restore,
     _qualify_initial_restore,
     _validate_initial_observation,
@@ -44,6 +46,16 @@ def _ref(role: str, name: str, *, media_type: str = "application/json") -> Artif
         byte_count=len(payload),
         media_type=media_type,
     )
+
+
+def _exception_leaves(group: BaseExceptionGroup) -> list[BaseException]:
+    result: list[BaseException] = []
+    for error in group.exceptions:
+        if isinstance(error, BaseExceptionGroup):
+            result.extend(_exception_leaves(error))
+        else:
+            result.append(error)
+    return result
 
 
 def _authority() -> InitialQualificationAuthority:
@@ -186,6 +198,55 @@ def test_factory_boundary_cannot_supply_pid_or_root_identity() -> None:
     assert "root_path" not in bind.parameters
 
 
+def test_factory_command_executes_the_single_reviewed_source() -> None:
+    authority = _authority()
+    factory = SyntheticEnvironmentFactory(
+        task_input_bytes=authority.task_input_bytes,
+        program_bytes=authority.program_bytes,
+        implementation_source_sha256=(
+            authority.environment_descriptor.implementation_source_ref.sha256
+        ),
+    )
+
+    command = factory.command(
+        task_input_bytes=authority.task_input_bytes,
+        program_bytes=authority.program_bytes,
+    )
+
+    assert Path(command[2]).samefile(Path(synthetic_environment.__file__))
+    assert "--synthetic-worker" in command
+    source_index = command.index("--source-sha256")
+    assert command[source_index + 1] == (
+        authority.environment_descriptor.implementation_source_ref.sha256
+    )
+    assert "_synthetic_environment_worker.py" not in " ".join(command)
+    assert (
+        not Path(synthetic_environment.__file__)
+        .with_name("_synthetic_environment_worker.py")
+        .exists()
+    )
+
+
+def test_factory_state_is_frozen_and_object_level_drift_is_detected() -> None:
+    authority = _authority()
+    factory = SyntheticEnvironmentFactory(
+        task_input_bytes=authority.task_input_bytes,
+        program_bytes=authority.program_bytes,
+        implementation_source_sha256=(
+            authority.environment_descriptor.implementation_source_ref.sha256
+        ),
+    )
+    with pytest.raises((AttributeError, TypeError)):
+        factory.program_bytes = b"drift"  # type: ignore[attr-defined]
+
+    object.__setattr__(factory, "_program_bytes", b"drift")
+    with pytest.raises(RecordValidationError, match="sealed bytes"):
+        factory.command(
+            task_input_bytes=authority.task_input_bytes,
+            program_bytes=authority.program_bytes,
+        )
+
+
 def test_workspace_symlink_and_exhausted_stale_names_fail_without_mutation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -225,6 +286,201 @@ def test_workspace_symlink_and_exhausted_stale_names_fail_without_mutation(
         (workspace / f"instance-0000-{suffix:02d}" / "sentinel").read_text()
         for suffix in range(2)
     ] == ["0", "1"]
+
+
+def test_root_open_failure_after_mkdir_cleans_exact_owned_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_open = synthetic_environment.os.open
+
+    def fail_instance_open(
+        path: object,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if path == "instance-0000-00":
+            raise OSError("injected post-mkdir open failure")
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(synthetic_environment.os, "open", fail_instance_open)
+    with pytest.raises(BaseExceptionGroup):
+        _qualify_initial_restore(run_root=tmp_path, authority=_authority())
+    assert not (tmp_path / "prefix-environments" / "instance-0000-00").exists()
+
+
+def test_root_open_replacement_race_never_deletes_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_open = synthetic_environment.os.open
+    workspace = tmp_path / "prefix-environments"
+
+    def replace_before_open(
+        path: object,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if path == "instance-0000-00":
+            (workspace / "instance-0000-00").rename(workspace / "moved-owned")
+            (workspace / "instance-0000-00").mkdir()
+            (workspace / "instance-0000-00" / "replacement").write_text("keep")
+            raise OSError("injected replacement race")
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(synthetic_environment.os, "open", replace_before_open)
+    with pytest.raises(BaseExceptionGroup) as raised:
+        _qualify_initial_restore(run_root=tmp_path, authority=_authority())
+    assert any(
+        "uncertain" in str(error).lower() for error in _exception_leaves(raised.value)
+    )
+    assert (workspace / "instance-0000-00" / "replacement").read_text() == "keep"
+    assert (workspace / "moved-owned").is_dir()
+
+
+def test_bind_failure_cleans_nested_child_contents_through_held_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_bind(
+        self: SyntheticEnvironmentFactory,
+        *,
+        process: subprocess.Popen[bytes],
+        ipc: object,
+        writable_root_fd: int,
+        instance_ordinal: int,
+    ) -> object:
+        os.mkdir("nested", dir_fd=writable_root_fd)
+        nested_fd = os.open(
+            "nested",
+            os.O_RDONLY | os.O_DIRECTORY,
+            dir_fd=writable_root_fd,
+        )
+        try:
+            file_fd = os.open(
+                "payload",
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+                dir_fd=nested_fd,
+            )
+            os.close(file_fd)
+        finally:
+            os.close(nested_fd)
+        raise RuntimeError("injected bind failure")
+
+    monkeypatch.setattr(SyntheticEnvironmentFactory, "bind", fail_bind)
+    with pytest.raises(BaseExceptionGroup):
+        _qualify_initial_restore(run_root=tmp_path, authority=_authority())
+    assert not (tmp_path / "prefix-environments" / "instance-0000-00").exists()
+
+
+@pytest.mark.parametrize(
+    "phase",
+    ["second_pipe", "first_dup", "first_fdopen", "second_dup", "second_fdopen"],
+)
+def test_ipc_creation_is_transactional_for_every_acquisition(
+    monkeypatch: pytest.MonkeyPatch,
+    phase: str,
+) -> None:
+    before = len(os.listdir("/proc/self/fd"))
+    real_pipe = synthetic_environment.os.pipe
+    real_dup = synthetic_environment.os.dup
+    real_fdopen = synthetic_environment.os.fdopen
+    counts = {"pipe": 0, "dup": 0, "fdopen": 0}
+
+    def injected_pipe() -> tuple[int, int]:
+        counts["pipe"] += 1
+        if phase == "second_pipe" and counts["pipe"] == 2:
+            raise OSError("injected second pipe failure")
+        return real_pipe()
+
+    def injected_dup(descriptor: int) -> int:
+        counts["dup"] += 1
+        if phase == "first_dup" and counts["dup"] == 1:
+            raise OSError("injected first dup failure")
+        if phase == "second_dup" and counts["dup"] == 2:
+            raise OSError("injected second dup failure")
+        return real_dup(descriptor)
+
+    def injected_fdopen(
+        descriptor: int,
+        mode: str,
+        buffering: int = -1,
+    ) -> object:
+        counts["fdopen"] += 1
+        if phase == "first_fdopen" and counts["fdopen"] == 1:
+            raise OSError("injected first fdopen failure")
+        if phase == "second_fdopen" and counts["fdopen"] == 2:
+            raise OSError("injected second fdopen failure")
+        return real_fdopen(descriptor, mode, buffering=buffering)
+
+    monkeypatch.setattr(synthetic_environment.os, "pipe", injected_pipe)
+    monkeypatch.setattr(synthetic_environment.os, "dup", injected_dup)
+    monkeypatch.setattr(synthetic_environment.os, "fdopen", injected_fdopen)
+    with pytest.raises(BaseException):
+        synthetic_environment.ControllerEnvironmentIPC.create()
+    assert len(os.listdir("/proc/self/fd")) == before
+
+
+def test_process_cleanup_waits_after_terminate_and_kill_failures() -> None:
+    class CleanupProcess:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+            self.waits = 0
+
+        def poll(self) -> None:
+            return None
+
+        def terminate(self) -> None:
+            self.calls.append("terminate")
+            raise OSError("terminate failed")
+
+        def wait(self, *, timeout: int) -> int:
+            self.calls.append(f"wait:{timeout}")
+            self.waits += 1
+            if self.waits == 1:
+                raise subprocess.TimeoutExpired("fixture", timeout)
+            return 0
+
+        def kill(self) -> None:
+            self.calls.append("kill")
+            raise OSError("kill failed")
+
+    process = CleanupProcess()
+    errors = _cleanup_process(process)  # type: ignore[arg-type]
+
+    assert process.calls == ["terminate", "wait:1", "kill", "wait:1"]
+    assert [str(error) for error in errors] == ["terminate failed", "kill failed"]
+
+
+def test_process_cleanup_preserves_poll_failure_and_still_attempts_policy() -> None:
+    class PollFailureProcess:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def poll(self) -> None:
+            self.calls.append("poll")
+            raise OSError("poll failed")
+
+        def terminate(self) -> None:
+            self.calls.append("terminate")
+
+        def wait(self, *, timeout: int) -> int:
+            self.calls.append(f"wait:{timeout}")
+            return 0
+
+        def kill(self) -> None:
+            self.calls.append("kill")
+
+    process = PollFailureProcess()
+    errors = _cleanup_process(process)  # type: ignore[arg-type]
+
+    assert process.calls == ["poll", "terminate", "wait:1"]
+    assert [str(error) for error in errors] == ["poll failed"]
 
 
 def test_qualification_rejects_unsealed_bytes_and_environment_descriptor() -> None:
@@ -339,6 +595,29 @@ def test_identity_checks_reject_object_pid_root_alias_and_dead_process(
             one.close()
 
 
+def test_cleanup_replacement_race_preserves_new_name_target(tmp_path: Path) -> None:
+    result = _open_qualified_initial_restore(
+        run_root=tmp_path,
+        authority=_authority(),
+    )
+    first = result._resources[0]
+    workspace = tmp_path / "prefix-environments"
+    owned = workspace / first.root_name
+    moved = workspace / "moved-after-qualification"
+    owned.rename(moved)
+    owned.mkdir()
+    (owned / "replacement").write_text("keep")
+
+    with pytest.raises(BaseExceptionGroup) as raised:
+        result.close()
+
+    assert any(
+        "uncertain" in str(error).lower() for error in _exception_leaves(raised.value)
+    )
+    assert (owned / "replacement").read_text() == "keep"
+    assert moved.is_dir()
+
+
 def test_cleanup_aggregates_baseexception_and_removes_only_owned_roots(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -361,16 +640,10 @@ def test_cleanup_aggregates_baseexception_and_removes_only_owned_roots(
             authority=_authority(),
         )
 
-    def leaves(group: BaseExceptionGroup) -> list[BaseException]:
-        result: list[BaseException] = []
-        for error in group.exceptions:
-            if isinstance(error, BaseExceptionGroup):
-                result.extend(leaves(error))
-            else:
-                result.append(error)
-        return result
-
-    assert any(isinstance(error, KeyboardInterrupt) for error in leaves(raised.value))
+    assert any(
+        isinstance(error, KeyboardInterrupt)
+        for error in _exception_leaves(raised.value)
+    )
     workspace = tmp_path / "prefix-environments"
     assert not any(workspace.iterdir())
     assert not [
