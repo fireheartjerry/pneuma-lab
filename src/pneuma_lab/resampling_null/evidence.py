@@ -34,6 +34,8 @@ from .types import (
 
 _U64_LIMIT = 2**64
 _SNAPSHOT_SCHEMA_VERSION = "0.1.0"
+
+
 def _exact_text(value: object, field: str) -> str:
     if type(value) is not str:
         raise TypeError(f"{field} must be exact text")
@@ -401,6 +403,199 @@ class ToolBoundaryLedger:
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderAttemptLedgerRecord:
+    """Serialized ledger plus the exact refs of its terminal attempt records."""
+
+    ledger: ProviderAttemptLedger
+    attempt_refs: tuple[ArtifactRef, ...]
+
+    def __post_init__(self) -> None:
+        if type(self.ledger) is not ProviderAttemptLedger:
+            raise TypeError("ledger must be exact ProviderAttemptLedger")
+        _exact_tuple(
+            self.attempt_refs,
+            field="attempt_refs",
+            member_type=ArtifactRef,
+        )
+        if len(self.attempt_refs) != len(self.ledger.attempts):
+            raise ValueError("attempt_refs must pair exactly with attempts")
+        if len(set(self.attempt_refs)) != len(self.attempt_refs):
+            raise ValueError("attempt_refs must be pairwise distinct")
+        for ref in self.attempt_refs:
+            _controller_ref(ref, "attempt_refs item", role="provider_attempt")
+
+
+@dataclass(frozen=True, slots=True)
+class ControllerProviderEvent:
+    """Exact controller-side provider event reconstructed during fresh reload."""
+
+    schema_version: Literal["1"]
+    subject_role: Literal["primary_subject", "user_simulator"]
+    call_index: int
+    seed: int
+    completion_kind: ProviderAttemptStatus
+    dispatch_intent_sha256: str
+    model_contract_sha256: str
+    response_sha256: str | None
+    observed_at_ms: int
+    cost_microunits: Literal[0]
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "1":
+            raise ValueError("provider event schema_version must equal '1'")
+        if type(self.subject_role) is not str or self.subject_role not in (
+            "primary_subject",
+            "user_simulator",
+        ):
+            raise ValueError("provider event subject_role is not registered")
+        _uint64(self.call_index, "call_index")
+        _uint64(self.seed, "seed")
+        if type(self.completion_kind) is not ProviderAttemptStatus:
+            raise TypeError("completion_kind must be exact ProviderAttemptStatus")
+        _sha256(self.dispatch_intent_sha256, "dispatch_intent_sha256")
+        _sha256(self.model_contract_sha256, "model_contract_sha256")
+        if self.response_sha256 is not None:
+            _sha256(self.response_sha256, "response_sha256")
+        _uint64(self.observed_at_ms, "observed_at_ms")
+        if type(self.cost_microunits) is not int:
+            raise TypeError("cost_microunits must be exact int")
+        if self.cost_microunits != 0:
+            raise ValueError("synthetic provider event cost must equal zero")
+
+
+@dataclass(frozen=True, slots=True)
+class ControllerProviderSettlement:
+    """Exact final synthetic settlement digest edges."""
+
+    schema_version: Literal["1"]
+    subject_role: Literal["primary_subject", "user_simulator"]
+    call_index: int
+    seed: int
+    dispatch_intent_sha256: str
+    attempt_sha256: str
+    provider_event_sha256: str
+    cost_microunits: Literal[0]
+    currency: Literal["synthetic_microunit"]
+    final: Literal[True]
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "1":
+            raise ValueError("provider settlement schema_version must equal '1'")
+        if type(self.subject_role) is not str or self.subject_role not in (
+            "primary_subject",
+            "user_simulator",
+        ):
+            raise ValueError("provider settlement subject_role is not registered")
+        _uint64(self.call_index, "call_index")
+        _uint64(self.seed, "seed")
+        _sha256(self.dispatch_intent_sha256, "dispatch_intent_sha256")
+        _sha256(self.attempt_sha256, "attempt_sha256")
+        _sha256(self.provider_event_sha256, "provider_event_sha256")
+        if type(self.cost_microunits) is not int:
+            raise TypeError("cost_microunits must be exact int")
+        if self.cost_microunits != 0:
+            raise ValueError("synthetic provider settlement cost must equal zero")
+        if self.currency != "synthetic_microunit":
+            raise ValueError("provider settlement currency is invalid")
+        if self.final is not True:
+            raise ValueError("provider settlement must be final")
+
+
+@dataclass(frozen=True, slots=True)
+class ControllerProviderCostClosure:
+    """Exact serialized cost-closure refs and total."""
+
+    attempt_refs: tuple[ArtifactRef, ...]
+    settlement_refs: tuple[ArtifactRef, ...]
+    total_cost_microunits: Literal[0]
+
+    def __post_init__(self) -> None:
+        for value, field, role in (
+            (self.attempt_refs, "attempt_refs", "provider_attempt"),
+            (self.settlement_refs, "settlement_refs", "provider_settlement"),
+        ):
+            _exact_tuple(value, field=field, member_type=ArtifactRef)
+            if len(set(value)) != len(value):
+                raise ValueError(f"{field} must be pairwise distinct")
+            for ref in value:
+                _controller_ref(ref, f"{field} item", role=role)
+        if len(self.attempt_refs) != len(self.settlement_refs):
+            raise ValueError("every attempt requires exactly one settlement ref")
+        if type(self.total_cost_microunits) is not int:
+            raise TypeError("total_cost_microunits must be exact int")
+        if self.total_cost_microunits != 0:
+            raise ValueError("synthetic provider cost closure must equal zero")
+
+
+@dataclass(frozen=True, slots=True)
+class StatelessAttestation:
+    """Exact subject or simulator stateless execution attestation."""
+
+    record_kind: Literal[
+        "synthetic_subject_stateless_v1",
+        "synthetic_simulator_stateless_v1",
+    ]
+    schema_version: Literal["1"]
+    authority_ref: ArtifactRef
+    program_sha256: str
+    stateless: Literal[True]
+
+    def __post_init__(self) -> None:
+        expected_role = {
+            "synthetic_subject_stateless_v1": "subject_contract",
+            "synthetic_simulator_stateless_v1": "simulator_contract",
+        }.get(self.record_kind)
+        if expected_role is None:
+            raise ValueError("stateless attestation kind is invalid")
+        if self.schema_version != "1":
+            raise ValueError("stateless attestation schema_version must equal '1'")
+        _authority_ref(self.authority_ref, "authority_ref", role=expected_role)
+        _sha256(self.program_sha256, "program_sha256")
+        if self.stateless is not True:
+            raise ValueError("stateless attestation must equal true")
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeAttestation:
+    """Exact local runtime identity attestation."""
+
+    record_kind: Literal["synthetic_runtime_attestation_v1"]
+    schema_version: Literal["1"]
+    authority_ref: ArtifactRef
+    program_sha256: str
+    runtime_id: str
+
+    def __post_init__(self) -> None:
+        if self.record_kind != "synthetic_runtime_attestation_v1":
+            raise ValueError("runtime attestation kind is invalid")
+        if self.schema_version != "1":
+            raise ValueError("runtime attestation schema_version must equal '1'")
+        _authority_ref(self.authority_ref, "authority_ref", role="source_revision")
+        _sha256(self.program_sha256, "program_sha256")
+        _exact_text(self.runtime_id, "runtime_id")
+
+
+@dataclass(frozen=True, slots=True)
+class ContainerAttestation:
+    """Exact local container identity attestation."""
+
+    record_kind: Literal["synthetic_container_attestation_v1"]
+    schema_version: Literal["1"]
+    authority_ref: ArtifactRef
+    program_sha256: str
+    container_digest: str
+
+    def __post_init__(self) -> None:
+        if self.record_kind != "synthetic_container_attestation_v1":
+            raise ValueError("container attestation kind is invalid")
+        if self.schema_version != "1":
+            raise ValueError("container attestation schema_version must equal '1'")
+        _authority_ref(self.authority_ref, "authority_ref", role="source_revision")
+        _sha256(self.program_sha256, "program_sha256")
+        _exact_text(self.container_digest, "container_digest")
+
+
+@dataclass(frozen=True, slots=True)
 class CompositeSnapshotEnvelope:
     """Closed canonical snapshot ancestry and all restorable controller state."""
 
@@ -652,8 +847,487 @@ def _closed(
 def _decode_ref(value: object, field: str) -> ArtifactRef:
     try:
         return decode_artifact_ref(value, field=field)
-    except ValueError as exc:
+    except (TypeError, ValueError) as exc:
         raise ValueError(str(exc)) from exc
+
+
+def _canonical_mapping_payload(
+    payload: bytes,
+    *,
+    expected: tuple[str, ...],
+    field: str,
+) -> dict[str, object]:
+    if type(payload) is not bytes:
+        raise TypeError("payload must be exact bytes")
+    value = load_json_bytes(payload, source=Path(f"<{field}>"))
+    mapping = _closed(value, expected=expected, field=field)
+    if payload != canonical_json_bytes(mapping, indent=None):
+        raise ValueError(f"{field} must be compact canonical JSON")
+    return mapping
+
+
+def _decode_provider_dispatch_intent(
+    value: object,
+    *,
+    field: str,
+) -> ProviderDispatchIntent:
+    mapping = _closed(
+        value,
+        expected=(
+            "absolute_deadline_ms",
+            "call_index",
+            "input_token_ids_ref",
+            "model_contract_ref",
+            "request_ref",
+            "seed",
+            "subject_role",
+        ),
+        field=field,
+    )
+    subject_role = mapping["subject_role"]
+    if type(subject_role) is not str:
+        raise TypeError(f"{field}.subject_role must be exact text")
+    return ProviderDispatchIntent(
+        subject_role=cast(
+            Literal["primary_subject", "user_simulator"],
+            subject_role,
+        ),
+        call_index=cast(int, mapping["call_index"]),
+        seed=cast(int, mapping["seed"]),
+        request_ref=_decode_ref(mapping["request_ref"], f"{field}.request_ref"),
+        input_token_ids_ref=_decode_ref(
+            mapping["input_token_ids_ref"],
+            f"{field}.input_token_ids_ref",
+        ),
+        model_contract_ref=_decode_ref(
+            mapping["model_contract_ref"],
+            f"{field}.model_contract_ref",
+        ),
+        absolute_deadline_ms=cast(int, mapping["absolute_deadline_ms"]),
+    )
+
+
+def load_provider_dispatch_intent(payload: bytes) -> ProviderDispatchIntent:
+    """Decode one exact canonical provider dispatch intent."""
+
+    mapping = _canonical_mapping_payload(
+        payload,
+        expected=(
+            "absolute_deadline_ms",
+            "call_index",
+            "input_token_ids_ref",
+            "model_contract_ref",
+            "request_ref",
+            "seed",
+            "subject_role",
+        ),
+        field="provider dispatch intent",
+    )
+    return _decode_provider_dispatch_intent(
+        mapping,
+        field="provider dispatch intent",
+    )
+
+
+def _decode_provider_attempt(
+    value: object,
+    *,
+    field: str,
+) -> ProviderCallAttemptReceipt:
+    mapping = _closed(
+        value,
+        expected=(
+            "call_index",
+            "dispatch_intent_ref",
+            "elapsed_ms",
+            "generated_tokens",
+            "input_token_ids_ref",
+            "model_contract_ref",
+            "output_token_ids_ref",
+            "provider_event_ref",
+            "request_ref",
+            "response_ref",
+            "seed",
+            "status",
+            "subject_role",
+        ),
+        field=field,
+    )
+    status = mapping["status"]
+    subject_role = mapping["subject_role"]
+    if type(status) is not str:
+        raise TypeError(f"{field}.status must be exact text")
+    if type(subject_role) is not str:
+        raise TypeError(f"{field}.subject_role must be exact text")
+    response_value = mapping["response_ref"]
+    output_value = mapping["output_token_ids_ref"]
+    return ProviderCallAttemptReceipt(
+        dispatch_intent_ref=_decode_ref(
+            mapping["dispatch_intent_ref"],
+            f"{field}.dispatch_intent_ref",
+        ),
+        subject_role=cast(
+            Literal["primary_subject", "user_simulator"],
+            subject_role,
+        ),
+        call_index=cast(int, mapping["call_index"]),
+        seed=cast(int, mapping["seed"]),
+        status=ProviderAttemptStatus(status),
+        request_ref=_decode_ref(mapping["request_ref"], f"{field}.request_ref"),
+        input_token_ids_ref=_decode_ref(
+            mapping["input_token_ids_ref"],
+            f"{field}.input_token_ids_ref",
+        ),
+        response_ref=(
+            None
+            if response_value is None
+            else _decode_ref(response_value, f"{field}.response_ref")
+        ),
+        output_token_ids_ref=(
+            None
+            if output_value is None
+            else _decode_ref(output_value, f"{field}.output_token_ids_ref")
+        ),
+        model_contract_ref=_decode_ref(
+            mapping["model_contract_ref"],
+            f"{field}.model_contract_ref",
+        ),
+        generated_tokens=cast(int, mapping["generated_tokens"]),
+        elapsed_ms=cast(int, mapping["elapsed_ms"]),
+        provider_event_ref=_decode_ref(
+            mapping["provider_event_ref"],
+            f"{field}.provider_event_ref",
+        ),
+    )
+
+
+def load_provider_attempt(payload: bytes) -> ProviderCallAttemptReceipt:
+    """Decode one exact canonical terminal provider attempt."""
+
+    mapping = _canonical_mapping_payload(
+        payload,
+        expected=(
+            "call_index",
+            "dispatch_intent_ref",
+            "elapsed_ms",
+            "generated_tokens",
+            "input_token_ids_ref",
+            "model_contract_ref",
+            "output_token_ids_ref",
+            "provider_event_ref",
+            "request_ref",
+            "response_ref",
+            "seed",
+            "status",
+            "subject_role",
+        ),
+        field="provider attempt",
+    )
+    return _decode_provider_attempt(mapping, field="provider attempt")
+
+
+def load_provider_attempt_ledger(payload: bytes) -> ProviderAttemptLedgerRecord:
+    """Decode and validate the complete ordered provider ledger."""
+
+    mapping = _canonical_mapping_payload(
+        payload,
+        expected=("attempt_refs", "attempts", "intent_refs", "intents"),
+        field="provider attempt ledger",
+    )
+    for name in ("attempt_refs", "attempts", "intent_refs", "intents"):
+        if type(mapping[name]) is not list:
+            raise TypeError(f"provider attempt ledger {name} must be an exact array")
+    attempt_refs = tuple(
+        _decode_ref(item, f"attempt_refs[{index}]")
+        for index, item in enumerate(cast(list[object], mapping["attempt_refs"]))
+    )
+    intent_refs = tuple(
+        _decode_ref(item, f"intent_refs[{index}]")
+        for index, item in enumerate(cast(list[object], mapping["intent_refs"]))
+    )
+    attempts = tuple(
+        _decode_provider_attempt(item, field=f"attempts[{index}]")
+        for index, item in enumerate(cast(list[object], mapping["attempts"]))
+    )
+    intents = tuple(
+        _decode_provider_dispatch_intent(item, field=f"intents[{index}]")
+        for index, item in enumerate(cast(list[object], mapping["intents"]))
+    )
+    return ProviderAttemptLedgerRecord(
+        ledger=ProviderAttemptLedger(
+            intents=intents,
+            intent_refs=intent_refs,
+            attempts=attempts,
+        ),
+        attempt_refs=attempt_refs,
+    )
+
+
+def load_controller_provider_event(payload: bytes) -> ControllerProviderEvent:
+    """Decode one exact canonical controller provider event."""
+
+    mapping = _canonical_mapping_payload(
+        payload,
+        expected=(
+            "call_index",
+            "completion_kind",
+            "cost_microunits",
+            "dispatch_intent_sha256",
+            "model_contract_sha256",
+            "observed_at_ms",
+            "response_sha256",
+            "schema_version",
+            "seed",
+            "subject_role",
+        ),
+        field="provider event",
+    )
+    completion = mapping["completion_kind"]
+    if type(completion) is not str:
+        raise TypeError("provider event completion_kind must be exact text")
+    response_sha256 = mapping["response_sha256"]
+    if response_sha256 is not None and type(response_sha256) is not str:
+        raise TypeError("provider event response_sha256 must be text or null")
+    return ControllerProviderEvent(
+        schema_version=cast(Literal["1"], mapping["schema_version"]),
+        subject_role=cast(
+            Literal["primary_subject", "user_simulator"],
+            mapping["subject_role"],
+        ),
+        call_index=cast(int, mapping["call_index"]),
+        seed=cast(int, mapping["seed"]),
+        completion_kind=ProviderAttemptStatus(completion),
+        dispatch_intent_sha256=cast(str, mapping["dispatch_intent_sha256"]),
+        model_contract_sha256=cast(str, mapping["model_contract_sha256"]),
+        response_sha256=cast(str | None, response_sha256),
+        observed_at_ms=cast(int, mapping["observed_at_ms"]),
+        cost_microunits=cast(Literal[0], mapping["cost_microunits"]),
+    )
+
+
+def load_controller_provider_settlement(
+    payload: bytes,
+) -> ControllerProviderSettlement:
+    """Decode one exact canonical final provider settlement."""
+
+    mapping = _canonical_mapping_payload(
+        payload,
+        expected=(
+            "attempt_sha256",
+            "call_index",
+            "cost_microunits",
+            "currency",
+            "dispatch_intent_sha256",
+            "final",
+            "provider_event_sha256",
+            "schema_version",
+            "seed",
+            "subject_role",
+        ),
+        field="provider settlement",
+    )
+    return ControllerProviderSettlement(
+        schema_version=cast(Literal["1"], mapping["schema_version"]),
+        subject_role=cast(
+            Literal["primary_subject", "user_simulator"],
+            mapping["subject_role"],
+        ),
+        call_index=cast(int, mapping["call_index"]),
+        seed=cast(int, mapping["seed"]),
+        dispatch_intent_sha256=cast(str, mapping["dispatch_intent_sha256"]),
+        attempt_sha256=cast(str, mapping["attempt_sha256"]),
+        provider_event_sha256=cast(str, mapping["provider_event_sha256"]),
+        cost_microunits=cast(Literal[0], mapping["cost_microunits"]),
+        currency=cast(Literal["synthetic_microunit"], mapping["currency"]),
+        final=cast(Literal[True], mapping["final"]),
+    )
+
+
+def load_controller_provider_cost_closure(
+    payload: bytes,
+) -> ControllerProviderCostClosure:
+    """Decode exact final settlement coverage and total cost."""
+
+    mapping = _canonical_mapping_payload(
+        payload,
+        expected=("attempt_refs", "settlement_refs", "total_cost_microunits"),
+        field="provider cost closure",
+    )
+    for name in ("attempt_refs", "settlement_refs"):
+        if type(mapping[name]) is not list:
+            raise TypeError(f"provider cost closure {name} must be an exact array")
+    return ControllerProviderCostClosure(
+        attempt_refs=tuple(
+            _decode_ref(item, f"attempt_refs[{index}]")
+            for index, item in enumerate(cast(list[object], mapping["attempt_refs"]))
+        ),
+        settlement_refs=tuple(
+            _decode_ref(item, f"settlement_refs[{index}]")
+            for index, item in enumerate(cast(list[object], mapping["settlement_refs"]))
+        ),
+        total_cost_microunits=cast(
+            Literal[0],
+            mapping["total_cost_microunits"],
+        ),
+    )
+
+
+def load_tool_boundary_ledger(payload: bytes) -> ToolBoundaryLedger:
+    """Decode exact ordered tool boundary semantics."""
+
+    mapping = _canonical_mapping_payload(
+        payload,
+        expected=("boundaries",),
+        field="tool boundary ledger",
+    )
+    rows = mapping["boundaries"]
+    if type(rows) is not list:
+        raise TypeError("tool boundary ledger boundaries must be an exact array")
+    boundaries: list[CompletedToolBoundaryReceipt] = []
+    expected = (
+        "call_id",
+        "elapsed_ms",
+        "episode_terminal",
+        "failure_kind",
+        "mutation_committed",
+        "tool_call_ref",
+        "tool_result_ref",
+        "verifier_eligible_after",
+    )
+    for index, value in enumerate(cast(list[object], rows)):
+        item = _closed(
+            value,
+            expected=expected,
+            field=f"tool boundary ledger boundaries[{index}]",
+        )
+        failure = item["failure_kind"]
+        if type(failure) is not str:
+            raise TypeError("tool boundary failure_kind must be exact text")
+        boundaries.append(
+            CompletedToolBoundaryReceipt(
+                call_id=cast(str, item["call_id"]),
+                tool_call_ref=_decode_ref(
+                    item["tool_call_ref"],
+                    f"boundaries[{index}].tool_call_ref",
+                ),
+                tool_result_ref=_decode_ref(
+                    item["tool_result_ref"],
+                    f"boundaries[{index}].tool_result_ref",
+                ),
+                mutation_committed=cast(bool, item["mutation_committed"]),
+                verifier_eligible_after=cast(bool, item["verifier_eligible_after"]),
+                episode_terminal=cast(bool, item["episode_terminal"]),
+                failure_kind=FailureKind(failure),
+                elapsed_ms=cast(int, item["elapsed_ms"]),
+            )
+        )
+    return ToolBoundaryLedger(tuple(boundaries))
+
+
+def load_tool_call(payload: bytes) -> ToolCall:
+    """Decode one exact canonical controller tool call."""
+
+    mapping = _canonical_mapping_payload(
+        payload,
+        expected=("call_id", "canonical_arguments_json", "name"),
+        field="tool call",
+    )
+    return ToolCall(
+        call_id=cast(str, mapping["call_id"]),
+        name=cast(str, mapping["name"]),
+        canonical_arguments_json=cast(str, mapping["canonical_arguments_json"]),
+    )
+
+
+def load_stateless_attestation(
+    payload: bytes,
+    *,
+    expected_role: Literal["primary_subject", "user_simulator"],
+) -> StatelessAttestation:
+    """Decode one exact subject-role stateless attestation."""
+
+    mapping = _canonical_mapping_payload(
+        payload,
+        expected=(
+            "authority_ref",
+            "program_sha256",
+            "record_kind",
+            "schema_version",
+            "stateless",
+        ),
+        field="stateless attestation",
+    )
+    expected_kind = {
+        "primary_subject": "synthetic_subject_stateless_v1",
+        "user_simulator": "synthetic_simulator_stateless_v1",
+    }[expected_role]
+    if mapping["record_kind"] != expected_kind:
+        raise ValueError("stateless attestation kind differs from role")
+    return StatelessAttestation(
+        record_kind=cast(
+            Literal[
+                "synthetic_subject_stateless_v1",
+                "synthetic_simulator_stateless_v1",
+            ],
+            mapping["record_kind"],
+        ),
+        schema_version=cast(Literal["1"], mapping["schema_version"]),
+        authority_ref=_decode_ref(mapping["authority_ref"], "authority_ref"),
+        program_sha256=cast(str, mapping["program_sha256"]),
+        stateless=cast(Literal[True], mapping["stateless"]),
+    )
+
+
+def load_runtime_attestation(payload: bytes) -> RuntimeAttestation:
+    """Decode one exact local runtime attestation."""
+
+    mapping = _canonical_mapping_payload(
+        payload,
+        expected=(
+            "authority_ref",
+            "program_sha256",
+            "record_kind",
+            "runtime_id",
+            "schema_version",
+        ),
+        field="runtime attestation",
+    )
+    return RuntimeAttestation(
+        record_kind=cast(
+            Literal["synthetic_runtime_attestation_v1"],
+            mapping["record_kind"],
+        ),
+        schema_version=cast(Literal["1"], mapping["schema_version"]),
+        authority_ref=_decode_ref(mapping["authority_ref"], "authority_ref"),
+        program_sha256=cast(str, mapping["program_sha256"]),
+        runtime_id=cast(str, mapping["runtime_id"]),
+    )
+
+
+def load_container_attestation(payload: bytes) -> ContainerAttestation:
+    """Decode one exact local container attestation."""
+
+    mapping = _canonical_mapping_payload(
+        payload,
+        expected=(
+            "authority_ref",
+            "container_digest",
+            "program_sha256",
+            "record_kind",
+            "schema_version",
+        ),
+        field="container attestation",
+    )
+    return ContainerAttestation(
+        record_kind=cast(
+            Literal["synthetic_container_attestation_v1"],
+            mapping["record_kind"],
+        ),
+        schema_version=cast(Literal["1"], mapping["schema_version"]),
+        authority_ref=_decode_ref(mapping["authority_ref"], "authority_ref"),
+        program_sha256=cast(str, mapping["program_sha256"]),
+        container_digest=cast(str, mapping["container_digest"]),
+    )
 
 
 def _decode_calls(value: object, *, field: str) -> tuple[ToolCall, ...]:
@@ -1102,8 +1776,7 @@ class FrozenPrefixReceipt:
                 raise TypeError("observed_simulator_turns must be exact int or None")
             if (
                 observed_simulator_turns < 0
-                or observed_simulator_turns
-                > snapshot.simulator_counters.model_calls
+                or observed_simulator_turns > snapshot.simulator_counters.model_calls
             ):
                 raise ValueError(
                     "observed simulator turns must be within dispatched model calls"
@@ -1231,9 +1904,7 @@ def grade_execution_receipt_bytes(receipt: GradeExecutionReceipt) -> bytes:
     return canonical_json_bytes(
         {
             "restore_receipt_ref": _ref_mapping(receipt.restore_receipt_ref),
-            "grade_evidence_ref": _ref_mapping(
-                receipt.grade_evidence_ref
-            ),
+            "grade_evidence_ref": _ref_mapping(receipt.grade_evidence_ref),
         },
         indent=None,
     )
@@ -1271,9 +1942,7 @@ def verifier_execution_receipt_bytes(
     return canonical_json_bytes(
         {
             "restore_receipt_ref": _ref_mapping(receipt.restore_receipt_ref),
-            "verifier_evidence_ref": _ref_mapping(
-                receipt.verifier_evidence_ref
-            ),
+            "verifier_evidence_ref": _ref_mapping(receipt.verifier_evidence_ref),
         },
         indent=None,
     )

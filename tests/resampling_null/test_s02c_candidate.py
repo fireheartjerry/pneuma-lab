@@ -1,4 +1,4 @@
-from dataclasses import asdict, fields
+from dataclasses import asdict, fields, replace
 import inspect
 import json
 import os
@@ -14,8 +14,20 @@ from pneuma_lab.resampling_null.controller_artifacts import (
 from pneuma_lab.resampling_null.evidence import (
     FrozenPrefixReceipt,
     GradeEvidence,
+    SyntheticZeroAttemptCostClosure,
+    ToolBoundaryLedger,
+    load_controller_provider_cost_closure,
+    load_controller_provider_event,
+    load_controller_provider_settlement,
     load_composite_snapshot,
     load_grade_execution_receipt,
+    load_provider_attempt,
+    load_provider_attempt_ledger,
+    load_provider_dispatch_intent,
+    load_container_attestation,
+    load_runtime_attestation,
+    load_stateless_attestation,
+    load_tool_boundary_ledger,
     load_verifier_execution_receipt,
 )
 from pneuma_lab.resampling_null.execution_authority import (
@@ -26,18 +38,26 @@ from pneuma_lab.resampling_null.prefix_contracts import (
     load_initial_restore_qualification_receipt,
     load_prefix_candidate_receipt,
     load_snapshot_restore_receipt,
+    load_synthetic_prefix_program,
 )
 import pneuma_lab.resampling_null.synthetic_prefix_loop as prefix_loop
+import pneuma_lab.resampling_null.prefix_contracts as prefix_contracts
 from pneuma_lab.resampling_null.synthetic_prefix_loop import (
     _controller_nested_refs,
     _fresh_reload_candidate_graph,
     _scientific_y0_grade,
     run_prefix,
 )
-from pneuma_lab.resampling_null.types import ArtifactRef, FailureKind, TriggerReason
+from pneuma_lab.resampling_null.types import (
+    ArtifactRef,
+    FailureKind,
+    ToolCall,
+    TriggerReason,
+)
 from tests.resampling_null.provider_authority_fixture import (
     ProviderAuthorityFixture,
 )
+from tests.resampling_null.test_s02c_prefix_loop import _loop_authority
 
 
 def _resolve(root: Path, ref: ArtifactRef) -> bytes:
@@ -76,6 +96,26 @@ def _all_controller_payloads(root: Path) -> dict[ArtifactRef, bytes]:
             )
             payloads[ref] = payload
     return payloads
+
+
+def _zero_attempt_reload_kwargs(
+    root: Path,
+    *,
+    authority,
+    candidate_ref: ArtifactRef,
+) -> dict[str, object]:
+    receipt = load_prefix_candidate_receipt(_resolve(root, candidate_ref))
+    assert type(receipt) is FrozenPrefixReceipt
+    program_bytes = (root / authority.program_ref.relative_path).read_bytes()
+    return {
+        "program": load_synthetic_prefix_program(program_bytes),
+        "program_bytes": program_bytes,
+        "expected_cost_closure": SyntheticZeroAttemptCostClosure(),
+        "expected_boundaries": (),
+        "expected_provider_attempts_ref": receipt.provider_attempts_ref,
+        "expected_boundary_ledger_ref": receipt.boundary_ledger_ref,
+        "expected_provider_cost_ref": receipt.provider_cost_ref,
+    }
 
 
 def test_t5_s02cd_closes_one_transferred_store_before_fresh_reload(
@@ -215,6 +255,54 @@ def test_t5_s02cd_public_run_freezes_restores_and_reloads_candidate_graph(
     )
 
 
+def test_t5_s02cd_attestations_reconcile_exact_program_and_authority(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "run"
+    schedule_ref = _candidate_schedule(root)
+    candidate_ref = run_prefix(
+        run_root=root,
+        schedule_ref=schedule_ref,
+        task_id="task-1",
+    )
+    authority = load_prefix_execution_authority(
+        run_root=root,
+        schedule_ref=schedule_ref,
+        task_id="task-1",
+    )
+    receipt = load_prefix_candidate_receipt(_resolve(root, candidate_ref))
+    assert type(receipt) is FrozenPrefixReceipt
+    snapshot = load_composite_snapshot(_resolve(root, receipt.snapshot_ref))
+    program_bytes = (root / authority.program_ref.relative_path).read_bytes()
+    program = load_synthetic_prefix_program(program_bytes)
+    subject = load_stateless_attestation(
+        _resolve(root, snapshot.subject_stateless_attestation_ref),
+        expected_role="primary_subject",
+    )
+    runtime = load_runtime_attestation(_resolve(root, snapshot.runtime_ref))
+    container = load_container_attestation(_resolve(root, snapshot.container_ref))
+
+    prefix_loop._reconcile_reloaded_attestations(
+        authority=authority,
+        program=program,
+        program_bytes=program_bytes,
+        subject=subject,
+        simulator=None,
+        runtime=runtime,
+        container=container,
+    )
+    with pytest.raises(ValueError, match="subject attestation"):
+        prefix_loop._reconcile_reloaded_attestations(
+            authority=authority,
+            program=program,
+            program_bytes=program_bytes,
+            subject=replace(subject, program_sha256="f" * 64),
+            simulator=None,
+            runtime=runtime,
+            container=container,
+        )
+
+
 def test_t5_s02cd_controller_json_grammar_rejects_open_and_malformed_refs() -> None:
     with pytest.raises(ValueError, match="open or incomplete"):
         _controller_nested_refs(
@@ -273,6 +361,251 @@ def test_t5_s02cd_controller_json_grammar_rejects_open_and_malformed_refs() -> N
         )
 
 
+@pytest.mark.parametrize(
+    ("role", "value"),
+    [
+        (
+            "provider_attempt_ledger",
+            {
+                "attempt_refs": [False],
+                "attempts": [],
+                "intent_refs": [],
+                "intents": [],
+            },
+        ),
+        (
+            "provider_attempt_ledger",
+            {
+                "attempt_refs": [],
+                "attempts": [],
+                "intent_refs": ["not-a-ref"],
+                "intents": [],
+            },
+        ),
+        (
+            "provider_event",
+            {
+                "call_index": 0,
+                "completion_kind": "completed",
+                "cost_microunits": 9,
+                "dispatch_intent_sha256": "a" * 64,
+                "model_contract_sha256": "b" * 64,
+                "observed_at_ms": 1,
+                "response_sha256": False,
+                "schema_version": "1",
+                "seed": 1,
+                "subject_role": "primary_subject",
+            },
+        ),
+        (
+            "provider_settlement",
+            {
+                "attempt_sha256": False,
+                "call_index": 0,
+                "cost_microunits": 0,
+                "currency": "synthetic_microunit",
+                "dispatch_intent_sha256": 7,
+                "final": True,
+                "provider_event_sha256": [],
+                "schema_version": "1",
+                "seed": 1,
+                "subject_role": "primary_subject",
+            },
+        ),
+        (
+            "subject_stateless_attestation",
+            {
+                "authority_ref": {
+                    "byte_count": 1,
+                    "media_type": "application/json",
+                    "relative_path": "sources/subject.json",
+                    "role": "subject_contract",
+                    "sha256": "c" * 64,
+                },
+                "program_sha256": False,
+                "record_kind": 3,
+                "schema_version": "1",
+                "stateless": False,
+            },
+        ),
+    ],
+)
+def test_t5_s02cd_controller_decoders_reject_wrong_typed_semantics(
+    role: str,
+    value: object,
+) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        _controller_nested_refs(
+            role,
+            canonical_json_bytes(value, indent=None),
+        )
+
+
+def test_t5_s02cd_authority_leaf_decoders_reject_opaque_json_shapes() -> None:
+    with pytest.raises((TypeError, ValueError)):
+        prefix_contracts.load_synthetic_request_payload(
+            b'{"context_base64":"not-base64!","subject_role":"primary_subject"}\n'
+        )
+    with pytest.raises((TypeError, ValueError)):
+        prefix_contracts.load_synthetic_request_payload(
+            b'{"context_base64":"","subject_role":false}\n'
+        )
+    with pytest.raises((TypeError, ValueError)):
+        prefix_contracts.load_synthetic_tool_result_payload(b'{"call_id":false}\n')
+
+
+def test_t5_s02cd_reloaded_provider_and_tool_records_reject_cross_wiring(
+    tmp_path: Path,
+) -> None:
+    authority = _loop_authority(tmp_path)
+    opened = prefix_loop._open_prefix_loop(
+        run_root=tmp_path,
+        authority=authority,
+    )
+    try:
+        assert opened._store is not None
+        payloads = opened._store.snapshot_writes()
+        ledger = load_provider_attempt_ledger(payloads[opened.provider_attempts_ref])
+        intents_by_ref = {
+            ref: load_provider_dispatch_intent(payloads[ref])
+            for ref in opened.intent_refs
+        }
+        attempts_by_ref = {
+            ref: load_provider_attempt(payloads[ref]) for ref in opened.attempt_refs
+        }
+        events_by_ref = {
+            attempt.provider_event_ref: load_controller_provider_event(
+                payloads[attempt.provider_event_ref]
+            )
+            for attempt in opened.attempts
+        }
+        settlements_by_ref = {
+            settlement.settlement_ref: load_controller_provider_settlement(
+                payloads[settlement.settlement_ref]
+            )
+            for settlement in opened.settlements
+        }
+        cost_record = load_controller_provider_cost_closure(
+            payloads[opened.provider_cost_ref]
+        )
+        tool_ledger = load_tool_boundary_ledger(payloads[opened.boundary_ledger_ref])
+        tool_calls_by_ref = {
+            boundary.tool_call_ref: ToolCall(
+                **json.loads(payloads[boundary.tool_call_ref])
+            )
+            for boundary in opened.boundaries
+        }
+        first_intent_ref = opened.intent_refs[0]
+        first_attempt = opened.attempts[0]
+        first_event_ref = first_attempt.provider_event_ref
+        first_settlement_ref = opened.settlements[0].settlement_ref
+
+        prefix_loop._reconcile_reloaded_execution_records(
+            authority=authority,
+            program=opened._program,
+            expected_cost_closure=opened.cost_closure,
+            expected_boundaries=opened.boundaries,
+            ledger=ledger,
+            intents_by_ref=intents_by_ref,
+            attempts_by_ref=attempts_by_ref,
+            events_by_ref=events_by_ref,
+            settlements_by_ref=settlements_by_ref,
+            cost_record=cost_record,
+            tool_ledger=tool_ledger,
+            tool_calls_by_ref=tool_calls_by_ref,
+        )
+        with pytest.raises(ValueError, match="intent"):
+            prefix_loop._reconcile_reloaded_execution_records(
+                authority=authority,
+                program=opened._program,
+                expected_cost_closure=opened.cost_closure,
+                expected_boundaries=opened.boundaries,
+                ledger=ledger,
+                intents_by_ref={
+                    **intents_by_ref,
+                    first_intent_ref: replace(
+                        intents_by_ref[first_intent_ref],
+                        absolute_deadline_ms=(
+                            intents_by_ref[first_intent_ref].absolute_deadline_ms + 1
+                        ),
+                    ),
+                },
+                attempts_by_ref=attempts_by_ref,
+                events_by_ref=events_by_ref,
+                settlements_by_ref=settlements_by_ref,
+                cost_record=cost_record,
+                tool_ledger=tool_ledger,
+                tool_calls_by_ref=tool_calls_by_ref,
+            )
+        with pytest.raises(ValueError, match="event"):
+            prefix_loop._reconcile_reloaded_execution_records(
+                authority=authority,
+                program=opened._program,
+                expected_cost_closure=opened.cost_closure,
+                expected_boundaries=opened.boundaries,
+                ledger=ledger,
+                intents_by_ref=intents_by_ref,
+                attempts_by_ref=attempts_by_ref,
+                events_by_ref={
+                    **events_by_ref,
+                    first_event_ref: replace(
+                        events_by_ref[first_event_ref],
+                        dispatch_intent_sha256="f" * 64,
+                    ),
+                },
+                settlements_by_ref=settlements_by_ref,
+                cost_record=cost_record,
+                tool_ledger=tool_ledger,
+                tool_calls_by_ref=tool_calls_by_ref,
+            )
+        with pytest.raises(ValueError, match="settlement"):
+            prefix_loop._reconcile_reloaded_execution_records(
+                authority=authority,
+                program=opened._program,
+                expected_cost_closure=opened.cost_closure,
+                expected_boundaries=opened.boundaries,
+                ledger=ledger,
+                intents_by_ref=intents_by_ref,
+                attempts_by_ref=attempts_by_ref,
+                events_by_ref=events_by_ref,
+                settlements_by_ref={
+                    **settlements_by_ref,
+                    first_settlement_ref: replace(
+                        settlements_by_ref[first_settlement_ref],
+                        provider_event_sha256="e" * 64,
+                    ),
+                },
+                cost_record=cost_record,
+                tool_ledger=tool_ledger,
+                tool_calls_by_ref=tool_calls_by_ref,
+            )
+        with pytest.raises(ValueError, match="tool"):
+            prefix_loop._reconcile_reloaded_execution_records(
+                authority=authority,
+                program=opened._program,
+                expected_cost_closure=opened.cost_closure,
+                expected_boundaries=opened.boundaries,
+                ledger=ledger,
+                intents_by_ref=intents_by_ref,
+                attempts_by_ref=attempts_by_ref,
+                events_by_ref=events_by_ref,
+                settlements_by_ref=settlements_by_ref,
+                cost_record=cost_record,
+                tool_ledger=ToolBoundaryLedger(
+                    (
+                        replace(
+                            tool_ledger.boundaries[0],
+                            elapsed_ms=tool_ledger.boundaries[0].elapsed_ms + 1,
+                        ),
+                        *tool_ledger.boundaries[1:],
+                    )
+                ),
+                tool_calls_by_ref=tool_calls_by_ref,
+            )
+    finally:
+        opened.close()
+
+
 def test_t5_s02cd_fresh_reload_rejects_cross_class_hardlink_alias(
     tmp_path: Path,
 ) -> None:
@@ -299,6 +632,11 @@ def test_t5_s02cd_fresh_reload_rejects_cross_class_hardlink_alias(
             run_root=root,
             candidate_ref=candidate_ref,
             authority=authority,
+            **_zero_attempt_reload_kwargs(
+                root,
+                authority=authority,
+                candidate_ref=candidate_ref,
+            ),
             expected_controller_payloads=_all_controller_payloads(root),
             allowed_prior_controller_refs=frozenset(),
         )
@@ -326,6 +664,11 @@ def test_t5_s02cd_fresh_reload_requires_retained_bytes_and_reachable_writes(
             run_root=root,
             candidate_ref=candidate_ref,
             authority=authority,
+            **_zero_attempt_reload_kwargs(
+                root,
+                authority=authority,
+                candidate_ref=candidate_ref,
+            ),
             expected_controller_payloads=expected_payloads,
             allowed_prior_controller_refs=frozenset(),
         )
@@ -344,6 +687,11 @@ def test_t5_s02cd_fresh_reload_requires_retained_bytes_and_reachable_writes(
             run_root=root,
             candidate_ref=candidate_ref,
             authority=authority,
+            **_zero_attempt_reload_kwargs(
+                root,
+                authority=authority,
+                candidate_ref=candidate_ref,
+            ),
             expected_controller_payloads=expected_payloads,
             allowed_prior_controller_refs=frozenset(),
         )

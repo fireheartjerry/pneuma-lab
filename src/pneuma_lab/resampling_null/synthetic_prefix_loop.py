@@ -14,7 +14,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 import stat
 from types import MappingProxyType
-from typing import Literal, Mapping, cast, final
+from typing import Callable, Literal, Mapping, cast, final
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
@@ -34,24 +34,42 @@ from .evidence import (
     AttemptBoundZeroCostClosure,
     CompositeSnapshotEnvelope,
     CompletedToolBoundaryReceipt,
+    ControllerProviderCostClosure,
+    ControllerProviderEvent,
+    ControllerProviderSettlement,
     FrozenPrefixReceipt,
     GradeEvidence,
     GradeExecutionReceipt,
+    ProviderAttemptLedgerRecord,
     ProviderAttemptStatus,
     ProviderCallAttemptReceipt,
     ProviderDispatchIntent,
     ProviderSettlement,
+    RuntimeAttestation,
+    StatelessAttestation,
     SyntheticZeroAttemptCostClosure,
     ToolBoundaryLedger,
+    ContainerAttestation,
     VerifierEvidence,
     VerifierExecutionReceipt,
     composite_snapshot_bytes,
     grade_execution_receipt_bytes,
-    verifier_execution_receipt_bytes,
+    load_container_attestation,
+    load_controller_provider_cost_closure,
+    load_controller_provider_event,
+    load_controller_provider_settlement,
     load_composite_snapshot,
     load_grade_execution_receipt,
+    load_provider_attempt,
+    load_provider_attempt_ledger,
+    load_provider_dispatch_intent,
+    load_runtime_attestation,
+    load_stateless_attestation,
+    load_tool_call,
+    load_tool_boundary_ledger,
     load_verifier_execution_receipt,
     validate_snapshot_receipt_fields,
+    verifier_execution_receipt_bytes,
 )
 from .execution_authority import (
     PrefixExecutionAuthority,
@@ -62,16 +80,21 @@ from .prefix_contracts import (
     CONTROLLER_ROLE_MEDIA,
     REF_LOAD_CLASS_BY_ROLE,
     ImplementationDescriptor,
+    RawProviderCompletionKind,
     RawProviderObservation,
     SnapshotRestoreReceipt,
     SyntheticClockRead,
     SyntheticPrefixProgram,
     SyntheticProviderTranscriptRow,
+    SyntheticRequestPayload,
+    SyntheticToolResultPayload,
     StableSourceProvenance,
     load_initial_restore_qualification_receipt,
     load_prefix_candidate_receipt,
     load_snapshot_restore_receipt,
+    load_synthetic_request_payload,
     load_synthetic_prefix_program,
+    load_synthetic_tool_result_payload,
     prefix_candidate_receipt_bytes,
     snapshot_restore_receipt_bytes,
     synthetic_prefix_program_bytes,
@@ -2600,8 +2623,35 @@ def _controller_nested_refs(role: str, payload: bytes) -> tuple[ArtifactRef, ...
     if payload != canonical_json_bytes(value, indent=None):
         raise ValueError(f"{role} must be compact canonical JSON")
     _reject_malformed_ref_shapes(value, field=role)
-    _validate_controller_json_shape(role, value)
+    typed_loader = _CONTROLLER_TYPED_LOADERS.get(role)
+    if typed_loader is None:
+        _validate_controller_json_shape(role, value)
+    else:
+        typed_loader(payload)
     return walk_artifact_refs(value)
+
+
+_CONTROLLER_TYPED_LOADERS: Mapping[str, Callable[[bytes], object]] = MappingProxyType(
+    {
+        "provider_dispatch_intent": load_provider_dispatch_intent,
+        "provider_attempt": load_provider_attempt,
+        "provider_attempt_ledger": load_provider_attempt_ledger,
+        "provider_event": load_controller_provider_event,
+        "provider_settlement": load_controller_provider_settlement,
+        "provider_cost_closure": load_controller_provider_cost_closure,
+        "tool_boundary_ledger": load_tool_boundary_ledger,
+        "subject_stateless_attestation": lambda payload: load_stateless_attestation(
+            payload,
+            expected_role="primary_subject",
+        ),
+        "simulator_stateless_attestation": lambda payload: load_stateless_attestation(
+            payload,
+            expected_role="user_simulator",
+        ),
+        "runtime_attestation": load_runtime_attestation,
+        "container_attestation": load_container_attestation,
+    }
+)
 
 
 class _NoFollowIdentityReader:
@@ -2666,11 +2716,350 @@ class _NoFollowIdentityReader:
                 os.close(descriptor)
 
 
+def _reconcile_reloaded_execution_records(
+    *,
+    authority: PrefixExecutionAuthority,
+    program: SyntheticPrefixProgram,
+    expected_cost_closure: (
+        AttemptBoundZeroCostClosure | SyntheticZeroAttemptCostClosure
+    ),
+    expected_boundaries: tuple[CompletedToolBoundaryReceipt, ...],
+    ledger: ProviderAttemptLedgerRecord,
+    intents_by_ref: Mapping[ArtifactRef, ProviderDispatchIntent],
+    attempts_by_ref: Mapping[ArtifactRef, ProviderCallAttemptReceipt],
+    events_by_ref: Mapping[ArtifactRef, ControllerProviderEvent],
+    settlements_by_ref: Mapping[ArtifactRef, ControllerProviderSettlement],
+    cost_record: ControllerProviderCostClosure,
+    tool_ledger: ToolBoundaryLedger,
+    tool_calls_by_ref: Mapping[ArtifactRef, ToolCall],
+) -> None:
+    """Reconstruct exact execution semantics instead of accepting JSON shape."""
+
+    if type(authority) is not PrefixExecutionAuthority:
+        raise TypeError("authority must be exact PrefixExecutionAuthority")
+    if type(program) is not SyntheticPrefixProgram:
+        raise TypeError("program must be exact SyntheticPrefixProgram")
+    if type(ledger) is not ProviderAttemptLedgerRecord:
+        raise TypeError("ledger must be exact ProviderAttemptLedgerRecord")
+    if type(cost_record) is not ControllerProviderCostClosure:
+        raise TypeError("cost_record must be exact ControllerProviderCostClosure")
+    if type(tool_ledger) is not ToolBoundaryLedger:
+        raise TypeError("tool_ledger must be exact ToolBoundaryLedger")
+
+    if type(expected_cost_closure) is AttemptBoundZeroCostClosure:
+        expected_intents = expected_cost_closure.intents
+        expected_intent_refs = expected_cost_closure.intent_refs
+        expected_attempts = expected_cost_closure.attempts
+        expected_attempt_refs = expected_cost_closure.attempt_refs
+        expected_settlements = expected_cost_closure.settlements
+    elif type(expected_cost_closure) is SyntheticZeroAttemptCostClosure:
+        expected_intents = ()
+        expected_intent_refs = ()
+        expected_attempts = ()
+        expected_attempt_refs = ()
+        expected_settlements = ()
+    else:
+        raise TypeError("expected_cost_closure has an unavailable type")
+
+    if (
+        ledger.ledger.intents != expected_intents
+        or ledger.ledger.intent_refs != expected_intent_refs
+        or ledger.ledger.attempts != expected_attempts
+        or ledger.attempt_refs != expected_attempt_refs
+    ):
+        raise ValueError("reloaded provider intent/attempt ledger differs")
+    if dict(intents_by_ref) != dict(zip(expected_intent_refs, expected_intents)):
+        raise ValueError("reloaded provider intent records differ")
+    if dict(attempts_by_ref) != dict(zip(expected_attempt_refs, expected_attempts)):
+        raise ValueError("reloaded provider attempt records differ")
+
+    expected_event_refs = tuple(
+        attempt.provider_event_ref for attempt in expected_attempts
+    )
+    expected_settlement_refs = tuple(
+        settlement.settlement_ref for settlement in expected_settlements
+    )
+    if set(events_by_ref) != set(expected_event_refs):
+        raise ValueError("reloaded provider event coverage differs")
+    if set(settlements_by_ref) != set(expected_settlement_refs):
+        raise ValueError("reloaded provider settlement coverage differs")
+    if (
+        cost_record.attempt_refs != expected_attempt_refs
+        or cost_record.settlement_refs != expected_settlement_refs
+        or cost_record.total_cost_microunits
+        != expected_cost_closure.total_cost_microunits
+    ):
+        raise ValueError("reloaded provider cost closure differs")
+
+    program_rows = {
+        (row.subject_role, row.call_index): row for row in program.provider_transcript
+    }
+    if len(program_rows) != len(program.provider_transcript):
+        raise ValueError("program provider identities are duplicated")
+    clock_values = {read.label: read.uint64_ms for read in program.clock_trace}
+    if len(clock_values) != len(program.clock_trace):
+        raise ValueError("program clock labels are duplicated")
+    for intent, intent_ref, attempt, attempt_ref, settlement in zip(
+        expected_intents,
+        expected_intent_refs,
+        expected_attempts,
+        expected_attempt_refs,
+        expected_settlements,
+        strict=True,
+    ):
+        row = program_rows.get((intent.subject_role, intent.call_index))
+        if row is None:
+            raise ValueError("provider intent has no exact program row")
+        if (
+            row.seed != intent.seed
+            or row.model_contract_sha256 != intent.model_contract_ref.sha256
+            or row.expected_request_ref.sha256 != intent.request_ref.sha256
+            or hashlib.sha256(
+                canonical_json_bytes(
+                    {"token_ids": list(row.expected_input_token_ids)},
+                    indent=None,
+                )
+            ).hexdigest()
+            != intent.input_token_ids_ref.sha256
+        ):
+            raise ValueError("provider intent differs from sealed program row")
+        expected_response_sha256 = (
+            None if row.response_ref is None else row.response_ref.sha256
+        )
+        actual_response_sha256 = (
+            None if attempt.response_ref is None else attempt.response_ref.sha256
+        )
+        if (
+            attempt.dispatch_intent_ref != intent_ref
+            or attempt.request_ref != intent.request_ref
+            or attempt.input_token_ids_ref != intent.input_token_ids_ref
+            or attempt.model_contract_ref != intent.model_contract_ref
+            or attempt.subject_role != row.subject_role
+            or attempt.call_index != row.call_index
+            or attempt.seed != row.seed
+            or attempt.status.value != row.completion_kind.value
+            or attempt.generated_tokens != row.reported_generated_tokens
+            or actual_response_sha256 != expected_response_sha256
+        ):
+            raise ValueError("provider attempt differs from intent/program edges")
+        event = events_by_ref[attempt.provider_event_ref]
+        after_label = f"after_{attempt.subject_role}_{attempt.call_index}"
+        expected_observed_at = clock_values.get(after_label)
+        if expected_observed_at is None:
+            raise ValueError("provider event has no sealed completion clock")
+        if (
+            event.subject_role != attempt.subject_role
+            or event.call_index != attempt.call_index
+            or event.seed != attempt.seed
+            or event.completion_kind is not attempt.status
+            or event.dispatch_intent_sha256 != intent_ref.sha256
+            or event.model_contract_sha256 != attempt.model_contract_ref.sha256
+            or event.response_sha256 != actual_response_sha256
+            or event.observed_at_ms != expected_observed_at
+            or event.cost_microunits != 0
+        ):
+            raise ValueError("provider event differs from attempt/program edges")
+        settlement_record = settlements_by_ref[settlement.settlement_ref]
+        if (
+            settlement.dispatch_intent_ref != intent_ref
+            or settlement.attempt_receipt_ref != attempt_ref
+            or settlement.provider_event_ref != attempt.provider_event_ref
+            or settlement.cost_microunits != 0
+            or settlement_record.subject_role != attempt.subject_role
+            or settlement_record.call_index != attempt.call_index
+            or settlement_record.seed != attempt.seed
+            or settlement_record.dispatch_intent_sha256 != intent_ref.sha256
+            or settlement_record.attempt_sha256 != attempt_ref.sha256
+            or settlement_record.provider_event_sha256
+            != attempt.provider_event_ref.sha256
+            or settlement_record.cost_microunits != 0
+        ):
+            raise ValueError("provider settlement differs from attempt/event edges")
+
+    if tool_ledger != ToolBoundaryLedger(expected_boundaries):
+        raise ValueError("reloaded tool boundary ledger differs")
+    expected_calls: dict[str, ToolCall] = {}
+    for row in program.provider_transcript:
+        if row.typed_turn is None:
+            continue
+        for call in row.typed_turn.tool_calls:
+            if call.call_id in expected_calls:
+                raise ValueError("program repeats a tool call ID")
+            expected_calls[call.call_id] = call
+    expected_tool_refs = {boundary.tool_call_ref for boundary in expected_boundaries}
+    if set(tool_calls_by_ref) != expected_tool_refs:
+        raise ValueError("reloaded tool call coverage differs")
+    observations = {item.call_id: item for item in program.tool_observations}
+    if len(observations) != len(program.tool_observations):
+        raise ValueError("program repeats a tool observation ID")
+    for boundary in expected_boundaries:
+        if tool_calls_by_ref[boundary.tool_call_ref] != expected_calls.get(
+            boundary.call_id
+        ):
+            raise ValueError("reloaded tool call differs from sealed program")
+        observation = observations.get(boundary.call_id)
+        if (
+            observation is None
+            or boundary.tool_result_ref.sha256 != observation.result_ref.sha256
+            or boundary.mutation_committed != observation.mutation_committed
+            or boundary.verifier_eligible_after != observation.verifier_eligible
+            or boundary.episode_terminal != observation.episode_terminal
+            or boundary.failure_kind is not observation.failure_kind
+        ):
+            raise ValueError("reloaded tool boundary differs from program result")
+
+
+def _reconcile_reloaded_attestations(
+    *,
+    authority: PrefixExecutionAuthority,
+    program: SyntheticPrefixProgram,
+    program_bytes: bytes,
+    subject: StatelessAttestation,
+    simulator: StatelessAttestation | None,
+    runtime: RuntimeAttestation,
+    container: ContainerAttestation,
+) -> None:
+    """Bind every attestation field to executed authority and program bytes."""
+
+    if type(authority) is not PrefixExecutionAuthority:
+        raise TypeError("authority must be exact PrefixExecutionAuthority")
+    if type(program) is not SyntheticPrefixProgram:
+        raise TypeError("program must be exact SyntheticPrefixProgram")
+    if type(program_bytes) is not bytes:
+        raise TypeError("program_bytes must be exact bytes")
+    if program_bytes != synthetic_prefix_program_bytes(program):
+        raise ValueError("attestation program bytes differ from typed program")
+    program_sha256 = hashlib.sha256(program_bytes).hexdigest()
+    if (
+        subject.record_kind != "synthetic_subject_stateless_v1"
+        or subject.authority_ref != authority.subject_contract_ref
+        or subject.program_sha256 != program_sha256
+        or subject.stateless is not True
+    ):
+        raise ValueError("subject attestation differs from authority/program")
+    if authority.simulator_contract_ref is None:
+        if simulator is not None:
+            raise ValueError("simulator-free authority forbids simulator attestation")
+    elif (
+        simulator is None
+        or simulator.record_kind != "synthetic_simulator_stateless_v1"
+        or simulator.authority_ref != authority.simulator_contract_ref
+        or simulator.program_sha256 != program_sha256
+        or simulator.stateless is not True
+    ):
+        raise ValueError("simulator attestation differs from authority/program")
+    descriptors = _validate_descriptor_registry(authority)
+    environment = descriptors["environment"]
+    if (
+        runtime.authority_ref != environment.implementation_source_ref
+        or runtime.program_sha256 != program_sha256
+        or runtime.runtime_id != environment.runtime_id
+    ):
+        raise ValueError("runtime attestation differs from authority/program")
+    if (
+        container.authority_ref != environment.implementation_source_ref
+        or container.program_sha256 != program_sha256
+        or container.container_digest != environment.container_digest
+    ):
+        raise ValueError("container attestation differs from authority/program")
+
+
+def _reconcile_reloaded_authority_leaves(
+    *,
+    program: SyntheticPrefixProgram,
+    requests: Mapping[ArtifactRef, SyntheticRequestPayload],
+    responses: Mapping[ArtifactRef, tuple[ParserKind, SubjectTurn | None]],
+    raw_events: Mapping[ArtifactRef, tuple[TransportKind, int]],
+    tool_results: Mapping[ArtifactRef, SyntheticToolResultPayload],
+    grade_results: Mapping[ArtifactRef, GradeEvidence],
+    verifier_results: Mapping[ArtifactRef, VerifierEvidence],
+) -> None:
+    """Bind every traversed synthetic authority leaf to its program row."""
+
+    expected_requests = {
+        row.expected_request_ref for row in program.provider_transcript
+    }
+    expected_responses = {
+        row.response_ref
+        for row in program.provider_transcript
+        if row.response_ref is not None
+    }
+    expected_events = {row.provider_event_ref for row in program.provider_transcript}
+    expected_tool_results = {
+        observation.result_ref for observation in program.tool_observations
+    }
+    if set(requests) != expected_requests:
+        raise ValueError("synthetic request authority coverage differs")
+    if set(responses) != expected_responses:
+        raise ValueError("synthetic response authority coverage differs")
+    if set(raw_events) != expected_events:
+        raise ValueError("raw provider event authority coverage differs")
+    if set(tool_results) != expected_tool_results:
+        raise ValueError("synthetic tool-result authority coverage differs")
+    if set(grade_results) != {program.grade_result.evidence_ref}:
+        raise ValueError("synthetic grade authority coverage differs")
+    if set(verifier_results) != {program.verifier_result.evidence_ref}:
+        raise ValueError("synthetic verifier authority coverage differs")
+
+    clock_values = {read.label: read.uint64_ms for read in program.clock_trace}
+    for row in program.provider_transcript:
+        request = requests[row.expected_request_ref]
+        if request.subject_role != row.subject_role:
+            raise ValueError("synthetic request actor differs from program")
+        if row.response_ref is not None:
+            parser_kind, turn = responses[row.response_ref]
+            if turn != row.typed_turn:
+                raise ValueError("synthetic response differs from program turn")
+            if (
+                (
+                    row.completion_kind is RawProviderCompletionKind.COMPLETED
+                    and parser_kind != "turn"
+                )
+                or (
+                    row.completion_kind is RawProviderCompletionKind.REFUSAL
+                    and parser_kind != "refusal"
+                )
+                or (
+                    row.completion_kind is RawProviderCompletionKind.MALFORMED_RESPONSE
+                    and parser_kind != "malformed"
+                )
+            ):
+                raise ValueError("synthetic response parser kind differs from program")
+        _, observed_at_ms = raw_events[row.provider_event_ref]
+        if observed_at_ms != clock_values.get(
+            f"after_{row.subject_role}_{row.call_index}"
+        ):
+            raise ValueError("raw provider event time differs from program clock")
+    for observation in program.tool_observations:
+        if tool_results[observation.result_ref].call_id != observation.call_id:
+            raise ValueError("synthetic tool result differs from program observation")
+    grade = grade_results[program.grade_result.evidence_ref]
+    if (
+        grade.success != program.grade_result.success
+        or grade.partial_reward != program.grade_result.partial_reward
+        or grade.infrastructure_failure
+        is not program.grade_result.infrastructure_failure
+    ):
+        raise ValueError("synthetic grade result differs from program")
+    verifier = verifier_results[program.verifier_result.evidence_ref]
+    if verifier.finding_count != program.verifier_result.finding_count:
+        raise ValueError("synthetic verifier result differs from program")
+
+
 def _fresh_reload_candidate_graph(
     *,
     run_root: Path,
     candidate_ref: ArtifactRef,
     authority: PrefixExecutionAuthority,
+    program: SyntheticPrefixProgram,
+    program_bytes: bytes,
+    expected_cost_closure: (
+        AttemptBoundZeroCostClosure | SyntheticZeroAttemptCostClosure
+    ),
+    expected_boundaries: tuple[CompletedToolBoundaryReceipt, ...],
+    expected_provider_attempts_ref: ArtifactRef,
+    expected_boundary_ledger_ref: ArtifactRef,
+    expected_provider_cost_ref: ArtifactRef,
     expected_controller_payloads: Mapping[ArtifactRef, bytes],
     allowed_prior_controller_refs: frozenset[ArtifactRef],
 ) -> None:
@@ -2687,6 +3076,28 @@ def _fresh_reload_candidate_graph(
     physical_bindings: dict[tuple[int, int], ArtifactRef] = {}
     pending = [candidate_ref]
     seen_expected: set[ArtifactRef] = set()
+    intents_by_ref: dict[ArtifactRef, ProviderDispatchIntent] = {}
+    attempts_by_ref: dict[ArtifactRef, ProviderCallAttemptReceipt] = {}
+    events_by_ref: dict[ArtifactRef, ControllerProviderEvent] = {}
+    settlements_by_ref: dict[ArtifactRef, ControllerProviderSettlement] = {}
+    tool_calls_by_ref: dict[ArtifactRef, ToolCall] = {}
+    ledgers: dict[ArtifactRef, ProviderAttemptLedgerRecord] = {}
+    cost_records: dict[ArtifactRef, ControllerProviderCostClosure] = {}
+    tool_ledgers: dict[ArtifactRef, ToolBoundaryLedger] = {}
+    subject_attestations: list[StatelessAttestation] = []
+    simulator_attestations: list[StatelessAttestation] = []
+    runtime_attestations: list[RuntimeAttestation] = []
+    container_attestations: list[ContainerAttestation] = []
+    synthetic_requests: dict[ArtifactRef, SyntheticRequestPayload] = {}
+    synthetic_responses: dict[
+        ArtifactRef,
+        tuple[ParserKind, SubjectTurn | None],
+    ] = {}
+    synthetic_raw_events: dict[ArtifactRef, tuple[TransportKind, int]] = {}
+    synthetic_tool_results: dict[ArtifactRef, SyntheticToolResultPayload] = {}
+    synthetic_programs: dict[ArtifactRef, SyntheticPrefixProgram] = {}
+    synthetic_grade_payloads: dict[ArtifactRef, bytes] = {}
+    synthetic_verifier_payloads: dict[ArtifactRef, bytes] = {}
     with (
         ControllerArtifactResolver(root) as resolver,
         AuthorityRefReader(root) as authority_reader,
@@ -2736,6 +3147,42 @@ def _fresh_reload_candidate_graph(
                         "candidate graph contains an unexpected controller artifact"
                     )
                 nested = _controller_nested_refs(ref.role, payload)
+                if ref.role == "provider_dispatch_intent":
+                    intents_by_ref[ref] = load_provider_dispatch_intent(payload)
+                elif ref.role == "provider_attempt":
+                    attempts_by_ref[ref] = load_provider_attempt(payload)
+                elif ref.role == "provider_event":
+                    events_by_ref[ref] = load_controller_provider_event(payload)
+                elif ref.role == "provider_settlement":
+                    settlements_by_ref[ref] = load_controller_provider_settlement(
+                        payload
+                    )
+                elif ref.role == "provider_attempt_ledger":
+                    ledgers[ref] = load_provider_attempt_ledger(payload)
+                elif ref.role == "provider_cost_closure":
+                    cost_records[ref] = load_controller_provider_cost_closure(payload)
+                elif ref.role == "tool_boundary_ledger":
+                    tool_ledgers[ref] = load_tool_boundary_ledger(payload)
+                elif ref.role == "tool_call":
+                    tool_calls_by_ref[ref] = load_tool_call(payload)
+                elif ref.role == "subject_stateless_attestation":
+                    subject_attestations.append(
+                        load_stateless_attestation(
+                            payload,
+                            expected_role="primary_subject",
+                        )
+                    )
+                elif ref.role == "simulator_stateless_attestation":
+                    simulator_attestations.append(
+                        load_stateless_attestation(
+                            payload,
+                            expected_role="user_simulator",
+                        )
+                    )
+                elif ref.role == "runtime_attestation":
+                    runtime_attestations.append(load_runtime_attestation(payload))
+                elif ref.role == "container_attestation":
+                    container_attestations.append(load_container_attestation(payload))
             elif load_class == "authority_asset":
                 if ref.media_type != expected:
                     raise ValueError("authority asset media differs from registry")
@@ -2754,51 +3201,25 @@ def _fresh_reload_candidate_graph(
                         field=f"authority_asset[{ref.role}]",
                     )
                     if ref.role == "synthetic_execution_program":
-                        load_synthetic_prefix_program(payload)
+                        synthetic_programs[ref] = load_synthetic_prefix_program(payload)
                     elif ref.role == "synthetic_request":
-                        _require_mapping_fields(
-                            value,
-                            frozenset({"context_base64", "subject_role"}),
-                            field="synthetic_request",
+                        synthetic_requests[ref] = load_synthetic_request_payload(
+                            payload
                         )
                     elif ref.role == "synthetic_response":
-                        _require_mapping_fields(
-                            value,
-                            frozenset(
-                                {
-                                    "finish_reason",
-                                    "generated_tokens",
-                                    "text",
-                                    "tool_calls",
-                                }
-                            ),
-                            field="synthetic_response",
+                        synthetic_responses[ref] = SyntheticResponseParser().parse(
+                            payload
                         )
                     elif ref.role == "synthetic_provider_event":
-                        _require_mapping_fields(
-                            value,
-                            frozenset(
-                                {
-                                    "observed_at_ms",
-                                    "record_kind",
-                                    "schema_version",
-                                    "transport_kind",
-                                }
-                            ),
-                            field="synthetic_provider_event",
-                        )
+                        synthetic_raw_events[ref] = _decode_raw_event(payload)
                     elif ref.role == "synthetic_tool_result":
-                        _require_mapping_fields(
-                            value,
-                            frozenset({"call_id"}),
-                            field="synthetic_tool_result",
+                        synthetic_tool_results[ref] = (
+                            load_synthetic_tool_result_payload(payload)
                         )
+                    elif ref.role == "synthetic_grade_result":
+                        synthetic_grade_payloads[ref] = payload
                     elif ref.role == "synthetic_verifier_result":
-                        _require_mapping_fields(
-                            value,
-                            frozenset({"finding_count"}),
-                            field="synthetic_verifier_result",
-                        )
+                        synthetic_verifier_payloads[ref] = payload
                     nested = walk_artifact_refs(value)
                 else:
                     nested = ()
@@ -2826,6 +3247,133 @@ def _fresh_reload_candidate_graph(
             "final controller store contains unreachable writes: "
             f"{sorted((ref.role, ref.sha256) for ref in missing_expected)!r}"
         )
+    if set(ledgers) != {expected_provider_attempts_ref}:
+        raise ValueError("candidate graph provider ledger identity differs")
+    if set(cost_records) != {expected_provider_cost_ref}:
+        raise ValueError("candidate graph cost closure identity differs")
+    if set(tool_ledgers) != {expected_boundary_ledger_ref}:
+        raise ValueError("candidate graph tool ledger identity differs")
+    _reconcile_reloaded_execution_records(
+        authority=authority,
+        program=program,
+        expected_cost_closure=expected_cost_closure,
+        expected_boundaries=expected_boundaries,
+        ledger=ledgers[expected_provider_attempts_ref],
+        intents_by_ref=intents_by_ref,
+        attempts_by_ref=attempts_by_ref,
+        events_by_ref=events_by_ref,
+        settlements_by_ref=settlements_by_ref,
+        cost_record=cost_records[expected_provider_cost_ref],
+        tool_ledger=tool_ledgers[expected_boundary_ledger_ref],
+        tool_calls_by_ref=tool_calls_by_ref,
+    )
+    if synthetic_programs.get(authority.program_ref) != program:
+        raise ValueError("fresh executed program differs from retained program")
+    expected_request_refs = {
+        row.expected_request_ref
+        for candidate_program in synthetic_programs.values()
+        for row in candidate_program.provider_transcript
+    }
+    expected_response_refs = {
+        row.response_ref
+        for candidate_program in synthetic_programs.values()
+        for row in candidate_program.provider_transcript
+        if row.response_ref is not None
+    }
+    expected_raw_event_refs = {
+        row.provider_event_ref
+        for candidate_program in synthetic_programs.values()
+        for row in candidate_program.provider_transcript
+    }
+    expected_tool_result_refs = {
+        observation.result_ref
+        for candidate_program in synthetic_programs.values()
+        for observation in candidate_program.tool_observations
+    }
+    expected_grade_refs = {
+        candidate_program.grade_result.evidence_ref
+        for candidate_program in synthetic_programs.values()
+    }
+    expected_verifier_refs = {
+        candidate_program.verifier_result.evidence_ref
+        for candidate_program in synthetic_programs.values()
+    }
+    for observed_refs, expected_refs, field in (
+        (set(synthetic_requests), expected_request_refs, "request"),
+        (set(synthetic_responses), expected_response_refs, "response"),
+        (set(synthetic_raw_events), expected_raw_event_refs, "raw event"),
+        (set(synthetic_tool_results), expected_tool_result_refs, "tool result"),
+        (set(synthetic_grade_payloads), expected_grade_refs, "grade result"),
+        (set(synthetic_verifier_payloads), expected_verifier_refs, "verifier result"),
+    ):
+        if observed_refs != expected_refs:
+            raise ValueError(f"synthetic authority {field} coverage differs")
+    for candidate_program in synthetic_programs.values():
+        grade_ref = candidate_program.grade_result.evidence_ref
+        verifier_ref = candidate_program.verifier_result.evidence_ref
+        _reconcile_reloaded_authority_leaves(
+            program=candidate_program,
+            requests={
+                ref: synthetic_requests[ref]
+                for ref in {
+                    row.expected_request_ref
+                    for row in candidate_program.provider_transcript
+                }
+            },
+            responses={
+                ref: synthetic_responses[ref]
+                for ref in {
+                    row.response_ref
+                    for row in candidate_program.provider_transcript
+                    if row.response_ref is not None
+                }
+            },
+            raw_events={
+                ref: synthetic_raw_events[ref]
+                for ref in {
+                    row.provider_event_ref
+                    for row in candidate_program.provider_transcript
+                }
+            },
+            tool_results={
+                ref: synthetic_tool_results[ref]
+                for ref in {
+                    observation.result_ref
+                    for observation in candidate_program.tool_observations
+                }
+            },
+            grade_results={
+                grade_ref: SyntheticGradeCodec().decode(
+                    payload=synthetic_grade_payloads[grade_ref],
+                    program=candidate_program,
+                    expected_payload=synthetic_grade_payloads[grade_ref],
+                )
+            },
+            verifier_results={
+                verifier_ref: SyntheticVerifierCodec().decode(
+                    payload=synthetic_verifier_payloads[verifier_ref],
+                    program=candidate_program,
+                    expected_payload=synthetic_verifier_payloads[verifier_ref],
+                )
+            },
+        )
+    if (
+        len(subject_attestations) != 1
+        or len(simulator_attestations)
+        != (0 if authority.simulator_contract_ref is None else 1)
+        or len(runtime_attestations) != 1
+        or len(container_attestations) != 1
+    ):
+        raise ValueError("candidate graph attestation coverage differs")
+    _reconcile_reloaded_attestations(
+        authority=authority,
+        program=program,
+        program_bytes=program_bytes,
+        subject=subject_attestations[0],
+        simulator=(None if not simulator_attestations else simulator_attestations[0]),
+        runtime=runtime_attestations[0],
+        container=container_attestations[0],
+    )
 
 
 def _finalize_prefix_candidate(
@@ -3151,6 +3699,13 @@ def _finalize_prefix_candidate(
             run_root=run_root,
             candidate_ref=candidate_ref,
             authority=authority,
+            program=opened._program,
+            program_bytes=opened._program_bytes,
+            expected_cost_closure=opened.cost_closure,
+            expected_boundaries=opened.boundaries,
+            expected_provider_attempts_ref=opened.provider_attempts_ref,
+            expected_boundary_ledger_ref=opened.boundary_ledger_ref,
+            expected_provider_cost_ref=opened.provider_cost_ref,
             expected_controller_payloads=expected_controller_payloads,
             allowed_prior_controller_refs=allowed_prior_controller_refs,
         )

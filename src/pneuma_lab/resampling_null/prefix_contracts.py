@@ -6,6 +6,8 @@ environment process, grading, verification, or publication behavior.
 
 from __future__ import annotations
 
+import base64
+import binascii
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
@@ -28,72 +30,78 @@ from .types import (
 )
 
 
-CONTROLLER_ROLE_MEDIA: Mapping[str, str] = MappingProxyType({
-    "selected_task": "application/json",
-    "initial_restore_qualification": "application/json",
-    "composite_snapshot": "application/json",
-    "environment_snapshot": "application/octet-stream",
-    "visible_context": "application/json",
-    "token_ids": "application/json",
-    "input_token_ids": "application/json",
-    "output_token_ids": "application/json",
-    "provider_request": "application/json",
-    "provider_dispatch_intent": "application/json",
-    "provider_response": "application/octet-stream",
-    "provider_event": "application/json",
-    "provider_attempt": "application/json",
-    "provider_attempt_ledger": "application/json",
-    "provider_settlement": "application/json",
-    "provider_cost_closure": "application/json",
-    "tool_call": "application/json",
-    "tool_result": "application/octet-stream",
-    "tool_boundary_ledger": "application/json",
-    "subject_stateless_attestation": "application/json",
-    "simulator_stateless_attestation": "application/json",
-    "runtime_attestation": "application/json",
-    "container_attestation": "application/json",
-    "grade_restore_receipt": "application/json",
-    "verifier_restore_receipt": "application/json",
-    "grade_evidence": "application/octet-stream",
-    "verifier_evidence": "application/octet-stream",
-    "grade_evidence_receipt": "application/json",
-    "verifier_evidence_receipt": "application/json",
-    "prefix_candidate_receipt": "application/json",
-})
+CONTROLLER_ROLE_MEDIA: Mapping[str, str] = MappingProxyType(
+    {
+        "selected_task": "application/json",
+        "initial_restore_qualification": "application/json",
+        "composite_snapshot": "application/json",
+        "environment_snapshot": "application/octet-stream",
+        "visible_context": "application/json",
+        "token_ids": "application/json",
+        "input_token_ids": "application/json",
+        "output_token_ids": "application/json",
+        "provider_request": "application/json",
+        "provider_dispatch_intent": "application/json",
+        "provider_response": "application/octet-stream",
+        "provider_event": "application/json",
+        "provider_attempt": "application/json",
+        "provider_attempt_ledger": "application/json",
+        "provider_settlement": "application/json",
+        "provider_cost_closure": "application/json",
+        "tool_call": "application/json",
+        "tool_result": "application/octet-stream",
+        "tool_boundary_ledger": "application/json",
+        "subject_stateless_attestation": "application/json",
+        "simulator_stateless_attestation": "application/json",
+        "runtime_attestation": "application/json",
+        "container_attestation": "application/json",
+        "grade_restore_receipt": "application/json",
+        "verifier_restore_receipt": "application/json",
+        "grade_evidence": "application/octet-stream",
+        "verifier_evidence": "application/octet-stream",
+        "grade_evidence_receipt": "application/json",
+        "verifier_evidence_receipt": "application/json",
+        "prefix_candidate_receipt": "application/json",
+    }
+)
 
-AUTHORITY_ASSET_ROLE_MEDIA: Mapping[str, str] = MappingProxyType({
-    "task_registry": "application/json",
-    "provider_lane_plan": "application/json",
-    "task_input": "application/json",
-    "environment_contract": "application/json",
-    "grader_contract": "application/json",
-    "verifier_contract": "application/json",
-    "isolation_contract": "application/json",
-    "subject_contract": "application/json",
-    "simulator_contract": "application/json",
-    "tool_parser_contract": "application/json",
-    "meter_contract": "application/json",
-    "tokenizer": "application/json",
-    "prompt_template": "application/json",
-    "tool_schema": "application/json",
-    "synthetic_execution_program": "application/json",
-    "synthetic_request": "application/json",
-    "synthetic_response": "application/json",
-    "synthetic_provider_event": "application/json",
-    "synthetic_tool_result": "application/json",
-    "synthetic_grade_result": "application/json",
-    "synthetic_verifier_result": "application/json",
-    "clock_source": "application/json",
-    "watchdog_source": "application/json",
-    "isolation_qualification": "application/json",
-    "source_revision": "application/octet-stream",
-    "deep_authority_asset": "application/json",
-})
+AUTHORITY_ASSET_ROLE_MEDIA: Mapping[str, str] = MappingProxyType(
+    {
+        "task_registry": "application/json",
+        "provider_lane_plan": "application/json",
+        "task_input": "application/json",
+        "environment_contract": "application/json",
+        "grader_contract": "application/json",
+        "verifier_contract": "application/json",
+        "isolation_contract": "application/json",
+        "subject_contract": "application/json",
+        "simulator_contract": "application/json",
+        "tool_parser_contract": "application/json",
+        "meter_contract": "application/json",
+        "tokenizer": "application/json",
+        "prompt_template": "application/json",
+        "tool_schema": "application/json",
+        "synthetic_execution_program": "application/json",
+        "synthetic_request": "application/json",
+        "synthetic_response": "application/json",
+        "synthetic_provider_event": "application/json",
+        "synthetic_tool_result": "application/json",
+        "synthetic_grade_result": "application/json",
+        "synthetic_verifier_result": "application/json",
+        "clock_source": "application/json",
+        "watchdog_source": "application/json",
+        "isolation_qualification": "application/json",
+        "source_revision": "application/octet-stream",
+        "deep_authority_asset": "application/json",
+    }
+)
 
-SCIENTIFIC_PARENT_KIND: Mapping[str, str] = MappingProxyType({
-    "resampling_prefix_schedule": "resampling_prefix_schedule",
-    "study_manifest": "resampling_study_manifest",
-})
+SCIENTIFIC_PARENT_KIND: Mapping[str, str] = MappingProxyType(
+    {
+        "resampling_prefix_schedule": "resampling_prefix_schedule",
+        "study_manifest": "resampling_study_manifest",
+    }
+)
 
 RefLoadClass = Literal[
     "scientific_parent",
@@ -104,20 +112,22 @@ RefLoadClass = Literal[
 REF_LOAD_CLASS_BY_ROLE: Mapping[
     str,
     tuple[RefLoadClass, str],
-] = MappingProxyType({
-    **{
-        role: ("scientific_parent", kind)
-        for role, kind in SCIENTIFIC_PARENT_KIND.items()
-    },
-    **{
-        role: ("controller_artifact", media)
-        for role, media in CONTROLLER_ROLE_MEDIA.items()
-    },
-    **{
-        role: ("authority_asset", media)
-        for role, media in AUTHORITY_ASSET_ROLE_MEDIA.items()
-    },
-})
+] = MappingProxyType(
+    {
+        **{
+            role: ("scientific_parent", kind)
+            for role, kind in SCIENTIFIC_PARENT_KIND.items()
+        },
+        **{
+            role: ("controller_artifact", media)
+            for role, media in CONTROLLER_ROLE_MEDIA.items()
+        },
+        **{
+            role: ("authority_asset", media)
+            for role, media in AUTHORITY_ASSET_ROLE_MEDIA.items()
+        },
+    }
+)
 
 _S02C_CONTROLLER_ROLES = frozenset(
     {
@@ -466,20 +476,17 @@ class InitialRestoreQualificationReceipt:
         )
         if self.failure_kind is not FailureKind.NONE:
             raise ValueError("initial restore qualification requires no failure")
-        if type(self.live_identity) is not EnvironmentProcessIdentity or type(
-            self.fresh_restore_identity
-        ) is not EnvironmentProcessIdentity:
-            raise TypeError("restore identities must be exact identity records")
         if (
-            self.live_identity.child_pid == self.fresh_restore_identity.child_pid
-            or (
-                self.live_identity.writable_root_st_dev,
-                self.live_identity.writable_root_st_ino,
-            )
-            == (
-                self.fresh_restore_identity.writable_root_st_dev,
-                self.fresh_restore_identity.writable_root_st_ino,
-            )
+            type(self.live_identity) is not EnvironmentProcessIdentity
+            or type(self.fresh_restore_identity) is not EnvironmentProcessIdentity
+        ):
+            raise TypeError("restore identities must be exact identity records")
+        if self.live_identity.child_pid == self.fresh_restore_identity.child_pid or (
+            self.live_identity.writable_root_st_dev,
+            self.live_identity.writable_root_st_ino,
+        ) == (
+            self.fresh_restore_identity.writable_root_st_dev,
+            self.fresh_restore_identity.writable_root_st_ino,
         ):
             raise ValueError("initial restore identities must be physically distinct")
         if self.verified is not True:
@@ -696,15 +703,12 @@ class SyntheticProviderTranscriptRow:
             role="synthetic_provider_event",
         )
         if type(self.completion_kind) is not RawProviderCompletionKind:
-            raise TypeError(
-                "completion_kind must be exact RawProviderCompletionKind"
-            )
+            raise TypeError("completion_kind must be exact RawProviderCompletionKind")
         response_present = self.response_ref is not None
         if response_present != (self.reported_output_token_ids is not None):
             raise ValueError("response and output tokens must be jointly present")
         if not response_present and (
-            self.typed_turn is not None
-            or self.reported_generated_tokens != 0
+            self.typed_turn is not None or self.reported_generated_tokens != 0
         ):
             raise ValueError("response-less transcript row contains response state")
         if (
@@ -892,9 +896,7 @@ class SyntheticPrefixProgram:
                 and row.call_index == injection.call_index
             ]
             if len(target_rows) != 1:
-                raise ValueError(
-                    "provider failure injection target is unreachable"
-                )
+                raise ValueError("provider failure injection target is unreachable")
             allowed = PROVIDER_FAILURE_COMPLETIONS_BY_STAGE[injection.stage]
             if target_rows[0].completion_kind not in allowed:
                 raise ValueError(
@@ -930,6 +932,87 @@ def _closed(value: object, names: tuple[str, ...], field: str) -> dict[str, obje
     if not isinstance(value, Mapping) or set(value) != set(names):
         raise ValueError(f"{field} has an open or incomplete shape")
     return dict(value)
+
+
+@dataclass(frozen=True, slots=True)
+class SyntheticRequestPayload:
+    """Decoded exact synthetic request authority leaf."""
+
+    subject_role: Literal["primary_subject", "user_simulator"]
+    context_bytes: bytes
+
+    def __post_init__(self) -> None:
+        if type(self.subject_role) is not str or self.subject_role not in (
+            "primary_subject",
+            "user_simulator",
+        ):
+            raise ValueError("synthetic request subject_role is not registered")
+        if type(self.context_bytes) is not bytes:
+            raise TypeError("synthetic request context_bytes must be exact bytes")
+
+
+@dataclass(frozen=True, slots=True)
+class SyntheticToolResultPayload:
+    """Decoded exact synthetic tool-result authority leaf."""
+
+    call_id: str
+
+    def __post_init__(self) -> None:
+        _exact_text(self.call_id, "synthetic tool result call_id")
+
+
+def load_synthetic_request_payload(payload: bytes) -> SyntheticRequestPayload:
+    """Decode strict base64 and actor identity from one canonical request."""
+
+    if type(payload) is not bytes:
+        raise TypeError("payload must be exact bytes")
+    value = load_json_bytes(payload, source=Path("<synthetic-request>"))
+    mapping = _closed(
+        value,
+        ("context_base64", "subject_role"),
+        "synthetic request",
+    )
+    encoded = mapping["context_base64"]
+    subject_role = mapping["subject_role"]
+    if type(encoded) is not str:
+        raise TypeError("synthetic request context_base64 must be exact text")
+    if type(subject_role) is not str:
+        raise TypeError("synthetic request subject_role must be exact text")
+    try:
+        context = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("synthetic request context_base64 is invalid") from exc
+    request = SyntheticRequestPayload(
+        subject_role=cast(
+            Literal["primary_subject", "user_simulator"],
+            subject_role,
+        ),
+        context_bytes=context,
+    )
+    if payload != canonical_json_bytes(
+        {
+            "context_base64": base64.b64encode(request.context_bytes).decode("ascii"),
+            "subject_role": request.subject_role,
+        },
+        indent=None,
+    ):
+        raise ValueError("synthetic request must be compact canonical JSON")
+    return request
+
+
+def load_synthetic_tool_result_payload(
+    payload: bytes,
+) -> SyntheticToolResultPayload:
+    """Decode one exact canonical synthetic tool-result authority leaf."""
+
+    if type(payload) is not bytes:
+        raise TypeError("payload must be exact bytes")
+    value = load_json_bytes(payload, source=Path("<synthetic-tool-result>"))
+    mapping = _closed(value, ("call_id",), "synthetic tool result")
+    result = SyntheticToolResultPayload(call_id=cast(str, mapping["call_id"]))
+    if payload != canonical_json_bytes({"call_id": result.call_id}, indent=None):
+        raise ValueError("synthetic tool result must be compact canonical JSON")
+    return result
 
 
 def _decode_ref(value: object, field: str, role: str) -> ArtifactRef:
@@ -1034,9 +1117,7 @@ def initial_restore_qualification_receipt_bytes(
     receipt: InitialRestoreQualificationReceipt,
 ) -> bytes:
     if type(receipt) is not InitialRestoreQualificationReceipt:
-        raise TypeError(
-            "receipt must be exact InitialRestoreQualificationReceipt"
-        )
+        raise TypeError("receipt must be exact InitialRestoreQualificationReceipt")
     return canonical_json_bytes(asdict(receipt), indent=None)
 
 
@@ -1579,9 +1660,7 @@ class StableSourceProvenance:
         cleanup_errors = self._close_errors()
         if cleanup_errors:
             errors = (
-                [*cleanup_errors]
-                if exception is None
-                else [exception, *cleanup_errors]
+                [*cleanup_errors] if exception is None else [exception, *cleanup_errors]
             )
             raise BaseExceptionGroup(
                 "source provenance body and cleanup failed",
