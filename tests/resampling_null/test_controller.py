@@ -1,6 +1,6 @@
 """Tiny controller-contract tripwire; execution evidence stays mechanism-led."""
 
-from dataclasses import dataclass, FrozenInstanceError
+from dataclasses import asdict, dataclass, FrozenInstanceError
 from enum import Enum
 import inspect
 from pathlib import Path
@@ -31,6 +31,7 @@ from pneuma_lab.resampling_null.artifacts import (
 )
 from pneuma_lab.resampling_null.authority_refs import AuthorityRefReader
 from pneuma_lab.resampling_null.provider_contract_assets import validate_task_input
+from pneuma_lab.resampling_null.scientific_records import load_scientific_parent
 from tests.resampling_null.provider_authority_fixture import (
     ProviderAuthorityFixture,
 )
@@ -249,6 +250,61 @@ def test_t5_s02c_authority_rejects_non_synthetic_schedule(tmp_path: Path) -> Non
             run_root=tmp_path / "run",
             schedule_ref=schedule_ref,
             task_id="task-1",
+        )
+
+
+def test_t5_s02c_scientific_loader_rejects_wrong_role_for_valid_bytes(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "run"
+    schedule_ref, _refs = ProviderAuthorityFixture.build(root)
+    forged = ArtifactRef(
+        role="clock_source",
+        relative_path=schedule_ref.relative_path,
+        sha256=schedule_ref.sha256,
+        byte_count=schedule_ref.byte_count,
+        media_type=schedule_ref.media_type,
+    )
+    with pytest.raises(RecordValidationError, match="scientific role"):
+        load_scientific_parent(
+            asdict(forged),
+            run_root=root,
+            field="forged schedule",
+            expected_kind="resampling_prefix_schedule",
+        )
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "sources/prefix-schedule.json",
+        "controller-artifacts/resampling_prefix_schedule/schedule",
+        "operational/prefix-schedule.json",
+    ],
+)
+def test_t5_s02c_scientific_loader_rejects_other_class_paths(
+    tmp_path: Path,
+    relative_path: str,
+) -> None:
+    root = tmp_path / "run"
+    schedule_ref, _refs = ProviderAuthorityFixture.build(root)
+    payload = (root / schedule_ref.relative_path).read_bytes()
+    target = root / relative_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(payload)
+    forged = ArtifactRef(
+        role="resampling_prefix_schedule",
+        relative_path=relative_path,
+        sha256=schedule_ref.sha256,
+        byte_count=schedule_ref.byte_count,
+        media_type="application/json",
+    )
+    with pytest.raises(RecordValidationError, match="scientific path"):
+        load_scientific_parent(
+            asdict(forged),
+            run_root=root,
+            field="forged schedule",
+            expected_kind="resampling_prefix_schedule",
         )
 
 

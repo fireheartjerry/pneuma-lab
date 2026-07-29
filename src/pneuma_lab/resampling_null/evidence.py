@@ -1057,6 +1057,10 @@ class FrozenPrefixReceipt:
             raise ValueError(
                 "trigger reason and snapshot terminal state are inconsistent"
             )
+        if snapshot.primary_counters.model_calls > self.prefix_caps.model_calls:
+            raise ValueError("snapshot primary model-call cap was exceeded")
+        if snapshot.primary_counters.tool_calls > self.prefix_caps.tool_calls:
+            raise ValueError("snapshot primary tool-call cap was exceeded")
         cap_pairs = (
             (
                 snapshot.primary_counters.generated_tokens,
@@ -1104,6 +1108,13 @@ class FrozenPrefixReceipt:
                 raise ValueError(
                     "observed simulator turns must be within dispatched model calls"
                 )
+            if (
+                snapshot.simulator_counters.model_calls
+                > simulator_caps.aggregate_model_calls
+            ):
+                raise ValueError("snapshot simulator model-call cap was exceeded")
+            if observed_simulator_turns > simulator_caps.aggregate_turns:
+                raise ValueError("snapshot simulator turn cap was exceeded")
             expected_simulator_remaining = CallContractCaps(
                 aggregate_generated_tokens=max(
                     0,

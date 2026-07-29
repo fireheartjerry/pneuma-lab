@@ -821,7 +821,7 @@ def test_frozen_prefix_validates_external_simulator_quota_authority() -> None:
     overshot = CompositeSnapshotEnvelope(
         **{
             **{field.name: getattr(snapshot, field.name) for field in fields(snapshot)},
-            "simulator_counters": ResourceCounters(12, 4, 0, 20),
+            "simulator_counters": ResourceCounters(12, 3, 0, 20),
             "simulator_remaining_quotas": CallContractCaps(0, 0, 0, 5, 1),
         }
     )
@@ -829,7 +829,7 @@ def test_frozen_prefix_validates_external_simulator_quota_authority() -> None:
     overshot_receipt.validate_snapshot_bytes(
         overshot_payload,
         simulator_caps=SIMULATOR_CAPS,
-        observed_simulator_turns=4,
+        observed_simulator_turns=3,
     )
     mismatched = CompositeSnapshotEnvelope(
         **{
@@ -844,7 +844,7 @@ def test_frozen_prefix_validates_external_simulator_quota_authority() -> None:
         mismatched_receipt.validate_snapshot_bytes(
             mismatched_payload,
             simulator_caps=SIMULATOR_CAPS,
-            observed_simulator_turns=4,
+            observed_simulator_turns=3,
         )
 
     simulator_free = CompositeSnapshotEnvelope(
@@ -866,6 +866,93 @@ def test_frozen_prefix_validates_external_simulator_quota_authority() -> None:
             free_payload,
             simulator_caps=None,
             observed_simulator_turns=0,
+        )
+
+
+def test_frozen_prefix_accepts_primary_discrete_caps_at_equality() -> None:
+    snapshot = _snapshot()
+    counters = ResourceCounters(3, 3, 4, 20)
+    at_caps = CompositeSnapshotEnvelope(
+        **{
+            **{field.name: getattr(snapshot, field.name) for field in fields(snapshot)},
+            "primary_counters": counters,
+            "primary_remaining_quotas": PrefixCaps(7, 0, 0, 80),
+        }
+    )
+    receipt, payload = _prefix_receipt_for_snapshot(at_caps)
+    receipt.validate_snapshot_bytes(
+        payload,
+        simulator_caps=SIMULATOR_CAPS,
+        observed_simulator_turns=1,
+    )
+
+
+@pytest.mark.parametrize(
+    ("counter_field", "used", "remaining"),
+    [
+        ("model_calls", 4, PrefixCaps(7, 0, 3, 80)),
+        ("tool_calls", 5, PrefixCaps(7, 2, 0, 80)),
+    ],
+)
+def test_frozen_prefix_rejects_primary_discrete_cap_overshoot(
+    counter_field: str,
+    used: int,
+    remaining: PrefixCaps,
+) -> None:
+    snapshot = _snapshot()
+    counters = ResourceCounters(
+        generated_tokens=3,
+        model_calls=used if counter_field == "model_calls" else 1,
+        tool_calls=used if counter_field == "tool_calls" else 1,
+        wall_clock_ms=20,
+    )
+    invalid = CompositeSnapshotEnvelope(
+        **{
+            **{field.name: getattr(snapshot, field.name) for field in fields(snapshot)},
+            "primary_counters": counters,
+            "primary_remaining_quotas": remaining,
+        }
+    )
+    receipt, payload = _prefix_receipt_for_snapshot(invalid)
+    with pytest.raises(ValueError, match="primary.*cap"):
+        receipt.validate_snapshot_bytes(
+            payload,
+            simulator_caps=SIMULATOR_CAPS,
+            observed_simulator_turns=1,
+        )
+
+
+def test_frozen_prefix_rejects_simulator_discrete_cap_overshoot() -> None:
+    snapshot = _snapshot()
+    model_overshot = CompositeSnapshotEnvelope(
+        **{
+            **{field.name: getattr(snapshot, field.name) for field in fields(snapshot)},
+            "simulator_counters": ResourceCounters(1, 4, 0, 20),
+            "simulator_remaining_quotas": CallContractCaps(9, 0, 2, 5, 1),
+        }
+    )
+    receipt, payload = _prefix_receipt_for_snapshot(model_overshot)
+    with pytest.raises(ValueError, match="simulator model-call cap"):
+        receipt.validate_snapshot_bytes(
+            payload,
+            simulator_caps=SIMULATOR_CAPS,
+            observed_simulator_turns=1,
+        )
+
+    turn_caps = CallContractCaps(10, 5, 3, 5, 1)
+    turn_overshot = CompositeSnapshotEnvelope(
+        **{
+            **{field.name: getattr(snapshot, field.name) for field in fields(snapshot)},
+            "simulator_counters": ResourceCounters(1, 4, 0, 20),
+            "simulator_remaining_quotas": CallContractCaps(9, 1, 0, 5, 1),
+        }
+    )
+    receipt, payload = _prefix_receipt_for_snapshot(turn_overshot)
+    with pytest.raises(ValueError, match="simulator turn cap"):
+        receipt.validate_snapshot_bytes(
+            payload,
+            simulator_caps=turn_caps,
+            observed_simulator_turns=4,
         )
 
 
