@@ -6,37 +6,74 @@ model, network, credential, spend, branch, or publication path.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 import hashlib
+import os
 from pathlib import Path
+from pathlib import PurePosixPath
+import stat
 from types import MappingProxyType
 from typing import Literal, Mapping, cast, final
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
-from .authority_refs import AuthorityRefReader, closed_mapping, load_json_bytes
+from .authority_refs import (
+    AuthorityRefReader,
+    closed_mapping,
+    decode_artifact_ref,
+    load_json_bytes,
+    walk_artifact_refs,
+)
 from .controller import derive_call_seed
-from .controller_artifacts import ControllerArtifactStore
+from .controller_artifacts import (
+    ControllerArtifactResolver,
+    ControllerArtifactStore,
+)
 from .evidence import (
     AttemptBoundZeroCostClosure,
+    CompositeSnapshotEnvelope,
     CompletedToolBoundaryReceipt,
+    FrozenPrefixReceipt,
+    GradeEvidence,
+    GradeExecutionReceipt,
     ProviderAttemptStatus,
     ProviderCallAttemptReceipt,
     ProviderDispatchIntent,
     ProviderSettlement,
     SyntheticZeroAttemptCostClosure,
     ToolBoundaryLedger,
+    VerifierEvidence,
+    VerifierExecutionReceipt,
+    composite_snapshot_bytes,
+    grade_execution_receipt_bytes,
+    verifier_execution_receipt_bytes,
+    load_composite_snapshot,
+    load_grade_execution_receipt,
+    load_verifier_execution_receipt,
+    validate_snapshot_receipt_fields,
 )
-from .execution_authority import PrefixExecutionAuthority
+from .execution_authority import (
+    PrefixExecutionAuthority,
+    load_prefix_execution_authority,
+)
 from .prefix_contracts import (
     AUTHORITY_ASSET_ROLE_MEDIA,
+    CONTROLLER_ROLE_MEDIA,
+    REF_LOAD_CLASS_BY_ROLE,
     ImplementationDescriptor,
     RawProviderObservation,
+    SnapshotRestoreReceipt,
     SyntheticClockRead,
     SyntheticPrefixProgram,
     SyntheticProviderTranscriptRow,
     StableSourceProvenance,
+    load_initial_restore_qualification_receipt,
+    load_prefix_candidate_receipt,
+    load_snapshot_restore_receipt,
     load_synthetic_prefix_program,
+    prefix_candidate_receipt_bytes,
+    snapshot_restore_receipt_bytes,
     synthetic_prefix_program_bytes,
 )
 from .synthetic_environment import (
@@ -45,19 +82,24 @@ from .synthetic_environment import (
     SyntheticEnvironmentHandle,
     _InitialQualificationResult,
     _SnapshotState,
+    _assert_pairwise_isolated,
     _decode_snapshot_state,
     _open_qualified_initial_restore,
 )
 from .types import (
     ArtifactRef,
+    CallSeedReceipt,
     CallContractCaps,
     FailureKind,
+    FrozenVerifierReceipt,
+    GradeReceipt,
     PrefixCaps,
     ResourceCounters,
     SubjectTurn,
     ToolCall,
     TriggerReason,
 )
+from .scientific_records import load_scientific_parent
 
 
 TransportKind = Literal[
@@ -394,11 +436,67 @@ class SyntheticGradeCodec:
     def __init_subclass__(cls, **kwargs: object) -> None:
         raise TypeError("SyntheticGradeCodec is final")
 
+    def decode(
+        self,
+        *,
+        payload: bytes,
+        program: SyntheticPrefixProgram,
+        expected_payload: bytes,
+    ) -> GradeEvidence:
+        if payload != expected_payload:
+            raise ValueError("grade evidence differs from sealed program bytes")
+        value = load_json_bytes(payload, source=Path("<synthetic-grade-evidence>"))
+        if not isinstance(value, Mapping):
+            raise ValueError("grade evidence must be one object")
+        result = program.grade_result
+        if (
+            value.get("success") != result.success
+            or (
+                "partial_reward" in value
+                and value["partial_reward"] != result.partial_reward
+            )
+            or (
+                "infrastructure_failure" in value
+                and value["infrastructure_failure"] is not result.infrastructure_failure
+            )
+        ):
+            raise ValueError("grade evidence fields differ from sealed result")
+        if payload != canonical_json_bytes(value, indent=None):
+            raise ValueError("grade evidence must be compact canonical JSON")
+        return GradeEvidence(
+            success=result.success,
+            partial_reward=result.partial_reward,
+            infrastructure_failure=result.infrastructure_failure,
+            raw_payload=payload,
+        )
+
 
 @final
 class SyntheticVerifierCodec:
     def __init_subclass__(cls, **kwargs: object) -> None:
         raise TypeError("SyntheticVerifierCodec is final")
+
+    def decode(
+        self,
+        *,
+        payload: bytes,
+        program: SyntheticPrefixProgram,
+        expected_payload: bytes,
+    ) -> VerifierEvidence:
+        if payload != expected_payload:
+            raise ValueError("verifier evidence differs from sealed program bytes")
+        value = load_json_bytes(payload, source=Path("<synthetic-verifier-evidence>"))
+        if (
+            not isinstance(value, Mapping)
+            or set(value) != {"finding_count"}
+            or value["finding_count"] != program.verifier_result.finding_count
+            or payload != canonical_json_bytes(value, indent=None)
+        ):
+            raise ValueError("verifier evidence differs from sealed result")
+        return VerifierEvidence(
+            finding_count=program.verifier_result.finding_count,
+            raw_payload=payload,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -1084,10 +1182,24 @@ class _PrefixLoopResult:
     branch_pending_calls: tuple[ToolCall, ...]
     terminal_unexecuted_remainder: tuple[ToolCall, ...]
     final_observation: _SnapshotState
+    cumulative_mutation: bool
+    _store: ControllerArtifactStore | None
+    _authority: PrefixExecutionAuthority
+    _program: SyntheticPrefixProgram
+    _program_bytes: bytes
+    _payloads: Mapping[ArtifactRef, bytes]
+    _components: _LoopComponents
     _provenances: tuple[StableSourceProvenance, ...]
 
     def close(self) -> None:
         errors: list[BaseException] = []
+        store = self._store
+        self._store = None
+        if store is not None:
+            try:
+                store.close()
+            except BaseException as exc:
+                errors.append(exc)
         try:
             self.qualification.close()
         except BaseException as exc:
@@ -1188,6 +1300,7 @@ def _open_prefix_loop(
 
     loop_provenances: list[StableSourceProvenance] = []
     qualification: _InitialQualificationResult | None = None
+    store: ControllerArtifactStore | None = None
     try:
         for purpose, descriptor in descriptors.items():
             authority_provenance = StableSourceProvenance(
@@ -1227,6 +1340,7 @@ def _open_prefix_loop(
                 program_bytes=program_bytes,
             ),
         )
+        store = ControllerArtifactStore(root)
         return _execute_open_loop(
             run_root=root,
             authority=authority,
@@ -1234,6 +1348,7 @@ def _open_prefix_loop(
             program_bytes=program_bytes,
             payloads=payloads,
             qualification=qualification,
+            store=store,
             loop_provenances=tuple(loop_provenances),
         )
     except BaseException as primary:
@@ -1241,6 +1356,11 @@ def _open_prefix_loop(
         if qualification is not None:
             try:
                 qualification.close()
+            except BaseException as exc:
+                errors.append(exc)
+        if store is not None:
+            try:
+                store.close()
             except BaseException as exc:
                 errors.append(exc)
         for provenance in loop_provenances:
@@ -1264,6 +1384,7 @@ def _execute_open_loop(
     program_bytes: bytes,
     payloads: Mapping[ArtifactRef, bytes],
     qualification: _InitialQualificationResult,
+    store: ControllerArtifactStore,
     loop_provenances: tuple[StableSourceProvenance, ...],
 ) -> _PrefixLoopResult:
     authority_seal = repr(authority)
@@ -1338,7 +1459,7 @@ def _execute_open_loop(
         terminal_failure = failure
         terminal_remainder = pending
 
-    with ControllerArtifactStore(run_root) as store:
+    with nullcontext(store):
         while True:
             observed_failure = handle.failure_kind()
             observed_terminal = handle.episode_terminal()
@@ -1852,7 +1973,1228 @@ def _execute_open_loop(
         branch_pending_calls=branch_pending,
         terminal_unexecuted_remainder=terminal_remainder,
         final_observation=final_observation,
+        cumulative_mutation=mutation_has_returned,
+        _store=store,
+        _authority=authority,
+        _program=program,
+        _program_bytes=program_bytes,
+        _payloads=payloads,
+        _components=components,
         _provenances=loop_provenances,
+    )
+
+
+def _remaining_prefix_caps(
+    caps: PrefixCaps,
+    counters: ResourceCounters,
+) -> PrefixCaps:
+    return PrefixCaps(
+        max(0, caps.generated_tokens - counters.generated_tokens),
+        max(0, caps.model_calls - counters.model_calls),
+        max(0, caps.tool_calls - counters.tool_calls),
+        max(0, caps.wall_clock_ms - counters.wall_clock_ms),
+    )
+
+
+def _remaining_call_caps(
+    caps: CallContractCaps,
+    counters: ResourceCounters,
+    *,
+    parsed_turns: int,
+) -> CallContractCaps:
+    return CallContractCaps(
+        max(0, caps.aggregate_generated_tokens - counters.generated_tokens),
+        max(0, caps.aggregate_model_calls - counters.model_calls),
+        max(0, caps.aggregate_turns - parsed_turns),
+        caps.per_call_generated_tokens,
+        caps.per_call_turns,
+    )
+
+
+def _scientific_y0_grade(
+    *,
+    trigger_reason: TriggerReason,
+    failure_kind: FailureKind,
+    evidence: GradeEvidence,
+    evidence_ref: ArtifactRef,
+) -> GradeReceipt:
+    adverse_no_trigger = (
+        trigger_reason is TriggerReason.NO_INTERVENTION_OPPORTUNITY
+        and failure_kind is not FailureKind.NONE
+    )
+    return GradeReceipt(
+        success=0 if adverse_no_trigger else evidence.success,
+        partial_reward=0.0 if adverse_no_trigger else evidence.partial_reward,
+        infrastructure_failure=evidence.infrastructure_failure,
+        artifact_ref=evidence_ref,
+    )
+
+
+def _attestation_bytes(
+    *,
+    kind: str,
+    authority_ref: ArtifactRef,
+    program_sha256: str,
+    values: Mapping[str, object] | None = None,
+) -> bytes:
+    return canonical_json_bytes(
+        {
+            "authority_ref": _ref_mapping(authority_ref),
+            "program_sha256": program_sha256,
+            "record_kind": kind,
+            "schema_version": "1",
+            **({} if values is None else dict(values)),
+        },
+        indent=None,
+    )
+
+
+def _restore_exact_snapshot(
+    *,
+    owned: object,
+    purpose: Literal["grade", "verify"],
+    environment_snapshot: bytes,
+    expected_state: _SnapshotState,
+    expected_visible: bytes,
+    expected_token_ids: tuple[int, ...],
+    tokenizer: SyntheticByteTokenizer,
+    authority: PrefixExecutionAuthority,
+    task_ref: ArtifactRef,
+    composite_snapshot_ref: ArtifactRef,
+    environment_snapshot_ref: ArtifactRef,
+    visible_context_ref: ArtifactRef,
+    token_ids_ref: ArtifactRef,
+) -> SnapshotRestoreReceipt:
+    from .synthetic_environment import _OwnedEnvironment
+
+    if type(owned) is not _OwnedEnvironment:
+        raise TypeError("restore environment must be exact owned environment")
+    environment = cast(_OwnedEnvironment, owned)
+    handle = environment.handle
+    handle.start()
+    handle.restore(environment_snapshot)
+    resnapshot = handle.snapshot()
+    if resnapshot != environment_snapshot:
+        raise ValueError(f"{purpose} restore snapshot bytes differ")
+    state = _decode_snapshot_state(resnapshot)
+    if state != expected_state:
+        raise ValueError(f"{purpose} restored state differs")
+    visible = handle.visible_context()
+    if visible != expected_visible:
+        raise ValueError(f"{purpose} restored visible context differs")
+    token_ids = tokenizer.encode(visible)
+    if token_ids != expected_token_ids:
+        raise ValueError(f"{purpose} restored token IDs differ")
+    independent = (
+        (
+            "simulator context",
+            handle.simulator_context(),
+            expected_state.simulator_context,
+        ),
+        (
+            "mutation state",
+            handle.mutation_committed(),
+            expected_state.mutation_committed,
+        ),
+        (
+            "verifier eligibility",
+            handle.verifier_eligible(),
+            expected_state.verifier_eligible,
+        ),
+        (
+            "terminal state",
+            handle.episode_terminal(),
+            expected_state.episode_terminal,
+        ),
+        (
+            "failure state",
+            handle.failure_kind(),
+            expected_state.failure_kind,
+        ),
+    )
+    for field, observed, expected in independent:
+        if observed != expected:
+            raise ValueError(f"{purpose} restored {field} differs")
+    return SnapshotRestoreReceipt(
+        purpose=purpose,
+        schedule_ref=authority.schedule_ref,
+        task_ref=task_ref,
+        task_input_ref=authority.task_input_ref,
+        environment_contract_ref=authority.environment_contract_ref,
+        isolation_contract_ref=authority.isolation_contract_ref,
+        composite_snapshot_ref=composite_snapshot_ref,
+        environment_snapshot_ref=environment_snapshot_ref,
+        observed_resnapshot_sha256=hashlib.sha256(resnapshot).hexdigest(),
+        observed_resnapshot_byte_count=len(resnapshot),
+        branch_pending_calls=state.branch_pending_calls,
+        terminal_unexecuted_remainder=state.terminal_unexecuted_remainder,
+        visible_context_ref=visible_context_ref,
+        visible_sha256=hashlib.sha256(visible).hexdigest(),
+        token_ids_ref=token_ids_ref,
+        token_ids_sha256=token_ids_ref.sha256,
+        episode_terminal=state.episode_terminal,
+        failure_kind=state.failure_kind,
+        restored_identity=environment.identity,
+        verified=True,
+    )
+
+
+def _assert_evidence_call_read_only(
+    *,
+    purpose: Literal["grade", "verify"],
+    handle: SyntheticEnvironmentHandle,
+    environment_snapshot: bytes,
+    expected_state: _SnapshotState,
+) -> None:
+    if handle.snapshot() != environment_snapshot:
+        raise ValueError(f"{purpose} evidence call mutated snapshot bytes")
+    if (
+        handle.visible_context() != expected_state.visible_context
+        or handle.simulator_context() != expected_state.simulator_context
+        or handle.mutation_committed() != expected_state.mutation_committed
+        or handle.verifier_eligible() != expected_state.verifier_eligible
+        or handle.episode_terminal() != expected_state.episode_terminal
+        or handle.failure_kind() is not expected_state.failure_kind
+    ):
+        raise ValueError(f"{purpose} evidence call mutated observable state")
+
+
+_CONTROLLER_JSON_FIELDS: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        "selected_task": frozenset({"prefix_seed", "provider_lane", "slots", "task"}),
+        "visible_context": frozenset(),
+        "token_ids": frozenset({"token_ids"}),
+        "input_token_ids": frozenset({"token_ids"}),
+        "output_token_ids": frozenset({"token_ids"}),
+        "provider_request": frozenset({"context_base64", "subject_role"}),
+        "provider_dispatch_intent": frozenset(
+            {
+                "absolute_deadline_ms",
+                "call_index",
+                "input_token_ids_ref",
+                "model_contract_ref",
+                "request_ref",
+                "seed",
+                "subject_role",
+            }
+        ),
+        "provider_event": frozenset(
+            {
+                "call_index",
+                "completion_kind",
+                "cost_microunits",
+                "dispatch_intent_sha256",
+                "model_contract_sha256",
+                "observed_at_ms",
+                "response_sha256",
+                "schema_version",
+                "seed",
+                "subject_role",
+            }
+        ),
+        "provider_attempt": frozenset(
+            {
+                "call_index",
+                "dispatch_intent_ref",
+                "elapsed_ms",
+                "generated_tokens",
+                "input_token_ids_ref",
+                "model_contract_ref",
+                "output_token_ids_ref",
+                "provider_event_ref",
+                "request_ref",
+                "response_ref",
+                "seed",
+                "status",
+                "subject_role",
+            }
+        ),
+        "provider_attempt_ledger": frozenset(
+            {"attempt_refs", "attempts", "intent_refs", "intents"}
+        ),
+        "provider_settlement": frozenset(
+            {
+                "attempt_sha256",
+                "call_index",
+                "cost_microunits",
+                "currency",
+                "dispatch_intent_sha256",
+                "final",
+                "provider_event_sha256",
+                "schema_version",
+                "seed",
+                "subject_role",
+            }
+        ),
+        "provider_cost_closure": frozenset(
+            {"attempt_refs", "settlement_refs", "total_cost_microunits"}
+        ),
+        "tool_call": frozenset({"call_id", "canonical_arguments_json", "name"}),
+        "tool_boundary_ledger": frozenset({"boundaries"}),
+        "subject_stateless_attestation": frozenset(
+            {
+                "authority_ref",
+                "program_sha256",
+                "record_kind",
+                "schema_version",
+                "stateless",
+            }
+        ),
+        "simulator_stateless_attestation": frozenset(
+            {
+                "authority_ref",
+                "program_sha256",
+                "record_kind",
+                "schema_version",
+                "stateless",
+            }
+        ),
+        "runtime_attestation": frozenset(
+            {
+                "authority_ref",
+                "program_sha256",
+                "record_kind",
+                "runtime_id",
+                "schema_version",
+            }
+        ),
+        "container_attestation": frozenset(
+            {
+                "authority_ref",
+                "container_digest",
+                "program_sha256",
+                "record_kind",
+                "schema_version",
+            }
+        ),
+    }
+)
+
+_ARTIFACT_REF_KEYS = frozenset(
+    {"role", "relative_path", "sha256", "byte_count", "media_type"}
+)
+
+
+def _reject_malformed_ref_shapes(value: object, *, field: str) -> None:
+    if isinstance(value, Mapping):
+        overlap = set(value) & _ARTIFACT_REF_KEYS
+        if overlap and set(value) != _ARTIFACT_REF_KEYS:
+            raise ValueError(f"{field} contains an open ArtifactRef shape")
+        for key, nested in value.items():
+            _reject_malformed_ref_shapes(nested, field=f"{field}.{key}")
+    elif isinstance(value, list):
+        for index, nested in enumerate(value):
+            _reject_malformed_ref_shapes(nested, field=f"{field}[{index}]")
+
+
+def _require_mapping_fields(
+    value: object,
+    expected: frozenset[str],
+    *,
+    field: str,
+) -> Mapping[str, object]:
+    if not isinstance(value, Mapping) or set(value) != expected:
+        raise ValueError(f"{field} has an open or incomplete shape")
+    return cast(Mapping[str, object], value)
+
+
+def _decode_expected_ref(
+    value: object,
+    *,
+    field: str,
+    expected_role: str,
+) -> ArtifactRef:
+    try:
+        return decode_artifact_ref(
+            value,
+            field=field,
+            expected_role=expected_role,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field} is invalid") from exc
+
+
+def _exact_nonnegative_json_int(value: object, *, field: str) -> int:
+    if type(value) is not int or cast(int, value) < 0:
+        raise ValueError(f"{field} must be a nonnegative exact int")
+    return cast(int, value)
+
+
+def _validate_controller_json_shape(role: str, value: object) -> None:
+    if role == "visible_context":
+        return
+    expected = _CONTROLLER_JSON_FIELDS.get(role)
+    if expected is None:
+        return
+    mapping = _require_mapping_fields(value, expected, field=role)
+    if role in ("token_ids", "input_token_ids", "output_token_ids"):
+        token_ids = mapping["token_ids"]
+        if type(token_ids) is not list or any(
+            type(token_id) is not int or token_id < 0
+            for token_id in cast(list[object], token_ids)
+        ):
+            raise ValueError(f"{role}.token_ids must be nonnegative integers")
+    elif role == "provider_request":
+        if type(mapping["context_base64"]) is not str:
+            raise TypeError("provider_request.context_base64 must be exact text")
+        if mapping["subject_role"] not in (
+            "primary_subject",
+            "user_simulator",
+        ):
+            raise ValueError("provider_request.subject_role is not registered")
+    elif role == "provider_dispatch_intent":
+        subject_role = mapping["subject_role"]
+        if subject_role not in ("primary_subject", "user_simulator"):
+            raise ValueError("provider_dispatch_intent.subject_role is not registered")
+        for name in ("absolute_deadline_ms", "call_index", "seed"):
+            _exact_nonnegative_json_int(
+                mapping[name],
+                field=f"provider_dispatch_intent.{name}",
+            )
+        for name, expected_role in (
+            ("input_token_ids_ref", "input_token_ids"),
+            ("request_ref", "provider_request"),
+            (
+                "model_contract_ref",
+                (
+                    "subject_contract"
+                    if subject_role == "primary_subject"
+                    else "simulator_contract"
+                ),
+            ),
+        ):
+            _decode_expected_ref(
+                mapping[name],
+                field=f"provider_dispatch_intent.{name}",
+                expected_role=expected_role,
+            )
+    elif role == "provider_attempt":
+        subject_role = mapping["subject_role"]
+        if subject_role not in ("primary_subject", "user_simulator"):
+            raise ValueError("provider_attempt.subject_role is not registered")
+        for name in ("call_index", "elapsed_ms", "generated_tokens", "seed"):
+            _exact_nonnegative_json_int(
+                mapping[name],
+                field=f"provider_attempt.{name}",
+            )
+        try:
+            ProviderAttemptStatus(cast(str, mapping["status"]))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("provider_attempt.status is invalid") from exc
+        for name, expected_role in (
+            ("dispatch_intent_ref", "provider_dispatch_intent"),
+            ("input_token_ids_ref", "input_token_ids"),
+            ("provider_event_ref", "provider_event"),
+            ("request_ref", "provider_request"),
+            (
+                "model_contract_ref",
+                (
+                    "subject_contract"
+                    if subject_role == "primary_subject"
+                    else "simulator_contract"
+                ),
+            ),
+        ):
+            _decode_expected_ref(
+                mapping[name],
+                field=f"provider_attempt.{name}",
+                expected_role=expected_role,
+            )
+        for name, expected_role in (
+            ("output_token_ids_ref", "output_token_ids"),
+            ("response_ref", "provider_response"),
+        ):
+            if mapping[name] is not None:
+                _decode_expected_ref(
+                    mapping[name],
+                    field=f"provider_attempt.{name}",
+                    expected_role=expected_role,
+                )
+        if (mapping["output_token_ids_ref"] is None) != (
+            mapping["response_ref"] is None
+        ):
+            raise ValueError("provider_attempt response/output refs must co-occur")
+    elif role == "provider_event":
+        for name in (
+            "call_index",
+            "cost_microunits",
+            "observed_at_ms",
+            "seed",
+        ):
+            _exact_nonnegative_json_int(
+                mapping[name],
+                field=f"provider_event.{name}",
+            )
+        if mapping["schema_version"] != "1" or mapping["subject_role"] not in (
+            "primary_subject",
+            "user_simulator",
+        ):
+            raise ValueError("provider_event identity is invalid")
+        try:
+            ProviderAttemptStatus(cast(str, mapping["completion_kind"]))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("provider_event completion_kind is invalid") from exc
+        for name in ("dispatch_intent_sha256", "model_contract_sha256"):
+            candidate = mapping[name]
+            if (
+                type(candidate) is not str
+                or len(cast(str, candidate)) != 64
+                or any(character not in "0123456789abcdef" for character in candidate)
+            ):
+                raise ValueError(f"provider_event.{name} is not a digest")
+    elif role == "provider_settlement":
+        for name in ("call_index", "cost_microunits", "seed"):
+            _exact_nonnegative_json_int(
+                mapping[name],
+                field=f"provider_settlement.{name}",
+            )
+        if (
+            mapping["schema_version"] != "1"
+            or mapping["currency"] != "synthetic_microunit"
+            or mapping["cost_microunits"] != 0
+            or mapping["final"] is not True
+            or mapping["subject_role"] not in ("primary_subject", "user_simulator")
+        ):
+            raise ValueError("provider_settlement identity is invalid")
+    elif role == "tool_call":
+        for name in ("call_id", "canonical_arguments_json", "name"):
+            if type(mapping[name]) is not str or not mapping[name]:
+                raise ValueError(f"tool_call.{name} must be nonempty exact text")
+    if role == "selected_task":
+        slots = mapping["slots"]
+        task = mapping["task"]
+        if type(slots) is not list:
+            raise ValueError("selected_task.slots must be an array")
+        for index, slot in enumerate(cast(list[object], slots)):
+            _require_mapping_fields(
+                slot,
+                frozenset({"execution_order", "hardware_lane", "seed", "slot_id"}),
+                field=f"selected_task.slots[{index}]",
+            )
+        _require_mapping_fields(
+            task,
+            frozenset(
+                {
+                    "benchmark",
+                    "lineage",
+                    "sensitivity_groups",
+                    "stratum",
+                    "task_id",
+                }
+            ),
+            field="selected_task.task",
+        )
+    elif role == "provider_attempt_ledger":
+        for plural, singular, fields_set in (
+            (
+                "attempts",
+                "attempt",
+                _CONTROLLER_JSON_FIELDS["provider_attempt"],
+            ),
+            (
+                "intents",
+                "intent",
+                _CONTROLLER_JSON_FIELDS["provider_dispatch_intent"],
+            ),
+        ):
+            rows = mapping[plural]
+            if type(rows) is not list:
+                raise ValueError(f"{role}.{plural} must be an array")
+            for index, row in enumerate(cast(list[object], rows)):
+                _require_mapping_fields(
+                    row,
+                    fields_set,
+                    field=f"{role}.{singular}[{index}]",
+                )
+                _validate_controller_json_shape(
+                    (
+                        "provider_attempt"
+                        if plural == "attempts"
+                        else "provider_dispatch_intent"
+                    ),
+                    row,
+                )
+    elif role == "tool_boundary_ledger":
+        rows = mapping["boundaries"]
+        if type(rows) is not list:
+            raise ValueError("tool boundary ledger must contain an array")
+        for index, row in enumerate(cast(list[object], rows)):
+            _require_mapping_fields(
+                row,
+                frozenset(
+                    {
+                        "call_id",
+                        "elapsed_ms",
+                        "episode_terminal",
+                        "failure_kind",
+                        "mutation_committed",
+                        "tool_call_ref",
+                        "tool_result_ref",
+                        "verifier_eligible_after",
+                    }
+                ),
+                field=f"tool_boundary_ledger.boundaries[{index}]",
+            )
+            typed = cast(Mapping[str, object], row)
+            _decode_expected_ref(
+                typed["tool_call_ref"],
+                field=f"tool_boundary_ledger.boundaries[{index}].tool_call_ref",
+                expected_role="tool_call",
+            )
+            _decode_expected_ref(
+                typed["tool_result_ref"],
+                field=f"tool_boundary_ledger.boundaries[{index}].tool_result_ref",
+                expected_role="tool_result",
+            )
+    elif role == "provider_cost_closure":
+        for name, expected_role in (
+            ("attempt_refs", "provider_attempt"),
+            ("settlement_refs", "provider_settlement"),
+        ):
+            refs = mapping[name]
+            if type(refs) is not list:
+                raise ValueError(f"provider_cost_closure.{name} must be an array")
+            for index, ref in enumerate(cast(list[object], refs)):
+                _decode_expected_ref(
+                    ref,
+                    field=f"provider_cost_closure.{name}[{index}]",
+                    expected_role=expected_role,
+                )
+        if mapping["total_cost_microunits"] != 0:
+            raise ValueError("provider cost closure must equal exact zero")
+    elif role.endswith("_attestation"):
+        if mapping["schema_version"] != "1":
+            raise ValueError(f"{role} schema_version is invalid")
+        expected_authority_role = (
+            "subject_contract"
+            if role == "subject_stateless_attestation"
+            else (
+                "simulator_contract"
+                if role == "simulator_stateless_attestation"
+                else "source_revision"
+            )
+        )
+        _decode_expected_ref(
+            mapping["authority_ref"],
+            field=f"{role}.authority_ref",
+            expected_role=expected_authority_role,
+        )
+
+
+def _controller_nested_refs(role: str, payload: bytes) -> tuple[ArtifactRef, ...]:
+    if CONTROLLER_ROLE_MEDIA[role] == "application/octet-stream":
+        return ()
+    if role == "prefix_candidate_receipt":
+        load_prefix_candidate_receipt(payload)
+    elif role == "composite_snapshot":
+        load_composite_snapshot(payload)
+    elif role == "initial_restore_qualification":
+        load_initial_restore_qualification_receipt(payload)
+    elif role in ("grade_restore_receipt", "verifier_restore_receipt"):
+        load_snapshot_restore_receipt(payload)
+    elif role == "grade_evidence_receipt":
+        load_grade_execution_receipt(payload)
+    elif role == "verifier_evidence_receipt":
+        load_verifier_execution_receipt(payload)
+    value = load_json_bytes(payload, source=Path(f"<{role}>"))
+    if payload != canonical_json_bytes(value, indent=None):
+        raise ValueError(f"{role} must be compact canonical JSON")
+    _reject_malformed_ref_shapes(value, field=role)
+    _validate_controller_json_shape(role, value)
+    return walk_artifact_refs(value)
+
+
+class _NoFollowIdentityReader:
+    """Observe stable physical identity through one held root dirfd."""
+
+    def __init__(self, run_root: Path) -> None:
+        self._root_fd = os.open(
+            Path(run_root),
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+
+    def __enter__(self) -> _NoFollowIdentityReader:
+        return self
+
+    def __exit__(self, *_exception: object) -> None:
+        os.close(self._root_fd)
+
+    def identity(self, relative_path: str) -> tuple[int, int]:
+        relative = PurePosixPath(relative_path)
+        if (
+            relative.is_absolute()
+            or not relative.parts
+            or relative.as_posix() != relative_path
+            or any(part in ("", ".", "..") for part in relative.parts)
+        ):
+            raise ValueError("identity path is not normalized and relative")
+        descriptors: list[int] = []
+        parent = self._root_fd
+        try:
+            for component in relative.parts[:-1]:
+                child = os.open(
+                    component,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    dir_fd=parent,
+                )
+                descriptors.append(child)
+                parent = child
+            descriptor = os.open(
+                relative.parts[-1],
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                dir_fd=parent,
+            )
+            try:
+                metadata = os.fstat(descriptor)
+                named = os.stat(
+                    relative.parts[-1],
+                    dir_fd=parent,
+                    follow_symlinks=False,
+                )
+                if (
+                    not stat.S_ISREG(metadata.st_mode)
+                    or stat.S_ISLNK(named.st_mode)
+                    or (metadata.st_dev, metadata.st_ino)
+                    != (named.st_dev, named.st_ino)
+                ):
+                    raise ValueError("artifact identity changed during observation")
+                return metadata.st_dev, metadata.st_ino
+            finally:
+                os.close(descriptor)
+        finally:
+            for descriptor in reversed(descriptors):
+                os.close(descriptor)
+
+
+def _fresh_reload_candidate_graph(
+    *,
+    run_root: Path,
+    candidate_ref: ArtifactRef,
+    authority: PrefixExecutionAuthority,
+    expected_controller_payloads: Mapping[ArtifactRef, bytes],
+    allowed_prior_controller_refs: frozenset[ArtifactRef],
+) -> None:
+    root = Path(run_root).resolve(strict=True)
+    fresh_authority = load_prefix_execution_authority(
+        run_root=root,
+        schedule_ref=authority.schedule_ref,
+        task_id=authority.task_schedule.task.task_id,
+    )
+    if fresh_authority != authority:
+        raise ValueError("fresh schedule ancestry differs from executed authority")
+    visited: dict[ArtifactRef, str] = {}
+    path_bindings: dict[str, ArtifactRef] = {}
+    physical_bindings: dict[tuple[int, int], ArtifactRef] = {}
+    pending = [candidate_ref]
+    seen_expected: set[ArtifactRef] = set()
+    with (
+        ControllerArtifactResolver(root) as resolver,
+        AuthorityRefReader(root) as authority_reader,
+        _NoFollowIdentityReader(root) as identity_reader,
+    ):
+        while pending:
+            ref = pending.pop()
+            load_authority = REF_LOAD_CLASS_BY_ROLE.get(ref.role)
+            if load_authority is None:
+                raise ValueError(f"candidate graph has unknown role {ref.role!r}")
+            load_class, expected = load_authority
+            previous_class = visited.get(ref)
+            if previous_class is not None:
+                if previous_class != load_class:
+                    raise ValueError("candidate ref crosses load classes")
+                continue
+            previous_path = path_bindings.get(ref.relative_path)
+            if previous_path is not None and previous_path != ref:
+                raise ValueError(
+                    "candidate graph aliases one relative path: "
+                    f"{previous_path!r} != {ref!r}"
+                )
+            relative = PurePosixPath(ref.relative_path)
+            if (
+                relative.is_absolute()
+                or relative.as_posix() != ref.relative_path
+                or any(part in ("", ".", "..") for part in relative.parts)
+            ):
+                raise ValueError("candidate graph has a noncanonical path")
+            visited[ref] = load_class
+            path_bindings[ref.relative_path] = ref
+            if load_class == "controller_artifact":
+                payload = resolver.resolve(
+                    ref,
+                    expected_role=ref.role,
+                    expected_media_type=expected,
+                )
+                retained_payload = expected_controller_payloads.get(ref)
+                if retained_payload is not None:
+                    if payload != retained_payload:
+                        raise ValueError(
+                            "fresh controller bytes differ from retained input bytes"
+                        )
+                    seen_expected.add(ref)
+                elif ref not in allowed_prior_controller_refs:
+                    raise ValueError(
+                        "candidate graph contains an unexpected controller artifact"
+                    )
+                nested = _controller_nested_refs(ref.role, payload)
+            elif load_class == "authority_asset":
+                if ref.media_type != expected:
+                    raise ValueError("authority asset media differs from registry")
+                payload = authority_reader.read_bytes(ref)
+                if ref.media_type == "application/json":
+                    value = load_json_bytes(
+                        payload,
+                        source=root / ref.relative_path,
+                    )
+                    if payload != canonical_json_bytes(value, indent=None):
+                        raise ValueError(
+                            "authority asset must be compact canonical JSON"
+                        )
+                    _reject_malformed_ref_shapes(
+                        value,
+                        field=f"authority_asset[{ref.role}]",
+                    )
+                    if ref.role == "synthetic_execution_program":
+                        load_synthetic_prefix_program(payload)
+                    elif ref.role == "synthetic_request":
+                        _require_mapping_fields(
+                            value,
+                            frozenset({"context_base64", "subject_role"}),
+                            field="synthetic_request",
+                        )
+                    elif ref.role == "synthetic_response":
+                        _require_mapping_fields(
+                            value,
+                            frozenset(
+                                {
+                                    "finish_reason",
+                                    "generated_tokens",
+                                    "text",
+                                    "tool_calls",
+                                }
+                            ),
+                            field="synthetic_response",
+                        )
+                    elif ref.role == "synthetic_provider_event":
+                        _require_mapping_fields(
+                            value,
+                            frozenset(
+                                {
+                                    "observed_at_ms",
+                                    "record_kind",
+                                    "schema_version",
+                                    "transport_kind",
+                                }
+                            ),
+                            field="synthetic_provider_event",
+                        )
+                    elif ref.role == "synthetic_tool_result":
+                        _require_mapping_fields(
+                            value,
+                            frozenset({"call_id"}),
+                            field="synthetic_tool_result",
+                        )
+                    elif ref.role == "synthetic_verifier_result":
+                        _require_mapping_fields(
+                            value,
+                            frozenset({"finding_count"}),
+                            field="synthetic_verifier_result",
+                        )
+                    nested = walk_artifact_refs(value)
+                else:
+                    nested = ()
+            else:
+                if ref.media_type != "application/json":
+                    raise ValueError("scientific parent media must be application/json")
+                record = load_scientific_parent(
+                    asdict(ref),
+                    run_root=root,
+                    field=ref.role,
+                    expected_kind=expected,
+                )
+                nested = walk_artifact_refs(record.value)
+            physical = identity_reader.identity(ref.relative_path)
+            previous_physical = physical_bindings.get(physical)
+            if previous_physical is not None and previous_physical != ref:
+                raise ValueError(
+                    "candidate graph aliases one physical file across refs"
+                )
+            physical_bindings[physical] = ref
+            pending.extend(reversed(nested))
+    missing_expected = set(expected_controller_payloads) - seen_expected
+    if missing_expected:
+        raise ValueError(
+            "final controller store contains unreachable writes: "
+            f"{sorted((ref.role, ref.sha256) for ref in missing_expected)!r}"
+        )
+
+
+def _finalize_prefix_candidate(
+    *,
+    run_root: Path,
+    authority: PrefixExecutionAuthority,
+    opened: _PrefixLoopResult,
+) -> ArtifactRef:
+    if type(authority) is not PrefixExecutionAuthority:
+        raise TypeError("authority must be exact PrefixExecutionAuthority")
+    if type(opened) is not _PrefixLoopResult:
+        raise TypeError("opened must be exact retained prefix result")
+    if opened._authority != authority:
+        raise ValueError("retained prefix authority differs")
+    store = opened._store
+    if store is None:
+        raise RuntimeError("retained prefix store ownership is unavailable")
+    candidate_ref: ArtifactRef | None = None
+    store_relinquished = False
+    try:
+        live = opened.qualification._resources[0]
+        fleet = opened.qualification._fleet
+        if fleet is None:
+            raise RuntimeError("retained environment fleet is unavailable")
+        environment_snapshot = live.handle.snapshot()
+        final_state = _decode_snapshot_state(environment_snapshot)
+        if final_state != opened.final_observation:
+            raise ValueError("live final snapshot drifted before freeze")
+        visible = live.handle.visible_context()
+        if visible != final_state.visible_context:
+            raise ValueError("live visible context differs from final snapshot")
+        token_ids = opened._components.tokenizer.encode(visible)
+        environment_snapshot_ref = store.write(
+            role="environment_snapshot",
+            payload=environment_snapshot,
+            media_type="application/octet-stream",
+        )
+        visible_ref = store.write(
+            role="visible_context",
+            payload=visible,
+            media_type="application/json",
+        )
+        token_bytes = canonical_json_bytes(
+            {"token_ids": list(token_ids)},
+            indent=None,
+        )
+        token_ref = store.write(
+            role="token_ids",
+            payload=token_bytes,
+            media_type="application/json",
+        )
+        program_sha256 = hashlib.sha256(opened._program_bytes).hexdigest()
+        subject_attestation_ref = store.write(
+            role="subject_stateless_attestation",
+            payload=_attestation_bytes(
+                kind="synthetic_subject_stateless_v1",
+                authority_ref=authority.subject_contract_ref,
+                program_sha256=program_sha256,
+                values={"stateless": True},
+            ),
+            media_type="application/json",
+        )
+        simulator_attestation_ref = (
+            None
+            if authority.simulator_contract_ref is None
+            else store.write(
+                role="simulator_stateless_attestation",
+                payload=_attestation_bytes(
+                    kind="synthetic_simulator_stateless_v1",
+                    authority_ref=authority.simulator_contract_ref,
+                    program_sha256=program_sha256,
+                    values={"stateless": True},
+                ),
+                media_type="application/json",
+            )
+        )
+        descriptors = _validate_descriptor_registry(authority)
+        environment_descriptor = descriptors["environment"]
+        runtime_ref = store.write(
+            role="runtime_attestation",
+            payload=_attestation_bytes(
+                kind="synthetic_runtime_attestation_v1",
+                authority_ref=environment_descriptor.implementation_source_ref,
+                program_sha256=program_sha256,
+                values={"runtime_id": environment_descriptor.runtime_id},
+            ),
+            media_type="application/json",
+        )
+        container_ref = store.write(
+            role="container_attestation",
+            payload=_attestation_bytes(
+                kind="synthetic_container_attestation_v1",
+                authority_ref=environment_descriptor.implementation_source_ref,
+                program_sha256=program_sha256,
+                values={"container_digest": environment_descriptor.container_digest},
+            ),
+            media_type="application/json",
+        )
+        snapshot = CompositeSnapshotEnvelope(
+            schema_version="0.1.0",
+            study_ref=authority.manifest_ref,
+            task_ref=opened.qualification.receipt.task_ref,
+            schedule_ref=authority.schedule_ref,
+            task_input_ref=authority.task_input_ref,
+            environment_contract_ref=authority.environment_contract_ref,
+            isolation_contract_ref=authority.isolation_contract_ref,
+            initial_restore_qualification_ref=opened.qualification.receipt_ref,
+            environment_snapshot_ref=environment_snapshot_ref,
+            branch_pending_calls=opened.branch_pending_calls,
+            terminal_unexecuted_remainder=opened.terminal_unexecuted_remainder,
+            visible_context_ref=visible_ref,
+            visible_sha256=visible_ref.sha256,
+            token_ids_ref=token_ref,
+            token_ids_sha256=token_ref.sha256,
+            boundary_ledger_ref=opened.boundary_ledger_ref,
+            provider_attempts_ref=opened.provider_attempts_ref,
+            primary_counters=opened.primary_counters,
+            simulator_counters=opened.simulator_counters,
+            primary_remaining_quotas=_remaining_prefix_caps(
+                authority.prefix_caps,
+                opened.primary_counters,
+            ),
+            simulator_remaining_quotas=(
+                None
+                if authority.simulator_contract_caps is None
+                else _remaining_call_caps(
+                    authority.simulator_contract_caps,
+                    opened.simulator_counters,
+                    parsed_turns=opened.simulator_parsed_turns,
+                )
+            ),
+            cumulative_mutation=opened.cumulative_mutation,
+            episode_terminal=final_state.episode_terminal,
+            terminal_failure_kind=opened.failure_kind,
+            subject_stateless_attestation_ref=subject_attestation_ref,
+            simulator_stateless_attestation_ref=simulator_attestation_ref,
+            runtime_ref=runtime_ref,
+            container_ref=container_ref,
+            source_revision_ref=environment_descriptor.implementation_source_ref,
+        )
+        snapshot_bytes = composite_snapshot_bytes(snapshot)
+        snapshot_ref = store.write(
+            role="composite_snapshot",
+            payload=snapshot_bytes,
+            media_type="application/json",
+        )
+        grade_owned = fleet.spawn(2)
+        grade_restore = _restore_exact_snapshot(
+            owned=grade_owned,
+            purpose="grade",
+            environment_snapshot=environment_snapshot,
+            expected_state=final_state,
+            expected_visible=visible,
+            expected_token_ids=token_ids,
+            tokenizer=opened._components.tokenizer,
+            authority=authority,
+            task_ref=opened.qualification.receipt.task_ref,
+            composite_snapshot_ref=snapshot_ref,
+            environment_snapshot_ref=environment_snapshot_ref,
+            visible_context_ref=visible_ref,
+            token_ids_ref=token_ref,
+        )
+        grade_raw = grade_owned.handle.grade()
+        grade_evidence = opened._components.grade_codec.decode(
+            payload=grade_raw,
+            program=opened._program,
+            expected_payload=opened._payloads[
+                opened._program.grade_result.evidence_ref
+            ],
+        )
+        _assert_evidence_call_read_only(
+            purpose="grade",
+            handle=grade_owned.handle,
+            environment_snapshot=environment_snapshot,
+            expected_state=final_state,
+        )
+        grade_restore_ref = store.write(
+            role="grade_restore_receipt",
+            payload=snapshot_restore_receipt_bytes(grade_restore),
+            media_type="application/json",
+        )
+        grade_evidence_ref = store.write(
+            role="grade_evidence",
+            payload=grade_raw,
+            media_type="application/octet-stream",
+        )
+        grade_execution = GradeExecutionReceipt(
+            grade_restore_ref,
+            grade_evidence_ref,
+        )
+        grade_execution_ref = store.write(
+            role="grade_evidence_receipt",
+            payload=grade_execution_receipt_bytes(grade_execution),
+            media_type="application/json",
+        )
+        verifier_owned = fleet.spawn(3)
+        verifier_restore = _restore_exact_snapshot(
+            owned=verifier_owned,
+            purpose="verify",
+            environment_snapshot=environment_snapshot,
+            expected_state=final_state,
+            expected_visible=visible,
+            expected_token_ids=token_ids,
+            tokenizer=opened._components.tokenizer,
+            authority=authority,
+            task_ref=opened.qualification.receipt.task_ref,
+            composite_snapshot_ref=snapshot_ref,
+            environment_snapshot_ref=environment_snapshot_ref,
+            visible_context_ref=visible_ref,
+            token_ids_ref=token_ref,
+        )
+        verifier_raw = verifier_owned.handle.verify()
+        verifier_evidence = opened._components.verifier_codec.decode(
+            payload=verifier_raw,
+            program=opened._program,
+            expected_payload=opened._payloads[
+                opened._program.verifier_result.evidence_ref
+            ],
+        )
+        _assert_evidence_call_read_only(
+            purpose="verify",
+            handle=verifier_owned.handle,
+            environment_snapshot=environment_snapshot,
+            expected_state=final_state,
+        )
+        verifier_restore_ref = store.write(
+            role="verifier_restore_receipt",
+            payload=snapshot_restore_receipt_bytes(verifier_restore),
+            media_type="application/json",
+        )
+        verifier_evidence_ref = store.write(
+            role="verifier_evidence",
+            payload=verifier_raw,
+            media_type="application/octet-stream",
+        )
+        verifier_execution = VerifierExecutionReceipt(
+            verifier_restore_ref,
+            verifier_evidence_ref,
+        )
+        verifier_execution_ref = store.write(
+            role="verifier_evidence_receipt",
+            payload=verifier_execution_receipt_bytes(verifier_execution),
+            media_type="application/json",
+        )
+        _assert_pairwise_isolated(tuple(fleet.instances))
+        y0_grade = _scientific_y0_grade(
+            trigger_reason=opened.trigger_reason,
+            failure_kind=opened.failure_kind,
+            evidence=grade_evidence,
+            evidence_ref=grade_evidence_ref,
+        )
+        verifier_receipt = FrozenVerifierReceipt(
+            task_id=authority.task_schedule.task.task_id,
+            schedule_sha256=authority.schedule_ref.sha256,
+            snapshot_ref=snapshot_ref,
+            verifier_artifact_ref=verifier_evidence_ref,
+            finding_count=verifier_evidence.finding_count,
+        )
+        call_seeds = tuple(
+            CallSeedReceipt(intent.subject_role, intent.call_index, intent.seed)
+            for intent in opened.intents
+        )
+        receipt = FrozenPrefixReceipt(
+            task_id=authority.task_schedule.task.task_id,
+            schedule_sha256=authority.schedule_ref.sha256,
+            prefix_caps=authority.prefix_caps,
+            snapshot_ref=snapshot_ref,
+            visible_context_ref=visible_ref,
+            visible_sha256=visible_ref.sha256,
+            token_ids_ref=token_ref,
+            token_ids_sha256=token_ref.sha256,
+            branch_pending_calls=opened.branch_pending_calls,
+            terminal_unexecuted_remainder=opened.terminal_unexecuted_remainder,
+            trigger_reason=opened.trigger_reason,
+            terminal_failure_kind=opened.failure_kind,
+            y0_grade=y0_grade,
+            grade_execution_receipt_ref=grade_execution_ref,
+            verifier_receipt=verifier_receipt,
+            verifier_execution_receipt_ref=verifier_execution_ref,
+            counters=opened.primary_counters,
+            simulator_counters=opened.simulator_counters,
+            call_seeds=call_seeds,
+            provider_attempts_ref=opened.provider_attempts_ref,
+            boundary_ledger_ref=opened.boundary_ledger_ref,
+            provider_cost_ref=opened.provider_cost_ref,
+        )
+        validate_snapshot_receipt_fields(
+            snapshot,
+            snapshot_ref=snapshot_ref,
+            snapshot_bytes=snapshot_bytes,
+            visible_context_ref=visible_ref,
+            visible_sha256=visible_ref.sha256,
+            token_ids_ref=token_ref,
+            token_ids_sha256=token_ref.sha256,
+            branch_pending_calls=opened.branch_pending_calls,
+            terminal_unexecuted_remainder=opened.terminal_unexecuted_remainder,
+            boundary_ledger_ref=opened.boundary_ledger_ref,
+            provider_attempts_ref=opened.provider_attempts_ref,
+            primary_counters=opened.primary_counters,
+            simulator_counters=opened.simulator_counters,
+            terminal_failure_kind=opened.failure_kind,
+        )
+        candidate_ref = store.write(
+            role="prefix_candidate_receipt",
+            payload=prefix_candidate_receipt_bytes(receipt),
+            media_type="application/json",
+        )
+        expected_controller_payloads = store.snapshot_writes()
+        qualification_receipt = opened.qualification.receipt
+        allowed_prior_controller_refs = frozenset(
+            {
+                opened.qualification.receipt_ref,
+                qualification_receipt.task_ref,
+                qualification_receipt.initial_environment_snapshot_ref,
+                qualification_receipt.visible_context_ref,
+                qualification_receipt.token_ids_ref,
+            }
+        )
+        opened._store = None
+        store_relinquished = True
+        store.close()
+        _fresh_reload_candidate_graph(
+            run_root=run_root,
+            candidate_ref=candidate_ref,
+            authority=authority,
+            expected_controller_payloads=expected_controller_payloads,
+            allowed_prior_controller_refs=allowed_prior_controller_refs,
+        )
+        _assert_pairwise_isolated(tuple(fleet.instances))
+        opened.close()
+        return candidate_ref
+    except BaseException as primary:
+        errors: list[BaseException] = [primary]
+        if not store_relinquished:
+            opened._store = None
+            try:
+                store.close()
+            except BaseException as exc:
+                errors.append(exc)
+        try:
+            opened.close()
+        except BaseException as exc:
+            errors.append(exc)
+        raise BaseExceptionGroup(
+            "prefix candidate transaction failed", errors
+        ) from None
+
+
+def run_prefix(
+    *,
+    run_root: Path,
+    schedule_ref: ArtifactRef,
+    task_id: str,
+) -> ArtifactRef:
+    """Construct one synthetic candidate; no branch or publication occurs."""
+
+    authority = load_prefix_execution_authority(
+        run_root=run_root,
+        schedule_ref=schedule_ref,
+        task_id=task_id,
+    )
+    opened = _open_prefix_loop(
+        run_root=run_root,
+        authority=authority,
+    )
+    return _finalize_prefix_candidate(
+        run_root=run_root,
+        authority=authority,
+        opened=opened,
     )
 
 
@@ -1929,4 +3271,4 @@ def _derive_provider_status(
     raise ValueError("provider observation is an unlisted combination")
 
 
-__all__ = []
+__all__ = ["run_prefix"]

@@ -190,6 +190,8 @@ def _synthetic_worker_main() -> int:
         "episode_terminal": {"operation"},
         "failure_kind": {"operation"},
         "terminate": {"operation", "failure_kind", "pending_queue"},
+        "grade": {"operation"},
+        "verify": {"operation"},
         "close": {"operation"},
     }
     while True:
@@ -417,6 +419,50 @@ def _synthetic_worker_main() -> int:
                 state["episode_terminal"] = True
                 state["failure_kind"] = failure
                 reply(None)
+            elif operation in ("grade", "verify"):
+                if program_value is None:
+                    raise ValueError("program is unavailable")
+                result_name = (
+                    "grade_result" if operation == "grade" else "verifier_result"
+                )
+                result = program_value.get(result_name)
+                if type(result) is not dict:
+                    raise ValueError(f"{result_name} is unavailable")
+                evidence_ref = result.get("evidence_ref")
+                if (
+                    type(evidence_ref) is not dict
+                    or type(evidence_ref.get("sha256")) is not str
+                    or type(evidence_ref.get("byte_count")) is not int
+                ):
+                    raise ValueError(f"{result_name} evidence ref is invalid")
+                candidates: tuple[dict[str, object], ...]
+                if operation == "grade":
+                    candidates = (
+                        {
+                            "infrastructure_failure": result.get(
+                                "infrastructure_failure"
+                            ),
+                            "partial_reward": result.get("partial_reward"),
+                            "success": result.get("success"),
+                        },
+                        {"success": result.get("success")},
+                    )
+                else:
+                    candidates = ({"finding_count": result.get("finding_count")},)
+                payloads = tuple(
+                    _worker_canonical(candidate) + b"\n" for candidate in candidates
+                )
+                evidence_matches = [
+                    payload
+                    for payload in payloads
+                    if hashlib.sha256(payload).hexdigest() == evidence_ref["sha256"]
+                    and len(payload) == evidence_ref["byte_count"]
+                ]
+                if len(evidence_matches) != 1:
+                    raise ValueError(
+                        f"{result_name} cannot reconstruct sealed evidence"
+                    )
+                reply(encoded(evidence_matches[0]))
             elif operation == "close":
                 reply(None)
                 break
@@ -1073,6 +1119,21 @@ class SyntheticEnvironmentHandle:
             return FailureKind(value)
         except (TypeError, ValueError) as exc:
             raise RecordValidationError("worker returned unknown failure kind") from exc
+
+    def grade(self) -> bytes:
+        return self._evidence_query("grade")
+
+    def verify(self) -> bytes:
+        return self._evidence_query("verify")
+
+    def _evidence_query(self, operation: str) -> bytes:
+        value = self._ipc.exchange(operation)
+        if type(value) is not str:
+            raise RecordValidationError(f"{operation} evidence must be encoded text")
+        try:
+            return base64.b64decode(value, validate=True)
+        except ValueError as exc:
+            raise RecordValidationError(f"{operation} evidence is not base64") from exc
 
     def _boolean_query(self, operation: str) -> bool:
         value = self._ipc.exchange(operation)

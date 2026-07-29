@@ -333,6 +333,27 @@ def _decode_task_lane(
         )
         if descriptor is not None:
             descriptors.append(descriptor)
+            if contract_kind == "environment":
+                descriptors.append(
+                    ImplementationDescriptor(
+                        purpose="tokenizer",
+                        nominal_type=(
+                            "pneuma_lab.resampling_null.synthetic_environment."
+                            "SyntheticByteTokenizer"
+                        ),
+                        build_id="synthetic-byte-tokenizer-v1",
+                        request_grammar=None,
+                        response_grammar=None,
+                        snapshot_grammar=None,
+                        restore_grammar=None,
+                        evidence_grammar=None,
+                        runtime_id=None,
+                        container_digest=None,
+                        implementation_source_ref=(
+                            descriptor.implementation_source_ref
+                        ),
+                    )
+                )
     return ValidatedTaskLane(
         task_id=task_id,
         prefix_lane_ordinal=prefix_ordinal,

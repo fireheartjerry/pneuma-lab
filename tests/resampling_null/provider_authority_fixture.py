@@ -70,6 +70,7 @@ def _build_provider_authority_fixture(
     tool_names: tuple[str, ...] = ("read",),
     role_overrides: dict[str, str] | None = None,
     media_type_overrides: dict[str, str] | None = None,
+    executable_sources: bool = False,
 ) -> ProviderAuthorityFixture:
     root.mkdir()
     effective_role_overrides = role_overrides or {}
@@ -125,6 +126,27 @@ def _build_provider_authority_fixture(
         role="source_revision",
         media_type="application/octet-stream",
     )
+    if executable_sources:
+        source_root = Path(__file__).parents[2]
+        environment_revision_ref = blob(
+            "sources/synthetic-environment.py",
+            (
+                source_root / "src/pneuma_lab/resampling_null/synthetic_environment.py"
+            ).read_bytes(),
+            role="source_revision",
+            media_type="application/octet-stream",
+        )
+        loop_revision_ref = blob(
+            "sources/synthetic-prefix-loop.py",
+            (
+                source_root / "src/pneuma_lab/resampling_null/synthetic_prefix_loop.py"
+            ).read_bytes(),
+            role="source_revision",
+            media_type="application/octet-stream",
+        )
+    else:
+        environment_revision_ref = revision_ref
+        loop_revision_ref = revision_ref
     tokenizer_ref = blob(
         "sources/tokenizer.json",
         {"tokenizer": "fixture-v1"},
@@ -184,7 +206,17 @@ def _build_provider_authority_fixture(
         "synthetic_grade": synthetic_grade_ref,
         "synthetic_verifier": synthetic_verifier_ref,
     }
-    source_revisions = [ref_value(revision_ref)]
+    source_revisions = [
+        ref_value(ref)
+        for ref in (
+            (
+                environment_revision_ref,
+                loop_revision_ref,
+            )
+            if executable_sources
+            else (revision_ref,)
+        )
+    ]
     call_caps = (
         {
             "aggregate_generated_tokens": (
@@ -213,8 +245,12 @@ def _build_provider_authority_fixture(
         "tokenizer_ref": ref_value(tokenizer_ref),
         "prompt_template_ref": ref_value(prompt_ref),
         "tool_schema_ref": ref_value(tool_schema_ref),
-        "request_grammar": "fixture-request-v1",
-        "response_grammar": "fixture-response-v1",
+        "request_grammar": (
+            "synthetic-request-v1" if executable_sources else "fixture-request-v1"
+        ),
+        "response_grammar": (
+            "synthetic-response-v1" if executable_sources else "fixture-response-v1"
+        ),
         "seeded_call_grammar": "call-seed-v1",
         "stateless_client_attestation": "fixture-stateless-v1",
         "aggregate_caps": {
@@ -226,9 +262,13 @@ def _build_provider_authority_fixture(
             "generated_tokens": 12,
             "turns": 1,
         },
-        "nominal_type": "FixtureSubject",
-        "build_id": "fixture-build",
-        "source_revision_refs": source_revisions,
+        "nominal_type": (
+            "pneuma_lab.resampling_null.synthetic_prefix_loop.SyntheticProviderActor"
+            if executable_sources
+            else "FixtureSubject"
+        ),
+        "build_id": ("synthetic-subject-v1" if executable_sources else "fixture-build"),
+        "source_revision_refs": [ref_value(loop_revision_ref)],
     }
     if subject_extra:
         subject["open"] = True
@@ -243,7 +283,15 @@ def _build_provider_authority_fixture(
             **subject,
             "record_kind": "prefix_simulator_contract_v1",
             "model_id": "fixture-simulator",
-            "nominal_type": "FixtureSimulator",
+            "nominal_type": (
+                "pneuma_lab.resampling_null.synthetic_prefix_loop."
+                "SyntheticProviderActor"
+                if executable_sources
+                else "FixtureSimulator"
+            ),
+            "build_id": (
+                "synthetic-simulator-v1" if executable_sources else "fixture-build"
+            ),
             "aggregate_caps": {
                 "generated_tokens": simulator_aggregate_generated_tokens,
                 "model_calls": 4,
@@ -257,9 +305,22 @@ def _build_provider_authority_fixture(
         {
             "record_kind": "prefix_tool_parser_contract_v1",
             "schema_version": "1",
-            "nominal_type": "FixtureParser",
-            "build_id": "fixture-build",
-            "response_grammar": parser_response_grammar,
+            "nominal_type": (
+                "pneuma_lab.resampling_null.synthetic_prefix_loop."
+                "SyntheticResponseParser"
+                if executable_sources
+                else "FixtureParser"
+            ),
+            "build_id": (
+                "synthetic-response-parser-v1"
+                if executable_sources
+                else "fixture-build"
+            ),
+            "response_grammar": (
+                "synthetic-response-v1"
+                if executable_sources
+                else parser_response_grammar
+            ),
             "tool_schema_ref": ref_value(
                 (
                     alternate_tool_schema_ref
@@ -267,7 +328,7 @@ def _build_provider_authority_fixture(
                     else tool_schema_ref
                 )
             ),
-            "source_revision_refs": source_revisions,
+            "source_revision_refs": [ref_value(loop_revision_ref)],
         },
         role="tool_parser_contract",
     )
@@ -276,8 +337,14 @@ def _build_provider_authority_fixture(
         {
             "record_kind": "prefix_meter_contract_v1",
             "schema_version": "1",
-            "nominal_type": "FixtureMeter",
-            "build_id": "fixture-build",
+            "nominal_type": (
+                "pneuma_lab.resampling_null.synthetic_prefix_loop.SyntheticTraceMeter"
+                if executable_sources
+                else "FixtureMeter"
+            ),
+            "build_id": (
+                "synthetic-meter-v1" if executable_sources else "fixture-build"
+            ),
             "clock_source_ref": ref_value(clock_ref),
             "watchdog_source_ref": ref_value(watchdog_ref),
             "cost_units": {
@@ -286,10 +353,18 @@ def _build_provider_authority_fixture(
                 "model_calls": "calls",
                 "wall_clock": "milliseconds",
             },
-            "provider_event_grammar": "fixture-provider-event-v1",
-            "settlement_grammar": "fixture-settlement-v1",
+            "provider_event_grammar": (
+                "synthetic-provider-event-v1"
+                if executable_sources
+                else "fixture-provider-event-v1"
+            ),
+            "settlement_grammar": (
+                "synthetic-provider-settlement-v1"
+                if executable_sources
+                else "fixture-settlement-v1"
+            ),
             "zero_cost_synthetic_closure": meter_zero_cost,
-            "source_revision_refs": source_revisions,
+            "source_revision_refs": [ref_value(loop_revision_ref)],
         },
         role="meter_contract",
     )
@@ -381,27 +456,91 @@ def _build_provider_authority_fixture(
                     if kind == "environment" and task_id == "task-1"
                     else "swe"
                 ),
-                "build_id": "fixture-build",
-                "source_revision_refs": source_revisions,
+                "build_id": (
+                    {
+                        "environment": "synthetic-environment-v1",
+                        "grader": "synthetic-grader-v1",
+                        "verifier": "synthetic-verifier-v1",
+                        "isolation": "fixture-build",
+                    }[kind]
+                    if executable_sources
+                    else "fixture-build"
+                ),
+                "source_revision_refs": [
+                    ref_value(
+                        environment_revision_ref
+                        if kind == "environment"
+                        else loop_revision_ref
+                    )
+                ],
             }
             if kind == "environment":
                 common.update(
                     {
-                        "nominal_factory_type": "FixtureEnvironmentFactory",
-                        "snapshot_grammar": "fixture-snapshot-v1",
-                        "restore_grammar": "fixture-restore-v1",
-                        "raw_evidence_grammar": "fixture-environment-evidence-v1",
-                        "runtime_id": "cpython-fixture",
-                        "container_digest": "sha256:" + "a" * 64,
+                        "nominal_factory_type": (
+                            "pneuma_lab.resampling_null.synthetic_environment."
+                            "SyntheticEnvironmentFactory"
+                            if executable_sources
+                            else "FixtureEnvironmentFactory"
+                        ),
+                        "snapshot_grammar": (
+                            "synthetic-environment-snapshot-v1"
+                            if executable_sources
+                            else "fixture-snapshot-v1"
+                        ),
+                        "restore_grammar": (
+                            "synthetic-environment-snapshot-v1"
+                            if executable_sources
+                            else "fixture-restore-v1"
+                        ),
+                        "raw_evidence_grammar": (
+                            "synthetic-environment-evidence-v1"
+                            if executable_sources
+                            else "fixture-environment-evidence-v1"
+                        ),
+                        "runtime_id": (
+                            "cpython-3.12-local"
+                            if executable_sources
+                            else "cpython-fixture"
+                        ),
+                        "container_digest": (
+                            "sha256:" + "0" * 64
+                            if executable_sources
+                            else "sha256:" + "a" * 64
+                        ),
                     }
                 )
             elif kind in ("grader", "verifier"):
                 common.update(
                     {
-                        "nominal_type": f"Fixture{kind.title()}",
-                        "raw_evidence_grammar": f"fixture-{kind}-evidence-v1",
-                        "runtime_id": "cpython-fixture",
-                        "container_digest": "sha256:" + "a" * 64,
+                        "nominal_type": (
+                            "pneuma_lab.resampling_null.synthetic_prefix_loop."
+                            + (
+                                "SyntheticGradeCodec"
+                                if kind == "grader"
+                                else "SyntheticVerifierCodec"
+                            )
+                            if executable_sources
+                            else f"Fixture{kind.title()}"
+                        ),
+                        "raw_evidence_grammar": (
+                            {
+                                "grader": "synthetic-grade-v1",
+                                "verifier": "synthetic-verifier-v1",
+                            }[kind]
+                            if executable_sources
+                            else f"fixture-{kind}-evidence-v1"
+                        ),
+                        "runtime_id": (
+                            "cpython-3.12-local"
+                            if executable_sources
+                            else "cpython-fixture"
+                        ),
+                        "container_digest": (
+                            "sha256:" + "0" * 64
+                            if executable_sources
+                            else "sha256:" + "a" * 64
+                        ),
                     }
                 )
             else:

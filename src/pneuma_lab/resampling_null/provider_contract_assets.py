@@ -177,13 +177,9 @@ def _verify_registered_authority_graph(
         observed.add(ref)
         expected_media = AUTHORITY_ASSET_ROLE_MEDIA.get(ref.role)
         if expected_media is None:
-            raise RecordValidationError(
-                f"{field} ref has unregistered authority role"
-            )
+            raise RecordValidationError(f"{field} ref has unregistered authority role")
         if ref.media_type != expected_media:
-            raise RecordValidationError(
-                f"{field} ref has noncanonical media type"
-            )
+            raise RecordValidationError(f"{field} ref has noncanonical media type")
         ordered.append(ref)
         if expected_media == "application/json":
             nested = reader.decode_json(
@@ -372,22 +368,12 @@ def validate_call_contract(
         *(
             (
                 ImplementationDescriptor(
-                    purpose="tokenizer",
-                    nominal_type="pneuma_lab.synthetic.ExactTokenizer",
-                    build_id=cast(str, contract["build_id"]),
-                    request_grammar=None,
-                    response_grammar=None,
-                    snapshot_grammar=None,
-                    restore_grammar=None,
-                    evidence_grammar=None,
-                    runtime_id=None,
-                    container_digest=None,
-                    implementation_source_ref=source_ref,
-                ),
-                ImplementationDescriptor(
                     purpose="request_renderer",
-                    nominal_type="pneuma_lab.synthetic.ExactRequestRenderer",
-                    build_id=cast(str, contract["build_id"]),
+                    nominal_type=(
+                        "pneuma_lab.resampling_null.synthetic_prefix_loop."
+                        "SyntheticRequestRenderer"
+                    ),
+                    build_id="synthetic-request-renderer-v1",
                     request_grammar=request_grammar,
                     response_grammar=None,
                     snapshot_grammar=None,
@@ -583,15 +569,18 @@ def validate_meter_contract(
                 response_grammar=None,
                 snapshot_grammar=None,
                 restore_grammar=None,
-                evidence_grammar=event_grammar,
+                evidence_grammar="synthetic-meter-v1",
                 runtime_id=None,
                 container_digest=None,
                 implementation_source_ref=source_ref,
             ),
             ImplementationDescriptor(
                 purpose="provider_event_codec",
-                nominal_type="pneuma_lab.synthetic.ProviderEventCodec",
-                build_id=build_id,
+                nominal_type=(
+                    "pneuma_lab.resampling_null.synthetic_prefix_loop."
+                    "SyntheticProviderEventCodec"
+                ),
+                build_id="synthetic-provider-event-codec-v1",
                 request_grammar=None,
                 response_grammar=None,
                 snapshot_grammar=None,
@@ -603,8 +592,11 @@ def validate_meter_contract(
             ),
             ImplementationDescriptor(
                 purpose="settlement_codec",
-                nominal_type="pneuma_lab.synthetic.SettlementCodec",
-                build_id=build_id,
+                nominal_type=(
+                    "pneuma_lab.resampling_null.synthetic_prefix_loop."
+                    "SyntheticSettlementCodec"
+                ),
+                build_id="synthetic-settlement-codec-v1",
                 request_grammar=None,
                 response_grammar=None,
                 snapshot_grammar=None,
@@ -743,12 +735,9 @@ def validate_task_input(
             )
         )
     if len(tool_names) != len(set(tool_names)):
-        raise RecordValidationError(
-            f"{field} program tool schema names must be unique"
-        )
+        raise RecordValidationError(f"{field} program tool schema names must be unique")
     if (
-        program.expected_trigger_reason
-        is not TriggerReason.NO_INTERVENTION_OPPORTUNITY
+        program.expected_trigger_reason is not TriggerReason.NO_INTERVENTION_OPPORTUNITY
         and not tool_names
     ):
         raise RecordValidationError(

@@ -44,6 +44,7 @@ from .execution_authority import (
     PrefixExecutionAuthority,
     load_prefix_execution_authority,
 )
+from .synthetic_prefix_loop import run_prefix
 from .prefix_contracts import (
     AUTHORITY_ASSET_ROLE_MEDIA,
     CONTROLLER_ROLE_MEDIA,
@@ -185,6 +186,7 @@ __all__ = (
     "SnapshotRestoreReceipt",
     "StableSourceProvenance",
     "ResourceCounters",
+    "run_prefix",
     "CallContractCaps",
     "load_prefix_execution_authority",
     "load_initial_restore_qualification_receipt",

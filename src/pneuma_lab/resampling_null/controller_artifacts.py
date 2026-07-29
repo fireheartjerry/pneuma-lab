@@ -131,6 +131,7 @@ class ControllerArtifactStore:
         raise TypeError("ControllerArtifactStore is final")
 
     def __init__(self, run_root: Path) -> None:
+        self._writes: dict[ArtifactRef, bytes] = {}
         try:
             self._root, root_descriptor = _bind_root(run_root)
             self._root_descriptor: int | None = root_descriptor
@@ -169,9 +170,7 @@ class ControllerArtifactStore:
         validated_media_type = _media_type(media_type)
         registered_media_type = CONTROLLER_ROLE_MEDIA.get(validated_role)
         if registered_media_type is None:
-            raise RecordValidationError(
-                "controller artifact role is not registered"
-            )
+            raise RecordValidationError("controller artifact role is not registered")
         if validated_media_type != registered_media_type:
             raise RecordValidationError(
                 "controller artifact media type differs from canonical role authority"
@@ -241,13 +240,15 @@ class ControllerArtifactStore:
                     )
                 close_owned("read")
                 close_owned("role")
-                return ArtifactRef(
+                reused_ref = ArtifactRef(
                     role=validated_role,
                     relative_path=(f"{_ARTIFACT_DIRECTORY}/{validated_role}/{digest}"),
                     sha256=digest,
                     byte_count=len(payload),
                     media_type=validated_media_type,
                 )
+                self._writes[reused_ref] = payload
+                return reused_ref
             created = True
             _write_all(owned["write"], payload)
             os.fsync(owned["write"])
@@ -330,13 +331,21 @@ class ControllerArtifactStore:
                     [primary_error, *cleanup_errors],
                 )
             raise
-        return ArtifactRef(
+        written_ref = ArtifactRef(
             role=validated_role,
             relative_path=f"{_ARTIFACT_DIRECTORY}/{validated_role}/{digest}",
             sha256=digest,
             byte_count=len(payload),
             media_type=validated_media_type,
         )
+        self._writes[written_ref] = payload
+        return written_ref
+
+    def snapshot_writes(self) -> dict[ArtifactRef, bytes]:
+        """Copy exact caller bytes for every successful write in this transaction."""
+
+        self._require_open()
+        return dict(self._writes)
 
     def close(self) -> None:
         artifact_descriptor = self._artifact_descriptor
@@ -377,6 +386,8 @@ class ControllerArtifactResolver:
         raise TypeError("ControllerArtifactResolver is final")
 
     def __init__(self, run_root: Path) -> None:
+        self._path_bindings: dict[str, ArtifactRef] = {}
+        self._physical_bindings: dict[tuple[int, int], ArtifactRef] = {}
         try:
             self._root, root_descriptor = _bind_root(run_root)
             self._root_descriptor: int | None = root_descriptor
@@ -423,9 +434,7 @@ class ControllerArtifactResolver:
         validated_media_type = _media_type(expected_media_type)
         authoritative_media_type = CONTROLLER_ROLE_MEDIA.get(validated_role)
         if authoritative_media_type is None:
-            raise RecordValidationError(
-                "controller artifact role is not registered"
-            )
+            raise RecordValidationError("controller artifact role is not registered")
         if validated_media_type != authoritative_media_type:
             raise RecordValidationError(
                 "controller artifact expected media is not canonical"
@@ -438,6 +447,12 @@ class ControllerArtifactResolver:
             raise RecordValidationError(
                 "controller artifact media type differs from controller expectation"
             )
+        previous_path = self._path_bindings.get(ref.relative_path)
+        if previous_path is not None and previous_path != ref:
+            raise RecordValidationError(
+                "controller artifact path is aliased across refs"
+            )
+        self._path_bindings[ref.relative_path] = ref
         expected_path = f"{_ARTIFACT_DIRECTORY}/{validated_role}/{ref.sha256}"
         if ref.relative_path != expected_path:
             raise RecordValidationError(
@@ -461,6 +476,13 @@ class ControllerArtifactResolver:
                         raise RecordValidationError(
                             "controller artifact must be a regular file"
                         )
+                    physical = (metadata.st_dev, metadata.st_ino)
+                    previous_physical = self._physical_bindings.get(physical)
+                    if previous_physical is not None and previous_physical != ref:
+                        raise RecordValidationError(
+                            "controller artifact physical file is aliased"
+                        )
+                    self._physical_bindings[physical] = ref
                     payload, digest, size = _read_and_hash(descriptor)
                     named = os.stat(
                         ref.sha256,
