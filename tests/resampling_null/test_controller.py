@@ -29,6 +29,8 @@ from pneuma_lab.resampling_null import (
 from pneuma_lab.resampling_null.artifacts import (
     RecordValidationError,
 )
+from pneuma_lab.resampling_null.authority_refs import AuthorityRefReader
+from pneuma_lab.resampling_null.provider_contract_assets import validate_task_input
 from tests.resampling_null.provider_authority_fixture import (
     ProviderAuthorityFixture,
 )
@@ -261,6 +263,77 @@ def test_t5_s02c_authority_rejects_noncanonical_asset_media(tmp_path: Path) -> N
             schedule_ref=schedule_ref,
             task_id="task-1",
         )
+
+
+@pytest.mark.parametrize(
+    ("fixture_kwargs", "message"),
+    [
+        (
+            {
+                "program_expected_trigger": "first_eligible_mutation",
+                "tool_names": (),
+            },
+            "nonempty tool schema",
+        ),
+        (
+            {
+                "program_failure_injection": {
+                    "stage": "provider_transport",
+                    "subject_role": "primary_subject",
+                    "call_index": 0,
+                    "tool_call_id": None,
+                },
+            },
+            "failure injection target is unreachable",
+        ),
+    ],
+)
+def test_t5_s02c_rejects_unexecutable_program_authority(
+    tmp_path: Path,
+    fixture_kwargs: dict[str, object],
+    message: str,
+) -> None:
+    schedule_ref, _refs = ProviderAuthorityFixture.build(
+        tmp_path / "run",
+        **fixture_kwargs,  # type: ignore[arg-type]
+    )
+    with pytest.raises(RecordValidationError, match=message):
+        load_prefix_execution_authority(
+            run_root=tmp_path / "run",
+            schedule_ref=schedule_ref,
+            task_id="task-1",
+        )
+
+
+def test_t5_s02c_rejects_tampered_nested_program_authority(tmp_path: Path) -> None:
+    root = tmp_path / "run"
+    schedule_ref, refs = ProviderAuthorityFixture.build(root)
+    evidence = root / refs["synthetic_grade"].relative_path
+    evidence.write_bytes(evidence.read_bytes() + b" ")
+    with pytest.raises(RecordValidationError, match="bytes mismatch"):
+        load_prefix_execution_authority(
+            run_root=root,
+            schedule_ref=schedule_ref,
+            task_id="task-1",
+        )
+
+
+def test_t5_s02c_optional_program_is_still_verified_outside_execution(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "run"
+    _schedule_ref, refs = ProviderAuthorityFixture.build(root)
+    program = root / refs["task-1_program"].relative_path
+    program.write_bytes(program.read_bytes() + b" ")
+    with AuthorityRefReader(root) as reader:
+        with pytest.raises(RecordValidationError, match="bytes mismatch"):
+            validate_task_input(
+                refs["task-1_input"],
+                task_id="task-1",
+                benchmark="swe",
+                reader=reader,
+                require_execution_program=False,
+            )
 
 
 @pytest.mark.parametrize(

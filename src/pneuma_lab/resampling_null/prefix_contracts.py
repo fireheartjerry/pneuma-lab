@@ -13,6 +13,7 @@ import hashlib
 import os
 from pathlib import Path, PurePosixPath
 import stat
+from types import MappingProxyType
 from typing import Literal, cast, final
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
@@ -27,7 +28,7 @@ from .types import (
 )
 
 
-CONTROLLER_ROLE_MEDIA: dict[str, str] = {
+CONTROLLER_ROLE_MEDIA: Mapping[str, str] = MappingProxyType({
     "selected_task": "application/json",
     "initial_restore_qualification": "application/json",
     "composite_snapshot": "application/json",
@@ -58,9 +59,9 @@ CONTROLLER_ROLE_MEDIA: dict[str, str] = {
     "grade_evidence_receipt": "application/json",
     "verifier_evidence_receipt": "application/json",
     "prefix_candidate_receipt": "application/json",
-}
+})
 
-AUTHORITY_ASSET_ROLE_MEDIA: dict[str, str] = {
+AUTHORITY_ASSET_ROLE_MEDIA: Mapping[str, str] = MappingProxyType({
     "task_registry": "application/json",
     "provider_lane_plan": "application/json",
     "task_input": "application/json",
@@ -86,13 +87,12 @@ AUTHORITY_ASSET_ROLE_MEDIA: dict[str, str] = {
     "watchdog_source": "application/json",
     "isolation_qualification": "application/json",
     "source_revision": "application/octet-stream",
-    "deep_authority_asset": "application/json",
-}
+})
 
-SCIENTIFIC_PARENT_KIND: dict[str, str] = {
+SCIENTIFIC_PARENT_KIND: Mapping[str, str] = MappingProxyType({
     "resampling_prefix_schedule": "resampling_prefix_schedule",
     "study_manifest": "resampling_study_manifest",
-}
+})
 
 RefLoadClass = Literal[
     "scientific_parent",
@@ -100,7 +100,10 @@ RefLoadClass = Literal[
     "authority_asset",
 ]
 
-REF_LOAD_CLASS_BY_ROLE: dict[str, tuple[RefLoadClass, str]] = {
+REF_LOAD_CLASS_BY_ROLE: Mapping[
+    str,
+    tuple[RefLoadClass, str],
+] = MappingProxyType({
     **{
         role: ("scientific_parent", kind)
         for role, kind in SCIENTIFIC_PARENT_KIND.items()
@@ -113,7 +116,7 @@ REF_LOAD_CLASS_BY_ROLE: dict[str, tuple[RefLoadClass, str]] = {
         role: ("authority_asset", media)
         for role, media in AUTHORITY_ASSET_ROLE_MEDIA.items()
     },
-}
+})
 
 _S02C_CONTROLLER_ROLES = frozenset(
     {
@@ -348,6 +351,207 @@ class EnvironmentProcessIdentity:
         _nonnegative_int(self.child_pid, "child_pid", positive=True)
 
 
+def _registered_ref(value: object, field: str, *, role: str) -> ArtifactRef:
+    if role in CONTROLLER_ROLE_MEDIA:
+        ref = _exact_ref(
+            value,
+            field,
+            role=role,
+            registry=CONTROLLER_ROLE_MEDIA,
+        )
+        expected_path = f"controller-artifacts/{role}/{ref.sha256}"
+        if ref.relative_path != expected_path:
+            raise ValueError(f"{field} path does not bind controller role and digest")
+        return ref
+    if role in AUTHORITY_ASSET_ROLE_MEDIA:
+        return _exact_ref(value, field, role=role)
+    if role in SCIENTIFIC_PARENT_KIND:
+        if type(value) is not ArtifactRef:
+            raise TypeError(f"{field} must be an exact ArtifactRef")
+        ref = cast(ArtifactRef, value)
+        if ref.role != role or ref.media_type != "application/json":
+            raise ValueError(f"{field} must bind canonical scientific authority")
+        return ref
+    raise RuntimeError(f"unregistered ref role: {role}")
+
+
+def _validate_restore_state(
+    *,
+    branch_pending_calls: tuple[ToolCall, ...],
+    terminal_unexecuted_remainder: tuple[ToolCall, ...],
+    episode_terminal: bool,
+    failure_kind: FailureKind,
+) -> None:
+    for value, field in (
+        (branch_pending_calls, "branch_pending_calls"),
+        (terminal_unexecuted_remainder, "terminal_unexecuted_remainder"),
+    ):
+        calls = _exact_tuple(value, field, ToolCall)
+        call_ids = [cast(ToolCall, call).call_id for call in calls]
+        if len(call_ids) != len(set(call_ids)):
+            raise ValueError(f"{field} must not repeat call IDs")
+    if branch_pending_calls and terminal_unexecuted_remainder:
+        raise ValueError("restore queues are mutually exclusive")
+    if type(episode_terminal) is not bool:
+        raise TypeError("episode_terminal must be exact bool")
+    if type(failure_kind) is not FailureKind:
+        raise TypeError("failure_kind must be exact FailureKind")
+    if episode_terminal and branch_pending_calls:
+        raise ValueError("terminal restore state cannot retain branch calls")
+    if failure_kind is not FailureKind.NONE and not episode_terminal:
+        raise ValueError("adverse restore state must be terminal")
+    if terminal_unexecuted_remainder and (
+        not episode_terminal or failure_kind is FailureKind.NONE
+    ):
+        raise ValueError("terminal remainder requires adverse terminal state")
+
+
+@dataclass(frozen=True, slots=True)
+class InitialRestoreQualificationReceipt:
+    schedule_ref: ArtifactRef
+    task_ref: ArtifactRef
+    task_input_ref: ArtifactRef
+    environment_contract_ref: ArtifactRef
+    isolation_contract_ref: ArtifactRef
+    initial_environment_snapshot_ref: ArtifactRef
+    observed_resnapshot_sha256: str
+    observed_resnapshot_byte_count: int
+    visible_context_ref: ArtifactRef
+    visible_sha256: str
+    token_ids_ref: ArtifactRef
+    token_ids_sha256: str
+    branch_pending_calls: tuple[ToolCall, ...]
+    terminal_unexecuted_remainder: tuple[ToolCall, ...]
+    episode_terminal: bool
+    failure_kind: FailureKind
+    live_identity: EnvironmentProcessIdentity
+    fresh_restore_identity: EnvironmentProcessIdentity
+    verified: Literal[True]
+
+    def __post_init__(self) -> None:
+        for name, role in (
+            ("schedule_ref", "resampling_prefix_schedule"),
+            ("task_ref", "selected_task"),
+            ("task_input_ref", "task_input"),
+            ("environment_contract_ref", "environment_contract"),
+            ("isolation_contract_ref", "isolation_contract"),
+            ("initial_environment_snapshot_ref", "environment_snapshot"),
+            ("visible_context_ref", "visible_context"),
+            ("token_ids_ref", "token_ids"),
+        ):
+            _registered_ref(getattr(self, name), name, role=role)
+        if (
+            _digest(self.observed_resnapshot_sha256, "observed_resnapshot_sha256")
+            != self.initial_environment_snapshot_ref.sha256
+            or _nonnegative_int(
+                self.observed_resnapshot_byte_count,
+                "observed_resnapshot_byte_count",
+            )
+            != self.initial_environment_snapshot_ref.byte_count
+        ):
+            raise ValueError("observed resnapshot differs from initial snapshot ref")
+        if (
+            _digest(self.visible_sha256, "visible_sha256")
+            != self.visible_context_ref.sha256
+            or _digest(self.token_ids_sha256, "token_ids_sha256")
+            != self.token_ids_ref.sha256
+        ):
+            raise ValueError("visible/token digest differs from its ref")
+        _validate_restore_state(
+            branch_pending_calls=self.branch_pending_calls,
+            terminal_unexecuted_remainder=self.terminal_unexecuted_remainder,
+            episode_terminal=self.episode_terminal,
+            failure_kind=self.failure_kind,
+        )
+        if self.failure_kind is not FailureKind.NONE:
+            raise ValueError("initial restore qualification requires no failure")
+        if type(self.live_identity) is not EnvironmentProcessIdentity or type(
+            self.fresh_restore_identity
+        ) is not EnvironmentProcessIdentity:
+            raise TypeError("restore identities must be exact identity records")
+        if (
+            self.live_identity.child_pid == self.fresh_restore_identity.child_pid
+            or (
+                self.live_identity.writable_root_st_dev,
+                self.live_identity.writable_root_st_ino,
+            )
+            == (
+                self.fresh_restore_identity.writable_root_st_dev,
+                self.fresh_restore_identity.writable_root_st_ino,
+            )
+        ):
+            raise ValueError("initial restore identities must be physically distinct")
+        if self.verified is not True:
+            raise ValueError("initial restore qualification must equal verified=true")
+
+
+@dataclass(frozen=True, slots=True)
+class SnapshotRestoreReceipt:
+    purpose: Literal["grade", "verify"]
+    schedule_ref: ArtifactRef
+    task_ref: ArtifactRef
+    task_input_ref: ArtifactRef
+    environment_contract_ref: ArtifactRef
+    isolation_contract_ref: ArtifactRef
+    composite_snapshot_ref: ArtifactRef
+    environment_snapshot_ref: ArtifactRef
+    observed_resnapshot_sha256: str
+    observed_resnapshot_byte_count: int
+    branch_pending_calls: tuple[ToolCall, ...]
+    terminal_unexecuted_remainder: tuple[ToolCall, ...]
+    visible_context_ref: ArtifactRef
+    visible_sha256: str
+    token_ids_ref: ArtifactRef
+    token_ids_sha256: str
+    episode_terminal: bool
+    failure_kind: FailureKind
+    restored_identity: EnvironmentProcessIdentity
+    verified: Literal[True]
+
+    def __post_init__(self) -> None:
+        if type(self.purpose) is not str or self.purpose not in ("grade", "verify"):
+            raise ValueError("restore purpose must be exact grade or verify")
+        for name, role in (
+            ("schedule_ref", "resampling_prefix_schedule"),
+            ("task_ref", "selected_task"),
+            ("task_input_ref", "task_input"),
+            ("environment_contract_ref", "environment_contract"),
+            ("isolation_contract_ref", "isolation_contract"),
+            ("composite_snapshot_ref", "composite_snapshot"),
+            ("environment_snapshot_ref", "environment_snapshot"),
+            ("visible_context_ref", "visible_context"),
+            ("token_ids_ref", "token_ids"),
+        ):
+            _registered_ref(getattr(self, name), name, role=role)
+        if (
+            _digest(self.observed_resnapshot_sha256, "observed_resnapshot_sha256")
+            != self.environment_snapshot_ref.sha256
+            or _nonnegative_int(
+                self.observed_resnapshot_byte_count,
+                "observed_resnapshot_byte_count",
+            )
+            != self.environment_snapshot_ref.byte_count
+        ):
+            raise ValueError("observed resnapshot differs from snapshot ref")
+        if (
+            _digest(self.visible_sha256, "visible_sha256")
+            != self.visible_context_ref.sha256
+            or _digest(self.token_ids_sha256, "token_ids_sha256")
+            != self.token_ids_ref.sha256
+        ):
+            raise ValueError("visible/token digest differs from its ref")
+        _validate_restore_state(
+            branch_pending_calls=self.branch_pending_calls,
+            terminal_unexecuted_remainder=self.terminal_unexecuted_remainder,
+            episode_terminal=self.episode_terminal,
+            failure_kind=self.failure_kind,
+        )
+        if type(self.restored_identity) is not EnvironmentProcessIdentity:
+            raise TypeError("restored_identity must be an exact identity record")
+        if self.verified is not True:
+            raise ValueError("snapshot restore receipt must equal verified=true")
+
+
 class RawProviderCompletionKind(str, Enum):
     COMPLETED = "completed"
     TIMEOUT_NO_RESPONSE = "timeout_no_response"
@@ -356,20 +560,6 @@ class RawProviderCompletionKind(str, Enum):
     MALFORMED_RESPONSE = "malformed_response"
     PROVIDER_ERROR = "provider_error"
     INFRASTRUCTURE_ERROR = "infrastructure_error"
-
-
-class ProviderTransportKind(str, Enum):
-    RESPONSE = "response"
-    PROVIDER_ERROR = "provider_error"
-    INFRASTRUCTURE_ERROR = "infrastructure_error"
-    TIMEOUT_NO_RESPONSE = "timeout_no_response"
-
-
-class ParserOutcome(str, Enum):
-    TURN = "turn"
-    REFUSAL = "refusal"
-    MALFORMED = "malformed"
-    NOT_APPLICABLE = "not_applicable"
 
 
 @dataclass(frozen=True, slots=True)
@@ -437,8 +627,6 @@ class SyntheticProviderTranscriptRow:
     reported_generated_tokens: int
     provider_event_ref: ArtifactRef
     completion_kind: RawProviderCompletionKind
-    transport_kind: ProviderTransportKind
-    parser_outcome: ParserOutcome
 
     def __post_init__(self) -> None:
         if type(self.subject_role) is not str or self.subject_role not in (
@@ -483,27 +671,18 @@ class SyntheticProviderTranscriptRow:
             "provider_event_ref",
             role="synthetic_provider_event",
         )
-        for name, enum_type in (
-            ("completion_kind", RawProviderCompletionKind),
-            ("transport_kind", ProviderTransportKind),
-            ("parser_outcome", ParserOutcome),
-        ):
-            if type(getattr(self, name)) is not enum_type:
-                raise TypeError(f"{name} must be exact {enum_type.__name__}")
+        if type(self.completion_kind) is not RawProviderCompletionKind:
+            raise TypeError(
+                "completion_kind must be exact RawProviderCompletionKind"
+            )
         response_present = self.response_ref is not None
         if response_present != (self.reported_output_token_ids is not None):
             raise ValueError("response and output tokens must be jointly present")
         if not response_present and (
             self.typed_turn is not None
             or self.reported_generated_tokens != 0
-            or self.parser_outcome is not ParserOutcome.NOT_APPLICABLE
         ):
             raise ValueError("response-less transcript row contains response state")
-        if self.parser_outcome in (ParserOutcome.TURN, ParserOutcome.REFUSAL):
-            if self.typed_turn is None:
-                raise ValueError("parsed turn/refusal requires an exact typed turn")
-        elif self.typed_turn is not None:
-            raise ValueError("non-turn parser outcome cannot contain typed turn")
         if (
             self.subject_role == "user_simulator"
             and self.typed_turn is not None
@@ -578,6 +757,9 @@ class SyntheticFailureInjection:
         "provider_parser",
         "tool",
     ]
+    subject_role: Literal["primary_subject", "user_simulator"] | None
+    call_index: int | None
+    tool_call_id: str | None
 
     def __post_init__(self) -> None:
         if type(self.stage) is not str or self.stage not in (
@@ -587,6 +769,26 @@ class SyntheticFailureInjection:
             "tool",
         ):
             raise ValueError("failure injection stage is not registered")
+        if self.stage == "none":
+            if (
+                self.subject_role is not None
+                or self.call_index is not None
+                or self.tool_call_id is not None
+            ):
+                raise ValueError("none failure injection has no target")
+            return
+        if self.subject_role not in ("primary_subject", "user_simulator"):
+            raise ValueError("failure injection requires an exact actor")
+        if self.call_index is None:
+            raise ValueError("failure injection requires a call index")
+        _nonnegative_int(self.call_index, "call_index")
+        if self.stage in ("provider_transport", "provider_parser"):
+            if self.tool_call_id is not None:
+                raise ValueError("provider failure cannot name a tool call")
+            return
+        if self.subject_role != "primary_subject":
+            raise ValueError("tool failure must target the primary subject")
+        _exact_text(self.tool_call_id, "tool_call_id")
 
 
 @dataclass(frozen=True, slots=True)
@@ -671,6 +873,11 @@ def _decode_ref(value: object, field: str, role: str) -> ArtifactRef:
     return ref
 
 
+def _decode_registered_ref(value: object, field: str, role: str) -> ArtifactRef:
+    ref = decode_artifact_ref(value, field=field, expected_role=role)
+    return _registered_ref(ref, field, role=role)
+
+
 def _decode_subject_turn(value: object, field: str) -> SubjectTurn:
     item = _closed(
         value,
@@ -715,6 +922,234 @@ def _decode_subject_turn(value: object, field: str) -> SubjectTurn:
         generated_tokens=cast(int, item["generated_tokens"]),
         finish_reason=cast(str | None, item["finish_reason"]),
     )
+
+
+def _decode_tool_calls(value: object, field: str) -> tuple[ToolCall, ...]:
+    if type(value) is not list:
+        raise TypeError(f"{field} must be an exact JSON array")
+    calls: list[ToolCall] = []
+    for index, candidate in enumerate(cast(list[object], value)):
+        item = _closed(
+            candidate,
+            ("call_id", "name", "canonical_arguments_json"),
+            f"{field}[{index}]",
+        )
+        calls.append(
+            ToolCall(
+                call_id=cast(str, item["call_id"]),
+                name=cast(str, item["name"]),
+                canonical_arguments_json=cast(
+                    str,
+                    item["canonical_arguments_json"],
+                ),
+            )
+        )
+    return tuple(calls)
+
+
+def _decode_identity(value: object, field: str) -> EnvironmentProcessIdentity:
+    item = _closed(
+        value,
+        tuple(item.name for item in fields(EnvironmentProcessIdentity)),
+        field,
+    )
+    return EnvironmentProcessIdentity(
+        instance_ordinal=cast(int, item["instance_ordinal"]),
+        writable_root_relative_path=cast(
+            str,
+            item["writable_root_relative_path"],
+        ),
+        writable_root_st_dev=cast(int, item["writable_root_st_dev"]),
+        writable_root_st_ino=cast(int, item["writable_root_st_ino"]),
+        child_pid=cast(int, item["child_pid"]),
+    )
+
+
+def initial_restore_qualification_receipt_bytes(
+    receipt: InitialRestoreQualificationReceipt,
+) -> bytes:
+    if type(receipt) is not InitialRestoreQualificationReceipt:
+        raise TypeError(
+            "receipt must be exact InitialRestoreQualificationReceipt"
+        )
+    return canonical_json_bytes(asdict(receipt), indent=None)
+
+
+def load_initial_restore_qualification_receipt(
+    payload: bytes,
+) -> InitialRestoreQualificationReceipt:
+    if type(payload) is not bytes:
+        raise TypeError("payload must be exact bytes")
+    value = load_json_bytes(payload, source=Path("<initial-restore-receipt>"))
+    item = _closed(
+        value,
+        tuple(field.name for field in fields(InitialRestoreQualificationReceipt)),
+        "initial restore receipt",
+    )
+    receipt = InitialRestoreQualificationReceipt(
+        schedule_ref=_decode_registered_ref(
+            item["schedule_ref"],
+            "schedule_ref",
+            "resampling_prefix_schedule",
+        ),
+        task_ref=_decode_registered_ref(
+            item["task_ref"],
+            "task_ref",
+            "selected_task",
+        ),
+        task_input_ref=_decode_registered_ref(
+            item["task_input_ref"],
+            "task_input_ref",
+            "task_input",
+        ),
+        environment_contract_ref=_decode_registered_ref(
+            item["environment_contract_ref"],
+            "environment_contract_ref",
+            "environment_contract",
+        ),
+        isolation_contract_ref=_decode_registered_ref(
+            item["isolation_contract_ref"],
+            "isolation_contract_ref",
+            "isolation_contract",
+        ),
+        initial_environment_snapshot_ref=_decode_registered_ref(
+            item["initial_environment_snapshot_ref"],
+            "initial_environment_snapshot_ref",
+            "environment_snapshot",
+        ),
+        observed_resnapshot_sha256=cast(
+            str,
+            item["observed_resnapshot_sha256"],
+        ),
+        observed_resnapshot_byte_count=cast(
+            int,
+            item["observed_resnapshot_byte_count"],
+        ),
+        visible_context_ref=_decode_registered_ref(
+            item["visible_context_ref"],
+            "visible_context_ref",
+            "visible_context",
+        ),
+        visible_sha256=cast(str, item["visible_sha256"]),
+        token_ids_ref=_decode_registered_ref(
+            item["token_ids_ref"],
+            "token_ids_ref",
+            "token_ids",
+        ),
+        token_ids_sha256=cast(str, item["token_ids_sha256"]),
+        branch_pending_calls=_decode_tool_calls(
+            item["branch_pending_calls"],
+            "branch_pending_calls",
+        ),
+        terminal_unexecuted_remainder=_decode_tool_calls(
+            item["terminal_unexecuted_remainder"],
+            "terminal_unexecuted_remainder",
+        ),
+        episode_terminal=cast(bool, item["episode_terminal"]),
+        failure_kind=FailureKind(cast(str, item["failure_kind"])),
+        live_identity=_decode_identity(item["live_identity"], "live_identity"),
+        fresh_restore_identity=_decode_identity(
+            item["fresh_restore_identity"],
+            "fresh_restore_identity",
+        ),
+        verified=cast(Literal[True], item["verified"]),
+    )
+    if payload != initial_restore_qualification_receipt_bytes(receipt):
+        raise ValueError("initial restore receipt must be compact canonical JSON")
+    return receipt
+
+
+def snapshot_restore_receipt_bytes(receipt: SnapshotRestoreReceipt) -> bytes:
+    if type(receipt) is not SnapshotRestoreReceipt:
+        raise TypeError("receipt must be exact SnapshotRestoreReceipt")
+    return canonical_json_bytes(asdict(receipt), indent=None)
+
+
+def load_snapshot_restore_receipt(payload: bytes) -> SnapshotRestoreReceipt:
+    if type(payload) is not bytes:
+        raise TypeError("payload must be exact bytes")
+    value = load_json_bytes(payload, source=Path("<snapshot-restore-receipt>"))
+    item = _closed(
+        value,
+        tuple(field.name for field in fields(SnapshotRestoreReceipt)),
+        "snapshot restore receipt",
+    )
+    receipt = SnapshotRestoreReceipt(
+        purpose=cast(Literal["grade", "verify"], item["purpose"]),
+        schedule_ref=_decode_registered_ref(
+            item["schedule_ref"],
+            "schedule_ref",
+            "resampling_prefix_schedule",
+        ),
+        task_ref=_decode_registered_ref(
+            item["task_ref"],
+            "task_ref",
+            "selected_task",
+        ),
+        task_input_ref=_decode_registered_ref(
+            item["task_input_ref"],
+            "task_input_ref",
+            "task_input",
+        ),
+        environment_contract_ref=_decode_registered_ref(
+            item["environment_contract_ref"],
+            "environment_contract_ref",
+            "environment_contract",
+        ),
+        isolation_contract_ref=_decode_registered_ref(
+            item["isolation_contract_ref"],
+            "isolation_contract_ref",
+            "isolation_contract",
+        ),
+        composite_snapshot_ref=_decode_registered_ref(
+            item["composite_snapshot_ref"],
+            "composite_snapshot_ref",
+            "composite_snapshot",
+        ),
+        environment_snapshot_ref=_decode_registered_ref(
+            item["environment_snapshot_ref"],
+            "environment_snapshot_ref",
+            "environment_snapshot",
+        ),
+        observed_resnapshot_sha256=cast(
+            str,
+            item["observed_resnapshot_sha256"],
+        ),
+        observed_resnapshot_byte_count=cast(
+            int,
+            item["observed_resnapshot_byte_count"],
+        ),
+        branch_pending_calls=_decode_tool_calls(
+            item["branch_pending_calls"],
+            "branch_pending_calls",
+        ),
+        terminal_unexecuted_remainder=_decode_tool_calls(
+            item["terminal_unexecuted_remainder"],
+            "terminal_unexecuted_remainder",
+        ),
+        visible_context_ref=_decode_registered_ref(
+            item["visible_context_ref"],
+            "visible_context_ref",
+            "visible_context",
+        ),
+        visible_sha256=cast(str, item["visible_sha256"]),
+        token_ids_ref=_decode_registered_ref(
+            item["token_ids_ref"],
+            "token_ids_ref",
+            "token_ids",
+        ),
+        token_ids_sha256=cast(str, item["token_ids_sha256"]),
+        episode_terminal=cast(bool, item["episode_terminal"]),
+        failure_kind=FailureKind(cast(str, item["failure_kind"])),
+        restored_identity=_decode_identity(
+            item["restored_identity"],
+            "restored_identity",
+        ),
+        verified=cast(Literal[True], item["verified"]),
+    )
+    if payload != snapshot_restore_receipt_bytes(receipt):
+        raise ValueError("snapshot restore receipt must be compact canonical JSON")
+    return receipt
 
 
 def synthetic_prefix_program_bytes(program: SyntheticPrefixProgram) -> bytes:
@@ -793,8 +1228,6 @@ def load_synthetic_prefix_program(payload: bytes) -> SyntheticPrefixProgram:
                 completion_kind=RawProviderCompletionKind(
                     cast(str, item["completion_kind"])
                 ),
-                transport_kind=ProviderTransportKind(cast(str, item["transport_kind"])),
-                parser_outcome=ParserOutcome(cast(str, item["parser_outcome"])),
             )
         )
     tools: list[SyntheticToolObservation] = []
@@ -828,7 +1261,11 @@ def load_synthetic_prefix_program(payload: bytes) -> SyntheticPrefixProgram:
         tuple(field.name for field in fields(SyntheticVerifierResult)),
         "verifier_result",
     )
-    injection = _closed(root["failure_injection"], ("stage",), "failure_injection")
+    injection = _closed(
+        root["failure_injection"],
+        ("stage", "subject_role", "call_index", "tool_call_id"),
+        "failure_injection",
+    )
     clocks_list: list[SyntheticClockRead] = []
     for index, candidate in enumerate(cast(list[object], clock_value)):
         item = _closed(
@@ -885,7 +1322,13 @@ def load_synthetic_prefix_program(payload: bytes) -> SyntheticPrefixProgram:
                     "tool",
                 ],
                 injection["stage"],
-            )
+            ),
+            subject_role=cast(
+                Literal["primary_subject", "user_simulator"] | None,
+                injection["subject_role"],
+            ),
+            call_index=cast(int | None, injection["call_index"]),
+            tool_call_id=cast(str | None, injection["tool_call_id"]),
         ),
         clock_trace=clocks,
     )
@@ -1083,13 +1526,13 @@ __all__ = (
     "CONTROLLER_ROLE_MEDIA",
     "REF_LOAD_CLASS_BY_ROLE",
     "EnvironmentProcessIdentity",
+    "InitialRestoreQualificationReceipt",
     "ImplementationDescriptor",
-    "ParserOutcome",
-    "ProviderTransportKind",
     "RawProviderCompletionKind",
     "RawProviderObservation",
     "SCIENTIFIC_PARENT_KIND",
     "StableSourceProvenance",
+    "SnapshotRestoreReceipt",
     "SyntheticClockRead",
     "SyntheticFailureInjection",
     "SyntheticGradeResult",
@@ -1097,9 +1540,13 @@ __all__ = (
     "SyntheticProviderTranscriptRow",
     "SyntheticToolObservation",
     "SyntheticVerifierResult",
+    "initial_restore_qualification_receipt_bytes",
+    "load_initial_restore_qualification_receipt",
     "load_prefix_candidate_receipt",
+    "load_snapshot_restore_receipt",
     "load_synthetic_prefix_program",
     "prefix_candidate_receipt_bytes",
+    "snapshot_restore_receipt_bytes",
     "synthetic_prefix_program_bytes",
     "validate_prefix_candidate_ref",
 )

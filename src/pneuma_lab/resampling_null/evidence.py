@@ -17,6 +17,7 @@ from typing import Literal, cast
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
 from .authority_refs import decode_artifact_ref, load_json_bytes
+from .prefix_contracts import CONTROLLER_ROLE_MEDIA
 from .types import (
     ArtifactRef,
     CallSeedReceipt,
@@ -33,17 +34,6 @@ from .types import (
 
 _U64_LIMIT = 2**64
 _SNAPSHOT_SCHEMA_VERSION = "0.1.0"
-_BINARY_CONTROLLER_ROLES = frozenset(
-    {
-        "environment_snapshot",
-        "grade_evidence",
-        "provider_response",
-        "tool_result",
-        "verifier_evidence",
-    }
-)
-
-
 def _exact_text(value: object, field: str) -> str:
     if type(value) is not str:
         raise TypeError(f"{field} must be exact text")
@@ -102,11 +92,9 @@ def _controller_ref(value: object, field: str, *, role: str) -> ArtifactRef:
     expected_path = f"controller-artifacts/{role}/{ref.sha256}"
     if ref.relative_path != expected_path:
         raise ValueError(f"{field} path must equal {expected_path!r}")
-    expected_media_type = (
-        "application/octet-stream"
-        if role in _BINARY_CONTROLLER_ROLES
-        else "application/json"
-    )
+    expected_media_type = CONTROLLER_ROLE_MEDIA.get(role)
+    if expected_media_type is None:
+        raise ValueError(f"{field} role is not registered controller authority")
     if ref.media_type != expected_media_type:
         raise ValueError(f"{field} media_type must equal {expected_media_type!r}")
     return ref
@@ -423,6 +411,7 @@ class CompositeSnapshotEnvelope:
     task_input_ref: ArtifactRef
     environment_contract_ref: ArtifactRef
     isolation_contract_ref: ArtifactRef
+    initial_restore_qualification_ref: ArtifactRef
     environment_snapshot_ref: ArtifactRef
     branch_pending_calls: tuple[ToolCall, ...]
     terminal_unexecuted_remainder: tuple[ToolCall, ...]
@@ -459,6 +448,10 @@ class CompositeSnapshotEnvelope:
             _authority_ref(getattr(self, name), name, role=role)
         for name, role in (
             ("task_ref", "selected_task"),
+            (
+                "initial_restore_qualification_ref",
+                "initial_restore_qualification",
+            ),
             ("environment_snapshot_ref", "environment_snapshot"),
             ("visible_context_ref", "visible_context"),
             ("token_ids_ref", "token_ids"),
@@ -598,6 +591,9 @@ def composite_snapshot_mapping(
         "task_input_ref": _ref_mapping(snapshot.task_input_ref),
         "environment_contract_ref": _ref_mapping(snapshot.environment_contract_ref),
         "isolation_contract_ref": _ref_mapping(snapshot.isolation_contract_ref),
+        "initial_restore_qualification_ref": _ref_mapping(
+            snapshot.initial_restore_qualification_ref
+        ),
         "environment_snapshot_ref": _ref_mapping(snapshot.environment_snapshot_ref),
         "branch_pending_calls": [
             _tool_call_mapping(call) for call in snapshot.branch_pending_calls
@@ -742,6 +738,10 @@ def load_composite_snapshot(payload: bytes) -> CompositeSnapshotEnvelope:
             isolation_contract_ref=_decode_ref(
                 mapping["isolation_contract_ref"],
                 "isolation_contract_ref",
+            ),
+            initial_restore_qualification_ref=_decode_ref(
+                mapping["initial_restore_qualification_ref"],
+                "initial_restore_qualification_ref",
             ),
             environment_snapshot_ref=_decode_ref(
                 mapping["environment_snapshot_ref"],

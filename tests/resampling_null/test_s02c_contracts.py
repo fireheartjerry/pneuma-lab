@@ -12,11 +12,11 @@ from pneuma_lab.resampling_null.prefix_contracts import (
     CONTROLLER_ROLE_MEDIA,
     REF_LOAD_CLASS_BY_ROLE,
     EnvironmentProcessIdentity,
+    InitialRestoreQualificationReceipt,
     ImplementationDescriptor,
-    ParserOutcome,
-    ProviderTransportKind,
     RawProviderCompletionKind,
     RawProviderObservation,
+    SnapshotRestoreReceipt,
     StableSourceProvenance,
     SyntheticClockRead,
     SyntheticFailureInjection,
@@ -26,9 +26,13 @@ from pneuma_lab.resampling_null.prefix_contracts import (
     SyntheticToolObservation,
     SyntheticVerifierResult,
     load_prefix_candidate_receipt,
+    load_initial_restore_qualification_receipt,
+    load_snapshot_restore_receipt,
     load_synthetic_prefix_program,
     prefix_candidate_receipt_bytes,
     synthetic_prefix_program_bytes,
+    initial_restore_qualification_receipt_bytes,
+    snapshot_restore_receipt_bytes,
     validate_prefix_candidate_ref,
 )
 from pneuma_lab.resampling_null.types import (
@@ -97,8 +101,6 @@ def _program() -> SyntheticPrefixProgram:
         reported_generated_tokens=1,
         provider_event_ref=_ref("synthetic_provider_event"),
         completion_kind=RawProviderCompletionKind.COMPLETED,
-        transport_kind=ProviderTransportKind.RESPONSE,
-        parser_outcome=ParserOutcome.TURN,
     )
     return SyntheticPrefixProgram(
         record_kind="synthetic_prefix_program_v1",
@@ -127,7 +129,12 @@ def _program() -> SyntheticPrefixProgram:
             evidence_ref=_ref("synthetic_verifier_result"),
             finding_count=0,
         ),
-        failure_injection=SyntheticFailureInjection(stage="none"),
+        failure_injection=SyntheticFailureInjection(
+            stage="none",
+            subject_role=None,
+            call_index=None,
+            tool_call_id=None,
+        ),
         clock_trace=(
             SyntheticClockRead("prefix_epoch", 1),
             SyntheticClockRead("provider_0_complete", 2),
@@ -194,6 +201,13 @@ def test_role_load_registries_are_closed_disjoint_and_cover_s02c() -> None:
         | set(AUTHORITY_ASSET_ROLE_MEDIA)
         | {"resampling_prefix_schedule", "study_manifest"}
     )
+    for registry in (
+        CONTROLLER_ROLE_MEDIA,
+        AUTHORITY_ASSET_ROLE_MEDIA,
+        REF_LOAD_CLASS_BY_ROLE,
+    ):
+        with pytest.raises(TypeError):
+            registry["forged"] = "application/json"  # type: ignore[index]
 
 
 def test_stable_source_provenance_rechecks_held_nofollow_regular_file(
@@ -286,6 +300,121 @@ def test_candidate_wrapper_uses_exact_role_media_and_runtime_decoder() -> None:
     with pytest.raises(ValueError):
         validate_prefix_candidate_ref(
             replace(ref, media_type="application/octet-stream")
+        )
+
+
+def test_restore_receipt_contracts_are_exact_canonical_and_snapshot_bound() -> None:
+    identity = EnvironmentProcessIdentity(0, "instance-0", 1, 2, 3)
+    calls = (ToolCall("call-1", "read", "{}\n"),)
+    initial = InitialRestoreQualificationReceipt(
+        schedule_ref=_ref("resampling_prefix_schedule"),
+        task_ref=ArtifactRef(
+            "selected_task",
+            "controller-artifacts/selected_task/" + SHA,
+            SHA,
+            1,
+            "application/json",
+        ),
+        task_input_ref=_ref("task_input"),
+        environment_contract_ref=_ref("environment_contract"),
+        isolation_contract_ref=_ref("isolation_contract"),
+        initial_environment_snapshot_ref=ArtifactRef(
+            "environment_snapshot",
+            "controller-artifacts/environment_snapshot/" + SHA,
+            SHA,
+            1,
+            "application/octet-stream",
+        ),
+        observed_resnapshot_sha256=SHA,
+        observed_resnapshot_byte_count=1,
+        visible_context_ref=ArtifactRef(
+            "visible_context",
+            "controller-artifacts/visible_context/" + SHA,
+            SHA,
+            1,
+            "application/json",
+        ),
+        visible_sha256=SHA,
+        token_ids_ref=ArtifactRef(
+            "token_ids",
+            "controller-artifacts/token_ids/" + SHA,
+            SHA,
+            1,
+            "application/json",
+        ),
+        token_ids_sha256=SHA,
+        branch_pending_calls=calls,
+        terminal_unexecuted_remainder=(),
+        episode_terminal=False,
+        failure_kind=FailureKind.NONE,
+        live_identity=identity,
+        fresh_restore_identity=EnvironmentProcessIdentity(
+            1,
+            "instance-1",
+            1,
+            3,
+            4,
+        ),
+        verified=True,
+    )
+    assert load_initial_restore_qualification_receipt(
+        initial_restore_qualification_receipt_bytes(initial)
+    ) == initial
+    restore = SnapshotRestoreReceipt(
+        purpose="grade",
+        schedule_ref=initial.schedule_ref,
+        task_ref=initial.task_ref,
+        task_input_ref=initial.task_input_ref,
+        environment_contract_ref=initial.environment_contract_ref,
+        isolation_contract_ref=initial.isolation_contract_ref,
+        composite_snapshot_ref=ArtifactRef(
+            "composite_snapshot",
+            "controller-artifacts/composite_snapshot/" + SHA,
+            SHA,
+            1,
+            "application/json",
+        ),
+        environment_snapshot_ref=initial.initial_environment_snapshot_ref,
+        observed_resnapshot_sha256=SHA,
+        observed_resnapshot_byte_count=1,
+        branch_pending_calls=calls,
+        terminal_unexecuted_remainder=(),
+        visible_context_ref=initial.visible_context_ref,
+        visible_sha256=SHA,
+        token_ids_ref=initial.token_ids_ref,
+        token_ids_sha256=SHA,
+        episode_terminal=False,
+        failure_kind=FailureKind.NONE,
+        restored_identity=EnvironmentProcessIdentity(
+            2,
+            "instance-2",
+            1,
+            4,
+            5,
+        ),
+        verified=True,
+    )
+    assert load_snapshot_restore_receipt(
+        snapshot_restore_receipt_bytes(restore)
+    ) == restore
+    with pytest.raises((TypeError, ValueError)):
+        replace(restore, purpose="other")
+
+
+def test_failure_injection_is_exact_and_reachable_by_shape() -> None:
+    with pytest.raises(ValueError):
+        SyntheticFailureInjection(
+            stage="provider_parser",
+            subject_role=None,
+            call_index=0,
+            tool_call_id=None,
+        )
+    with pytest.raises(ValueError):
+        SyntheticFailureInjection(
+            stage="tool",
+            subject_role="user_simulator",
+            call_index=0,
+            tool_call_id="call-1",
         )
     with pytest.raises(ValueError):
         load_prefix_candidate_receipt(

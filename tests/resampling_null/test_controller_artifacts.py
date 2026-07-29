@@ -104,6 +104,11 @@ def test_controller_store_rejects_traversal_symlinks_and_subclassing(tmp_path) -
             store.write(role=role, payload=b"x", media_type="text/plain")
     store.close()
 
+    store = ControllerArtifactStore(tmp_path)
+    with pytest.raises(RecordValidationError, match="registered"):
+        store.write(role="unknown_role", payload=b"x", media_type="text/plain")
+    store.close()
+
     symlink_root = tmp_path / "symlink-root"
     symlink_root.symlink_to(tmp_path, target_is_directory=True)
     with pytest.raises(RecordValidationError):
@@ -149,7 +154,11 @@ def test_controller_store_rejects_root_identity_swap_during_binding(
 
 def test_controller_resolver_rejects_tamper_path_role_and_symlink(tmp_path) -> None:
     store = ControllerArtifactStore(tmp_path)
-    ref = store.write(role="snapshot", payload=b"before", media_type="application/json")
+    ref = store.write(
+        role="composite_snapshot",
+        payload=b"before",
+        media_type="application/json",
+    )
     store.close()
     target = tmp_path / ref.relative_path
     target.write_bytes(b"tampered")
@@ -157,7 +166,7 @@ def test_controller_resolver_rejects_tamper_path_role_and_symlink(tmp_path) -> N
     with pytest.raises(RecordValidationError):
         resolver.resolve(
             ref,
-            expected_role="snapshot",
+            expected_role="composite_snapshot",
             expected_media_type="application/json",
         )
     resolver.close()
@@ -170,7 +179,7 @@ def test_controller_resolver_rejects_tamper_path_role_and_symlink(tmp_path) -> N
     with pytest.raises(RecordValidationError):
         resolver.resolve(
             ref,
-            expected_role="snapshot",
+            expected_role="composite_snapshot",
             expected_media_type="application/json",
         )
     resolver.close()
@@ -186,7 +195,7 @@ def test_controller_resolver_rejects_tamper_path_role_and_symlink(tmp_path) -> N
     with pytest.raises(RecordValidationError):
         resolver.resolve(
             wrong_role,
-            expected_role="snapshot",
+            expected_role="composite_snapshot",
             expected_media_type="application/json",
         )
     resolver.close()
@@ -197,7 +206,7 @@ def test_controller_resolver_rejects_forged_media_type_for_same_bytes(
 ) -> None:
     store = ControllerArtifactStore(tmp_path)
     ref = store.write(
-        role="snapshot",
+        role="composite_snapshot",
         payload=b"{}",
         media_type="application/json",
     )
@@ -213,7 +222,7 @@ def test_controller_resolver_rejects_forged_media_type_for_same_bytes(
     with pytest.raises(RecordValidationError, match="media type"):
         resolver.resolve(
             forged,
-            expected_role="snapshot",
+            expected_role="composite_snapshot",
             expected_media_type="application/json",
         )
     resolver.close()
@@ -229,7 +238,7 @@ def test_controller_store_rejects_noncanonical_media_type(
 ) -> None:
     store = ControllerArtifactStore(tmp_path)
     with pytest.raises(ValueError, match="media_type"):
-        store.write(role="snapshot", payload=b"{}", media_type=media_type)
+        store.write(role="composite_snapshot", payload=b"{}", media_type=media_type)
     store.close()
 
 
@@ -250,10 +259,14 @@ def test_success_path_close_failure_removes_artifact_for_retry(
 
     monkeypatch.setattr(controller_artifacts.os, "close", close_then_fail_once)
     with pytest.raises(ExceptionGroup) as raised:
-        store.write(role="request", payload=b"x", media_type="text/plain")
+        store.write(role="provider_request", payload=b"x", media_type="application/json")
     assert "successful-path close failure" in str(raised.value.exceptions[0])
     monkeypatch.setattr(controller_artifacts.os, "close", real_close)
-    ref = store.write(role="request", payload=b"x", media_type="text/plain")
+    ref = store.write(
+        role="provider_request",
+        payload=b"x",
+        media_type="application/json",
+    )
     assert ref.byte_count == 1
     store.close()
 
@@ -270,9 +283,13 @@ def test_base_exception_after_create_removes_artifact_for_retry(
 
     monkeypatch.setattr(controller_artifacts, "_write_all", interrupt_write)
     with pytest.raises(KeyboardInterrupt, match="write interruption"):
-        store.write(role="request", payload=b"x", media_type="text/plain")
+        store.write(role="provider_request", payload=b"x", media_type="application/json")
     monkeypatch.setattr(controller_artifacts, "_write_all", real_write_all)
-    ref = store.write(role="request", payload=b"x", media_type="text/plain")
+    ref = store.write(
+        role="provider_request",
+        payload=b"x",
+        media_type="application/json",
+    )
     assert ref.byte_count == 1
     store.close()
 
@@ -296,7 +313,7 @@ def test_base_exception_preserves_cleanup_errors_in_base_exception_group(
     monkeypatch.setattr(controller_artifacts, "_write_all", interrupt_write)
     monkeypatch.setattr(controller_artifacts.os, "unlink", fail_unlink)
     with pytest.raises(BaseExceptionGroup) as raised:
-        store.write(role="request", payload=b"x", media_type="text/plain")
+        store.write(role="provider_request", payload=b"x", media_type="application/json")
     assert isinstance(raised.value.exceptions[0], InjectedInterruption)
     assert "cleanup failure" in str(raised.value.exceptions[1])
     monkeypatch.setattr(controller_artifacts.os, "unlink", real_unlink)
@@ -325,14 +342,18 @@ def test_verification_and_descriptor_close_failures_are_all_preserved(
     monkeypatch.setattr(controller_artifacts, "_read_and_hash", corrupt_read)
     monkeypatch.setattr(controller_artifacts.os, "close", fail_read_and_role_close)
     with pytest.raises(ExceptionGroup) as raised:
-        store.write(role="request", payload=b"x", media_type="text/plain")
+        store.write(role="provider_request", payload=b"x", media_type="application/json")
     messages = " | ".join(str(error) for error in raised.value.exceptions)
     assert "bytes changed" in messages
     assert "injected close failure 2" in messages
     assert "injected close failure 3" in messages
     monkeypatch.setattr(controller_artifacts, "_read_and_hash", real_read_and_hash)
     monkeypatch.setattr(controller_artifacts.os, "close", real_close)
-    ref = store.write(role="request", payload=b"x", media_type="text/plain")
+    ref = store.write(
+        role="provider_request",
+        payload=b"x",
+        media_type="application/json",
+    )
     assert ref.byte_count == 1
     store.close()
 
@@ -385,7 +406,7 @@ def test_failed_write_reports_cleanup_uncertainty(tmp_path, monkeypatch) -> None
     monkeypatch.setattr(controller_artifacts.os, "write", fail_write)
     monkeypatch.setattr(controller_artifacts.os, "unlink", fail_unlink)
     with pytest.raises(ExceptionGroup, match="cleanup is uncertain"):
-        store.write(role="request", payload=b"x", media_type="text/plain")
+        store.write(role="provider_request", payload=b"x", media_type="application/json")
     monkeypatch.setattr(controller_artifacts.os, "write", real_write)
     monkeypatch.setattr(controller_artifacts.os, "unlink", real_unlink)
     store.close()

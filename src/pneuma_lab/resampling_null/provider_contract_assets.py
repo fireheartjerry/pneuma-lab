@@ -21,7 +21,14 @@ from .prefix_contracts import (
     SyntheticPrefixProgram,
     load_synthetic_prefix_program,
 )
-from .types import ArtifactRef, BranchCaps, CallContractCaps, PrefixCaps
+from .types import (
+    ArtifactRef,
+    BranchCaps,
+    CallContractCaps,
+    PrefixCaps,
+    SubjectTurn,
+    TriggerReason,
+)
 
 CAP_FIELDS = (
     "generated_tokens",
@@ -629,7 +636,8 @@ def validate_task_input(
             nested_ref,
             field=f"{field}.canonical_task_payload ref {index}",
         )
-    if not require_execution_program:
+    has_program = "synthetic_execution_program_ref" in task_input
+    if not has_program:
         return ValidatedTaskInput(
             requires_user_simulator=cast(
                 bool,
@@ -647,6 +655,30 @@ def validate_task_input(
         raise RecordValidationError(
             f"{field}.synthetic_execution_program_ref must be application/json"
         )
+    program_value = reader.verify_closure(
+        program_ref,
+        field=f"{field}.synthetic_execution_program_ref",
+        expected_role="synthetic_execution_program",
+    )
+    if not isinstance(program_value, Mapping):
+        raise RecordValidationError(f"{field} program must be a JSON object")
+    from .authority_refs import walk_artifact_refs
+
+    for index, nested_ref in enumerate(walk_artifact_refs(program_value)):
+        expected_media = AUTHORITY_ASSET_ROLE_MEDIA.get(nested_ref.role)
+        if expected_media is None:
+            raise RecordValidationError(
+                f"{field} program ref {index} has unregistered authority role"
+            )
+        if nested_ref.media_type != expected_media:
+            raise RecordValidationError(
+                f"{field} program ref {index} has noncanonical media type"
+            )
+        reader.verify_closure(
+            nested_ref,
+            field=f"{field} program ref {index}",
+            expected_role=nested_ref.role,
+        )
     program_bytes = reader.read_bytes(program_ref)
     try:
         program = load_synthetic_prefix_program(program_bytes)
@@ -654,6 +686,89 @@ def validate_task_input(
         raise RecordValidationError(f"{field} program is invalid: {exc}") from exc
     if program.task_id != task_id:
         raise RecordValidationError(f"{field} program task binding mismatch")
+    tool_schema = reader.decode_json(
+        program.tool_schema_ref,
+        field=f"{field} program tool schema",
+        canonical=True,
+        expected_role="tool_schema",
+    )
+    schema = _closed_mapping(
+        tool_schema,
+        fields={"tools"},
+        field=f"{field} program tool schema",
+    )
+    tools = schema["tools"]
+    if type(tools) is not list:
+        raise RecordValidationError(
+            f"{field} program tool schema tools must be an exact array"
+        )
+    tool_names: list[str] = []
+    for index, candidate in enumerate(cast(list[object], tools)):
+        item = _closed_mapping(
+            candidate,
+            fields={"name"},
+            field=f"{field} program tool schema tools[{index}]",
+        )
+        tool_names.append(
+            _exact_text(
+                item["name"],
+                field=f"{field} program tool schema tools[{index}].name",
+            )
+        )
+    if len(tool_names) != len(set(tool_names)):
+        raise RecordValidationError(
+            f"{field} program tool schema names must be unique"
+        )
+    if (
+        program.expected_trigger_reason
+        is not TriggerReason.NO_INTERVENTION_OPPORTUNITY
+        and not tool_names
+    ):
+        raise RecordValidationError(
+            f"{field} trigger program requires a nonempty tool schema"
+        )
+    transcript_tools = {
+        call.name
+        for row in program.provider_transcript
+        if row.typed_turn is not None
+        for call in row.typed_turn.tool_calls
+    }
+    missing_tools = transcript_tools - set(tool_names)
+    if missing_tools:
+        raise RecordValidationError(
+            f"{field} program names tools absent from its tool schema"
+        )
+    injection = program.failure_injection
+    if injection.stage in ("provider_transport", "provider_parser"):
+        if not any(
+            row.subject_role == injection.subject_role
+            and row.call_index == injection.call_index
+            for row in program.provider_transcript
+        ):
+            raise RecordValidationError(
+                f"{field} provider failure injection target is unreachable"
+            )
+    elif injection.stage == "tool":
+        target_rows = [
+            row
+            for row in program.provider_transcript
+            if row.subject_role == injection.subject_role
+            and row.call_index == injection.call_index
+            and row.typed_turn is not None
+        ]
+        if (
+            len(target_rows) != 1
+            or injection.tool_call_id
+            not in {
+                call.call_id
+                for call in cast(SubjectTurn, target_rows[0].typed_turn).tool_calls
+            }
+            or injection.tool_call_id
+            not in {item.call_id for item in program.tool_observations}
+        ):
+            raise RecordValidationError(
+                f"{field} tool failure injection target is unreachable"
+            )
     return ValidatedTaskInput(
         requires_user_simulator=cast(
             bool,

@@ -65,6 +65,9 @@ def _build_provider_authority_fixture(
     parser_tool_schema_drift: bool = False,
     meter_zero_cost: bool = True,
     schedule_authority: str = "synthetic_validation",
+    program_expected_trigger: str = "no_intervention_opportunity",
+    program_failure_injection: dict[str, object] | None = None,
+    tool_names: tuple[str, ...] = ("read",),
     role_overrides: dict[str, str] | None = None,
     media_type_overrides: dict[str, str] | None = None,
 ) -> ProviderAuthorityFixture:
@@ -109,12 +112,12 @@ def _build_provider_authority_fixture(
     deep_leaf_ref = blob(
         "sources/deep-leaf.json",
         {"leaf": "authority"},
-        role="deep_authority_asset",
+        role="synthetic_tool_result",
     )
     deep_ref = blob(
         "sources/deep.json",
         {"nested_ref": ref_value(deep_leaf_ref)},
-        role="deep_authority_asset",
+        role="synthetic_tool_result",
     )
     revision_ref = blob(
         "sources/revision.json",
@@ -134,7 +137,7 @@ def _build_provider_authority_fixture(
     )
     tool_schema_ref = blob(
         "sources/tools.json",
-        {"tools": [{"name": "read"}]},
+        {"tools": [{"name": name} for name in tool_names]},
         role="tool_schema",
     )
     alternate_tool_schema_ref = blob(
@@ -318,7 +321,7 @@ def _build_provider_authority_fixture(
                 "record_kind": "synthetic_prefix_program_v1",
                 "schema_version": "1",
                 "task_id": task_id,
-                "expected_trigger_reason": "no_intervention_opportunity",
+                "expected_trigger_reason": program_expected_trigger,
                 "tool_schema_ref": ref_value(tool_schema_ref),
                 "provider_transcript": [],
                 "tool_observations": [],
@@ -332,7 +335,16 @@ def _build_provider_authority_fixture(
                     "evidence_ref": ref_value(synthetic_verifier_ref),
                     "finding_count": 0,
                 },
-                "failure_injection": {"stage": "none"},
+                "failure_injection": (
+                    program_failure_injection
+                    if program_failure_injection is not None
+                    else {
+                        "stage": "none",
+                        "subject_role": None,
+                        "call_index": None,
+                        "tool_call_id": None,
+                    }
+                ),
                 "clock_trace": [{"label": "prefix_epoch", "uint64_ms": 1}],
             },
             role="synthetic_execution_program",

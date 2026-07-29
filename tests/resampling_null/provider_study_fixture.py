@@ -110,7 +110,11 @@ def build_provider_study_fixture(
             role=role,
             sha256=digest,
             byte_count=len(payload),
-            media_type="application/json",
+            media_type=(
+                "application/octet-stream"
+                if role == "source_revision"
+                else "application/json"
+            ),
         )
 
     task = {
@@ -131,7 +135,7 @@ def build_provider_study_fixture(
     revision_deep_ref = external_ref(
         revision_deep_source,
         relative_path="sources/provider-authority/revision-deep.json",
-        role="deep_authority_asset",
+        role="synthetic_tool_result",
     )
     sources = {
         "tasks": write_json(
@@ -148,10 +152,7 @@ def build_provider_study_fixture(
         ),
         "revision": write_json(
             external / "revision.json",
-            {
-                "revision": "fixture-v1",
-                "nested_ref": revision_deep_ref,
-            },
+            {"revision": "fixture-v1"},
         ),
     }
     for name in (
@@ -377,7 +378,10 @@ def build_provider_study_fixture(
             "task_id": "task-1",
             "benchmark": "swe",
             "requires_user_simulator": True,
-            "canonical_task_payload": {"instruction": "fixture"},
+            "canonical_task_payload": {
+                "instruction": "fixture",
+                "nested_ref": revision_deep_ref,
+            },
         },
         role="task_input",
     )

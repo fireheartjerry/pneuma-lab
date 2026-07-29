@@ -40,6 +40,7 @@ from .preflight import (
     validate_assignment_program,
     validate_task_registry,
 )
+from .prefix_contracts import AUTHORITY_ASSET_ROLE_MEDIA
 from .provider_contracts import validate_provider_lane_plan
 from .types import ArtifactRef
 
@@ -1198,7 +1199,7 @@ def _plan_source_copy(
         relative_path=relative,
         sha256=digest,
         byte_count=len(payload),
-        media_type=_media_type(source_path),
+        media_type=AUTHORITY_ASSET_ROLE_MEDIA.get(role, _media_type(source_path)),
     )
     return _SourceCopy(source_path, payload, destination, ref)
 

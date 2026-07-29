@@ -10,7 +10,10 @@ from typing import Literal, cast
 from .authority_refs import AuthorityRefReader, decode_artifact_ref
 from .errors import RecordValidationError
 from .preflight import validate_task_registry
-from .prefix_contracts import ImplementationDescriptor
+from .prefix_contracts import (
+    AUTHORITY_ASSET_ROLE_MEDIA,
+    ImplementationDescriptor,
+)
 from .provider_contracts import (
     ValidatedProviderPlan,
     validate_provider_lane_plan,
@@ -176,6 +179,11 @@ def _manifest_revisions(
         )
         for index, item in enumerate(value)
     )
+    expected_media = AUTHORITY_ASSET_ROLE_MEDIA["source_revision"]
+    if any(ref.media_type != expected_media for ref in revisions):
+        raise RecordValidationError(
+            "manifest source revisions have noncanonical media type"
+        )
     for revision in revisions:
         reader.verify_closure(
             revision,
@@ -365,6 +373,10 @@ def load_prefix_execution_authority(
             field="manifest tokenizer_ref",
             expected_role="tokenizer",
         )
+        if tokenizer_ref.media_type != AUTHORITY_ASSET_ROLE_MEDIA["tokenizer"]:
+            raise RecordValidationError(
+                "manifest tokenizer has noncanonical media type"
+            )
         reader.verify_closure(
             tokenizer_ref,
             field="manifest tokenizer_ref",

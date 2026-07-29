@@ -168,10 +168,11 @@ class ControllerArtifactStore:
         validated_role = _role(role)
         validated_media_type = _media_type(media_type)
         registered_media_type = CONTROLLER_ROLE_MEDIA.get(validated_role)
-        if (
-            registered_media_type is not None
-            and validated_media_type != registered_media_type
-        ):
+        if registered_media_type is None:
+            raise RecordValidationError(
+                "controller artifact role is not registered"
+            )
+        if validated_media_type != registered_media_type:
             raise RecordValidationError(
                 "controller artifact media type differs from canonical role authority"
             )

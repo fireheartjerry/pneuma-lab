@@ -355,6 +355,9 @@ def _snapshot() -> CompositeSnapshotEnvelope:
         task_input_ref=_authority_ref("task_input"),
         environment_contract_ref=_authority_ref("environment_contract"),
         isolation_contract_ref=_authority_ref("isolation_contract"),
+        initial_restore_qualification_ref=_ref(
+            "initial_restore_qualification"
+        ),
         environment_snapshot_ref=_ref("environment_snapshot"),
         branch_pending_calls=(ToolCall("c2", "read", "{}\n"),),
         terminal_unexecuted_remainder=(),

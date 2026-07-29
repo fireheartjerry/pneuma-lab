@@ -1699,7 +1699,12 @@ def _build_full_study(
                         "evidence_ref": synthetic_verifier_ref,
                         "finding_count": 0,
                     },
-                    "failure_injection": {"stage": "none"},
+                    "failure_injection": {
+                        "stage": "none",
+                        "subject_role": None,
+                        "call_index": None,
+                        "tool_call_id": None,
+                    },
                     "clock_trace": [{"label": "prefix_epoch", "uint64_ms": 1}],
                 },
                 role="synthetic_execution_program",
@@ -3851,6 +3856,26 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
             (root / cast(dict[str, object], template_ref)["relative_path"]).read_bytes()
         )
         template_value["task_id"] = "task-third"
+        if ref_field == "task_input_ref":
+            template_program_ref = cast(
+                dict[str, object],
+                template_value["synthetic_execution_program_ref"],
+            )
+            third_program = json.loads(
+                (
+                    root
+                    / cast(str, template_program_ref["relative_path"])
+                ).read_bytes()
+            )
+            third_program["task_id"] = "task-third"
+            third_program_ref = _write_blob(
+                root,
+                "sources/authority/task-third-program.json",
+                canonical_json_bytes(third_program, indent=None),
+            )
+            third_program_ref["role"] = "synthetic_execution_program"
+            third_program_ref["media_type"] = "application/json"
+            template_value["synthetic_execution_program_ref"] = third_program_ref
         third_ref = _write_blob(
             root,
             f"sources/authority/task-third-{ref_field}.json",
