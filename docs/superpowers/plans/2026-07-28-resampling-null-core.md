@@ -3512,7 +3512,9 @@ class FrozenPrefixReceipt:
     trigger_reason: TriggerReason
     terminal_failure_kind: FailureKind
     y0_grade: GradeReceipt
+    grade_execution_receipt_ref: ArtifactRef
     verifier_receipt: FrozenVerifierReceipt
+    verifier_execution_receipt_ref: ArtifactRef
     counters: ResourceCounters
     simulator_counters: ResourceCounters
     call_seeds: tuple[CallSeedReceipt, ...]
@@ -3535,6 +3537,16 @@ Adverse no-trigger retains raw clone grade and verifier evidence for audit,
 but the controller constructs scientific `y0_grade.success = 0` and
 `partial_reward = 0.0`; all four downstream outcomes copy that forced zero.
 Such outcomes are never silently retried.
+The existing `y0_grade.artifact_ref` and
+`verifier_receipt.verifier_artifact_ref` remain direct refs to closed raw
+`grade_evidence` and `verifier_evidence` bytes so downstream outcome and packet
+consumers retain their approved semantics. The separate required
+`grade_execution_receipt_ref` and `verifier_execution_receipt_ref` edges make
+the snapshot-bound restore instance/process/writable-root receipts reachable
+for independent S02D reconstruction. Trigger state is cross-bound to the
+composite snapshot: `NO_INTERVENTION_OPPORTUNITY` requires
+`episode_terminal == True`, while `FIRST_ELIGIBLE_MUTATION` and
+`FOURTH_TOOL_CALL` require `episode_terminal == False`.
 
 The authoritative entry point is:
 

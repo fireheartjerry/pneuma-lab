@@ -964,7 +964,16 @@ attempt-bound zero-cost closure; it does not treat missing evidence as zero.
 
 The prefix receipt records schedule-bound caps, exact token-ID and
 provider-attempt refs, the boundary ledger ref, distinct primary/simulator
-counters, and a terminal failure kind. A cap, timeout, malformed action,
+counters, and a terminal failure kind. Raw `y0_grade.artifact_ref` and
+`verifier_receipt.verifier_artifact_ref` remain direct closed grade/verifier
+evidence edges used by downstream outcome and packet consumers. Separate
+required `grade_execution_receipt_ref` and
+`verifier_execution_receipt_ref` edges make each snapshot-bound restore
+instance/process/writable-root receipt reachable for independent reload and
+cross-checking. `NO_INTERVENTION_OPPORTUNITY` is valid only when the composite
+snapshot has `episode_terminal == true`; `FIRST_ELIGIBLE_MUTATION` and
+`FOURTH_TOOL_CALL` are valid only for a nonterminal composite snapshot. A cap,
+timeout, malformed action,
 refusal, model error, or infrastructure error before a branchable boundary is
 retained as `no_intervention_opportunity` with its adverse terminal kind.
 Ordinary termination uses `none` and copies clone-derived `Y_0`. For every

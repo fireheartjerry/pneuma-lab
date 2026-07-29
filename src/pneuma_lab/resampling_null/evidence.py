@@ -1024,6 +1024,13 @@ class FrozenPrefixReceipt:
         snapshot = load_composite_snapshot(payload)
         if snapshot.schedule_ref.sha256 != self.schedule_sha256:
             raise ValueError("snapshot schedule differs from prefix receipt")
+        expected_terminal = (
+            self.trigger_reason is TriggerReason.NO_INTERVENTION_OPPORTUNITY
+        )
+        if snapshot.episode_terminal is not expected_terminal:
+            raise ValueError(
+                "trigger reason and snapshot terminal state are inconsistent"
+            )
         cap_pairs = (
             (
                 snapshot.primary_counters.generated_tokens,

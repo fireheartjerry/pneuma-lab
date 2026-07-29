@@ -626,6 +626,131 @@ def test_frozen_prefix_closes_caps_and_adverse_y0() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("trigger_reason", "episode_terminal"),
+    [
+        (TriggerReason.NO_INTERVENTION_OPPORTUNITY, False),
+        (TriggerReason.FIRST_ELIGIBLE_MUTATION, True),
+        (TriggerReason.FOURTH_TOOL_CALL, True),
+    ],
+)
+def test_frozen_prefix_cross_binds_trigger_to_snapshot_terminal_state(
+    trigger_reason: TriggerReason,
+    episode_terminal: bool,
+) -> None:
+    snapshot = _snapshot()
+    snapshot = CompositeSnapshotEnvelope(
+        **{
+            **{field.name: getattr(snapshot, field.name) for field in fields(snapshot)},
+            "branch_pending_calls": (),
+            "episode_terminal": episode_terminal,
+        }
+    )
+    payload = composite_snapshot_bytes(snapshot)
+    snapshot_ref = ArtifactRef(
+        role="composite_snapshot",
+        relative_path="controller-artifacts/composite_snapshot/"
+        + hashlib.sha256(payload).hexdigest(),
+        sha256=hashlib.sha256(payload).hexdigest(),
+        byte_count=len(payload),
+        media_type="application/json",
+    )
+    receipt = FrozenPrefixReceipt(
+        task_id="task-1",
+        schedule_sha256=snapshot.schedule_ref.sha256,
+        prefix_caps=PrefixCaps(10, 3, 4, 100),
+        snapshot_ref=snapshot_ref,
+        visible_context_ref=snapshot.visible_context_ref,
+        visible_sha256=snapshot.visible_sha256,
+        token_ids_ref=snapshot.token_ids_ref,
+        token_ids_sha256=snapshot.token_ids_sha256,
+        branch_pending_calls=snapshot.branch_pending_calls,
+        terminal_unexecuted_remainder=(),
+        trigger_reason=trigger_reason,
+        terminal_failure_kind=FailureKind.NONE,
+        y0_grade=GradeReceipt(0, 0.0, False, _ref("grade_evidence")),
+        grade_execution_receipt_ref=_ref("grade_evidence_receipt"),
+        verifier_receipt=FrozenVerifierReceipt(
+            "task-1",
+            snapshot.schedule_ref.sha256,
+            snapshot_ref,
+            _ref("verifier_evidence"),
+            0,
+        ),
+        verifier_execution_receipt_ref=_ref("verifier_evidence_receipt"),
+        counters=snapshot.primary_counters,
+        simulator_counters=snapshot.simulator_counters,
+        call_seeds=(),
+        provider_attempts_ref=snapshot.provider_attempts_ref,
+        boundary_ledger_ref=snapshot.boundary_ledger_ref,
+        provider_cost_ref=_ref("provider_cost_closure"),
+    )
+    with pytest.raises(ValueError, match="terminal"):
+        receipt.validate_snapshot_bytes(payload)
+
+
+@pytest.mark.parametrize(
+    ("trigger_reason", "episode_terminal"),
+    [
+        (TriggerReason.NO_INTERVENTION_OPPORTUNITY, True),
+        (TriggerReason.FIRST_ELIGIBLE_MUTATION, False),
+        (TriggerReason.FOURTH_TOOL_CALL, False),
+    ],
+)
+def test_frozen_prefix_accepts_coherent_trigger_terminal_pairs(
+    trigger_reason: TriggerReason,
+    episode_terminal: bool,
+) -> None:
+    snapshot = _snapshot()
+    snapshot = CompositeSnapshotEnvelope(
+        **{
+            **{field.name: getattr(snapshot, field.name) for field in fields(snapshot)},
+            "branch_pending_calls": (),
+            "episode_terminal": episode_terminal,
+        }
+    )
+    payload = composite_snapshot_bytes(snapshot)
+    snapshot_ref = ArtifactRef(
+        role="composite_snapshot",
+        relative_path="controller-artifacts/composite_snapshot/"
+        + hashlib.sha256(payload).hexdigest(),
+        sha256=hashlib.sha256(payload).hexdigest(),
+        byte_count=len(payload),
+        media_type="application/json",
+    )
+    receipt = FrozenPrefixReceipt(
+        task_id="task-1",
+        schedule_sha256=snapshot.schedule_ref.sha256,
+        prefix_caps=PrefixCaps(10, 3, 4, 100),
+        snapshot_ref=snapshot_ref,
+        visible_context_ref=snapshot.visible_context_ref,
+        visible_sha256=snapshot.visible_sha256,
+        token_ids_ref=snapshot.token_ids_ref,
+        token_ids_sha256=snapshot.token_ids_sha256,
+        branch_pending_calls=snapshot.branch_pending_calls,
+        terminal_unexecuted_remainder=(),
+        trigger_reason=trigger_reason,
+        terminal_failure_kind=FailureKind.NONE,
+        y0_grade=GradeReceipt(0, 0.0, False, _ref("grade_evidence")),
+        grade_execution_receipt_ref=_ref("grade_evidence_receipt"),
+        verifier_receipt=FrozenVerifierReceipt(
+            "task-1",
+            snapshot.schedule_ref.sha256,
+            snapshot_ref,
+            _ref("verifier_evidence"),
+            0,
+        ),
+        verifier_execution_receipt_ref=_ref("verifier_evidence_receipt"),
+        counters=snapshot.primary_counters,
+        simulator_counters=snapshot.simulator_counters,
+        call_seeds=(),
+        provider_attempts_ref=snapshot.provider_attempts_ref,
+        boundary_ledger_ref=snapshot.boundary_ledger_ref,
+        provider_cost_ref=_ref("provider_cost_closure"),
+    )
+    receipt.validate_snapshot_bytes(payload)
+
+
 def _contains_artifact_ref(value: object) -> bool:
     if isinstance(value, ArtifactRef):
         return True
