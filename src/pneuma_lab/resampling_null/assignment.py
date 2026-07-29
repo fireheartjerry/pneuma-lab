@@ -7,12 +7,18 @@ from dataclasses import dataclass
 import hashlib
 import hmac
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 import unicodedata
 
 from .artifacts import (
     RecordValidationError,
+    _load_json_bytes,
     _load_direct_scientific_parent,
+    _power_payload,
+    _read_ref,
+    _scientific_documents,
+    _validate_power_identities,
+    _walk_artifact_refs,
 )
 from .preflight import verify_ed25519_canonical_json
 from .secrets import (
@@ -20,7 +26,7 @@ from .secrets import (
     UnblindSecretHandle,
     _consume_assignment_handle_into,
 )
-from .types import ArtifactRef
+from .types import ArtifactRef, ScheduleSelection
 
 
 _FRAME_MAGIC = b"pneuma-resampling-null-frame-v1\x00"
@@ -141,6 +147,227 @@ def load_assignment_authority(
         manifest_ref=manifest_ref,
         schedule_ref=schedule_ref,
         prefix_index_ref=prefix_index_ref,
+    )
+
+
+def require_schedulable_power_final(
+    manifest_ref: ArtifactRef,
+    power_final_ref: ArtifactRef,
+    *,
+    run_root: Path,
+) -> ScheduleSelection:
+    """Return only membership authority from one complete validated power chain."""
+
+    if type(manifest_ref) is not ArtifactRef or type(power_final_ref) is not ArtifactRef:
+        raise TypeError("power-final authority requires exact ArtifactRef values")
+    manifest = _load_direct_scientific_parent(
+        _ref_mapping(manifest_ref),
+        run_root=run_root,
+        field="manifest_ref",
+        expected_kind="resampling_study_manifest",
+    )
+    final = _load_direct_scientific_parent(
+        _ref_mapping(power_final_ref),
+        run_root=run_root,
+        field="power_final_ref",
+        expected_kind="resampling_power_report",
+        expected_stage="final",
+    )
+    for field in ("study_id", "frozen_created_at", "provenance"):
+        if final.value[field] != manifest.value[field]:
+            raise RecordValidationError(
+                f"power final {field} does not match manifest"
+            )
+
+    documents = _scientific_documents(run_root, excluded=set())
+    power_documents = [
+        document
+        for document in documents.values()
+        if document.value["record_kind"] == "resampling_power_report"
+    ]
+    final_payload = _power_payload(final)
+    declared_attempt_paths = {
+        ref.relative_path
+        for ref in _walk_artifact_refs(final_payload["all_attempt_refs"])
+    }
+    expected_power_paths = declared_attempt_paths | {power_final_ref.relative_path}
+    observed_power_paths = {document.relative_path for document in power_documents}
+    if observed_power_paths != expected_power_paths:
+        raise RecordValidationError(
+            "run root power reports are not exactly the final-declared chain"
+        )
+    _validate_power_identities(power_documents, run_root=run_root)
+
+    finalization = final_payload["finalization"]
+    if not isinstance(finalization, Mapping):
+        raise RecordValidationError("power finalization must be an object")
+    if finalization.get("kind") != "completed_chain":
+        raise RecordValidationError("power final is not a completed schedulable chain")
+    authority = final_payload["decision_authority"]
+    selected_tier = finalization.get("selected_tier")
+
+    manifest_payload = manifest.value["payload"]
+    if not isinstance(manifest_payload, Mapping):
+        raise RecordValidationError("manifest payload must be an object")
+    roster_ref = _artifact_ref(
+        manifest_payload.get("roster_ref"),
+        field="manifest roster_ref",
+    )
+    roster_path, roster_bytes = _read_ref(roster_ref, run_root=run_root)
+    roster = _load_json_bytes(roster_bytes, source=roster_path)
+    if not isinstance(roster, Mapping):
+        raise RecordValidationError("manifest roster must be an object")
+    if set(roster) != {
+        "record_kind",
+        "schema_version",
+        "roster_kind",
+        "supported_tiers",
+        "tasks",
+    }:
+        raise RecordValidationError("manifest roster has an open or incomplete shape")
+    if (
+        roster["record_kind"] != "resampling_roster_v1"
+        or roster["schema_version"] != "1"
+    ):
+        raise RecordValidationError("manifest roster has wrong identity")
+    tasks = roster["tasks"]
+    if not isinstance(tasks, list) or not tasks:
+        raise RecordValidationError("manifest roster tasks must be non-empty")
+    supported_tiers = roster["supported_tiers"]
+    if supported_tiers not in ([120], [120, 160]):
+        raise RecordValidationError(
+            "manifest roster supported_tiers must be [120] or [120, 160]"
+        )
+
+    selected_task_ids: list[str] = []
+    seen_task_ids: set[str] = set()
+    previous_order_key: tuple[bytes, bytes, bytes, bytes] | None = None
+    tier_counts: dict[tuple[str, int], int] = {}
+    for index, task in enumerate(tasks):
+        if not isinstance(task, Mapping):
+            raise RecordValidationError(f"manifest roster task {index} must be an object")
+        if set(task) != {
+            "task_id",
+            "benchmark",
+            "stratum",
+            "lineage",
+            "groups",
+            "tiers",
+        }:
+            raise RecordValidationError(
+                f"manifest roster task {index} has an open or incomplete shape"
+            )
+        task_id = task["task_id"]
+        if not isinstance(task_id, str) or not task_id or task_id in seen_task_ids:
+            raise RecordValidationError(
+                "manifest roster task_id values must be unique non-empty strings"
+            )
+        seen_task_ids.add(task_id)
+        text_fields = {
+            field: task[field]
+            for field in ("benchmark", "stratum", "lineage")
+        }
+        if any(not isinstance(value, str) or not value for value in text_fields.values()):
+            raise RecordValidationError(
+                f"manifest roster task {task_id!r} has invalid text metadata"
+            )
+        order_key = tuple(
+            cast(str, value).encode("utf-8")
+            for value in (
+                text_fields["benchmark"],
+                text_fields["stratum"],
+                text_fields["lineage"],
+                task_id,
+            )
+        )
+        if previous_order_key is not None and order_key <= previous_order_key:
+            raise RecordValidationError(
+                "manifest roster tasks are not in strict registry order"
+            )
+        previous_order_key = cast(tuple[bytes, bytes, bytes, bytes], order_key)
+        groups = task["groups"]
+        if not isinstance(groups, list) or len(groups) != 3:
+            raise RecordValidationError(
+                f"manifest roster task {task_id!r} lacks complete groups"
+            )
+        expected_group_kinds = ("language", "domain", "issue_family")
+        for group_index, (group, expected_kind) in enumerate(
+            zip(groups, expected_group_kinds, strict=True)
+        ):
+            if (
+                not isinstance(group, Mapping)
+                or set(group) != {"kind", "value"}
+                or group.get("kind") != expected_kind
+                or not isinstance(group.get("value"), str)
+                or not group.get("value")
+            ):
+                raise RecordValidationError(
+                    f"manifest roster task {task_id!r} group {group_index} is invalid"
+                )
+        tiers = task["tiers"]
+        if (
+            not isinstance(tiers, list)
+            or not tiers
+            or any(type(tier) is not int or tier not in (120, 160) for tier in tiers)
+            or tiers != sorted(set(tiers))
+            or any(tier not in supported_tiers for tier in tiers)
+        ):
+            raise RecordValidationError(
+                f"manifest roster task {task_id!r} has invalid tiers"
+            )
+        benchmark = cast(str, text_fields["benchmark"])
+        for tier in tiers:
+            key = (benchmark, cast(int, tier))
+            tier_counts[key] = tier_counts.get(key, 0) + 1
+        if authority == "synthetic_validation" or selected_tier in tiers:
+            selected_task_ids.append(task_id)
+
+    eligibility_ref = manifest_payload.get("eligibility_manifest_ref")
+    if authority == "synthetic_validation":
+        if (
+            roster["roster_kind"] != "synthetic_fixture"
+            or eligibility_ref is not None
+            or selected_tier is not None
+            or finalization.get("decision") != "CONDITIONAL_ONLY"
+        ):
+            raise RecordValidationError(
+                "synthetic completed chain does not match manifest roster authority"
+            )
+    elif authority == "roster_bound_selection":
+        if (
+            roster["roster_kind"] != "eligible_confirmation"
+            or not isinstance(eligibility_ref, Mapping)
+            or selected_tier not in (120, 160)
+            or finalization.get("decision") != "GO"
+        ):
+            raise RecordValidationError(
+                "roster-bound completed chain does not match manifest eligibility"
+            )
+        benchmarks = {
+            cast(str, cast(Mapping[str, object], task)["benchmark"])
+            for task in tasks
+        }
+        if any(
+            tier_counts.get((benchmark, tier)) != tier
+            for benchmark in benchmarks
+            for tier in cast(list[int], supported_tiers)
+        ):
+            raise RecordValidationError(
+                "confirmation roster tier counts do not equal their declared sizes"
+            )
+        eligibility = _artifact_ref(
+            eligibility_ref,
+            field="manifest eligibility_manifest_ref",
+        )
+        _read_ref(eligibility, run_root=run_root)
+    else:
+        raise RecordValidationError("power final has unknown decision authority")
+    if not selected_task_ids:
+        raise RecordValidationError("completed power final selects no roster tasks")
+    return ScheduleSelection(
+        schedule_authority=authority,
+        selected_tier=selected_tier,
+        selected_task_ids=tuple(selected_task_ids),
     )
 
 

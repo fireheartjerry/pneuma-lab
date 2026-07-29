@@ -228,6 +228,38 @@ class ArtifactRef:
 
 
 @dataclass(frozen=True, slots=True)
+class ScheduleSelection:
+    """Closed completed-power decision exposed to schedule construction."""
+
+    schedule_authority: Literal[
+        "synthetic_validation",
+        "roster_bound_selection",
+    ]
+    selected_tier: Literal[120, 160] | None
+    selected_task_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if self.schedule_authority not in (
+            "synthetic_validation",
+            "roster_bound_selection",
+        ):
+            raise ValueError("schedule_authority is not recognized")
+        if self.schedule_authority == "synthetic_validation":
+            if self.selected_tier is not None:
+                raise ValueError("synthetic selection must not select a tier")
+        elif self.selected_tier not in (120, 160):
+            raise ValueError("roster-bound selection requires tier 120 or 160")
+        if not isinstance(self.selected_task_ids, tuple):
+            raise TypeError("selected_task_ids must be a tuple")
+        if not self.selected_task_ids:
+            raise ValueError("selected_task_ids must not be empty")
+        for task_id in self.selected_task_ids:
+            _require_nonempty_string(task_id, "selected_task_ids item")
+        if len(self.selected_task_ids) != len(set(self.selected_task_ids)):
+            raise ValueError("selected_task_ids must be pairwise distinct")
+
+
+@dataclass(frozen=True, slots=True)
 class BranchSlotSet:
     """The four execution slots used for one paired resampling comparison."""
 

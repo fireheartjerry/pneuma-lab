@@ -30,6 +30,8 @@ from pneuma_lab.resampling_null.artifacts import (
     write_jsonl_artifact,
     write_record,
 )
+from pneuma_lab.resampling_null.assignment import require_schedulable_power_final
+from pneuma_lab.resampling_null.types import ArtifactRef
 
 
 KINDS = (
@@ -1006,6 +1008,7 @@ def _build_full_study(
     later_power_partial: bool = False,
     full_gate_failure: bool = False,
     retry_after_terminal: str | None = None,
+    completed_power_consumer_fixture: bool = False,
 ) -> dict[str, object]:
     root.mkdir()
 
@@ -1019,17 +1022,86 @@ def _build_full_study(
                 separators=(",", ":"),
             ).encode()
         )
-        return _write_blob(root, f"raw/{name}", payload)
+        subtree = "sources" if completed_power_consumer_fixture else "raw"
+        return _write_blob(root, f"{subtree}/{name}", payload)
 
-    roster_tasks = [
-        {"task_id": "task-1"},
-        {"task_id": "task-donor"},
-    ]
-    if variant == "schedule-roster-subset":
-        roster_tasks.append({"task_id": "task-uncovered"})
+    if completed_power_consumer_fixture:
+        roster_size = (
+            2 if decision_authority == "synthetic_validation" else 160
+        )
+        task_ids = ["task-1", "task-donor"] + [
+            f"task-{index:03d}" for index in range(2, roster_size)
+        ]
+        roster_tasks = [
+            {
+                "task_id": task_id,
+                "benchmark": "swe",
+                "stratum": "python",
+                "lineage": f"repo-{index:03d}",
+                "groups": [
+                    {"kind": "language", "value": "python"},
+                    {"kind": "domain", "value": "software"},
+                    {"kind": "issue_family", "value": "bug"},
+                ],
+                "tiers": (
+                    [120, 160]
+                    if index < 120
+                    else [160]
+                ),
+            }
+            for index, task_id in enumerate(task_ids)
+        ]
+        registry_tasks = [
+            {key: value for key, value in task.items() if key != "tiers"}
+            for task in roster_tasks
+        ]
+    else:
+        roster_tasks = [
+            {"task_id": "task-1"},
+            {"task_id": "task-donor"},
+        ]
+        if variant == "schedule-roster-subset":
+            roster_tasks.append({"task_id": "task-uncovered"})
+        registry_tasks = roster_tasks
     raws = {
-        "tasks": raw("tasks.json", {"tasks": roster_tasks}),
-        "roster": raw("roster.json", {"tasks": roster_tasks}),
+        "tasks": raw(
+            "tasks.json",
+            (
+                {
+                    "record_kind": "resampling_task_registry_v1",
+                    "schema_version": "1",
+                    "tasks": registry_tasks,
+                }
+                if completed_power_consumer_fixture
+                else {"tasks": roster_tasks}
+            ),
+        ),
+        "roster": raw(
+            "roster.json",
+            (
+                {
+                    "record_kind": "resampling_roster_v1",
+                    "schema_version": "1",
+                    "roster_kind": (
+                        "synthetic_fixture"
+                        if decision_authority == "synthetic_validation"
+                        else "eligible_confirmation"
+                    ),
+                    "supported_tiers": [120, 160],
+                    "tasks": roster_tasks,
+                }
+                if completed_power_consumer_fixture
+                else {"tasks": roster_tasks}
+            ),
+        ),
+        "eligibility": raw(
+            "eligibility.json",
+            {"record_kind": "test_only_eligibility_fixture"},
+        ),
+        "ceremony_policy": raw(
+            "ceremony-policy.json",
+            {"record_kind": "test_only_ceremony_policy_fixture"},
+        ),
         "power_authority": raw(
             "power-authority.json",
             {
@@ -1080,8 +1152,22 @@ def _build_full_study(
     manifest_payload: dict[str, object] = {
         "task_registry_ref": raws["tasks"],
         "roster_ref": raws["roster"],
-        "eligibility_manifest_ref": None,
-        "roster_ceremony_policy_ref": None,
+        "eligibility_manifest_ref": (
+            None
+            if (
+                not completed_power_consumer_fixture
+                or decision_authority == "synthetic_validation"
+            )
+            else raws["eligibility"]
+        ),
+        "roster_ceremony_policy_ref": (
+            None
+            if (
+                not completed_power_consumer_fixture
+                or decision_authority == "synthetic_validation"
+            )
+            else raws["ceremony_policy"]
+        ),
         "assignment_program_ref": raws["assignment"],
         "provider_lane_plan_ref": raws["provider"],
         "storage_policy_contract_ref": raws["storage_policy"],
@@ -2437,6 +2523,50 @@ def _build_full_study(
         "task_parent_refs": task_parent_refs,
         "manifest_ref": manifest_ref,
     }
+
+
+@pytest.mark.parametrize(
+    ("decision_authority", "expected_tier"),
+    [
+        ("synthetic_validation", None),
+        ("roster_bound_selection", 160),
+    ],
+)
+def test_t3_s07_completed_power_consumer_derives_manifest_membership(
+    tmp_path: Path,
+    decision_authority: str,
+    expected_tier: int | None,
+) -> None:
+    root = tmp_path / decision_authority
+    installed = _build_full_study(
+        root,
+        decision_authority=decision_authority,
+        completed_power_consumer_fixture=True,
+    )
+    final_paths = [
+        path
+        for path in (root / "power").glob("*.json")
+        if load_record(path)["payload"]["stage"] == "final"  # type: ignore[index]
+    ]
+    assert len(final_paths) == 1
+    final_path = final_paths[0]
+    final_bytes = final_path.read_bytes()
+    selection = require_schedulable_power_final(
+        ArtifactRef(**cast(dict[str, Any], installed["manifest_ref"])),
+        ArtifactRef(
+            role="resampling_power_report",
+            relative_path=final_path.relative_to(root).as_posix(),
+            sha256=hashlib.sha256(final_bytes).hexdigest(),
+            byte_count=len(final_bytes),
+            media_type="application/json",
+        ),
+        run_root=root,
+    )
+    assert selection.schedule_authority == decision_authority
+    assert selection.selected_tier == expected_tier
+    expected_count = 2 if decision_authority == "synthetic_validation" else 160
+    assert len(selection.selected_task_ids) == expected_count
+    assert selection.selected_task_ids[:2] == ("task-1", "task-donor")
 
 
 def _numeric_contract() -> dict[str, object]:
