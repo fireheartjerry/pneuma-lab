@@ -9229,3 +9229,598 @@ exit "$neurips_exit"
 - **Compact receipt:** stdout `894` bytes / `19` lines / SHA-256 `7d2a6f66e385c44a7b0e2282c74434d78962fa2b78e1bf9e008621a72a778729`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 - **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0370/` (local, ignored, retained through `2026-11-27`).
 - **Next gate:** Stage the journal alone and create commit B `docs(neurips): record task 3 slice 2 delivery`.
+### EJ-20260728-0371 — create Slice 2 journal commit B
+
+- **Prior event:** `EJ-20260728-0370`
+- **Local interval:** `2026-07-28T20:53:29-07:00` to `2026-07-28T20:53:29-07:00`
+- **UTC interval:** `2026-07-29T03:53:29+00:00` to `2026-07-29T03:53:29+00:00`
+- **Action:** Staged only the execution journal, asserted no other staged/unstaged path, checked staged whitespace, created commit B with subject `docs(neurips): record task 3 slice 2 delivery`, and asserted the post-commit worktree was clean before this receipt append.
+- **Result:** GREEN, exit `0`, zero stderr. Commit-B identity is retained in raw evidence and will be extracted before push.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `448` bytes / `10` lines / SHA-256 `8977fa345e14102ff3965a3261535d2acaf23f709a2ecdd9ac6b10d5acb227ad`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0371/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Extract commit B, push the A/B pair, and verify the exact remote branch head.
+### EJ-20260728-0372 — push and verify Slice 2 A/B delivery
+
+- **Prior event:** `EJ-20260728-0371`
+- **Local interval:** `2026-07-28T20:54:05-07:00` to `2026-07-28T20:54:07-07:00`
+- **UTC interval:** `2026-07-29T03:54:05+00:00` to `2026-07-29T03:54:07+00:00`
+- **Action:** Inspected commit B, asserted its parent/subject/journal-only path, pushed `HEAD` to `origin/codex/neurips-2026-empirical`, and compared the remote ref to local `HEAD`.
+- **Result:** GREEN. The exact remote head equals local commit B. The bounded stderr contains Git’s normal push progress and will be inspected with the commit/remote identity next.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `587` bytes / `13` lines / SHA-256 `e6ca3e3771d99192e118dfdfc7f1d0833c6a50f2dcd0f0d1ca37679864a6e11f`; stderr `110` bytes / `2` lines / SHA-256 `975db88b8294bd86882466f5de943b21f7ebc3fbb1914d2d52e02a1a1a1837ed`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0372/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Extract exact commit-B/remote identity, then open Task 3 Slice 3 from the active authority plan.
+### EJ-20260728-0373 — confirm remote Slice 2 delivery and open Slice 3
+
+- **Prior event:** `EJ-20260728-0372`
+- **Local interval:** `2026-07-28T20:54:35-07:00` to `2026-07-28T20:54:35-07:00`
+- **UTC interval:** `2026-07-29T03:54:35+00:00` to `2026-07-29T03:54:35+00:00`
+- **Action:** Inspected commit-B and push output, then re-opened the active plan’s exclusive slice table around Slice 3.
+- **Result:** Slice 2 delivery is remote-complete. Commit B and remote head are both `15d4c689df64b0e89d1a67196e5d83267b9c7876`, parent commit A `d2de06d9071cb0304a7fd4b0f907d4f1db3ef3f4`, tree `b204f50531d5a1d74e4ae5662bbe789f67e995f5`; push advanced `b63325e..15d4c68`. Slice 3 exclusively owns `src/pneuma_lab/resampling_null/assignment.py` and `tests/resampling_null/test_assignment.py`, focused gate `pytest ... -k t3_s03`, intended commit `feat(resampling-null): add framed assignment derivations`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `6609` bytes / `40` lines / SHA-256 `68fd15474ff60b050cfb5c4c57d5ce6e957561ce2ddad92fd340c5a197355f06`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0373/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Recheck the bootstrap-bound interpreter and inventory the exact derivation-core contract/current code before writing Slice 3 RED tests.
+### EJ-20260728-0374 — open Slice 3 with bootstrap provenance
+
+- **Prior event:** `EJ-20260728-0373`
+- **Local interval:** `2026-07-28T20:55:15-07:00` to `2026-07-28T20:55:16-07:00`
+- **UTC interval:** `2026-07-29T03:55:15+00:00` to `2026-07-29T03:55:16+00:00`
+- **Action:** Rechecked the bootstrap-bound `.venv/bin/python` path/version/executable hash, exact Ruff/mypy versions, Linux platform, active authority hashes, and Slice 3 opening worktree boundary.
+- **Result:** GREEN. Python is the reviewed 3.12 project interpreter; Ruff `0.15.22` and mypy `2.3.0` match pins; plan/design hashes remain `a2ca4fc419f353e9a38350025e1e2996fd21d66eb16b2d8d011af2c2e1d491b1` and `d2a3c5a20059574ab8dad92a45b29f06aeeaf2bd9dafbc8716c5449848a687db`; only the post-delivery journal receipt is modified and the index is empty.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `528` bytes / `8` lines / SHA-256 `6a1a2a535ab9b4b406ae98394efed2e926f21cc4a9c3386d80ae5bb8eb4d6525`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0374/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inventory the exact framed-derivation authority and current assignment implementation/tests before RED.
+### EJ-20260728-0375 — inventory Slice 3 derivation contract and owned files
+
+- **Prior event:** `EJ-20260728-0374`
+- **Local interval:** `2026-07-28T20:55:48-07:00` to `2026-07-28T20:55:48-07:00`
+- **UTC interval:** `2026-07-29T03:55:48+00:00` to `2026-07-29T03:55:48+00:00`
+- **Action:** Searched both active authorities for framing/derivation/HKDF/HMAC/rejection requirements, then attempted to read both Slice 3 owned files.
+- **Result:** RED inventory command, exit `2`. The authority search succeeded and exposed the normative frame, HKDF subkey KATs, uniform-below algorithm, and arithmetic/rejection tests, but the broad output was oversized and the final owned-file read emitted one stderr line. The exact missing/read failure must be inspected before assuming either owned file exists. No edit occurred.
+- **Exit status:** `2`
+- **Compact receipt:** stdout `207110` bytes / `1725` lines / SHA-256 `4f11250af44bb1563d5dabea0a8194a218f1cf62fde5b3835fe3434060b77927`; stderr `88` bytes / `1` line / SHA-256 `7076f0a069a354334acffe025dc384acc0e66e8ec98a83bdefd27d4ae7e454ba`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0375/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect the one-line stderr and exact owned-path existence, then read only the tightly bounded normative derivation sections.
+### EJ-20260728-0376 — confirm Slice 3 starts from absent owned files
+
+- **Prior event:** `EJ-20260728-0375`
+- **Local interval:** `2026-07-28T20:56:23-07:00` to `2026-07-28T20:56:23-07:00`
+- **UTC interval:** `2026-07-29T03:56:23+00:00` to `2026-07-29T03:56:23+00:00`
+- **Action:** Inspected `EJ-20260728-0375` stderr, checked exact owned-path existence, and read bounded normative frame/HKDF/uniform sections.
+- **Result:** Both Slice 3 owned files are absent; `EJ-20260728-0375` failed only because `assignment.py` did not exist. The normative core is now confirmed: typed length-prefixed frame with strict NFC/Unicode-category rules; U64 exact-type/range enforcement; normative frame/commitment KATs; RFC 5869 SHA-256 context/subkey KATs; private mutable 32-byte keys; unbiased 64-bit rejection sampling returning result and rejection counter; no generic public key wrapper/API.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `12022` bytes / `287` lines / SHA-256 `de4b4014547762308044c5073301697773480a0ddc3aafe426e3a97abf4a3152`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0376/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Read the complete Step 3 API skeleton and remaining uniform-draw KATs, then write the initial RED test file.
+### EJ-20260728-0377 — read complete Slice 3 API and KAT contract
+
+- **Prior event:** `EJ-20260728-0376`
+- **Local interval:** `2026-07-28T20:56:57-07:00` to `2026-07-28T20:56:57-07:00`
+- **UTC interval:** `2026-07-29T03:56:57+00:00` to `2026-07-29T03:56:57+00:00`
+- **Action:** Read the complete Step 3 API skeleton plus the remaining uniform-draw known-answer vectors.
+- **Result:** Slice 3 must introduce frozen/slot `U64Field`, `TextField`, `BytesField`, and `UniformDraw`; private four-buffer assignment key storage; canonical `kdf_frame`; label/type/length-enforcing `commitment_sha256`; SHA-256 `derive_seed`; unbiased HMAC `uniform_below`; private wipe/read/assignment-HKDF/unblind-HKDF helpers; and tests for every design KAT plus exact invalid-type/range/Unicode and arithmetic/rejection properties. The two uniform KATs are allocation `(3, 0)` for upper 12 and orientation `(0, 0)` for upper 2.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `11356` bytes / `296` lines / SHA-256 `d614dafa8308d54ffecf6f724a609cf8a0ab5872c22a05f0ec0dd71e76659019`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0377/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Locate the canonical `ArtifactRef` type and repository test conventions, then write the first Slice 3 RED tests without introducing Slice 4 secret-store behavior.
+### EJ-20260728-0378 — locate canonical ArtifactRef and test conventions
+
+- **Prior event:** `EJ-20260728-0377`
+- **Local interval:** `2026-07-28T20:57:33-07:00` to `2026-07-28T20:57:33-07:00`
+- **UTC interval:** `2026-07-29T03:57:33+00:00` to `2026-07-29T03:57:33+00:00`
+- **Action:** Located the canonical `ArtifactRef` and reviewed neighboring resampling test/import/validation style.
+- **Result:** `ArtifactRef` is the frozen type in `resampling_null.types` and is already used directly in tests. Slice 3 can import it privately without changing `__init__.py`, preserving exclusive ownership. Existing tests favor direct runtime type/range attacks, frozen/slotted assertions, parametrization, and explicit `type: ignore` only at intentionally invalid call sites.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `14255` bytes / `376` lines / SHA-256 `acca98cc076434c0cbd4721dcac8a352dfc93af86fd1ea686def58366c8ad17d`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0378/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Add comprehensive Slice 3 RED tests for the normative frame, commitment, seed, HKDF, uniform KATs, invalid inputs, rejection path, arithmetic proof, and buffer wipe.
+### EJ-20260728-0379 — establish Slice 3 RED
+
+- **Prior event:** `EJ-20260728-0378`
+- **Local interval:** `2026-07-28T20:59:30-07:00` to `2026-07-28T20:59:31-07:00`
+- **UTC interval:** `2026-07-29T03:59:30+00:00` to `2026-07-29T03:59:31+00:00`
+- **Action:** Added the Slice 3 test file, checked whitespace, hashed it, and ran the exact focused `t3_s03` command before implementation.
+- **Result:** Intended RED: collection fails only because `pneuma_lab.resampling_null.assignment` does not exist. Test SHA-256 is `9f49884964718b7c0c6b1faca0a4c7f9a69d987a57e07621e6d054b5bc39092b`. The test surface covers frame/commitment/seed/subkey/uniform KATs, strict text/type/range attacks, framed rejection counters, small-word uniformity arithmetic, and mutable-buffer wiping.
+- **Exit status:** `2`
+- **Compact receipt:** stdout `1081` bytes / `17` lines / SHA-256 `f0ed9a3c16aa3da64939d4b67a4ee925cf519a420d95c192945c2ef935e40918`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0379/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Implement the minimal derivation core in the new owned module and rerun the identical focused command.
+### EJ-20260728-0380 — reach initial Slice 3 GREEN
+
+- **Prior event:** `EJ-20260728-0379`
+- **Local interval:** `2026-07-28T21:01:20-07:00` to `2026-07-28T21:01:21-07:00`
+- **UTC interval:** `2026-07-29T04:01:20+00:00` to `2026-07-29T04:01:21+00:00`
+- **Action:** Added the minimal canonical derivation module, checked whitespace, hashed both owned files, and reran the identical focused `t3_s03` command.
+- **Result:** Initial GREEN, exit `0`, zero stderr. The implementation provides exact typed framing, commitment/seed derivations, scoped RFC 5869 subkey derivation into mutable buffers, HMAC rejection sampling, and explicit wiping. Exact test count and hashes will be extracted before hostile review; GREEN is not yet a release claim.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `317` bytes / `4` lines / SHA-256 `7d5764a9d54883e0216d30a208575f0c44f94e1cb23f559c21a1a8140c2ac74a`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0380/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Extract exact results/hashes, then run formatter/lint/type checks and hostile API/secret-handling review.
+### EJ-20260728-0381 — start Slice 3 static/full-owned gates
+
+- **Prior event:** `EJ-20260728-0380`
+- **Local interval:** `2026-07-28T21:01:56-07:00` to `2026-07-28T21:01:56-07:00`
+- **UTC interval:** `2026-07-29T04:01:56+00:00` to `2026-07-29T04:01:56+00:00`
+- **Action:** Extracted initial GREEN details and started format, lint, type, and complete owned-test gates under fail-fast capture.
+- **Result:** Tests in `EJ-20260728-0380` were `49 passed in 0.66s`; source hash `f5ad6cba0815be2b8166ec625c52d72fc4ee3fcf7a65ae22bd43552a4b266f99`; test hash `9f49884964718b7c0c6b1faca0a4c7f9a69d987a57e07621e6d054b5bc39092b`. Current gate RED at format-check: the test file requires mechanical Ruff formatting; source is already formatted. Later lint/type/test commands correctly did not run.
+- **Exit status:** `1`
+- **Compact receipt:** stdout `428` bytes / `6` lines / SHA-256 `819412437a29373bb2a52f16cf7efa4e549266f52091adb397a4997a97b49d69`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0381/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Mechanically format both owned files and rerun static/full-owned gates.
+### EJ-20260728-0382 — format Slice 3 owned files
+
+- **Prior event:** `EJ-20260728-0381`
+- **Local interval:** `2026-07-28T21:02:30-07:00` to `2026-07-28T21:02:30-07:00`
+- **UTC interval:** `2026-07-29T04:02:30+00:00` to `2026-07-29T04:02:30+00:00`
+- **Action:** Mechanically Ruff-formatted the exact two Slice 3 owned files, reran whitespace, and recomputed both hashes.
+- **Result:** GREEN mechanical edit, exit `0`, zero stderr; one file reformatted and whitespace is clean. Updated hashes are retained in raw evidence and will be extracted after the next full gate.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `260` bytes / `3` lines / SHA-256 `172f262abd5cd24e5393109128ce229b0992805505e1f3286ab2d58175766b9a`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0382/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Rerun format-check, lint, type, and complete owned tests on the formatted state.
+### EJ-20260728-0383 — pass formatted Slice 3 static/full-owned gates
+
+- **Prior event:** `EJ-20260728-0382`
+- **Local interval:** `2026-07-28T21:03:02-07:00` to `2026-07-28T21:03:03-07:00`
+- **UTC interval:** `2026-07-29T04:03:02+00:00` to `2026-07-29T04:03:03+00:00`
+- **Action:** Reran format-check, Ruff lint, authority-prescribed mypy, and the complete owned test file on the formatted state.
+- **Result:** GREEN, exit `0`, zero stderr. Both files are formatted, lint passes, mypy reports no issues, and all `49` owned tests pass. Hostile semantic review remains open.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `186` bytes / `5` lines / SHA-256 `1cafe70c87a281a234056c8ae887980d6624d779051ac17855b4b9de44e50d88`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0383/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Add hostile tests for deceptive Sequence counts, exact whole-buffer master views, single HKDF extract, assignment-only label scope, and failure-path destination wiping.
+### EJ-20260728-0384 — expose five hostile derivation defects
+
+- **Prior event:** `EJ-20260728-0383`
+- **Local interval:** `2026-07-28T21:04:41-07:00` to `2026-07-28T21:04:42-07:00`
+- **UTC interval:** `2026-07-29T04:04:41+00:00` to `2026-07-29T04:04:42+00:00`
+- **Action:** Added and ran adversarial tests for inconsistent Sequence counts, exact whole-buffer master views, one HKDF extract with assignment-only expands, and failure-path output wiping.
+- **Result:** Intended RED: `5 failed, 49 passed in 0.72s`. The initial implementation serialized a Sequence that yielded more fields than its declared count; repeated HKDF-Extract four times; accepted 32-byte slices backed by larger buffers; and left one derived destination nonzero after injected failure. These are implementation defects, not test-harness failures.
+- **Exit status:** `1`
+- **Compact receipt:** stdout `5360` bytes / `124` lines / SHA-256 `d3654d89c08688175f4d6982eb0c6364cfc3f1d03b5c0b1c69f8c4742458ed04`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0384/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Freeze the Sequence before encoding, require an exact 32-byte backing buffer, extract the PRK once, expand only scoped labels, and wipe partial destinations plus PRK on every failure.
+### EJ-20260728-0385 — close first hostile Slice 3 RED set
+
+- **Prior event:** `EJ-20260728-0384`
+- **Local interval:** `2026-07-28T21:05:47-07:00` to `2026-07-28T21:05:48-07:00`
+- **UTC interval:** `2026-07-29T04:05:47+00:00` to `2026-07-29T04:05:48+00:00`
+- **Action:** Froze and count-checked field sequences, required the whole exact 32-byte backing buffer, refactored assignment HKDF to one extract plus four scoped expands, and added BaseException-safe partial-output/PRK wiping; reran the focused hostile suite.
+- **Result:** GREEN, exit `0`, zero stderr; all `54` focused tests pass. The next audit will directly observe PRK wiping and the separately scoped unblind derivation/failure paths.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `99` bytes / `2` lines / SHA-256 `ea2d153381a6a45808283260f31c4b1693d344349cb2efe74b1ebca91c276f20`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0385/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Add direct characterization of PRK zeroing, unblind-only expansion, invalid-master destination wipe, and injected unblind failure wipe.
+### EJ-20260728-0386 — prove scoped key derivation and wiping paths
+
+- **Prior event:** `EJ-20260728-0385`
+- **Local interval:** `2026-07-28T21:06:54-07:00` to `2026-07-28T21:06:55-07:00`
+- **UTC interval:** `2026-07-29T04:06:54+00:00` to `2026-07-29T04:06:55+00:00`
+- **Action:** Added direct observations for PRK zeroing after success, destination wiping after invalid master, unblind-only one-extract/one-expand scope, and unblind destination wiping after injected failure; reran the focused suite.
+- **Result:** GREEN, exit `0`, zero stderr; all `58` focused tests pass. Assignment derivation performs one extract/four non-unblind expands; unblind performs one extract/one unblind expand; observed mutable PRK and failure destinations are zeroed.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `99` bytes / `2` lines / SHA-256 `3bc44081222cb3ec483326d673d1003b8f61d5252dd647298c3435fb4344b61f`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0386/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Read the complete owned diff adversarially, then run formatting/static/full regression gates.
+### EJ-20260728-0387 — attempt complete owned diff review
+
+- **Prior event:** `EJ-20260728-0386`
+- **Local interval:** `2026-07-28T21:07:25-07:00` to `2026-07-28T21:07:25-07:00`
+- **UTC interval:** `2026-07-29T04:07:25+00:00` to `2026-07-29T04:07:25+00:00`
+- **Action:** Attempted to read the complete two-file Git diff.
+- **Result:** VACUOUS, not review evidence: both owned files are new/untracked, so ordinary `git diff` emitted zero bytes. No correctness conclusion is drawn. The files must be read directly or diffed against `/dev/null`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0387/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Read both new files directly with line numbers and inspect public/private symbol surfaces.
+## EJ-20260728-0388 — read complete Slice 3 source and test surface
+
+- **Predecessor:** `EJ-20260728-0387`
+- **Local time:** `2026-07-28T21:07:55-07:00` to `2026-07-28T21:07:55-07:00`
+- **UTC time:** `2026-07-29T04:07:55+00:00` to `2026-07-29T04:07:55+00:00`
+- **Action:** Read the complete untracked Slice 3 implementation with line numbers and enumerate the complete focused-test surface after the prior vacuous `git diff` review.
+- **Result:** Exit `0`. The implementation spans 347 lines and exposes only the planned public framed-value records and framing/commitment/derivation/sampling functions; assignment key buffers and derivation helpers remain private. The focused test surface contains 58 tests. No secret store, handle API, public key wrapper, or serialization surface was introduced. This is source-review evidence, not a correctness claim; further hostile audit remains required.
+- **Compact receipt:** stdout `17,150` bytes / `402` lines / SHA-256 `31e380ed9f9ed4f1c3a3f090668a985cb70e42a39d33689302a844152f85e48d`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw output:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0388/` (local, ignored, retained through 2026-11-27).
+
+### EJ-20260728-0389 — verify EJ-0388 publication position and journal tail
+
+- **Prior event:** `EJ-20260728-0388`
+- **Local interval:** `2026-07-28T21:09:48-07:00` to `2026-07-28T21:09:48-07:00`
+- **UTC interval:** `2026-07-29T04:09:48+00:00` to `2026-07-29T04:09:48+00:00`
+- **Action:** Read the journal prologue and tail after publishing EJ-0388 to verify that the context-free append landed at the end of the file and did not corrupt the recording contract or an earlier event.
+- **Result:** GREEN, exit `0`, zero stderr. EJ-0388 is at the file tail after EJ-0387, and its predecessor chain is correct. Its heading used level two (`##`) instead of the journal’s established level-three (`###`) event convention. Because the journal is append-only, that cosmetic divergence is preserved and disclosed here; subsequent events resume level three. The allocator selected EJ-0389 by the maximum published ID, which was EJ-0388.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `5,870` bytes / `64` lines / SHA-256 `ba877fd5de37b35db9c2ac34faf62365f212af661d98a044f9ca326b3a3b56c5`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0389/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Add hostile tests for malformed internal destinations and exception-value leakage before promoting Slice 3.
+
+### EJ-20260728-0390 — capture complete Slice 3 files for targeted hostile review
+
+- **Prior event:** `EJ-20260728-0389`
+- **Local interval:** `2026-07-28T21:10:18-07:00` to `2026-07-28T21:10:18-07:00`
+- **UTC interval:** `2026-07-29T04:10:18+00:00` to `2026-07-29T04:10:18+00:00`
+- **Action:** Captured the complete current `assignment.py` implementation and `test_assignment.py` test file into the raw forensic record for a targeted hostile review of internal destination corruption, cleanup completeness, and exception leakage.
+- **Result:** GREEN, exit `0`, zero stderr. The combined capture contains 807 lines. No correctness conclusion is drawn by this read.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `25,484` bytes / `807` lines / SHA-256 `db0262517301aee7d9daa4e9cf56b89aef1b06a18e1954817a1fb9d1ffd7e95b`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0390/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Read the narrow buffer-management and test-tail ranges, then add red-team tests before implementation changes.
+
+### EJ-20260728-0391 — inspect internal key-buffer failure paths
+
+- **Prior event:** `EJ-20260728-0390`
+- **Local interval:** `2026-07-28T21:10:45-07:00` to `2026-07-28T21:10:45-07:00`
+- **UTC interval:** `2026-07-29T04:10:45+00:00` to `2026-07-29T04:10:45+00:00`
+- **Action:** Read line-numbered implementation and test ranges covering `_AssignmentKeyBuffers`, assignment and unblind derivation, and existing wipe-path characterization.
+- **Result:** GREEN read, exit `0`, zero stderr. Hostile review identified two untested fail-closed properties: a malformed internal assignment destination is discovered only after derivation has begun, and a wrong-length mutable unblind destination is rejected before its prior contents are wiped. These are implementation-hardening gaps, not evidence of public key disclosure; both receive red tests before repair.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `18,204` bytes / `470` lines / SHA-256 `376a56fdc67c6c045d6186b7683e9578839e56a37c64d601d69023289aac9dfe`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0391/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Add tests requiring pre-HMAC assignment-destination validation, best-effort wiping of every mutable destination buffer, and wiping of wrong-length mutable unblind destinations.
+
+### EJ-20260728-0392 — expose destination-validation and cleanup gaps
+
+- **Prior event:** `EJ-20260728-0391`
+- **Local interval:** `2026-07-28T21:11:45-07:00` to `2026-07-28T21:11:46-07:00`
+- **UTC interval:** `2026-07-29T04:11:45+00:00` to `2026-07-29T04:11:46+00:00`
+- **Action:** Added three hostile cases and ran the exact Slice 3 focused test command: malformed short mutable assignment buffer, immutable assignment buffer substituted through a runtime cast, and wrong-length mutable unblind destination.
+- **Result:** Expected RED, exit `1`, zero stderr: `3 failed, 58 passed`. The failures prove all three targeted gaps. Assignment derivation entered HMAC before validating every destination; cleanup of an immutable substituted buffer masked the injected failure and could stop later wipes; wrong-length mutable unblind contents survived rejection. No production repair was made before this red observation.
+- **Exit status:** `1`
+- **Compact receipt:** stdout `6,954` bytes / `145` lines / SHA-256 `9bad037cad1360d27b61b29ecfe31e0727ed486cf5e492fd33231a8bda97eced`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0392/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Repair validation ordering and best-effort cleanup without widening the Slice 3 public surface, then rerun the same focused command.
+
+### EJ-20260728-0393 — close hostile destination-cleanup cases
+
+- **Prior event:** `EJ-20260728-0392`
+- **Local interval:** `2026-07-28T21:12:27-07:00` to `2026-07-28T21:12:28-07:00`
+- **UTC interval:** `2026-07-29T04:12:27+00:00` to `2026-07-29T04:12:28+00:00`
+- **Action:** Added full destination validation before assignment HKDF, made assignment-buffer cleanup best-effort across every exact mutable buffer, wiped wrong-length mutable unblind destinations before rejection, and reran the exact focused command.
+- **Result:** GREEN, exit `0`, zero stderr; all `61` focused tests pass. The three cases proven red by EJ-0392 now pass without changing the intended public API or adding Slice 4 secret-store behavior.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `99` bytes / `2` lines / SHA-256 `7c563b139ac4b1043ea37d2d32032fb6441a7a8f15ae2b072ddf7a41eb4bfc4e`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0393/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Format the two owned files, run the exact focused suite again, then execute the authority-prescribed Ruff and mypy gates.
+
+### EJ-20260728-0394 — format Slice 3 owned files
+
+- **Prior event:** `EJ-20260728-0393`
+- **Local interval:** `2026-07-28T21:12:55-07:00` to `2026-07-28T21:12:55-07:00`
+- **UTC interval:** `2026-07-29T04:12:55+00:00` to `2026-07-29T04:12:55+00:00`
+- **Action:** Ran Ruff formatting on the two Slice 3 owned files.
+- **Result:** GREEN, exit `0`, zero stderr; one file was reformatted and one was already compliant. Formatting is mechanical and is not correctness evidence.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `42` bytes / `1` line / SHA-256 `10869b88a75066aa23546ef1f95fcd4678c3fb92a56ed46ef91688052b67976a`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0394/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Re-run the exact focused Slice 3 suite against the formatted files.
+
+### EJ-20260728-0395 — verify focused suite after formatting
+
+- **Prior event:** `EJ-20260728-0394`
+- **Local interval:** `2026-07-28T21:13:20-07:00` to `2026-07-28T21:13:21-07:00`
+- **UTC interval:** `2026-07-29T04:13:20+00:00` to `2026-07-29T04:13:21+00:00`
+- **Action:** Re-ran the exact Slice 3 focused command after formatting.
+- **Result:** GREEN, exit `0`, zero stderr; all `61` focused tests pass.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `99` bytes / `2` lines / SHA-256 `7c563b139ac4b1043ea37d2d32032fb6441a7a8f15ae2b072ddf7a41eb4bfc4e`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0395/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run the authority-prescribed Ruff check over the complete resampling-null source and test trees.
+
+### EJ-20260728-0396 — pass authority-prescribed Ruff gate
+
+- **Prior event:** `EJ-20260728-0395`
+- **Local interval:** `2026-07-28T21:13:45-07:00` to `2026-07-28T21:13:45-07:00`
+- **UTC interval:** `2026-07-29T04:13:45+00:00` to `2026-07-29T04:13:45+00:00`
+- **Action:** Ran the exact authority-prescribed Ruff check over `src/pneuma_lab/resampling_null` and `tests/resampling_null`.
+- **Result:** GREEN, exit `0`, zero stderr; Ruff reported `All checks passed!`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `19` bytes / `1` line / SHA-256 `82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0396/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run the exact authority-prescribed mypy check over the resampling-null source tree.
+
+### EJ-20260728-0397 — pass authority-prescribed mypy gate
+
+- **Prior event:** `EJ-20260728-0396`
+- **Local interval:** `2026-07-28T21:14:09-07:00` to `2026-07-28T21:14:09-07:00`
+- **UTC interval:** `2026-07-29T04:14:09+00:00` to `2026-07-29T04:14:09+00:00`
+- **Action:** Ran the exact authority-prescribed mypy check with ignored missing imports over `src/pneuma_lab/resampling_null`.
+- **Result:** GREEN, exit `0`, zero stderr; mypy found no issues in four source files.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `43` bytes / `1` line / SHA-256 `71144743c83babea384888a735db0c4daba3d4d7b7942b6839984bd5c21b52bb`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0397/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run the complete resampling-null test tree to detect cross-slice regressions.
+
+### EJ-20260728-0398 — pass complete resampling-null regression tree
+
+- **Prior event:** `EJ-20260728-0397`
+- **Local interval:** `2026-07-28T21:14:33-07:00` to `2026-07-28T21:15:23-07:00`
+- **UTC interval:** `2026-07-29T04:14:33+00:00` to `2026-07-29T04:15:23+00:00`
+- **Action:** Ran the complete `tests/resampling_null` tree after the Slice 3 implementation and hostile hardening.
+- **Result:** GREEN, exit `0`, zero stderr; all `363` resampling-null tests pass in `49.68s`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `501` bytes / `7` lines / SHA-256 `d71e53704c47d3218767c6fc35ae5b848e8eb131ffd9b5c0ce58b4321f99c71e`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0398/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Review the exact untracked-file diffs against `/dev/null`, then inspect whitespace, scope, and content hashes before committing Slice 3.
+
+### EJ-20260728-0399 — capture owned untracked diffs; wrapper receipt interrupted
+
+- **Prior event:** `EJ-20260728-0398`
+- **Receipt mode:** `reconstructed`
+- **Local interval:** unavailable; the capture wrapper terminated before serializing timestamps.
+- **UTC interval:** unavailable; the capture wrapper terminated before serializing timestamps.
+- **Action:** Captured each untracked Slice 3 owned file as a Git no-index diff against `/dev/null`.
+- **Result:** The shell returned exit `0`, and the raw event directory exists. Both expected Git no-index diff statuses were `1` (differences present), after which an `exit 0` inside the redirected command group terminated the entire wrapper before compact receipt metadata could be emitted. Consequently this event does not yet claim byte counts, line counts, hashes, or zero stderr. This is a logging-control-flow defect, not a source/test failure.
+- **Exit status:** `0` at the outer tool boundary; individual expected diff statuses were evaluated as `1` and `1` by the successful conditional.
+- **Compact receipt:** unavailable pending explicit recovery from the retained raw files.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0399/` (local, ignored, retained through `2026-11-27`).
+- **Deviation:** The wrapper used `exit` inside a brace group rather than returning a status without terminating the shell. Future wrappers must assign the grouped status and continue to metadata serialization.
+- **Next gate:** Recover and hash EJ-0399’s retained stdout/stderr as EJ-0400, then inspect the owned diff without treating this incomplete receipt as review evidence.
+
+### EJ-20260728-0400 — recover EJ-0399 compact receipts
+
+- **Prior event:** `EJ-20260728-0399`
+- **Corrects event IDs:** `EJ-20260728-0399`
+- **Local interval:** `2026-07-28T21:16:34-07:00` to `2026-07-28T21:16:34-07:00`
+- **UTC interval:** `2026-07-29T04:16:34+00:00` to `2026-07-29T04:16:34+00:00`
+- **Action:** Verified that EJ-0399 retained both raw streams and computed their missing compact receipts.
+- **Result:** GREEN recovery, exit `0`, zero stderr. EJ-0399 stdout is `31,561` bytes / `955` lines / SHA-256 `3a1b601ff86c8e27231e1730755dcf5a82439f8e1eff46c7029aadacf08a3da1`; stderr is `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. This restores compact integrity metadata but does not retroactively restore unavailable timestamps.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `257` bytes / `7` lines / SHA-256 `132483af22c13196ba71d5efdd46cae6d2466c5d9c1110661b5d0e78f05d26f2`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0400/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Inspect exact public/private symbols, suspicious serialization/logging surfaces, whitespace, scope, and final file hashes.
+
+### EJ-20260728-0401 — audit Slice 3 surface, whitespace, scope, and hashes
+
+- **Prior event:** `EJ-20260728-0400`
+- **Local interval:** `2026-07-28T21:17:11-07:00` to `2026-07-28T21:17:11-07:00`
+- **UTC interval:** `2026-07-29T04:17:11+00:00` to `2026-07-29T04:17:11+00:00`
+- **Action:** Checked both untracked files for diff whitespace errors, enumerated every class/function symbol, scanned production code for TODO/debug/logging/serialization/file-I/O surfaces, hashed both files, and inspected worktree scope.
+- **Result:** GREEN, exit `0`, zero stderr. Both no-index whitespace checks returned the expected difference-only status with no diagnostics. The only non-private production records/functions are the authority-planned frame value records, `UniformDraw`, `kdf_frame`, `commitment_sha256`, `derive_seed`, and `uniform_below`; key-buffer and HKDF helpers remain private. The suspicious-surface scan matched only the private class docstring’s word `serialized`; it found no implementation of logging, printing, serialization, filesystem I/O, or TODO markers. Worktree scope is exactly the journal modification plus the two untracked Slice 3 owned files.
+- **File hashes:** `assignment.py` SHA-256 `a8023f016242cb41ca142cdb3421f21b2038ca2a985808351b589b56d0647804`; `test_assignment.py` SHA-256 `810a384b5e252d3e3457155c5bf33e2ceed261449a0456134c75feba6af550b3`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `1,395` bytes / `29` lines / SHA-256 `33959c7c0993572a95f54162bc8995f4b0e998ef379090d78bd40c2a71d69dc7`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0401/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run an implementation-independent standard-library oracle for the normative frame and assignment/unblind HKDF vectors.
+
+### EJ-20260728-0402 — independently reproduce frame and HKDF vectors
+
+- **Prior event:** `EJ-20260728-0401`
+- **Local interval:** `2026-07-28T21:18:04-07:00` to `2026-07-28T21:18:04-07:00`
+- **UTC interval:** `2026-07-29T04:18:04+00:00` to `2026-07-29T04:18:04+00:00`
+- **Action:** Ran a standalone Python-standard-library oracle that did not import `pneuma_lab` or the Slice 3 implementation. It independently constructed the canonical frame and performed RFC 5869 extract plus one-block expand for all five authority vectors.
+- **Result:** GREEN, exit `0`, zero stderr. The independent frame bytes and SHA-256 matched the normative KAT, and all five donor/allocation/orientation/capability/unblind subkeys matched the authority vectors.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `87` bytes / `2` lines / SHA-256 `e79d1c3c980ad9b8c0f703aaff87fc26f51d464750ad42617e7d55a3e6e9fa57`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0402/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Recover the exact previously validated broad-hermetic regression command from the journal and rerun it with Slice 3 present.
+
+### EJ-20260728-0403 — locate prior broad-hermetic regression evidence
+
+- **Prior event:** `EJ-20260728-0402`
+- **Local interval:** `2026-07-28T21:18:38-07:00` to `2026-07-28T21:18:38-07:00`
+- **UTC interval:** `2026-07-29T04:18:38+00:00` to `2026-07-29T04:18:38+00:00`
+- **Action:** Searched the journal around the prior `1236 passed` and broad-hermetic evidence to recover its boundary and exclusions.
+- **Result:** GREEN read, exit `0`, zero stderr. EJ-0365 defines the boundary as the complete non-research/non-foundation suite with only `tests/test_gauge_card.py::test_cli_analyze_gates_on_an_uninterpretable_channel` deselected; it passed `1236` tests with one deselection in `400.91s`. The excerpt does not include a literal argv, so no rerun has started yet.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `7,415` bytes / `57` lines / SHA-256 `b758d92730d50389bafaf3b5f8943a0c1170b2aae2d186310babd0e19ddacc5b`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0403/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Locate the exact ignore arguments used for the prior hermetic boundary before launching a seven-minute sweep.
+
+### EJ-20260728-0404 — search for literal prior broad-suite argv
+
+- **Prior event:** `EJ-20260728-0403`
+- **Local interval:** `2026-07-28T21:19:07-07:00` to `2026-07-28T21:19:07-07:00`
+- **UTC interval:** `2026-07-29T04:19:07+00:00` to `2026-07-29T04:19:07+00:00`
+- **Action:** Searched the journal for literal ignore/deselect/collection arguments and nearby broad-suite descriptions.
+- **Result:** GREEN read, exit `0`, zero stderr. The journal confirms the semantic exclusions—artifact-dependent `tests/research/`, optional `test_foundation_*`, and the one exact gauge node—but its compact EJ-0363/EJ-0365 entries do not preserve the literal pytest argv. The intended boundary is recoverable from current test paths; claiming an exact historical argv would be fabrication.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `11,442` bytes / `112` lines / SHA-256 `300c68906cdb89f8a9b22c3dd842437bed663155008f4c42e6cb159b04ab24a9`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0404/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Enumerate the current research and foundation test paths, construct an explicit reproducible boundary, and record that new argv rather than pretending it is byte-identical to EJ-0365.
+
+### EJ-20260728-0405 — enumerate non-hermetic test exclusions
+
+- **Prior event:** `EJ-20260728-0404`
+- **Local interval:** `2026-07-28T21:19:36-07:00` to `2026-07-28T21:19:36-07:00`
+- **UTC interval:** `2026-07-29T04:19:36+00:00` to `2026-07-29T04:19:36+00:00`
+- **Action:** Enumerated every current test under `tests/research/` and every root-level `test_foundation_*.py` module.
+- **Result:** GREEN read, exit `0`, zero stderr. The current exclusion surface is explicit: 15 artifact-dependent research modules and 44 optional foundation modules. The new broad command will use `--ignore=tests/research`, `--ignore-glob=test_foundation_*.py`, and one exact `--deselect` for the previously identified unbounded gauge CLI node.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `2,182` bytes / `59` lines / SHA-256 `ef86081960b6843e5cdb366b1a19f0ad9b4c254420fb676aeeaab29cc58226fa`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0405/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Run the newly explicit broad-hermetic argv and require approximately the prior `1236` passes plus the `61` new Slice 3 tests, with only the exact gauge node deselected.
+
+### EJ-20260728-0406 — reject incorrect foundation ignore glob
+
+- **Prior event:** `EJ-20260728-0405`
+- **Local interval:** `2026-07-28T21:20:04-07:00` to `2026-07-28T21:20:06-07:00`
+- **UTC interval:** `2026-07-29T04:20:04+00:00` to `2026-07-29T04:20:06+00:00`
+- **Action:** Attempted the explicit broad-hermetic suite with `--ignore=tests/research`, basename-style `--ignore-glob=test_foundation_*.py`, and the exact gauge-node deselection.
+- **Result:** RED boundary construction, exit `2`, zero stderr: pytest still collected root-level foundation modules because its ignore glob was matched against their full paths. Collection stopped on eight modules requiring absent optional Torch/foundation dependencies; `14 skipped, 406 deselected, 8 errors`. No test body ran and this provides no regression verdict.
+- **Exit status:** `2`
+- **Compact receipt:** stdout `9,716` bytes / `181` lines / SHA-256 `24eaf6ab3d3091f496cd50990efff756e9028c41f1cb247ffc83adc0f6510817`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0406/` (local, ignored, retained through `2026-11-27`).
+- **Correction:** Use full-path glob `--ignore-glob=tests/test_foundation_*.py`; do not reinterpret EJ-0406 as a code failure.
+- **Next gate:** Rerun the broad-hermetic suite with the corrected full-path foundation glob.
+
+### EJ-20260728-0407 — pass explicit broad-hermetic regression suite
+
+- **Prior event:** `EJ-20260728-0406`
+- **Local interval:** `2026-07-28T21:20:35-07:00` to `2026-07-28T21:27:43-07:00`
+- **UTC interval:** `2026-07-29T04:20:35+00:00` to `2026-07-29T04:27:43+00:00`
+- **Exact argv:** `.venv/bin/python -m pytest tests -q --ignore=tests/research --ignore-glob='tests/test_foundation_*.py' --deselect=tests/test_gauge_card.py::test_cli_analyze_gates_on_an_uninterpretable_channel`
+- **Action:** Ran the complete hermetic non-research/non-foundation regression boundary with only the previously identified unbounded gauge CLI node deselected.
+- **Result:** GREEN, exit `0`, zero stderr: `1297 passed, 1 deselected in 427.58s`. The count is exactly the prior `1236` passes plus all `61` Slice 3 focused cases, providing broad cross-project regression evidence without claiming coverage of artifact-dependent research tests, the optional foundation stack, or the deselected gauge node.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `1,567` bytes / `20` lines / SHA-256 `686eac9814ef5b79bf62ba3f240b58e06c96025d56d7683604aef7342a8c52c9`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0407/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Stage exactly the two Slice 3 owned files, assert the staged boundary and whitespace, and keep the journal out of implementation commit A.
+
+### EJ-20260728-0408 — stage exact Slice 3 implementation boundary
+
+- **Prior event:** `EJ-20260728-0407`
+- **Local interval:** `2026-07-28T21:28:16-07:00` to `2026-07-28T21:28:16-07:00`
+- **UTC interval:** `2026-07-29T04:28:16+00:00` to `2026-07-29T04:28:16+00:00`
+- **Action:** Staged exactly `assignment.py` and `test_assignment.py`; asserted ordered staged-path equality; ran staged whitespace, stat, numstat, and worktree-scope checks.
+- **Result:** GREEN, exit `0`, zero stderr. Commit A contains exactly two new Slice 3 files (`943` insertions: `363` production, `580` tests). The execution journal is the sole unstaged path; no authority, schema, dependency, lockfile, or unrelated file is staged.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `439` bytes / `8` lines / SHA-256 `4666e068d23e5d7094e41f1d50468e46b491cc0c49416c31b04a567da47de8ad`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0408/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Apply the completion-verification standard to the fresh evidence, then create implementation commit A with the plan-prescribed message.
+
+### EJ-20260728-0409 — load completion-verification standard
+
+- **Prior event:** `EJ-20260728-0408`
+- **Local interval:** `2026-07-28T21:28:46-07:00` to `2026-07-28T21:28:46-07:00`
+- **UTC interval:** `2026-07-29T04:28:46+00:00` to `2026-07-29T04:28:46+00:00`
+- **Action:** Read the complete `verification-before-completion` skill before committing or claiming Slice 3 completion.
+- **Result:** GREEN read, exit `0`, zero stderr. The standard requires fresh full verification, full-output/exit review, and a line-by-line requirements check; earlier confidence or partial checks cannot substitute.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `4,201` bytes / `139` lines / SHA-256 `ea52d15aabaf72bc6b558efe2c126f161b53961090ddcd712000273bfe8c7b6c`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0409/` (local, ignored, retained through `2026-11-27`).
+- **Skill effect:** This gate requires a fresh reread of the Slice 3 authority checklist before the implementation commit and forbids deriving a completion claim from the green test suite alone.
+- **Next gate:** Re-read the complete active-plan Slice 3 section and map every requirement to fresh evidence or an explicit gap.
+
+### EJ-20260728-0410 — locate Slice 3 authority anchors
+
+- **Prior event:** `EJ-20260728-0409`
+- **Local interval:** `2026-07-28T21:29:17-07:00` to `2026-07-28T21:29:17-07:00`
+- **UTC interval:** `2026-07-29T04:29:17+00:00` to `2026-07-29T04:29:17+00:00`
+- **Action:** Searched the active plan for Slice 3/4 and focused-test anchors.
+- **Result:** GREEN locator read, exit `0`, zero stderr. The explicit slice matrix row is line 981 and confirms the two owned files, exact focused command, and prescribed commit message. The search term did not identify the detailed Task 3 body, so this locator is not yet the required complete checklist reread.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `271` bytes / `1` line / SHA-256 `81694ae84c21a3677ba0c6b7dc6d3ca1109749b2d857abec5d55093a52e4c911`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0410/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Locate the Task 3 heading and section boundaries, then read the full detailed body plus the slice matrix context.
+
+### EJ-20260728-0411 — locate detailed Task 3 and derivation-core boundaries
+
+- **Prior event:** `EJ-20260728-0410`
+- **Local interval:** `2026-07-28T21:29:43-07:00` to `2026-07-28T21:29:43-07:00`
+- **UTC interval:** `2026-07-29T04:29:43+00:00` to `2026-07-29T04:29:43+00:00`
+- **Action:** Located the active plan’s Task 3 heading, execution-slicing table, derivation-core step, final Task 3 gates, and Task 4 boundary.
+- **Result:** GREEN locator read, exit `0`, zero stderr. Detailed Task 3 begins at line 827; Slice 3 maps to Step 3 beginning at line 1235; Slice 4 starts at row 982; Task 3 closure begins at line 3031 and Task 4 at line 3043. This establishes the exact ranges for the fresh requirements reread.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `5,458` bytes / `29` lines / SHA-256 `1fc2740423ca08e3a89255ad4c1fbf92799df05d30e5475da2df70f1151e87d1`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0411/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Read Task 3’s preamble/slice protocol and the complete Step 3 body through the Step 4 boundary.
+
+### EJ-20260728-0412 — read Task 3 protocol; reject ambiguous Step 3 extraction
+
+- **Prior event:** `EJ-20260728-0411`
+- **Local interval:** `2026-07-28T21:30:14-07:00` to `2026-07-28T21:30:14-07:00`
+- **UTC interval:** `2026-07-29T04:30:14+00:00` to `2026-07-29T04:30:14+00:00`
+- **Action:** Read the complete Task 3 preamble, forensic/A-B delivery protocol, tool/static gates, and slice table; attempted to extract Step 3 through Step 4 using heading text alone.
+- **Result:** PARTIAL authority read, exit `0`, zero stderr. The 184-line Task 3 protocol/slice context was read and confirms the current ownership, exact focused/static commands, journal requirements, sequential review, and commit message. The heading-only AWK expression incorrectly captured an earlier task’s generic `Step 3: Implement the minimum invariants`, not Task 3’s derivation-core Step 3. That second excerpt is irrelevant to Slice 3 completion and is explicitly rejected as checklist evidence.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `16,770` bytes / `205` lines / SHA-256 `f7e47b3e643be2044f14b818f52678bdac6d5d982e9fb8a42dad2ce56a02173d`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0412/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Read the exact line-addressed Task 3 derivation-core range beginning at line 1235 and stop at its next Step 4 heading.
+
+### EJ-20260728-0413 — read complete Task 3 derivation-core authority
+
+- **Prior event:** `EJ-20260728-0412`
+- **Local interval:** `2026-07-28T21:30:45-07:00` to `2026-07-28T21:30:45-07:00`
+- **UTC interval:** `2026-07-29T04:30:45+00:00` to `2026-07-29T04:30:45+00:00`
+- **Action:** Read the complete line-addressed Task 3 Step 3 derivation-contract section from line 1235 through the next Task 3 Step 4 boundary.
+- **Result:** GREEN authority read, exit `0`, zero stderr. The checklist requires the exact binary frame, commitment typing, derivation seed, unbiased rejection sampling, RFC 5869 assignment/unblind subkeys, private mutable buffers, no key-returning/public wrapper surface, no secret interpolation, KATs, arithmetic proof, and actual rejection-path fixtures. Secret store/handles/readinto transactions appear in the combined Step 3 design skeleton but belong exclusively to Slice 4 under the controlling execution table and therefore must remain absent from Slice 3.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `7,038` bytes / `214` lines / SHA-256 `424c766505355e974df503ae6bcb27691bda4d7146f84fd977387ca2739867cc`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0413/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Map the staged implementation/test surface to each Slice 3 requirement and explicitly confirm the absence of Slice 4 secret-store/handle behavior.
+
+### EJ-20260728-0414 — complete Slice 3 requirement-to-evidence map and pre-record delivery
+
+- **Prior event:** `EJ-20260728-0413`
+- **Local interval:** `2026-07-28T21:31:19-07:00` to `2026-07-28T21:31:19-07:00`
+- **UTC interval:** `2026-07-29T04:31:19+00:00` to `2026-07-29T04:31:19+00:00`
+- **Action:** Enumerated the staged boundary and every `t3_s03` test, searched for requirement-specific arithmetic/rejection/KAT/scope/wipe coverage, and fail-closed scanned production for Slice 4 store/handle/readinto symbols and forbidden randomized-hash/debug/serialization surfaces.
+- **Result:** GREEN checklist, exit `0`, zero stderr. The index still contains only the two owned files. The test surface directly covers byte-exact framing, collision resistance, exact types/ranges and boolean rejection, NFC/category-C rejection, commitment discrimination, seed/KDF KATs, one-extract purpose-scoped expands, whole-buffer master constraints, cleanup on success/failure/invalid destinations, normative uniform draws, pre-HMAC validation, actual rejection with counter framing, exhaustive small-word uniformity arithmetic, and explicit buffer wiping. Production contains none of `AssignmentSecretStore`, either secret-handle class, `_read_exact_master_into`, randomized `hash()`, JSON/pickle/base64, logging, or printing.
+- **Deferred by authority:** Secret store, nominal handles, no-follow file identity, exact unbuffered `readinto`, transaction-level master/overread wiping, registry membership, and one-use enforcement are Slice 4—not silently omitted Slice 3 work.
+- **Fresh verification basis:** Focused `61 passed` (EJ-0395); Ruff GREEN (EJ-0396); mypy GREEN (EJ-0397); resampling tree `363 passed` (EJ-0398); independent KAT oracle GREEN (EJ-0402); broad hermetic `1297 passed, 1 deselected` (EJ-0407); exact staged boundary/whitespace GREEN (EJ-0408). The known excluded research/foundation/gauge boundaries remain explicit.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `4,573` bytes / `71` lines / SHA-256 `0b1c559fb8acb23ca04e228f1ad604ba2ee876043cd905ba8d59686333e86499`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0414/` (local, ignored, retained through `2026-11-27`).
+- **Pre-recorded implementation commit A argv:** `git commit -m "feat(resampling-null): add framed assignment derivations"`
+- **Pre-recorded implementation push argv:** `git push origin codex/neurips-2026-empirical`
+- **Pre-recorded journal commit B argv:** `git add -- docs/research/neurips-2026-workshop/33-execution-journal.md && git commit -m "docs(neurips): record task 3 slice 3 delivery"`
+- **Pre-recorded journal push argv:** `git push origin codex/neurips-2026-empirical`
+- **Next gate:** Execute only the pre-recorded implementation commit A, capture its immutable SHA, then push and verify it before staging the journal.
+
+### EJ-20260728-0415 — create Slice 3 implementation commit A
+
+- **Prior event:** `EJ-20260728-0414`
+- **Local interval:** `2026-07-28T21:32:03-07:00` to `2026-07-28T21:32:03-07:00`
+- **UTC interval:** `2026-07-29T04:32:03+00:00` to `2026-07-29T04:32:03+00:00`
+- **Exact argv:** `git commit -m "feat(resampling-null): add framed assignment derivations"`
+- **Action:** Executed the pre-recorded implementation commit A with only the two staged Slice 3 files.
+- **Result:** GREEN, exit `0`, zero stderr. Git created short commit `42f9ef1` with exactly two new files and `943` insertions. The full immutable SHA and tree boundary are intentionally verified in the next read-only event before push.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `258` bytes / `4` lines / SHA-256 `7a1e5fa7ac855b1ffee473ef6b221668b11fd63c7904e07e0ddb0986125ebd65`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0415/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Resolve commit A’s full SHA, parent, exact names/status, and worktree state before executing the pre-recorded push.
+
+### EJ-20260728-0416 — verify immutable Slice 3 commit A boundary
+
+- **Prior event:** `EJ-20260728-0415`
+- **Local interval:** `2026-07-28T21:32:32-07:00` to `2026-07-28T21:32:32-07:00`
+- **UTC interval:** `2026-07-29T04:32:32+00:00` to `2026-07-29T04:32:32+00:00`
+- **Action:** Resolved commit A and its parent, inspected the complete name-status/metadata, read both tree entries, and checked the remaining worktree.
+- **Result:** GREEN, exit `0`, zero stderr. Commit A is `42f9ef1b8d05a6ec21eec550bfe66766b46d5667`, parent `15d4c689df64b0e89d1a67196e5d83267b9c7876`. It adds only the two intended files. Git blob IDs are `092ec65610184dde3f6ecbae0d18dced9aadcf12` for production and `d6d126e015c80a915fb2d6b81093d5eb5a585c9f` for tests. The journal is the sole remaining worktree modification.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `714` bytes / `15` lines / SHA-256 `76ae9f3b8aa098e50ddc12743b36e1bedd019b3464581c6f3c5886511961f617`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0416/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Execute the pre-recorded implementation push, then independently resolve the remote branch ref before staging journal commit B.
+
+### EJ-20260728-0417 — push Slice 3 implementation commit A
+
+- **Prior event:** `EJ-20260728-0416`
+- **Local interval:** `2026-07-28T21:33:00-07:00` to `2026-07-28T21:33:01-07:00`
+- **UTC interval:** `2026-07-29T04:33:00+00:00` to `2026-07-29T04:33:01+00:00`
+- **Exact argv:** `git push origin codex/neurips-2026-empirical`
+- **Action:** Executed the pre-recorded push of implementation commit A.
+- **Result:** GREEN, exit `0`. Git reported branch advance `15d4c68..42f9ef1` to `origin/codex/neurips-2026-empirical`. Git wrote its normal progress/ref report to stderr; this is not zero-stderr evidence and will be verified independently against the remote ref.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; stderr `134` bytes / `2` lines / SHA-256 `b23e388bcef0b43cba08017a8dc58b14e8dd871f306a52d21f36e6bd08f8bdb9`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0417/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Resolve the exact remote branch SHA and require equality with commit A before staging the journal.
+
+### EJ-20260728-0418 — verify remote Slice 3 implementation ref
+
+- **Prior event:** `EJ-20260728-0417`
+- **Local interval:** `2026-07-28T21:33:29-07:00` to `2026-07-28T21:33:29-07:00`
+- **UTC interval:** `2026-07-29T04:33:29+00:00` to `2026-07-29T04:33:29+00:00`
+- **Action:** Independently resolved the local HEAD and live remote branch ref and required exact equality.
+- **Result:** GREEN, exit `0`, zero stderr. Both local HEAD and `refs/heads/codex/neurips-2026-empirical` resolve to implementation commit A `42f9ef1b8d05a6ec21eec550bfe66766b46d5667`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `165` bytes / `4` lines / SHA-256 `dacc9897e94f031c93bb5d7849e7b5eb36d85d8885c1332d565e7357fc2a47e7`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0418/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Audit the complete new journal suffix for sequential unique IDs, predecessor continuity, raw-directory presence, whitespace, and remaining scope before journal commit B.
+
+### EJ-20260728-0419 — audit Slice 3 journal suffix
+
+- **Prior event:** `EJ-20260728-0418`
+- **Local interval:** `2026-07-28T21:34:08-07:00` to `2026-07-28T21:34:08-07:00`
+- **UTC interval:** `2026-07-29T04:34:08+00:00` to `2026-07-29T04:34:08+00:00`
+- **Action:** Fail-closed audited the EJ-0388 through EJ-0418 suffix for ordered sequential headings, global uniqueness, raw event-directory presence, whitespace, journal hash, and remaining worktree scope.
+- **Result:** GREEN, exit `0`, zero stderr. All 31 expected headings appear once and in order; all 31 raw event directories exist; `git diff --check` passes; the journal is the only modified path. Pre-stage journal SHA-256 is `5a51db341b570130422be55f6adc48145996c15635f4c3304031428dfa269e59`.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `256` bytes / `5` lines / SHA-256 `452db0cb6468a20a8c4e15598402f1882902f29d40ad37208e5189360d99047b`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0419/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Stage only the journal, assert its staged boundary and final whitespace, then execute the pre-recorded journal commit B.
+
+### EJ-20260728-0420 — stage journal-only commit B boundary
+
+- **Prior event:** `EJ-20260728-0419`
+- **Local interval:** `2026-07-28T21:34:35-07:00` to `2026-07-28T21:34:35-07:00`
+- **UTC interval:** `2026-07-29T04:34:35+00:00` to `2026-07-29T04:34:35+00:00`
+- **Action:** Staged the journal, asserted it was the only staged path and that no other unstaged path existed at that instant, then ran staged whitespace/stat/status checks.
+- **Result:** GREEN, exit `0`, zero stderr. The staged boundary is one journal file with `583` inserted lines and no other path. This receipt was appended after that observation; the pre-recorded B command intentionally re-adds the journal immediately before commit so EJ-0420 is included.
+- **Exit status:** `0`
+- **Compact receipt:** stdout `178` bytes / `3` lines / SHA-256 `7f902b7634a9e2052954cde1d4c92a9c389a05ec2d58021864e092b45d90ad81`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0420/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** Execute the pre-recorded journal commit B and push mechanics. Per the finite paired-receipt protocol, the next substantive Slice 4 opening receipt must record B’s actual SHA, component results, and fresh remote/ref equality before any Slice 4 task command.
