@@ -9,6 +9,7 @@ from decimal import Decimal
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import sys
 from typing import Any, cast
@@ -4797,7 +4798,19 @@ def test_study_manifest_seal_copies_all_sources_without_reading_clock(
 
 @pytest.mark.parametrize(
     "failure_mode",
-    [None, "binding", "synthetic_meter", "authority_mismatch", "publish"],
+    [
+        None,
+        "binding",
+        "synthetic_meter",
+        "authority_mismatch",
+        "confirmation_missing",
+        "confirmation_conditional",
+        "synthetic_conditional",
+        "source_race",
+        "manifest_race",
+        "rollback_failure",
+        "publish",
+    ],
 )
 def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
     tmp_path: Path,
@@ -4900,6 +4913,14 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
         external / "required.json",
         list(FROZEN_UPSTREAM_KINDS),
     )
+    sources["eligibility"] = write_json(
+        external / "eligibility.json",
+        {"record_kind": "test_only_eligibility_fixture"},
+    )
+    sources["ceremony-policy"] = write_json(
+        external / "ceremony-policy.json",
+        {"record_kind": "test_only_ceremony_policy_fixture"},
+    )
     tokenizer_ref = planned_fixed_ref(
         sources["tokenizer"],
         subtree="tokenizer",
@@ -4915,7 +4936,12 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
         {
             "record_kind": "resampling_roster_v1",
             "schema_version": "1",
-            "roster_kind": "synthetic_fixture",
+            "roster_kind": (
+                "eligible_confirmation"
+                if failure_mode
+                in {"confirmation_missing", "confirmation_conditional"}
+                else "synthetic_fixture"
+            ),
             "supported_tiers": [120, 160],
             "tasks": [{**task, "tiers": [120, 160]}],
         },
@@ -4927,12 +4953,22 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
             "schema_version": "1",
             "assignment_mode": (
                 "confirmation_lineage_matching"
-                if failure_mode == "authority_mismatch"
+                if failure_mode
+                in {
+                    "authority_mismatch",
+                    "confirmation_missing",
+                    "confirmation_conditional",
+                }
                 else "synthetic_derangement"
             ),
             "matching_algorithm": (
                 "exact_constrained_min_cost_v1"
-                if failure_mode == "authority_mismatch"
+                if failure_mode
+                in {
+                    "authority_mismatch",
+                    "confirmation_missing",
+                    "confirmation_conditional",
+                }
                 else "synthetic_cyclic_offset_v1"
             ),
             "finding_count_band_upper_bounds": [1, 3],
@@ -4957,7 +4993,12 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
             },
             "backend_receipt_ref": (
                 revision_ref
-                if failure_mode == "authority_mismatch"
+                if failure_mode
+                in {
+                    "authority_mismatch",
+                    "confirmation_missing",
+                    "confirmation_conditional",
+                }
                 else None
             ),
             "stratum_keys": ["benchmark", "language"],
@@ -5206,113 +5247,166 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
     )
     run_root = tmp_path / "run"
     run_root.mkdir()
+
+    def seal() -> ArtifactRef:
+        return seal_study_manifest(
+            study,
+            sources["tasks"],
+            sources["roster"],
+            sources["assignment"],
+            sources["provider"],
+            sources["storage-policy"],
+            sources["power-grid"],
+            sources["power-topology"],
+            sources["tokenizer"],
+            sources["template"],
+            sources["policy"],
+            sources["pads"],
+            [sources["revision"]],
+            sources["required"],
+            eligibility_manifest_source=(
+                sources["eligibility"]
+                if failure_mode
+                in {"synthetic_conditional", "confirmation_conditional"}
+                else None
+            ),
+            roster_ceremony_policy_source=(
+                sources["ceremony-policy"]
+                if failure_mode
+                in {"synthetic_conditional", "confirmation_conditional"}
+                else None
+            ),
+            run_root=run_root,
+            out=run_root / "study-manifest.json",
+        )
+
     if failure_mode in {
         "binding",
         "synthetic_meter",
         "authority_mismatch",
+        "confirmation_missing",
+        "synthetic_conditional",
     }:
-        message = (
-            "benchmark"
-            if failure_mode == "binding"
-            else (
-                "zero-cost synthetic"
-                if failure_mode == "synthetic_meter"
-                else "authority disagree"
-            )
-        )
+        message_by_mode = {
+            "binding": "benchmark",
+            "synthetic_meter": "zero-cost synthetic",
+            "authority_mismatch": "authority disagree",
+            "confirmation_missing": "confirmation.*requires.*eligibility",
+            "synthetic_conditional": "synthetic.*forbids.*eligibility",
+        }
+        message = message_by_mode[failure_mode]
         with pytest.raises(RecordValidationError, match=message):
-            seal_study_manifest(
-                study,
-                sources["tasks"],
-                sources["roster"],
-                sources["assignment"],
-                sources["provider"],
-                sources["storage-policy"],
-                sources["power-grid"],
-                sources["power-topology"],
-                sources["tokenizer"],
-                sources["template"],
-                sources["policy"],
-                sources["pads"],
-                [sources["revision"]],
-                sources["required"],
-                run_root=run_root,
-                out=run_root / "study-manifest.json",
-            )
+            seal()
         assert list(run_root.iterdir()) == []
         return
-    if failure_mode == "publish":
+    if failure_mode in {
+        "source_race",
+        "manifest_race",
+        "rollback_failure",
+        "publish",
+    }:
         import pneuma_lab.resampling_null.artifacts as artifacts_module
 
-        keep = run_root / "preexisting" / "keep.txt"
-        keep.parent.mkdir()
-        keep.write_text("keep", encoding="utf-8")
-        original_write = artifacts_module.write_atomic_bytes
-        final_write_count = 0
+        original_link = os.link
+        link_count = 0
+        raced_destination: Path | None = None
+        peer_bytes = b"peer-owned bytes"
+        keep: Path | None = None
+        if failure_mode == "publish":
+            keep = run_root / "preexisting" / "keep.txt"
+            keep.parent.mkdir()
+            keep.write_text("keep", encoding="utf-8")
 
-        def fail_second_final_write(path: Path, payload: bytes) -> None:
-            nonlocal final_write_count
-            target = Path(path)
-            if target.is_relative_to(run_root):
-                final_write_count += 1
-                if final_write_count == 2:
-                    raise OSError("injected final publication failure")
-            original_write(target, payload)
-
-        monkeypatch.setattr(
-            artifacts_module,
-            "write_atomic_bytes",
-            fail_second_final_write,
-        )
-        with pytest.raises(OSError, match="injected final publication failure"):
-            seal_study_manifest(
-                study,
-                sources["tasks"],
-                sources["roster"],
-                sources["assignment"],
-                sources["provider"],
-                sources["storage-policy"],
-                sources["power-grid"],
-                sources["power-topology"],
-                sources["tokenizer"],
-                sources["template"],
-                sources["policy"],
-                sources["pads"],
-                [sources["revision"]],
-                sources["required"],
-                run_root=run_root,
-                out=run_root / "study-manifest.json",
+        def injected_link(
+            source_name: str,
+            destination_name: str,
+            *,
+            src_dir_fd: int | None = None,
+            dst_dir_fd: int | None = None,
+            follow_symlinks: bool = True,
+        ) -> None:
+            nonlocal link_count, raced_destination
+            link_count += 1
+            assert dst_dir_fd is not None
+            destination = (
+                Path(os.readlink(f"/proc/self/fd/{dst_dir_fd}"))
+                / destination_name
             )
+            if failure_mode == "source_race" and link_count == 1:
+                raced_destination = destination
+                destination.write_bytes(peer_bytes)
+            if (
+                failure_mode == "manifest_race"
+                and destination.name == "study-manifest.json"
+            ):
+                raced_destination = destination
+                destination.write_bytes(peer_bytes)
+            if failure_mode in {"rollback_failure", "publish"} and link_count == 2:
+                raise OSError("injected later publication failure")
+            original_link(
+                source_name,
+                destination_name,
+                src_dir_fd=src_dir_fd,
+                dst_dir_fd=dst_dir_fd,
+                follow_symlinks=follow_symlinks,
+            )
+
+        monkeypatch.setattr(os, "link", injected_link)
+        if failure_mode == "rollback_failure":
+            def deny_owned_cleanup(_owned: object) -> None:
+                raise PermissionError("injected cleanup denial")
+
+            monkeypatch.setattr(
+                artifacts_module,
+                "_unlink_owned_publication",
+                deny_owned_cleanup,
+                raising=False,
+            )
+            with pytest.raises(
+                RecordValidationError,
+                match="rollback incomplete.*sources/task-registry/",
+            ):
+                seal()
+            return
+        expected_error = (
+            FileExistsError
+            if failure_mode in {"source_race", "manifest_race"}
+            else OSError
+        )
+        expected_message = (
+            None
+            if expected_error is FileExistsError
+            else "injected later publication failure"
+        )
+        with pytest.raises(expected_error, match=expected_message):
+            seal()
+        if failure_mode in {"source_race", "manifest_race"}:
+            assert raced_destination is not None
+            assert raced_destination.read_bytes() == peer_bytes
+            assert sorted(
+                path.relative_to(run_root).as_posix()
+                for path in run_root.rglob("*")
+                if path.is_file()
+            ) == [raced_destination.relative_to(run_root).as_posix()]
+            return
+
+        assert keep is not None
         assert sorted(
             path.relative_to(run_root).as_posix()
             for path in run_root.rglob("*")
         ) == ["preexisting", "preexisting/keep.txt"]
         assert keep.read_text(encoding="utf-8") == "keep"
         assert not (run_root / "study-manifest.json").exists()
-        monkeypatch.setattr(
-            artifacts_module,
-            "write_atomic_bytes",
-            original_write,
-        )
-    manifest_ref = seal_study_manifest(
-        study,
-        sources["tasks"],
-        sources["roster"],
-        sources["assignment"],
-        sources["provider"],
-        sources["storage-policy"],
-        sources["power-grid"],
-        sources["power-topology"],
-        sources["tokenizer"],
-        sources["template"],
-        sources["policy"],
-        sources["pads"],
-        [sources["revision"]],
-        sources["required"],
-        run_root=run_root,
-        out=run_root / "study-manifest.json",
-    )
+        monkeypatch.setattr(os, "link", original_link)
+    manifest_ref = seal()
     assert (run_root / manifest_ref.relative_path).is_file()
+    if failure_mode == "confirmation_conditional":
+        manifest_payload = load_record(
+            run_root / manifest_ref.relative_path
+        )["payload"]
+        assert isinstance(manifest_payload, dict)
+        assert manifest_payload["eligibility_manifest_ref"] is not None
+        assert manifest_payload["roster_ceremony_policy_ref"] is not None
     if failure_mode == "publish":
         assert (run_root / "preexisting" / "keep.txt").read_text(
             encoding="utf-8"

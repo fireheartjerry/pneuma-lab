@@ -5,12 +5,16 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
+import errno
 import hashlib
 import json
 import math
 import mimetypes
 from numbers import Number
+import os
 from pathlib import Path, PurePosixPath
+import secrets
+import stat
 import tempfile
 from typing import Any, Literal, cast
 
@@ -1237,24 +1241,271 @@ def _create_transaction_parents(
             created_directories.append(directory)
 
 
-def _rollback_publication(
-    attempted_destinations: Sequence[Path],
-    created_directories: Sequence[Path],
-) -> None:
-    for destination in reversed(attempted_destinations):
+@dataclass(frozen=True, slots=True)
+class _OwnedPublication:
+    run_root: Path
+    destination: Path
+    relative_path: str
+    device: int
+    inode: int
+    sha256: str
+    byte_count: int
+
+
+def _open_publication_parent(destination: Path, *, run_root: Path) -> int:
+    parent = destination.parent
+    resolved_parent = parent.resolve(strict=True)
+    if resolved_parent != parent:
+        raise RecordValidationError(
+            "publication destination parent is not canonical"
+        )
+    try:
+        resolved_parent.relative_to(run_root)
+    except ValueError as exc:
+        raise RecordValidationError(
+            "publication destination parent escapes run_root"
+        ) from exc
+    descriptor = os.open(
+        parent,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+    )
+    bound = os.fstat(descriptor)
+    named = os.stat(parent, follow_symlinks=False)
+    if (bound.st_dev, bound.st_ino) != (named.st_dev, named.st_ino):
+        os.close(descriptor)
+        raise RecordValidationError(
+            "publication destination parent changed during binding"
+        )
+    return descriptor
+
+
+def _write_all(descriptor: int, payload: bytes) -> None:
+    remaining = memoryview(payload)
+    while remaining:
+        written = os.write(descriptor, remaining)
+        if written <= 0:
+            raise OSError("short publication write")
+        remaining = remaining[written:]
+
+
+def _descriptor_digest(descriptor: int) -> tuple[str, int]:
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    digest = hashlib.sha256()
+    size = 0
+    while chunk := os.read(descriptor, 1024 * 1024):
+        digest.update(chunk)
+        size += len(chunk)
+    return digest.hexdigest(), size
+
+
+def _publish_no_replace(
+    destination: Path,
+    payload: bytes,
+    *,
+    run_root: Path,
+    owned_publications: list[_OwnedPublication],
+) -> _OwnedPublication:
+    rebound, relative_path = _resolve_inside(
+        destination,
+        run_root,
+        require_exists=False,
+    )
+    if rebound != destination:
+        raise RecordValidationError(
+            "publication destination ancestry changed"
+        )
+    parent_descriptor = _open_publication_parent(
+        destination,
+        run_root=run_root,
+    )
+    temporary_name = f".pneuma-{secrets.token_hex(16)}.tmp"
+    temporary_descriptor: int | None = None
+    temporary_exists = False
+    try:
+        temporary_descriptor = os.open(
+            temporary_name,
+            (
+                os.O_RDWR
+                | os.O_CREAT
+                | os.O_EXCL
+                | os.O_NOFOLLOW
+                | os.O_CLOEXEC
+            ),
+            0o600,
+            dir_fd=parent_descriptor,
+        )
+        temporary_exists = True
+        _write_all(temporary_descriptor, payload)
+        os.fsync(temporary_descriptor)
+        prepared = os.fstat(temporary_descriptor)
+        if (
+            not stat.S_ISREG(prepared.st_mode)
+            or prepared.st_size != len(payload)
+        ):
+            raise RecordValidationError(
+                "prepared publication is not the expected regular file"
+            )
+        os.link(
+            temporary_name,
+            destination.name,
+            src_dir_fd=parent_descriptor,
+            dst_dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        owned = _OwnedPublication(
+            run_root=run_root,
+            destination=destination,
+            relative_path=relative_path,
+            device=prepared.st_dev,
+            inode=prepared.st_ino,
+            sha256=hashlib.sha256(payload).hexdigest(),
+            byte_count=len(payload),
+        )
+        owned_publications.append(owned)
+        os.unlink(temporary_name, dir_fd=parent_descriptor)
+        temporary_exists = False
+        os.fsync(parent_descriptor)
+
+        published_descriptor = os.open(
+            destination.name,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=parent_descriptor,
+        )
         try:
-            destination.unlink()
+            published = os.fstat(published_descriptor)
+            digest, size = _descriptor_digest(published_descriptor)
+        finally:
+            os.close(published_descriptor)
+        if (
+            not stat.S_ISREG(published.st_mode)
+            or (published.st_dev, published.st_ino)
+            != (owned.device, owned.inode)
+            or digest != owned.sha256
+            or size != owned.byte_count
+        ):
+            raise RecordValidationError(
+                "create-exclusive publication identity or bytes changed"
+            )
+        rebound_parent = os.stat(destination.parent, follow_symlinks=False)
+        bound_parent = os.fstat(parent_descriptor)
+        if (rebound_parent.st_dev, rebound_parent.st_ino) != (
+            bound_parent.st_dev,
+            bound_parent.st_ino,
+        ):
+            raise RecordValidationError(
+                "publication destination parent changed after install"
+            )
+        return owned
+    except BaseException as publication_error:
+        if temporary_exists:
+            try:
+                os.unlink(temporary_name, dir_fd=parent_descriptor)
+            except BaseException as cleanup_error:
+                raise RecordValidationError(
+                    "prepared publication cleanup failed for "
+                    f"{relative_path}: {cleanup_error}"
+                ) from publication_error
+        raise
+    finally:
+        if temporary_descriptor is not None:
+            os.close(temporary_descriptor)
+        os.close(parent_descriptor)
+
+
+def _owned_publication_is_current(owned: _OwnedPublication) -> bool:
+    parent_descriptor = _open_publication_parent(
+        owned.destination,
+        run_root=owned.run_root,
+    )
+    try:
+        try:
+            descriptor = os.open(
+                owned.destination.name,
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                dir_fd=parent_descriptor,
+            )
         except FileNotFoundError:
-            pass
-        except OSError:
-            pass
+            return False
+        try:
+            metadata = os.fstat(descriptor)
+            digest, size = _descriptor_digest(descriptor)
+        finally:
+            os.close(descriptor)
+        named = os.stat(
+            owned.destination.name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        return (
+            stat.S_ISREG(metadata.st_mode)
+            and (metadata.st_dev, metadata.st_ino)
+            == (owned.device, owned.inode)
+            and (named.st_dev, named.st_ino)
+            == (owned.device, owned.inode)
+            and digest == owned.sha256
+            and size == owned.byte_count
+        )
+    except FileNotFoundError:
+        return False
+    finally:
+        os.close(parent_descriptor)
+
+
+def _unlink_owned_publication(owned: _OwnedPublication) -> None:
+    if not _owned_publication_is_current(owned):
+        return
+    parent_descriptor = _open_publication_parent(
+        owned.destination,
+        run_root=owned.run_root,
+    )
+    try:
+        named = os.stat(
+            owned.destination.name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        if (named.st_dev, named.st_ino) != (owned.device, owned.inode):
+            return
+        os.unlink(owned.destination.name, dir_fd=parent_descriptor)
+        os.fsync(parent_descriptor)
+    except FileNotFoundError:
+        pass
+    finally:
+        os.close(parent_descriptor)
+
+
+def _rollback_publication(
+    owned_publications: Sequence[_OwnedPublication],
+    created_directories: Sequence[Path],
+) -> tuple[list[str], list[str]]:
+    cleanup_failures: list[str] = []
+    for owned in reversed(owned_publications):
+        try:
+            _unlink_owned_publication(owned)
+        except BaseException as exc:
+            cleanup_failures.append(
+                f"{owned.relative_path}: {type(exc).__name__}: {exc}"
+            )
+    residual_owned_paths: list[str] = []
+    for owned in owned_publications:
+        try:
+            if _owned_publication_is_current(owned):
+                residual_owned_paths.append(owned.relative_path)
+        except BaseException as exc:
+            cleanup_failures.append(
+                f"{owned.relative_path} recheck: {type(exc).__name__}: {exc}"
+            )
     for directory in reversed(created_directories):
         try:
             directory.rmdir()
         except FileNotFoundError:
             pass
-        except OSError:
-            pass
+        except OSError as exc:
+            if exc.errno not in (errno.ENOTEMPTY, errno.EEXIST):
+                cleanup_failures.append(
+                    f"{directory}: {type(exc).__name__}: {exc}"
+                )
+    return cleanup_failures, residual_owned_paths
 
 
 def seal_study_manifest(
@@ -1519,6 +1770,21 @@ def seal_study_manifest(
                 source=assignment_copy.source,
             ),
         )
+        has_conditional_authority = bool(conditional_copies)
+        if (
+            execution_authority == "synthetic_validation"
+            and has_conditional_authority
+        ):
+            raise RecordValidationError(
+                "synthetic authority forbids eligibility and ceremony refs"
+            )
+        if (
+            execution_authority == "confirmation"
+            and not has_conditional_authority
+        ):
+            raise RecordValidationError(
+                "confirmation authority requires eligibility and ceremony refs"
+            )
         with tempfile.TemporaryDirectory(
             prefix=".pneuma-manifest-stage-",
             dir=root.parent,
@@ -1538,7 +1804,7 @@ def seal_study_manifest(
                 ),
                 schedule_authority=execution_authority,
             )
-    attempted_destinations: list[Path] = []
+    owned_publications: list[_OwnedPublication] = []
     created_directories: list[Path] = []
     try:
         for copy in all_copies:
@@ -1547,25 +1813,49 @@ def seal_study_manifest(
                 run_root=root,
                 created_directories=created_directories,
             )
-            attempted_destinations.append(copy.destination)
-            write_atomic_bytes(copy.destination, copy.payload)
+            _publish_no_replace(
+                copy.destination,
+                copy.payload,
+                run_root=root,
+                owned_publications=owned_publications,
+            )
         _create_transaction_parents(
             out_target.parent,
             run_root=root,
             created_directories=created_directories,
         )
-        attempted_destinations.append(out_target)
-        return write_record(
+        manifest_payload = canonical_json_bytes(validated, indent=4)
+        manifest_publication = _publish_no_replace(
             out_target,
-            validated,
             run_root=root,
-            role="study_manifest",
+            payload=manifest_payload,
+            owned_publications=owned_publications,
         )
-    except BaseException:
-        _rollback_publication(
-            attempted_destinations,
+        return ArtifactRef(
+            role="study_manifest",
+            relative_path=manifest_publication.relative_path,
+            sha256=manifest_publication.sha256,
+            byte_count=manifest_publication.byte_count,
+            media_type="application/json",
+        )
+    except BaseException as publication_error:
+        cleanup_failures, residual_owned_paths = _rollback_publication(
+            owned_publications,
             created_directories,
         )
+        if cleanup_failures or residual_owned_paths:
+            details = "; ".join(
+                [
+                    *cleanup_failures,
+                    *(
+                        f"residual owned path: {path}"
+                        for path in residual_owned_paths
+                    ),
+                ]
+            )
+            raise RecordValidationError(
+                f"publication rollback incomplete: {details}"
+            ) from publication_error
         raise
 
 
