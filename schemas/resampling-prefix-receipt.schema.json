@@ -27,6 +27,7 @@
                 "schedule_ref": { "$ref": "#/$defs/artifact_ref" },
                 "task_receipts": {
                     "type": "array",
+                    "minItems": 1,
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/frozen_prefix_receipt" }
                 }

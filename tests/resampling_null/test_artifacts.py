@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from dataclasses import asdict
 from decimal import Decimal
@@ -10,7 +10,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -85,6 +85,41 @@ def _record(kind: str, payload: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _minimal_prefix_task_receipt() -> dict[str, object]:
+    shared_ref = _ref("parents/shared.json")
+    return {
+        "task_id": "task-1",
+        "schedule_sha256": SHA_A,
+        "snapshot_ref": shared_ref,
+        "visible_context_ref": shared_ref,
+        "visible_sha256": SHA_A,
+        "token_ids_sha256": SHA_B,
+        "pending_tool_calls": [],
+        "trigger_reason": "no_intervention_opportunity",
+        "y0_grade": {
+            "success": 0,
+            "partial_reward": 0.0,
+            "infrastructure_failure": False,
+            "artifact_ref": shared_ref,
+        },
+        "verifier_receipt": {
+            "task_id": "task-1",
+            "schedule_sha256": SHA_A,
+            "snapshot_ref": shared_ref,
+            "verifier_artifact_ref": shared_ref,
+            "finding_count": 0,
+        },
+        "counters": {
+            "generated_tokens": 0,
+            "model_calls": 0,
+            "tool_calls": 0,
+            "wall_clock_ms": 0,
+        },
+        "call_seeds": [],
+        "provider_cost_ref": shared_ref,
+    }
+
+
 def _minimal_payload(kind: str) -> dict[str, object]:
     refs = {
         name: _ref(f"parents/{name}.json", role=name)
@@ -113,21 +148,31 @@ def _minimal_payload(kind: str) -> dict[str, object]:
         "resampling_study_manifest": {
             "task_registry_ref": _ref("sources/tasks.json"),
             "roster_ref": _ref("sources/roster.json"),
+            "eligibility_manifest_ref": None,
+            "roster_ceremony_policy_ref": None,
             "assignment_program_ref": _ref("sources/assignment.py"),
             "provider_lane_plan_ref": _ref("sources/provider.json"),
+            "storage_policy_contract_ref": _ref("sources/storage-policy.json"),
+            "power_grid_ref": _ref("sources/power-grid.json"),
+            "power_screen_topology_ref": _ref("sources/power-screen-topology.json"),
             "tokenizer_ref": _ref("sources/tokenizer.json"),
             "packet_template_ref": _ref("sources/template.json"),
             "packet_policy_ref": _ref("sources/policy.json"),
             "pad_unit_set_ref": _ref("sources/pads.json"),
             "source_revision_refs": [_ref("sources/revisions/design.md")],
-            "seed_commitment_sha256": SHA_A,
+            "commitment_scheme": "resampling-null-key-ceremony-v1",
+            "roster_local_nonce_commitment_sha256": SHA_A,
+            "schedule_seed_commitment_sha256": SHA_A,
+            "assignment_master_key_commitment_sha256": SHA_A,
             "required_document_kinds_ref": _ref("sources/required.json"),
         },
         "resampling_prefix_schedule": {
             "manifest_ref": refs["manifest_ref"],
-            "assignment_program_ref": refs["assignment_ref"],
-            "provider_lane_plan_ref": _ref("parents/provider.json"),
-            "study_seed": 7,
+            "power_final_ref": _ref("parents/power-final.json", role="power_final"),
+            "schedule_authority": "synthetic_validation",
+            "selected_tier": None,
+            "selected_membership_sha256": SHA_A,
+            "schedule_seed": 7,
             "tasks": [
                 {
                     "task": {
@@ -135,9 +180,7 @@ def _minimal_payload(kind: str) -> dict[str, object]:
                         "benchmark": "swe",
                         "stratum": "python",
                         "lineage": "repo-1",
-                        "sensitivity_groups": [
-                            {"kind": "language", "value": "python"}
-                        ],
+                        "sensitivity_groups": [{"kind": "language", "value": "python"}],
                     },
                     "prefix_seed": 11,
                     "slots": [
@@ -155,15 +198,9 @@ def _minimal_payload(kind: str) -> dict[str, object]:
         },
         "resampling_prefix_receipt": {
             "schedule_ref": refs["schedule_ref"],
-            "task_receipts": [],
+            "task_receipts": [_minimal_prefix_task_receipt()],
         },
-        "resampling_assignment_ledger": {
-            "schedule_ref": refs["schedule_ref"],
-            "prefix_index_ref": refs["prefix_index_ref"],
-            "assignment_mode": "uniform_12",
-            "assignments": [],
-            "allocation_receipts": [],
-        },
+        "resampling_assignment_ledger": _t3_s02_no_trigger_assignment_payload(),
         "resampling_packet_index": {
             "stage": "candidate",
             "assignment_ref": refs["assignment_ref"],
@@ -198,22 +235,7 @@ def _minimal_payload(kind: str) -> dict[str, object]:
             "result": _analysis_result(),
             "numeric_receipt": {"finite": True},
         },
-        "resampling_power_report": {
-            "stage": "screen",
-            "decision_authority": "synthetic_validation",
-            "phase": "gaussian_approximation",
-            "generation": 0,
-            "roster_ref": refs["roster_ref"],
-            "grid_ref": refs["grid_ref"],
-            "parent_refs": [],
-            "topology_ref": _ref("parents/topology.json"),
-            "config_ref": refs["config_ref"],
-            "numeric_fixture_ref": _ref("parents/numeric-fixture.json"),
-            "numeric_contract": _numeric_contract(),
-            "projected_wall_seconds": 1,
-            "cell_count": 1,
-            "dataset_count": 200,
-        },
+        "resampling_power_report": _power_payload("screen"),
         "resampling_unblind_receipt": {
             "projection_ref": refs["projection_ref"],
             "assignment_ledger_ref": refs["assignment_ledger_ref"],
@@ -358,7 +380,7 @@ def _write_blob(root: Path, relative_path: str, value: bytes) -> dict[str, objec
 
 
 def _artifact_mapping(value: object) -> dict[str, object]:
-    return cast(dict[str, object], asdict(value))
+    return cast(dict[str, object], asdict(cast(Any, value)))
 
 
 def _replace_artifact_refs(value: object, replacement: dict[str, object]) -> None:
@@ -381,6 +403,303 @@ def _replace_artifact_refs(value: object, replacement: dict[str, object]) -> Non
             _replace_artifact_refs(nested, replacement)
 
 
+def _t3_s02_manifest_payload() -> dict[str, object]:
+    return deepcopy(_minimal_payload("resampling_study_manifest"))
+
+
+def _t3_s02_schedule_payload() -> dict[str, object]:
+    return deepcopy(_minimal_payload("resampling_prefix_schedule"))
+
+
+def _t3_s02_no_trigger_assignment_payload() -> dict[str, object]:
+    matching_program_ref = _ref(
+        "sources/assignment-program.json",
+        role="matching_program",
+    )
+    return {
+        "manifest_ref": _ref("parents/manifest.json", role="manifest"),
+        "schedule_ref": _ref("parents/schedule.json", role="schedule"),
+        "prefix_index_ref": _ref("parents/prefix-index.json", role="prefix_index"),
+        "matching_program_ref": matching_program_ref,
+        "assignment_master_key_commitment_sha256": SHA_A,
+        "assignment_prefix_view_sha256": SHA_B,
+        "assignment_mode": "synthetic_derangement",
+        "matching_proof_refs": [],
+        "assignments": [
+            {
+                "task_id": "task-1",
+                "task_lineage": "repo-1",
+                "donor_match_kind": "not_applicable_no_trigger",
+                "donor_task_id": None,
+                "donor_lineage": None,
+                "slot_arms": [
+                    ["slot-0", "REAL"],
+                    ["slot-1", "SHAM"],
+                    ["slot-2", "NONE"],
+                    ["slot-3", "RESAMPLE"],
+                ],
+                "schedule_sha256": SHA_A,
+                "prefix_index_sha256": SHA_B,
+            }
+        ],
+        "allocation_receipts": [
+            {
+                "task_id": "task-1",
+                "slot_ids_by_ordinal": [
+                    "slot-0",
+                    "slot-1",
+                    "slot-2",
+                    "slot-3",
+                ],
+                "treatment_allocation_index": 0,
+                "allocation_rejection_counter": 0,
+                "no_packet_orientation_bit": 0,
+                "orientation_rejection_counter": 0,
+                "slot_capabilities": [
+                    [
+                        f"slot-{index}",
+                        hashlib.sha256(f"cap-{index}".encode()).hexdigest(),
+                    ]
+                    for index in range(4)
+                ],
+            }
+        ],
+        "donor_match_receipts": [
+            {
+                "kind": "not_applicable_no_trigger",
+                "task_id": "task-1",
+                "trigger_reason": "no_intervention_opportunity",
+                "assignment_prefix_view_sha256": SHA_B,
+            }
+        ],
+    }
+
+
+def _t3_s02_matched_assignment_payload() -> dict[str, object]:
+    payload = _t3_s02_no_trigger_assignment_payload()
+    proof_ref = _ref(
+        f"blobs/matching/proof/{SHA_A}.json",
+        role="matching_proof",
+    )
+    assignment = cast(
+        list[dict[str, object]],
+        payload["assignments"],
+    )[0]
+    assignment.update(
+        {
+            "donor_match_kind": "matched",
+            "donor_task_id": "task-2",
+            "donor_lineage": "repo-2",
+        }
+    )
+    payload["matching_proof_refs"] = [proof_ref]
+    payload["donor_match_receipts"] = [
+        {
+            "kind": "matched",
+            "task_id": "task-1",
+            "donor_task_id": "task-2",
+            "task_lineage": "repo-1",
+            "donor_lineage": "repo-2",
+            "assignment_mode": "synthetic_derangement",
+            "matching_algorithm": "synthetic_cyclic_offset_v1",
+            "stratum_key": ["swe", "python"],
+            "assignment_prefix_view_sha256": SHA_B,
+            "candidates": [
+                {
+                    "donor_task_id": "task-2",
+                    "donor_lineage": "repo-2",
+                    "primary_cost": [0, 0, 0],
+                    "fallback_code": None,
+                    "tie_hmac_sha256": SHA_A,
+                }
+            ],
+            "chosen_primary_cost": [0, 0, 0],
+            "matching_proof_ref": proof_ref,
+        }
+    ]
+    return payload
+
+
+def test_t3_s02_manifest_uses_three_named_ceremony_commitments() -> None:
+    payload = _t3_s02_manifest_payload()
+    assert validate_record(_record("resampling_study_manifest", payload))
+
+    legacy = deepcopy(payload)
+    del legacy["commitment_scheme"]
+    del legacy["roster_local_nonce_commitment_sha256"]
+    del legacy["schedule_seed_commitment_sha256"]
+    del legacy["assignment_master_key_commitment_sha256"]
+    legacy["seed_commitment_sha256"] = SHA_A
+    with pytest.raises(RecordValidationError):
+        validate_record(_record("resampling_study_manifest", legacy))
+
+    for field in (
+        "roster_local_nonce_commitment_sha256",
+        "schedule_seed_commitment_sha256",
+        "assignment_master_key_commitment_sha256",
+    ):
+        missing = deepcopy(payload)
+        del missing[field]
+        with pytest.raises(RecordValidationError, match=field):
+            validate_record(_record("resampling_study_manifest", missing))
+
+
+def test_t3_s02_manifest_conditional_refs_are_paired() -> None:
+    payload = _t3_s02_manifest_payload()
+    payload["eligibility_manifest_ref"] = _ref("sources/eligibility.json")
+    payload["roster_ceremony_policy_ref"] = _ref("sources/roster-ceremony-policy.json")
+    assert validate_record(_record("resampling_study_manifest", payload))
+
+    for field in (
+        "eligibility_manifest_ref",
+        "roster_ceremony_policy_ref",
+    ):
+        unpaired = deepcopy(payload)
+        unpaired[field] = None
+        with pytest.raises(RecordValidationError, match=field):
+            validate_record(_record("resampling_study_manifest", unpaired))
+
+
+def test_t3_s02_schedule_loads_assignment_inputs_only_via_manifest() -> None:
+    payload = _t3_s02_schedule_payload()
+    assert validate_record(_record("resampling_prefix_schedule", payload))
+
+    empty = deepcopy(payload)
+    empty["tasks"] = []
+    with pytest.raises(RecordValidationError, match="tasks"):
+        validate_record(_record("resampling_prefix_schedule", empty))
+
+    for forbidden in ("assignment_program_ref", "provider_lane_plan_ref"):
+        contaminated = deepcopy(payload)
+        contaminated[forbidden] = _ref(f"forbidden/{forbidden}.json")
+        with pytest.raises(RecordValidationError):
+            validate_record(_record("resampling_prefix_schedule", contaminated))
+
+
+def test_t3_s02_prefix_receipts_are_nonempty() -> None:
+    payload = _minimal_payload("resampling_prefix_receipt")
+    payload["task_receipts"] = []
+    with pytest.raises(RecordValidationError, match="task_receipts"):
+        validate_record(_record("resampling_prefix_receipt", payload))
+
+
+def test_t3_s02_assignment_accepts_closed_no_trigger_arm() -> None:
+    payload = _t3_s02_no_trigger_assignment_payload()
+    assert validate_record(_record("resampling_assignment_ledger", payload))
+
+    assignment = cast(list[dict[str, object]], payload["assignments"])[0]
+    assignment["donor_task_id"] = "task-2"
+    with pytest.raises(RecordValidationError):
+        validate_record(_record("resampling_assignment_ledger", payload))
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["assignments", "allocation_receipts", "donor_match_receipts"],
+)
+def test_t3_s02_assignment_arrays_are_nonempty(field: str) -> None:
+    payload = _t3_s02_no_trigger_assignment_payload()
+    payload[field] = []
+    with pytest.raises(RecordValidationError, match=field):
+        validate_record(_record("resampling_assignment_ledger", payload))
+
+
+def test_t3_s02_assignment_matching_proofs_are_conditional_and_unique() -> None:
+    payload = _t3_s02_matched_assignment_payload()
+    assert validate_record(_record("resampling_assignment_ledger", payload))
+
+    no_proof = deepcopy(payload)
+    no_proof["matching_proof_refs"] = []
+    with pytest.raises(RecordValidationError, match="matching_proof"):
+        validate_record(_record("resampling_assignment_ledger", no_proof))
+
+    duplicated = deepcopy(payload)
+    duplicated["matching_proof_refs"] *= 2  # type: ignore[operator]
+    with pytest.raises(RecordValidationError, match="matching_proof"):
+        validate_record(_record("resampling_assignment_ledger", duplicated))
+
+    wrong_algorithm = deepcopy(payload)
+    donor_receipt = cast(
+        list[dict[str, object]],
+        wrong_algorithm["donor_match_receipts"],
+    )[0]
+    donor_receipt["matching_algorithm"] = "exact_constrained_min_cost_v1"
+    with pytest.raises(RecordValidationError, match="matching_algorithm"):
+        validate_record(_record("resampling_assignment_ledger", wrong_algorithm))
+
+
+def test_t3_s02_stratum_key_is_an_ordered_tuple_not_a_set() -> None:
+    payload = _t3_s02_matched_assignment_payload()
+    donor_receipt = cast(
+        list[dict[str, object]],
+        payload["donor_match_receipts"],
+    )[0]
+    donor_receipt["stratum_key"] = ["python", "python"]
+    assert validate_record(_record("resampling_assignment_ledger", payload))
+
+
+def test_t3_s02_assignment_arrays_share_one_task_order() -> None:
+    payload = _t3_s02_no_trigger_assignment_payload()
+    assignment = deepcopy(cast(list[dict[str, object]], payload["assignments"])[0])
+    assignment.update(
+        {
+            "task_id": "task-2",
+            "task_lineage": "repo-2",
+            "slot_arms": [
+                [f"task-2-slot-{index}", arm]
+                for index, arm in enumerate(("REAL", "SHAM", "NONE", "RESAMPLE"))
+            ],
+        }
+    )
+    cast(list[dict[str, object]], payload["assignments"]).append(assignment)
+
+    allocation = deepcopy(
+        cast(list[dict[str, object]], payload["allocation_receipts"])[0]
+    )
+    allocation["task_id"] = "task-2"
+    allocation["slot_ids_by_ordinal"] = [f"task-2-slot-{index}" for index in range(4)]
+    allocation["slot_capabilities"] = [
+        [
+            f"task-2-slot-{index}",
+            hashlib.sha256(f"task-2-cap-{index}".encode()).hexdigest(),
+        ]
+        for index in range(4)
+    ]
+    cast(
+        list[dict[str, object]],
+        payload["allocation_receipts"],
+    ).append(allocation)
+
+    donor_receipt = deepcopy(
+        cast(list[dict[str, object]], payload["donor_match_receipts"])[0]
+    )
+    donor_receipt["task_id"] = "task-2"
+    cast(
+        list[dict[str, object]],
+        payload["donor_match_receipts"],
+    ).append(donor_receipt)
+    assert validate_record(_record("resampling_assignment_ledger", payload))
+
+    reordered = deepcopy(payload)
+    cast(
+        list[dict[str, object]],
+        reordered["donor_match_receipts"],
+    ).reverse()
+    with pytest.raises(RecordValidationError, match="order"):
+        validate_record(_record("resampling_assignment_ledger", reordered))
+
+
+def test_t3_s02_matched_candidate_rows_are_nonempty() -> None:
+    payload = _t3_s02_matched_assignment_payload()
+    donor_receipt = cast(
+        list[dict[str, object]],
+        payload["donor_match_receipts"],
+    )[0]
+    donor_receipt["candidates"] = []
+    with pytest.raises(RecordValidationError, match="candidates"):
+        validate_record(_record("resampling_assignment_ledger", payload))
+
+
 def test_registry_and_schema_metadata_are_closed() -> None:
     assert tuple(SCHEMA_BY_KIND) == KINDS
     assert tuple(pls.RESAMPLING_SCHEMA_FILES) == tuple(SCHEMA_BY_KIND.values())
@@ -396,14 +715,18 @@ def test_registry_and_schema_metadata_are_closed() -> None:
 
 @pytest.mark.parametrize("bad_kind", ["unknown", "", "RESAMPLING_STUDY_MANIFEST"])
 def test_unknown_record_kinds_fail_closed(bad_kind: str) -> None:
-    value = _record("resampling_study_manifest", _minimal_payload("resampling_study_manifest"))
+    value = _record(
+        "resampling_study_manifest", _minimal_payload("resampling_study_manifest")
+    )
     value["record_kind"] = bad_kind
     with pytest.raises(RecordValidationError, match="record_kind"):
         validate_record(value)
 
 
 def test_unknown_properties_and_malformed_digests_fail_closed() -> None:
-    value = _record("resampling_study_manifest", _minimal_payload("resampling_study_manifest"))
+    value = _record(
+        "resampling_study_manifest", _minimal_payload("resampling_study_manifest")
+    )
     value["surprise"] = True
     with pytest.raises(RecordValidationError):
         validate_record(value)
@@ -499,11 +822,15 @@ def test_duplicate_keys_nan_and_bom_fail_closed(tmp_path: Path) -> None:
 
 
 def test_packet_and_power_stage_payloads_are_discriminated() -> None:
-    packet = _record("resampling_packet_index", _minimal_payload("resampling_packet_index"))
+    packet = _record(
+        "resampling_packet_index", _minimal_payload("resampling_packet_index")
+    )
     packet["payload"]["stage"] = "draft"  # type: ignore[index]
     with pytest.raises(RecordValidationError):
         validate_record(packet)
-    packet = _record("resampling_packet_index", _minimal_payload("resampling_packet_index"))
+    packet = _record(
+        "resampling_packet_index", _minimal_payload("resampling_packet_index")
+    )
     packet["payload"]["candidate_ref"] = _ref("candidate.json")  # type: ignore[index]
     with pytest.raises(RecordValidationError):
         validate_record(packet)
@@ -554,6 +881,8 @@ def test_packet_and_power_stage_payloads_are_discriminated() -> None:
         "kind": "completed_chain",
         "selected_phase": "gaussian_approximation",
         "selected_generation": 0,
+        "selected_kernel_id": "power-final-gaussian-v1",
+        "selected_shard_count": 2,
         "selected_screen_ref": attempts[0],  # type: ignore[index]
         "selected_shard_refs": [attempts[1]],  # type: ignore[index]
         "selected_selection_ref": attempts[2],  # type: ignore[index]
@@ -562,31 +891,23 @@ def test_packet_and_power_stage_payloads_are_discriminated() -> None:
         "decision": "CONDITIONAL_ONLY",
     }
     validate_record(_record("resampling_power_report", completed))
-    full_validation = _power_payload("validation")
-    full_validation["phase"] = "full_multiplier_fallback"
-    del full_validation["selected_cells"]
-    del full_validation["interval_receipts"]
-    del full_validation["validation_dataset_count"]
-    del full_validation["approximation_receipt"]
-    full_validation.update(
-        fallback_trigger_ref=_ref("power/gaussian-trigger.json"),
-        complete_cell_ids=["cell-1"],
-        expected_cell_count=1,
-        observed_cell_count=1,
-        raw_counts_ref=_ref("power/raw-counts.json"),
-        numeric_receipt_ref=_ref("power/numeric.json"),
-        selected_tier=None,
-        decision="CONDITIONAL_ONLY",
+    full_validation = _power_payload(
+        "validation",
+        phase="full_multiplier_fallback",
     )
     validate_record(_record("resampling_power_report", full_validation))
-    full_completed = _power_payload("final")
-    full_completed["phase"] = "full_multiplier_fallback"
+    full_completed = _power_payload(
+        "final",
+        phase="full_multiplier_fallback",
+    )
     full_completed["generation"] = 1
     full_completed["parent_refs"] = full_completed["all_attempt_refs"]
     full_completed["finalization"] = {
         "kind": "completed_chain",
         "selected_phase": "full_multiplier_fallback",
         "selected_generation": 1,
+        "selected_kernel_id": "power-final-full-multiplier-v1",
+        "selected_shard_count": 2,
         "fallback_trigger_ref": _ref("power/gaussian-trigger.json"),
         "selected_screen_ref": _ref("power/full-screen.json"),
         "selected_shard_refs": [_ref("power/full-shard.json")],
@@ -709,8 +1030,16 @@ def _build_full_study(
     raws = {
         "tasks": raw("tasks.json", {"tasks": roster_tasks}),
         "roster": raw("roster.json", {"tasks": roster_tasks}),
+        "power_authority": raw(
+            "power-authority.json",
+            {
+                "authority_kind": decision_authority,
+                "tier_membership_sha256": SHA_A,
+            },
+        ),
         "assignment": raw("assignment.py", b"assignment"),
         "provider": raw("provider.json", {"lane": "lane-a"}),
+        "storage_policy": raw("storage-policy.json", {"mode": "local_test"}),
         "tokenizer": raw("tokenizer.json", {"name": "tokenizer"}),
         "template": raw("template.json", {"name": "template"}),
         "policy": raw("policy.json", {"name": "policy"}),
@@ -727,6 +1056,7 @@ def _build_full_study(
         "topology": raw("topology.json", {"cpu_count": 1}),
         "power_config": raw("power-config.json", {"datasets": 20_000}),
         "numeric_fixture": raw("numeric-fixture.json", {"digest": SHA_A}),
+        "matching_proof": raw("matching-proof.json", {"status": "OPTIMAL"}),
         "alternate": raw("alternate.bin", b"alternate"),
         "focal_verifier": raw("focal-verifier.json", {"task_id": "task-1"}),
         "donor_verifier": raw(
@@ -747,17 +1077,25 @@ def _build_full_study(
         "adverse_3": raw("adverse-3.json", {"slot_id": "slot-3"}),
     }
 
-    manifest_payload = {
+    manifest_payload: dict[str, object] = {
         "task_registry_ref": raws["tasks"],
         "roster_ref": raws["roster"],
+        "eligibility_manifest_ref": None,
+        "roster_ceremony_policy_ref": None,
         "assignment_program_ref": raws["assignment"],
         "provider_lane_plan_ref": raws["provider"],
+        "storage_policy_contract_ref": raws["storage_policy"],
+        "power_grid_ref": raws["power_grid"],
+        "power_screen_topology_ref": raws["topology"],
         "tokenizer_ref": raws["tokenizer"],
         "packet_template_ref": raws["template"],
         "packet_policy_ref": raws["policy"],
         "pad_unit_set_ref": raws["pads"],
         "source_revision_refs": [raws["revision"]],
-        "seed_commitment_sha256": SHA_A,
+        "commitment_scheme": "resampling-null-key-ceremony-v1",
+        "roster_local_nonce_commitment_sha256": SHA_A,
+        "schedule_seed_commitment_sha256": SHA_A,
+        "assignment_master_key_commitment_sha256": SHA_A,
         "required_document_kinds_ref": raws["required"],
     }
     manifest_ref = _write_test_record(
@@ -769,16 +1107,15 @@ def _build_full_study(
 
     schedule_payload = _minimal_payload("resampling_prefix_schedule")
     schedule_payload["manifest_ref"] = manifest_ref
-    schedule_payload["assignment_program_ref"] = (
-        raws["alternate"]
-        if variant == "schedule-assignment-program"
-        else raws["assignment"]
+    schedule_payload["power_final_ref"] = raws["power_config"]
+    schedule_payload["schedule_authority"] = decision_authority
+    schedule_payload["selected_tier"] = (
+        None if decision_authority == "synthetic_validation" else 120
     )
-    schedule_payload["provider_lane_plan_ref"] = (
-        raws["alternate"]
-        if variant == "schedule-provider-lane"
-        else raws["provider"]
-    )
+    if variant == "schedule-assignment-program":
+        schedule_payload["assignment_program_ref"] = raws["alternate"]
+    if variant == "schedule-provider-lane":
+        schedule_payload["provider_lane_plan_ref"] = raws["alternate"]
     donor_schedule = deepcopy(
         cast(list[dict[str, object]], schedule_payload["tasks"])[0]
     )
@@ -791,9 +1128,7 @@ def _build_full_study(
     ):
         slot["slot_id"] = f"donor-slot-{index}"
         slot["seed"] = 30 + index
-    cast(list[dict[str, object]], schedule_payload["tasks"]).append(
-        donor_schedule
-    )
+    cast(list[dict[str, object]], schedule_payload["tasks"]).append(donor_schedule)
     schedule_ref = _write_test_record(
         root,
         "prefix-schedule.json",
@@ -889,16 +1224,41 @@ def _build_full_study(
     assignment_prefix_sha = cast(str, prefix_ref["sha256"])
     if variant == "assignment-prefix-hash":
         assignment_prefix_sha = SHA_A
-    assignment_payload = {
+    task_1_triggered = (
+        prefix_task_receipt["trigger_reason"] != "no_intervention_opportunity"
+    )
+    assignment_mode = (
+        "synthetic_derangement"
+        if decision_authority == "synthetic_validation"
+        else "confirmation_lineage_matching"
+    )
+    matching_algorithm = (
+        "synthetic_cyclic_offset_v1"
+        if decision_authority == "synthetic_validation"
+        else "exact_constrained_min_cost_v1"
+    )
+    matching_proof_ref = {
+        **raws["matching_proof"],
+        "role": "matching_proof",
+    }
+    assignment_payload: dict[str, object] = {
+        "manifest_ref": manifest_ref,
         "schedule_ref": schedule_ref,
         "prefix_index_ref": prefix_ref,
-        "assignment_mode": "uniform_12",
+        "matching_program_ref": raws["assignment"],
+        "assignment_master_key_commitment_sha256": SHA_A,
+        "assignment_prefix_view_sha256": SHA_B,
+        "assignment_mode": assignment_mode,
+        "matching_proof_refs": ([matching_proof_ref] if task_1_triggered else []),
         "assignments": [
             {
                 "task_id": "task-1",
                 "task_lineage": "repo-1",
-                "donor_task_id": "task-donor",
-                "donor_lineage": "repo-donor",
+                "donor_match_kind": (
+                    "matched" if task_1_triggered else "not_applicable_no_trigger"
+                ),
+                "donor_task_id": "task-donor" if task_1_triggered else None,
+                "donor_lineage": "repo-donor" if task_1_triggered else None,
                 "slot_arms": [
                     ["slot-0", "REAL"],
                     ["slot-1", "SHAM"],
@@ -912,13 +1272,57 @@ def _build_full_study(
         "allocation_receipts": [
             {
                 "task_id": "task-1",
+                "slot_ids_by_ordinal": [
+                    "slot-0",
+                    "slot-1",
+                    "slot-2",
+                    "slot-3",
+                ],
                 "treatment_allocation_index": 0,
+                "allocation_rejection_counter": 0,
                 "no_packet_orientation_bit": 0,
+                "orientation_rejection_counter": 0,
                 "slot_capabilities": [
-                    [f"slot-{index}", hashlib.sha256(f"cap-{index}".encode()).hexdigest()]
+                    [
+                        f"slot-{index}",
+                        hashlib.sha256(f"cap-{index}".encode()).hexdigest(),
+                    ]
                     for index in range(4)
                 ],
             }
+        ],
+        "donor_match_receipts": [
+            (
+                {
+                    "kind": "matched",
+                    "task_id": "task-1",
+                    "donor_task_id": "task-donor",
+                    "task_lineage": "repo-1",
+                    "donor_lineage": "repo-donor",
+                    "assignment_mode": assignment_mode,
+                    "matching_algorithm": matching_algorithm,
+                    "stratum_key": ["swe", "python"],
+                    "assignment_prefix_view_sha256": SHA_B,
+                    "candidates": [
+                        {
+                            "donor_task_id": "task-donor",
+                            "donor_lineage": "repo-donor",
+                            "primary_cost": [0, 0, 0],
+                            "fallback_code": None,
+                            "tie_hmac_sha256": SHA_A,
+                        }
+                    ],
+                    "chosen_primary_cost": [0, 0, 0],
+                    "matching_proof_ref": matching_proof_ref,
+                }
+                if task_1_triggered
+                else {
+                    "kind": "not_applicable_no_trigger",
+                    "task_id": "task-1",
+                    "trigger_reason": "no_intervention_opportunity",
+                    "assignment_prefix_view_sha256": SHA_B,
+                }
+            )
         ],
     }
     cast(
@@ -928,8 +1332,9 @@ def _build_full_study(
         {
             "task_id": "task-donor",
             "task_lineage": "repo-donor",
-            "donor_task_id": "task-1",
-            "donor_lineage": "repo-1",
+            "donor_match_kind": "not_applicable_no_trigger",
+            "donor_task_id": None,
+            "donor_lineage": None,
             "slot_arms": [
                 ["donor-slot-0", "SHAM"],
                 ["donor-slot-1", "REAL"],
@@ -946,17 +1351,34 @@ def _build_full_study(
     ).append(
         {
             "task_id": "task-donor",
+            "slot_ids_by_ordinal": [
+                "donor-slot-0",
+                "donor-slot-1",
+                "donor-slot-2",
+                "donor-slot-3",
+            ],
             "treatment_allocation_index": 1,
+            "allocation_rejection_counter": 0,
             "no_packet_orientation_bit": 1,
+            "orientation_rejection_counter": 0,
             "slot_capabilities": [
                 [
                     f"donor-slot-{index}",
-                    hashlib.sha256(
-                        f"donor-cap-{index}".encode()
-                    ).hexdigest(),
+                    hashlib.sha256(f"donor-cap-{index}".encode()).hexdigest(),
                 ]
                 for index in range(4)
             ],
+        }
+    )
+    cast(
+        list[dict[str, object]],
+        assignment_payload["donor_match_receipts"],
+    ).append(
+        {
+            "kind": "not_applicable_no_trigger",
+            "task_id": "task-donor",
+            "trigger_reason": "no_intervention_opportunity",
+            "assignment_prefix_view_sha256": SHA_B,
         }
     )
     assignment_ref = _write_test_record(
@@ -969,9 +1391,7 @@ def _build_full_study(
     if packet_pair or failed_second_task:
         packet_entry: dict[str, object] = {
             "task_id": (
-                "task-frankenstein"
-                if variant == "packet-pair-task-id"
-                else "task-1"
+                "task-frankenstein" if variant == "packet-pair-task-id" else "task-1"
             ),
             "donor_task_id": (
                 "task-frankenstein"
@@ -1031,14 +1451,12 @@ def _build_full_study(
         "prefix_index_sha256": cast(str, prefix_ref["sha256"]),
         "trigger_reason": "no_intervention_opportunity",
     }
-    candidate_payload = {
+    candidate_payload: dict[str, object] = {
         "stage": "candidate",
         "assignment_ref": assignment_ref,
         "prefix_index_ref": prefix_ref,
         "tokenizer_ref": (
-            raws["alternate"]
-            if variant == "packet-tokenizer"
-            else raws["tokenizer"]
+            raws["alternate"] if variant == "packet-tokenizer" else raws["tokenizer"]
         ),
         "packet_template_ref": raws["template"],
         "packet_policy_ref": raws["policy"],
@@ -1051,7 +1469,7 @@ def _build_full_study(
         "resampling_packet_index",
         candidate_payload,
     )
-    sealed_payload = {
+    sealed_payload: dict[str, object] = {
         "stage": "sealed",
         "candidate_ref": candidate_ref,
         "assignment_ref": assignment_ref,
@@ -1059,9 +1477,7 @@ def _build_full_study(
         "tokenizer_ref": candidate_payload["tokenizer_ref"],
         "packet_template_ref": raws["template"],
         "packet_policy_ref": (
-            raws["alternate"]
-            if variant == "sealed-packet-policy"
-            else raws["policy"]
+            raws["alternate"] if variant == "sealed-packet-policy" else raws["policy"]
         ),
         "pad_unit_set_ref": raws["pads"],
         "audit_gates": {
@@ -1115,9 +1531,7 @@ def _build_full_study(
         outage = cast(dict[str, object], task_payload["outage_receipt"])
         outage["provider_event_ref"] = raws["provider_event"]
         outage["first_attempt"] = deepcopy(attempts[0])
-        outage["work_order_sha256s"] = deepcopy(
-            attempts[0]["work_order_sha256s"]
-        )
+        outage["work_order_sha256s"] = deepcopy(attempts[0]["work_order_sha256s"])
         failed_terminals = cast(
             list[dict[str, object]],
             task_payload["terminal_slot_receipts"],
@@ -1146,8 +1560,7 @@ def _build_full_study(
         task_payload = _no_trigger_task_block_payload(task_parent_refs)
 
     focal_capability_ids = [
-        hashlib.sha256(f"cap-{index}".encode()).hexdigest()
-        for index in range(4)
+        hashlib.sha256(f"cap-{index}".encode()).hexdigest() for index in range(4)
     ]
     focal_slot_ids = [f"slot-{index}" for index in range(4)]
     focal_outcomes = cast(
@@ -1204,9 +1617,7 @@ def _build_full_study(
             task_payload["execution_receipts"],
         )
         for index, execution in enumerate(executions):
-            execution["source_receipt_sha256"] = canonical_digest(
-                top_terminals[index]
-            )
+            execution["source_receipt_sha256"] = canonical_digest(top_terminals[index])
             execution["outcome"] = deepcopy(focal_outcomes[index])
             grade = execution.get("grade_receipt")
             if isinstance(grade, dict):
@@ -1217,10 +1628,10 @@ def _build_full_study(
                     "artifact_ref",
                 ):
                     grade[field] = deepcopy(focal_outcomes[index][field])
-        outage = task_payload.get("outage_receipt")
-        if isinstance(outage, dict):
-            outage["first_attempt"] = deepcopy(focal_attempts[0])
-            outage["work_order_sha256s"] = deepcopy(
+        outage_receipt = task_payload.get("outage_receipt")
+        if isinstance(outage_receipt, dict):
+            outage_receipt["first_attempt"] = deepcopy(focal_attempts[0])
+            outage_receipt["work_order_sha256s"] = deepcopy(
                 focal_attempts[0]["work_order_sha256s"]
             )
 
@@ -1277,8 +1688,7 @@ def _build_full_study(
         donor_task_payload["slot_outcomes"],
     )
     donor_capability_ids = [
-        hashlib.sha256(f"donor-cap-{index}".encode()).hexdigest()
-        for index in range(4)
+        hashlib.sha256(f"donor-cap-{index}".encode()).hexdigest() for index in range(4)
     ]
     for index, outcome in enumerate(donor_outcomes):
         outcome["task_id"] = "task-donor"
@@ -1392,9 +1802,12 @@ def _build_full_study(
         )
 
     common_power = {
+        "authority_ref": raws["power_authority"],
         "roster_ref": raws["roster"],
+        "tier_membership_sha256": SHA_A,
         "grid_ref": raws["power_grid"],
-        "topology_ref": raws["topology"],
+        "screen_topology_ref": raws["topology"],
+        "rng_contract_sha256": SHA_B,
         "config_ref": raws["power_config"],
         "numeric_fixture_ref": raws["numeric_fixture"],
         "numeric_contract": _numeric_contract(),
@@ -1410,6 +1823,10 @@ def _build_full_study(
         payload["phase"] = phase
         payload["decision_authority"] = decision_authority
         payload["generation"] = active_generation
+        stage = cast(str, payload["stage"])
+        if stage != "final":
+            payload["kernel_id"] = _T3_S02_POWER_KERNEL_IDS[(stage, phase)]
+            payload["shard_count"] = 2
 
     gaussian_screen = _power_payload("screen")
     bind_power(gaussian_screen)
@@ -1457,11 +1874,7 @@ def _build_full_study(
         )
         earlier_attempt_refs.extend([earlier_screen_ref, earlier_shard_ref])
     shard_positions = (
-        []
-        if no_go_stage == "screen"
-        else [0]
-        if no_go_stage == "shard"
-        else [0, 1]
+        [] if no_go_stage == "screen" else [0] if no_go_stage == "shard" else [0, 1]
     )
     if no_go_stage == "shard" and no_go_mutation == "shard-gap":
         shard_positions = [1]
@@ -1472,10 +1885,7 @@ def _build_full_study(
         shard_payload["cell_results"] = [
             _cell_result(cell_id) for cell_id in partitions[shard_position]
         ]
-        if (
-            variant == "power-shard-dataset-count"
-            and shard_position == 1
-        ):
+        if variant == "power-shard-dataset-count" and shard_position == 1:
             shard_payload["dataset_count"] = 19_999
             for result in cast(
                 list[dict[str, object]],
@@ -1490,6 +1900,21 @@ def _build_full_study(
             shard_payload["shard_count"] = 3
         if variant == "power-shard-parent" and shard_position == 1:
             shard_payload["parent_refs"] = [raws["alternate"]]
+        if shard_position == 1:
+            if variant == "power-authority-ref-drift":
+                shard_payload["authority_ref"] = raws["alternate"]
+            elif variant == "power-membership-drift":
+                shard_payload["tier_membership_sha256"] = SHA_B
+            elif variant == "power-rng-drift":
+                shard_payload["rng_contract_sha256"] = SHA_A
+            elif variant == "power-screen-topology-drift":
+                shard_payload["screen_topology_ref"] = raws["alternate"]
+            elif variant == "power-authority-label-drift":
+                shard_payload["decision_authority"] = (
+                    "roster_bound_selection"
+                    if decision_authority == "synthetic_validation"
+                    else "synthetic_validation"
+                )
         gaussian_shard_payloads.append(shard_payload)
         gaussian_shard_refs.append(
             _write_test_record(
@@ -1504,6 +1929,8 @@ def _build_full_study(
         selection_payload = _power_payload("selection")
         bind_power(selection_payload)
         selection_payload["parent_refs"] = [screen_ref, *gaussian_shard_refs]
+        if variant == "power-shard-count-mirror-drift":
+            selection_payload["shard_count"] = 3
         if variant == "power-selection-parent":
             selection_payload["parent_refs"] = [
                 screen_ref,
@@ -1537,9 +1964,8 @@ def _build_full_study(
                 "passed": True,
             }
         elif (
-            (fallback and variant != "fallback-after-pass")
-            or no_go_stage == "validation"
-        ):
+            fallback and variant != "fallback-after-pass"
+        ) or no_go_stage == "validation":
             gaussian_validation["approximation_receipt"] = {
                 "max_absolute_gate_pass_rate_difference": 0.02,
                 "gaussian_tier_decision": (
@@ -1597,6 +2023,8 @@ def _build_full_study(
             "kind": "completed_chain",
             "selected_phase": "gaussian_approximation",
             "selected_generation": active_generation,
+            "selected_kernel_id": "power-final-gaussian-v1",
+            "selected_shard_count": 2,
             "selected_screen_ref": screen_ref,
             "selected_shard_refs": (
                 [gaussian_shard_refs[0]]
@@ -1606,9 +2034,7 @@ def _build_full_study(
             "selected_selection_ref": selection_ref,
             "selected_validation_ref": gaussian_validation_ref,
             "selected_tier": (
-                160
-                if decision_authority == "roster_bound_selection"
-                else None
+                160 if decision_authority == "roster_bound_selection" else None
             ),
             "decision": (
                 "GO"
@@ -1643,12 +2069,14 @@ def _build_full_study(
             ),
             "terminal_stage": (
                 "screen"
-                if no_go_mutation == "wrong-stage"
-                and no_go_stage != "screen"
+                if no_go_mutation == "wrong-stage" and no_go_stage != "screen"
                 else "shard"
                 if no_go_mutation == "wrong-stage"
                 else no_go_stage
             ),
+            "terminal_phase": "gaussian_approximation",
+            "terminal_kernel_id": "power-final-gaussian-v1",
+            "terminal_shard_count": 2,
             "reason": (
                 no_go_reason
                 if no_go_reason is not None
@@ -1659,6 +2087,9 @@ def _build_full_study(
             "selected_tier": None,
             "decision": "NO_GO",
         }
+        if decision_authority == "synthetic_validation":
+            finalization["kind"] = "synthetic_validation_failed"
+            finalization["decision"] = "CONDITIONAL_ONLY"
 
     if fallback:
         assert gaussian_validation_ref is not None
@@ -1669,6 +2100,7 @@ def _build_full_study(
         bind_power(full_screen, phase="full_multiplier_fallback")
         full_screen["cell_count"] = 5
         full_screen["parent_refs"] = [fallback_trigger]
+        full_screen["fallback_trigger_ref"] = fallback_trigger
         full_screen_ref = _write_test_record(
             root,
             "power/full-screen.json",
@@ -1736,15 +2168,16 @@ def _build_full_study(
             "resampling_power_report",
             full_validation,
         )
-        attempt_refs.extend(
-            [full_screen_ref, *full_shard_refs, full_validation_ref]
-        )
+        attempt_refs.extend([full_screen_ref, *full_shard_refs, full_validation_ref])
         selected_phase = "full_multiplier_fallback"
         if full_gate_failure:
             finalization = {
                 "kind": "feasibility_no_go",
                 "terminal_attempt_ref": full_validation_ref,
                 "terminal_stage": "validation",
+                "terminal_phase": "full_multiplier_fallback",
+                "terminal_kernel_id": "power-final-full-multiplier-v1",
+                "terminal_shard_count": 2,
                 "reason": "power_or_type_i_gate_failed",
                 "selected_tier": None,
                 "decision": "NO_GO",
@@ -1754,14 +2187,14 @@ def _build_full_study(
                 "kind": "completed_chain",
                 "selected_phase": selected_phase,
                 "selected_generation": active_generation,
+                "selected_kernel_id": "power-final-full-multiplier-v1",
+                "selected_shard_count": 2,
                 "fallback_trigger_ref": fallback_trigger,
                 "selected_screen_ref": full_screen_ref,
                 "selected_shard_refs": full_shard_refs,
                 "full_grid_validation_ref": full_validation_ref,
                 "selected_tier": (
-                    160
-                    if decision_authority == "roster_bound_selection"
-                    else None
+                    160 if decision_authority == "roster_bound_selection" else None
                 ),
                 "decision": (
                     "GO"
@@ -1848,6 +2281,8 @@ def _build_full_study(
             "kind": "completed_chain",
             "selected_phase": selected_phase,
             "selected_generation": retry_generation,
+            "selected_kernel_id": "power-final-gaussian-v1",
+            "selected_shard_count": 2,
             "selected_screen_ref": retry_screen_ref,
             "selected_shard_refs": retry_shard_refs,
             "selected_selection_ref": retry_selection_ref,
@@ -1864,6 +2299,7 @@ def _build_full_study(
         retry_screen["generation"] = retry_generation
         retry_screen["cell_count"] = 5
         retry_screen["parent_refs"] = [gaussian_validation_ref]
+        retry_screen["fallback_trigger_ref"] = gaussian_validation_ref
         retry_screen_ref = _write_test_record(
             root,
             "power/full-retry-screen.json",
@@ -1918,15 +2354,15 @@ def _build_full_study(
             "resampling_power_report",
             retry_validation,
         )
-        attempt_refs.extend(
-            [retry_screen_ref, *retry_shard_refs, retry_validation_ref]
-        )
+        attempt_refs.extend([retry_screen_ref, *retry_shard_refs, retry_validation_ref])
         selected_phase = "full_multiplier_fallback"
         selected_generation = retry_generation
         finalization = {
             "kind": "completed_chain",
             "selected_phase": selected_phase,
             "selected_generation": retry_generation,
+            "selected_kernel_id": "power-final-full-multiplier-v1",
+            "selected_shard_count": 2,
             "fallback_trigger_ref": gaussian_validation_ref,
             "selected_screen_ref": retry_screen_ref,
             "selected_shard_refs": retry_shard_refs,
@@ -1945,6 +2381,7 @@ def _build_full_study(
         if selected_phase == "full_multiplier_fallback":
             assert gaussian_validation_ref is not None
             later_screen["parent_refs"] = [gaussian_validation_ref]
+            later_screen["fallback_trigger_ref"] = gaussian_validation_ref
         later_screen_ref = _write_test_record(
             root,
             f"power/{selected_phase}-later-screen.json",
@@ -1965,6 +2402,15 @@ def _build_full_study(
             later_shard,
         )
         attempt_refs.extend([later_screen_ref, later_shard_ref])
+
+    if variant == "power-selected-shard-count-drift":
+        finalization["selected_shard_count"] = 3
+    elif variant == "power-terminal-phase-drift":
+        finalization["terminal_phase"] = "full_multiplier_fallback"
+    elif variant == "power-terminal-kernel-drift":
+        finalization["terminal_kernel_id"] = "power-final-full-multiplier-v1"
+    elif variant == "power-terminal-count-drift":
+        finalization["terminal_shard_count"] = 3
 
     final_payload = _power_payload("final")
     bind_power(final_payload, phase=selected_phase)
@@ -2006,17 +2452,31 @@ def _numeric_contract() -> dict[str, object]:
     }
 
 
-def _power_payload(stage: str, *, shard_index: int | None = None) -> dict[str, object]:
+def _power_payload(
+    stage: str,
+    *,
+    shard_index: int | None = None,
+    phase: str = "gaussian_approximation",
+) -> dict[str, object]:
     parent_refs = [] if stage == "screen" else [_ref("parents/power-parent.json")]
     base: dict[str, object] = {
         "stage": stage,
+        "authority_ref": _ref(
+            "parents/power-authority.json",
+            role="power_authority",
+        ),
         "decision_authority": "synthetic_validation",
-        "phase": "gaussian_approximation",
+        "phase": phase,
         "generation": 0,
         "roster_ref": _ref("parents/roster.json", role="roster"),
+        "tier_membership_sha256": SHA_A,
         "grid_ref": _ref("parents/grid.json", role="grid"),
+        "screen_topology_ref": _ref(
+            "parents/topology.json",
+            role="topology",
+        ),
+        "rng_contract_sha256": SHA_B,
         "parent_refs": parent_refs,
-        "topology_ref": _ref("parents/topology.json", role="topology"),
         "config_ref": _ref("parents/power-config.json", role="power_config"),
         "numeric_fixture_ref": _ref(
             "parents/numeric-fixture.json",
@@ -2024,8 +2484,18 @@ def _power_payload(stage: str, *, shard_index: int | None = None) -> dict[str, o
         ),
         "numeric_contract": _numeric_contract(),
     }
+    if stage != "final":
+        base["kernel_id"] = _T3_S02_POWER_KERNEL_IDS[(stage, phase)]
+        base["shard_count"] = 2
     if stage == "screen":
         base.update(projected_wall_seconds=1, cell_count=1, dataset_count=200)
+        if phase == "full_multiplier_fallback":
+            fallback_trigger_ref = _ref(
+                "power/failed-gaussian-validation.json",
+                role="fallback_trigger",
+            )
+            base["fallback_trigger_ref"] = fallback_trigger_ref
+            base["parent_refs"] = [fallback_trigger_ref]
     elif stage == "shard":
         base.update(
             shard_index=0 if shard_index is None else shard_index,
@@ -2040,7 +2510,7 @@ def _power_payload(stage: str, *, shard_index: int | None = None) -> dict[str, o
             candidate_count=5,
             selection_count=5,
         )
-    elif stage == "validation":
+    elif stage == "validation" and phase == "gaussian_approximation":
         cells = [f"cell-{index}" for index in range(5)]
         base.update(
             selected_cells=cells,
@@ -2061,6 +2531,27 @@ def _power_payload(stage: str, *, shard_index: int | None = None) -> dict[str, o
                 "passed": True,
             },
         )
+    elif stage == "validation":
+        fallback_trigger_ref = _ref(
+            "power/failed-gaussian-validation.json",
+            role="fallback_trigger",
+        )
+        base.update(
+            fallback_trigger_ref=fallback_trigger_ref,
+            complete_cell_ids=["cell-0"],
+            expected_cell_count=1,
+            observed_cell_count=1,
+            raw_counts_ref=_ref(
+                "power/raw-counts.json",
+                role="raw_counts",
+            ),
+            numeric_receipt_ref=_ref(
+                "power/numeric-receipt.json",
+                role="numeric_receipt",
+            ),
+            selected_tier=None,
+            decision="CONDITIONAL_ONLY",
+        )
     elif stage == "final":
         attempt_refs = [
             _ref(f"power/attempt-{index}.json", role="power_attempt")
@@ -2069,15 +2560,240 @@ def _power_payload(stage: str, *, shard_index: int | None = None) -> dict[str, o
         base.update(
             all_attempt_refs=attempt_refs,
             finalization={
-                "kind": "feasibility_no_go",
+                "kind": "synthetic_validation_failed",
                 "terminal_attempt_ref": attempt_refs[0],
                 "terminal_stage": "screen",
-                "reason": "gaussian_screen_exhausted",
+                "terminal_phase": phase,
+                "terminal_kernel_id": _T3_S02_POWER_KERNEL_IDS[("final", phase)],
+                "terminal_shard_count": 2,
+                "reason": (
+                    "gaussian_screen_exhausted"
+                    if phase == "gaussian_approximation"
+                    else "full_multiplier_screen_exhausted"
+                ),
                 "selected_tier": None,
-                "decision": "NO_GO",
+                "decision": "CONDITIONAL_ONLY",
             },
         )
     return base
+
+
+_T3_S02_POWER_KERNEL_IDS = {
+    ("screen", "gaussian_approximation"): "power-screen-gaussian-v1",
+    ("shard", "gaussian_approximation"): "power-grid-gaussian-v1",
+    (
+        "selection",
+        "gaussian_approximation",
+    ): "power-worst-five-selection-v1",
+    (
+        "validation",
+        "gaussian_approximation",
+    ): "power-gaussian-vs-multiplier-validation-v1",
+    ("final", "gaussian_approximation"): "power-final-gaussian-v1",
+    (
+        "screen",
+        "full_multiplier_fallback",
+    ): "power-screen-full-multiplier-v1",
+    (
+        "shard",
+        "full_multiplier_fallback",
+    ): "power-grid-full-multiplier-v1",
+    (
+        "validation",
+        "full_multiplier_fallback",
+    ): "power-full-grid-validation-v1",
+    (
+        "final",
+        "full_multiplier_fallback",
+    ): "power-final-full-multiplier-v1",
+}
+
+
+def _t3_s02_power_payload(
+    stage: str,
+    *,
+    phase: str = "gaussian_approximation",
+) -> dict[str, object]:
+    return _power_payload(stage, phase=phase)
+
+
+@pytest.mark.parametrize(
+    ("stage", "phase"),
+    list(_T3_S02_POWER_KERNEL_IDS),
+)
+def test_t3_s02_power_accepts_exact_authority_bound_stage_arms(
+    stage: str,
+    phase: str,
+) -> None:
+    validate_record(
+        _record(
+            "resampling_power_report",
+            _t3_s02_power_payload(stage, phase=phase),
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "authority_ref",
+        "tier_membership_sha256",
+        "screen_topology_ref",
+        "rng_contract_sha256",
+        "kernel_id",
+        "shard_count",
+    ],
+)
+def test_t3_s02_power_nonfinal_requires_every_authority_mirror(
+    field: str,
+) -> None:
+    payload = _t3_s02_power_payload("screen")
+    del payload[field]
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(required|authority|membership|topology|rng|kernel|shard)",
+    ):
+        validate_record(_record("resampling_power_report", payload))
+
+
+def test_t3_s02_power_rejects_stale_topology_alias() -> None:
+    payload = _t3_s02_power_payload("screen")
+    payload["topology_ref"] = payload["screen_topology_ref"]
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(additional|topology|property)",
+    ):
+        validate_record(_record("resampling_power_report", payload))
+
+
+@pytest.mark.parametrize(
+    ("stage", "phase"),
+    [pair for pair in _T3_S02_POWER_KERNEL_IDS if pair[0] != "final"],
+)
+def test_t3_s02_power_rejects_wrong_stage_phase_kernel(
+    stage: str,
+    phase: str,
+) -> None:
+    payload = _t3_s02_power_payload(stage, phase=phase)
+    payload["kernel_id"] = "power-final-gaussian-v1"
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(kernel|const|expected|valid)",
+    ):
+        validate_record(_record("resampling_power_report", payload))
+
+
+def test_t3_s02_power_forbids_fallback_selection() -> None:
+    payload = _t3_s02_power_payload("selection")
+    payload["phase"] = "full_multiplier_fallback"
+    payload["kernel_id"] = "power-grid-full-multiplier-v1"
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(phase|selection|const|valid)",
+    ):
+        validate_record(_record("resampling_power_report", payload))
+
+
+def test_t3_s02_power_screen_trigger_is_phase_discriminated() -> None:
+    gaussian = _t3_s02_power_payload("screen")
+    gaussian["fallback_trigger_ref"] = _ref("power/fabricated-trigger.json")
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(fallback|trigger|additional|property)",
+    ):
+        validate_record(_record("resampling_power_report", gaussian))
+
+    fallback = _t3_s02_power_payload(
+        "screen",
+        phase="full_multiplier_fallback",
+    )
+    del fallback["fallback_trigger_ref"]
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(fallback|trigger|required)",
+    ):
+        validate_record(_record("resampling_power_report", fallback))
+
+
+@pytest.mark.parametrize("phase", list({pair[1] for pair in _T3_S02_POWER_KERNEL_IDS}))
+def test_t3_s02_power_final_accepts_synthetic_failure_arm(phase: str) -> None:
+    validate_record(
+        _record(
+            "resampling_power_report",
+            _t3_s02_power_payload("final", phase=phase),
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("phase", "identity_field"),
+    [
+        ("gaussian_approximation", "terminal_phase"),
+        ("gaussian_approximation", "terminal_kernel_id"),
+        ("gaussian_approximation", "terminal_shard_count"),
+        ("full_multiplier_fallback", "terminal_phase"),
+        ("full_multiplier_fallback", "terminal_kernel_id"),
+        ("full_multiplier_fallback", "terminal_shard_count"),
+    ],
+)
+def test_t3_s02_power_failed_finalization_requires_terminal_identity(
+    phase: str,
+    identity_field: str,
+) -> None:
+    payload = _t3_s02_power_payload("final", phase=phase)
+    finalization = cast(dict[str, object], payload["finalization"])
+    del finalization[identity_field]
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(terminal|phase|kernel|shard|required)",
+    ):
+        validate_record(_record("resampling_power_report", payload))
+
+
+@pytest.mark.parametrize(
+    ("phase", "identity_field"),
+    [
+        ("gaussian_approximation", "selected_kernel_id"),
+        ("gaussian_approximation", "selected_shard_count"),
+        ("full_multiplier_fallback", "selected_kernel_id"),
+        ("full_multiplier_fallback", "selected_shard_count"),
+    ],
+)
+def test_t3_s02_power_completed_finalization_requires_selected_identity(
+    phase: str,
+    identity_field: str,
+) -> None:
+    payload = _t3_s02_power_payload("final", phase=phase)
+    attempt_refs = cast(list[dict[str, object]], payload["all_attempt_refs"])
+    common = {
+        "kind": "completed_chain",
+        "selected_phase": phase,
+        "selected_generation": 0,
+        "selected_kernel_id": _T3_S02_POWER_KERNEL_IDS[("final", phase)],
+        "selected_shard_count": 2,
+        "selected_screen_ref": attempt_refs[0],
+        "selected_shard_refs": [attempt_refs[1]],
+        "selected_tier": None,
+        "decision": "CONDITIONAL_ONLY",
+    }
+    if phase == "gaussian_approximation":
+        common.update(
+            selected_selection_ref=attempt_refs[2],
+            selected_validation_ref=attempt_refs[3],
+        )
+    else:
+        common.update(
+            fallback_trigger_ref=attempt_refs[0],
+            full_grid_validation_ref=attempt_refs[3],
+        )
+    payload["finalization"] = common
+    validate_record(_record("resampling_power_report", payload))
+    del common[identity_field]
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(selected|kernel|shard|required)",
+    ):
+        validate_record(_record("resampling_power_report", payload))
 
 
 @pytest.mark.parametrize(
@@ -2157,9 +2873,10 @@ def _bind_power_sources(
     source_ref: dict[str, object],
 ) -> None:
     for key in (
+        "authority_ref",
         "roster_ref",
         "grid_ref",
-        "topology_ref",
+        "screen_topology_ref",
         "config_ref",
         "numeric_fixture_ref",
     ):
@@ -2263,6 +2980,9 @@ def test_study_manifest_seal_copies_all_sources_without_reading_clock(
         "roster",
         "assignment",
         "provider",
+        "storage-policy",
+        "power-grid",
+        "power-topology",
         "tokenizer",
         "template",
         "policy",
@@ -2283,7 +3003,12 @@ def test_study_manifest_seal_copies_all_sources_without_reading_clock(
         json.dumps(
             _record(
                 "resampling_study_manifest",
-                {"seed_commitment_sha256": SHA_A},
+                {
+                    "commitment_scheme": "resampling-null-key-ceremony-v1",
+                    "roster_local_nonce_commitment_sha256": SHA_A,
+                    "schedule_seed_commitment_sha256": SHA_A,
+                    "assignment_master_key_commitment_sha256": SHA_A,
+                },
             )
         ),
         encoding="utf-8",
@@ -2293,13 +3018,18 @@ def test_study_manifest_seal_copies_all_sources_without_reading_clock(
 
     import time
 
-    monkeypatch.setattr(time, "time", lambda: (_ for _ in ()).throw(AssertionError("clock")))
+    monkeypatch.setattr(
+        time, "time", lambda: (_ for _ in ()).throw(AssertionError("clock"))
+    )
     manifest_ref = seal_study_manifest(
         study,
         sources["tasks"],
         sources["roster"],
         sources["assignment"],
         sources["provider"],
+        sources["storage-policy"],
+        sources["power-grid"],
+        sources["power-topology"],
         sources["tokenizer"],
         sources["template"],
         sources["policy"],
@@ -2310,20 +3040,30 @@ def test_study_manifest_seal_copies_all_sources_without_reading_clock(
         out=run_root / "study-manifest.json",
     )
     manifest = load_record(run_root / manifest_ref.relative_path)
-    payload = manifest["payload"]
+    payload = cast(dict[str, object], manifest["payload"])
     for key in (
         "task_registry_ref",
         "roster_ref",
         "assignment_program_ref",
         "provider_lane_plan_ref",
+        "storage_policy_contract_ref",
+        "power_grid_ref",
+        "power_screen_topology_ref",
         "tokenizer_ref",
         "packet_template_ref",
         "packet_policy_ref",
         "pad_unit_set_ref",
         "required_document_kinds_ref",
     ):
-        assert (run_root / payload[key]["relative_path"]).is_file()  # type: ignore[index]
-    assert len(payload["source_revision_refs"]) == 2  # type: ignore[arg-type]
+        source_ref = cast(dict[str, object], payload[key])
+        assert (run_root / cast(str, source_ref["relative_path"])).is_file()
+    assert len(cast(list[object], payload["source_revision_refs"])) == 2
+    assert payload["eligibility_manifest_ref"] is None
+    assert payload["roster_ceremony_policy_ref"] is None
+    assert payload["commitment_scheme"] == "resampling-null-key-ceremony-v1"
+    assert payload["roster_local_nonce_commitment_sha256"] == SHA_A
+    assert payload["schedule_seed_commitment_sha256"] == SHA_A
+    assert payload["assignment_master_key_commitment_sha256"] == SHA_A
     assert manifest["frozen_created_at"] == FROZEN
 
 
@@ -2338,37 +3078,52 @@ def test_source_revisions_must_be_nonempty_and_sorted(tmp_path: Path) -> None:
         json.dumps(
             _record(
                 "resampling_study_manifest",
-                {"seed_commitment_sha256": SHA_A},
+                {
+                    "commitment_scheme": "resampling-null-key-ceremony-v1",
+                    "roster_local_nonce_commitment_sha256": SHA_A,
+                    "schedule_seed_commitment_sha256": SHA_A,
+                    "assignment_master_key_commitment_sha256": SHA_A,
+                },
             )
         ),
         encoding="utf-8",
     )
     root = tmp_path / "run"
     root.mkdir()
-    args = [study] + [source] * 8
-    with pytest.raises(ValueError, match="non-empty"):
+
+    def seal_with_revisions(revisions: Sequence[Path]) -> None:
         seal_study_manifest(
-            *args,
-            [],
-            source,
+            study_source=study,
+            tasks_source=source,
+            roster_source=source,
+            assignment_program_source=source,
+            provider_lane_plan_source=source,
+            storage_policy_contract_source=source,
+            power_grid_source=source,
+            power_screen_topology_source=source,
+            tokenizer_source=source,
+            packet_template_source=source,
+            packet_policy_source=source,
+            pad_unit_set_source=source,
+            source_revision_sources=revisions,
+            required_document_kinds_source=source,
             run_root=root,
             out=root / "study-manifest.json",
         )
+
+    with pytest.raises(ValueError, match="non-empty"):
+        seal_with_revisions([])
     z = tmp_path / "z.json"
     a = tmp_path / "a.json"
     z.write_text("{}", encoding="utf-8")
     a.write_text("{}", encoding="utf-8")
     with pytest.raises(ValueError, match="sorted"):
-        seal_study_manifest(
-            *args,
-            [z, a],
-            source,
-            run_root=root,
-            out=root / "study-manifest.json",
-        )
+        seal_with_revisions([z, a])
 
 
-def test_artifact_root_follows_raw_refs_and_detects_byte_changes(tmp_path: Path) -> None:
+def test_artifact_root_follows_raw_refs_and_detects_byte_changes(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / "run"
     built = _build_full_study(root)
     receipt = seal_artifact_root(
@@ -2466,7 +3221,10 @@ def test_no_trigger_task_block_rejects_forged_positive_y0_outcomes() -> None:
         )
     }
     payload = _no_trigger_task_block_payload(refs)
-    for outcome in payload["slot_outcomes"]:  # type: ignore[union-attr]
+    for outcome in cast(
+        list[dict[str, object]],
+        payload["slot_outcomes"],
+    ):
         outcome["success"] = 1
         outcome["prefix_success"] = 1
         outcome["partial_reward"] = 1.0
@@ -2607,7 +3365,9 @@ def test_triggered_task_block_rejects_frankenstein_causal_chains(
             "opaque_capability_id"
         ] = "opaque-frankenstein"
 
-    with pytest.raises(RecordValidationError, match="(?i)(causal|receipt|outcome|slot)"):
+    with pytest.raises(
+        RecordValidationError, match="(?i)(causal|receipt|outcome|slot)"
+    ):
         validate_record(_record("resampling_task_block", payload))
 
 
@@ -2623,17 +3383,21 @@ def _outage_task_block_payload(
     first_attempt["complete"] = False
     payload["attempts"] = [first_attempt, second_attempt]
     payload["selected_attempt_index"] = 1
-    payload["terminal_slot_receipts"] = deepcopy(
-        second_attempt["terminal_receipts"]
+    payload["terminal_slot_receipts"] = deepcopy(second_attempt["terminal_receipts"])
+    execution_receipts = cast(
+        list[dict[str, object]],
+        payload["execution_receipts"],
+    )
+    second_terminal_receipts = cast(
+        list[dict[str, object]],
+        second_attempt["terminal_receipts"],
     )
     payload["execution_receipts"] = [
         {
             **deepcopy(receipt),
-            "source_receipt_sha256": canonical_digest(
-                second_attempt["terminal_receipts"][index]
-            ),
+            "source_receipt_sha256": canonical_digest(second_terminal_receipts[index]),
         }
-        for index, receipt in enumerate(payload["execution_receipts"])  # type: ignore[arg-type]
+        for index, receipt in enumerate(execution_receipts)
     ]
     payload["outage_receipt"] = {
         "task_id": "task-1",
@@ -2784,10 +3548,13 @@ def test_failed_second_attempt_rejects_frankenstein_finalization(
     if mutation == "selected-attempt":
         payload["selected_attempt_index"] = 0
     elif mutation == "complete-second":
-        payload["attempts"][1]["terminal_receipts"] = deepcopy(  # type: ignore[index]
-            payload["attempts"][0]["terminal_receipts"]  # type: ignore[index]
-        ) * 2
-        payload["attempts"][1]["complete"] = True  # type: ignore[index]
+        attempts = cast(list[dict[str, object]], payload["attempts"])
+        first_terminal_receipts = cast(
+            list[dict[str, object]],
+            attempts[0]["terminal_receipts"],
+        )
+        attempts[1]["terminal_receipts"] = deepcopy(first_terminal_receipts) * 2
+        attempts[1]["complete"] = True
     elif mutation == "mixed-terminal-kind":
         payload["terminal_slot_receipts"][0] = deepcopy(  # type: ignore[index]
             payload["attempts"][0]["terminal_receipts"][0]  # type: ignore[index]
@@ -2941,9 +3708,7 @@ def test_artifact_root_rejects_rewired_forged_prefix_y0_chain(
         payload["task_block_refs"] = [task_ref, current_refs[1]]
         row = cast(list[dict[str, object]], payload["rows"])[0]
         row["prefix_success"] = 1
-        for index, slot in enumerate(
-            cast(list[dict[str, object]], row["slots"])
-        ):
+        for index, slot in enumerate(cast(list[dict[str, object]], row["slots"])):
             slot["outcome"] = deepcopy(
                 cast(list[dict[str, object]], forged_task_payload["slot_outcomes"])[
                     index
@@ -3027,9 +3792,7 @@ def test_artifact_root_rejects_task_slot_identity_drift(
     packet_pair: bool,
     failed_second_task: bool,
 ) -> None:
-    root = tmp_path / (
-        "failed-second-slot" if failed_second_task else "completed-slot"
-    )
+    root = tmp_path / ("failed-second-slot" if failed_second_task else "completed-slot")
     with pytest.raises(
         RecordValidationError,
         match="(?i)(schedule|assignment|slot|task)",
@@ -3130,6 +3893,125 @@ def test_artifact_root_document_coverage_and_power_identities(tmp_path: Path) ->
             duplicate_root,
             FROZEN_UPSTREAM_KINDS,
             duplicate_root / "p0-core-receipt.json",
+            study_id="study-1",
+            frozen_created_at=FROZEN,
+            provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
+        )
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "power-authority-ref-drift",
+        "power-membership-drift",
+        "power-rng-drift",
+        "power-screen-topology-drift",
+        "power-authority-label-drift",
+        "power-shard-count-mirror-drift",
+        "power-selected-shard-count-drift",
+    ],
+)
+def test_t3_s02_power_chain_rejects_authority_or_identity_drift(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    root = tmp_path / variant
+    _build_full_study(root, variant=variant)
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(power|authority|membership|rng|topology|shard|identity)",
+    ):
+        seal_artifact_root(
+            root,
+            FROZEN_UPSTREAM_KINDS,
+            root / "p0-core-receipt.json",
+            study_id="study-1",
+            frozen_created_at=FROZEN,
+            provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
+        )
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "power-terminal-phase-drift",
+        "power-terminal-kernel-drift",
+        "power-terminal-count-drift",
+    ],
+)
+def test_t3_s02_power_no_go_rejects_terminal_identity_drift(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    root = tmp_path / variant
+    _build_full_study(
+        root,
+        variant=variant,
+        no_go_stage="screen",
+        decision_authority="roster_bound_selection",
+    )
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(terminal|phase|kernel|shard|power|identity)",
+    ):
+        seal_artifact_root(
+            root,
+            FROZEN_UPSTREAM_KINDS,
+            root / "p0-core-receipt.json",
+            study_id="study-1",
+            frozen_created_at=FROZEN,
+            provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
+        )
+
+
+@pytest.mark.parametrize(
+    ("terminal_stage", "reason"),
+    [
+        ("screen", None),
+        ("validation", "synthetic_validation_gate_failed"),
+    ],
+)
+def test_t3_s02_synthetic_failure_chain_is_authority_bound(
+    tmp_path: Path,
+    terminal_stage: str,
+    reason: str | None,
+) -> None:
+    root = tmp_path / f"synthetic-validation-failed-{terminal_stage}"
+    _build_full_study(
+        root,
+        no_go_stage=terminal_stage,
+        no_go_reason=reason,
+        decision_authority="synthetic_validation",
+    )
+    receipt = seal_artifact_root(
+        root,
+        FROZEN_UPSTREAM_KINDS,
+        root / "p0-core-receipt.json",
+        study_id="study-1",
+        frozen_created_at=FROZEN,
+        provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
+    )
+    assert (root / receipt.relative_path).is_file()
+
+
+def test_t3_s02_synthetic_validation_reason_requires_validation_terminal(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "synthetic-validation-reason-at-screen"
+    _build_full_study(
+        root,
+        no_go_stage="screen",
+        no_go_reason="synthetic_validation_gate_failed",
+        decision_authority="synthetic_validation",
+    )
+    with pytest.raises(
+        RecordValidationError,
+        match="(?i)(reason|stage|terminal|validation)",
+    ):
+        seal_artifact_root(
+            root,
+            FROZEN_UPSTREAM_KINDS,
+            root / "p0-core-receipt.json",
             study_id="study-1",
             frozen_created_at=FROZEN,
             provenance={"design_sha256": SHA_A, "code_sha256": SHA_B},
@@ -3492,7 +4374,9 @@ def test_full_fallback_rejects_a_passing_gaussian_trigger(
         )
 
 
-@pytest.mark.parametrize("terminal_stage", ["screen", "shard", "selection", "validation"])
+@pytest.mark.parametrize(
+    "terminal_stage", ["screen", "shard", "selection", "validation"]
+)
 def test_power_no_go_seals_at_each_real_terminal_stage(
     tmp_path: Path,
     terminal_stage: str,
@@ -3502,9 +4386,7 @@ def test_power_no_go_seals_at_each_real_terminal_stage(
         root,
         no_go_stage=terminal_stage,
         no_go_reason=(
-            "power_or_type_i_gate_failed"
-            if terminal_stage == "validation"
-            else None
+            "power_or_type_i_gate_failed" if terminal_stage == "validation" else None
         ),
         decision_authority="roster_bound_selection",
     )
@@ -3618,9 +4500,7 @@ def _rewrite_fallback_as_screen_no_go(root: Path, *, reason: str) -> None:
     payload = cast(dict[str, object], record["payload"])
     attempt_refs = cast(list[dict[str, object]], payload["all_attempt_refs"])
     full_screen_ref = next(
-        ref
-        for ref in attempt_refs
-        if ref["relative_path"] == "power/full-screen.json"
+        ref for ref in attempt_refs if ref["relative_path"] == "power/full-screen.json"
     )
     removed_refs = [
         ref
@@ -3639,6 +4519,9 @@ def _rewrite_fallback_as_screen_no_go(root: Path, *, reason: str) -> None:
         "kind": "feasibility_no_go",
         "terminal_attempt_ref": full_screen_ref,
         "terminal_stage": "screen",
+        "terminal_phase": "full_multiplier_fallback",
+        "terminal_kernel_id": "power-final-full-multiplier-v1",
+        "terminal_shard_count": 2,
         "reason": reason,
         "selected_tier": None,
         "decision": "NO_GO",
@@ -3698,8 +4581,10 @@ def test_full_multiplier_screen_no_go_reason_is_bound_to_its_phase(
 
 def test_validation_gate_failure_has_closed_no_tier_no_go_verdict() -> None:
     payload = _power_payload("final")
+    payload["decision_authority"] = "roster_bound_selection"
     finalization = cast(dict[str, object], payload["finalization"])
     finalization.update(
+        kind="feasibility_no_go",
         terminal_stage="validation",
         reason="power_or_type_i_gate_failed",
         selected_tier=None,

@@ -88,34 +88,22 @@
             },
             "additionalProperties": false
         },
-        "base_properties": {
-            "stage": {},
-            "decision_authority": {
-                "enum": ["synthetic_validation", "roster_bound_selection"]
-            },
-            "phase": {
-                "enum": ["gaussian_approximation", "full_multiplier_fallback"]
-            },
-            "generation": { "type": "integer", "minimum": 0 },
-            "roster_ref": { "$ref": "#/$defs/artifact_ref" },
-            "grid_ref": { "$ref": "#/$defs/artifact_ref" },
-            "parent_refs": {
-                "type": "array",
-                "uniqueItems": true,
-                "items": { "$ref": "#/$defs/artifact_ref" }
-            }
-        },
         "screen_payload": {
             "type": "object",
             "required": [
                 "stage",
+                "authority_ref",
                 "decision_authority",
                 "phase",
                 "generation",
                 "roster_ref",
+                "tier_membership_sha256",
                 "grid_ref",
+                "screen_topology_ref",
+                "rng_contract_sha256",
+                "kernel_id",
+                "shard_count",
                 "parent_refs",
-                "topology_ref",
                 "config_ref",
                 "numeric_fixture_ref",
                 "numeric_contract",
@@ -125,6 +113,7 @@
             ],
             "properties": {
                 "stage": { "const": "screen" },
+                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
                 "decision_authority": {
                     "enum": ["synthetic_validation", "roster_bound_selection"]
                 },
@@ -133,16 +122,30 @@
                 },
                 "generation": { "type": "integer", "minimum": 0 },
                 "roster_ref": { "$ref": "#/$defs/artifact_ref" },
+                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
+                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
+                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "kernel_id": {
+                    "enum": [
+                        "power-screen-gaussian-v1",
+                        "power-screen-full-multiplier-v1"
+                    ]
+                },
+                "shard_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                },
                 "parent_refs": {
                     "type": "array",
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/artifact_ref" }
                 },
-                "topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "config_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
+                "fallback_trigger_ref": { "$ref": "#/$defs/artifact_ref" },
                 "projected_wall_seconds": { "type": "integer", "minimum": 0 },
                 "cell_count": { "type": "integer", "minimum": 1 },
                 "dataset_count": {
@@ -151,19 +154,49 @@
                     "not": { "type": "boolean" }
                 }
             },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "phase": { "const": "gaussian_approximation" }
+                        },
+                        "required": ["phase"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kernel_id": {
+                                "const": "power-screen-gaussian-v1"
+                            }
+                        },
+                        "not": { "required": ["fallback_trigger_ref"] }
+                    },
+                    "else": {
+                        "properties": {
+                            "kernel_id": {
+                                "const": "power-screen-full-multiplier-v1"
+                            }
+                        },
+                        "required": ["fallback_trigger_ref"]
+                    }
+                }
+            ],
             "additionalProperties": false
         },
         "shard_payload": {
             "type": "object",
             "required": [
                 "stage",
+                "authority_ref",
                 "decision_authority",
                 "phase",
                 "generation",
                 "roster_ref",
+                "tier_membership_sha256",
                 "grid_ref",
+                "screen_topology_ref",
+                "rng_contract_sha256",
+                "kernel_id",
                 "parent_refs",
-                "topology_ref",
                 "config_ref",
                 "numeric_fixture_ref",
                 "numeric_contract",
@@ -174,6 +207,7 @@
             ],
             "properties": {
                 "stage": { "const": "shard" },
+                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
                 "decision_authority": {
                     "enum": ["synthetic_validation", "roster_bound_selection"]
                 },
@@ -182,14 +216,22 @@
                 },
                 "generation": { "type": "integer", "minimum": 0 },
                 "roster_ref": { "$ref": "#/$defs/artifact_ref" },
+                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
+                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
+                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "kernel_id": {
+                    "enum": [
+                        "power-grid-gaussian-v1",
+                        "power-grid-full-multiplier-v1"
+                    ]
+                },
                 "parent_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/artifact_ref" }
                 },
-                "topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "config_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
@@ -206,6 +248,30 @@
                     "not": { "type": "boolean" }
                 }
             },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "phase": { "const": "gaussian_approximation" }
+                        },
+                        "required": ["phase"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kernel_id": {
+                                "const": "power-grid-gaussian-v1"
+                            }
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "kernel_id": {
+                                "const": "power-grid-full-multiplier-v1"
+                            }
+                        }
+                    }
+                }
+            ],
             "additionalProperties": false
         },
         "cell_result": {
@@ -246,13 +312,18 @@
             "type": "object",
             "required": [
                 "stage",
+                "authority_ref",
                 "decision_authority",
                 "phase",
                 "generation",
                 "roster_ref",
+                "tier_membership_sha256",
                 "grid_ref",
+                "screen_topology_ref",
+                "rng_contract_sha256",
+                "kernel_id",
+                "shard_count",
                 "parent_refs",
-                "topology_ref",
                 "config_ref",
                 "numeric_fixture_ref",
                 "numeric_contract",
@@ -262,22 +333,31 @@
             ],
             "properties": {
                 "stage": { "const": "selection" },
+                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
                 "decision_authority": {
                     "enum": ["synthetic_validation", "roster_bound_selection"]
                 },
-                "phase": {
-                    "enum": ["gaussian_approximation", "full_multiplier_fallback"]
-                },
+                "phase": { "const": "gaussian_approximation" },
                 "generation": { "type": "integer", "minimum": 0 },
                 "roster_ref": { "$ref": "#/$defs/artifact_ref" },
+                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
+                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
+                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "kernel_id": {
+                    "const": "power-worst-five-selection-v1"
+                },
+                "shard_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                },
                 "parent_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/artifact_ref" }
                 },
-                "topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "config_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
@@ -334,13 +414,18 @@
             "type": "object",
             "required": [
                 "stage",
+                "authority_ref",
                 "decision_authority",
                 "phase",
                 "generation",
                 "roster_ref",
+                "tier_membership_sha256",
                 "grid_ref",
+                "screen_topology_ref",
+                "rng_contract_sha256",
+                "kernel_id",
+                "shard_count",
                 "parent_refs",
-                "topology_ref",
                 "config_ref",
                 "numeric_fixture_ref",
                 "numeric_contract",
@@ -351,20 +436,31 @@
             ],
             "properties": {
                 "stage": { "const": "validation" },
+                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
                 "decision_authority": {
                     "enum": ["synthetic_validation", "roster_bound_selection"]
                 },
                 "phase": { "const": "gaussian_approximation" },
                 "generation": { "type": "integer", "minimum": 0 },
                 "roster_ref": { "$ref": "#/$defs/artifact_ref" },
+                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
+                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
+                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "kernel_id": {
+                    "const": "power-gaussian-vs-multiplier-validation-v1"
+                },
+                "shard_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                },
                 "parent_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/artifact_ref" }
                 },
-                "topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "config_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
@@ -392,13 +488,18 @@
             "type": "object",
             "required": [
                 "stage",
+                "authority_ref",
                 "decision_authority",
                 "phase",
                 "generation",
                 "roster_ref",
+                "tier_membership_sha256",
                 "grid_ref",
+                "screen_topology_ref",
+                "rng_contract_sha256",
+                "kernel_id",
+                "shard_count",
                 "parent_refs",
-                "topology_ref",
                 "config_ref",
                 "numeric_fixture_ref",
                 "numeric_contract",
@@ -413,20 +514,31 @@
             ],
             "properties": {
                 "stage": { "const": "validation" },
+                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
                 "decision_authority": {
                     "enum": ["synthetic_validation", "roster_bound_selection"]
                 },
                 "phase": { "const": "full_multiplier_fallback" },
                 "generation": { "type": "integer", "minimum": 0 },
                 "roster_ref": { "$ref": "#/$defs/artifact_ref" },
+                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
+                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
+                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "kernel_id": {
+                    "const": "power-full-grid-validation-v1"
+                },
+                "shard_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                },
                 "parent_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/artifact_ref" }
                 },
-                "topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "config_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
@@ -459,6 +571,8 @@
                 "kind",
                 "selected_phase",
                 "selected_generation",
+                "selected_kernel_id",
+                "selected_shard_count",
                 "selected_screen_ref",
                 "selected_shard_refs",
                 "selected_selection_ref",
@@ -470,6 +584,14 @@
                 "kind": { "const": "completed_chain" },
                 "selected_phase": { "const": "gaussian_approximation" },
                 "selected_generation": { "type": "integer", "minimum": 0 },
+                "selected_kernel_id": {
+                    "const": "power-final-gaussian-v1"
+                },
+                "selected_shard_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                },
                 "selected_screen_ref": { "$ref": "#/$defs/artifact_ref" },
                 "selected_shard_refs": {
                     "type": "array",
@@ -497,6 +619,8 @@
                 "kind",
                 "selected_phase",
                 "selected_generation",
+                "selected_kernel_id",
+                "selected_shard_count",
                 "fallback_trigger_ref",
                 "selected_screen_ref",
                 "selected_shard_refs",
@@ -508,6 +632,14 @@
                 "kind": { "const": "completed_chain" },
                 "selected_phase": { "const": "full_multiplier_fallback" },
                 "selected_generation": { "type": "integer", "minimum": 0 },
+                "selected_kernel_id": {
+                    "const": "power-final-full-multiplier-v1"
+                },
+                "selected_shard_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                },
                 "fallback_trigger_ref": { "$ref": "#/$defs/artifact_ref" },
                 "selected_screen_ref": { "$ref": "#/$defs/artifact_ref" },
                 "selected_shard_refs": {
@@ -535,6 +667,9 @@
                 "kind",
                 "terminal_attempt_ref",
                 "terminal_stage",
+                "terminal_phase",
+                "terminal_kernel_id",
+                "terminal_shard_count",
                 "reason",
                 "selected_tier",
                 "decision"
@@ -544,6 +679,23 @@
                 "terminal_attempt_ref": { "$ref": "#/$defs/artifact_ref" },
                 "terminal_stage": {
                     "enum": ["screen", "shard", "selection", "validation"]
+                },
+                "terminal_phase": {
+                    "enum": [
+                        "gaussian_approximation",
+                        "full_multiplier_fallback"
+                    ]
+                },
+                "terminal_kernel_id": {
+                    "enum": [
+                        "power-final-gaussian-v1",
+                        "power-final-full-multiplier-v1"
+                    ]
+                },
+                "terminal_shard_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
                 },
                 "reason": {
                     "enum": [
@@ -560,17 +712,71 @@
             },
             "additionalProperties": false
         },
+        "synthetic_validation_failed": {
+            "type": "object",
+            "required": [
+                "kind",
+                "terminal_attempt_ref",
+                "terminal_stage",
+                "terminal_phase",
+                "terminal_kernel_id",
+                "terminal_shard_count",
+                "reason",
+                "selected_tier",
+                "decision"
+            ],
+            "properties": {
+                "kind": { "const": "synthetic_validation_failed" },
+                "terminal_attempt_ref": { "$ref": "#/$defs/artifact_ref" },
+                "terminal_stage": {
+                    "enum": ["screen", "shard", "selection", "validation"]
+                },
+                "terminal_phase": {
+                    "enum": [
+                        "gaussian_approximation",
+                        "full_multiplier_fallback"
+                    ]
+                },
+                "terminal_kernel_id": {
+                    "enum": [
+                        "power-final-gaussian-v1",
+                        "power-final-full-multiplier-v1"
+                    ]
+                },
+                "terminal_shard_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                },
+                "reason": {
+                    "enum": [
+                        "gaussian_screen_exhausted",
+                        "full_multiplier_screen_exhausted",
+                        "numeric_fixture_failed",
+                        "runtime_bound_exceeded",
+                        "attempt_incomplete",
+                        "synthetic_validation_gate_failed"
+                    ]
+                },
+                "selected_tier": { "type": "null" },
+                "decision": { "const": "CONDITIONAL_ONLY" }
+            },
+            "additionalProperties": false
+        },
         "final_payload": {
             "type": "object",
             "required": [
                 "stage",
+                "authority_ref",
                 "decision_authority",
                 "phase",
                 "generation",
                 "roster_ref",
+                "tier_membership_sha256",
                 "grid_ref",
+                "screen_topology_ref",
+                "rng_contract_sha256",
                 "parent_refs",
-                "topology_ref",
                 "config_ref",
                 "numeric_fixture_ref",
                 "numeric_contract",
@@ -579,6 +785,7 @@
             ],
             "properties": {
                 "stage": { "const": "final" },
+                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
                 "decision_authority": {
                     "enum": ["synthetic_validation", "roster_bound_selection"]
                 },
@@ -587,14 +794,16 @@
                 },
                 "generation": { "type": "integer", "minimum": 0 },
                 "roster_ref": { "$ref": "#/$defs/artifact_ref" },
+                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
+                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
+                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
                 "parent_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/artifact_ref" }
                 },
-                "topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "config_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
                 "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
@@ -608,7 +817,8 @@
                     "oneOf": [
                         { "$ref": "#/$defs/gaussian_completed_chain" },
                         { "$ref": "#/$defs/full_multiplier_completed_chain" },
-                        { "$ref": "#/$defs/feasibility_no_go" }
+                        { "$ref": "#/$defs/feasibility_no_go" },
+                        { "$ref": "#/$defs/synthetic_validation_failed" }
                     ]
                 }
             },

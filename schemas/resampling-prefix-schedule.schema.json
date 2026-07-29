@@ -24,16 +24,30 @@
             "type": "object",
             "required": [
                 "manifest_ref",
-                "assignment_program_ref",
-                "provider_lane_plan_ref",
-                "study_seed",
+                "power_final_ref",
+                "schedule_authority",
+                "selected_tier",
+                "selected_membership_sha256",
+                "schedule_seed",
                 "tasks"
             ],
             "properties": {
                 "manifest_ref": { "$ref": "#/$defs/artifact_ref" },
-                "assignment_program_ref": { "$ref": "#/$defs/artifact_ref" },
-                "provider_lane_plan_ref": { "$ref": "#/$defs/artifact_ref" },
-                "study_seed": { "$ref": "#/$defs/seed" },
+                "power_final_ref": { "$ref": "#/$defs/artifact_ref" },
+                "schedule_authority": {
+                    "enum": [
+                        "synthetic_validation",
+                        "roster_bound_selection"
+                    ]
+                },
+                "selected_tier": {
+                    "oneOf": [
+                        { "enum": [120, 160] },
+                        { "type": "null" }
+                    ]
+                },
+                "selected_membership_sha256": { "$ref": "#/$defs/sha256" },
+                "schedule_seed": { "$ref": "#/$defs/seed" },
                 "tasks": {
                     "type": "array",
                     "minItems": 1,
@@ -41,6 +55,26 @@
                     "items": { "$ref": "#/$defs/task_schedule" }
                 }
             },
+            "oneOf": [
+                {
+                    "properties": {
+                        "schedule_authority": {
+                            "const": "synthetic_validation"
+                        },
+                        "selected_tier": { "type": "null" }
+                    },
+                    "required": ["schedule_authority", "selected_tier"]
+                },
+                {
+                    "properties": {
+                        "schedule_authority": {
+                            "const": "roster_bound_selection"
+                        },
+                        "selected_tier": { "enum": [120, 160] }
+                    },
+                    "required": ["schedule_authority", "selected_tier"]
+                }
+            ],
             "additionalProperties": false
         }
     },

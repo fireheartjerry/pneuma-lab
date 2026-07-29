@@ -25,21 +25,44 @@
             "required": [
                 "task_registry_ref",
                 "roster_ref",
+                "eligibility_manifest_ref",
+                "roster_ceremony_policy_ref",
                 "assignment_program_ref",
                 "provider_lane_plan_ref",
+                "storage_policy_contract_ref",
+                "power_grid_ref",
+                "power_screen_topology_ref",
                 "tokenizer_ref",
                 "packet_template_ref",
                 "packet_policy_ref",
                 "pad_unit_set_ref",
                 "source_revision_refs",
-                "seed_commitment_sha256",
+                "commitment_scheme",
+                "roster_local_nonce_commitment_sha256",
+                "schedule_seed_commitment_sha256",
+                "assignment_master_key_commitment_sha256",
                 "required_document_kinds_ref"
             ],
             "properties": {
                 "task_registry_ref": { "$ref": "#/$defs/artifact_ref" },
                 "roster_ref": { "$ref": "#/$defs/artifact_ref" },
+                "eligibility_manifest_ref": {
+                    "oneOf": [
+                        { "$ref": "#/$defs/artifact_ref" },
+                        { "type": "null" }
+                    ]
+                },
+                "roster_ceremony_policy_ref": {
+                    "oneOf": [
+                        { "$ref": "#/$defs/artifact_ref" },
+                        { "type": "null" }
+                    ]
+                },
                 "assignment_program_ref": { "$ref": "#/$defs/artifact_ref" },
                 "provider_lane_plan_ref": { "$ref": "#/$defs/artifact_ref" },
+                "storage_policy_contract_ref": { "$ref": "#/$defs/artifact_ref" },
+                "power_grid_ref": { "$ref": "#/$defs/artifact_ref" },
+                "power_screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "tokenizer_ref": { "$ref": "#/$defs/artifact_ref" },
                 "packet_template_ref": { "$ref": "#/$defs/artifact_ref" },
                 "packet_policy_ref": { "$ref": "#/$defs/artifact_ref" },
@@ -50,9 +73,46 @@
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/artifact_ref" }
                 },
-                "seed_commitment_sha256": { "$ref": "#/$defs/sha256" },
+                "commitment_scheme": {
+                    "const": "resampling-null-key-ceremony-v1"
+                },
+                "roster_local_nonce_commitment_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "schedule_seed_commitment_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "assignment_master_key_commitment_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
                 "required_document_kinds_ref": { "$ref": "#/$defs/artifact_ref" }
             },
+            "oneOf": [
+                {
+                    "properties": {
+                        "eligibility_manifest_ref": { "type": "null" },
+                        "roster_ceremony_policy_ref": { "type": "null" }
+                    },
+                    "required": [
+                        "eligibility_manifest_ref",
+                        "roster_ceremony_policy_ref"
+                    ]
+                },
+                {
+                    "properties": {
+                        "eligibility_manifest_ref": {
+                            "$ref": "#/$defs/artifact_ref"
+                        },
+                        "roster_ceremony_policy_ref": {
+                            "$ref": "#/$defs/artifact_ref"
+                        }
+                    },
+                    "required": [
+                        "eligibility_manifest_ref",
+                        "roster_ceremony_policy_ref"
+                    ]
+                }
+            ],
             "additionalProperties": false
         }
     },

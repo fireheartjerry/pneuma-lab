@@ -99,9 +99,7 @@ def _plain_json(value: object, *, path: str = "$") -> object:
 def canonical_digest(value: Mapping[str, object]) -> str:
     """Return the stable compact-JSON SHA-256 for one mapping."""
 
-    return hashlib.sha256(
-        canonical_json_bytes(dict(value), indent=None)
-    ).hexdigest()
+    return hashlib.sha256(canonical_json_bytes(dict(value), indent=None)).hexdigest()
 
 
 def _validation_error_key(error: Any) -> tuple[tuple[str, ...], str]:
@@ -158,20 +156,59 @@ def _validate_semantics(value: dict[str, object]) -> None:
             key="task_id",
         )
     elif kind == "resampling_assignment_ledger":
-        _semantic_unique(payload["assignments"], "payload.assignments", key="task_id")
-        _semantic_unique(
+        assignments = cast(list[Mapping[str, object]], payload["assignments"])
+        allocation_receipts = cast(
+            list[Mapping[str, object]],
             payload["allocation_receipts"],
+        )
+        donor_match_receipts = cast(
+            list[Mapping[str, object]],
+            payload["donor_match_receipts"],
+        )
+        _semantic_unique(assignments, "payload.assignments", key="task_id")
+        _semantic_unique(
+            allocation_receipts,
             "payload.allocation_receipts",
             key="task_id",
         )
-        for assignment in cast(list[object], payload["assignments"]):
-            if not isinstance(assignment, Mapping):
-                continue
-            if assignment.get("task_id") == assignment.get("donor_task_id"):
+        _semantic_unique(
+            donor_match_receipts,
+            "payload.donor_match_receipts",
+            key="task_id",
+        )
+        assignment_task_ids = [
+            cast(str, assignment["task_id"]) for assignment in assignments
+        ]
+        allocation_task_ids = [
+            cast(str, receipt["task_id"]) for receipt in allocation_receipts
+        ]
+        donor_receipt_task_ids = [
+            cast(str, receipt["task_id"]) for receipt in donor_match_receipts
+        ]
+        if not (assignment_task_ids == allocation_task_ids == donor_receipt_task_ids):
+            raise RecordValidationError(
+                "assignment, allocation, and donor receipt task order must match"
+            )
+        allocation_by_task = {
+            cast(str, receipt["task_id"]): receipt for receipt in allocation_receipts
+        }
+        donor_receipt_by_task = {
+            cast(str, receipt["task_id"]): receipt for receipt in donor_match_receipts
+        }
+
+        for assignment in assignments:
+            donor_match_kind = assignment["donor_match_kind"]
+            if (
+                donor_match_kind == "matched"
+                and assignment["task_id"] == assignment["donor_task_id"]
+            ):
                 raise RecordValidationError(
                     "assignment task_id and donor_task_id must differ"
                 )
-            if assignment.get("task_lineage") == assignment.get("donor_lineage"):
+            if (
+                donor_match_kind == "matched"
+                and assignment["task_lineage"] == assignment["donor_lineage"]
+            ):
                 raise RecordValidationError(
                     "assignment task and donor lineages must differ"
                 )
@@ -194,6 +231,107 @@ def _validate_semantics(value: dict[str, object]) -> None:
                 if sorted(arms) != ["NONE", "REAL", "RESAMPLE", "SHAM"]:
                     raise RecordValidationError(
                         "assignment slot_arms must contain every arm exactly once"
+                    )
+
+            allocation = allocation_by_task[cast(str, assignment["task_id"])]
+            allocation_slot_ids = cast(
+                list[str],
+                allocation["slot_ids_by_ordinal"],
+            )
+            capability_slot_ids = [
+                cast(list[str], capability)[0]
+                for capability in cast(
+                    list[list[str]],
+                    allocation["slot_capabilities"],
+                )
+            ]
+            assignment_slot_ids = [
+                cast(list[str], slot_arm)[0]
+                for slot_arm in cast(list[list[str]], assignment["slot_arms"])
+            ]
+            if allocation_slot_ids != assignment_slot_ids:
+                raise RecordValidationError(
+                    "allocation slot_ids_by_ordinal must equal assignment slot order"
+                )
+            if capability_slot_ids != allocation_slot_ids:
+                raise RecordValidationError(
+                    "allocation slot capabilities must follow slot_ids_by_ordinal"
+                )
+
+            donor_receipt = donor_receipt_by_task[cast(str, assignment["task_id"])]
+            if donor_receipt["kind"] != donor_match_kind:
+                raise RecordValidationError(
+                    "task assignment and donor receipt matching kinds differ"
+                )
+            if (
+                donor_receipt["assignment_prefix_view_sha256"]
+                != payload["assignment_prefix_view_sha256"]
+            ):
+                raise RecordValidationError(
+                    "donor receipt assignment prefix view digest differs from ledger"
+                )
+            if donor_match_kind == "matched":
+                for field in (
+                    "task_id",
+                    "task_lineage",
+                    "donor_task_id",
+                    "donor_lineage",
+                ):
+                    if donor_receipt[field] != assignment[field]:
+                        raise RecordValidationError(
+                            f"matched donor receipt {field} differs from assignment"
+                        )
+                if donor_receipt["assignment_mode"] != payload["assignment_mode"]:
+                    raise RecordValidationError(
+                        "matched donor receipt assignment mode differs from ledger"
+                    )
+                candidates = cast(
+                    list[Mapping[str, object]],
+                    donor_receipt["candidates"],
+                )
+                _semantic_unique(
+                    candidates,
+                    "payload.donor_match_receipts.candidates",
+                    key="donor_task_id",
+                )
+                chosen = [
+                    candidate
+                    for candidate in candidates
+                    if candidate["donor_task_id"] == donor_receipt["donor_task_id"]
+                    and candidate["donor_lineage"] == donor_receipt["donor_lineage"]
+                    and candidate["primary_cost"]
+                    == donor_receipt["chosen_primary_cost"]
+                ]
+                if len(chosen) != 1:
+                    raise RecordValidationError(
+                        "matched donor and chosen cost must identify one candidate"
+                    )
+
+        matching_proof_refs = cast(
+            list[Mapping[str, object]],
+            payload["matching_proof_refs"],
+        )
+        matched_receipts = [
+            receipt for receipt in donor_match_receipts if receipt["kind"] == "matched"
+        ]
+        if not matched_receipts and matching_proof_refs:
+            raise RecordValidationError(
+                "matching_proof_refs must be empty when every donor receipt is N/A"
+            )
+        if matched_receipts:
+            triggered_strata = {
+                tuple(cast(list[str], receipt["stratum_key"]))
+                for receipt in matched_receipts
+            }
+            if len(matching_proof_refs) != len(triggered_strata):
+                raise RecordValidationError(
+                    "matching_proof_refs must contain exactly one ref per "
+                    "triggered matching stratum"
+                )
+            for receipt in matched_receipts:
+                if receipt["matching_proof_ref"] not in matching_proof_refs:
+                    raise RecordValidationError(
+                        "matched donor receipt points outside matching_proof_refs"
                     )
     elif kind == "resampling_packet_index":
         entries = payload.get("entries")
@@ -314,20 +452,16 @@ def _validate_semantics(value: dict[str, object]) -> None:
                     )
             slot_ids = [receipt.get("slot_id") for receipt in terminal_receipts]
             capability_ids = [
-                receipt.get("opaque_capability_id")
-                for receipt in terminal_receipts
+                receipt.get("opaque_capability_id") for receipt in terminal_receipts
             ]
-            if (
-                len(slot_ids) != len(set(slot_ids))
-                or len(capability_ids) != len(set(capability_ids))
+            if len(slot_ids) != len(set(slot_ids)) or len(capability_ids) != len(
+                set(capability_ids)
             ):
                 raise RecordValidationError(
                     "terminal receipts must identify four unique opaque slots"
                 )
             selected_work_orders = selected_attempt.get("work_order_sha256s")
-            selected_slot_identities = list(
-                zip(slot_ids, capability_ids, strict=True)
-            )
+            selected_slot_identities = list(zip(slot_ids, capability_ids, strict=True))
             attempt_ref_signatures: list[str] = []
             for attempt_index, attempt in enumerate(attempts):
                 if not isinstance(attempt, Mapping):
@@ -360,15 +494,12 @@ def _validate_semantics(value: dict[str, object]) -> None:
                     for index, identity in enumerate(selected_slot_identities)
                 }
                 attempt_positions = [
-                    canonical_positions.get(identity)
-                    for identity in attempt_identities
+                    canonical_positions.get(identity) for identity in attempt_identities
                 ]
                 if (
                     len(attempt_identities) != len(set(attempt_identities))
                     or any(position is None for position in attempt_positions)
-                    or attempt_positions != sorted(
-                        cast(list[int], attempt_positions)
-                    )
+                    or attempt_positions != sorted(cast(list[int], attempt_positions))
                 ):
                     raise RecordValidationError(
                         "attempt terminal receipts must be a unique canonical-"
@@ -389,9 +520,7 @@ def _validate_semantics(value: dict[str, object]) -> None:
             for index, (terminal, execution, outcome) in enumerate(
                 zip(terminal_receipts, execution_receipts, outcomes, strict=True)
             ):
-                if execution.get("source_receipt_sha256") != canonical_digest(
-                    terminal
-                ):
+                if execution.get("source_receipt_sha256") != canonical_digest(terminal):
                     raise RecordValidationError(
                         "execution receipt source digest does not bind its "
                         f"terminal receipt at slot {index}"
@@ -401,16 +530,12 @@ def _validate_semantics(value: dict[str, object]) -> None:
                         "execution receipt outcome differs from its top-level "
                         f"slot outcome at slot {index}"
                     )
-                if outcome.get("opaque_arm_id") != terminal.get(
-                    "opaque_capability_id"
-                ):
+                if outcome.get("opaque_arm_id") != terminal.get("opaque_capability_id"):
                     raise RecordValidationError(
                         f"opaque slot identity differs at slot {index}"
                     )
                 expected_source_kind = (
-                    "failed_second_attempt"
-                    if failed_second
-                    else "graded_unscored"
+                    "failed_second_attempt" if failed_second else "graded_unscored"
                 )
                 if execution.get("source_kind") != expected_source_kind:
                     raise RecordValidationError(
@@ -433,8 +558,7 @@ def _validate_semantics(value: dict[str, object]) -> None:
                     if (
                         execution.get("grade_receipt") is not None
                         or outcome.get("success") != 0
-                        or outcome.get("prefix_success")
-                        != payload["prefix_success"]
+                        or outcome.get("prefix_success") != payload["prefix_success"]
                         or outcome.get("partial_reward") != 0.0
                         or outcome.get("infrastructure_failure") is not True
                         or outcome.get("counters") != zero_counters
@@ -453,12 +577,10 @@ def _validate_semantics(value: dict[str, object]) -> None:
                         )
                     if (
                         outcome.get("success") != grade.get("success")
-                        or outcome.get("partial_reward")
-                        != grade.get("partial_reward")
+                        or outcome.get("partial_reward") != grade.get("partial_reward")
                         or outcome.get("infrastructure_failure")
                         != grade.get("infrastructure_failure")
-                        or outcome.get("artifact_ref")
-                        != grade.get("artifact_ref")
+                        or outcome.get("artifact_ref") != grade.get("artifact_ref")
                         or outcome.get("counters") != terminal.get("counters")
                     ):
                         raise RecordValidationError(
@@ -520,7 +642,9 @@ def _validate_semantics(value: dict[str, object]) -> None:
                     "no-trigger slot_outcomes must be four copied Y_0 outcomes"
                 )
     elif kind == "resampling_blinded_projection":
-        _semantic_unique(payload["task_block_refs"], "task_block_refs", key="relative_path")
+        _semantic_unique(
+            payload["task_block_refs"], "task_block_refs", key="relative_path"
+        )
         _semantic_unique(payload["rows"], "rows", key="task_id")
         rows = cast(list[object], payload["rows"])
         if len(rows) != cast(int, payload["expected_task_count"]):
@@ -537,9 +661,7 @@ def _validate_semantics(value: dict[str, object]) -> None:
             slots = row.get("slots")
             if isinstance(slots, list):
                 labels = [
-                    slot.get("label")
-                    for slot in slots
-                    if isinstance(slot, Mapping)
+                    slot.get("label") for slot in slots if isinstance(slot, Mapping)
                 ]
                 if labels != ["A", "B", "C", "D"]:
                     raise RecordValidationError(
@@ -556,9 +678,7 @@ def _validate_semantics(value: dict[str, object]) -> None:
             raise RecordValidationError("artifact root must exclude its own receipt")
         required = cast(list[str], payload["required_document_kinds"])
         if required != sorted(required):
-            raise RecordValidationError(
-                "required_document_kinds must be sorted"
-            )
+            raise RecordValidationError("required_document_kinds must be sorted")
     elif kind == "resampling_power_report":
         stage = payload["stage"]
         if stage == "shard":
@@ -593,27 +713,20 @@ def _validate_semantics(value: dict[str, object]) -> None:
                         f"power shard cell_results[{index}] pass counts must "
                         "be bounded by trial counts"
                     )
-                if (
-                    alternative_trial != dataset_count
-                    or null_trial != dataset_count
-                ):
+                if alternative_trial != dataset_count or null_trial != dataset_count:
                     raise RecordValidationError(
                         f"power shard cell_results[{index}] trial counts must "
                         "equal shard dataset_count"
                     )
         elif stage == "selection":
             selected = cast(list[object], payload["selected_cells"])
-            if (
-                payload["selection_count"] != len(selected)
-                or cast(int, payload["candidate_count"]) < len(selected)
-            ):
+            if payload["selection_count"] != len(selected) or cast(
+                int, payload["candidate_count"]
+            ) < len(selected):
                 raise RecordValidationError(
                     "power selection counts do not match selected_cells"
                 )
-        elif (
-            stage == "validation"
-            and payload["phase"] == "gaussian_approximation"
-        ):
+        elif stage == "validation" and payload["phase"] == "gaussian_approximation":
             receipt = cast(
                 Mapping[str, object],
                 payload["approximation_receipt"],
@@ -623,8 +736,7 @@ def _validate_semantics(value: dict[str, object]) -> None:
                 == receipt["full_multiplier_tier_decision"]
             )
             within_tolerance = (
-                cast(float, receipt["max_absolute_gate_pass_rate_difference"])
-                <= 0.01
+                cast(float, receipt["max_absolute_gate_pass_rate_difference"]) <= 0.01
             )
             if receipt["tier_decision_unchanged"] is not unchanged:
                 raise RecordValidationError(
@@ -635,15 +747,11 @@ def _validate_semantics(value: dict[str, object]) -> None:
                     "Gaussian approximation receipt does not enforce the "
                     "0.01 difference and unchanged-tier gate"
                 )
-        elif (
-            stage == "validation"
-            and payload["phase"] == "full_multiplier_fallback"
-        ):
+        elif stage == "validation" and payload["phase"] == "full_multiplier_fallback":
             cells = cast(list[object], payload["complete_cell_ids"])
-            if (
-                payload["expected_cell_count"] != len(cells)
-                or payload["observed_cell_count"] != len(cells)
-            ):
+            if payload["expected_cell_count"] != len(cells) or payload[
+                "observed_cell_count"
+            ] != len(cells):
                 raise RecordValidationError(
                     "full-multiplier validation must cover every declared cell"
                 )
@@ -742,9 +850,7 @@ def _resolve_inside(
     try:
         relative = resolved.relative_to(root)
     except ValueError as exc:
-        raise RecordValidationError(
-            f"artifact path escapes run_root: {path}"
-        ) from exc
+        raise RecordValidationError(f"artifact path escapes run_root: {path}") from exc
     if relative == Path("."):
         raise RecordValidationError("artifact path must name a file below run_root")
     relative_path = PurePosixPath(*relative.parts).as_posix()
@@ -790,7 +896,9 @@ def _require_manifest_ancestry(
             )
 
 
-def _artifact_ref_for_path(path: Path, run_root: Path, role: str, media_type: str) -> ArtifactRef:
+def _artifact_ref_for_path(
+    path: Path, run_root: Path, role: str, media_type: str
+) -> ArtifactRef:
     resolved, relative_path = _resolve_inside(path, run_root, require_exists=True)
     payload = resolved.read_bytes()
     return ArtifactRef(
@@ -966,6 +1074,9 @@ def seal_study_manifest(
     roster_source: Path,
     assignment_program_source: Path,
     provider_lane_plan_source: Path,
+    storage_policy_contract_source: Path,
+    power_grid_source: Path,
+    power_screen_topology_source: Path,
     tokenizer_source: Path,
     packet_template_source: Path,
     packet_policy_source: Path,
@@ -973,6 +1084,8 @@ def seal_study_manifest(
     source_revision_sources: Sequence[Path],
     required_document_kinds_source: Path,
     *,
+    eligibility_manifest_source: Path | None = None,
+    roster_ceremony_policy_source: Path | None = None,
     run_root: Path,
     out: Path,
 ) -> ArtifactRef:
@@ -989,11 +1102,11 @@ def seal_study_manifest(
         )
     if not source_revision_sources:
         raise ValueError("source_revision_sources must be non-empty")
-    revision_names = [
-        _normalized_source_name(path) for path in source_revision_sources
-    ]
+    revision_names = [_normalized_source_name(path) for path in source_revision_sources]
     if revision_names != sorted(revision_names):
-        raise ValueError("source_revision_sources must be sorted by normalized source name")
+        raise ValueError(
+            "source_revision_sources must be sorted by normalized source name"
+        )
     if len(revision_names) != len(set(revision_names)):
         raise ValueError("source_revision_sources must have unique normalized names")
     required_path = Path(required_document_kinds_source).resolve(strict=True)
@@ -1021,12 +1134,28 @@ def seal_study_manifest(
     if template.get("record_kind") != "resampling_study_manifest":
         raise RecordValidationError("study template has wrong record_kind")
     template_payload = template.get("payload")
+    commitment_fields = {
+        "commitment_scheme",
+        "roster_local_nonce_commitment_sha256",
+        "schedule_seed_commitment_sha256",
+        "assignment_master_key_commitment_sha256",
+    }
     if (
         not isinstance(template_payload, Mapping)
-        or set(template_payload) != {"seed_commitment_sha256"}
+        or set(template_payload) != commitment_fields
     ):
         raise RecordValidationError(
-            "study template payload must contain only seed_commitment_sha256"
+            "study template payload must contain only the commitment scheme "
+            "and three named commitment digests"
+        )
+    if template_payload["commitment_scheme"] != "resampling-null-key-ceremony-v1":
+        raise RecordValidationError(
+            "study template commitment_scheme must be resampling-null-key-ceremony-v1"
+        )
+    if (eligibility_manifest_source is None) != (roster_ceremony_policy_source is None):
+        raise ValueError(
+            "eligibility_manifest_source and roster_ceremony_policy_source "
+            "must be supplied together"
         )
 
     fixed_inputs = (
@@ -1034,6 +1163,17 @@ def seal_study_manifest(
         (roster_source, "roster", "roster"),
         (assignment_program_source, "assignment-program", "assignment_program"),
         (provider_lane_plan_source, "provider-lane-plan", "provider_lane_plan"),
+        (
+            storage_policy_contract_source,
+            "storage-policy-contract",
+            "storage_policy_contract",
+        ),
+        (power_grid_source, "power-grid", "power_grid"),
+        (
+            power_screen_topology_source,
+            "power-screen-topology",
+            "power_screen_topology",
+        ),
         (tokenizer_source, "tokenizer", "tokenizer"),
         (packet_template_source, "packet-template", "packet_template"),
         (packet_policy_source, "packet-policy", "packet_policy"),
@@ -1062,7 +1202,26 @@ def seal_study_manifest(
         )
         for revision in source_revision_sources
     ]
-    all_copies = copies + revision_copies
+    conditional_copies: list[_SourceCopy] = []
+    if (
+        eligibility_manifest_source is not None
+        and roster_ceremony_policy_source is not None
+    ):
+        conditional_copies = [
+            _plan_source_copy(
+                eligibility_manifest_source,
+                run_root=root,
+                subtree="eligibility-manifest",
+                role="eligibility_manifest",
+            ),
+            _plan_source_copy(
+                roster_ceremony_policy_source,
+                run_root=root,
+                subtree="roster-ceremony-policy",
+                role="roster_ceremony_policy",
+            ),
+        ]
+    all_copies = copies + revision_copies + conditional_copies
     destinations = [copy.destination for copy in all_copies]
     if len(destinations) != len(set(destinations)):
         raise RecordValidationError("source copies have conflicting destinations")
@@ -1070,23 +1229,41 @@ def seal_study_manifest(
         if destination.exists():
             raise FileExistsError(destination)
 
-    by_role = {copy.ref.role: copy.ref for copy in copies}
+    by_role = {copy.ref.role: copy.ref for copy in copies + conditional_copies}
     final_payload: dict[str, object] = {
         "task_registry_ref": _ref_mapping(by_role["task_registry"]),
         "roster_ref": _ref_mapping(by_role["roster"]),
+        "eligibility_manifest_ref": (
+            _ref_mapping(by_role["eligibility_manifest"])
+            if conditional_copies
+            else None
+        ),
+        "roster_ceremony_policy_ref": (
+            _ref_mapping(by_role["roster_ceremony_policy"])
+            if conditional_copies
+            else None
+        ),
         "assignment_program_ref": _ref_mapping(by_role["assignment_program"]),
         "provider_lane_plan_ref": _ref_mapping(by_role["provider_lane_plan"]),
+        "storage_policy_contract_ref": _ref_mapping(by_role["storage_policy_contract"]),
+        "power_grid_ref": _ref_mapping(by_role["power_grid"]),
+        "power_screen_topology_ref": _ref_mapping(by_role["power_screen_topology"]),
         "tokenizer_ref": _ref_mapping(by_role["tokenizer"]),
         "packet_template_ref": _ref_mapping(by_role["packet_template"]),
         "packet_policy_ref": _ref_mapping(by_role["packet_policy"]),
         "pad_unit_set_ref": _ref_mapping(by_role["pad_unit_set"]),
-        "source_revision_refs": [
-            _ref_mapping(copy.ref) for copy in revision_copies
+        "source_revision_refs": [_ref_mapping(copy.ref) for copy in revision_copies],
+        "commitment_scheme": template_payload["commitment_scheme"],
+        "roster_local_nonce_commitment_sha256": template_payload[
+            "roster_local_nonce_commitment_sha256"
         ],
-        "seed_commitment_sha256": template_payload["seed_commitment_sha256"],
-        "required_document_kinds_ref": _ref_mapping(
-            by_role["required_document_kinds"]
-        ),
+        "schedule_seed_commitment_sha256": template_payload[
+            "schedule_seed_commitment_sha256"
+        ],
+        "assignment_master_key_commitment_sha256": template_payload[
+            "assignment_master_key_commitment_sha256"
+        ],
+        "required_document_kinds_ref": _ref_mapping(by_role["required_document_kinds"]),
     }
     final = dict(template)
     final["payload"] = final_payload
@@ -1279,8 +1456,7 @@ def _load_direct_scientific_parent(
     validated = validate_record(cast(Mapping[str, object], decoded))
     if validated["record_kind"] != expected_kind:
         raise RecordValidationError(
-            f"{field} must reference {expected_kind}, got "
-            f"{validated['record_kind']}"
+            f"{field} must reference {expected_kind}, got {validated['record_kind']}"
         )
     payload = cast(Mapping[str, object], validated["payload"])
     if expected_stage is not None and payload.get("stage") != expected_stage:
@@ -1459,9 +1635,7 @@ def _validate_kind_identities(
             f"missing required document kinds: {sorted(missing)}"
         )
     if extra:
-        raise RecordValidationError(
-            f"extra scientific document kinds: {sorted(extra)}"
-        )
+        raise RecordValidationError(f"extra scientific document kinds: {sorted(extra)}")
     for kind in _SINGLETON_KINDS:
         if kind in by_kind and len(by_kind[kind]) != 1:
             raise RecordValidationError(f"{kind} must be singleton")
@@ -1690,13 +1864,10 @@ def _validate_task_chain_semantics(
             f"task assignment/allocation slots differ from the frozen schedule "
             f"for task {task_id!r}"
         )
-    expected_slot_identities = list(
-        zip(schedule_slot_ids, capability_ids, strict=True)
-    )
+    expected_slot_identities = list(zip(schedule_slot_ids, capability_ids, strict=True))
     if [outcome["opaque_arm_id"] for outcome in outcomes] != capability_ids:
         raise RecordValidationError(
-            f"task outcomes differ from allocated capabilities for task "
-            f"{task_id!r}"
+            f"task outcomes differ from allocated capabilities for task {task_id!r}"
         )
 
     terminal_receipts = task_payload["terminal_slot_receipts"]
@@ -1737,8 +1908,7 @@ def _validate_task_chain_semantics(
             if (
                 len(attempt_identities) != len(set(attempt_identities))
                 or any(position is None for position in attempt_positions)
-                or attempt_positions
-                != sorted(cast(list[int], attempt_positions))
+                or attempt_positions != sorted(cast(list[int], attempt_positions))
             ):
                 raise RecordValidationError(
                     f"task attempt {attempt_index} slot identities must be a "
@@ -1756,9 +1926,7 @@ def _validate_task_chain_semantics(
             "artifact_ref": y0_grade["artifact_ref"],
         }
         for outcome in outcomes:
-            if {
-                field: outcome[field] for field in expected_y0
-            } != expected_y0:
+            if {field: outcome[field] for field in expected_y0} != expected_y0:
                 raise RecordValidationError(
                     f"no-trigger task {task_id!r} does not copy the complete "
                     "frozen prefix Y_0 outcome"
@@ -1775,9 +1943,7 @@ def _validate_packet_entry_trigger_semantics(
         raise RecordValidationError(
             f"packet entry {task_id!r} differs from its frozen prefix task"
         )
-    expected_pair = (
-        prefix_receipt["trigger_reason"] != "no_intervention_opportunity"
-    )
+    expected_pair = prefix_receipt["trigger_reason"] != "no_intervention_opportunity"
     if ("real_ref" in entry) is not expected_pair:
         raise RecordValidationError(
             f"packet entry {task_id!r} must be a pair exactly when its "
@@ -1798,19 +1964,33 @@ def _validate_scientific_ancestry(
     unblind = _singleton_document(by_kind, "resampling_unblind_receipt")
 
     if schedule is not None and manifest is not None:
-        manifest_payload = _power_payload(manifest)
         schedule_payload = _power_payload(schedule)
         _require_ref_matches(
             schedule_payload["manifest_ref"],
             manifest,
             field="prefix schedule manifest_ref",
         )
-        for field in ("assignment_program_ref", "provider_lane_plan_ref"):
-            _require_artifact_ref_equal(
-                schedule_payload[field],
-                manifest_payload[field],
-                field=f"prefix schedule {field}",
+    if assignment is not None:
+        assignment_payload = _power_payload(assignment)
+        if manifest is not None:
+            manifest_payload = _power_payload(manifest)
+            _require_ref_matches(
+                assignment_payload["manifest_ref"],
+                manifest,
+                field="assignment manifest_ref",
             )
+            _require_artifact_ref_equal(
+                assignment_payload["matching_program_ref"],
+                manifest_payload["assignment_program_ref"],
+                field="assignment matching_program_ref",
+            )
+            if (
+                assignment_payload["assignment_master_key_commitment_sha256"]
+                != manifest_payload["assignment_master_key_commitment_sha256"]
+            ):
+                raise RecordValidationError(
+                    "assignment master-key commitment differs from manifest"
+                )
     if prefix is not None and schedule is not None:
         prefix_payload = _power_payload(prefix)
         _require_ref_matches(
@@ -1866,9 +2046,7 @@ def _validate_scientific_ancestry(
                 _require_digest_equal(
                     row.get("prefix_index_sha256"),
                     prefix,
-                    field=(
-                        f"assignment assignments[{index}].prefix_index_sha256"
-                    ),
+                    field=(f"assignment assignments[{index}].prefix_index_sha256"),
                 )
 
     packet_documents = by_kind.get("resampling_packet_index", [])
@@ -1944,15 +2122,10 @@ def _validate_scientific_ancestry(
                 list[Mapping[str, object]],
                 packet_payload["entries"],
             )
-            entry_task_ids = {
-                cast(str, entry["task_id"]) for entry in entries
-            }
-            if assignment is not None and entry_task_ids != set(
-                assignments_by_task
-            ):
+            entry_task_ids = {cast(str, entry["task_id"]) for entry in entries}
+            if assignment is not None and entry_task_ids != set(assignments_by_task):
                 raise RecordValidationError(
-                    "candidate packet task coverage differs from the "
-                    "assignment ledger"
+                    "candidate packet task coverage differs from the assignment ledger"
                 )
             for index, entry in enumerate(entries):
                 task_id = cast(str, entry["task_id"])
@@ -2084,9 +2257,7 @@ def _validate_scientific_ancestry(
             cast(str, cast(Mapping[str, object], entry["task"])["task_id"])
             for entry in schedule_entries
         ]
-        schedule_by_task = dict(
-            zip(schedule_task_ids, schedule_entries, strict=True)
-        )
+        schedule_by_task = dict(zip(schedule_task_ids, schedule_entries, strict=True))
         if prefix is not None:
             prefix_task_ids = [
                 cast(str, receipt["task_id"])
@@ -2114,16 +2285,23 @@ def _validate_scientific_ancestry(
                 assignment_payload["allocation_receipts"],
             )
             allocation_task_ids = [
-                cast(str, receipt["task_id"])
-                for receipt in allocation_receipts
+                cast(str, receipt["task_id"]) for receipt in allocation_receipts
+            ]
+            donor_match_receipts = cast(
+                list[Mapping[str, object]],
+                assignment_payload["donor_match_receipts"],
+            )
+            donor_receipt_task_ids = [
+                cast(str, receipt["task_id"]) for receipt in donor_match_receipts
             ]
             if (
                 assignment_task_ids != schedule_task_ids
                 or allocation_task_ids != schedule_task_ids
+                or donor_receipt_task_ids != schedule_task_ids
             ):
                 raise RecordValidationError(
-                    "assignment rows and allocations must exactly cover "
-                    "frozen schedule task IDs in order"
+                    "assignment rows, allocations, and donor receipts must "
+                    "exactly cover frozen schedule task IDs in order"
                 )
             allocation_by_task = {
                 cast(str, receipt["task_id"]): receipt
@@ -2140,20 +2318,31 @@ def _validate_scientific_ancestry(
                     raise RecordValidationError(
                         f"assignment lineage differs for task {task_id!r}"
                     )
-                donor_id = cast(str, assignment_row["donor_task_id"])
-                donor_entry = schedule_by_task.get(donor_id)
-                if donor_entry is None:
-                    raise RecordValidationError(
-                        f"assignment donor {donor_id!r} is not scheduled"
-                    )
-                donor_spec = cast(
-                    Mapping[str, object],
-                    donor_entry["task"],
+                prefix_receipt = prefix_receipts_by_task[task_id]
+                expected_matched = (
+                    prefix_receipt["trigger_reason"] != "no_intervention_opportunity"
                 )
-                if assignment_row["donor_lineage"] != donor_spec["lineage"]:
+                donor_match_kind = assignment_row["donor_match_kind"]
+                if (donor_match_kind == "matched") is not expected_matched:
                     raise RecordValidationError(
-                        f"assignment donor lineage differs for task {task_id!r}"
+                        f"assignment matching kind differs from frozen trigger "
+                        f"for task {task_id!r}"
                     )
+                if donor_match_kind == "matched":
+                    donor_id = cast(str, assignment_row["donor_task_id"])
+                    donor_entry = schedule_by_task.get(donor_id)
+                    if donor_entry is None:
+                        raise RecordValidationError(
+                            f"assignment donor {donor_id!r} is not scheduled"
+                        )
+                    donor_spec = cast(
+                        Mapping[str, object],
+                        donor_entry["task"],
+                    )
+                    if assignment_row["donor_lineage"] != donor_spec["lineage"]:
+                        raise RecordValidationError(
+                            f"assignment donor lineage differs for task {task_id!r}"
+                        )
                 schedule_slot_ids = [
                     cast(str, slot["slot_id"])
                     for slot in cast(
@@ -2172,20 +2361,15 @@ def _validate_scientific_ancestry(
                     list[list[object]],
                     allocation_by_task[task_id]["slot_capabilities"],
                 )
-                capability_slot_ids = [
-                    cast(str, row[0]) for row in capability_rows
-                ]
-                capability_ids = [
-                    cast(str, row[1]) for row in capability_rows
-                ]
+                capability_slot_ids = [cast(str, row[0]) for row in capability_rows]
+                capability_ids = [cast(str, row[1]) for row in capability_rows]
                 if (
                     assignment_slot_ids != schedule_slot_ids
                     or capability_slot_ids != schedule_slot_ids
                     or len(capability_ids) != len(set(capability_ids))
                 ):
                     raise RecordValidationError(
-                        f"assignment slot/capability order differs for task "
-                        f"{task_id!r}"
+                        f"assignment slot/capability order differs for task {task_id!r}"
                     )
 
     if schedule is not None and prefix is not None and assignment is not None:
@@ -2223,9 +2407,7 @@ def _validate_scientific_ancestry(
             cast(str, _power_payload(document)["task_id"]): document
             for document in task_documents
         }
-        projection_task_ids = [
-            cast(str, row["task_id"]) for row in projection_rows
-        ]
+        projection_task_ids = [cast(str, row["task_id"]) for row in projection_rows]
         if (
             set(task_by_id) != set(schedule_task_ids)
             or projection_task_ids != schedule_task_ids
@@ -2258,9 +2440,7 @@ def _validate_scientific_ancestry(
                 list[Mapping[str, object]],
                 schedule_entry["slots"],
             )
-            schedule_slot_ids = [
-                cast(str, slot["slot_id"]) for slot in schedule_slots
-            ]
+            schedule_slot_ids = [cast(str, slot["slot_id"]) for slot in schedule_slots]
             outcomes = cast(
                 list[Mapping[str, object]],
                 task_payload["slot_outcomes"],
@@ -2366,9 +2546,7 @@ def _validate_scientific_ancestry(
 
     if manifest is not None:
         manifest_roster_ref = _power_payload(manifest)["roster_ref"]
-        for index, power in enumerate(
-            by_kind.get("resampling_power_report", [])
-        ):
+        for index, power in enumerate(by_kind.get("resampling_power_report", [])):
             _require_artifact_ref_equal(
                 _power_payload(power)["roster_ref"],
                 manifest_roster_ref,
@@ -2378,6 +2556,37 @@ def _validate_scientific_ancestry(
 
 def _power_payload(document: _ScientificDocument) -> Mapping[str, object]:
     return cast(Mapping[str, object], document.value["payload"])
+
+
+_POWER_KERNEL_IDS = {
+    ("screen", "gaussian_approximation"): "power-screen-gaussian-v1",
+    ("shard", "gaussian_approximation"): "power-grid-gaussian-v1",
+    (
+        "selection",
+        "gaussian_approximation",
+    ): "power-worst-five-selection-v1",
+    (
+        "validation",
+        "gaussian_approximation",
+    ): "power-gaussian-vs-multiplier-validation-v1",
+    ("final", "gaussian_approximation"): "power-final-gaussian-v1",
+    (
+        "screen",
+        "full_multiplier_fallback",
+    ): "power-screen-full-multiplier-v1",
+    (
+        "shard",
+        "full_multiplier_fallback",
+    ): "power-grid-full-multiplier-v1",
+    (
+        "validation",
+        "full_multiplier_fallback",
+    ): "power-full-grid-validation-v1",
+    (
+        "final",
+        "full_multiplier_fallback",
+    ): "power-final-full-multiplier-v1",
+}
 
 
 def _artifact_paths(value: object) -> set[str]:
@@ -2404,6 +2613,13 @@ def _ref_identity(
         ) from exc
 
 
+def _power_authority_sha256(payload: Mapping[str, object]) -> str:
+    return _ref_identity(
+        payload["authority_ref"],
+        field="power authority_ref",
+    )[1]
+
+
 def _document_ref_identity(
     document: _ScientificDocument,
 ) -> tuple[str, str, int, str]:
@@ -2424,8 +2640,7 @@ def _require_parent_chain(
     if not isinstance(value, list):
         raise RecordValidationError(f"{field} must be an ArtifactRef array")
     actual_identities = [
-        _ref_identity(ref, field=f"{field}[{index}]")
-        for index, ref in enumerate(value)
+        _ref_identity(ref, field=f"{field}[{index}]") for index, ref in enumerate(value)
     ]
     expected_identities = [
         (
@@ -2479,11 +2694,7 @@ def _power_grid_cell_ids(
     path, raw = _read_ref(grid_ref, run_root=run_root)
     decoded = _load_json_bytes(raw, source=path)
     cell_ids = _extract_ordered_cell_ids(decoded)
-    if (
-        cell_ids is None
-        or not cell_ids
-        or len(cell_ids) != len(set(cell_ids))
-    ):
+    if cell_ids is None or not cell_ids or len(cell_ids) != len(set(cell_ids)):
         raise RecordValidationError(
             "power grid_ref must expose unique ordered cell IDs"
         )
@@ -2499,26 +2710,42 @@ def _validate_power_attempt_topology(
     for document in documents:
         payload = _power_payload(document)
         by_authority.setdefault(
-            cast(str, payload["decision_authority"]),
+            _power_authority_sha256(payload),
             [],
         ).append(document)
 
-    for authority, authority_documents in by_authority.items():
+    if len(by_authority) != 1:
+        raise RecordValidationError(
+            "power reports must share exactly one authority_ref SHA-256"
+        )
+
+    for authority_sha256, authority_documents in by_authority.items():
         baseline_payload = _power_payload(authority_documents[0])
+        authority = cast(str, baseline_payload["decision_authority"])
         for document in authority_documents[1:]:
             payload = _power_payload(document)
             for field in (
+                "authority_ref",
                 "roster_ref",
                 "grid_ref",
-                "topology_ref",
+                "screen_topology_ref",
                 "config_ref",
                 "numeric_fixture_ref",
             ):
                 _require_artifact_ref_equal(
                     payload[field],
                     baseline_payload[field],
-                    field=f"power authority {authority!r} {field}",
+                    field=(f"power authority {authority!r}/{authority_sha256} {field}"),
                 )
+            for field in (
+                "decision_authority",
+                "tier_membership_sha256",
+                "rng_contract_sha256",
+            ):
+                if payload[field] != baseline_payload[field]:
+                    raise RecordValidationError(
+                        f"power authority {authority!r} {field} differs"
+                    )
             if payload["numeric_contract"] != baseline_payload["numeric_contract"]:
                 raise RecordValidationError(
                     f"power authority {authority!r} numeric source contract differs"
@@ -2575,6 +2802,22 @@ def _validate_power_attempt_topology(
                 raise RecordValidationError(
                     "power screen cell_count differs from the ordered grid"
                 )
+            screen_shard_count = cast(int, screen_payload["shard_count"])
+            for document in attempt_documents:
+                payload = _power_payload(document)
+                if payload["shard_count"] != screen_shard_count:
+                    raise RecordValidationError(
+                        "power shard_count differs from the screen-frozen count"
+                    )
+                stage = cast(str, payload["stage"])
+                expected_kernel_id = _POWER_KERNEL_IDS.get((stage, phase))
+                if (
+                    expected_kernel_id is None
+                    or payload["kernel_id"] != expected_kernel_id
+                ):
+                    raise RecordValidationError(
+                        "power kernel_id is not derived from stage and phase"
+                    )
 
             shards = sorted(
                 (
@@ -2618,6 +2861,17 @@ def _validate_power_attempt_topology(
                     field="full-multiplier screen parent_refs[0]",
                 )
                 if (
+                    _ref_identity(
+                        screen_payload["fallback_trigger_ref"],
+                        field="full-multiplier screen fallback_trigger_ref",
+                    )
+                    != trigger_identity
+                ):
+                    raise RecordValidationError(
+                        "full-multiplier screen fallback_trigger_ref differs "
+                        "from its explicit parent"
+                    )
+                if (
                     terminal_gaussian_validation is None
                     or trigger_identity
                     != _document_ref_identity(terminal_gaussian_validation)
@@ -2638,16 +2892,14 @@ def _validate_power_attempt_topology(
                     )
                 continue
             shard_counts = {
-                cast(int, _power_payload(shard)["shard_count"])
-                for shard in shards
+                cast(int, _power_payload(shard)["shard_count"]) for shard in shards
             }
             if len(shard_counts) != 1:
                 raise RecordValidationError(
                     "power shard_count must be identical across the shard set"
                 )
             dataset_counts = {
-                cast(int, _power_payload(shard)["dataset_count"])
-                for shard in shards
+                cast(int, _power_payload(shard)["dataset_count"]) for shard in shards
             }
             if len(dataset_counts) != 1:
                 raise RecordValidationError(
@@ -2655,13 +2907,9 @@ def _validate_power_attempt_topology(
                 )
             shard_count = next(iter(shard_counts))
             shard_indices = [
-                cast(int, _power_payload(shard)["shard_index"])
-                for shard in shards
+                cast(int, _power_payload(shard)["shard_index"]) for shard in shards
             ]
-            if (
-                len(shards) > shard_count
-                or shard_indices != list(range(len(shards)))
-            ):
+            if len(shards) > shard_count or shard_indices != list(range(len(shards))):
                 raise RecordValidationError(
                     "power shards must be contiguous and zero-based without gaps"
                 )
@@ -2739,24 +2987,15 @@ def _validate_power_attempt_topology(
                         [trigger, screen, *shards],
                         field="full-multiplier validation parent_refs",
                     )
-                    if (
-                        terminal_gaussian_validation is None
-                        or _ref_identity(
-                            trigger,
-                            field="full-multiplier fallback_trigger_ref",
-                        )
-                        != _document_ref_identity(
-                            terminal_gaussian_validation
-                        )
-                    ):
+                    if terminal_gaussian_validation is None or _ref_identity(
+                        trigger,
+                        field="full-multiplier fallback_trigger_ref",
+                    ) != _document_ref_identity(terminal_gaussian_validation):
                         raise RecordValidationError(
                             "full-multiplier validation does not use the terminal "
                             "failed Gaussian validation"
                         )
-                    if (
-                        validation_payload["complete_cell_ids"]
-                        != ordered_grid_cell_ids
-                    ):
+                    if validation_payload["complete_cell_ids"] != ordered_grid_cell_ids:
                         raise RecordValidationError(
                             "full-multiplier validation lacks full ordered cell coverage"
                         )
@@ -2771,9 +3010,13 @@ def _validate_power_identities(
     by_authority: dict[str, list[_ScientificDocument]] = {}
     for document in documents:
         payload = _power_payload(document)
-        authority = cast(str, payload["decision_authority"])
-        by_authority.setdefault(authority, []).append(document)
-    for authority, authority_documents in by_authority.items():
+        authority_sha256 = _power_authority_sha256(payload)
+        by_authority.setdefault(authority_sha256, []).append(document)
+    for authority_sha256, authority_documents in by_authority.items():
+        authority = cast(
+            str,
+            _power_payload(authority_documents[0])["decision_authority"],
+        )
         nonfinal: list[_ScientificDocument] = []
         finals: list[_ScientificDocument] = []
         identities: set[tuple[object, ...]] = set()
@@ -2784,7 +3027,7 @@ def _validate_power_identities(
                 finals.append(document)
                 continue
             identity = (
-                authority,
+                authority_sha256,
                 payload["phase"],
                 payload["generation"],
                 stage,
@@ -2801,9 +3044,7 @@ def _validate_power_identities(
                 f"power authority {authority!r} requires exactly one final"
             )
         final_payload = _power_payload(finals[0])
-        attempted_paths = {
-            document.relative_path for document in nonfinal
-        }
+        attempted_paths = {document.relative_path for document in nonfinal}
         all_attempt_paths = {
             ref.relative_path
             for ref in _walk_artifact_refs(final_payload["all_attempt_refs"])
@@ -2857,13 +3098,11 @@ def _validate_power_identities(
             ]
             if not later_documents:
                 continue
-            if (
-                validation_payload["phase"] == "gaussian_approximation"
-                and not is_terminal_validation(validation)
-            ):
+            if validation_payload[
+                "phase"
+            ] == "gaussian_approximation" and not is_terminal_validation(validation):
                 if any(
-                    _power_payload(document)["phase"]
-                    != "full_multiplier_fallback"
+                    _power_payload(document)["phase"] != "full_multiplier_fallback"
                     for document in later_documents
                 ):
                     raise RecordValidationError(
@@ -2879,6 +3118,20 @@ def _validate_power_identities(
         if finalization["kind"] == "completed_chain":
             phase = finalization["selected_phase"]
             generation = finalization["selected_generation"]
+            expected_final_kernel_id = _POWER_KERNEL_IDS[("final", cast(str, phase))]
+            if finalization["selected_kernel_id"] != expected_final_kernel_id:
+                raise RecordValidationError(
+                    "completed power finalization selected_kernel_id is not "
+                    "derived from selected_phase"
+                )
+            if (
+                final_payload["phase"] != phase
+                or final_payload["generation"] != generation
+            ):
+                raise RecordValidationError(
+                    "final power report phase/generation differs from its "
+                    "completed selection"
+                )
             selected_attempt_order = (
                 phase_order[cast(str, phase)],
                 cast(int, generation),
@@ -2945,14 +3198,20 @@ def _validate_power_identities(
                     )
                 return document
 
-            selected_document(
+            selected_screen_document = selected_document(
                 finalization["selected_screen_ref"],
                 expected_stage="screen",
                 field="selected_screen_ref",
             )
-            shard_refs = tuple(
-                _walk_artifact_refs(finalization["selected_shard_refs"])
-            )
+            if (
+                finalization["selected_shard_count"]
+                != _power_payload(selected_screen_document)["shard_count"]
+            ):
+                raise RecordValidationError(
+                    "power finalization selected_shard_count differs from "
+                    "the selected screen"
+                )
+            shard_refs = tuple(_walk_artifact_refs(finalization["selected_shard_refs"]))
             if not shard_refs:
                 raise RecordValidationError("selected power chain lacks a shard")
             selected_shard_documents: list[_ScientificDocument] = []
@@ -3069,8 +3328,7 @@ def _validate_power_identities(
                 fallback = document_by_path.get(fallback_refs[0].relative_path)
                 if (
                     fallback is None
-                    or _power_payload(fallback)["phase"]
-                    != "gaussian_approximation"
+                    or _power_payload(fallback)["phase"] != "gaussian_approximation"
                 ):
                     raise RecordValidationError(
                         "full-multiplier chain must parent a failed Gaussian trigger"
@@ -3089,17 +3347,28 @@ def _validate_power_identities(
                     validation_payload["fallback_trigger_ref"],
                 )
                 if (
-                    validation_fallback.get("relative_path")
-                    != fallback.relative_path
+                    validation_fallback.get("relative_path") != fallback.relative_path
                     or validation_fallback.get("sha256") != fallback.sha256
                 ):
                     raise RecordValidationError(
                         "full-grid validation uses a different fallback trigger"
                     )
         else:
-            if authority != "roster_bound_selection":
+            finalization_kind = cast(str, finalization["kind"])
+            if (
+                finalization_kind == "feasibility_no_go"
+                and authority != "roster_bound_selection"
+            ):
                 raise RecordValidationError(
                     "synthetic power authority cannot finalize FEASIBILITY_NO_GO"
+                )
+            if (
+                finalization_kind == "synthetic_validation_failed"
+                and authority != "synthetic_validation"
+            ):
+                raise RecordValidationError(
+                    "roster-bound power authority cannot finalize "
+                    "synthetic_validation_failed"
                 )
             terminal_ref = cast(
                 Mapping[str, object],
@@ -3125,6 +3394,29 @@ def _validate_power_identities(
                 )
             terminal_stage = cast(str, terminal_payload["stage"])
             terminal_phase = cast(str, terminal_payload["phase"])
+            if finalization["terminal_phase"] != terminal_phase:
+                raise RecordValidationError(
+                    "power finalization terminal_phase does not match its attempt"
+                )
+            expected_terminal_kernel_id = _POWER_KERNEL_IDS[("final", terminal_phase)]
+            if finalization["terminal_kernel_id"] != expected_terminal_kernel_id:
+                raise RecordValidationError(
+                    "power finalization terminal_kernel_id is not derived "
+                    "from terminal_phase"
+                )
+            if finalization["terminal_shard_count"] != terminal_payload["shard_count"]:
+                raise RecordValidationError(
+                    "power finalization terminal_shard_count differs from "
+                    "its terminal attempt"
+                )
+            if (
+                final_payload["phase"] != terminal_phase
+                or final_payload["generation"] != terminal_payload["generation"]
+            ):
+                raise RecordValidationError(
+                    "final power report phase/generation differs from its "
+                    "terminal attempt"
+                )
             reason = finalization["reason"]
             if terminal_stage == "screen":
                 phase_reason = (
@@ -3138,13 +3430,16 @@ def _validate_power_identities(
                     "runtime_bound_exceeded",
                 }
             elif terminal_stage == "validation":
-                allowed_reasons = {"power_or_type_i_gate_failed"}
+                allowed_reasons = (
+                    {"synthetic_validation_gate_failed"}
+                    if finalization_kind == "synthetic_validation_failed"
+                    else {"power_or_type_i_gate_failed"}
+                )
             else:
                 allowed_reasons = {"attempt_incomplete"}
             if reason not in allowed_reasons:
                 raise RecordValidationError(
-                    "feasibility no-go reason does not match its terminal "
-                    "phase/stage"
+                    "power failure reason does not match its terminal phase/stage"
                 )
             if reason == "power_or_type_i_gate_failed":
                 if terminal_phase == "full_multiplier_fallback":
@@ -3194,10 +3489,7 @@ def _validate_power_identities(
                 cast(str, _power_payload(document)["stage"])
                 for document in attempt_documents
             }
-            if (
-                terminal_stage == "screen"
-                and downstream_stages != {"screen"}
-            ):
+            if terminal_stage == "screen" and downstream_stages != {"screen"}:
                 raise RecordValidationError(
                     "screen no-go has fictitious downstream attempt refs"
                 )
@@ -3249,10 +3541,7 @@ def _validate_power_identities(
                     "feasibility no-go cannot supersede an earlier terminal "
                     "power validation"
                 )
-        if (
-            final_payload["phase"] != phase
-            or final_payload["generation"] != generation
-        ):
+        if final_payload["phase"] != phase or final_payload["generation"] != generation:
             raise RecordValidationError(
                 "final phase/generation must name its selected or terminal attempt"
             )
@@ -3301,7 +3590,12 @@ def _artifact_entries(
     required_ref = ArtifactRef(
         **cast(
             dict[str, Any],
-            dict(cast(Mapping[str, object], manifest_payload["required_document_kinds_ref"])),
+            dict(
+                cast(
+                    Mapping[str, object],
+                    manifest_payload["required_document_kinds_ref"],
+                )
+            ),
         )
     )
     required_path, required_bytes = _read_ref(required_ref, run_root=run_root)
@@ -3483,7 +3777,9 @@ def verify_artifact_root(
             )
     actual_payload = [_entry_mapping(entry) for entry in actual_entries]
     if payload["entries"] != actual_payload:
-        raise RecordValidationError("artifact-root entries do not match current closure")
+        raise RecordValidationError(
+            "artifact-root entries do not match current closure"
+        )
     if payload["root_sha256"] != _entries_digest(actual_entries):
         raise RecordValidationError("artifact-root digest mismatch")
 

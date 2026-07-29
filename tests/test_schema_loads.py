@@ -190,6 +190,14 @@ def test_resampling_schema_bucket_registered() -> None:
     assert set(pls.RESAMPLING_SCHEMA_FILES).isdisjoint(pls.OUTPUT_SCHEMA_FILES)
 
 
+def test_t3_s02_operational_storage_stays_outside_scientific_schema_registry() -> None:
+    assert len(pls.RESAMPLING_SCHEMA_FILES) == 12
+    assert all("storage" not in filename for filename in pls.RESAMPLING_SCHEMA_FILES)
+    assert all(
+        "matching-proof" not in filename for filename in pls.RESAMPLING_SCHEMA_FILES
+    )
+
+
 def test_envelope_schema_shape() -> None:
     schema = pls.load_schema("pneuma-trace.schema.json")
     assert schema["x-pneuma-schema-kind"] == "envelope"
