@@ -98,14 +98,18 @@ def _write_frame_fd(
 def _read_frame_fd(
     descriptor: int,
     *,
-    timeout_seconds: float,
+    timeout_seconds: float | None,
     allow_clean_eof: bool = False,
 ) -> bytes | None:
     chunks = bytearray()
-    deadline = time.monotonic() + timeout_seconds
+    deadline = (
+        None
+        if timeout_seconds is None
+        else time.monotonic() + timeout_seconds
+    )
     while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
+        remaining = None if deadline is None else deadline - time.monotonic()
+        if remaining is not None and remaining <= 0:
             raise TimeoutError("IPC frame read timed out")
         readable, _writable, _exceptional = select.select(
             [descriptor],
@@ -190,7 +194,7 @@ def _synthetic_worker_main() -> int:
         try:
             frame = _read_frame_fd(
                 arguments.request_fd,
-                timeout_seconds=_IPC_TIMEOUT_SECONDS,
+                timeout_seconds=None,
                 allow_clean_eof=True,
             )
             if frame is None:

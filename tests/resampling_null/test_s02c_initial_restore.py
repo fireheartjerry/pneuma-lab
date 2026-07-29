@@ -5,6 +5,7 @@ import inspect
 import os
 from pathlib import Path
 import subprocess
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -33,6 +34,7 @@ from pneuma_lab.resampling_null.synthetic_environment import (
     _open_workspace,
     _observe_initial,
     _qualify_initial_restore,
+    _read_frame_fd,
     _validate_initial_observation,
     _write_frame_fd,
 )
@@ -501,6 +503,22 @@ def test_bounded_frame_write_rejects_zero_progress(
     finally:
         os.close(read_fd)
         os.close(write_fd)
+
+
+def test_unbounded_frame_wait_accepts_clean_eof() -> None:
+    read_fd, write_fd = os.pipe()
+    os.close(write_fd)
+    try:
+        assert (
+            _read_frame_fd(
+                read_fd,
+                timeout_seconds=None,
+                allow_clean_eof=True,
+            )
+            is None
+        )
+    finally:
+        os.close(read_fd)
 
 
 @pytest.mark.parametrize(
@@ -1224,6 +1242,29 @@ def test_retained_close_orders_workers_then_source_verify_then_source_close(
     assert max(
         index for index, event in enumerate(events) if event == "source_verify"
     ) < min(index for index, event in enumerate(events) if event == "source_close")
+
+
+def test_retained_qualification_survives_controller_idle_then_closes_cleanly(
+    tmp_path: Path,
+) -> None:
+    result = _open_qualified_initial_restore(
+        run_root=tmp_path,
+        authority=_authority(),
+    )
+    completed = False
+    try:
+        time.sleep(2.1)
+        snapshot = result._resources[0].handle.snapshot()
+        assert _decode_snapshot_state(snapshot).turns == ()
+        completed = True
+    finally:
+        if completed:
+            result.close()
+        else:
+            try:
+                result.close()
+            except BaseException:
+                pass
 
 
 def test_pre_fleet_factory_failure_still_verifies_and_closes_all_sources(
