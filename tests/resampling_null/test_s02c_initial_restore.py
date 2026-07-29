@@ -429,27 +429,48 @@ def test_ipc_creation_is_transactional_for_every_acquisition(
     assert len(os.listdir("/proc/self/fd")) == before
 
 
-def test_ipc_raw_close_failure_stays_tracked_and_aggregated(
+@pytest.mark.parametrize("target_close", [1, 2])
+def test_ipc_raw_close_failure_never_retries_reused_descriptor(
     monkeypatch: pytest.MonkeyPatch,
+    target_close: int,
 ) -> None:
     before = len(os.listdir("/proc/self/fd"))
     real_close = synthetic_environment.os.close
     calls = 0
+    replacement_fd: int | None = None
+    guard_fds: list[int] = []
 
-    def close_then_fail_once(descriptor: int) -> None:
-        nonlocal calls
+    def close_reuse_then_fail(descriptor: int) -> None:
+        nonlocal calls, replacement_fd
         calls += 1
         real_close(descriptor)
-        if calls == 1:
+        if calls < target_close:
+            guard = os.open("/dev/null", os.O_RDONLY)
+            assert guard == descriptor
+            guard_fds.append(guard)
+        if calls == target_close:
+            replacement_fd = os.open("/dev/null", os.O_RDONLY)
+            assert replacement_fd == descriptor
             raise OSError("injected raw close uncertainty")
 
-    monkeypatch.setattr(synthetic_environment.os, "close", close_then_fail_once)
-    with pytest.raises(BaseExceptionGroup) as raised:
-        synthetic_environment.ControllerEnvironmentIPC.create()
-
-    leaves = _exception_leaves(raised.value)
-    assert str(leaves[0]) == "injected raw close uncertainty"
-    assert len(leaves) >= 2
+    monkeypatch.setattr(synthetic_environment.os, "close", close_reuse_then_fail)
+    try:
+        with pytest.raises(BaseExceptionGroup) as raised:
+            synthetic_environment.ControllerEnvironmentIPC.create()
+        leaves = _exception_leaves(raised.value)
+        assert str(leaves[0]) == "injected raw close uncertainty"
+        assert replacement_fd is not None
+        os.fstat(replacement_fd)
+    finally:
+        if replacement_fd is not None:
+            try:
+                os.fstat(replacement_fd)
+            except OSError:
+                pass
+            else:
+                real_close(replacement_fd)
+        for guard in guard_fds:
+            real_close(guard)
     assert len(os.listdir("/proc/self/fd")) == before
 
 

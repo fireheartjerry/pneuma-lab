@@ -299,10 +299,10 @@ class ControllerEnvironmentIPC:
             )
             raw_fds.remove(response_stream_fd)
             streams.append(response_reader)
-            os.close(request_write)
             raw_fds.remove(request_write)
-            os.close(response_read)
+            os.close(request_write)
             raw_fds.remove(response_read)
+            os.close(response_read)
             return cls(
                 request_read_fd=request_read,
                 response_write_fd=response_write,
