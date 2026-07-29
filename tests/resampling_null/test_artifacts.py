@@ -9,7 +9,6 @@ from decimal import Decimal
 import hashlib
 import json
 import math
-import os
 from pathlib import Path
 import sys
 from typing import Any, cast
@@ -69,7 +68,10 @@ from pneuma_lab.resampling_null.storage import (
     claim_local_test_storage,
     _publish_local_test_scientific,
 )
-from pneuma_lab.resampling_null.types import ArtifactRef, SimulatorCaps
+from pneuma_lab.resampling_null.types import ArtifactRef, CallContractCaps
+from tests.resampling_null.provider_authority_fixture import (
+    ProviderAuthorityFixture,
+)
 
 
 KINDS = (
@@ -3315,7 +3317,7 @@ def test_t3_s07_prefix_schedule_is_derived_and_published_inside_lease(
         task_id="task-1",
     )
     assert authority.simulator_contract_ref is None
-    assert authority.simulator_caps == SimulatorCaps(0, 0, 0, 0, 0)
+    assert authority.simulator_caps == CallContractCaps(0, 0, 0, 0, 0)
 
 
 def test_t3_s09_branch_assignment_is_derived_inside_assignment_lease(
@@ -3612,13 +3614,36 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
         "sources/roster-triggered.json",
         canonical_json_bytes(old_roster, indent=None),
     )
-    old_provider["task_lanes"].append(
-        {
-            "task_id": "task-third",
-            "prefix_lane_ordinal": 0,
-            "lane_ordinals_by_execution_rank": [0, 1, 2, 3],
-        }
-    )
+    template_provider_row = old_provider["task_lanes"][0]
+    third_provider_row = {
+        "task_id": "task-third",
+        "prefix_lane_ordinal": 0,
+        "lane_ordinals_by_execution_rank": [0, 1, 2, 3],
+    }
+    for ref_field in (
+        "task_input_ref",
+        "environment_contract_ref",
+        "grader_contract_ref",
+        "verifier_contract_ref",
+        "isolation_contract_ref",
+    ):
+        template_ref = template_provider_row[ref_field]
+        template_value = json.loads(
+            (
+                root
+                / cast(dict[str, object], template_ref)["relative_path"]
+            ).read_bytes()
+        )
+        template_value["task_id"] = "task-third"
+        third_ref = _write_blob(
+            root,
+            f"sources/authority/task-third-{ref_field}.json",
+            canonical_json_bytes(template_value, indent=None),
+        )
+        third_ref["role"] = cast(dict[str, object], template_ref)["role"]
+        third_ref["media_type"] = "application/json"
+        third_provider_row[ref_field] = third_ref
+    old_provider["task_lanes"].append(third_provider_row)
     provider_ref = _write_blob(
         root,
         "sources/provider-triggered.json",
@@ -4806,479 +4831,18 @@ def test_study_manifest_seal_copies_all_sources_without_reading_clock(
         "confirmation_missing",
         "confirmation_conditional",
         "synthetic_conditional",
-        "source_race",
-        "manifest_race",
-        "rollback_failure",
-        "publish",
     ],
 )
 def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
     failure_mode: str | None,
 ) -> None:
-    external = tmp_path / "external"
-    external.mkdir()
-
-    def write_json(path: Path, value: object) -> Path:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(canonical_json_bytes(value, indent=None))
-        return path
-
-    def external_ref(
-        source: Path,
-        *,
-        relative_path: str,
-        role: str,
-        media_type: str = "application/json",
-    ) -> dict[str, object]:
-        payload = source.read_bytes()
-        return _ref(
-            relative_path,
-            role=role,
-            sha256=hashlib.sha256(payload).hexdigest(),
-            byte_count=len(payload),
-            media_type=media_type,
-        )
-
-    def planned_fixed_ref(
-        source: Path,
-        *,
-        subtree: str,
-        role: str,
-    ) -> dict[str, object]:
-        payload = source.read_bytes()
-        digest = hashlib.sha256(payload).hexdigest()
-        return _ref(
-            f"sources/{subtree}/{digest}-{source.name}",
-            role=role,
-            sha256=digest,
-            byte_count=len(payload),
-            media_type="application/json",
-        )
-
-    task = {
-        "task_id": "task-1",
-        "benchmark": "swe",
-        "stratum": "python",
-        "lineage": "repo-1",
-        "groups": [
-            {"kind": "language", "value": "python"},
-            {"kind": "domain", "value": "software"},
-            {"kind": "issue_family", "value": "bug"},
-        ],
-    }
-    revision_deep_source = write_json(
-        external / "sources" / "provider-authority" / "revision-deep.json",
-        {"deep": "revision-authority"},
+    fixture = ProviderAuthorityFixture.build_study(
+        tmp_path,
+        failure_mode=failure_mode,
     )
-    revision_deep_ref = external_ref(
-        revision_deep_source,
-        relative_path="sources/provider-authority/revision-deep.json",
-        role="deep_authority_asset",
-    )
-    sources = {
-        "tasks": write_json(
-            external / "tasks.json",
-            {
-                "record_kind": "resampling_task_registry_v1",
-                "schema_version": "1",
-                "tasks": [task],
-            },
-        ),
-        "tokenizer": write_json(
-            external / "tokenizer.json",
-            {"tokenizer": "fixture-v1"},
-        ),
-        "revision": write_json(
-            external / "revision.json",
-            {
-                "revision": "fixture-v1",
-                "nested_ref": revision_deep_ref,
-            },
-        ),
-    }
-    for name in (
-        "roster",
-        "assignment",
-        "storage-policy",
-        "power-grid",
-        "power-topology",
-        "template",
-        "policy",
-        "pads",
-    ):
-        sources[name] = write_json(external / f"{name}.json", {"name": name})
-    sources["required"] = write_json(
-        external / "required.json",
-        list(FROZEN_UPSTREAM_KINDS),
-    )
-    sources["eligibility"] = write_json(
-        external / "eligibility.json",
-        {"record_kind": "test_only_eligibility_fixture"},
-    )
-    sources["ceremony-policy"] = write_json(
-        external / "ceremony-policy.json",
-        {"record_kind": "test_only_ceremony_policy_fixture"},
-    )
-    tokenizer_ref = planned_fixed_ref(
-        sources["tokenizer"],
-        subtree="tokenizer",
-        role="tokenizer",
-    )
-    revision_ref = planned_fixed_ref(
-        sources["revision"],
-        subtree="revisions",
-        role="source_revision",
-    )
-    sources["roster"] = write_json(
-        external / "roster.json",
-        {
-            "record_kind": "resampling_roster_v1",
-            "schema_version": "1",
-            "roster_kind": (
-                "eligible_confirmation"
-                if failure_mode
-                in {"confirmation_missing", "confirmation_conditional"}
-                else "synthetic_fixture"
-            ),
-            "supported_tiers": [120, 160],
-            "tasks": [{**task, "tiers": [120, 160]}],
-        },
-    )
-    sources["assignment"] = write_json(
-        external / "assignment.json",
-        {
-            "record_kind": "resampling_assignment_program_v1",
-            "schema_version": "1",
-            "assignment_mode": (
-                "confirmation_lineage_matching"
-                if failure_mode
-                in {
-                    "authority_mismatch",
-                    "confirmation_missing",
-                    "confirmation_conditional",
-                }
-                else "synthetic_derangement"
-            ),
-            "matching_algorithm": (
-                "exact_constrained_min_cost_v1"
-                if failure_mode
-                in {
-                    "authority_mismatch",
-                    "confirmation_missing",
-                    "confirmation_conditional",
-                }
-                else "synthetic_cyclic_offset_v1"
-            ),
-            "finding_count_band_upper_bounds": [1, 3],
-            "report_length_band_upper_bounds": [128, 512],
-            "verifier_normalizer_contract": {
-                "contract_id": "assignment-verifier-normalizer-v1",
-                "normalizer_source_ref": revision_ref,
-                "normalizer_source_sha256": revision_ref["sha256"],
-                "report_tokenizer_sha256": tokenizer_ref["sha256"],
-                "benchmark_component_kinds": {
-                    "SWE": ["check_runner", "failure_class"],
-                    "TAU": ["evaluator_component"],
-                },
-            },
-            "assignment_runtime_contract": {
-                "implementation": "CPython",
-                "python_version": (
-                    f"{sys.version_info.major}.{sys.version_info.minor}."
-                    f"{sys.version_info.micro}"
-                ),
-                "unicodedata_unidata_version": unicodedata.unidata_version,
-            },
-            "backend_receipt_ref": (
-                revision_ref
-                if failure_mode
-                in {
-                    "authority_mismatch",
-                    "confirmation_missing",
-                    "confirmation_conditional",
-                }
-                else None
-            ),
-            "stratum_keys": ["benchmark", "language"],
-        },
-    )
-
-    authority_dir = external / "sources" / "provider-authority"
-
-    def authority_asset(name: str, value: object, *, role: str) -> dict[str, object]:
-        source = write_json(authority_dir / name, value)
-        return external_ref(
-            source,
-            relative_path=f"sources/provider-authority/{name}",
-            role=role,
-        )
-
-    prompt_ref = authority_asset(
-        "prompt.json",
-        {"template": "fixture-v1"},
-        role="prompt_template",
-    )
-    tool_schema_ref = authority_asset(
-        "tools.json",
-        {"tools": []},
-        role="tool_schema",
-    )
-    clock_ref = authority_asset(
-        "clock.json",
-        {"clock": "fixture-v1"},
-        role="clock_source",
-    )
-    watchdog_ref = authority_asset(
-        "watchdog.json",
-        {"watchdog": "fixture-v1"},
-        role="watchdog_source",
-    )
-    qualification_ref = authority_asset(
-        "qualification.json",
-        {"qualification": "fixture-v1"},
-        role="isolation_qualification",
-    )
-    common_call = {
-        "schema_version": "1",
-        "tokenizer_ref": tokenizer_ref,
-        "prompt_template_ref": prompt_ref,
-        "tool_schema_ref": tool_schema_ref,
-        "request_grammar": "fixture-request-v1",
-        "response_grammar": "fixture-response-v1",
-        "seeded_call_grammar": "call-seed-v1",
-        "stateless_client_attestation": "fixture-stateless-v1",
-        "aggregate_caps": {
-            "generated_tokens": 40,
-            "model_calls": 4,
-            "turns": 4,
-        },
-        "per_call_caps": {"generated_tokens": 12, "turns": 1},
-        "build_id": "fixture-build",
-        "source_revision_refs": [revision_ref],
-    }
-    subject_ref = authority_asset(
-        "subject.json",
-        {
-            **common_call,
-            "record_kind": "prefix_subject_contract_v1",
-            "model_id": "fixture-subject",
-            "nominal_type": "FixtureSubject",
-        },
-        role="subject_contract",
-    )
-    simulator_ref = authority_asset(
-        "simulator.json",
-        {
-            **common_call,
-            "record_kind": "prefix_simulator_contract_v1",
-            "model_id": "fixture-simulator",
-            "nominal_type": "FixtureSimulator",
-        },
-        role="simulator_contract",
-    )
-    parser_ref = authority_asset(
-        "parser.json",
-        {
-            "record_kind": "prefix_tool_parser_contract_v1",
-            "schema_version": "1",
-            "nominal_type": "FixtureParser",
-            "build_id": "fixture-build",
-            "response_grammar": "fixture-response-v1",
-            "tool_schema_ref": tool_schema_ref,
-            "source_revision_refs": [revision_ref],
-        },
-        role="tool_parser_contract",
-    )
-    meter_ref = authority_asset(
-        "meter.json",
-        {
-            "record_kind": "prefix_meter_contract_v1",
-            "schema_version": "1",
-            "nominal_type": "FixtureMeter",
-            "build_id": "fixture-build",
-            "clock_source_ref": clock_ref,
-            "watchdog_source_ref": watchdog_ref,
-            "cost_units": {
-                "currency": "usd_micros",
-                "generated_tokens": "tokens",
-                "model_calls": "calls",
-                "wall_clock": "milliseconds",
-            },
-            "provider_event_grammar": "fixture-provider-event-v1",
-            "settlement_grammar": "fixture-settlement-v1",
-            "zero_cost_synthetic_closure": failure_mode != "synthetic_meter",
-            "source_revision_refs": [revision_ref],
-        },
-        role="meter_contract",
-    )
-    task_input_ref = authority_asset(
-        "task-input.json",
-        {
-            "record_kind": "prefix_task_input_v1",
-            "schema_version": "1",
-            "task_id": "task-1",
-            "benchmark": "swe",
-            "requires_user_simulator": True,
-            "canonical_task_payload": {"instruction": "fixture"},
-        },
-        role="task_input",
-    )
-    common_task = {
-        "schema_version": "1",
-        "task_id": "task-1",
-        "benchmark": "swe",
-        "build_id": "fixture-build",
-        "source_revision_refs": [revision_ref],
-    }
-    environment_ref = authority_asset(
-        "environment.json",
-        {
-            **common_task,
-            "record_kind": "prefix_environment_contract_v1",
-            "benchmark": "tau" if failure_mode == "binding" else "swe",
-            "nominal_factory_type": "FixtureEnvironmentFactory",
-            "snapshot_grammar": "fixture-snapshot-v1",
-            "restore_grammar": "fixture-restore-v1",
-            "raw_evidence_grammar": "fixture-environment-evidence-v1",
-            "runtime_id": "cpython-fixture",
-            "container_digest": "sha256:" + SHA_A,
-        },
-        role="environment_contract",
-    )
-    grader_ref = authority_asset(
-        "grader.json",
-        {
-            **common_task,
-            "record_kind": "prefix_grader_contract_v1",
-            "nominal_type": "FixtureGrader",
-            "raw_evidence_grammar": "fixture-grade-evidence-v1",
-            "runtime_id": "cpython-fixture",
-            "container_digest": "sha256:" + SHA_A,
-        },
-        role="grader_contract",
-    )
-    verifier_ref = authority_asset(
-        "verifier.json",
-        {
-            **common_task,
-            "record_kind": "prefix_verifier_contract_v1",
-            "nominal_type": "FixtureVerifier",
-            "raw_evidence_grammar": "fixture-verifier-evidence-v1",
-            "runtime_id": "cpython-fixture",
-            "container_digest": "sha256:" + SHA_A,
-        },
-        role="verifier_contract",
-    )
-    isolation_ref = authority_asset(
-        "isolation.json",
-        {
-            **common_task,
-            "record_kind": "prefix_isolation_contract_v1",
-            "distinct_environment_instances": True,
-            "distinct_processes": True,
-            "distinct_roots": True,
-            "no_shared_writable_state": True,
-            "qualification_ref": qualification_ref,
-        },
-        role="isolation_contract",
-    )
-    sources["provider"] = write_json(
-        external / "provider.json",
-        {
-            "record_kind": "provider_lane_plan_v2",
-            "schema_version": "2",
-            "lanes": [
-                {
-                    "ordinal": 0,
-                    "lane_id": "lane-0",
-                    "prefix_caps": {
-                        "generated_tokens": 40,
-                        "model_calls": 4,
-                        "tool_calls": 4,
-                        "wall_clock_ms": 1_000,
-                    },
-                    "branch_caps": {
-                        "generated_tokens": 20,
-                        "model_calls": 2,
-                        "tool_calls": 4,
-                        "wall_clock_ms": 500,
-                        "pending_prefix_calls_count_against_tool_cap": True,
-                    },
-                    "simulator_caps": {
-                        "aggregate_generated_tokens": 40,
-                        "aggregate_model_calls": 4,
-                        "aggregate_turns": 4,
-                        "per_call_generated_tokens": 12,
-                        "per_call_turns": 1,
-                    },
-                    "subject_contract_ref": subject_ref,
-                    "simulator_contract_ref": simulator_ref,
-                    "tool_parser_contract_ref": parser_ref,
-                    "meter_contract_ref": meter_ref,
-                }
-            ],
-            "task_lanes": [
-                {
-                    "task_id": "task-1",
-                    "prefix_lane_ordinal": 0,
-                    "lane_ordinals_by_execution_rank": [0, 0, 0, 0],
-                    "task_input_ref": task_input_ref,
-                    "environment_contract_ref": environment_ref,
-                    "grader_contract_ref": grader_ref,
-                    "verifier_contract_ref": verifier_ref,
-                    "isolation_contract_ref": isolation_ref,
-                }
-            ],
-        },
-    )
-    study = write_json(
-        external / "study.json",
-        _record(
-            "resampling_study_manifest",
-            {
-                "commitment_scheme": "resampling-null-key-ceremony-v1",
-                "roster_local_nonce_commitment_sha256": SHA_A,
-                "schedule_seed_commitment_sha256": SHA_A,
-                "assignment_master_key_commitment_sha256": SHA_A,
-            },
-        ),
-    )
-    run_root = tmp_path / "run"
-    run_root.mkdir()
-
-    def seal() -> ArtifactRef:
-        return seal_study_manifest(
-            study,
-            sources["tasks"],
-            sources["roster"],
-            sources["assignment"],
-            sources["provider"],
-            sources["storage-policy"],
-            sources["power-grid"],
-            sources["power-topology"],
-            sources["tokenizer"],
-            sources["template"],
-            sources["policy"],
-            sources["pads"],
-            [sources["revision"]],
-            sources["required"],
-            eligibility_manifest_source=(
-                sources["eligibility"]
-                if failure_mode
-                in {"synthetic_conditional", "confirmation_conditional"}
-                else None
-            ),
-            roster_ceremony_policy_source=(
-                sources["ceremony-policy"]
-                if failure_mode
-                in {"synthetic_conditional", "confirmation_conditional"}
-                else None
-            ),
-            run_root=run_root,
-            out=run_root / "study-manifest.json",
-        )
+    run_root = fixture.run_root
+    seal = fixture.seal
 
     if failure_mode in {
         "binding",
@@ -5299,105 +4863,6 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
             seal()
         assert list(run_root.iterdir()) == []
         return
-    if failure_mode in {
-        "source_race",
-        "manifest_race",
-        "rollback_failure",
-        "publish",
-    }:
-        import pneuma_lab.resampling_null.artifacts as artifacts_module
-
-        original_link = os.link
-        link_count = 0
-        raced_destination: Path | None = None
-        peer_bytes = b"peer-owned bytes"
-        keep: Path | None = None
-        if failure_mode == "publish":
-            keep = run_root / "preexisting" / "keep.txt"
-            keep.parent.mkdir()
-            keep.write_text("keep", encoding="utf-8")
-
-        def injected_link(
-            source_name: str,
-            destination_name: str,
-            *,
-            src_dir_fd: int | None = None,
-            dst_dir_fd: int | None = None,
-            follow_symlinks: bool = True,
-        ) -> None:
-            nonlocal link_count, raced_destination
-            link_count += 1
-            assert dst_dir_fd is not None
-            destination = (
-                Path(os.readlink(f"/proc/self/fd/{dst_dir_fd}"))
-                / destination_name
-            )
-            if failure_mode == "source_race" and link_count == 1:
-                raced_destination = destination
-                destination.write_bytes(peer_bytes)
-            if (
-                failure_mode == "manifest_race"
-                and destination.name == "study-manifest.json"
-            ):
-                raced_destination = destination
-                destination.write_bytes(peer_bytes)
-            if failure_mode in {"rollback_failure", "publish"} and link_count == 2:
-                raise OSError("injected later publication failure")
-            original_link(
-                source_name,
-                destination_name,
-                src_dir_fd=src_dir_fd,
-                dst_dir_fd=dst_dir_fd,
-                follow_symlinks=follow_symlinks,
-            )
-
-        monkeypatch.setattr(os, "link", injected_link)
-        if failure_mode == "rollback_failure":
-            def deny_owned_cleanup(_owned: object) -> None:
-                raise PermissionError("injected cleanup denial")
-
-            monkeypatch.setattr(
-                artifacts_module,
-                "_unlink_owned_publication",
-                deny_owned_cleanup,
-                raising=False,
-            )
-            with pytest.raises(
-                RecordValidationError,
-                match="rollback incomplete.*sources/task-registry/",
-            ):
-                seal()
-            return
-        expected_error = (
-            FileExistsError
-            if failure_mode in {"source_race", "manifest_race"}
-            else OSError
-        )
-        expected_message = (
-            None
-            if expected_error is FileExistsError
-            else "injected later publication failure"
-        )
-        with pytest.raises(expected_error, match=expected_message):
-            seal()
-        if failure_mode in {"source_race", "manifest_race"}:
-            assert raced_destination is not None
-            assert raced_destination.read_bytes() == peer_bytes
-            assert sorted(
-                path.relative_to(run_root).as_posix()
-                for path in run_root.rglob("*")
-                if path.is_file()
-            ) == [raced_destination.relative_to(run_root).as_posix()]
-            return
-
-        assert keep is not None
-        assert sorted(
-            path.relative_to(run_root).as_posix()
-            for path in run_root.rglob("*")
-        ) == ["preexisting", "preexisting/keep.txt"]
-        assert keep.read_text(encoding="utf-8") == "keep"
-        assert not (run_root / "study-manifest.json").exists()
-        monkeypatch.setattr(os, "link", original_link)
     manifest_ref = seal()
     assert (run_root / manifest_ref.relative_path).is_file()
     if failure_mode == "confirmation_conditional":
@@ -5407,27 +4872,7 @@ def test_t5_s02a_study_seal_copies_v2_provider_nested_refs_atomically(
         assert isinstance(manifest_payload, dict)
         assert manifest_payload["eligibility_manifest_ref"] is not None
         assert manifest_payload["roster_ceremony_policy_ref"] is not None
-    if failure_mode == "publish":
-        assert (run_root / "preexisting" / "keep.txt").read_text(
-            encoding="utf-8"
-        ) == "keep"
-    for ref in (
-        subject_ref,
-        simulator_ref,
-        parser_ref,
-        meter_ref,
-        task_input_ref,
-        environment_ref,
-        grader_ref,
-        verifier_ref,
-        isolation_ref,
-        prompt_ref,
-        tool_schema_ref,
-        clock_ref,
-        watchdog_ref,
-        qualification_ref,
-        revision_deep_ref,
-    ):
+    for ref in fixture.nested_refs:
         assert (run_root / cast(str, ref["relative_path"])).is_file()
 
 

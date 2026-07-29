@@ -26,8 +26,9 @@ from .assignment import (
     kdf_frame,
     require_schedulable_power_final,
 )
-from .execution_authority import _validate_provider_lane_plan
-from .preflight import _validate_assignment_program, _validate_task_registry
+from .authority_refs import AuthorityRefReader
+from .preflight import validate_assignment_program, validate_task_registry
+from .provider_contracts import validate_provider_lane_plan
 from .storage import (
     LocalTestStorageLease,
     StoragePolicyLease,
@@ -186,7 +187,7 @@ def seal_prefix_schedule(
             field="task_registry_ref",
             run_root=root,
         )
-        _validate_task_registry(task_registry)
+        validate_task_registry(task_registry)
         _assignment_ref, assignment_program = _load_manifest_asset(
             manifest_payload,
             field="assignment_program_ref",
@@ -209,7 +210,7 @@ def seal_prefix_schedule(
             )
         if assignment_program["record_kind"] != "resampling_assignment_program_v1":
             raise RecordValidationError("assignment program has wrong identity")
-        _validate_assignment_program(assignment_program)
+        validate_assignment_program(assignment_program)
         normalizer = cast(
             dict[str, object],
             assignment_program["verifier_normalizer_contract"],
@@ -283,14 +284,15 @@ def seal_prefix_schedule(
             )
         selected_tasks = [registry_by_id[task_id] for task_id in selected_ids]
         selected_tasks.sort(key=_task_order_key)
-        validated_plan = _validate_provider_lane_plan(
-            provider_plan,
-            run_root=root,
-            registry=task_registry,
-            tokenizer_ref=tokenizer_ref,
-            manifest_revisions=tuple(revision_refs),
-            schedule_authority=selection.schedule_authority,
-        )
+        with AuthorityRefReader(root) as reader:
+            validated_plan = validate_provider_lane_plan(
+                provider_plan,
+                reader=reader,
+                registry=task_registry,
+                tokenizer_ref=tokenizer_ref,
+                manifest_revisions=tuple(revision_refs),
+                schedule_authority=selection.schedule_authority,
+            )
         lanes = tuple(lane.lane_id for lane in validated_plan.lanes)
         lane_bindings = {
             row.task_id: (

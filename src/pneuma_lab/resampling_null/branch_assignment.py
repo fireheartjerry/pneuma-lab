@@ -45,16 +45,13 @@ from .storage import (
     _load_operational_object,
     _publish_local_test_scientific,
 )
+from .task_schedule_codec import decode_task_schedule
 from .types import (
     ArtifactRef,
     AssignmentPrefixTaskView,
     AssignmentPrefixView,
-    BranchSlot,
-    BranchSlotSet,
     GroupKind,
-    GroupLabel,
     TaskSchedule,
-    TaskSpec,
     TriggerReason,
 )
 
@@ -87,89 +84,6 @@ def _load_object_ref(
     if not isinstance(value, dict):
         raise RecordValidationError(f"{field} must reference an object")
     return value
-
-
-def _group_labels(value: object, *, field: str) -> tuple[GroupLabel, ...]:
-    if not isinstance(value, list) or not value:
-        raise RecordValidationError(f"{field} must be a non-empty group array")
-    labels: list[GroupLabel] = []
-    for index, group in enumerate(value):
-        if not isinstance(group, Mapping) or set(group) != {"kind", "value"}:
-            raise RecordValidationError(f"{field}[{index}] has wrong shape")
-        try:
-            labels.append(
-                GroupLabel(
-                    GroupKind(cast(str, group["kind"])),
-                    cast(str, group["value"]),
-                )
-            )
-        except (TypeError, ValueError) as exc:
-            raise RecordValidationError(
-                f"{field}[{index}] is invalid: {exc}"
-            ) from exc
-    return tuple(labels)
-
-
-def _task_schedule(value: object, *, field: str) -> TaskSchedule:
-    if not isinstance(value, Mapping) or set(value) != {
-        "task",
-        "prefix_seed",
-        "slots",
-        "provider_lane",
-    }:
-        raise RecordValidationError(f"{field} has wrong shape")
-    task = value["task"]
-    if not isinstance(task, Mapping) or set(task) != {
-        "task_id",
-        "benchmark",
-        "stratum",
-        "lineage",
-        "sensitivity_groups",
-    }:
-        raise RecordValidationError(f"{field}.task has wrong shape")
-    slots_value = value["slots"]
-    if not isinstance(slots_value, list) or len(slots_value) != 4:
-        raise RecordValidationError(f"{field}.slots must contain four rows")
-    slots: list[BranchSlot] = []
-    for index, slot in enumerate(slots_value):
-        if not isinstance(slot, Mapping) or set(slot) != {
-            "slot_id",
-            "seed",
-            "execution_order",
-            "hardware_lane",
-        }:
-            raise RecordValidationError(f"{field}.slots[{index}] has wrong shape")
-        try:
-            slots.append(
-                BranchSlot(
-                    slot_id=cast(str, slot["slot_id"]),
-                    seed=cast(int, slot["seed"]),
-                    execution_order=cast(int, slot["execution_order"]),
-                    hardware_lane=cast(int, slot["hardware_lane"]),
-                )
-            )
-        except (TypeError, ValueError) as exc:
-            raise RecordValidationError(
-                f"{field}.slots[{index}] is invalid: {exc}"
-            ) from exc
-    try:
-        return TaskSchedule(
-            task=TaskSpec(
-                task_id=cast(str, task["task_id"]),
-                benchmark=cast(str, task["benchmark"]),
-                stratum=cast(str, task["stratum"]),
-                lineage=cast(str, task["lineage"]),
-                sensitivity_groups=_group_labels(
-                    task["sensitivity_groups"],
-                    field=f"{field}.task.sensitivity_groups",
-                ),
-            ),
-            prefix_seed=cast(int, value["prefix_seed"]),
-            slots=BranchSlotSet(cast(tuple[BranchSlot, BranchSlot, BranchSlot, BranchSlot], tuple(slots))),
-            provider_lane=cast(str, value["provider_lane"]),
-        )
-    except (TypeError, ValueError) as exc:
-        raise RecordValidationError(f"{field} is invalid: {exc}") from exc
 
 
 def _component_class(components: object, *, field: str) -> str:
@@ -787,7 +701,7 @@ def seal_branch_assignment(
                 "schedule and prefix coverage are not exact and non-empty"
             )
         schedules = tuple(
-            _task_schedule(value, field=f"schedule tasks[{index}]")
+            decode_task_schedule(value, field=f"schedule tasks[{index}]")
             for index, value in enumerate(schedule_values)
         )
         receipts_by_id: dict[str, object] = {}

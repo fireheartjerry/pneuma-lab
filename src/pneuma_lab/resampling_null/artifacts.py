@@ -5,16 +5,10 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
-import errno
 import hashlib
 import json
-import math
 import mimetypes
-from numbers import Number
-import os
 from pathlib import Path, PurePosixPath
-import secrets
-import stat
 import tempfile
 from typing import Any, Literal, cast
 
@@ -28,6 +22,25 @@ from pneuma_lab.foundation.artifacts import (
     write_atomic_jsonl,
 )
 
+from .authority_refs import (
+    AuthorityRefReader,
+    exact_text,
+    walk_artifact_refs as _walk_artifact_refs,
+)
+from .errors import RecordValidationError
+from .json_io import (
+    load_json_bytes as _load_json_bytes,
+    plain_json as _plain_json,
+    resolve_inside as _resolve_inside,
+    run_root as _run_root,
+)
+from .publication import BoundPublication
+from .preflight import (
+    ASSIGNMENT_PROGRAM_GRAMMAR,
+    validate_assignment_program,
+    validate_task_registry,
+)
+from .provider_contracts import validate_provider_lane_plan
 from .types import ArtifactRef
 
 
@@ -66,39 +79,6 @@ _RECEIPT_NAME = "p0-core-receipt.json"
 _FROZEN_UPSTREAM_KINDS = tuple(
     sorted(kind for kind in SCHEMA_BY_KIND if kind != "resampling_artifact_root")
 )
-
-
-class RecordValidationError(ValueError):
-    """Raised when a scientific record or its artifact closure is invalid."""
-
-
-def _plain_json(value: object, *, path: str = "$") -> object:
-    if isinstance(value, Mapping):
-        result: dict[str, object] = {}
-        for key, nested in value.items():
-            if not isinstance(key, str):
-                raise RecordValidationError(f"{path}: JSON object keys must be strings")
-            result[key] = _plain_json(nested, path=f"{path}.{key}")
-        return result
-    if isinstance(value, (list, tuple)):
-        return [
-            _plain_json(nested, path=f"{path}[{index}]")
-            for index, nested in enumerate(value)
-        ]
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, Number):
-        try:
-            finite = math.isfinite(cast(Any, value))
-        except TypeError:
-            finite = True
-        if not finite:
-            raise RecordValidationError(f"{path}: non-finite number")
-        if type(value) not in (int, float):
-            raise RecordValidationError(
-                f"{path}: non-builtin numeric scalar is not a plain JSON number"
-            )
-    return value
 
 
 def canonical_digest(value: Mapping[str, object]) -> str:
@@ -791,35 +771,6 @@ def validate_record(value: Mapping[str, object]) -> dict[str, object]:
     return cast(dict[str, object], plain)
 
 
-def _reject_constant(value: str) -> object:
-    raise RecordValidationError(f"non-finite JSON constant {value!r}")
-
-
-def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise RecordValidationError(f"duplicate JSON key: {key!r}")
-        result[key] = value
-    return result
-
-
-def _load_json_bytes(payload: bytes, *, source: Path) -> object:
-    if payload.startswith(b"\xef\xbb\xbf"):
-        raise RecordValidationError(f"{source}: UTF-8 BOM is forbidden")
-    try:
-        text = payload.decode("utf-8", errors="strict")
-        return json.loads(
-            text,
-            object_pairs_hook=_reject_duplicate_pairs,
-            parse_constant=_reject_constant,
-        )
-    except RecordValidationError:
-        raise
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise RecordValidationError(f"{source}: invalid UTF-8 JSON: {exc}") from exc
-
-
 def load_record(path: Path) -> dict[str, object]:
     """Load strict UTF-8 JSON and validate it as one registered record."""
 
@@ -832,34 +783,6 @@ def load_record(path: Path) -> dict[str, object]:
     if not isinstance(value, Mapping):
         raise RecordValidationError(f"{source}: record must be a JSON object")
     return validate_record(cast(Mapping[str, object], value))
-
-
-def _run_root(run_root: Path) -> Path:
-    root = Path(run_root).resolve(strict=True)
-    if not root.is_dir():
-        raise NotADirectoryError(root)
-    return root
-
-
-def _resolve_inside(
-    path: Path,
-    run_root: Path,
-    *,
-    require_exists: bool,
-) -> tuple[Path, str]:
-    root = _run_root(run_root)
-    candidate = Path(path)
-    if not candidate.is_absolute():
-        candidate = root / candidate
-    resolved = candidate.resolve(strict=require_exists)
-    try:
-        relative = resolved.relative_to(root)
-    except ValueError as exc:
-        raise RecordValidationError(f"artifact path escapes run_root: {path}") from exc
-    if relative == Path("."):
-        raise RecordValidationError("artifact path must name a file below run_root")
-    relative_path = PurePosixPath(*relative.parts).as_posix()
-    return resolved, relative_path
 
 
 def _manifest_records(run_root: Path) -> list[tuple[Path, dict[str, object]]]:
@@ -1181,8 +1104,6 @@ def _provider_execution_authority(
     ):
         raise RecordValidationError("v2 provider roster has wrong identity")
 
-    from .preflight import ASSIGNMENT_PROGRAM_GRAMMAR, _validate_assignment_program
-
     if (
         not isinstance(assignment_value, Mapping)
         or set(assignment_value) != set(ASSIGNMENT_PROGRAM_GRAMMAR.fields)
@@ -1193,7 +1114,7 @@ def _provider_execution_authority(
     assignment = dict(assignment_value)
     if assignment.get("record_kind") != ASSIGNMENT_PROGRAM_GRAMMAR.record_kind:
         raise RecordValidationError("v2 provider assignment has wrong identity")
-    _validate_assignment_program(assignment)
+    validate_assignment_program(assignment)
 
     authority_by_pair: dict[tuple[object, object], Literal[
         "synthetic_validation",
@@ -1209,8 +1130,14 @@ def _provider_execution_authority(
         ): "confirmation",
     }
     pair = (
-        roster_value.get("roster_kind"),
-        assignment.get("assignment_mode"),
+        exact_text(
+            roster_value.get("roster_kind"),
+            field="v2 provider roster.roster_kind",
+        ),
+        exact_text(
+            assignment.get("assignment_mode"),
+            field="v2 provider assignment.assignment_mode",
+        ),
     )
     try:
         return authority_by_pair[pair]
@@ -1218,294 +1145,6 @@ def _provider_execution_authority(
         raise RecordValidationError(
             "v2 provider roster and assignment authority disagree or are unknown"
         ) from exc
-
-
-def _create_transaction_parents(
-    parent: Path,
-    *,
-    run_root: Path,
-    created_directories: list[Path],
-) -> None:
-    missing: list[Path] = []
-    cursor = parent
-    while cursor != run_root and not cursor.exists():
-        missing.append(cursor)
-        cursor = cursor.parent
-    for directory in reversed(missing):
-        try:
-            directory.mkdir()
-        except FileExistsError:
-            if not directory.is_dir():
-                raise
-        else:
-            created_directories.append(directory)
-
-
-@dataclass(frozen=True, slots=True)
-class _OwnedPublication:
-    run_root: Path
-    destination: Path
-    relative_path: str
-    device: int
-    inode: int
-    sha256: str
-    byte_count: int
-
-
-def _open_publication_parent(destination: Path, *, run_root: Path) -> int:
-    parent = destination.parent
-    resolved_parent = parent.resolve(strict=True)
-    if resolved_parent != parent:
-        raise RecordValidationError(
-            "publication destination parent is not canonical"
-        )
-    try:
-        resolved_parent.relative_to(run_root)
-    except ValueError as exc:
-        raise RecordValidationError(
-            "publication destination parent escapes run_root"
-        ) from exc
-    descriptor = os.open(
-        parent,
-        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
-    )
-    bound = os.fstat(descriptor)
-    named = os.stat(parent, follow_symlinks=False)
-    if (bound.st_dev, bound.st_ino) != (named.st_dev, named.st_ino):
-        os.close(descriptor)
-        raise RecordValidationError(
-            "publication destination parent changed during binding"
-        )
-    return descriptor
-
-
-def _write_all(descriptor: int, payload: bytes) -> None:
-    remaining = memoryview(payload)
-    while remaining:
-        written = os.write(descriptor, remaining)
-        if written <= 0:
-            raise OSError("short publication write")
-        remaining = remaining[written:]
-
-
-def _descriptor_digest(descriptor: int) -> tuple[str, int]:
-    os.lseek(descriptor, 0, os.SEEK_SET)
-    digest = hashlib.sha256()
-    size = 0
-    while chunk := os.read(descriptor, 1024 * 1024):
-        digest.update(chunk)
-        size += len(chunk)
-    return digest.hexdigest(), size
-
-
-def _publish_no_replace(
-    destination: Path,
-    payload: bytes,
-    *,
-    run_root: Path,
-    owned_publications: list[_OwnedPublication],
-) -> _OwnedPublication:
-    rebound, relative_path = _resolve_inside(
-        destination,
-        run_root,
-        require_exists=False,
-    )
-    if rebound != destination:
-        raise RecordValidationError(
-            "publication destination ancestry changed"
-        )
-    parent_descriptor = _open_publication_parent(
-        destination,
-        run_root=run_root,
-    )
-    temporary_name = f".pneuma-{secrets.token_hex(16)}.tmp"
-    temporary_descriptor: int | None = None
-    temporary_exists = False
-    try:
-        temporary_descriptor = os.open(
-            temporary_name,
-            (
-                os.O_RDWR
-                | os.O_CREAT
-                | os.O_EXCL
-                | os.O_NOFOLLOW
-                | os.O_CLOEXEC
-            ),
-            0o600,
-            dir_fd=parent_descriptor,
-        )
-        temporary_exists = True
-        _write_all(temporary_descriptor, payload)
-        os.fsync(temporary_descriptor)
-        prepared = os.fstat(temporary_descriptor)
-        if (
-            not stat.S_ISREG(prepared.st_mode)
-            or prepared.st_size != len(payload)
-        ):
-            raise RecordValidationError(
-                "prepared publication is not the expected regular file"
-            )
-        os.link(
-            temporary_name,
-            destination.name,
-            src_dir_fd=parent_descriptor,
-            dst_dir_fd=parent_descriptor,
-            follow_symlinks=False,
-        )
-        owned = _OwnedPublication(
-            run_root=run_root,
-            destination=destination,
-            relative_path=relative_path,
-            device=prepared.st_dev,
-            inode=prepared.st_ino,
-            sha256=hashlib.sha256(payload).hexdigest(),
-            byte_count=len(payload),
-        )
-        owned_publications.append(owned)
-        os.unlink(temporary_name, dir_fd=parent_descriptor)
-        temporary_exists = False
-        os.fsync(parent_descriptor)
-
-        published_descriptor = os.open(
-            destination.name,
-            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
-            dir_fd=parent_descriptor,
-        )
-        try:
-            published = os.fstat(published_descriptor)
-            digest, size = _descriptor_digest(published_descriptor)
-        finally:
-            os.close(published_descriptor)
-        if (
-            not stat.S_ISREG(published.st_mode)
-            or (published.st_dev, published.st_ino)
-            != (owned.device, owned.inode)
-            or digest != owned.sha256
-            or size != owned.byte_count
-        ):
-            raise RecordValidationError(
-                "create-exclusive publication identity or bytes changed"
-            )
-        rebound_parent = os.stat(destination.parent, follow_symlinks=False)
-        bound_parent = os.fstat(parent_descriptor)
-        if (rebound_parent.st_dev, rebound_parent.st_ino) != (
-            bound_parent.st_dev,
-            bound_parent.st_ino,
-        ):
-            raise RecordValidationError(
-                "publication destination parent changed after install"
-            )
-        return owned
-    except BaseException as publication_error:
-        if temporary_exists:
-            try:
-                os.unlink(temporary_name, dir_fd=parent_descriptor)
-            except BaseException as cleanup_error:
-                raise RecordValidationError(
-                    "prepared publication cleanup failed for "
-                    f"{relative_path}: {cleanup_error}"
-                ) from publication_error
-        raise
-    finally:
-        if temporary_descriptor is not None:
-            os.close(temporary_descriptor)
-        os.close(parent_descriptor)
-
-
-def _owned_publication_is_current(owned: _OwnedPublication) -> bool:
-    parent_descriptor = _open_publication_parent(
-        owned.destination,
-        run_root=owned.run_root,
-    )
-    try:
-        try:
-            descriptor = os.open(
-                owned.destination.name,
-                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
-                dir_fd=parent_descriptor,
-            )
-        except FileNotFoundError:
-            return False
-        try:
-            metadata = os.fstat(descriptor)
-            digest, size = _descriptor_digest(descriptor)
-        finally:
-            os.close(descriptor)
-        named = os.stat(
-            owned.destination.name,
-            dir_fd=parent_descriptor,
-            follow_symlinks=False,
-        )
-        return (
-            stat.S_ISREG(metadata.st_mode)
-            and (metadata.st_dev, metadata.st_ino)
-            == (owned.device, owned.inode)
-            and (named.st_dev, named.st_ino)
-            == (owned.device, owned.inode)
-            and digest == owned.sha256
-            and size == owned.byte_count
-        )
-    except FileNotFoundError:
-        return False
-    finally:
-        os.close(parent_descriptor)
-
-
-def _unlink_owned_publication(owned: _OwnedPublication) -> None:
-    if not _owned_publication_is_current(owned):
-        return
-    parent_descriptor = _open_publication_parent(
-        owned.destination,
-        run_root=owned.run_root,
-    )
-    try:
-        named = os.stat(
-            owned.destination.name,
-            dir_fd=parent_descriptor,
-            follow_symlinks=False,
-        )
-        if (named.st_dev, named.st_ino) != (owned.device, owned.inode):
-            return
-        os.unlink(owned.destination.name, dir_fd=parent_descriptor)
-        os.fsync(parent_descriptor)
-    except FileNotFoundError:
-        pass
-    finally:
-        os.close(parent_descriptor)
-
-
-def _rollback_publication(
-    owned_publications: Sequence[_OwnedPublication],
-    created_directories: Sequence[Path],
-) -> tuple[list[str], list[str]]:
-    cleanup_failures: list[str] = []
-    for owned in reversed(owned_publications):
-        try:
-            _unlink_owned_publication(owned)
-        except BaseException as exc:
-            cleanup_failures.append(
-                f"{owned.relative_path}: {type(exc).__name__}: {exc}"
-            )
-    residual_owned_paths: list[str] = []
-    for owned in owned_publications:
-        try:
-            if _owned_publication_is_current(owned):
-                residual_owned_paths.append(owned.relative_path)
-        except BaseException as exc:
-            cleanup_failures.append(
-                f"{owned.relative_path} recheck: {type(exc).__name__}: {exc}"
-            )
-    for directory in reversed(created_directories):
-        try:
-            directory.rmdir()
-        except FileNotFoundError:
-            pass
-        except OSError as exc:
-            if exc.errno not in (errno.ENOTEMPTY, errno.EEXIST):
-                cleanup_failures.append(
-                    f"{directory}: {type(exc).__name__}: {exc}"
-                )
-    return cleanup_failures, residual_owned_paths
 
 
 def seal_study_manifest(
@@ -1737,9 +1376,6 @@ def seal_study_manifest(
         isinstance(provider_value, Mapping)
         and provider_value.get("record_kind") == "provider_lane_plan_v2"
     ):
-        from .execution_authority import _validate_provider_lane_plan
-        from .preflight import _validate_task_registry
-
         task_copy = next(
             copy for copy in copies if copy.ref.role == "task_registry"
         )
@@ -1753,7 +1389,7 @@ def seal_study_manifest(
                 "v2 provider plan requires a closed task registry"
             )
         registry = dict(task_value)
-        _validate_task_registry(registry)
+        validate_task_registry(registry)
         roster_copy = next(
             copy for copy in copies if copy.ref.role == "roster"
         )
@@ -1794,69 +1430,34 @@ def seal_study_manifest(
                 staging_path = staging_root / copy.ref.relative_path
                 staging_path.parent.mkdir(parents=True, exist_ok=True)
                 write_atomic_bytes(staging_path, copy.payload)
-            _validate_provider_lane_plan(
-                provider_value,
-                run_root=staging_root,
-                registry=registry,
-                tokenizer_ref=by_role["tokenizer"],
-                manifest_revisions=tuple(
-                    copy.ref for copy in revision_copies
-                ),
-                schedule_authority=execution_authority,
-            )
-    owned_publications: list[_OwnedPublication] = []
-    created_directories: list[Path] = []
-    try:
+            with AuthorityRefReader(staging_root) as reader:
+                validate_provider_lane_plan(
+                    provider_value,
+                    reader=reader,
+                    registry=registry,
+                    tokenizer_ref=by_role["tokenizer"],
+                    manifest_revisions=tuple(
+                        copy.ref for copy in revision_copies
+                    ),
+                    schedule_authority=execution_authority,
+                )
+    with BoundPublication(root) as publication:
         for copy in all_copies:
-            _create_transaction_parents(
-                copy.destination.parent,
-                run_root=root,
-                created_directories=created_directories,
-            )
-            _publish_no_replace(
-                copy.destination,
+            publication.publish_bytes(
+                copy.ref.relative_path,
                 copy.payload,
-                run_root=root,
-                owned_publications=owned_publications,
+                role=copy.ref.role,
+                media_type=copy.ref.media_type,
             )
-        _create_transaction_parents(
-            out_target.parent,
-            run_root=root,
-            created_directories=created_directories,
-        )
         manifest_payload = canonical_json_bytes(validated, indent=4)
-        manifest_publication = _publish_no_replace(
-            out_target,
-            run_root=root,
-            payload=manifest_payload,
-            owned_publications=owned_publications,
-        )
-        return ArtifactRef(
+        manifest_ref = publication.publish_bytes(
+            _relative,
+            manifest_payload,
             role="study_manifest",
-            relative_path=manifest_publication.relative_path,
-            sha256=manifest_publication.sha256,
-            byte_count=manifest_publication.byte_count,
             media_type="application/json",
         )
-    except BaseException as publication_error:
-        cleanup_failures, residual_owned_paths = _rollback_publication(
-            owned_publications,
-            created_directories,
-        )
-        if cleanup_failures or residual_owned_paths:
-            details = "; ".join(
-                [
-                    *cleanup_failures,
-                    *(
-                        f"residual owned path: {path}"
-                        for path in residual_owned_paths
-                    ),
-                ]
-            )
-            raise RecordValidationError(
-                f"publication rollback incomplete: {details}"
-            ) from publication_error
-        raise
+        publication.commit()
+        return manifest_ref
 
 
 def verify_digest_link(
@@ -1955,27 +1556,6 @@ def _scientific_documents(
             byte_count=len(payload),
         )
     return documents
-
-
-def _walk_artifact_refs(value: object) -> Iterable[ArtifactRef]:
-    if isinstance(value, Mapping):
-        if frozenset(value) == _SCIENTIFIC_REF_KEYS:
-            try:
-                yield ArtifactRef(
-                    role=cast(str, value["role"]),
-                    relative_path=cast(str, value["relative_path"]),
-                    sha256=cast(str, value["sha256"]),
-                    byte_count=cast(int, value["byte_count"]),
-                    media_type=cast(str, value["media_type"]),
-                )
-            except (KeyError, TypeError, ValueError) as exc:
-                raise RecordValidationError(f"malformed ArtifactRef: {exc}") from exc
-            return
-        for nested in value.values():
-            yield from _walk_artifact_refs(nested)
-    elif isinstance(value, list):
-        for nested in value:
-            yield from _walk_artifact_refs(nested)
 
 
 def _read_ref(

@@ -36,11 +36,11 @@ from .branch_assignment import (
     _prefix_task_view,
     _require_prefix_publication,
     _stratum_component,
-    _task_schedule,
 )
 from .preflight import _validate_assignment_program
 from .secrets import AssignmentSecretHandle, _require_handle_binding
 from .storage import _load_operational_object
+from .task_schedule_codec import decode_task_schedule
 from .types import Arm, ArtifactRef, Treatment
 from .types import (
     AllocationReceipt,
@@ -664,7 +664,7 @@ def require_assignment_reconstruction(
     ):
         raise RecordValidationError("reconstruction coverage is incomplete")
     schedules = tuple(
-        _task_schedule(value, field=f"schedule tasks[{index}]")
+        decode_task_schedule(value, field=f"schedule tasks[{index}]")
         for index, value in enumerate(schedule_values)
     )
     receipts_by_id = {

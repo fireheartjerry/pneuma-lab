@@ -17,11 +17,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
-from .artifacts import (
-    RecordValidationError,
-    _load_json_bytes,
-    _plain_json,
-    _resolve_inside,
+from .errors import RecordValidationError
+from .json_io import (
+    load_json_bytes as _load_json_bytes,
+    plain_json as _plain_json,
+    resolve_inside as _resolve_inside,
 )
 from .types import ArtifactRef
 
@@ -738,6 +738,18 @@ def import_assignment_program(
     )
 
 
+def validate_task_registry(value: dict[str, object]) -> None:
+    """Validate one already-decoded closed task registry."""
+
+    _validate_task_registry(value)
+
+
+def validate_assignment_program(value: dict[str, object]) -> None:
+    """Validate one already-decoded closed assignment program."""
+
+    _validate_assignment_program(value)
+
+
 __all__ = [
     "ClosedJsonImport",
     "ConfirmationPreflightRegistry",
@@ -747,5 +759,7 @@ __all__ = [
     "import_closed_json",
     "import_task_registry",
     "require_declared_fields",
+    "validate_assignment_program",
+    "validate_task_registry",
     "verify_ed25519_canonical_json",
 ]

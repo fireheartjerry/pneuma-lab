@@ -809,7 +809,7 @@ class BranchCaps:
 
 
 @dataclass(frozen=True, slots=True)
-class SimulatorCaps:
+class CallContractCaps:
     aggregate_generated_tokens: int
     aggregate_model_calls: int
     aggregate_turns: int
