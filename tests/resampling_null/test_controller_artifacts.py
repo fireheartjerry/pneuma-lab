@@ -22,17 +22,17 @@ def test_controller_store_is_create_only_content_addressed_and_freshly_resolved(
     ref = store.write(
         role="provider_request",
         payload=payload,
-        media_type="application/octet-stream",
+        media_type="application/json",
     )
     assert ref.sha256 == hashlib.sha256(payload).hexdigest()
     assert ref.byte_count == len(payload)
     assert ref.relative_path.endswith(ref.sha256)
-    with pytest.raises(FileExistsError):
-        store.write(
-            role="provider_request",
-            payload=payload,
-            media_type="application/octet-stream",
-        )
+    reused = store.write(
+        role="provider_request",
+        payload=payload,
+        media_type="application/json",
+    )
+    assert reused == ref
     store.close()
     with pytest.raises(RuntimeError):
         store.write(role="later", payload=b"x", media_type="text/plain")
@@ -41,7 +41,7 @@ def test_controller_store_is_create_only_content_addressed_and_freshly_resolved(
         resolver.resolve(
             ref,
             expected_role="provider_request",
-            expected_media_type="application/octet-stream",
+            expected_media_type="application/json",
         )
         == payload
     )
@@ -52,6 +52,49 @@ def test_controller_store_is_create_only_content_addressed_and_freshly_resolved(
             expected_media_type="application/octet-stream",
         )
     resolver.close()
+
+
+def test_controller_store_eexist_mismatch_never_unlinks_existing_blob(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    store = ControllerArtifactStore(tmp_path)
+    payload = b"controller evidence"
+    ref = store.write(
+        role="provider_request",
+        payload=payload,
+        media_type="application/json",
+    )
+    target = tmp_path / ref.relative_path
+    with pytest.raises(RecordValidationError, match="canonical"):
+        store.write(
+            role="provider_request",
+            payload=payload,
+            media_type="application/octet-stream",
+        )
+    assert target.read_bytes() == payload
+    target.write_bytes(b"tampered evidence!")
+    with pytest.raises(RecordValidationError):
+        store.write(
+            role="provider_request",
+            payload=payload,
+            media_type="application/json",
+        )
+    assert target.read_bytes() == b"tampered evidence!"
+
+    target.unlink()
+    symlink_target = tmp_path / "outside"
+    symlink_target.write_bytes(payload)
+    target.symlink_to(symlink_target)
+    with pytest.raises(RecordValidationError):
+        store.write(
+            role="provider_request",
+            payload=payload,
+            media_type="application/json",
+        )
+    assert target.is_symlink()
+    assert symlink_target.read_bytes() == payload
+    store.close()
 
 
 def test_controller_store_rejects_traversal_symlinks_and_subclassing(tmp_path) -> None:

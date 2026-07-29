@@ -549,12 +549,9 @@ class CompositeSnapshotEnvelope:
         ):
             raise ValueError("adverse failure state must be terminal")
         if self.terminal_unexecuted_remainder and (
-            not self.episode_terminal
-            or self.terminal_failure_kind is not FailureKind.MALFORMED_ACTION
+            not self.episode_terminal or self.terminal_failure_kind is FailureKind.NONE
         ):
-            raise ValueError(
-                "terminal remainder requires terminal malformed-action state"
-            )
+            raise ValueError("terminal remainder requires terminal adverse state")
 
 
 def _unique_call_ids(calls: tuple[ToolCall, ...], *, field: str) -> None:
@@ -988,11 +985,9 @@ class FrozenPrefixReceipt:
             raise ValueError("a no-trigger receipt cannot retain branch calls")
         if self.terminal_unexecuted_remainder and (
             self.trigger_reason is not TriggerReason.NO_INTERVENTION_OPPORTUNITY
-            or self.terminal_failure_kind is not FailureKind.MALFORMED_ACTION
+            or self.terminal_failure_kind is FailureKind.NONE
         ):
-            raise ValueError(
-                "terminal remainder requires no-trigger malformed-action state"
-            )
+            raise ValueError("terminal remainder requires adverse no-trigger state")
         if type(self.y0_grade) is not GradeReceipt:
             raise TypeError("y0_grade must be exact GradeReceipt")
         _controller_ref(
@@ -1071,8 +1066,10 @@ class FrozenPrefixReceipt:
                 self.prefix_caps.wall_clock_ms,
             ),
         )
-        if any(used + remaining != cap for used, remaining, cap in cap_pairs):
-            raise ValueError("snapshot counters plus remaining quotas differ from caps")
+        if any(remaining != max(0, cap - used) for used, remaining, cap in cap_pairs):
+            raise ValueError(
+                "snapshot remaining quotas differ from caps-minus-used arithmetic"
+            )
         validate_snapshot_receipt_fields(
             snapshot,
             snapshot_ref=self.snapshot_ref,

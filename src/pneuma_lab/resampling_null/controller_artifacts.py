@@ -14,6 +14,7 @@ import stat
 from typing import final
 
 from .errors import RecordValidationError
+from .prefix_contracts import CONTROLLER_ROLE_MEDIA
 from .types import ArtifactRef
 
 
@@ -166,6 +167,14 @@ class ControllerArtifactStore:
         _root_descriptor, artifact_descriptor = self._require_open()
         validated_role = _role(role)
         validated_media_type = _media_type(media_type)
+        registered_media_type = CONTROLLER_ROLE_MEDIA.get(validated_role)
+        if (
+            registered_media_type is not None
+            and validated_media_type != registered_media_type
+        ):
+            raise RecordValidationError(
+                "controller artifact media type differs from canonical role authority"
+            )
         if type(payload) is not bytes:
             raise TypeError("payload must be exact bytes")
         digest = hashlib.sha256(payload).hexdigest()
@@ -185,12 +194,59 @@ class ControllerArtifactStore:
                 errors.append(exc)
 
         try:
-            owned["write"] = os.open(
-                digest,
-                _WRITE_FLAGS,
-                0o600,
-                dir_fd=role_descriptor,
-            )
+            try:
+                owned["write"] = os.open(
+                    digest,
+                    _WRITE_FLAGS,
+                    0o600,
+                    dir_fd=role_descriptor,
+                )
+            except FileExistsError:
+                try:
+                    owned["read"] = os.open(
+                        digest,
+                        _READ_FLAGS,
+                        dir_fd=role_descriptor,
+                    )
+                except OSError as exc:
+                    raise RecordValidationError(
+                        "existing controller artifact could not be safely reopened"
+                    ) from exc
+                metadata = os.fstat(owned["read"])
+                if not stat.S_ISREG(metadata.st_mode):
+                    raise RecordValidationError(
+                        "existing controller artifact is not a regular file"
+                    )
+                observed, observed_digest, observed_size = _read_and_hash(owned["read"])
+                named = os.stat(
+                    digest,
+                    dir_fd=role_descriptor,
+                    follow_symlinks=False,
+                )
+                if stat.S_ISLNK(named.st_mode) or (
+                    metadata.st_dev,
+                    metadata.st_ino,
+                ) != (named.st_dev, named.st_ino):
+                    raise RecordValidationError(
+                        "existing controller artifact identity changed during reuse"
+                    )
+                if (
+                    observed != payload
+                    or observed_digest != digest
+                    or observed_size != len(payload)
+                ):
+                    raise RecordValidationError(
+                        "existing controller artifact differs from exact reuse bytes"
+                    )
+                close_owned("read")
+                close_owned("role")
+                return ArtifactRef(
+                    role=validated_role,
+                    relative_path=(f"{_ARTIFACT_DIRECTORY}/{validated_role}/{digest}"),
+                    sha256=digest,
+                    byte_count=len(payload),
+                    media_type=validated_media_type,
+                )
             created = True
             _write_all(owned["write"], payload)
             os.fsync(owned["write"])

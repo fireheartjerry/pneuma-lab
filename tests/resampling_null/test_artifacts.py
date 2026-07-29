@@ -1574,7 +1574,7 @@ def _build_full_study(
         )
         tool_schema_ref = authority_json(
             "authority-tools.json",
-            {"tools": []},
+            {"tools": [{"name": "read"}]},
             role="tool_schema",
         )
         clock_source_ref = authority_json(
@@ -1658,6 +1658,20 @@ def _build_full_study(
             },
             role="meter_contract",
         )
+        synthetic_grade_ref = authority_json(
+            "synthetic-grade-result.json",
+            {
+                "success": 0,
+                "partial_reward": 0.0,
+                "infrastructure_failure": False,
+            },
+            role="synthetic_grade_result",
+        )
+        synthetic_verifier_ref = authority_json(
+            "synthetic-verifier-result.json",
+            {"finding_count": 0},
+            role="synthetic_verifier_result",
+        )
         task_lane_rows = []
         for task in sorted(
             registry_tasks,
@@ -1665,6 +1679,31 @@ def _build_full_study(
         ):
             task_id = cast(str, task["task_id"])
             benchmark = cast(str, task["benchmark"])
+            program_ref = authority_json(
+                f"authority/{task_id}-program.json",
+                {
+                    "record_kind": "synthetic_prefix_program_v1",
+                    "schema_version": "1",
+                    "task_id": task_id,
+                    "expected_trigger_reason": "no_intervention_opportunity",
+                    "tool_schema_ref": tool_schema_ref,
+                    "provider_transcript": [],
+                    "tool_observations": [],
+                    "grade_result": {
+                        "evidence_ref": synthetic_grade_ref,
+                        "success": 0,
+                        "partial_reward": 0.0,
+                        "infrastructure_failure": False,
+                    },
+                    "verifier_result": {
+                        "evidence_ref": synthetic_verifier_ref,
+                        "finding_count": 0,
+                    },
+                    "failure_injection": {"stage": "none"},
+                    "clock_trace": [{"label": "prefix_epoch", "uint64_ms": 1}],
+                },
+                role="synthetic_execution_program",
+            )
             task_input_ref = authority_json(
                 f"authority/{task_id}-input.json",
                 {
@@ -1673,6 +1712,7 @@ def _build_full_study(
                     "task_id": task_id,
                     "benchmark": benchmark,
                     "requires_user_simulator": False,
+                    "synthetic_execution_program_ref": program_ref,
                     "canonical_task_payload": {"task_id": task_id},
                 },
                 role="task_input",

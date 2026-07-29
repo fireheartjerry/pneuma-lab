@@ -44,6 +44,8 @@ class FailureKind(str, Enum):
     MODEL = "model"
     MALFORMED_ACTION = "malformed_action"
     TOKEN_CAP = "token_cap"
+    MODEL_CALL_CAP = "model_call_cap"
+    TURN_CAP = "turn_cap"
     TOOL_CAP = "tool_cap"
     TIMEOUT = "timeout"
     REFUSAL = "refusal"
@@ -104,7 +106,9 @@ def _require_exact_nonnegative_int(value: object, name: str) -> int:
 
 def _require_sha256(value: object, name: str) -> str:
     validated = _require_nonempty_string(value, name)
-    if len(validated) != 64 or any(char not in "0123456789abcdef" for char in validated):
+    if len(validated) != 64 or any(
+        char not in "0123456789abcdef" for char in validated
+    ):
         raise ValueError(f"{name} must be 64 lowercase hexadecimal characters")
     return validated
 
@@ -261,11 +265,19 @@ class ArtifactRef:
             "\0" in relative_path
             or "\\" in relative_path
             or relative_path.startswith("/")
-            or (len(relative_path) >= 2 and relative_path[0].isalpha() and relative_path[1] == ":")
+            or (
+                len(relative_path) >= 2
+                and relative_path[0].isalpha()
+                and relative_path[1] == ":"
+            )
         ):
             raise ValueError("relative_path must be a normalized POSIX-relative path")
         path = PurePosixPath(relative_path)
-        if ".." in path.parts or path.as_posix() != relative_path or relative_path == ".":
+        if (
+            ".." in path.parts
+            or path.as_posix() != relative_path
+            or relative_path == "."
+        ):
             raise ValueError("relative_path must be a normalized POSIX-relative path")
         _require_sha256(self.sha256, "sha256")
         _require_exact_nonnegative_int(self.byte_count, "byte_count")
@@ -320,7 +332,9 @@ class BranchSlotSet:
         for attribute in ("slot_id", "seed", "execution_order"):
             values = [getattr(slot, attribute) for slot in self.slots]
             if len(values) != len(set(values)):
-                raise ValueError(f"slots must have pairwise-distinct {attribute} values")
+                raise ValueError(
+                    f"slots must have pairwise-distinct {attribute} values"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -379,11 +393,12 @@ class AssignmentPrefixTaskView:
             "verifier_component_class",
         ):
             _require_nonempty_string(getattr(self, name), name)
-        if not isinstance(self.sensitivity_groups, tuple) or not self.sensitivity_groups:
-            raise TypeError("sensitivity_groups must be a non-empty tuple")
-        if not all(
-            isinstance(group, GroupLabel) for group in self.sensitivity_groups
+        if (
+            not isinstance(self.sensitivity_groups, tuple)
+            or not self.sensitivity_groups
         ):
+            raise TypeError("sensitivity_groups must be a non-empty tuple")
+        if not all(isinstance(group, GroupLabel) for group in self.sensitivity_groups):
             raise TypeError("sensitivity_groups must be a tuple of GroupLabel records")
         group_kinds = [group.kind for group in self.sensitivity_groups]
         if len(group_kinds) != len(set(group_kinds)):
@@ -453,10 +468,9 @@ class AllocationReceipt:
             "orientation_rejection_counter",
         ):
             _require_exact_nonnegative_int(getattr(self, name), name)
-        if (
-            type(self.no_packet_orientation_bit) is not int
-            or self.no_packet_orientation_bit not in (0, 1)
-        ):
+        if type(
+            self.no_packet_orientation_bit
+        ) is not int or self.no_packet_orientation_bit not in (0, 1):
             raise ValueError("no_packet_orientation_bit must be 0 or 1")
         if (
             not isinstance(self.slot_capabilities, tuple)
@@ -484,9 +498,7 @@ class DonorCandidateReceipt:
     donor_task_id: str
     donor_lineage: str
     primary_cost: tuple[int, int, int]
-    fallback_code: (
-        Literal["cross_family_component_match_unavailable"] | None
-    )
+    fallback_code: Literal["cross_family_component_match_unavailable"] | None
     tie_hmac_sha256: str
 
     def __post_init__(self) -> None:
@@ -619,10 +631,16 @@ class TaskAssignment:
     def __post_init__(self) -> None:
         for name in ("task_id", "task_lineage"):
             _require_nonempty_string(getattr(self, name), name)
-        donor_match_kind = _require_nonempty_string(self.donor_match_kind, "donor_match_kind")
+        donor_match_kind = _require_nonempty_string(
+            self.donor_match_kind, "donor_match_kind"
+        )
         if donor_match_kind == "matched":
-            donor_task_id = _require_nonempty_string(self.donor_task_id, "donor_task_id")
-            donor_lineage = _require_nonempty_string(self.donor_lineage, "donor_lineage")
+            donor_task_id = _require_nonempty_string(
+                self.donor_task_id, "donor_task_id"
+            )
+            donor_lineage = _require_nonempty_string(
+                self.donor_lineage, "donor_lineage"
+            )
             if self.task_id == donor_task_id:
                 raise ValueError("task_id and donor_task_id must differ")
             if self.task_lineage == donor_lineage:
@@ -631,7 +649,9 @@ class TaskAssignment:
             if self.donor_task_id is not None or self.donor_lineage is not None:
                 raise ValueError("not_applicable_no_trigger requires null donor fields")
         else:
-            raise ValueError("donor_match_kind must be matched or not_applicable_no_trigger")
+            raise ValueError(
+                "donor_match_kind must be matched or not_applicable_no_trigger"
+            )
         if not isinstance(self.slot_arms, tuple):
             raise TypeError("slot_arms must be a tuple")
         if len(self.slot_arms) != 4:
@@ -704,15 +724,12 @@ class AssignmentLedger:
                 raise TypeError(f"{name} has wrong immutable item type")
         if not self.assignments:
             raise ValueError("assignments must not be empty")
-        if (
-            not isinstance(self.donor_match_receipts, tuple)
-            or not all(
-                isinstance(
-                    item,
-                    (MatchedDonorReceipt, NoTriggerDonorReceipt),
-                )
-                for item in self.donor_match_receipts
+        if not isinstance(self.donor_match_receipts, tuple) or not all(
+            isinstance(
+                item,
+                (MatchedDonorReceipt, NoTriggerDonorReceipt),
             )
+            for item in self.donor_match_receipts
         ):
             raise TypeError("donor_match_receipts has wrong immutable item type")
         task_orders = (
@@ -720,7 +737,9 @@ class AssignmentLedger:
             [item.task_id for item in self.allocation_receipts],
             [item.task_id for item in self.donor_match_receipts],
         )
-        if not task_orders[0] or any(order != task_orders[0] for order in task_orders[1:]):
+        if not task_orders[0] or any(
+            order != task_orders[0] for order in task_orders[1:]
+        ):
             raise ValueError("ledger arrays must share exact task order")
         if len(self.matching_proof_refs) != len(set(self.matching_proof_refs)):
             raise ValueError("matching_proof_refs must be unique")
@@ -800,9 +819,7 @@ class BranchCaps:
         ):
             _require_exact_nonnegative_int(getattr(self, name), name)
         if type(self.pending_prefix_calls_count_against_tool_cap) is not bool:
-            raise TypeError(
-                "pending_prefix_calls_count_against_tool_cap must be bool"
-            )
+            raise TypeError("pending_prefix_calls_count_against_tool_cap must be bool")
         if not self.pending_prefix_calls_count_against_tool_cap:
             raise ValueError(
                 "pending prefix calls must count against the branch tool cap"
@@ -913,9 +930,7 @@ class ToolBoundary:
             or self.verifier_eligible
             or self.failure_kind is FailureKind.NONE
         ):
-            raise ValueError(
-                "incomplete boundary cannot mutate/be eligible/succeed"
-            )
+            raise ValueError("incomplete boundary cannot mutate/be eligible/succeed")
 
 
 @dataclass(frozen=True, slots=True)

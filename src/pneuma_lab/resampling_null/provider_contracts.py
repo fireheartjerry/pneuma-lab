@@ -19,6 +19,7 @@ from .provider_contract_assets import (
     validate_task_contract,
     validate_task_input,
 )
+from .prefix_contracts import ImplementationDescriptor
 from .types import (
     ArtifactRef,
     BranchCaps,
@@ -61,6 +62,9 @@ class ValidatedTaskLane:
     verifier_contract_ref: ArtifactRef
     isolation_contract_ref: ArtifactRef
     requires_user_simulator: bool
+    program_ref: ArtifactRef | None
+    program_tool_schema_ref: ArtifactRef | None
+    descriptors: tuple[ImplementationDescriptor, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +80,8 @@ class ValidatedLane:
     simulator_contract_ref: ArtifactRef | None
     tool_parser_contract_ref: ArtifactRef
     meter_contract_ref: ArtifactRef
+    tool_schema_ref: ArtifactRef
+    descriptors: tuple[ImplementationDescriptor, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,9 +115,7 @@ def _validate_lane_bindings(
             f"{field} parser response grammar differs from subject"
         )
     if parser_tool_schema_ref != subject.tool_schema_ref:
-        raise RecordValidationError(
-            f"{field} parser tool schema differs from subject"
-        )
+        raise RecordValidationError(f"{field} parser tool schema differs from subject")
     if simulator is None:
         if simulator_caps != CallContractCaps(0, 0, 0, 0, 0):
             raise RecordValidationError(
@@ -132,9 +136,7 @@ def _validate_lane_bindings(
             simulator_caps.per_call_turns,
         )
     ):
-        raise RecordValidationError(
-            f"{field} present simulator caps must be positive"
-        )
+        raise RecordValidationError(f"{field} present simulator caps must be positive")
     if parser_response_grammar != simulator.response_grammar:
         raise RecordValidationError(
             f"{field} parser response grammar differs from simulator"
@@ -212,12 +214,12 @@ def _decode_lane(
         manifest_revisions=manifest_revisions,
         reader=reader,
     )
-    zero_cost = validate_meter_contract(
+    meter = validate_meter_contract(
         meter_ref,
         manifest_revisions=manifest_revisions,
         reader=reader,
     )
-    if schedule_authority == "synthetic_validation" and not zero_cost:
+    if schedule_authority == "synthetic_validation" and not meter.zero_cost:
         raise RecordValidationError(
             f"{field} requires zero-cost synthetic meter closure"
         )
@@ -249,6 +251,13 @@ def _decode_lane(
         simulator_contract_ref=simulator_ref,
         tool_parser_contract_ref=parser_ref,
         meter_contract_ref=meter_ref,
+        tool_schema_ref=parser.tool_schema_ref,
+        descriptors=(
+            *subject.descriptors,
+            *((*simulator.descriptors,) if simulator is not None else ()),
+            parser.descriptor,
+            *meter.descriptors,
+        ),
     )
 
 
@@ -260,6 +269,7 @@ def _decode_task_lane(
     registry_by_id: dict[str, dict[str, object]],
     manifest_revisions: tuple[ArtifactRef, ...],
     reader: AuthorityRefReader,
+    require_execution_program: bool,
 ) -> ValidatedTaskLane:
     field = f"provider lane plan task_lanes[{index}]"
     row = closed_mapping(value, fields=set(TASK_LANE_FIELDS), field=field)
@@ -282,10 +292,7 @@ def _decode_task_lane(
         )
         for rank, item in enumerate(rank_ordinals)
     )
-    if any(
-        ordinal >= lane_count
-        for ordinal in (prefix_ordinal, *exact_rank_ordinals)
-    ):
+    if any(ordinal >= lane_count for ordinal in (prefix_ordinal, *exact_rank_ordinals)):
         raise RecordValidationError("provider task lane ordinal is out of range")
     registry_task = registry_by_id.get(task_id)
     if registry_task is None:
@@ -307,14 +314,16 @@ def _decode_task_lane(
         )
     }
     benchmark = cast(str, registry_task["benchmark"])
-    requires_simulator = validate_task_input(
+    task_input = validate_task_input(
         refs["task_input"],
         task_id=task_id,
         benchmark=benchmark,
         reader=reader,
+        require_execution_program=require_execution_program,
     )
+    descriptors: list[ImplementationDescriptor] = []
     for contract_kind in ("environment", "grader", "verifier", "isolation"):
-        validate_task_contract(
+        descriptor = validate_task_contract(
             refs[f"{contract_kind}_contract"],
             contract_kind=contract_kind,
             task_id=task_id,
@@ -322,6 +331,8 @@ def _decode_task_lane(
             manifest_revisions=manifest_revisions,
             reader=reader,
         )
+        if descriptor is not None:
+            descriptors.append(descriptor)
     return ValidatedTaskLane(
         task_id=task_id,
         prefix_lane_ordinal=prefix_ordinal,
@@ -334,7 +345,14 @@ def _decode_task_lane(
         grader_contract_ref=refs["grader_contract"],
         verifier_contract_ref=refs["verifier_contract"],
         isolation_contract_ref=refs["isolation_contract"],
-        requires_user_simulator=requires_simulator,
+        requires_user_simulator=task_input.requires_user_simulator,
+        program_ref=task_input.program_ref,
+        program_tool_schema_ref=(
+            task_input.program.tool_schema_ref
+            if task_input.program is not None
+            else None
+        ),
+        descriptors=tuple(descriptors),
     )
 
 
@@ -372,6 +390,7 @@ def validate_provider_lane_plan(
     tokenizer_ref: ArtifactRef,
     manifest_revisions: tuple[ArtifactRef, ...],
     schedule_authority: str | None = None,
+    require_execution_program: bool = False,
 ) -> ValidatedProviderPlan:
     plan = closed_mapping(
         value,
@@ -397,10 +416,7 @@ def validate_provider_lane_plan(
     if len({lane.lane_id for lane in lanes}) != len(lanes):
         raise RecordValidationError("provider lane IDs must be unique")
     registry_tasks = cast(list[dict[str, object]], registry["tasks"])
-    registry_by_id = {
-        cast(str, task["task_id"]): task
-        for task in registry_tasks
-    }
+    registry_by_id = {cast(str, task["task_id"]): task for task in registry_tasks}
     task_lanes_value = plan["task_lanes"]
     if not isinstance(task_lanes_value, list):
         raise RecordValidationError("provider task_lanes must be an array")
@@ -412,14 +428,13 @@ def validate_provider_lane_plan(
             registry_by_id=registry_by_id,
             manifest_revisions=manifest_revisions,
             reader=reader,
+            require_execution_program=require_execution_program,
         )
         for index, row in enumerate(task_lanes_value)
     ]
     encoded_ids = [row.task_id.encode("utf-8") for row in task_lanes]
     if encoded_ids != sorted(set(encoded_ids)):
-        raise RecordValidationError(
-            "provider task lanes are not strict task-ID sorted"
-        )
+        raise RecordValidationError("provider task lanes are not strict task-ID sorted")
     if {row.task_id for row in task_lanes} != set(registry_by_id):
         raise RecordValidationError(
             "provider task lanes do not exactly cover the task registry"

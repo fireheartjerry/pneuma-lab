@@ -64,12 +64,21 @@ def _build_provider_authority_fixture(
     parser_response_grammar: str = "fixture-response-v1",
     parser_tool_schema_drift: bool = False,
     meter_zero_cost: bool = True,
+    schedule_authority: str = "synthetic_validation",
     role_overrides: dict[str, str] | None = None,
+    media_type_overrides: dict[str, str] | None = None,
 ) -> ProviderAuthorityFixture:
     root.mkdir()
     effective_role_overrides = role_overrides or {}
+    effective_media_type_overrides = media_type_overrides or {}
 
-    def blob(relative_path: str, value: object, *, role: str) -> ArtifactRef:
+    def blob(
+        relative_path: str,
+        value: object,
+        *,
+        role: str,
+        media_type: str | None = None,
+    ) -> ArtifactRef:
         path = root / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = (
@@ -83,11 +92,9 @@ def _build_provider_authority_fixture(
             relative_path=relative_path,
             sha256=hashlib.sha256(payload).hexdigest(),
             byte_count=len(payload),
-            media_type=(
-                "application/json"
-                if not isinstance(value, bytes)
-                else "text/plain"
-            ),
+            media_type=effective_media_type_overrides.get(relative_path)
+            or media_type
+            or ("application/json" if not isinstance(value, bytes) else "text/plain"),
         )
 
     def ref_value(ref: ArtifactRef) -> dict[str, object]:
@@ -111,11 +118,9 @@ def _build_provider_authority_fixture(
     )
     revision_ref = blob(
         "sources/revision.json",
-        {
-            "record_kind": "fixture_source_revision_v1",
-            "nested_ref": ref_value(deep_ref),
-        },
+        b"fixture reviewed source\n",
         role="source_revision",
+        media_type="application/octet-stream",
     )
     tokenizer_ref = blob(
         "sources/tokenizer.json",
@@ -129,7 +134,7 @@ def _build_provider_authority_fixture(
     )
     tool_schema_ref = blob(
         "sources/tools.json",
-        {"tools": []},
+        {"tools": [{"name": "read"}]},
         role="tool_schema",
     )
     alternate_tool_schema_ref = blob(
@@ -137,16 +142,30 @@ def _build_provider_authority_fixture(
         {"tools": [{"name": "drift"}]},
         role="tool_schema",
     )
-    clock_ref = blob("sources/clock.txt", b"clock", role="clock_source")
+    clock_ref = blob(
+        "sources/clock.txt",
+        {"clock": "fixture-v1"},
+        role="clock_source",
+    )
     watchdog_ref = blob(
         "sources/watchdog.txt",
-        b"watchdog",
+        {"watchdog": "fixture-v1"},
         role="watchdog_source",
     )
     qualification_ref = blob(
         "sources/qualification.json",
         {"qualification": "fixture-v1"},
         role="isolation_qualification",
+    )
+    synthetic_grade_ref = blob(
+        "sources/synthetic-grade.json",
+        {"success": 0, "partial_reward": 0.0, "infrastructure_failure": False},
+        role="synthetic_grade_result",
+    )
+    synthetic_verifier_ref = blob(
+        "sources/synthetic-verifier.json",
+        {"finding_count": 0},
+        role="synthetic_verifier_result",
     )
 
     refs = {
@@ -159,6 +178,8 @@ def _build_provider_authority_fixture(
         "qualification": qualification_ref,
         "deep": deep_ref,
         "deep_leaf": deep_leaf_ref,
+        "synthetic_grade": synthetic_grade_ref,
+        "synthetic_verifier": synthetic_verifier_ref,
     }
     source_revisions = [ref_value(revision_ref)]
     call_caps = (
@@ -291,6 +312,31 @@ def _build_provider_authority_fixture(
             ),
         ),
     ):
+        program_ref = blob(
+            f"sources/{task_id}-program.json",
+            {
+                "record_kind": "synthetic_prefix_program_v1",
+                "schema_version": "1",
+                "task_id": task_id,
+                "expected_trigger_reason": "no_intervention_opportunity",
+                "tool_schema_ref": ref_value(tool_schema_ref),
+                "provider_transcript": [],
+                "tool_observations": [],
+                "grade_result": {
+                    "evidence_ref": ref_value(synthetic_grade_ref),
+                    "success": 0,
+                    "partial_reward": 0.0,
+                    "infrastructure_failure": False,
+                },
+                "verifier_result": {
+                    "evidence_ref": ref_value(synthetic_verifier_ref),
+                    "finding_count": 0,
+                },
+                "failure_injection": {"stage": "none"},
+                "clock_trace": [{"label": "prefix_epoch", "uint64_ms": 1}],
+            },
+            role="synthetic_execution_program",
+        )
         task_input_ref = blob(
             f"sources/{task_id}-input.json",
             {
@@ -299,6 +345,7 @@ def _build_provider_authority_fixture(
                 "task_id": task_id,
                 "benchmark": "swe",
                 "requires_user_simulator": task_requires_simulator,
+                "synthetic_execution_program_ref": ref_value(program_ref),
                 "canonical_task_payload": {
                     "instruction": task_id,
                     "deep_ref": ref_value(deep_ref),
@@ -361,12 +408,8 @@ def _build_provider_authority_fixture(
                 role=f"{kind}_contract",
             )
         refs[f"{task_id}_input"] = task_input_ref
-        refs.update(
-            {
-                f"{task_id}_{kind}": ref
-                for kind, ref in contract_refs.items()
-            }
-        )
+        refs[f"{task_id}_program"] = program_ref
+        refs.update({f"{task_id}_{kind}": ref for kind, ref in contract_refs.items()})
         task_rows.append(
             {
                 "task_id": task_id,
@@ -418,9 +461,7 @@ def _build_provider_authority_fixture(
                     "simulator_caps": call_caps,
                     "subject_contract_ref": ref_value(subject_ref),
                     "simulator_contract_ref": (
-                        ref_value(simulator_ref)
-                        if simulator_present
-                        else None
+                        ref_value(simulator_ref) if simulator_present else None
                     ),
                     "tool_parser_contract_ref": ref_value(parser_ref),
                     "meter_contract_ref": ref_value(meter_ref),
@@ -496,8 +537,10 @@ def _build_provider_authority_fixture(
         {
             "manifest_ref": ref_value(manifest_ref),
             "power_final_ref": arbitrary_ref,
-            "schedule_authority": "synthetic_validation",
-            "selected_tier": None,
+            "schedule_authority": schedule_authority,
+            "selected_tier": (
+                None if schedule_authority == "synthetic_validation" else 120
+            ),
             "selected_membership_sha256": "d" * 64,
             "schedule_seed": 7,
             "tasks": [

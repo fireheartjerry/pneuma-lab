@@ -321,6 +321,8 @@
                         "model",
                         "malformed_action",
                         "token_cap",
+                        "model_call_cap",
+                        "turn_cap",
                         "tool_cap",
                         "timeout",
                         "refusal",

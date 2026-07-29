@@ -481,6 +481,16 @@ def test_snapshot_terminal_queue_and_clean_termination_coherence() -> None:
         }
     )
     assert adverse_remainder.terminal_unexecuted_remainder
+    timeout_remainder = CompositeSnapshotEnvelope(
+        **{
+            **{field.name: getattr(snapshot, field.name) for field in fields(snapshot)},
+            "branch_pending_calls": (),
+            "terminal_unexecuted_remainder": (ToolCall("c3", "read", "{}\n"),),
+            "episode_terminal": True,
+            "terminal_failure_kind": FailureKind.TIMEOUT,
+        }
+    )
+    assert timeout_remainder.terminal_failure_kind is FailureKind.TIMEOUT
     with pytest.raises(ValueError):
         CompositeSnapshotEnvelope(
             **{
@@ -668,6 +678,63 @@ def test_frozen_prefix_closes_caps_and_adverse_y0() -> None:
                 ),
             }
         )
+
+
+def test_frozen_prefix_preserves_overshoot_with_zero_remaining_quota() -> None:
+    snapshot = _snapshot()
+    overshot_counters = ResourceCounters(12, 1, 1, 20)
+    overshot_snapshot = CompositeSnapshotEnvelope(
+        **{
+            **{field.name: getattr(snapshot, field.name) for field in fields(snapshot)},
+            "primary_counters": overshot_counters,
+            "primary_remaining_quotas": PrefixCaps(0, 2, 3, 80),
+        }
+    )
+    payload = composite_snapshot_bytes(overshot_snapshot)
+    snapshot_ref = ArtifactRef(
+        role="composite_snapshot",
+        relative_path="controller-artifacts/composite_snapshot/"
+        + hashlib.sha256(payload).hexdigest(),
+        sha256=hashlib.sha256(payload).hexdigest(),
+        byte_count=len(payload),
+        media_type="application/json",
+    )
+    receipt = FrozenPrefixReceipt(
+        task_id="task-1",
+        schedule_sha256=snapshot.schedule_ref.sha256,
+        prefix_caps=PrefixCaps(10, 3, 4, 100),
+        snapshot_ref=snapshot_ref,
+        visible_context_ref=snapshot.visible_context_ref,
+        visible_sha256=snapshot.visible_sha256,
+        token_ids_ref=snapshot.token_ids_ref,
+        token_ids_sha256=snapshot.token_ids_sha256,
+        branch_pending_calls=snapshot.branch_pending_calls,
+        terminal_unexecuted_remainder=(),
+        trigger_reason=TriggerReason.FIRST_ELIGIBLE_MUTATION,
+        terminal_failure_kind=FailureKind.NONE,
+        y0_grade=GradeReceipt(0, 0.0, False, _ref("grade_evidence")),
+        grade_execution_receipt_ref=_ref("grade_evidence_receipt"),
+        verifier_receipt=FrozenVerifierReceipt(
+            "task-1",
+            snapshot.schedule_ref.sha256,
+            snapshot_ref,
+            _ref("verifier_evidence"),
+            0,
+        ),
+        verifier_execution_receipt_ref=_ref("verifier_evidence_receipt"),
+        counters=overshot_counters,
+        simulator_counters=snapshot.simulator_counters,
+        call_seeds=(),
+        provider_attempts_ref=snapshot.provider_attempts_ref,
+        boundary_ledger_ref=snapshot.boundary_ledger_ref,
+        provider_cost_ref=_ref("provider_cost_closure"),
+    )
+    receipt.validate_snapshot_bytes(payload)
+
+
+def test_failure_kind_includes_discrete_model_and_turn_caps() -> None:
+    assert FailureKind.MODEL_CALL_CAP.value == "model_call_cap"
+    assert FailureKind.TURN_CAP.value == "turn_cap"
 
 
 @pytest.mark.parametrize(

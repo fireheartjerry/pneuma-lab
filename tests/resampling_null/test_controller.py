@@ -34,8 +34,6 @@ from tests.resampling_null.provider_authority_fixture import (
 )
 
 
-
-
 def test_t5_s02a_loads_frozen_schedule_ancestry_authority(tmp_path: Path) -> None:
     schedule_ref, refs = ProviderAuthorityFixture.build(tmp_path / "run")
     authority = load_prefix_execution_authority(
@@ -62,6 +60,30 @@ def test_t5_s02a_loads_frozen_schedule_ancestry_authority(tmp_path: Path) -> Non
     assert authority.simulator_contract_ref == refs["simulator"]
     assert authority.tool_parser_contract_ref == refs["parser"]
     assert authority.meter_contract_ref == refs["meter"]
+    assert authority.schedule_authority == "synthetic_validation"
+    assert authority.tokenizer_ref == refs["tokenizer"]
+    assert authority.source_revision_refs == (refs["revision"],)
+    assert authority.program_ref == refs["task-1_program"]
+    purposes = tuple(
+        descriptor.purpose for descriptor in authority.implementation_descriptors
+    )
+    assert purposes == (
+        "environment",
+        "subject",
+        "simulator",
+        "meter",
+        "tokenizer",
+        "request_renderer",
+        "response_parser",
+        "grader",
+        "verifier",
+        "provider_event_codec",
+        "settlement_codec",
+    )
+    assert all(
+        descriptor.implementation_source_ref == refs["revision"]
+        for descriptor in authority.implementation_descriptors
+    )
     with pytest.raises(FrozenInstanceError):
         authority.prefix_caps = PrefixCaps(0, 0, 0, 0)  # type: ignore[misc]
 
@@ -215,6 +237,32 @@ def test_t5_s02a_accepts_no_simulator_only_with_zero_caps(tmp_path: Path) -> Non
     assert authority.simulator_caps == CallContractCaps(0, 0, 0, 0, 0)
 
 
+def test_t5_s02c_authority_rejects_non_synthetic_schedule(tmp_path: Path) -> None:
+    schedule_ref, _refs = ProviderAuthorityFixture.build(
+        tmp_path / "run",
+        schedule_authority="roster_bound_selection",
+    )
+    with pytest.raises(RecordValidationError, match="synthetic_validation"):
+        load_prefix_execution_authority(
+            run_root=tmp_path / "run",
+            schedule_ref=schedule_ref,
+            task_id="task-1",
+        )
+
+
+def test_t5_s02c_authority_rejects_noncanonical_asset_media(tmp_path: Path) -> None:
+    schedule_ref, _refs = ProviderAuthorityFixture.build(
+        tmp_path / "run",
+        media_type_overrides={"sources/clock.txt": "text/plain"},
+    )
+    with pytest.raises(RecordValidationError, match="media"):
+        load_prefix_execution_authority(
+            run_root=tmp_path / "run",
+            schedule_ref=schedule_ref,
+            task_id="task-1",
+        )
+
+
 @pytest.mark.parametrize(
     "relative_path",
     [
@@ -292,8 +340,11 @@ def test_t5_s01_call_seed_and_frozen_boundary_contract() -> None:
         "MODEL",
         "MALFORMED_ACTION",
         "TOKEN_CAP",
+        "MODEL_CALL_CAP",
+        "TURN_CAP",
         "TOOL_CAP",
         "TIMEOUT",
+        "REFUSAL",
         "INFRASTRUCTURE",
     }
     for mutated, verifier_eligible, failure_kind in (

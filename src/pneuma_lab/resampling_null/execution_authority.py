@@ -5,11 +5,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 from .authority_refs import AuthorityRefReader, decode_artifact_ref
 from .errors import RecordValidationError
 from .preflight import validate_task_registry
+from .prefix_contracts import ImplementationDescriptor
 from .provider_contracts import (
     ValidatedProviderPlan,
     validate_provider_lane_plan,
@@ -32,6 +33,11 @@ class PrefixExecutionAuthority:
     schedule_ref: ArtifactRef
     manifest_ref: ArtifactRef
     provider_lane_plan_ref: ArtifactRef
+    schedule_authority: Literal["synthetic_validation"]
+    tokenizer_ref: ArtifactRef
+    source_revision_refs: tuple[ArtifactRef, ...]
+    program_ref: ArtifactRef
+    implementation_descriptors: tuple[ImplementationDescriptor, ...]
     task_schedule: TaskSchedule
     prefix_caps: PrefixCaps
     branch_caps: BranchCaps
@@ -53,6 +59,8 @@ class PrefixExecutionAuthority:
             "schedule_ref",
             "manifest_ref",
             "provider_lane_plan_ref",
+            "tokenizer_ref",
+            "program_ref",
             "task_input_ref",
             "environment_contract_ref",
             "grader_contract_ref",
@@ -64,6 +72,24 @@ class PrefixExecutionAuthority:
         ):
             if type(getattr(self, name)) is not ArtifactRef:
                 raise TypeError(f"{name} must be an exact ArtifactRef")
+        if self.schedule_authority != "synthetic_validation":
+            raise ValueError("schedule_authority must equal 'synthetic_validation'")
+        if (
+            type(self.source_revision_refs) is not tuple
+            or not self.source_revision_refs
+        ):
+            raise TypeError("source_revision_refs must be a non-empty exact tuple")
+        if not all(type(ref) is ArtifactRef for ref in self.source_revision_refs):
+            raise TypeError(
+                "source_revision_refs must contain exact ArtifactRef values"
+            )
+        if type(self.implementation_descriptors) is not tuple:
+            raise TypeError("implementation_descriptors must be an exact tuple")
+        if not all(
+            type(item) is ImplementationDescriptor
+            for item in self.implementation_descriptors
+        ):
+            raise TypeError("implementation_descriptors must contain exact descriptors")
         if type(self.task_schedule) is not TaskSchedule:
             raise TypeError("task_schedule must be an exact TaskSchedule")
         if type(self.prefix_caps) is not PrefixCaps:
@@ -99,8 +125,7 @@ def _selected_schedule_task(
         for value in cast(list[object], schedule_payload["tasks"])
         if isinstance(value, Mapping)
         and isinstance(value.get("task"), Mapping)
-        and cast(Mapping[str, object], value["task"]).get("task_id")
-        == task_id
+        and cast(Mapping[str, object], value["task"]).get("task_id") == task_id
     ]
     if len(selected) != 1:
         raise RecordValidationError(
@@ -121,16 +146,13 @@ def _validate_registry_binding(
     }
     registry_task = registry_by_id.get(task_id)
     if registry_task is None:
-        raise RecordValidationError(
-            "scheduled task is absent from task registry"
-        )
+        raise RecordValidationError("scheduled task is absent from task registry")
     scheduled_task = cast(Mapping[str, object], selected["task"])
     if (
         scheduled_task.get("benchmark") != registry_task["benchmark"]
         or scheduled_task.get("stratum") != registry_task["stratum"]
         or scheduled_task.get("lineage") != registry_task["lineage"]
-        or scheduled_task.get("sensitivity_groups")
-        != registry_task["groups"]
+        or scheduled_task.get("sensitivity_groups") != registry_task["groups"]
     ):
         raise RecordValidationError(
             "selected schedule task differs from task registry binding"
@@ -171,16 +193,13 @@ def _project_task_authority(
     task_schedule: TaskSchedule,
     validated_plan: ValidatedProviderPlan,
     task_id: str,
+    schedule_authority: Literal["synthetic_validation"],
+    tokenizer_ref: ArtifactRef,
+    source_revision_refs: tuple[ArtifactRef, ...],
 ) -> PrefixExecutionAuthority:
-    task_rows = [
-        row
-        for row in validated_plan.task_lanes
-        if row.task_id == task_id
-    ]
+    task_rows = [row for row in validated_plan.task_lanes if row.task_id == task_id]
     if len(task_rows) != 1:
-        raise RecordValidationError(
-            "selected task has no unique provider row"
-        )
+        raise RecordValidationError("selected task has no unique provider row")
     task_row = task_rows[0]
     selected_lane = validated_plan.lanes[task_row.prefix_lane_ordinal]
     if task_schedule.provider_lane != selected_lane.lane_id:
@@ -188,9 +207,7 @@ def _project_task_authority(
             "provider lane mismatch between schedule and provider plan"
         )
     for slot in task_schedule.slots.slots:
-        expected_lane = task_row.lane_ordinals_by_execution_rank[
-            slot.execution_order
-        ]
+        expected_lane = task_row.lane_ordinals_by_execution_rank[slot.execution_order]
         if slot.hardware_lane != expected_lane:
             raise RecordValidationError(
                 "schedule slot lane mismatch with provider plan"
@@ -199,13 +216,55 @@ def _project_task_authority(
         task_row.requires_user_simulator
         and selected_lane.simulator_contract_ref is None
     ):
+        raise RecordValidationError("selected task is missing a required simulator")
+    if task_row.program_tool_schema_ref != selected_lane.tool_schema_ref:
         raise RecordValidationError(
-            "selected task is missing a required simulator"
+            "synthetic program tool schema differs from selected lane"
+        )
+    if task_row.program_ref is None:
+        raise RecordValidationError(
+            "execution-ready task input requires one synthetic program ref"
+        )
+    descriptor_values = (*task_row.descriptors, *selected_lane.descriptors)
+    descriptor_by_purpose = {
+        descriptor.purpose: descriptor for descriptor in descriptor_values
+    }
+    if len(descriptor_by_purpose) != len(descriptor_values):
+        raise RecordValidationError("implementation descriptor purposes must be unique")
+    expected_purposes = (
+        "environment",
+        "subject",
+        *(("simulator",) if selected_lane.simulator_contract_ref is not None else ()),
+        "meter",
+        "tokenizer",
+        "request_renderer",
+        "response_parser",
+        "grader",
+        "verifier",
+        "provider_event_codec",
+        "settlement_codec",
+    )
+    if set(descriptor_by_purpose) != set(expected_purposes):
+        raise RecordValidationError(
+            "implementation descriptors do not exactly cover required purposes"
+        )
+    descriptors = tuple(descriptor_by_purpose[purpose] for purpose in expected_purposes)
+    if any(
+        descriptor.implementation_source_ref not in source_revision_refs
+        for descriptor in descriptors
+    ):
+        raise RecordValidationError(
+            "implementation descriptor source is not manifest-authorized"
         )
     return PrefixExecutionAuthority(
         schedule_ref=schedule_ref,
         manifest_ref=manifest_ref,
         provider_lane_plan_ref=provider_ref,
+        schedule_authority=schedule_authority,
+        tokenizer_ref=tokenizer_ref,
+        source_revision_refs=source_revision_refs,
+        program_ref=task_row.program_ref,
+        implementation_descriptors=descriptors,
         task_schedule=task_schedule,
         prefix_caps=selected_lane.prefix_caps,
         branch_caps=selected_lane.branch_caps,
@@ -265,13 +324,10 @@ def load_prefix_execution_authority(
     )
     if (
         schedule.value["study_id"] != manifest.value["study_id"]
-        or schedule.value["frozen_created_at"]
-        != manifest.value["frozen_created_at"]
+        or schedule.value["frozen_created_at"] != manifest.value["frozen_created_at"]
         or schedule.value["provenance"] != manifest.value["provenance"]
     ):
-        raise RecordValidationError(
-            "schedule and manifest envelopes differ"
-        )
+        raise RecordValidationError("schedule and manifest envelopes differ")
     selected = _selected_schedule_task(
         schedule_payload,
         task_id=task_id,
@@ -295,12 +351,9 @@ def load_prefix_execution_authority(
         )
         if (
             set(registry) != {"record_kind", "schema_version", "tasks"}
-            or registry.get("record_kind")
-            != "resampling_task_registry_v1"
+            or registry.get("record_kind") != "resampling_task_registry_v1"
         ):
-            raise RecordValidationError(
-                "task registry has wrong shape or identity"
-            )
+            raise RecordValidationError("task registry has wrong shape or identity")
         validate_task_registry(registry)
         _validate_registry_binding(
             selected,
@@ -332,16 +385,19 @@ def load_prefix_execution_authority(
             canonical=False,
             expected_role="provider_lane_plan",
         )
+        schedule_authority = cast(str, schedule_payload["schedule_authority"])
+        if schedule_authority != "synthetic_validation":
+            raise RecordValidationError(
+                "prefix execution requires schedule_authority 'synthetic_validation'"
+            )
         validated_plan = validate_provider_lane_plan(
             provider_plan,
             reader=reader,
             registry=registry,
             tokenizer_ref=tokenizer_ref,
             manifest_revisions=revisions,
-            schedule_authority=cast(
-                str,
-                schedule_payload["schedule_authority"],
-            ),
+            schedule_authority=schedule_authority,
+            require_execution_program=True,
         )
     return _project_task_authority(
         schedule_ref=schedule_ref,
@@ -350,6 +406,12 @@ def load_prefix_execution_authority(
         task_schedule=task_schedule,
         validated_plan=validated_plan,
         task_id=task_id,
+        schedule_authority=cast(
+            Literal["synthetic_validation"],
+            schedule_authority,
+        ),
+        tokenizer_ref=tokenizer_ref,
+        source_revision_refs=revisions,
     )
 
 
