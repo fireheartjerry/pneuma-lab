@@ -55,10 +55,13 @@
     bibliography/appendix/supplement policy, metadata, PDF build and visual
     rendering, embedded fonts, filenames and size limits, submission-form
     fields, and the deadline with its timezone. Any mismatch blocks release.
-- Broad/long test suites are optional unless a task specifically requires them.
-  Prefer the narrowest high-signal test command, and impose a hard 60-second
-  wall-clock ceiling on every test process unless the user explicitly approves
-  a longer run. Record timeouts honestly; never reinterpret them as passes.
+- Software tests are lightweight guardrails, not research deliverables. Default
+  to one narrow high-signal test command per behavior change and one static
+  check per slice; do not run broad or repeated suites without a concrete
+  shared-surface risk or explicit user request. Every test process has a hard
+  60-second wall-clock ceiling unless the user explicitly approves longer.
+  Scientific experiments/evaluations are evidence work, not software tests,
+  and remain governed by their own protocol, compute, and spending gates.
 
 ## Commands
 

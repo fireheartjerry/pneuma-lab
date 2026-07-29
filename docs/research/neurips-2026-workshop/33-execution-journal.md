@@ -450,3 +450,22 @@ The next event after the archived migration boundary is appended below.
 - **Planned B mechanics:** `git add -- docs/research/neurips-2026-workshop/33-execution-journal.md`; `git diff --cached --check`; `git commit -m "docs: record test-duration policy delivery"`; `git push origin HEAD:refs/heads/codex/neurips-2026-empirical`.
 - **Scope assertion:** B contains only EJ-0502 through EJ-0504. Slice 4 remains unstaged.
 - **Self-reference break:** reconcile B SHA/push/remote at the next substantive opening receipt before any further Slice 4 command.
+
+### EJ-20260728-0505 — demote software-test ceremony beneath research progress
+
+- **Prior event:** `EJ-20260728-0504`
+- **Trigger:** the user clarified that this is a research program, not production SaaS; software tests must remain a trivial, insignificant fraction of effort.
+- **Policy change:** default to one narrow high-signal behavioral command per change and one static command per slice; prohibit broad or repeated suites absent a concrete shared-surface risk or explicit request; preserve the hard 60-second ceiling. Scientific experiments/evaluations remain distinct evidence work under their own protocol/compute/spend gates.
+- **Correction:** EJ-0494 through EJ-0500 over-invested in redundant regression ceremony after the focused Slice 4 gate was already green. Those receipts remain honest evidence, but that workflow is not the new default.
+- **Immediate effect:** do not run more Slice 4 tests without a code change or newly identified direct risk. Finish delivery from the already sufficient focused/static evidence, then allocate effort to Slice 5 and the paper's scientific core.
+
+### EJ-20260728-0506 — reconcile test-cap B and inspect lightweight-test correction
+
+- **Prior event:** `EJ-20260728-0505`
+- **Local interval:** `2026-07-28T22:46:27-07:00` to `2026-07-28T22:46:27-07:00`
+- **UTC interval:** `2026-07-29T05:46:27+00:00` to `2026-07-29T05:46:27+00:00`
+- **Action:** Reconciled the prior receipt B, verified the exact public remote ref, checked journal integrity, reviewed the complete testing-policy correction, rehashed immutable plan/design authority, and inspected worktree scope.
+- **Result:** GREEN, exit `0`, zero stderr. B/remote are exactly `88e425e9f050446dfacdd3cd820108673097655f`; journal is contiguous through EJ-0505; plan/design hashes remain unchanged. Only `AGENTS.md`, the live journal, and the four Slice 4 paths are dirty.
+- **Compact receipt:** stdout `2175` bytes / `36` lines / SHA-256 `ee85c54dbbdc66ffbe11968aa11dbfd865590d077f65a0554b3ab0cfd9c34e9e`; stderr `0` bytes / `0` lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Raw evidence:** `build/research/neurips-2026-workshop/execution-journal/EJ-20260728-0506/` (local, ignored, retained through `2026-11-27`).
+- **Next gate:** commit/push the two-file policy correction without running tests, then deliver Slice 4 from existing evidence.
