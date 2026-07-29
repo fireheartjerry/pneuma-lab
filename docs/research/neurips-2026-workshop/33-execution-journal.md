@@ -880,3 +880,21 @@ The next event after the archived migration boundary is appended below.
 - **Static command:** Ruff over the two touched source files and two touched fixtures, then mypy over the two source files; each process hard-capped at 60 seconds.
 - **Static result:** GREEN, exit 0. Ruff passed; mypy found no issues. `git diff --check` passed.
 - **Final content hashes:** `packets.py` `ae625ec0692286ef12a16ce54e1b8f5d30fc3c49e53d555b4c67ac3df537fbda`; package exports `627be476c9d23118643f890bf87db79bc610137c1a7eb4aac684ab55d101d12a`; focused chronology fixture `db06464e0d0db1cd8a29d0f1380cd0e35af95987a7a44e71effe157bc0ad5676`.
+
+### EJ-20260729-0073 — publish fail-closed packet chronology
+
+- **Action:** Staged exactly packet chronology source, package exports, the reused focused authority fixture, and journal; checked staged whitespace/scope; committed `feat(neurips): seal no-trigger packet indexes`; pushed publicly; compared exact local and remote refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `69f29854bb7a60de87b4d17d5d459f0bc4ee5931`. Four files, 491 insertions and 11 deletions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Next gate:** DL-135 authority repair for independent triggered-packet recomputation; current triggered sealing remains deliberately unavailable.
+
+### EJ-20260729-0074 — promote hostile packet finding into DL-135
+
+- **Authority action:** Amended the Task-4 plan and design, then appended DL-135 to the authoritative decision log. The amendment supersedes naked caller values and receipt rereading as triggered-packet sealing authority.
+- **Normative repair:** Require manifest-pinned normalizers; canonical focal/donor/SHAM typed artifacts; canonical complete identifier-map, policy, pad, template, and tokenizer contracts; internal tokenizer reconstruction; exhaustive derived focal collision signatures; trusted decrypt-for-audit; and byte-equal independent reconstruction of packets and every receipt. Add `normalized_donor_ref`; normalized refs may never alias packet text.
+- **Availability:** Synthetic adapters must be closed named fixtures. Confirmation remains fail-closed until separately reviewed SWE/tau normalizers, tokenizer loaders, and decrypt-for-audit adapters are pinned before the manifest. All-no-trigger sealing remains valid because packet gates are vacuous.
+- **Testing standard:** DL-135 incorporates the user’s current rule: one narrow behavior command and one source-static command per slice, each at most 60 seconds; broad suites and coverage work are forbidden without a concrete shared-surface failure mode.
+
+### EJ-20260729-0075 — verify refreshed authority hashes
+
+- **Result:** `git diff --check` passed. The decision row exactly records refreshed plan SHA-256 `50070ddd47a9ac7957d1a0a5bd050bbc5cf79471110abcef4f545540a0272673` and design SHA-256 `f9d3333bc3a4378be13a1235fc224052856ffbe693763d42a822b78dbf13928e`; recomputation matched both. Decision-log SHA-256 after DL-135 is `338ec7e8175e65b67db212c7aed08196eb60f0df82394cf6eecf765ca19c6237`.
+- **Scope:** Docs/authority only. No empirical claim, result, spend, training, cloud action, confirmation adapter, or triggered seal was created.

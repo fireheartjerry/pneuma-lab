@@ -1267,6 +1267,24 @@ only its opaque slot's packet inside the isolated subject-only guidance
 boundary; packet text and the decryption capability remain unavailable to the
 analysis author until unblinding.
 
+DL-135 strengthens “binds” above to mean independent byte reconstruction, not
+receipt agreement. A manifest-pinned internal normalizer derives canonical
+typed focal and donor finding blobs directly from the sealed verifier
+ArtifactRefs. A canonical typed identifier-map blob deterministically derives a
+third, distinct normalized SHAM blob. Canonical policy, pad-unit, template, and
+tokenizer contracts are loaded from their ArtifactRefs; the audit reconstructs
+the registered tokenizer, reruns truncation/rewrite/collision/padding/rendering,
+decrypts packet artifacts only inside a trusted audit boundary, and requires
+byte-equal artifacts and receipts. Naked findings, a caller-provided tokenizer,
+claimed collision sets, or receipt booleans have no sealing authority.
+Synthetic fixture normalizer/tokenizer implementations are closed and named;
+confirmation fails closed until separately reviewed SWE and tau normalizers,
+tokenizer loaders, and decrypt-for-audit adapters are pinned before the
+manifest. An all-no-trigger roster may be sealed from exact typed
+marker/roster/ancestry/config-byte closure because every packet-specific gate is
+vacuous; every triggered candidate remains non-authoritative until the complete
+recomputation path succeeds.
+
 ### 7.4 Manipulation and detectability gates
 
 Before confirmation:

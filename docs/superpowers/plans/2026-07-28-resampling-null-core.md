@@ -3042,6 +3042,69 @@ small scope-matched commit before this check repeats.
 
 ## Task 4: Token-exact REAL/SHAM packet construction
 
+### DL-135 closure repair: packet audits must recompute, not reread claims
+
+The original Task-4 signatures below are superseded where they permit
+caller-supplied `VerifierFinding`, identifier-map, pad-unit, policy, template,
+tokenizer, or focal-collision values to become a sealed audit result merely
+because a receipt repeats them. Candidate publication may record such a
+proposal, but triggered sealing fails closed until all of the following
+normative repair is implemented:
+
+1. A registered, manifest-pinned packet normalizer loads the focal and donor
+   verifier ArtifactRefs from the sealed prefix index and emits compact
+   canonical `packet_normalized_findings_v1` blobs. Each blob contains its
+   exact source verifier ref, task ID, closed normalizer ID/version, and ordered
+   typed atoms. Synthetic support is a named fixture implementation;
+   confirmation remains unavailable until separately reviewed SWE and tau
+   normalizer adapters exist. A structural caller-supplied normalizer is
+   forbidden.
+2. The identifier map is a compact canonical
+   `packet_identifier_map_v1` blob with focal/donor task IDs and a UTF-8
+   byte-ordered complete list of typed source/destination atoms. The audit
+   reloads it, proves source coverage and one-to-one type preservation, applies
+   it to the normalized donor bytes, and reproduces the normalized SHAM bytes.
+3. `PacketPairReceipt` gains `normalized_donor_ref`; the existing
+   `normalized_real_ref` and `normalized_sham_ref` name distinct canonical
+   pre-template artifacts, never aliases of encrypted packet text. Packet
+   construction loads these refs from `run_root`; it no longer accepts naked
+   finding sequences as scientific authority.
+4. Packet policy, pad units, and template are closed compact canonical blobs
+   named `packet_policy_v1`, `packet_pad_units_v1`, and `packet_template_v1`.
+   The builder and audit reload their exact referenced bytes. A pad set is an
+   ordered list of nonempty neutral strings; a template fixes the record kind,
+   exact field order, and canonical compact-JSON renderer. Caller values must
+   byte-equal these parents or fail.
+5. The tokenizer ref selects a closed internal registry entry. Synthetic
+   `unicode_codepoint_fixture_v1` is permitted for fixtures. Confirmation must
+   pin tokenizer JSON/model/config digests and a reviewed loader before use.
+   Both builder and independent audit reconstruct the tokenizer from the ref
+   and re-encode the persisted plaintext inside the trusted audit boundary;
+   a bring-your-own tokenizer object is not audit authority.
+6. True-focal signatures are derived exhaustively from the normalized focal
+   artifact. The audit independently regenerates REAL and SHAM rows,
+   truncation receipts, identifier rewrites, collision signatures, deterministic
+   padding search, rendered bytes, token IDs/counts, field/severity multisets,
+   and every receipt field, then requires byte equality with the candidate and
+   referenced artifacts. It never promotes claimed booleans by inspection.
+7. Production packet ciphertext verification occurs through a trusted
+   decrypt-for-audit capability that returns plaintext only inside this
+   transaction; synthetic fixtures may use ignored plaintext. The candidate
+   process cannot mint the audit capability, and no branch starts until the
+   independently reconstructed sealed index exists.
+
+Until this repair is complete, `audit_and_seal_packet_index` may seal only an
+all-no-trigger schedule, for which packet-specific gates are vacuous and exact
+typed marker/roster/ancestry/config-byte closure is directly recomputable.
+Triggered candidates are non-authoritative and must be rejected. This
+restriction is a scientific boundary, not a missing unit test.
+
+For Task 4, verification is one narrow behavior command and one source-static
+command per reviewable slice, each hard-capped at 60 seconds. Broad suites,
+coverage targets, and test-framework work are forbidden absent a concrete
+shared-surface failure mode. Scientific manipulation/falsification experiments
+remain separate research work and are not reduced by this software-test cap.
+
 **Files:**
 
 - Create: `src/pneuma_lab/resampling_null/packets.py`
