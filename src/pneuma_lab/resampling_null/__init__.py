@@ -12,6 +12,16 @@ from .assignment_verification import (
     verify_synthetic_assignment_graph,
 )
 from .branch_assignment import seal_branch_assignment
+from .packets import (
+    IdentifierAtom,
+    IdentifierKind,
+    LiteralAtom,
+    PacketInvalid,
+    PacketPairReceipt,
+    PacketPolicy,
+    VerifierFinding,
+    build_packet_pair,
+)
 from .types import (
     Arm,
     ArtifactRef,
@@ -43,10 +53,17 @@ __all__ = (
     "BranchOutcome",
     "BranchSlot",
     "BranchSlotSet",
+    "build_packet_pair",
     "FrozenVerifierReceipt",
     "GroupKind",
     "GroupLabel",
+    "IdentifierAtom",
+    "IdentifierKind",
+    "LiteralAtom",
     "MatchingAlgorithm",
+    "PacketInvalid",
+    "PacketPairReceipt",
+    "PacketPolicy",
     "ResourceCounters",
     "require_assignment_reconstruction",
     "require_confirmation_assignment",
@@ -58,6 +75,7 @@ __all__ = (
     "TriggerReason",
     "UnblindSecretHandle",
     "Verdict",
+    "VerifierFinding",
     "verify_result_bundle",
     "verify_synthetic_assignment_graph",
 )

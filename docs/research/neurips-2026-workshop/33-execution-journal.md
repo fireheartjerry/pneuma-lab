@@ -811,3 +811,39 @@ The next event after the archived migration boundary is appended below.
 - **Command:** Ran exactly one focused triggered behavior selection and one combined Ruff+mypy static gate, each hard-capped at 60 seconds.
 - **Result:** GREEN, exit 0. One test passed with 217 unrelated tests deselected in 1.20 seconds. Ruff passed; mypy found no issues in three source files.
 - **Compact receipt:** stdout 176 bytes / 4 lines / SHA-256 `4069e7f1e9b8a5502d6fb83b95caaa7777fd2bc6dc09423bd277d52321761d5b`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0062/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0063 — publish typed assignment result verification
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Action:** Checked whitespace/status; staged exactly types, reconstruction/composition, package exports, focused forgery cases, and journal; checked staged scope; committed `feat(neurips): close assignment result verification`; pushed publicly; compared exact refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `b81ed98758923f26f85557a5c4c3d1ee9e672e89`. Five files, 611 insertions and 12 deletions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Compact receipt:** stdout 932 bytes / 17 lines / SHA-256 `2e8e41bb8e95358fe33e5dc507b5a2c9ff2fc806c1325fc97134699d1284b9bb`; stderr 134 bytes / 2 lines / SHA-256 `b491c6fb93585dc87e231ad51077e321a2fb167eb85f95eb490fa862ff876071`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0063/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0064 — route Task 4 to the causal placebo mechanism
+
+- **Authority:** Re-read immutable Task 4 requirements and signatures from the accepted resampling-null plan before implementation. Scope this slice to pure REAL/SHAM pair construction; candidate/sealed-prefix chronology remains the next slice.
+- **Research decision:** Treat token/field/severity parity, type-preserving identifier aliases, donor-leakage closure, true-focal collision rejection, bounded truncation receipts, and exact neutral padding as causal-identification controls rather than production-software embellishment.
+- **Known authority seam:** The immutable builder signature provides no distinct normalized-artifact store operation or paths. This slice therefore binds `normalized_real_ref` and `normalized_sham_ref` to the persisted packet refs. That is explicit provisional plumbing, not evidence that a separate normalization stage exists; closure repair is required before claim promotion.
+- **Testing budget:** Per user direction, software verification remains an insignificant tripwire: one focused behavioral selection and one static source check, each hard-capped at 60 seconds. No broad suite or coverage work is authorized.
+
+### EJ-20260729-0065 — implement and adversarially repair token-exact packet pairs
+
+- **Implementation:** Added frozen typed finding/atom/policy/receipt records and a pure `build_packet_pair` path. It pairs bounded REAL and donor findings, retains focal finding IDs and severities, applies type-preserving donor-to-focal identifier rewrites, rejects unmapped or literal donor leakage, records deterministic trailing-atom truncation, rejects SHAM signatures colliding with known true-focal signatures, searches authorized neutral padding to exact tokenizer parity, persists private guidance, and returns ancestry/claim receipts.
+- **Self-attack finding:** The first safe-padding regex used an over-escaped `\\s` inside its character class, authorizing the literal character `s` rather than whitespace. Also, equal-token packets could bypass validation of an unused but malicious pad-unit authority.
+- **Repair:** Corrected the regex to actual whitespace, centralized exact-type/nonempty/non-executable pad-unit validation, and invoked it before comparing packet lengths. Added one adversarial assertion that instruction-bearing padding is rejected even when the inputs would otherwise be equal length.
+- **Source hashes after repair:** `packets.py` SHA-256 `23a7c192128f2539112187f5a41dec2a65fe0da1a919a150b955fcb13331f29a`; focused fixture SHA-256 `76d9b87cc5bbd3be4e18ff4c7ea22a2950d55b703184e098e6e2b15738e26921`.
+
+### EJ-20260729-0066 — minimal packet tripwire and static diagnostics
+
+- **Behavioral command:** `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_packets.py -q -k t4_s01`.
+- **Behavioral result:** GREEN, exit 0. Exactly one test passed in 0.20 seconds. It checks exact token parity, field/severity binding, type-preserving rewrite, donor-identity absence, focal alias presence, truncation monotonicity, kind-confusion rejection, malicious-padding rejection, and true-focal collision rejection.
+- **First static command:** Ruff plus mypy over source and the compact fixture, each hard-capped at 60 seconds.
+- **First static result:** MIXED. Ruff passed. Mypy produced 28 fixture-only `**dict[str, object]` argument diagnostics because the intentionally compact shared-call dictionary erases keyword types. No implementation diagnostic was reported. Per the explicit insignificant-test policy, the fixture was not expanded into typed test scaffolding.
+- **Corrected source-only static command:** Ruff over the three touched files plus mypy over `packets.py` and package exports, each hard-capped at 60 seconds.
+- **Corrected static result:** GREEN, exit 0. Ruff passed; mypy found no issues in two source files. `git diff --check` passed.
+
+### EJ-20260729-0067 — expose the provisional packet-pair API
+
+- **Action:** Exported the builder, findings, identifier atoms/kinds, policy, receipt, and failure type from `pneuma_lab.resampling_null`.
+- **Package-export hash:** `src/pneuma_lab/resampling_null/__init__.py` SHA-256 `3766d1ecaf5bfbb806ba52e3131ad4e23efb33feccf8623063bcab27eb942923`.
+- **Claim boundary:** This is only a synthetic pure-construction slice. No sealed-prefix candidate audit, no donor eligibility index, no confirmation adapter, no real experiment, and no causal result exists or is claimed.
