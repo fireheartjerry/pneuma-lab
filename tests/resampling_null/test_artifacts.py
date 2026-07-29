@@ -40,6 +40,8 @@ from pneuma_lab.resampling_null.assignment import (
 )
 from pneuma_lab.resampling_null.branch_assignment import seal_branch_assignment
 from pneuma_lab.resampling_null.assignment_verification import (
+    require_assignment_reconstruction,
+    require_confirmation_assignment,
     verify_synthetic_assignment_graph,
 )
 from pneuma_lab.resampling_null.schedule import seal_prefix_schedule
@@ -3473,6 +3475,62 @@ def test_t3_s10_triggered_assignment_publishes_one_reachable_cas_proof(
             run_root=root,
         )
     proof_path.write_bytes(proof_bytes)
+    reconstruction_handle = store.claim_assignment(
+        manifest_ref,
+        schedule_ref,
+        run_root=root,
+    )
+    with pytest.raises(RecordValidationError, match="confirmation ledger"):
+        require_confirmation_assignment(
+            ledger_ref,
+            assignment_secret_handle=reconstruction_handle,
+            matching_backend_session=None,
+            run_root=root,
+        )
+    assert (
+        require_assignment_reconstruction(
+            ledger_ref,
+            assignment_secret_handle=reconstruction_handle,
+            matching_backend_session=None,
+            run_root=root,
+        )["payload"]
+        == payload
+    )
+
+    forged_ledger = load_record(root / ledger_ref.relative_path)
+    forged_payload = cast(dict[str, object], forged_ledger["payload"])
+    forged_allocations = cast(
+        list[dict[str, object]],
+        forged_payload["allocation_receipts"],
+    )
+    forged_capabilities = cast(
+        list[list[str]],
+        forged_allocations[0]["slot_capabilities"],
+    )
+    forged_capabilities[0][1] = (
+        "0" if forged_capabilities[0][1][0] != "0" else "1"
+    ) + forged_capabilities[0][1][1:]
+    forged_bytes = canonical_json_bytes(forged_ledger, indent=2)
+    (root / ledger_ref.relative_path).write_bytes(forged_bytes)
+    forged_ledger_ref = ArtifactRef(
+        role=ledger_ref.role,
+        relative_path=ledger_ref.relative_path,
+        sha256=hashlib.sha256(forged_bytes).hexdigest(),
+        byte_count=len(forged_bytes),
+        media_type=ledger_ref.media_type,
+    )
+    forged_handle = store.claim_assignment(
+        manifest_ref,
+        schedule_ref,
+        run_root=root,
+    )
+    with pytest.raises(RecordValidationError, match="keyed|reconstruction"):
+        require_assignment_reconstruction(
+            forged_ledger_ref,
+            assignment_secret_handle=forged_handle,
+            matching_backend_session=None,
+            run_root=root,
+        )
 
 
 def _numeric_contract() -> dict[str, object]:

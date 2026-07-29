@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
@@ -15,7 +16,34 @@ from .artifacts import (
     _read_ref,
 )
 from .assignment import _ALLOCATION_TABLE
+from .assignment import (
+    BytesField,
+    _AssignmentKeyBuffers,
+    _allocate_task,
+    _derive_assignment_subkeys_into,
+    _read_exact_master_into,
+    _solve_synthetic_stratum,
+    _wipe_bytearray,
+    assignment_prefix_view_sha256,
+    commitment_sha256,
+    load_assignment_authority,
+)
+from .branch_assignment import (
+    _candidate_receipts,
+    _load_object_ref,
+    _prefix_task_view,
+    _require_prefix_publication,
+    _stratum_component,
+    _task_schedule,
+)
+from .preflight import _validate_assignment_program
+from .secrets import AssignmentSecretHandle, _require_handle_binding
 from .types import Arm, ArtifactRef, Treatment
+from .types import (
+    AssignmentPrefixTaskView,
+    AssignmentPrefixView,
+    TriggerReason,
+)
 
 
 def _artifact_ref(value: object, *, field: str) -> ArtifactRef:
@@ -471,3 +499,400 @@ def verify_synthetic_assignment_graph(
     if reachable_refs != set(proof_refs):
         raise RecordValidationError("matching proof graph has unreachable refs")
     return ledger.value
+
+
+def require_assignment_reconstruction(
+    ledger_ref: ArtifactRef,
+    *,
+    assignment_secret_handle: AssignmentSecretHandle,
+    matching_backend_session: object | None,
+    run_root: Path,
+) -> dict[str, object]:
+    """Reconstruct every secret-dependent synthetic assignment decision."""
+
+    if matching_backend_session is not None:
+        raise RecordValidationError(
+            "synthetic reconstruction forbids a matching backend session"
+        )
+    root = Path(run_root).resolve(strict=True)
+    public_ledger = verify_synthetic_assignment_graph(
+        ledger_ref,
+        run_root=root,
+    )
+    payload = cast(dict[str, object], public_ledger["payload"])
+    manifest_ref = _artifact_ref(payload["manifest_ref"], field="manifest_ref")
+    schedule_ref = _artifact_ref(payload["schedule_ref"], field="schedule_ref")
+    prefix_ref = _artifact_ref(
+        payload["prefix_index_ref"],
+        field="prefix_index_ref",
+    )
+    program_ref = _artifact_ref(
+        payload["matching_program_ref"],
+        field="matching_program_ref",
+    )
+    authority = load_assignment_authority(
+        schedule_ref,
+        prefix_ref,
+        run_root=root,
+    )
+    if authority.manifest_ref != manifest_ref:
+        raise RecordValidationError("ledger manifest ancestry differs")
+    _require_prefix_publication(
+        manifest_ref=manifest_ref,
+        schedule_ref=schedule_ref,
+        run_root=root,
+    )
+    _require_handle_binding(
+        assignment_secret_handle,
+        manifest_ref,
+        schedule_ref,
+        run_root=root,
+        purpose="assignment",
+    )
+    manifest = _load_direct_scientific_parent(
+        _ref_mapping(manifest_ref),
+        run_root=root,
+        field="manifest_ref",
+        expected_kind="resampling_study_manifest",
+    )
+    schedule = _load_direct_scientific_parent(
+        _ref_mapping(schedule_ref),
+        run_root=root,
+        field="schedule_ref",
+        expected_kind="resampling_prefix_schedule",
+    )
+    prefix = _load_direct_scientific_parent(
+        _ref_mapping(prefix_ref),
+        run_root=root,
+        field="prefix_index_ref",
+        expected_kind="resampling_prefix_receipt",
+    )
+    manifest_payload = cast(dict[str, object], manifest.value["payload"])
+    schedule_payload = cast(dict[str, object], schedule.value["payload"])
+    prefix_payload = cast(dict[str, object], prefix.value["payload"])
+    if _artifact_ref(
+        manifest_payload.get("assignment_program_ref"),
+        field="manifest assignment_program_ref",
+    ) != program_ref:
+        raise RecordValidationError("ledger matching program differs from manifest")
+    program_path, program_raw = _read_ref(program_ref, run_root=root)
+    program = _load_json_bytes(program_raw, source=program_path)
+    if not isinstance(program, dict) or (
+        program.get("assignment_mode") != "synthetic_derangement"
+        or program.get("matching_algorithm") != "synthetic_cyclic_offset_v1"
+        or program.get("backend_receipt_ref") is not None
+    ):
+        raise RecordValidationError("reconstruction program is not synthetic")
+    _validate_assignment_program(program)
+    normalizer = program.get("verifier_normalizer_contract")
+    if not isinstance(normalizer, Mapping):
+        raise RecordValidationError(
+            "reconstruction normalizer contract is not an object"
+        )
+    normalizer_ref = _artifact_ref(
+        normalizer.get("normalizer_source_ref"),
+        field="reconstruction normalizer source",
+    )
+    tokenizer_ref = _artifact_ref(
+        manifest_payload.get("tokenizer_ref"),
+        field="reconstruction tokenizer",
+    )
+    normalizer_source = _load_object_ref(
+        normalizer_ref,
+        run_root=root,
+        field="reconstruction normalizer source",
+    )
+    tokenizer_source = _load_object_ref(
+        tokenizer_ref,
+        run_root=root,
+        field="reconstruction tokenizer",
+    )
+    revision_values = manifest_payload.get("source_revision_refs")
+    if not isinstance(revision_values, list):
+        raise RecordValidationError(
+            "manifest source revisions must be an array"
+        )
+    revision_refs = {
+        _artifact_ref(value, field="manifest source revision")
+        for value in revision_values
+    }
+    if (
+        normalizer.get("normalizer_source_sha256") != normalizer_ref.sha256
+        or normalizer.get("report_tokenizer_sha256") != tokenizer_ref.sha256
+        or normalizer_ref not in revision_refs
+        or normalizer_source
+        != {
+            "record_kind": "synthetic_assignment_normalizer_v1",
+            "schema_version": "1",
+            "algorithm": "closed_fixture_components_v1",
+        }
+        or tokenizer_source
+        != {
+            "record_kind": "synthetic_report_tokenizer_v1",
+            "schema_version": "1",
+            "algorithm": "unicode_whitespace_v1",
+        }
+    ):
+        raise RecordValidationError(
+            "reconstruction normalizer/tokenizer authority differs"
+        )
+    stratum_fields = program.get("stratum_keys")
+    if not isinstance(stratum_fields, list) or not stratum_fields or not all(
+        type(field) is str and field for field in stratum_fields
+    ):
+        raise RecordValidationError("reconstruction stratum keys are malformed")
+
+    schedule_values = schedule_payload.get("tasks")
+    receipt_values = prefix_payload.get("task_receipts")
+    if (
+        not isinstance(schedule_values, list)
+        or not isinstance(receipt_values, list)
+        or len(schedule_values) != len(receipt_values)
+        or not schedule_values
+    ):
+        raise RecordValidationError("reconstruction coverage is incomplete")
+    schedules = tuple(
+        _task_schedule(value, field=f"schedule tasks[{index}]")
+        for index, value in enumerate(schedule_values)
+    )
+    receipts_by_id = {
+        cast(str, cast(dict[str, object], receipt)["task_id"]): receipt
+        for receipt in receipt_values
+        if isinstance(receipt, dict)
+    }
+    schedule_ids = tuple(schedule.task.task_id for schedule in schedules)
+    if tuple(receipts_by_id) != schedule_ids:
+        raise RecordValidationError("reconstruction prefix order differs")
+    task_views = tuple(
+        _prefix_task_view(
+            schedule_row,
+            receipts_by_id[schedule_row.task.task_id],
+            schedule_sha256=schedule_ref.sha256,
+            run_root=root,
+        )
+        for schedule_row in schedules
+    )
+    view = AssignmentPrefixView(
+        study_id=authority.study_id,
+        schedule_sha256=schedule_ref.sha256,
+        tasks=task_views,
+    )
+    view_sha256 = assignment_prefix_view_sha256(view)
+    if payload.get("assignment_prefix_view_sha256") != view_sha256:
+        raise RecordValidationError("reconstructed prefix view digest differs")
+
+    master = bytearray(32)
+    keys = _AssignmentKeyBuffers()
+    try:
+        _read_exact_master_into(assignment_secret_handle, master)
+        if (
+            commitment_sha256(
+                "assignment-master-key",
+                authority.study_id,
+                BytesField(bytes(master)),
+            )
+            != manifest_payload.get(
+                "assignment_master_key_commitment_sha256"
+            )
+        ):
+            raise RecordValidationError(
+                "reconstruction key does not match manifest commitment"
+            )
+        _derive_assignment_subkeys_into(
+            memoryview(master),
+            authority.study_id,
+            manifest_ref,
+            schedule_ref,
+            keys,
+        )
+        strata: dict[
+            tuple[str, ...],
+            list[AssignmentPrefixTaskView],
+        ] = {}
+        stratum_by_task: dict[str, tuple[str, ...]] = {}
+        for task in task_views:
+            if task.trigger_reason is TriggerReason.NO_INTERVENTION_OPPORTUNITY:
+                continue
+            stratum_key = tuple(
+                _stratum_component(task, cast(str, field))
+                for field in stratum_fields
+            )
+            strata.setdefault(stratum_key, []).append(task)
+            stratum_by_task[task.task_id] = stratum_key
+
+        expected_proof_refs: list[ArtifactRef] = []
+        expected_donors: dict[str, AssignmentPrefixTaskView] = {}
+        expected_proof_by_task: dict[str, ArtifactRef] = {}
+        published_refs = [
+            _artifact_ref(value, field="matching_proof_refs item")
+            for value in cast(list[object], payload["matching_proof_refs"])
+        ]
+        if len(published_refs) != len(strata):
+            raise RecordValidationError("reconstruction proof count differs")
+        for position, stratum_key in enumerate(
+            sorted(
+                strata,
+                key=lambda key: tuple(
+                    component.encode("utf-8") for component in key
+                ),
+            )
+        ):
+            stratum_tasks = tuple(strata[stratum_key])
+            proof, selected = _solve_synthetic_stratum(
+                tasks=stratum_tasks,
+                stratum_key=stratum_key,
+                assignment_prefix_view_sha256=view_sha256,
+                assignment_program_sha256=program_ref.sha256,
+                donor_key=keys.donor,
+            )
+            proof_ref = published_refs[position]
+            proof_path, proof_raw = _read_ref(proof_ref, run_root=root)
+            persisted = _load_json_bytes(proof_raw, source=proof_path)
+            if (
+                persisted != proof
+                or canonical_json_bytes(proof, indent=None) != proof_raw
+            ):
+                raise RecordValidationError(
+                    "keyed synthetic proof reconstruction differs"
+                )
+            expected_proof_refs.append(proof_ref)
+            expected_donors.update(selected)
+            for task in stratum_tasks:
+                expected_proof_by_task[task.task_id] = proof_ref
+
+        expected_assignments: list[dict[str, object]] = []
+        expected_allocations: list[dict[str, object]] = []
+        expected_receipts: list[dict[str, object]] = []
+        task_by_id = {task.task_id: task for task in task_views}
+        for schedule_row, task in zip(schedules, task_views, strict=True):
+            donor = expected_donors.get(task.task_id)
+            assignment, allocation = _allocate_task(
+                study_id=authority.study_id,
+                manifest_sha256=manifest_ref.sha256,
+                schedule_sha256=schedule_ref.sha256,
+                prefix_index_sha256=prefix_ref.sha256,
+                task_schedule=schedule_row,
+                donor_task=donor,
+                allocation_key=keys.allocation,
+                orientation_key=keys.orientation,
+                capability_key=keys.capability,
+            )
+            expected_assignments.append(
+                {
+                    **asdict(assignment),
+                    "slot_arms": [
+                        [slot_id, arm.value]
+                        for slot_id, arm in assignment.slot_arms
+                    ],
+                }
+            )
+            expected_allocations.append(
+                {
+                    "task_id": allocation.task_id,
+                    "slot_ids_by_ordinal": list(
+                        allocation.slot_ids_by_ordinal
+                    ),
+                    "treatment_allocation_index": (
+                        allocation.treatment_allocation_index
+                    ),
+                    "allocation_rejection_counter": (
+                        allocation.allocation_rejection_counter
+                    ),
+                    "no_packet_orientation_bit": (
+                        allocation.no_packet_orientation_bit
+                    ),
+                    "orientation_rejection_counter": (
+                        allocation.orientation_rejection_counter
+                    ),
+                    "slot_capabilities": [
+                        list(row) for row in allocation.slot_capabilities
+                    ],
+                }
+            )
+            if donor is None:
+                expected_receipts.append(
+                    {
+                        "kind": "not_applicable_no_trigger",
+                        "task_id": task.task_id,
+                        "trigger_reason": (
+                            TriggerReason.NO_INTERVENTION_OPPORTUNITY.value
+                        ),
+                        "assignment_prefix_view_sha256": view_sha256,
+                    }
+                )
+            else:
+                typed_donor = task_by_id[donor.task_id]
+                candidates = _candidate_receipts(
+                    task,
+                    tuple(
+                        candidate
+                        for candidate in task_views
+                        if stratum_by_task.get(candidate.task_id)
+                        == stratum_by_task[task.task_id]
+                    ),
+                    donor_key=keys.donor,
+                )
+                chosen = next(
+                    candidate
+                    for candidate in candidates
+                    if candidate["donor_task_id"] == typed_donor.task_id
+                )
+                expected_receipts.append(
+                    {
+                        "kind": "matched",
+                        "task_id": task.task_id,
+                        "donor_task_id": typed_donor.task_id,
+                        "task_lineage": task.lineage,
+                        "donor_lineage": typed_donor.lineage,
+                        "assignment_mode": "synthetic_derangement",
+                        "matching_algorithm": "synthetic_cyclic_offset_v1",
+                        "stratum_key": list(stratum_by_task[task.task_id]),
+                        "assignment_prefix_view_sha256": view_sha256,
+                        "candidates": candidates,
+                        "chosen_primary_cost": chosen["primary_cost"],
+                        "matching_proof_ref": _ref_mapping(
+                            expected_proof_by_task[task.task_id]
+                        ),
+                    }
+                )
+        if (
+            payload.get("matching_proof_refs")
+            != [_ref_mapping(ref) for ref in expected_proof_refs]
+            or payload.get("assignments") != expected_assignments
+            or payload.get("allocation_receipts") != expected_allocations
+            or payload.get("donor_match_receipts") != expected_receipts
+        ):
+            raise RecordValidationError(
+                "keyed assignment reconstruction differs from ledger"
+            )
+    finally:
+        keys.wipe()
+        _wipe_bytearray(master)
+    return public_ledger
+
+
+def require_confirmation_assignment(
+    ledger_ref: ArtifactRef,
+    *,
+    assignment_secret_handle: AssignmentSecretHandle,
+    matching_backend_session: object | None,
+    run_root: Path,
+) -> dict[str, object]:
+    """Fail closed until the nominal confirmation runner adapter exists."""
+
+    del assignment_secret_handle, matching_backend_session
+    root = Path(run_root).resolve(strict=True)
+    ledger = _load_direct_scientific_parent(
+        _ref_mapping(ledger_ref),
+        run_root=root,
+        field="ledger_ref",
+        expected_kind="resampling_assignment_ledger",
+    )
+    payload = cast(dict[str, object], ledger.value["payload"])
+    if payload.get("assignment_mode") != "confirmation_lineage_matching":
+        raise RecordValidationError(
+            "confirmation wrapper requires a confirmation ledger"
+        )
+    raise RecordValidationError(
+        "confirmation matching backend reconstruction adapter is unavailable"
+    )

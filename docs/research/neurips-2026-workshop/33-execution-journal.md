@@ -753,3 +753,32 @@ The next event after the archived migration boundary is appended below.
 - **Command:** Ran exactly one focused triggered behavior selection and one combined Ruff+mypy static gate, each hard-capped at 60 seconds.
 - **Result:** GREEN, exit 0. One test passed with 217 unrelated tests deselected in 1.08 seconds. Ruff passed; mypy found no issues in one source file.
 - **Compact receipt:** stdout 175 bytes / 4 lines / SHA-256 `f48e7a9f2a6cf9feb0b679fca5e410c3766aed4b35b5e1c26d03909dc0338715`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0054/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0055 — publish unkeyed synthetic graph verifier
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Action:** Checked whitespace/status; staged exactly the new verifier, focused tamper case, and journal; checked staged scope; committed `feat(neurips): verify synthetic assignment graphs`; pushed publicly; compared exact refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `4733e24b545e902994760b6bed9fa0794f52eb00`. Three files, 522 insertions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Compact receipt:** stdout 750 bytes / 14 lines / SHA-256 `99b5c0cd2673f0f232e6976be6af7f5d67e44e702948291c8a36c88e77017d9e`; stderr 134 bytes / 2 lines / SHA-256 `9ac9c4c8c9c9bd8348c5fe40d7a5b5ad4730bddd85edd22be38d90a45fcfbdb9`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0055/` (ignored, retained through 2026-11-27).
+
+### EJ-20260729-0056 — implement fresh-handle keyed reconstruction
+
+- **Action:** Added `require_assignment_reconstruction`. It first runs the key-independent graph verifier, reloads manifest/schedule/prefix/program ancestry, verifies accepted prefix publication, revalidates the closed assignment program plus manifest-pinned normalizer/tokenizer sources, reconstructs the source-derived prefix view, and only then consumes one exact assignment-purpose handle.
+- **Keyed audit:** Reverify master commitment; derive only donor/allocation/orientation/capability subkeys; recompute every stratum HMAC order, offset trial, selected donor mapping, candidate order/cost, allocation draw, orientation draw, capability, assignment, donor receipt, and proof byte sequence; byte-compare the complete ledger arrays; wipe master/subkeys on every exit.
+- **Adversarial case:** Replace one capability with another valid unique lowercase digest and recompute the ledger ref. The public graph verifier accepts structural feasibility, while keyed reconstruction rejects the exact capability mismatch.
+- **Focused result:** GREEN, exit 0. One `t3_s10` test passed with 217 unrelated tests deselected in 1.40 seconds.
+
+### EJ-20260729-0057 — close reconstruction authority and confirmation boundary
+
+- **Hostile finding:** Initial reconstruction reused source feature recomputation but did not independently revalidate the manifest-pinned normalizer/tokenizer descriptors and closed program grammar.
+- **Correction:** Validate the complete assignment program, normalizer/source digest, tokenizer digest, normalizer source membership in manifest revisions, and exact synthetic implementations before handle consumption.
+- **Confirmation wrapper:** Added a thin fail-closed entry point. It rejects synthetic ledgers without consuming the fresh handle and cannot accept confirmation until the nominal trusted matching-backend reconstruction adapter exists.
+- **Result:** GREEN, exit 0. One focused test passed with 217 unrelated tests deselected in 1.65 seconds; Ruff passed; mypy found no issues in the reconstruction source.
+- **Claim boundary:** Synthetic keyed reconstruction is promoted. Confirmation reconstruction and `verify_result_bundle` storage composition remain unavailable/unclaimed.
+
+### EJ-20260729-0058 — final captured keyed-reconstruction gate
+
+- **Time:** raw metadata records exact local/UTC start and end timestamps.
+- **Command:** Ran exactly one focused triggered behavior selection and one combined Ruff+mypy static gate, each hard-capped at 60 seconds.
+- **Result:** GREEN, exit 0. One test passed with 217 unrelated tests deselected in 1.48 seconds. Ruff passed; mypy found no issues in one source file.
+- **Compact receipt:** stdout 175 bytes / 4 lines / SHA-256 `c964986883eed5ef127733c02050c586fdbf94ed67ef713f1d7dd991dc50ae44`; stderr 0 bytes / 0 lines / SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; raw local receipt `build/research/neurips-2026-workshop/execution-journal/EJ-20260729-0058/` (ignored, retained through 2026-11-27).
