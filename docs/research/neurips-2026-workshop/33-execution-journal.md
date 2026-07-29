@@ -1014,3 +1014,25 @@ The next event after the archived migration boundary is appended below.
 - **Static command:** Ruff over three touched source files and two touched fixtures; mypy over the same three source files; every process capped at 60 seconds.
 - **Static result:** GREEN, exit 0. Ruff passed; mypy found no issues. `git diff --check` passed.
 - **Content hashes:** `packets.py` `8232b9b1e3e509128eaf40a9f7da7ab7b6b20eec598c789af6e0391693655b08`; assignment verification `7088852553d503f075084d9a0c8ae41f4ebba1e7dbd995f9c05312402c349395`; exports `1d1332148506f5bd0011d8618556159606802cda315f43f3a5e0f9ca8fa8cb31`; authority fixture `92367a33030d9fadd7db1438b25da749817b83a1d089babfc87db8afd4ec4c52`; primitive tripwire `a769d0aad886a048820c5aad3f622fe68ae97a0a6190af2fc222745321fe293a`.
+
+### EJ-20260729-0094 — publish reconstructable triggered packet seals
+
+- **Action:** Staged exactly packet construction/audit source, public assignment-acceptance wrapper, exports, reduced primitive tripwire, extended authority fixture, and journal; checked staged whitespace/scope; committed `feat(neurips): reconstruct triggered packet seals`; pushed publicly; compared exact refs.
+- **Result:** GREEN, exit 0. Local and public remote are exactly `ebf24d6f1c852928debc67fb1669b5b5daf4a844`. Six files, 759 insertions and 309 deletions. The unrelated untracked `raw_root_placeholder` remains untouched.
+- **Promotion:** Complete synthetic triggered packet parent-to-byte reconstruction and sealed-index publication are now implemented and evidenced. Confirmation/production manipulation validity remains unavailable and unclaimed.
+
+### EJ-20260729-0095 — freeze controller boundary primitives
+
+- **Implementation:** Added frozen slotted context, tool-call, cap, grade, call-seed, subject-turn, tool-boundary, and opaque-slot records; the closed failure vocabulary; and the role/index-separated `call-seed-v1` derivation. Tool arguments must byte-equal compact project-canonical JSON object bytes, including the terminal LF, with duplicate keys and nonfinite constants rejected. Exported only these primitive contracts and the seed derivation.
+- **Scope:** This slice has no prefix/branch runner, work order, synthetic environment, attempt/block seal, schema, provider call, spend, or scientific decision.
+
+### EJ-20260729-0096 — T5-S01 RED/GREEN evidence
+
+- **RED command/result:** `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_controller.py -q`; RED, exit 1. The focused tripwire showed `CallSeedReceipt` accepted `call_index == 2**64`, violating its uint64 boundary.
+- **Repair and GREEN:** Reused the exact uint64 validator for `call_index`. The same focused command was GREEN, exit 0: one test passed in 0.21 seconds.
+- **Static evidence:** `timeout 60s .venv/bin/ruff check` over the three touched source files and focused test was GREEN, exit 0. `timeout 60s .venv/bin/mypy` over the three touched source files was GREEN, exit 0 with no issues. `git diff --check` passed.
+
+### EJ-20260729-0097 — hostile primitive-boundary review and non-claims
+
+- **Boundary review:** Exact-int guards reject booleans; uint64 guards reject negative and overflowing seeds/indexes; tuple fields reject lists and wrong record members; frozen slots prevent post-construction mutation; incomplete tool boundaries cannot mutate, become verifier-eligible, or claim `NONE`; opaque capabilities require lowercase SHA-256; grade failures cannot be both infrastructural and successful. Canonical argument parsing rejects whitespace drift, missing terminal LF, duplicate keys, nonfinite constants, and non-object JSON before any future execution layer can consume them.
+- **Residual boundary:** These records constrain values but do not establish provider determinism, wall-clock enforcement, tool sandboxing, mutation detection, grading validity, identity blindness, successful resampling, or causal evidence. No experiment ran and no empirical or consciousness claim is promoted.

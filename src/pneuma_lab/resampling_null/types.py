@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import json
 from math import isfinite
 from pathlib import PurePosixPath
 from typing import Literal, cast
+
+from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
 
 class Arm(str, Enum):
@@ -32,6 +35,18 @@ class TriggerReason(str, Enum):
     FIRST_ELIGIBLE_MUTATION = "first_eligible_mutation"
     FOURTH_TOOL_CALL = "fourth_tool_call"
     NO_INTERVENTION_OPPORTUNITY = "no_intervention_opportunity"
+
+
+class FailureKind(str, Enum):
+    """Closed controller terminal/failure classifications."""
+
+    NONE = "none"
+    MODEL = "model"
+    MALFORMED_ACTION = "malformed_action"
+    TOKEN_CAP = "token_cap"
+    TOOL_CAP = "tool_cap"
+    TIMEOUT = "timeout"
+    INFRASTRUCTURE = "infrastructure"
 
 
 class AssignmentMode(str, Enum):
@@ -107,6 +122,35 @@ def _require_finite_float(value: object, name: str) -> float:
     if not isfinite(validated):
         raise ValueError(f"{name} must be finite")
     return 0.0 if validated == 0.0 else validated
+
+
+def _require_canonical_json_object_text(value: object, name: str) -> str:
+    if type(value) is not str:
+        raise TypeError(f"{name} must be exact text")
+
+    def reject_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, nested in pairs:
+            if key in result:
+                raise ValueError(f"{name} contains duplicate key {key!r}")
+            result[key] = nested
+        return result
+
+    try:
+        parsed = json.loads(
+            value,
+            object_pairs_hook=reject_duplicates,
+            parse_constant=lambda constant: (_ for _ in ()).throw(
+                ValueError(f"{name} contains {constant!r}")
+            ),
+        )
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{name} must be strict JSON") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{name} must encode a JSON object")
+    if canonical_json_bytes(parsed, indent=None).decode("utf-8") != value:
+        raise ValueError(f"{name} must use compact canonical JSON bytes")
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -679,3 +723,189 @@ class AssignmentLedger:
             raise ValueError("ledger arrays must share exact task order")
         if len(self.matching_proof_refs) != len(set(self.matching_proof_refs)):
             raise ValueError("matching_proof_refs must be unique")
+
+
+@dataclass(frozen=True, slots=True)
+class ContextMessage:
+    role: str
+    content: str
+
+    def __post_init__(self) -> None:
+        _require_nonempty_string(self.role, "role")
+        if type(self.content) is not str:
+            raise TypeError("content must be exact text")
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCall:
+    call_id: str
+    name: str
+    canonical_arguments_json: str
+
+    def __post_init__(self) -> None:
+        _require_nonempty_string(self.call_id, "call_id")
+        _require_nonempty_string(self.name, "name")
+        _require_canonical_json_object_text(
+            self.canonical_arguments_json,
+            "canonical_arguments_json",
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class SubjectContext:
+    messages: tuple[ContextMessage, ...]
+    private_guidance: str | None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.messages, tuple) or not all(
+            isinstance(message, ContextMessage)
+            for message in self.messages
+        ):
+            raise TypeError("messages must be a tuple of ContextMessage")
+        if self.private_guidance is not None:
+            _require_nonempty_string(self.private_guidance, "private_guidance")
+
+
+@dataclass(frozen=True, slots=True)
+class PrefixCaps:
+    generated_tokens: int
+    model_calls: int
+    tool_calls: int
+    wall_clock_ms: int
+
+    def __post_init__(self) -> None:
+        for name in (
+            "generated_tokens",
+            "model_calls",
+            "tool_calls",
+            "wall_clock_ms",
+        ):
+            _require_exact_nonnegative_int(getattr(self, name), name)
+
+
+@dataclass(frozen=True, slots=True)
+class BranchCaps:
+    generated_tokens: int
+    model_calls: int
+    tool_calls: int
+    wall_clock_ms: int
+    pending_prefix_calls_count_against_tool_cap: Literal[True]
+
+    def __post_init__(self) -> None:
+        for name in (
+            "generated_tokens",
+            "model_calls",
+            "tool_calls",
+            "wall_clock_ms",
+        ):
+            _require_exact_nonnegative_int(getattr(self, name), name)
+        if self.pending_prefix_calls_count_against_tool_cap is not True:
+            raise ValueError(
+                "pending prefix calls must count against the branch tool cap"
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class GradeReceipt:
+    success: int
+    partial_reward: float
+    infrastructure_failure: bool
+    artifact_ref: ArtifactRef
+
+    def __post_init__(self) -> None:
+        if type(self.success) is not int or self.success not in (0, 1):
+            raise ValueError("success must be exact integer 0 or 1")
+        partial_reward = _require_finite_float(
+            self.partial_reward,
+            "partial_reward",
+        )
+        object.__setattr__(self, "partial_reward", partial_reward)
+        if type(self.infrastructure_failure) is not bool:
+            raise TypeError("infrastructure_failure must be bool")
+        if self.infrastructure_failure and self.success != 0:
+            raise ValueError("infrastructure failure requires success == 0")
+        if not isinstance(self.artifact_ref, ArtifactRef):
+            raise TypeError("artifact_ref must be ArtifactRef")
+
+
+@dataclass(frozen=True, slots=True)
+class CallSeedReceipt:
+    subject_role: Literal["primary_subject", "user_simulator"]
+    call_index: int
+    seed: int
+
+    def __post_init__(self) -> None:
+        if self.subject_role not in ("primary_subject", "user_simulator"):
+            raise ValueError("subject_role is not registered")
+        _require_seed(self.call_index, "call_index")
+        _require_seed(self.seed, "seed")
+
+
+@dataclass(frozen=True, slots=True)
+class SubjectTurn:
+    text: str
+    tool_calls: tuple[ToolCall, ...]
+    generated_tokens: int
+    finish_reason: str | None
+
+    def __post_init__(self) -> None:
+        if type(self.text) is not str:
+            raise TypeError("text must be exact text")
+        if not isinstance(self.tool_calls, tuple) or not all(
+            isinstance(call, ToolCall)
+            for call in self.tool_calls
+        ):
+            raise TypeError("tool_calls must be a tuple of ToolCall")
+        call_ids = [call.call_id for call in self.tool_calls]
+        if len(call_ids) != len(set(call_ids)):
+            raise ValueError("tool_calls must not repeat call_id")
+        _require_exact_nonnegative_int(
+            self.generated_tokens,
+            "generated_tokens",
+        )
+        if self.finish_reason is not None:
+            _require_nonempty_string(self.finish_reason, "finish_reason")
+
+
+@dataclass(frozen=True, slots=True)
+class ToolBoundary:
+    tool_call_count: int
+    completed: bool
+    mutated: bool
+    verifier_eligible: bool
+    failure_kind: FailureKind
+
+    def __post_init__(self) -> None:
+        _require_exact_nonnegative_int(self.tool_call_count, "tool_call_count")
+        for name in ("completed", "mutated", "verifier_eligible"):
+            if type(getattr(self, name)) is not bool:
+                raise TypeError(f"{name} must be bool")
+        if not isinstance(self.failure_kind, FailureKind):
+            raise TypeError("failure_kind must be FailureKind")
+        if not self.completed and (
+            self.mutated
+            or self.verifier_eligible
+            or self.failure_kind is FailureKind.NONE
+        ):
+            raise ValueError(
+                "incomplete boundary cannot mutate/be eligible/succeed"
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class OpaqueSlotIdentity:
+    slot_id: str
+    opaque_capability_id: str
+    seed: int
+    execution_order: int
+    hardware_lane: int
+
+    def __post_init__(self) -> None:
+        _require_nonempty_string(self.slot_id, "slot_id")
+        _require_sha256(self.opaque_capability_id, "opaque_capability_id")
+        _require_seed(self.seed, "seed")
+        _require_exact_nonnegative_int(
+            self.execution_order,
+            "execution_order",
+        )
+        _require_exact_nonnegative_int(self.hardware_lane, "hardware_lane")
