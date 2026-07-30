@@ -67,6 +67,7 @@ from .prefix_contracts import (
     synthetic_prefix_program_bytes,
     validate_prefix_candidate_ref,
 )
+from .prefix_index import seal_prefix_index
 from .packets import (
     IdentifierAtom,
     IdentifierKind,
@@ -192,6 +193,7 @@ __all__ = (
     "load_initial_restore_qualification_receipt",
     "load_grade_execution_receipt",
     "load_prefix_candidate_receipt",
+    "seal_prefix_index",
     "load_snapshot_restore_receipt",
     "load_verifier_execution_receipt",
     "load_synthetic_prefix_program",
