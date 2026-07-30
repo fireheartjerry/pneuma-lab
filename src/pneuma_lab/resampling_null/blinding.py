@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, cast
 
-from .artifacts import _load_direct_scientific_parent, _scientific_documents, write_record
+from .artifacts import _load_direct_scientific_parent, write_record
 from .assignment import BytesField, TextField, _derive_unblind_subkey_into, _read_exact_master_into, commitment_sha256, kdf_frame
 from .errors import RecordValidationError
 from .projection_candidate import build_candidate
@@ -22,7 +23,7 @@ def _mapping_ref(ref: ArtifactRef) -> dict[str, object]:
 def seal_blinded_projection(
     *, run_root: Path, destination: Path, schedule_ref: ArtifactRef,
     analysis_freeze_ref: ArtifactRef, task_block_refs: tuple[ArtifactRef, ...],
-) -> ArtifactRef:
+) -> UnblindResult:
     """Reload authoritative parents and publish one reconstructed projection."""
     schedule = _load_direct_scientific_parent(_mapping_ref(schedule_ref), run_root=run_root, field="schedule_ref", expected_kind="resampling_prefix_schedule")
     freeze = _load_direct_scientific_parent(_mapping_ref(analysis_freeze_ref), run_root=run_root, field="analysis_freeze_ref", expected_kind="resampling_analysis_freeze")
@@ -87,36 +88,52 @@ def framed_unblind_permit(
         key[:] = b"\x00" * len(key)
 
 
+@dataclass(frozen=True, slots=True)
+class UnblindResult:
+    receipt_ref: ArtifactRef
+    rows: tuple[dict[str, object], ...]
+
+
+def _validated_permit(
+    handle: UnblindSecretHandle, *, run_root: Path, manifest_ref: ArtifactRef,
+    schedule_ref: ArtifactRef, prefix_index_ref: ArtifactRef, ledger_ref: ArtifactRef,
+    projection_ref: ArtifactRef, freeze_ref: ArtifactRef, expected_task_count: int,
+) -> tuple[str, Mapping[str, object], Mapping[str, object]]:
+    """Validate all non-clear parents and consume exactly one unblind handle."""
+    manifest = _load_direct_scientific_parent(_mapping_ref(manifest_ref), run_root=run_root, field="manifest_ref", expected_kind="resampling_study_manifest")
+    schedule = _load_direct_scientific_parent(_mapping_ref(schedule_ref), run_root=run_root, field="schedule_ref", expected_kind="resampling_prefix_schedule")
+    prefix = _load_direct_scientific_parent(_mapping_ref(prefix_index_ref), run_root=run_root, field="prefix_index_ref", expected_kind="resampling_prefix_receipt")
+    freeze = _load_direct_scientific_parent(_mapping_ref(freeze_ref), run_root=run_root, field="freeze_ref", expected_kind="resampling_analysis_freeze")
+    projection = _load_direct_scientific_parent(_mapping_ref(projection_ref), run_root=run_root, field="projection_ref", expected_kind="resampling_blinded_projection")
+    schedule_payload = cast(Mapping[str, object], schedule.value["payload"])
+    projection_payload = cast(Mapping[str, object], projection.value["payload"])
+    if schedule_payload.get("manifest_ref") != _mapping_ref(manifest_ref) or cast(Mapping[str, object], prefix.value["payload"]).get("schedule_ref") != _mapping_ref(schedule_ref) or projection_payload.get("schedule_ref") != _mapping_ref(schedule_ref) or projection_payload.get("analysis_freeze_ref") != _mapping_ref(freeze_ref) or projection_payload.get("expected_task_count") != expected_task_count or projection_payload.get("complete") is not True:
+        raise RecordValidationError("unblind context ancestry is incomplete")
+    _require_handle_binding(handle, manifest_ref, schedule_ref, run_root=run_root, purpose="unblind")
+    master, key = bytearray(32), bytearray(32)
+    try:
+        _read_exact_master_into(handle, master)
+        if commitment_sha256("assignment-master-key", str(manifest.value["study_id"]), BytesField(bytes(master))) != cast(Mapping[str, object], manifest.value["payload"])["assignment_master_key_commitment_sha256"]:
+            raise RecordValidationError("master commitment does not match manifest")
+        _derive_unblind_subkey_into(memoryview(master), str(manifest.value["study_id"]), manifest_ref, schedule_ref, key)
+        frame = kdf_frame("unblind-permit-v1", [TextField(str(manifest.value["study_id"])), BytesField(bytes.fromhex(manifest_ref.sha256)), BytesField(bytes.fromhex(schedule_ref.sha256)), BytesField(bytes.fromhex(prefix_index_ref.sha256)), BytesField(bytes.fromhex(ledger_ref.sha256)), BytesField(bytes.fromhex(projection_ref.sha256)), BytesField(bytes.fromhex(freeze_ref.sha256)), TextField(str(expected_task_count))])
+        return hmac.new(key, frame, hashlib.sha256).hexdigest(), projection_payload, manifest.value
+    finally:
+        master[:] = b"\x00" * len(master)
+        key[:] = b"\x00" * len(key)
+
+
 def issue_unblind_permit(
     handle: UnblindSecretHandle, *, run_root: Path, manifest_ref: ArtifactRef,
     schedule_ref: ArtifactRef, prefix_index_ref: ArtifactRef, ledger_ref: ArtifactRef,
     projection_ref: ArtifactRef, freeze_ref: ArtifactRef, expected_task_count: int,
 ) -> str:
     """Issue a one-use permit after independently validating public ancestry."""
-    manifest = _load_direct_scientific_parent(_mapping_ref(manifest_ref), run_root=run_root, field="manifest_ref", expected_kind="resampling_study_manifest")
-    schedule = _load_direct_scientific_parent(_mapping_ref(schedule_ref), run_root=run_root, field="schedule_ref", expected_kind="resampling_prefix_schedule")
-    prefix = _load_direct_scientific_parent(_mapping_ref(prefix_index_ref), run_root=run_root, field="prefix_index_ref", expected_kind="resampling_prefix_receipt")
-    freeze = _load_direct_scientific_parent(_mapping_ref(freeze_ref), run_root=run_root, field="freeze_ref", expected_kind="resampling_analysis_freeze")
-    projection = _load_direct_scientific_parent(_mapping_ref(projection_ref), run_root=run_root, field="projection_ref", expected_kind="resampling_blinded_projection")
-    if cast(Mapping[str, object], schedule.value["payload"]).get("manifest_ref") != _mapping_ref(manifest_ref) or cast(Mapping[str, object], prefix.value["payload"]).get("schedule_ref") != _mapping_ref(schedule_ref):
-        raise RecordValidationError("unblind public ancestry does not match")
-    projection_payload = cast(Mapping[str, object], projection.value["payload"])
-    if projection_payload.get("analysis_freeze_ref") != _mapping_ref(freeze_ref) or projection_payload.get("schedule_ref") != _mapping_ref(schedule_ref) or projection_payload.get("expected_task_count") != expected_task_count or projection_payload.get("complete") is not True:
-        raise RecordValidationError("unblind projection context is incomplete")
-    _require_handle_binding(handle, manifest_ref, schedule_ref, run_root=run_root, purpose="unblind")
-    master = bytearray(32)
-    key = bytearray(32)
-    try:
-        _read_exact_master_into(handle, master)
-        expected = cast(Mapping[str, object], manifest.value["payload"])["assignment_master_key_commitment_sha256"]
-        if commitment_sha256("assignment-master-key", str(manifest.value["study_id"]), BytesField(bytes(master))) != expected:
-            raise RecordValidationError("master commitment does not match manifest")
-        _derive_unblind_subkey_into(memoryview(master), str(manifest.value["study_id"]), manifest_ref, schedule_ref, key)
-        frame = kdf_frame("unblind-permit-v1", [TextField(str(manifest.value["study_id"])), BytesField(bytes.fromhex(manifest_ref.sha256)), BytesField(bytes.fromhex(schedule_ref.sha256)), BytesField(bytes.fromhex(prefix_index_ref.sha256)), BytesField(bytes.fromhex(ledger_ref.sha256)), BytesField(bytes.fromhex(projection_ref.sha256)), BytesField(bytes.fromhex(freeze_ref.sha256)), TextField(str(expected_task_count))])
-        return hmac.new(key, frame, hashlib.sha256).hexdigest()
-    finally:
-        master[:] = b"\x00" * len(master)
-        key[:] = b"\x00" * len(key)
+    permit, _projection, _manifest = _validated_permit(handle, run_root=run_root, manifest_ref=manifest_ref, schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref, ledger_ref=ledger_ref, projection_ref=projection_ref, freeze_ref=freeze_ref, expected_task_count=expected_task_count)
+    ledger = _load_direct_scientific_parent(_mapping_ref(ledger_ref), run_root=run_root, field="ledger_ref", expected_kind="resampling_assignment_ledger")
+    if cast(Mapping[str, object], ledger.value["payload"]).get("manifest_ref") != _mapping_ref(manifest_ref) or cast(Mapping[str, object], ledger.value["payload"]).get("schedule_ref") != _mapping_ref(schedule_ref):
+        raise RecordValidationError("ledger does not descend from permit context")
+    return permit
 
 
 def unblind_projection(
@@ -124,14 +141,20 @@ def unblind_projection(
     receipt_destination: Path, manifest_ref: ArtifactRef, schedule_ref: ArtifactRef,
     prefix_index_ref: ArtifactRef, ledger_ref: ArtifactRef, projection_ref: ArtifactRef,
     freeze_ref: ArtifactRef, expected_task_count: int,
-) -> ArtifactRef:
+) -> UnblindResult:
     """Verify a permit before loading the clear ledger and publish first receipt."""
-    if any(document.value["record_kind"] == "resampling_unblind_receipt" for document in _scientific_documents(run_root, excluded=set()).values()):
-        raise FileExistsError("an unblind receipt already exists")
     # This consumes the independently minted handle before any clear-ledger read.
-    actual = framed_unblind_permit(handle, study_id=_load_direct_scientific_parent(_mapping_ref(manifest_ref), run_root=run_root, field="manifest_ref", expected_kind="resampling_study_manifest").value["study_id"], manifest_ref=manifest_ref, schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref, ledger_ref=ledger_ref, projection_ref=projection_ref, freeze_ref=freeze_ref, expected_task_count=expected_task_count)
+    actual, projection_payload, manifest = _validated_permit(handle, run_root=run_root, manifest_ref=manifest_ref, schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref, ledger_ref=ledger_ref, projection_ref=projection_ref, freeze_ref=freeze_ref, expected_task_count=expected_task_count)
     if not hmac.compare_digest(actual, permit_hmac_sha256):
         raise RecordValidationError("unblind permit MAC does not match")
     ledger = _load_direct_scientific_parent(_mapping_ref(ledger_ref), run_root=run_root, field="ledger_ref", expected_kind="resampling_assignment_ledger")
+    arms = {row["task_id"]: dict(row["slot_arms"]) for row in cast(list[Mapping[str, object]], cast(Mapping[str, object], ledger.value["payload"])["assignments"])}
+    clear_rows = []
+    for row in cast(list[Mapping[str, object]], projection_payload["rows"]):
+        slot_arms = arms.get(cast(str, row["task_id"]))
+        if slot_arms is None:
+            raise RecordValidationError("ledger does not cover blinded projection")
+        clear_rows.append({**dict(row), "slots": [{**dict(slot), "arm": slot_arms[slot["slot_id"]]} for slot in cast(list[Mapping[str, object]], row["slots"])]})
     record = {"record_kind": "resampling_unblind_receipt", "schema_version": "0.1.0", "study_id": ledger.value["study_id"], "frozen_created_at": ledger.value["frozen_created_at"], "provenance": ledger.value["provenance"], "payload": {"projection_ref": _mapping_ref(projection_ref), "assignment_ledger_ref": _mapping_ref(ledger_ref), "analysis_freeze_ref": _mapping_ref(freeze_ref), "expected_task_count": expected_task_count, "permit_hmac_sha256": actual}}
-    return write_record(receipt_destination, record, run_root=run_root, role="unblind_receipt")
+    receipt = write_record(receipt_destination, record, run_root=run_root, role="unblind_receipt")
+    return UnblindResult(receipt_ref=receipt, rows=tuple(clear_rows))
