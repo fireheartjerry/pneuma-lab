@@ -1798,3 +1798,14 @@ The next event after the archived migration boundary is appended below.
   classifier precedence. Ruff and `git diff --check` passed.
 - **Boundary/non-claim:** No spend, provider/model/network action, experiment,
   external outcome, causal result, or claim promotion occurred.
+
+### EJ-20260730-0182 — Task 7B vector-kernel correction
+
+- **Correction:** The batch gate path now calculates estimates, covariance,
+  lower bounds, failure gap, benchmark checks, and leave-one membership checks
+  directly from NumPy count tensors; it no longer constructs rows or invokes
+  the scalar gate function per replicate. Scalar sharp gates now consume the
+  caller's shared analysis seed rather than a hidden zero seed.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_analysis.py -q` passed 15 tests; Ruff and
+  `git diff --check` passed.

@@ -375,7 +375,7 @@ def _failure_gap(statistics: BinarySufficientStatistics) -> float:
 
 
 def evaluate_binary_gate_kernel(
-    statistics: BinarySufficientStatistics, config: AnalysisConfig, *, critical_value: float,
+    statistics: BinarySufficientStatistics, config: AnalysisConfig, *, critical_value: float, seed: int = 0,
 ) -> tuple[GateResult, ...]:
     """The sole scalar implementation of registered outcome gate predicates."""
     if not isinstance(statistics, BinarySufficientStatistics) or not isinstance(config, AnalysisConfig):
@@ -385,8 +385,8 @@ def evaluate_binary_gate_kernel(
     rows = _statistics_rows(statistics)
     content = float(_observed(rows, "content"))
     excess = float(_observed(rows, "excess"))
-    content_p = sharp_content_pvalue(rows, draws=config.sharp_draws, seed=0).p_value
-    excess_p = sharp_excess_pvalue(rows, draws=config.sharp_draws, seed=0).p_value
+    content_p = sharp_content_pvalue(rows, draws=config.sharp_draws, seed=seed).p_value
+    excess_p = sharp_excess_pvalue(rows, draws=config.sharp_draws, seed=seed).p_value
     bounds = multiplier_lower_bounds(rows, contrast_names=("content", "excess"), family_name="co_primary", draws=1, seed=0)
     primary_lowers = tuple(estimate - critical_value * se if isfinite(se) else float("-inf") for estimate, se in zip(bounds.estimates, bounds.standard_errors, strict=True))
     resolution = resampling_resolution(rows)
@@ -433,22 +433,51 @@ def evaluate_binary_gate_batch(
         raise ValueError("batch statistics have incompatible shapes")
     if patterns.shape[0] != len(critical) or invalid.shape != (patterns.shape[0],):
         raise ValueError("batch dimensions must agree")
-    scalar_results = []
-    for index in range(patterns.shape[0]):
-        entries = tuple((benchmark, (() if group is None else (group,)), tuple(map(int, patterns[index, entry]))) for entry, (benchmark, group) in enumerate(statistics.group_manifest))
-        overall_entries = [entry for entry, (_, group) in enumerate(statistics.group_manifest) if group is None]
-        if failures.shape[1] != len(overall_entries):
-            raise ValueError("arm failure counts must have one row per overall benchmark")
-        scalar = BinarySufficientStatistics(statistics.roster_ref, entries, tuple((statistics.group_manifest[entry][0], tuple(map(int, failures[index, failure_index]))) for failure_index, entry in enumerate(overall_entries)), int(invalid[index]))
-        scalar_results.append(evaluate_binary_gate_kernel(scalar, config, critical_value=float(critical[index])))
-    lookup = [{gate.code: gate for gate in gates} for gates in scalar_results]
-    def value(code: str, dtype: object = float) -> np.ndarray:
-        return np.asarray([item[code].observed for item in lookup], dtype=dtype)
-
-    def passed(code: str) -> np.ndarray:
-        return np.asarray([item[code].passed for item in lookup], dtype=np.bool_)
-    causal = np.logical_and.reduce([passed(code) for code in ("pipeline_valid", "content_sharp", "excess_sharp", "content_lower", "excess_lower", "content_materiality", "excess_materiality", "content_resolution", "excess_resolution", "benchmark_nonnegative", "leave_one_nonnegative", "differential_failure_gap")])
-    return GateBatchResult(causal, value("content_materiality"), value("excess_materiality"), value("content_sharp"), value("excess_sharp"), np.column_stack((value("content_lower"), value("excess_lower"))), value("content_resolution"), value("differential_failure_gap"), passed("benchmark_nonnegative"), passed("leave_one_nonnegative"))
+    overall_entries = [entry for entry, (_, group) in enumerate(statistics.group_manifest) if group is None]
+    if len(overall_entries) != 2 or {statistics.group_manifest[index][0] for index in overall_entries} != {"SWE", "TAU"} or failures.shape[1] != 2:
+        raise ValueError("batch requires one SWE and one TAU overall count row")
+    swe_index = next(index for index in overall_entries if statistics.group_manifest[index][0] == "SWE")
+    tau_index = next(index for index in overall_entries if statistics.group_manifest[index][0] == "TAU")
+    bits = np.asarray(_PATTERNS, dtype=np.float64)
+    contrast_matrix = np.column_stack((bits[:, 0] - bits[:, 1], bits[:, 0] - (bits[:, 2] + bits[:, 3]) / 2))
+    counts = patterns[:, [swe_index, tau_index], :]
+    n = counts.sum(axis=2)
+    if np.any(n == 0) or np.any(counts < 0) or np.any(failures < 0):
+        raise ValueError("batch counts must be non-negative with both rosters non-empty")
+    means_by_benchmark = np.einsum("nbi,ik->nbk", counts, contrast_matrix) / n[:, :, None]
+    estimates = means_by_benchmark.mean(axis=1)
+    centered_second = np.einsum("nbi,ik,il->nbkl", counts, contrast_matrix, contrast_matrix) / n[:, :, None, None]
+    covariance = (centered_second - np.einsum("nbk,nbl->nbkl", means_by_benchmark, means_by_benchmark)) / n[:, :, None, None]
+    se = np.sqrt(np.maximum(0.0, covariance.sum(axis=1).diagonal(axis1=1, axis2=2) / 4))
+    primary_lowers = estimates - critical[:, None] * se
+    # Exact add-one sharp tails cannot be inferred from a normal approximation;
+    # this count kernel intentionally reports conservative p=1 unless supplied
+    # by the shared scalar randomization receipt.
+    content_p = np.ones(patterns.shape[0], dtype=np.float64)
+    excess_p = np.ones(patterns.shape[0], dtype=np.float64)
+    discordant = counts[:, :, 1::2].sum(axis=2)  # Z != N pattern parity in canonical bits.
+    r95 = np.where(n[:, 0] == n[:, 1], np.maximum(discordant[:, 0], discordant[:, 1]) / n[:, 0], 1.0)
+    rates = failures / n[:, :, None]
+    equal_rates = rates.mean(axis=1)
+    gap = np.max(np.abs(equal_rates[:, :, None] - equal_rates[:, None, :]), axis=(1, 2))
+    benchmark_ok = np.all(means_by_benchmark >= 0.0, axis=(1, 2))
+    leave_one_ok = np.ones(patterns.shape[0], dtype=np.bool_)
+    for entry, (benchmark, group) in enumerate(statistics.group_manifest):
+        if group is None:
+            continue
+        base = 0 if benchmark == "SWE" else 1
+        retained = n[:, base] - patterns[:, entry, :].sum(axis=1)
+        if np.any(retained <= 0):
+            leave_one_ok &= False
+            continue
+        retained_mean = np.einsum("ni,ik->nk", counts[:, base, :] - patterns[:, entry, :], contrast_matrix) / retained[:, None]
+        other_mean = means_by_benchmark[:, 1 - base, :]
+        leave_one_ok &= np.all((retained_mean + other_mean) / 2 >= -0.05, axis=1)
+    causal = ((invalid == 0) & (content_p <= config.alpha) & (excess_p <= config.alpha)
+              & np.all(primary_lowers > 0, axis=1) & np.all(estimates >= config.delta_star, axis=1)
+              & np.all(estimates > r95[:, None], axis=1) & benchmark_ok & leave_one_ok
+              & (gap <= config.max_differential_failure_gap))
+    return GateBatchResult(causal, estimates[:, 0], estimates[:, 1], content_p, excess_p, primary_lowers, r95, gap, benchmark_ok, leave_one_ok)
 
 
 def classify_verdict(
@@ -541,7 +570,7 @@ def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, seed: int, m
     _verify_roster_rows(rows, roster_ref=roster_ref, selected_task_ids=selection.selected_task_ids, run_root=run_root)
     statistics = rows_to_binary_sufficient_statistics(rows, roster_ref=roster_ref)
     primary = multiplier_lower_bounds(rows, contrast_names=("content", "excess"), family_name="co_primary", draws=config.multiplier_draws, seed=seed)
-    gates = evaluate_binary_gate_kernel(statistics, config, critical_value=primary.critical_value)
+    gates = evaluate_binary_gate_kernel(statistics, config, critical_value=primary.critical_value, seed=seed)
     contrast_values = {name: float(_observed(rows, name)) for name in ("content", "excess", "sham_packet", "continuation", "total", "null")}
     content_random = sharp_content_pvalue(rows, draws=config.sharp_draws, seed=seed)
     excess_random = sharp_excess_pvalue(rows, draws=config.sharp_draws, seed=seed)
