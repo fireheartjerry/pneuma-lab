@@ -1957,3 +1957,23 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** Production remains unrun and requires the complete
   frozen grid. The fixture escape hatch is synthetic-only and cannot mint a
   selection, final report, tier, result, or claim.
+
+### EJ-20260730-0192 — Task 8B hostile receipt repair
+
+- **Implementation:** Replaced the eight-leaf sample frontier with a replayable
+  receipt that commits every bounded chunk's ordinal range, dataset/pass totals,
+  and Merkle root, plus the full aggregate root and exact Task-7 totals. Shard
+  results now execute exactly one frozen family (`alternative`, `null_both`,
+  `null_content`, or `null_excess`) rather than duplicating alternative totals
+  into a null field. The joint layout derives from manifest benchmark/group
+  labels; task-ID spelling is no longer treated as an experimental covariate.
+  Pre-write authority closure/generation identity checks and a measured
+  non-constant screen timing receipt were also added.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power.py tests/resampling_null/test_power_authority.py -q`
+  passed 20 tests after the red receipt-coverage test. `git diff --check` and
+  byte compilation were run in the same slice.
+- **Boundary/non-claim:** Gaussian validation remains unaccepted: it still
+  needs fresh 2,000-outcome validation-domain runs, a true full-multiplier
+  fallback producer/finalizer, and complete end-to-end closure tests. No P0
+  outcome, type-I bound, tier selection, provider action, or spend occurred.

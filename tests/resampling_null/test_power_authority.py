@@ -341,6 +341,7 @@ def test_shard_records_replay_receipts_and_task7_gate_totals_not_static_binomial
     cell = payload["cell_results"][0]
 
     assert "replay_receipt" in cell
-    assert cell["alternative_gate_totals"]["dataset_count"] == 2
-    assert cell["null_gate_totals"]["dataset_count"] == 2
+    assert cell["family"] == "alternative"
+    assert cell["gate_totals"]["dataset_count"] == 2
+    assert cell["replay_receipt"]["aggregate_gate_totals"] == cell["gate_totals"]
     assert "alternative_pass_count" not in cell

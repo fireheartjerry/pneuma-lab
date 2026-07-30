@@ -12,6 +12,7 @@ import hashlib
 from math import erf, exp, lgamma, log, pi, sqrt
 from pathlib import Path
 from statistics import NormalDist
+from time import perf_counter
 from typing import Literal, cast
 
 import numpy as np
@@ -283,15 +284,16 @@ def merkle_root(leaves: tuple[str, ...]) -> str:
 
 
 def replay_pattern_chunk(cell: PowerCell, *, authority: PowerAuthority, grid_digest: str, phase: str,
-                         roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]], start: int, count: int) -> tuple[tuple[BenchmarkPatternCounts, BenchmarkPatternCounts], ...]:
+                         roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]], start: int, count: int,
+                         draw_domain: Literal["screen", "grid", "validation"] = "grid") -> tuple[tuple[BenchmarkPatternCounts, BenchmarkPatternCounts], ...]:
     """Regenerate a bounded count-tensor chunk from per-replicate Philox identities."""
     if type(start) is not int or type(count) is not int or start < 0 or not 0 < count <= 256:
         raise RecordValidationError("replay chunks must be bounded to 1..256 exact replicates")
     result = []
     for replicate in range(start, start + count):
         result.append((
-            simulate_benchmark_pattern_counts(p0=cell.swe.p0, gamma=cell.swe.trigger_rate, rho=cell.swe.rho, family=cell.family, task_count=sum(roster_group_sizes[0]), authority_kind=authority.authority_kind, tier_membership_sha256=authority.tier_membership_sha256, grid_content_digest=grid_digest, phase=phase, cell_id=cell.cell_id, replicate_index=replicate, joint_group_sizes=roster_group_sizes[0]),
-            simulate_benchmark_pattern_counts(p0=cell.tau.p0, gamma=cell.tau.trigger_rate, rho=cell.tau.rho, family=cell.family, task_count=sum(roster_group_sizes[1]), authority_kind=authority.authority_kind, tier_membership_sha256=authority.tier_membership_sha256, grid_content_digest=grid_digest, phase=phase, cell_id=cell.cell_id, replicate_index=replicate, joint_group_sizes=roster_group_sizes[1]),
+            simulate_benchmark_pattern_counts(p0=cell.swe.p0, gamma=cell.swe.trigger_rate, rho=cell.swe.rho, family=cell.family, task_count=sum(roster_group_sizes[0]), authority_kind=authority.authority_kind, tier_membership_sha256=authority.tier_membership_sha256, grid_content_digest=grid_digest, phase=phase, cell_id=cell.cell_id, replicate_index=replicate, joint_group_sizes=roster_group_sizes[0], draw_domain=draw_domain),
+            simulate_benchmark_pattern_counts(p0=cell.tau.p0, gamma=cell.tau.trigger_rate, rho=cell.tau.rho, family=cell.family, task_count=sum(roster_group_sizes[1]), authority_kind=authority.authority_kind, tier_membership_sha256=authority.tier_membership_sha256, grid_content_digest=grid_digest, phase=phase, cell_id=cell.cell_id, replicate_index=replicate, joint_group_sizes=roster_group_sizes[1], draw_domain=draw_domain),
         ))
     return tuple(result)
 
@@ -941,18 +943,51 @@ def _authority_attempt_refs(config: PowerConfig, *, run_root: Path) -> tuple[Art
     return tuple(_artifact_ref_for_path(document.path, root, "power_report", "application/json") for document in reports)
 
 
+def _assert_power_write_open(config: PowerConfig, *, run_root: Path, stage: str,
+                             phase: str | None = None, generation: int | None = None,
+                             shard_index: int | None = None) -> None:
+    """Global pre-write ledger guard; finals close an authority before mutation."""
+    root = Path(run_root)
+    authority = _ref_mapping(config.authority_ref)
+    matches: list[Mapping[str, object]] = []
+    for document in _scientific_documents(root, excluded=tuple((root / "inputs").rglob("*.json"))).values():
+        if document.value.get("record_kind") != "resampling_power_report":
+            continue
+        payload = cast(Mapping[str, object], document.value["payload"])
+        if payload.get("authority_ref") == authority:
+            matches.append(payload)
+    if any(payload.get("stage") == "final" for payload in matches):
+        raise RecordValidationError("power authority is closed by a final report")
+    if phase is not None and generation is not None:
+        same = [payload for payload in matches if payload.get("stage") == stage and payload.get("phase") == phase and payload.get("generation") == generation]
+        if any(payload.get("shard_index") == shard_index for payload in same):
+            raise RecordValidationError("power attempt identity already exists; overwrite/repartition is forbidden")
+    if stage == "screen" and phase is not None and generation is not None:
+        existing = [cast(int, payload["generation"]) for payload in matches if payload.get("stage") == "screen" and payload.get("phase") == phase]
+        if generation != (max(existing) + 1 if existing else 0):
+            raise RecordValidationError("power screen generation must be the next immutable generation")
+
+
 def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approximation", "full_multiplier_fallback"], generation: int, shard_count: int, fallback_trigger_ref: ArtifactRef | None, run_root: Path, out: Path) -> ArtifactRef:
     """Seal immutable topology/timing before any shard can execute."""
     if type(generation) is not int or generation < 0 or type(shard_count) is not int or shard_count <= 0:
         raise RecordValidationError("power screen generation and shard_count must be nonnegative/positive integers")
+    _assert_power_write_open(config, run_root=run_root, stage="screen", phase=phase, generation=generation)
     if (phase == "gaussian_approximation") != (fallback_trigger_ref is None):
         raise RecordValidationError("Gaussian screens forbid and fallback screens require a failed validation trigger")
     grid = _load_power_grid(config.grid_ref, run_root=run_root)
-    # conservative declared CPU accounting; never conceal an over-12h plan.
-    # The topology receipt is an execution-capacity projection, not a count of
-    # datasets.  A local deterministic simulator uses one vectorized batch;
-    # the frozen production topology declares the bounded wall-clock receipt.
-    projected = 1
+    # Measure the registered 200-dataset screen kernel and extrapolate its
+    # observed per-cell time to the full immutable grid.  `1` was a lie.
+    started = perf_counter()
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    _gate_totals_for_cell(frozen_power_cells()[0], authority=authority,
+        digest=grid_content_sha256(config.grid_ref, run_root=run_root), phase=phase,
+        roster_group_sizes=_roster_group_sizes(authority, run_root=run_root),
+        dataset_count=grid.screen_datasets_per_cell, draw_domain="screen")
+    elapsed = perf_counter() - started
+    # The receipt is a measured screen-kernel projection over the declared
+    # shard topology; it is never the previous fabricated constant `1`.
+    projected = max(2, int(np.ceil(elapsed * shard_count)))
     if projected > grid.max_projected_wall_seconds:
         raise RecordValidationError("screen projection exceeds frozen 12-hour wall-clock cap")
     kernel = "power-screen-gaussian-v1" if phase == "gaussian_approximation" else "power-screen-full-multiplier-v1"
@@ -977,30 +1012,47 @@ def _same_config(payload: Mapping[str, object], config: PowerConfig, *, run_root
 
 
 def _roster_group_sizes(authority: PowerAuthority, *, run_root: Path) -> tuple[tuple[int, ...], tuple[int, ...]]:
-    """Return the manifest-bound benchmark roster sizes; P0 never invents rows."""
-    rows = _roster_rows(_load_roster(authority.roster_ref, run_root=run_root))
-    counts = {"SWE": 0, "TAU": 0}
-    for task_id in rows:
-        benchmark = task_id.split("-", 1)[0].upper()
-        if benchmark in counts:
-            counts[benchmark] += 1
-    if any(counts[name] != 20 for name in ("SWE", "TAU")):
+    """Derive exact joint sensitivity cells from roster benchmark/group fields.
+
+    Task identifiers are opaque identifiers, not a covert experimental layout.
+    Group order is canonicalized so a roster reordering cannot alter a draw.
+    """
+    roster = _load_roster(authority.roster_ref, run_root=run_root)
+    cells: dict[str, dict[tuple[tuple[str, str], ...], int]] = {"SWE": {}, "TAU": {}}
+    for index, value in enumerate(cast(list[object], roster["tasks"])):
+        task = closed_mapping(value, fields={"task_id", "benchmark", "stratum", "lineage", "groups", "tiers"}, field=f"power roster task[{index}]")
+        benchmark = task["benchmark"]
+        if benchmark not in cells:
+            raise RecordValidationError("P0 roster must contain only SWE and TAU benchmarks")
+        groups = task["groups"]
+        if not isinstance(groups, list):
+            raise RecordValidationError("P0 roster groups must be arrays")
+        key = tuple(sorted(
+            (cast(str, closed_mapping(group, fields={"kind", "value"}, field="power roster group")["kind"]),
+             cast(str, closed_mapping(group, fields={"kind", "value"}, field="power roster group")["value"]))
+            for group in groups
+        ))
+        cells[cast(str, benchmark)][key] = cells[cast(str, benchmark)].get(key, 0) + 1
+    if any(sum(cells[name].values()) != 20 for name in ("SWE", "TAU")):
         raise RecordValidationError("P0 execution requires exactly n=20 manifest tasks per benchmark")
-    return ((counts["SWE"],), (counts["TAU"],))
+    return (tuple(cells["SWE"][key] for key in sorted(cells["SWE"])),
+            tuple(cells["TAU"][key] for key in sorted(cells["TAU"])))
 
 
 def _gate_totals_for_cell(
     cell: PowerCell, *, authority: PowerAuthority, digest: str, phase: str,
     roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]], dataset_count: int,
+    draw_domain: Literal["screen", "grid", "validation"] = "grid", critical_value: float = 1.96,
 ) -> tuple[dict[str, int], dict[str, object]]:
     """Evaluate bounded real count tensors and retain only aggregate gate totals."""
     chunk_size = 128
     causal_count = 0
     leaves: list[str] = []
+    chunks: list[dict[str, object]] = []
     for start in range(0, dataset_count, chunk_size):
         count = min(chunk_size, dataset_count - start)
         rows = replay_pattern_chunk(cell, authority=authority, grid_digest=digest, phase=phase,
-                                    roster_group_sizes=roster_group_sizes, start=start, count=count)
+                                    roster_group_sizes=roster_group_sizes, start=start, count=count, draw_domain=draw_domain)
         patterns = np.asarray([[swe.pattern_counts, tau.pattern_counts] for swe, tau in rows], dtype=np.int64)
         gate = evaluate_binary_gate_batch(
             BinarySufficientStatisticsBatch(
@@ -1008,19 +1060,51 @@ def _gate_totals_for_cell(
                 pattern_counts=patterns, arm_failure_counts=np.zeros((count, 2, 4), dtype=np.int64),
                 pipeline_invalid_counts=np.zeros(count, dtype=np.int64),
             ),
-            AnalysisConfig(), critical_values=np.full(count, 1.96),
+            AnalysisConfig(), critical_values=np.full(count, critical_value),
         )
-        causal_count += int(np.count_nonzero(gate.causal_pass))
-        leaves.extend(hashlib.sha256((pattern_count_digest(swe) + pattern_count_digest(tau)).encode("ascii")).hexdigest()
-                      for swe, tau in rows)
-    receipt = power_replay_receipt(
-        cell, authority=authority, grid_digest=digest, phase=phase,
-        roster_group_sizes=roster_group_sizes, dataset_count=dataset_count,
-        replay_start=0, replay_count=min(8, dataset_count),
-    )
-    receipt["full_merkle_root_sha256"] = merkle_root(tuple(leaves))
-    receipt["chunk_size"] = chunk_size
-    return {"dataset_count": dataset_count, "causal_pass_count": causal_count}, receipt
+        chunk_passes = int(np.count_nonzero(gate.causal_pass))
+        causal_count += chunk_passes
+        chunk_leaves = tuple(hashlib.sha256((pattern_count_digest(swe) + pattern_count_digest(tau)).encode("ascii")).hexdigest()
+                             for swe, tau in rows)
+        leaves.extend(chunk_leaves)
+        chunks.append({"start": start, "dataset_count": count, "causal_pass_count": chunk_passes,
+                       "merkle_root_sha256": merkle_root(chunk_leaves)})
+    totals = {"dataset_count": dataset_count, "causal_pass_count": causal_count}
+    layout = hashlib.sha256(canonical_json_bytes({"SWE": list(roster_group_sizes[0]), "TAU": list(roster_group_sizes[1])}, indent=None)).hexdigest()
+    receipt: dict[str, object] = {
+        "contract_id": "p0-count-replay-merkle-v2", "cell_id": cell.cell_id,
+        "authority_kind": authority.authority_kind, "tier_membership_sha256": authority.tier_membership_sha256,
+        "grid_content_sha256": digest, "phase": phase, "draw_domain": draw_domain, "critical_value": critical_value, "dataset_count": dataset_count,
+        "group_layout_sha256": layout, "chunk_size": chunk_size, "chunk_count": len(chunks),
+        "chunks": chunks, "full_merkle_root_sha256": merkle_root(tuple(leaves)),
+        "aggregate_gate_totals": totals,
+    }
+    return totals, receipt
+
+
+def validate_power_execution_receipt(result: Mapping[str, object], *, authority: PowerAuthority,
+                                     grid_digest: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]]) -> None:
+    """Replay every committed chunk and bind it to the persisted aggregate.
+
+    This is intentionally expensive: a receipt that cannot be recomputed is a
+    label, not evidence.
+    """
+    cell_id = result.get("cell_id")
+    cell = next((candidate for candidate in frozen_power_cells() if candidate.cell_id == cell_id), None)
+    if cell is None or result.get("family") != cell.family:
+        raise RecordValidationError("power shard result does not name a frozen cell family")
+    receipt = cast(Mapping[str, object], result.get("replay_receipt"))
+    if not isinstance(receipt, Mapping) or receipt.get("cell_id") != cell_id:
+        raise RecordValidationError("power shard receipt does not bind its cell")
+    domain = cast(Literal["screen", "grid", "validation"], receipt.get("draw_domain", "grid"))
+    critical = receipt.get("critical_value", 1.96)
+    if domain not in {"screen", "grid", "validation"} or type(critical) not in (int, float):
+        raise RecordValidationError("power shard receipt has invalid draw contract")
+    expected_totals, expected = _gate_totals_for_cell(cell, authority=authority, digest=grid_digest,
+        phase=cast(str, receipt.get("phase")), roster_group_sizes=roster_group_sizes,
+        dataset_count=cast(int, receipt.get("dataset_count")), draw_domain=domain, critical_value=float(critical))
+    if expected != dict(receipt) or expected_totals != result.get("gate_totals"):
+        raise RecordValidationError("power shard replay receipt or aggregate totals differ from regenerated tensors")
 
 
 def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_index: int, run_root: Path, out: Path,
@@ -1031,6 +1115,7 @@ def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_
     explicitly incomplete, and merge consumers reject it as authority.
     """
     screen = _report(screen_ref, run_root=run_root, stage="screen")
+    _assert_power_write_open(config, run_root=run_root, stage="shard", phase=cast(str, screen["phase"]), generation=cast(int, screen["generation"]), shard_index=shard_index)
     _same_config(screen, config, run_root=run_root)
     count = cast(int, screen["shard_count"])
     if type(shard_index) is not int or not 0 <= shard_index < count:
@@ -1057,8 +1142,8 @@ def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_
                                                 roster_group_sizes=roster_group_sizes, dataset_count=dataset_count)
         # A P0 family is evaluated by the same Task-7 gate; there is no second
         # static-binomial simulator hiding behind a convenient field name.
-        results.append({"cell_id": cell.cell_id, "alternative_gate_totals": totals,
-                        "null_gate_totals": totals, "replay_receipt": receipt})
+        results.append({"cell_id": cell.cell_id, "family": cell.family,
+                        "gate_totals": totals, "replay_receipt": receipt})
     kernel = "power-grid-gaussian-v1" if phase == "gaussian_approximation" else "power-grid-full-multiplier-v1"
     payload = _record_base(config, phase=phase, generation=cast(int, screen["generation"]), kernel_id=kernel, shard_count=count, run_root=run_root)
     payload.update({"stage": "shard", "parent_refs": [_ref_mapping(screen_ref)], "shard_index": shard_index,
@@ -1084,14 +1169,15 @@ def _complete_shards(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...
 
 def select_validation_cells(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], config: PowerConfig, *, run_root: Path, out: Path) -> ArtifactRef:
     screen = _report(screen_ref, run_root=run_root, stage="screen")
+    _assert_power_write_open(config, run_root=run_root, stage="selection", phase="gaussian_approximation", generation=cast(int, screen["generation"]))
     if screen["phase"] != "gaussian_approximation":
         raise RecordValidationError("fallback phase forbids validation selection")
     shards = _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
     results = [row for shard in shards for row in cast(list[Mapping[str, object]], shard["cell_results"])]
     alternative = [row for row in results if cast(str, row["cell_id"]).startswith("alternative:")]
     selected = sorted(alternative, key=lambda row: (
-        cast(int, cast(Mapping[str, object], row["alternative_gate_totals"])["causal_pass_count"])
-        / cast(int, cast(Mapping[str, object], row["alternative_gate_totals"])["dataset_count"]),
+        cast(int, cast(Mapping[str, object], row["gate_totals"])["causal_pass_count"])
+        / cast(int, cast(Mapping[str, object], row["gate_totals"])["dataset_count"]),
         cast(str, row["cell_id"]),
     ))[:5]
     payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-worst-five-selection-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
@@ -1101,6 +1187,7 @@ def select_validation_cells(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactR
 
 def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], selection_ref: ArtifactRef, config: PowerConfig, *, run_root: Path, out: Path) -> ArtifactRef:
     screen = _report(screen_ref, run_root=run_root, stage="screen")
+    _assert_power_write_open(config, run_root=run_root, stage="validation", phase="gaussian_approximation", generation=cast(int, screen["generation"]))
     selection = _report(selection_ref, run_root=run_root, stage="selection")
     shards = _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
     if selection["parent_refs"] != [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]]:
@@ -1111,12 +1198,13 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
     receipts = [{
         "cell_id": cell_id,
         "alternative_power_lower": clopper_pearson_lower(
-            cast(int, cast(Mapping[str, object], by_id[cell_id]["alternative_gate_totals"])["causal_pass_count"]),
-            cast(int, cast(Mapping[str, object], by_id[cell_id]["alternative_gate_totals"])["dataset_count"]), tail_probability=lower_tail,
+            cast(int, cast(Mapping[str, object], by_id[cell_id]["gate_totals"])["causal_pass_count"]),
+            cast(int, cast(Mapping[str, object], by_id[cell_id]["gate_totals"])["dataset_count"]), tail_probability=lower_tail,
         ),
         "null_false_positive_upper": clopper_pearson_upper(
-            cast(int, cast(Mapping[str, object], by_id[cell_id]["null_gate_totals"])["causal_pass_count"]),
-            cast(int, cast(Mapping[str, object], by_id[cell_id]["null_gate_totals"])["dataset_count"]), tail_probability=upper_tail,
+            max(cast(int, cast(Mapping[str, object], by_id[cell_id.replace("alternative", family, 1)]["gate_totals"])["causal_pass_count"])
+                for family in ("null_both", "null_content", "null_excess")),
+            cast(int, cast(Mapping[str, object], by_id[cell_id.replace("alternative", "null_both", 1)]["gate_totals"])["dataset_count"]), tail_probability=upper_tail,
         ),
     } for cell_id in cast(list[str], selection["selected_cells"])]
     payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-gaussian-vs-multiplier-validation-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)

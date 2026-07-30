@@ -26,6 +26,13 @@ The delivery remains `synthetic_validation` only. It has produced no external
 model call, benchmark outcome, paid inference, causal result, or promoted
 scientific claim.
 
+Task 8B's shard substrate is repaired: family-specific raw count simulations,
+full chunk/aggregate replay receipts, manifest-group layouts, and write-closure
+guards are committed. Do not treat the old validation record as evidence: fresh
+2,000-dataset validation-domain simulation, true 99,999-draw multiplier
+comparison/fallback, full-fallback finalization, and adversarial end-to-end
+closure tests remain required before any P0 result or feasibility statement.
+
 The fast test surface was deliberately compressed after implementation. The
 seven-case cold oracle and compact milestone tests are guardrails, not a
 substitute for the Task-10 isolated result-of-record and broader Linux

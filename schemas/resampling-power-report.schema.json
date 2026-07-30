@@ -286,14 +286,14 @@
             "type": "object",
             "required": [
                 "cell_id",
-                "alternative_gate_totals",
-                "null_gate_totals",
+                "family",
+                "gate_totals",
                 "replay_receipt"
             ],
             "properties": {
                 "cell_id": { "$ref": "#/$defs/nonempty" },
-                "alternative_gate_totals": { "$ref": "#/$defs/gate_totals" },
-                "null_gate_totals": { "$ref": "#/$defs/gate_totals" },
+                "family": { "enum": ["alternative", "null_both", "null_content", "null_excess"] },
+                "gate_totals": { "$ref": "#/$defs/gate_totals" },
                 "replay_receipt": { "$ref": "#/$defs/replay_receipt" }
             },
             "additionalProperties": false
@@ -312,24 +312,27 @@
             "required": [
                 "contract_id", "cell_id", "authority_kind", "tier_membership_sha256",
                 "grid_content_sha256", "phase", "dataset_count", "group_layout_sha256",
-                "replay_start", "replay_count", "leaf_sha256s", "merkle_root_sha256",
-                "full_merkle_root_sha256", "chunk_size"
+                "draw_domain", "critical_value", "chunk_size", "chunk_count", "chunks", "full_merkle_root_sha256",
+                "aggregate_gate_totals"
             ],
             "properties": {
-                "contract_id": { "const": "p0-count-replay-merkle-v1" },
+                "contract_id": { "const": "p0-count-replay-merkle-v2" },
                 "cell_id": { "$ref": "#/$defs/nonempty" },
                 "authority_kind": { "enum": ["synthetic_validation", "roster_bound_selection"] },
                 "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
                 "grid_content_sha256": { "$ref": "#/$defs/sha256" },
                 "phase": { "enum": ["gaussian_approximation", "full_multiplier_fallback"] },
+                "draw_domain": { "enum": ["screen", "grid", "validation"] },
+                "critical_value": { "type": "number", "minimum": 0 },
                 "dataset_count": { "type": "integer", "minimum": 1 },
                 "group_layout_sha256": { "$ref": "#/$defs/sha256" },
-                "replay_start": { "type": "integer", "minimum": 0 },
-                "replay_count": { "type": "integer", "minimum": 1, "maximum": 8 },
-                "leaf_sha256s": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "$ref": "#/$defs/sha256" } },
-                "merkle_root_sha256": { "$ref": "#/$defs/sha256" },
                 "full_merkle_root_sha256": { "$ref": "#/$defs/sha256" },
-                "chunk_size": { "type": "integer", "minimum": 1, "maximum": 256 }
+                "chunk_size": { "type": "integer", "minimum": 1, "maximum": 256 },
+                "chunk_count": { "type": "integer", "minimum": 1 },
+                "chunks": { "type": "array", "minItems": 1, "items": {
+                    "type": "object", "required": ["start", "dataset_count", "causal_pass_count", "merkle_root_sha256"],
+                    "properties": {"start": {"type": "integer", "minimum": 0}, "dataset_count": {"type": "integer", "minimum": 1}, "causal_pass_count": {"type": "integer", "minimum": 0}, "merkle_root_sha256": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false}},
+                "aggregate_gate_totals": { "$ref": "#/$defs/gate_totals" }
             },
             "additionalProperties": false
         },

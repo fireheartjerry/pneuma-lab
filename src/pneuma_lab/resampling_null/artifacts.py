@@ -894,34 +894,23 @@ def _validate_semantics(value: dict[str, object]) -> None:
             for index, result in enumerate(
                 cast(list[Mapping[str, object]], payload["cell_results"])
             ):
-                for arm in ("alternative_gate_totals", "null_gate_totals"):
-                    totals = result.get(arm)
-                    if not isinstance(totals, Mapping) or any(
-                        type(totals.get(field)) is not int
-                        for field in ("dataset_count", "causal_pass_count")
-                    ):
-                        raise RecordValidationError(
-                            f"power shard cell_results[{index}] {arm} must contain exact gate totals"
-                        )
-                    trials = cast(int, totals["dataset_count"])
-                    passed = cast(int, totals["causal_pass_count"])
-                    if trials != dataset_count or not 0 <= passed <= trials:
-                        raise RecordValidationError(
-                            f"power shard cell_results[{index}] {arm} is not bounded by shard dataset_count"
-                        )
+                totals = result.get("gate_totals")
+                if not isinstance(totals, Mapping) or any(type(totals.get(field)) is not int for field in ("dataset_count", "causal_pass_count")):
+                    raise RecordValidationError(f"power shard cell_results[{index}] must contain exact family gate totals")
+                trials, passed = cast(int, totals["dataset_count"]), cast(int, totals["causal_pass_count"])
+                if trials != dataset_count or not 0 <= passed <= trials:
+                    raise RecordValidationError(f"power shard cell_results[{index}] is not bounded by shard dataset_count")
                 receipt = result.get("replay_receipt")
-                if not isinstance(receipt, Mapping) or receipt.get("cell_id") != result.get("cell_id"):
-                    raise RecordValidationError("power shard replay receipt must bind its cell")
-                if receipt.get("dataset_count") != dataset_count or receipt.get("replay_count") != len(receipt.get("leaf_sha256s", [])):
-                    raise RecordValidationError("power shard replay receipt count does not bind aggregate totals")
-                if type(receipt.get("full_merkle_root_sha256")) is not str or len(cast(str, receipt["full_merkle_root_sha256"])) != 64:
-                    raise RecordValidationError("power shard replay receipt lacks a full Merkle commitment")
-                # Keep the staged validator independent of raw P0 tensors while
-                # still rejecting a forged compact replay frontier.
-                from .power import merkle_root
-                leaves = receipt.get("leaf_sha256s")
-                if not isinstance(leaves, list) or receipt.get("merkle_root_sha256") != merkle_root(tuple(cast(str, leaf) for leaf in leaves)):
-                    raise RecordValidationError("power shard replay receipt Merkle frontier is invalid")
+                if not isinstance(receipt, Mapping) or receipt.get("dataset_count") != dataset_count:
+                    raise RecordValidationError("power shard receipt does not bind aggregate dataset count")
+                chunks = receipt.get("chunks")
+                if not isinstance(chunks, list) or receipt.get("chunk_count") != len(chunks):
+                    raise RecordValidationError("power shard receipt does not commit every chunk")
+                if sum(cast(int, chunk.get("dataset_count", -1)) for chunk in chunks if isinstance(chunk, Mapping)) != dataset_count:
+                    raise RecordValidationError("power shard receipt chunks do not cover aggregate datasets")
+                aggregate = receipt.get("aggregate_gate_totals")
+                if aggregate != totals or sum(cast(int, chunk.get("causal_pass_count", -1)) for chunk in chunks if isinstance(chunk, Mapping)) != passed:
+                    raise RecordValidationError("power shard chunk totals do not bind aggregate gate totals")
         elif stage == "selection":
             selected = cast(list[object], payload["selected_cells"])
             if payload["selection_count"] != len(selected) or cast(
@@ -3541,7 +3530,8 @@ def _validate_power_identities(
     # The authority blob is a referenced, closed contract rather than a
     # scientific record kind.  Validate it before trusting any report mirrors.
     # Importing here avoids a module-import cycle with the generic artifact IO.
-    from .power import grid_content_sha256, load_power_authority, load_power_config
+    from .power import (_roster_group_sizes, grid_content_sha256, load_power_authority,
+                        load_power_config, validate_power_execution_receipt)
 
     for document in documents:
         payload = _power_payload(document)
@@ -3565,6 +3555,11 @@ def _validate_power_identities(
             raise RecordValidationError("power rng_contract_sha256 differs from frozen grid contract")
         if payload["grid_content_sha256"] != grid_content_sha256(grid_ref, run_root=run_root):
             raise RecordValidationError("power grid_content_sha256 differs from closed grid bytes")
+        if payload["stage"] == "shard":
+            layout = _roster_group_sizes(authority, run_root=run_root)
+            for result in cast(list[Mapping[str, object]], payload["cell_results"]):
+                validate_power_execution_receipt(result, authority=authority,
+                    grid_digest=cast(str, payload["grid_content_sha256"]), roster_group_sizes=layout)
     _validate_power_attempt_topology(documents, run_root=run_root)
     by_authority: dict[str, list[_ScientificDocument]] = {}
     for document in documents:

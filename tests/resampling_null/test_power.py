@@ -126,3 +126,19 @@ def test_replay_merkle_receipt_rejects_a_tampered_leaf() -> None:
         validate_power_replay_receipt(receipt, cell, authority=authority, grid_digest="2" * 64,
             phase="gaussian_approximation", roster_group_sizes=((20,), (20,)))
     assert merkle_root(("1" * 64,)) == "1" * 64
+
+
+def test_replay_receipt_commits_every_chunk_and_aggregate_gate_totals() -> None:
+    """A sample of eight leaves is a debugging aid, not a 20k evidence receipt."""
+    from pneuma_lab.resampling_null.power import SyntheticPowerAuthority, _gate_totals_for_cell
+
+    authority = SyntheticPowerAuthority("1", "synthetic_validation",
+        ArtifactRef("manifest", "study.json", "a" * 64, 1, "application/json"),
+        ArtifactRef("roster", "roster.json", "b" * 64, 1, "application/json"), "1" * 64)
+    totals, receipt = _gate_totals_for_cell(frozen_power_cells()[0], authority=authority,
+        digest="2" * 64, phase="gaussian_approximation", roster_group_sizes=((8, 12), (7, 13)),
+        dataset_count=257)
+    assert totals["dataset_count"] == 257
+    assert receipt["chunk_count"] == 3
+    assert sum(chunk["dataset_count"] for chunk in receipt["chunks"]) == 257
+    assert receipt["aggregate_gate_totals"] == totals
