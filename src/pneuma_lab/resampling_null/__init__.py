@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 
@@ -117,7 +118,7 @@ __all__ = (
 )
 
 
-_LAZY_EXPORTS = {
+_LAZY_EXPORTS = MappingProxyType({
     "AttemptBoundZeroCostClosure": ("evidence", "AttemptBoundZeroCostClosure"),
     "AUTHORITY_ASSET_ROLE_MEDIA": ("prefix_contracts", "AUTHORITY_ASSET_ROLE_MEDIA"),
     "Arm": ("types", "Arm"),
@@ -248,7 +249,7 @@ _LAZY_EXPORTS = {
     "synthetic_prefix_program_bytes": ("prefix_contracts", "synthetic_prefix_program_bytes"),
     "validate_prefix_candidate_ref": ("prefix_contracts", "validate_prefix_candidate_ref"),
     "write_packet_candidate": ("packets", "write_packet_candidate"),
-}
+})
 
 
 def derive_seed(schedule_seed: int, task_id: str, role: str) -> int:
