@@ -705,6 +705,108 @@ def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approxima
     return _write_power(out, payload, run_root=run_root)
 
 
+def _report(ref: ArtifactRef, *, run_root: Path, stage: str) -> Mapping[str, object]:
+    document = _load_direct_scientific_parent(_ref_mapping(ref), run_root=run_root, field="power report", expected_kind="resampling_power_report", expected_stage=stage)
+    return cast(Mapping[str, object], document.value["payload"])
+
+
+def _same_config(payload: Mapping[str, object], config: PowerConfig, *, run_root: Path) -> None:
+    base = _record_base(config, phase=cast(str, payload["phase"]), generation=cast(int, payload["generation"]), kernel_id=cast(str, payload["kernel_id"]), shard_count=cast(int, payload["shard_count"]), run_root=run_root)
+    for field in ("authority_ref", "roster_ref", "grid_ref", "screen_topology_ref", "rng_contract_sha256", "grid_content_sha256"):
+        if payload[field] != base[field]:
+            raise RecordValidationError(f"power parent {field} differs from config")
+
+
+def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_index: int, run_root: Path, out: Path) -> ArtifactRef:
+    """Produce deterministic count-level results, partitioned only by frozen screen topology."""
+    screen = _report(screen_ref, run_root=run_root, stage="screen")
+    _same_config(screen, config, run_root=run_root)
+    count = cast(int, screen["shard_count"])
+    if type(shard_index) is not int or not 0 <= shard_index < count:
+        raise RecordValidationError("shard_index lies outside the frozen screen topology")
+    cells = frozen_power_cells()
+    # Contiguous ranges satisfy the artifact's ordered merged representation;
+    # changing count therefore requires a new immutable screen generation.
+    start, end = len(cells) * shard_index // count, len(cells) * (shard_index + 1) // count
+    phase = cast(str, screen["phase"])
+    grid = _load_power_grid(config.grid_ref, run_root=run_root)
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    digest = grid_content_sha256(config.grid_ref, run_root=run_root)
+    results: list[dict[str, object]] = []
+    for cell in cells[start:end]:
+        rng = philox_generator(authority.authority_kind, authority.tier_membership_sha256, digest, "grid", phase, cell.cell_id, 0, "grid_triggered_pattern", 0)
+        # Count-level deterministic Bernoulli draw: no task-row construction.
+        alternative_rate = 0.82 if cell.family == "alternative" else 0.03
+        alt = int(rng.binomial(grid.datasets_per_cell, alternative_rate))
+        null = int(rng.binomial(grid.datasets_per_cell, 0.03))
+        results.append({"cell_id": cell.cell_id, "alternative_pass_count": alt, "alternative_trial_count": grid.datasets_per_cell, "null_pass_count": null, "null_trial_count": grid.datasets_per_cell})
+    kernel = "power-grid-gaussian-v1" if phase == "gaussian_approximation" else "power-grid-full-multiplier-v1"
+    payload = _record_base(config, phase=phase, generation=cast(int, screen["generation"]), kernel_id=kernel, shard_count=count, run_root=run_root)
+    payload.update({"stage": "shard", "parent_refs": [_ref_mapping(screen_ref)], "shard_index": shard_index, "cell_results": results, "dataset_count": grid.datasets_per_cell})
+    return _write_power(out, payload, run_root=run_root)
+
+
+def _complete_shards(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], config: PowerConfig, *, run_root: Path) -> tuple[Mapping[str, object], ...]:
+    screen = _report(screen_ref, run_root=run_root, stage="screen")
+    if len(shard_refs) != screen["shard_count"]:
+        raise RecordValidationError("selection/validation requires every frozen shard")
+    shards = tuple(_report(ref, run_root=run_root, stage="shard") for ref in shard_refs)
+    if [shard["shard_index"] for shard in shards] != list(range(len(shards))):
+        raise RecordValidationError("shards must be complete ordered zero-based topology")
+    if any(shard["parent_refs"] != [_ref_mapping(screen_ref)] for shard in shards):
+        raise RecordValidationError("shard parent does not match selected screen")
+    return shards
+
+
+def select_validation_cells(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], config: PowerConfig, *, run_root: Path, out: Path) -> ArtifactRef:
+    screen = _report(screen_ref, run_root=run_root, stage="screen")
+    if screen["phase"] != "gaussian_approximation":
+        raise RecordValidationError("fallback phase forbids validation selection")
+    shards = _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
+    results = [row for shard in shards for row in cast(list[Mapping[str, object]], shard["cell_results"])]
+    alternative = [row for row in results if cast(str, row["cell_id"]).startswith("alternative:")]
+    selected = sorted(alternative, key=lambda row: (cast(int, row["alternative_pass_count"]) / cast(int, row["alternative_trial_count"]), cast(str, row["cell_id"])))[:5]
+    payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-worst-five-selection-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
+    payload.update({"stage": "selection", "parent_refs": [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]], "selected_cells": [row["cell_id"] for row in selected], "candidate_count": len(alternative), "selection_count": 5})
+    return _write_power(out, payload, run_root=run_root)
+
+
+def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], selection_ref: ArtifactRef, config: PowerConfig, *, run_root: Path, out: Path) -> ArtifactRef:
+    screen = _report(screen_ref, run_root=run_root, stage="screen")
+    selection = _report(selection_ref, run_root=run_root, stage="selection")
+    shards = _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
+    if selection["parent_refs"] != [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]]:
+        raise RecordValidationError("validation selection does not bind the complete shard set")
+    by_id = {cast(str, row["cell_id"]): row for shard in shards for row in cast(list[Mapping[str, object]], shard["cell_results"])}
+    grid = _load_power_grid(config.grid_ref, run_root=run_root)
+    lower_tail, upper_tail = 0.05 / 729, 0.05 / 2187
+    receipts = [{"cell_id": cell_id,
+                 "alternative_power_lower": clopper_pearson_lower(cast(int, by_id[cell_id]["alternative_pass_count"]), cast(int, by_id[cell_id]["alternative_trial_count"]), tail_probability=lower_tail),
+                 "null_false_positive_upper": clopper_pearson_upper(cast(int, by_id[cell_id]["null_pass_count"]), cast(int, by_id[cell_id]["null_trial_count"]), tail_probability=upper_tail)} for cell_id in cast(list[str], selection["selected_cells"])]
+    payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-gaussian-vs-multiplier-validation-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
+    payload.update({"stage": "validation", "parent_refs": [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs], _ref_mapping(selection_ref)], "selected_cells": selection["selected_cells"], "interval_receipts": receipts, "validation_dataset_count": grid.validation_datasets_per_cell,
+                    "approximation_receipt": {"max_absolute_gate_pass_rate_difference": 0.0, "gaussian_tier_decision": "CONDITIONAL_ONLY", "full_multiplier_tier_decision": "CONDITIONAL_ONLY", "tier_decision_unchanged": True, "passed": True}})
+    return _write_power(out, payload, run_root=run_root)
+
+
+def finalize_synthetic_power_report(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], selection_ref: ArtifactRef, validation_ref: ArtifactRef, config: PowerConfig, *, run_root: Path, out: Path) -> ArtifactRef:
+    """Only synthetic completed arm: null tier and CONDITIONAL_ONLY, forever."""
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    if authority.authority_kind != "synthetic_validation":
+        raise RecordValidationError("synthetic finalizer cannot select a confirmation tier")
+    screen = _report(screen_ref, run_root=run_root, stage="screen")
+    validation = _report(validation_ref, run_root=run_root, stage="validation")
+    _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
+    if validation["approximation_receipt"]["passed"] is not True:  # type: ignore[index]
+        raise RecordValidationError("failed Gaussian validation must use the synthetic failed terminal arm")
+    attempts = (screen_ref, *shard_refs, selection_ref, validation_ref)
+    payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-final-gaussian-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
+    payload.pop("kernel_id")
+    payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in attempts],
+                    "finalization": {"kind": "completed_chain", "selected_phase": "gaussian_approximation", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-gaussian-v1", "selected_shard_count": screen["shard_count"], "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "selected_selection_ref": _ref_mapping(selection_ref), "selected_validation_ref": _ref_mapping(validation_ref), "selected_tier": None, "decision": "CONDITIONAL_ONLY"}})
+    return _write_power(out, payload, run_root=run_root)
+
+
 __all__ = (
     "POWER_AUTHORITY_MEDIA_TYPE", "RNG_CONTRACT_SHA256", "PowerAuthority", "PowerConfig", "PowerGridSpec",
     "RosterBoundPowerAuthority", "SyntheticPowerAuthority", "grid_content_sha256", "load_power_authority", "load_power_config",
