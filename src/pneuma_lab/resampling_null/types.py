@@ -263,6 +263,105 @@ class ResolutionResult:
 
 
 @dataclass(frozen=True, slots=True)
+class BinarySufficientStatistics:
+    """Immutable binary outcomes, collapsed by benchmark and registered group."""
+
+    roster_ref: ArtifactRef
+    benchmark_group_pattern_counts: tuple[
+        tuple[str, tuple[GroupLabel, ...], tuple[int, ...]], ...
+    ]
+    arm_failure_counts: tuple[tuple[str, tuple[int, int, int, int]], ...]
+    pipeline_invalid_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class BinarySufficientStatisticsBatch:
+    """Read-only batched sufficient statistics for the frozen P0 simulator."""
+
+    roster_ref: ArtifactRef
+    group_manifest: tuple[tuple[str, GroupLabel | None], ...]
+    pattern_counts: object
+    arm_failure_counts: object
+    pipeline_invalid_counts: object
+
+
+@dataclass(frozen=True, slots=True)
+class GateBatchResult:
+    causal_pass: object
+    content_estimate: object
+    excess_estimate: object
+    content_sharp_p: object
+    excess_sharp_p: object
+    primary_lowers: object
+    r95: object
+    differential_failure_gap: object
+    all_benchmark_nonnegative: object
+    all_leave_one_nonnegative: object
+
+
+@dataclass(frozen=True, slots=True)
+class GateResult:
+    code: str
+    passed: bool
+    observed: float | bool | str | None
+    comparator: str
+    threshold: float | bool | str | None
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisConfig:
+    alpha: float = 0.05
+    delta_star: float = 0.05
+    sharp_draws: int = 999_999
+    multiplier_draws: int = 99_999
+    max_differential_failure_gap: float = 0.02
+
+
+@dataclass(frozen=True, slots=True)
+class SecondaryFamilyResult:
+    contrast_names: tuple[str, str, str]
+    raw_one_sided_p: tuple[float, float, float]
+    holm_adjusted_p: tuple[float, float, float]
+    bounds: SimultaneousBounds
+
+
+@dataclass(frozen=True, slots=True)
+class BenchmarkEstimate:
+    benchmark: str
+    content: float
+    excess: float
+
+
+@dataclass(frozen=True, slots=True)
+class LeaveOneEstimate:
+    benchmark: str
+    group_kind: GroupKind
+    group_value: str
+    content: float
+    excess: float
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisResult:
+    content: ContrastResult
+    excess: ContrastResult
+    sham_packet: ContrastResult
+    continuation: float
+    total: float
+    null: float
+    omnibus_sharp: RandomizationResult
+    primary_bounds: SimultaneousBounds
+    secondary_family: SecondaryFamilyResult
+    resolution: ResolutionResult
+    differential_failure_gap: float
+    benchmark_estimates: tuple[BenchmarkEstimate, ...]
+    leave_one_out: tuple[LeaveOneEstimate, ...]
+    gates: tuple[GateResult, ...]
+    verdict: Verdict
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class TaskSpec:
     task_id: str
     benchmark: str

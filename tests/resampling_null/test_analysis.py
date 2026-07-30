@@ -14,8 +14,15 @@ from pneuma_lab.resampling_null.analysis import (
     sharp_content_pvalue,
     sharp_excess_pvalue,
     task_contrasts,
+    rows_to_binary_sufficient_statistics,
+    evaluate_binary_gate_kernel,
+    evaluate_binary_gate_batch,
 )
-from pneuma_lab.resampling_null.types import AnalysisRow, GroupKind, GroupLabel
+from pneuma_lab.resampling_null.types import (
+    AnalysisConfig, AnalysisRow, ArtifactRef, BinarySufficientStatisticsBatch,
+    GroupKind, GroupLabel,
+)
+import numpy as np
 
 
 def _row(task_id: str, *, benchmark: str = "SWE", real: int, sham: int,
@@ -196,3 +203,31 @@ def test_resolution_exact_equal_and_unequal_rosters() -> None:
 def test_registered_primitives_reject_rosters_other_than_swe_and_tau() -> None:
     with pytest.raises(ValueError, match="SWE and TAU"):
         resampling_resolution([_row("a", real=0, sham=0, none=0, resample=0)])
+
+
+def test_binary_gate_kernel_equal_weights_and_batch_are_bit_for_bit_equivalent() -> None:
+    """Two SWE rows must not outweigh the one TAU row merely by row count."""
+    rows = [
+        _row("s1", real=1, sham=0, none=0, resample=0),
+        _row("s2", real=1, sham=0, none=0, resample=0),
+        _row("t1", benchmark="TAU", real=0, sham=1, none=1, resample=1),
+    ]
+    ref = ArtifactRef("roster", "roster.json", "0" * 64, 0, "application/json")
+    scalar = rows_to_binary_sufficient_statistics(rows, roster_ref=ref)
+    gates = evaluate_binary_gate_kernel(scalar, AnalysisConfig(), critical_value=0.0)
+    by_code = {gate.code: gate for gate in gates}
+    assert by_code["content_materiality"].observed == 0.0
+
+    batch = BinarySufficientStatisticsBatch(
+        roster_ref=ref,
+        group_manifest=tuple(
+            (benchmark, labels[0] if labels else None)
+            for benchmark, labels, _ in scalar.benchmark_group_pattern_counts
+        ),
+        pattern_counts=np.array([counts for _, _, counts in scalar.benchmark_group_pattern_counts], dtype=np.int64)[None, :, :],
+        arm_failure_counts=np.array([counts for _, counts in scalar.arm_failure_counts], dtype=np.int64)[None, :, :],
+        pipeline_invalid_counts=np.array([scalar.pipeline_invalid_count], dtype=np.int64),
+    )
+    result = evaluate_binary_gate_batch(batch, AnalysisConfig(), critical_values=np.array([0.0]))
+    assert bool(result.causal_pass[0]) is False
+    assert result.content_estimate[0] == by_code["content_materiality"].observed

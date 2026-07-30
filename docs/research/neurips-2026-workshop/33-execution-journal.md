@@ -1770,3 +1770,17 @@ The next event after the archived migration boundary is appended below.
   -q` passed 13 tests; Ruff and `git diff --check` passed.
 - **Boundary/non-claim:** Pure Task 7A correction only; Task 7B remains owner
   of manifest reconstruction, gate evaluation, analysis admission, and verdicts.
+
+### EJ-20260730-0180 — Task 7B binary gate admission and outcome classification
+
+- **Action:** Added immutable binary sufficient-statistics records, scalar and
+  batched gate evaluation, equal-benchmark weighting, adverse ITT failure-gap
+  gating, roster-byte/row-membership admission, and closed outcome precedence
+  that cannot emit `FEASIBILITY_NO_GO`.
+- **Focused evidence:** Test-first import failure was observed; then `timeout
+  60s .venv/bin/python -m pytest tests/resampling_null/test_analysis.py -q`
+  passed 14 tests. Ruff, byte compilation, and `git diff --check` passed.
+- **Boundary/non-claim:** No provider/model/network action, spend, experiment,
+  outcome data, causal result, or claim promotion occurred. This is analysis
+  machinery only; production use still requires the separately sealed study
+  manifest, power, schedule, and unblinding chains.
