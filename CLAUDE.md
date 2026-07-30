@@ -12,6 +12,38 @@ exist. The local-first 2B-to-4B foundation tooling also exists, but its training
 authorization is pending and no foundation model is trained or promoted. Live
 9to5 integration and JSpace/J-lens experiments do not exist.
 
+## Current NeurIPS Track
+
+The active paper implementation is the Resampling Null synthetic core. Read
+`docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md` before
+editing Tasks 6-10 and use
+`docs/research/neurips-2026-workshop/33-execution-journal.md` for the
+append-only forensic trail.
+
+- Tasks 1-5 are the accepted synthetic foundation. Tasks 6-9 contain
+  substantial implementation; Task 10 and the full authority-backed P0
+  lineage are not complete.
+- Task 6 has strong freeze, blinded-projection, gated-unblind, durable-taint,
+  and authenticated paired-publication plumbing. It can reach
+  `implementation_complete; E2E_pending` independently, but cannot close E2E
+  until real lineage reaches unblind and analysis.
+- Task 7B remains incomplete. Task 8 has no admissible P0 final because the
+  corrected all-cell timing admission cannot satisfy the frozen 12-hour cap.
+  The impossible rerun was terminated without a result; do not resume, weaken,
+  or relabel it as a completed no-go.
+- Task 9 has opaque work-order contracts but still needs sealed packet
+  capabilities and the isolated branch executor. The practical dependency is
+  branch authority/execution -> reviewed timing disposition -> full lineage ->
+  Tasks 6/7 E2E -> Task 10 closure.
+- No real benchmark, model-provider, unblind/analysis, or scientific result of
+  record exists. AWS has $10,000 verified EC2-eligible credit plus a separate
+  $100 credit; requested 48-vCPU G/VT On-Demand and Spot quotas remain pending
+  and unapplied.
+
+Use exact status language: `implementation_complete`, `E2E_pending`, and
+scientifically complete are different states. Tests validate plumbing; they do
+not manufacture evidence.
+
 ## Vocabulary
 
 - **Pneuma Lab**: external lab harness for defining, replaying, perturbing, and
@@ -167,6 +199,12 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
 - Avoid adding heavy dependencies without a concrete phase that needs them.
 - Do not touch secrets, `.git`, caches, virtualenvs, or private datasets unless
   explicitly authorized.
+- Apply the standing hostile-review standard from `AGENTS.md`: assume the
+  strongest reviewer is maximally motivated to reject the work, then eliminate
+  concrete leakage, causal, receipt, and reproducibility failures.
+- Update the live handoff/status docs after each major implementation
+  milestone or coherent commit group, not after every command. Journal
+  scientific runs and deviations at the granularity required for replay.
 
 ## Fast Editing Loop
 

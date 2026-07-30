@@ -18,9 +18,39 @@
     promoted.
 6. **Claims last** -- learned-subject delivery does not import the legacy scorer
     or establish phenomenal consciousness.
-7. **Conditional compute stays gated** -- NeurIPS external-credit context is in
-    `docs/superpowers/specs/2026-07-22-neurips-execution-discovery-design.md`
-    §9.3; pending credits never bypass the §9.2 per-action approval gate.
+7. **NeurIPS execution is active but gated** -- the Resampling Null synthetic
+    core is the current implementation track. AWS has $10,000 verified
+    EC2-eligible credit plus a separate $100 credit, but both requested 48-vCPU
+    G/VT On-Demand and Spot quota increases remain unapplied pending AWS
+    approval. Credits never bypass protocol, authority, quota, or spend gates.
+
+## Current NeurIPS Execution State
+
+- Read `docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md`
+  before changing Tasks 6-10. It is the live implementation handoff; the
+  execution journal remains the forensic record.
+- Tasks 1-5 are the accepted synthetic foundation. Tasks 6-9 have substantial
+  implementation, but there is no complete authority-backed P0 lineage,
+  unblind/analysis E2E, benchmark/provider result, or scientific result of
+  record. Task 10 is not complete.
+- Task 6's freeze/projection/unblind and authenticated paired-publication
+  plumbing is strong. It may be reported as `implementation_complete;
+  E2E_pending` only after its scoped code, focused tests, and hostile review
+  pass; it cannot be reported scientifically complete without real lineage.
+- Task 7B remains incomplete. Task 8 has no admissible P0 final: the corrected
+  all-cell timing admission made the frozen 12-hour configuration infeasible,
+  and the impossible rerun was terminated without a result. Do not resume or
+  weaken that frozen run. Task 9 now has opaque work-order contracts but still
+  needs sealed packet capabilities and the isolated branch executor.
+- The dependency chain is: finish opaque branch execution and its authority,
+  establish a reviewed Task-8 timing no-go or new admissible authority, produce
+  the full Task-9 lineage, then close Tasks 6/7 E2E and Task 10. A narrowly
+  scoped implementation task may finish earlier with an explicit `E2E_pending`
+  label.
+- Update the handoff/status documentation after each major implementation
+  milestone or coherent commit group, not after every command. Record
+  scientific executions and deviations in the append-only execution journal.
+  Never let progress prose outrun committed evidence.
 
 ## Standing Hostile-Review and Release Standard
 
@@ -62,6 +92,9 @@
   60-second wall-clock ceiling unless the user explicitly approves longer.
   Scientific experiments/evaluations are evidence work, not software tests,
   and remain governed by their own protocol, compute, and spending gates.
+- Distinguish `implementation_complete`, `E2E_pending`, and scientifically
+  complete in status reports. Passing tests proves software behavior, not an
+  empirical result or claim.
 
 ## Commands
 
