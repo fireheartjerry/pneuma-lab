@@ -240,6 +240,66 @@ def test_cli_packets_surface_accepts_only_sealed_root_references() -> None:
     assert (audit.command, audit.packets_command) == ("packets", "audit")
 
 
+def test_cli_analysis_surface_exposes_only_registered_external_inputs() -> None:
+    """The clear-ledger/project controls are controller-owned, never argv knobs."""
+    from pneuma_lab.resampling_null.cli import _parser
+
+    parser = _parser()
+    freeze = parser.parse_args([
+        "--run-root", "/tmp/root", "analysis", "freeze", "--source-root", "/tmp/src",
+        "--source", "analysis.py", "--config", "/tmp/config.json",
+        "--projection-schema", "/tmp/projection.json", "--packet-index", "packet.json",
+        "--out", "freeze.json",
+    ])
+    branches = parser.parse_args([
+        "--run-root", "/tmp/root", "synthetic", "branches", "--study", "study.json",
+        "--schedule", "schedule.json", "--assignment", "assignment.json",
+        "--prefix-index", "prefix.json", "--packet-index", "packet.json",
+        "--analysis-freeze", "freeze.json", "--out-prefix", "task-blocks",
+    ])
+    project = parser.parse_args([
+        "--run-root", "/tmp/root", "project", "seal", "--schedule", "schedule.json",
+        "--analysis-freeze", "freeze.json", "--task-block-prefix", "task-blocks",
+        "--out", "projection.json",
+    ])
+    analyze = parser.parse_args([
+        "--run-root", "/tmp/root", "analyze", "--study", "study.json",
+        "--projection", "projection.json", "--assignment", "assignment.json",
+        "--analysis-freeze", "freeze.json", "--source-root", "/tmp/src",
+        "--source", "analysis.py", "--config", "/tmp/config.json",
+        "--projection-schema", "/tmp/projection.json", "--packet-index", "packet.json",
+        "--assignment-key-file", "/tmp/assignment-key", "--unblind-receipt", "unblind.json",
+        "--out", "analysis.json",
+    ])
+    assert (freeze.command, freeze.analysis_command) == ("analysis", "freeze")
+    assert (branches.command, branches.synthetic_command) == ("synthetic", "branches")
+    assert (project.command, project.project_command) == ("project", "seal")
+    assert analyze.command == "analyze"
+    for parsed in (project, analyze):
+        assert "assignment_key" not in vars(parsed) or parsed is analyze
+    assert "assignment_key_file" not in vars(project)
+
+
+def test_cli_synthetic_branches_is_fail_closed_without_branch_executor(
+    tmp_path: Path, capsys, monkeypatch,
+) -> None:
+    """A parser surface must not pretend the absent Task-5 executor ran."""
+    import pneuma_lab.resampling_null.cli as cli
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    root = tmp_path / "root"
+    root.mkdir()
+    ref = ArtifactRef("test", "x.json", "a" * 64, 1, "application/json")
+    monkeypatch.setattr(cli, "_ref", lambda *_args: ref)
+    assert cli.main([
+        "--run-root", str(root), "synthetic", "branches", "--study", "study.json",
+        "--schedule", "schedule.json", "--assignment", "assignment.json",
+        "--prefix-index", "prefix.json", "--packet-index", "packet.json",
+        "--analysis-freeze", "freeze.json", "--out-prefix", "task-blocks",
+    ]) == 2
+    assert json.loads(capsys.readouterr().out)["error"] == "synthetic branch executor is not installed"
+
+
 def test_cli_packets_rejects_noncanonical_root_names_before_writing(
     tmp_path: Path, capsys,
 ) -> None:

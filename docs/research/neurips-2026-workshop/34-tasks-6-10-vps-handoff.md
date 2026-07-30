@@ -376,3 +376,24 @@ valid full P0 final or descendant lineage exists. Next gate: either execute the
 authorized full synthetic P0 under its scientific runtime protocol, or add a
 separately governed miniature *non-authority* protocol whose records cannot be
 admitted by this P0/schedule chain; do not relabel the latter as P0 evidence.
+
+**Task 9 analysis-boundary CLI checkpoint (2026-07-30):** The CLI now exposes
+`analysis freeze`, trusted `project seal`, and `analyze` over existing Task-6/7
+authority APIs. Freeze accepts only a named external source root plus strict
+relative source names, an external config/schema, and a sealed packet index;
+it snapshots the exact external bytes through `freeze_analysis`. Project
+reserves its destination before reading task-block outcomes, constructs only
+the stripped candidate request in an isolated `-I` subprocess with no
+controller-root argument, then has the trusted controller reload and seal it.
+Analysis accepts no caller permit/verifier/key override: it obtains two fresh
+unblind-purpose handles from the external owner-custodied key file,
+issues/consumes the permit internally, then calls registered analysis with the
+schedule-derived power final. The analysis config is closed JSON, including its
+U64 RNG seed. Focused CLI/freeze/blinding tests, compile, and whitespace checks
+pass. **Critical blocker:** the checked-in Task-5 controller has no branch
+executor—only the prefix executor—so `synthetic branches` has the exact parser
+surface but fails closed with `synthetic branch executor is not installed`; it
+does not write, claim, or simulate task blocks. No compatible P0 final, branch,
+projection, unblind, analysis, provider action, spend, or result was run. Next
+gate: implement and independently review the missing opaque branch authority,
+then execute only a genuinely admitted full P0 lineage.

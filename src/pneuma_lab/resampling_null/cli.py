@@ -6,13 +6,20 @@ and every path accepted after study sealing is a run-root-relative POSIX path.
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
+import subprocess
+import sys
+import tempfile
 
 from .artifacts import (_scientific_documents, seal_artifact_root,
                         seal_study_manifest, verify_artifact_root,
-                        validate_record)
+                        validate_record, write_record)
+from .analysis import analyze as analyze_rows
+from .blinding import issue_unblind_permit, seal_blinded_projection, unblind_projection
+from .freeze import CurrentAnalysisInputs, freeze_analysis
 from .assignment import (load_assignment_authority,
                          require_schedulable_power_final)
 from .branch_assignment import seal_branch_assignment
@@ -34,7 +41,7 @@ from .secrets import AssignmentSecretStore
 from .selftest_fixture import seal_synthetic_selftest_study
 from .storage import claim_local_test_storage
 from .synthetic_prefix_loop import run_prefix
-from .types import ArtifactRef
+from .types import AnalysisConfig, AnalysisRow, ArtifactRef, GroupKind, GroupLabel
 
 
 class _ArgumentError(ValueError):
@@ -96,6 +103,145 @@ def _external_file(value: str, *, root: Path, field: str) -> Path:
     except ValueError:
         return path
     raise RecordValidationError(f"{field} must remain outside run_root")
+
+
+def _external_sources(source_root: str, sources: list[str], *, root: Path) -> dict[str, Path]:
+    """Resolve named analysis sources only beneath their explicit external root."""
+    try:
+        base = Path(source_root).resolve(strict=True)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise RecordValidationError("analysis source root cannot be resolved") from exc
+    if not base.is_dir():
+        raise RecordValidationError("analysis source root must be a directory")
+    try:
+        base.relative_to(root)
+    except ValueError:
+        pass
+    else:
+        raise RecordValidationError("analysis source root must remain outside run_root")
+    result: dict[str, Path] = {}
+    for source in sources:
+        name = _relative_name(source, field="analysis source")
+        if name in result:
+            raise RecordValidationError("analysis sources must be unique")
+        try:
+            path = (base / Path(name)).resolve(strict=True)
+            path.relative_to(base)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise RecordValidationError("analysis source escapes source root") from exc
+        if not path.is_file():
+            raise RecordValidationError("analysis source must identify a regular file")
+        result[name] = path
+    return result
+
+
+def _mapping_ref(ref: ArtifactRef) -> dict[str, object]:
+    return {"role": ref.role, "relative_path": ref.relative_path, "sha256": ref.sha256,
+            "byte_count": ref.byte_count, "media_type": ref.media_type}
+
+
+def _payload(record: dict[str, object], *, field: str) -> dict[str, object]:
+    payload = record.get("payload")
+    if not isinstance(payload, dict):
+        raise RecordValidationError(f"{field} payload is malformed")
+    return payload
+
+
+def _task_block_refs(root: Path, prefix: str) -> tuple[ArtifactRef, ...]:
+    prefix = _relative_name(prefix, field="task block prefix").rstrip("/")
+    prefix_with_slash = prefix + "/"
+    refs: list[ArtifactRef] = []
+    for path in sorted(root.rglob("*.json")):
+        relative = path.relative_to(root).as_posix()
+        if not relative.startswith(prefix_with_slash):
+            continue
+        try:
+            record = validate_record(load_json_bytes(path.read_bytes(), source=path))
+        except RecordValidationError:
+            continue
+        if record.get("record_kind") == "resampling_task_block":
+            refs.append(_ref(root, relative, "task_block"))
+    if not refs:
+        raise RecordValidationError("task block prefix contains no sealed task blocks")
+    return tuple(refs)
+
+
+def _candidate_subprocess(frozen_schedule: list[dict[str, object]], closed_outcomes: dict[str, object]) -> object:
+    """Run the pure candidate builder with no controller path or ledger argument."""
+    request = json.dumps({"frozen_schedule": frozen_schedule, "closed_outcomes": closed_outcomes},
+                         sort_keys=True, separators=(",", ":")).encode("utf-8")
+    with tempfile.TemporaryDirectory(prefix="pneuma-projection-") as working:
+        completed = subprocess.run(
+            [sys.executable, "-I", "-m", "pneuma_lab.resampling_null.projection_candidate"],
+            input=request, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=working,
+            env={"PATH": "/usr/bin:/bin", "PYTHONUTF8": "1"}, check=False,
+        )
+    if completed.returncode != 0:
+        raise RecordValidationError("isolated projection candidate builder failed")
+    try:
+        rows = json.loads(completed.stdout)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RecordValidationError("isolated projection candidate is not canonical JSON") from exc
+    from .projection_candidate import ProjectionCandidate
+    if not isinstance(rows, list):
+        raise RecordValidationError("isolated projection candidate has wrong shape")
+    canonical = json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    if canonical != completed.stdout:
+        raise RecordValidationError("isolated projection candidate is not canonical")
+    return ProjectionCandidate(tuple(rows), canonical, hashlib.sha256(canonical).hexdigest())
+
+
+def _analysis_config(path: Path) -> tuple[AnalysisConfig, int]:
+    """Read the frozen analysis config; the RNG seed is part of those bytes."""
+    value = load_json_bytes(path.read_bytes(), source=path)
+    if not isinstance(value, dict) or set(value) != {
+        "seed", "alpha", "delta_star", "sharp_draws", "multiplier_draws", "max_differential_failure_gap",
+    }:
+        raise RecordValidationError("analysis config has an unregistered shape")
+    seed = value.pop("seed")
+    if type(seed) is not int or not 0 <= seed < 2**64:
+        raise RecordValidationError("analysis config seed must be U64")
+    try:
+        return AnalysisConfig(**value), seed
+    except (TypeError, ValueError) as exc:
+        raise RecordValidationError("analysis config is invalid") from exc
+
+
+def _analysis_rows(clear_rows: tuple[dict[str, object], ...]) -> tuple[AnalysisRow, ...]:
+    rows: list[AnalysisRow] = []
+    for raw in clear_rows:
+        slots = raw.get("slots")
+        groups = raw.get("sensitivity_groups")
+        if not isinstance(slots, list) or not isinstance(groups, list):
+            raise RecordValidationError("unblinded projection row is malformed")
+        outcomes: dict[str, dict[str, object]] = {}
+        failures: dict[str, bool] = {}
+        for slot in slots:
+            if not isinstance(slot, dict) or not isinstance(slot.get("arm"), str) or not isinstance(slot.get("outcome"), dict):
+                raise RecordValidationError("unblinded projection slot is malformed")
+            arm = slot["arm"]
+            if arm in outcomes:
+                raise RecordValidationError("unblinded projection duplicates an arm")
+            outcomes[arm] = slot["outcome"]
+            failures[arm] = slot["outcome"].get("infrastructure_failure") is True
+        if set(outcomes) != {"REAL", "SHAM", "NONE", "RESAMPLE"}:
+            raise RecordValidationError("unblinded projection lacks a four-arm allocation")
+        try:
+            labels = tuple(GroupLabel(GroupKind(item["kind"]), item["value"]) for item in groups if isinstance(item, dict))
+            if len(labels) != len(groups):
+                raise ValueError
+            rows.append(AnalysisRow(
+                task_id=raw["task_id"], benchmark=raw["benchmark"], stratum=raw["stratum"], lineage=raw["lineage"],
+                sensitivity_groups=labels, triggered=raw["triggered"], prefix=raw["prefix_success"],
+                real=outcomes["REAL"]["success"], sham=outcomes["SHAM"]["success"],
+                none=outcomes["NONE"]["success"], resample=outcomes["RESAMPLE"]["success"],
+                real_infrastructure_failure=failures["REAL"], sham_infrastructure_failure=failures["SHAM"],
+                none_infrastructure_failure=failures["NONE"], resample_infrastructure_failure=failures["RESAMPLE"],
+                pipeline_valid=raw["pipeline_valid"], invalid_codes=tuple(raw["validity_codes"]),
+            ))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RecordValidationError("unblinded projection row is invalid") from exc
+    return tuple(rows)
 
 
 def _schedule_seed(path: Path) -> int:
@@ -192,6 +338,10 @@ def _parser() -> argparse.ArgumentParser:
     synthetic = top.add_parser("synthetic").add_subparsers(dest="synthetic_command", required=True)
     prefixes = synthetic.add_parser("prefixes")
     prefixes.add_argument("--study", required=True); prefixes.add_argument("--schedule", required=True); prefixes.add_argument("--out", required=True)
+    branches = synthetic.add_parser("branches")
+    for name in ("study", "schedule", "assignment", "prefix_index", "packet_index", "analysis_freeze"):
+        branches.add_argument("--" + name.replace("_", "-"), required=True)
+    branches.add_argument("--out-prefix", required=True)
     assignment = top.add_parser("assignment").add_subparsers(dest="assignment_command", required=True)
     assignment_seal = assignment.add_parser("seal")
     assignment_seal.add_argument("--schedule", required=True); assignment_seal.add_argument("--prefix-index", required=True)
@@ -204,6 +354,21 @@ def _parser() -> argparse.ArgumentParser:
     packet_audit.add_argument("--study", required=True); packet_audit.add_argument("--candidate", required=True)
     packet_audit.add_argument("--schedule", required=True); packet_audit.add_argument("--assignment", required=True)
     packet_audit.add_argument("--prefix-index", required=True); packet_audit.add_argument("--out-index", required=True)
+    analysis = top.add_parser("analysis").add_subparsers(dest="analysis_command", required=True)
+    analysis_freeze = analysis.add_parser("freeze")
+    analysis_freeze.add_argument("--source-root", required=True); analysis_freeze.add_argument("--source", action="append", required=True)
+    analysis_freeze.add_argument("--config", required=True); analysis_freeze.add_argument("--projection-schema", required=True)
+    analysis_freeze.add_argument("--packet-index", required=True); analysis_freeze.add_argument("--out", required=True)
+    project = top.add_parser("project").add_subparsers(dest="project_command", required=True)
+    project_seal = project.add_parser("seal")
+    project_seal.add_argument("--schedule", required=True); project_seal.add_argument("--analysis-freeze", required=True)
+    project_seal.add_argument("--task-block-prefix", required=True); project_seal.add_argument("--out", required=True)
+    analyze = top.add_parser("analyze")
+    for name in ("study", "projection", "assignment", "analysis_freeze", "packet_index", "unblind_receipt", "out"):
+        analyze.add_argument("--" + name.replace("_", "-"), required=True)
+    analyze.add_argument("--source-root", required=True); analyze.add_argument("--source", action="append", required=True)
+    analyze.add_argument("--config", required=True); analyze.add_argument("--projection-schema", required=True)
+    analyze.add_argument("--assignment-key-file", required=True)
     artifacts = top.add_parser("artifacts").add_subparsers(dest="artifact_command", required=True)
     for name in ("seal", "verify"):
         p = artifacts.add_parser(name); p.add_argument("--required-kinds", required=True); p.add_argument("--out" if name == "seal" else "--receipt", required=True)
@@ -431,6 +596,16 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
         return seal_prefix_schedule(manifest_ref, final_ref, schedule_seed_reveal=seed,
                                     storage_policy_lease=lease, run_root=root, out=out)
     if args.command == "synthetic":
+        if args.synthetic_command == "branches":
+            # Task-5's checked-in controller is deliberately prefix-only.  Do
+            # not mint a fake branch success record while the opaque worker
+            # authority is absent.
+            for name, role in (("study", "study_manifest"), ("schedule", "resampling_prefix_schedule"),
+                               ("assignment", "resampling_assignment_ledger"), ("prefix_index", "resampling_prefix_receipt"),
+                               ("packet_index", "packet_index_sealed"), ("analysis_freeze", "analysis_freeze")):
+                _ref(root, getattr(args, name), role)
+            _relative_name(args.out_prefix, field="task block prefix")
+            raise RecordValidationError("synthetic branch executor is not installed")
         study_ref = _ref(root, args.study, "study_manifest")
         schedule_ref = _ref(root, args.schedule, "resampling_prefix_schedule")
         task_ids = _schedule_task_ids(schedule_ref, study_ref, root=root)
@@ -482,6 +657,124 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
             packet_policy_ref=policy_ref, pad_unit_set_ref=pads_ref, run_root=root,
             out=_out(root, args.out_index),
         )
+    if args.command == "analysis":
+        sources = _external_sources(args.source_root, args.source, root=root)
+        config = _external_file(args.config, root=root, field="analysis config")
+        schema = _external_file(args.projection_schema, root=root, field="projection schema")
+        packet_ref = _ref(root, args.packet_index, "packet_index_sealed")
+        packet = _record_for_ref(packet_ref, root=root, kind="resampling_packet_index")
+        if _payload(packet, field="packet index").get("stage") != "sealed":
+            raise RecordValidationError("analysis freeze requires a sealed packet index")
+        # Read manifest identity only through sealed packet ancestry.
+        packet_payload = _payload(packet, field="packet index")
+        assignment_ref = _artifact_ref(packet_payload.get("assignment_ref"), field="packet assignment_ref")
+        assignment = _record_for_ref(assignment_ref, root=root, kind="resampling_assignment_ledger")
+        manifest_ref = _artifact_ref(_payload(assignment, field="assignment").get("manifest_ref"), field="assignment manifest_ref")
+        manifest = _record_for_ref(manifest_ref, root=root, kind="resampling_study_manifest")
+        provenance = manifest.get("provenance")
+        if not isinstance(provenance, dict):
+            raise RecordValidationError("manifest provenance is malformed")
+        return freeze_analysis(run_root=root, destination=_out(root, args.out), study_id=str(manifest["study_id"]),
+                               frozen_created_at=str(manifest["frozen_created_at"]), provenance=provenance,
+                               source_paths=sources, config_path=config, projection_schema_path=schema,
+                               packet_index_ref=packet_ref)
+    if args.command == "project":
+        schedule_ref = _ref(root, args.schedule, "resampling_prefix_schedule")
+        freeze_ref = _ref(root, args.analysis_freeze, "analysis_freeze")
+        # Reserve before candidate work: an existing destination must not run a
+        # controller subprocess or touch an opaque outcome view.
+        out = _out(root, args.out)
+        schedule = _record_for_ref(schedule_ref, root=root, kind="resampling_prefix_schedule")
+        blocks = _task_block_refs(root, args.task_block_prefix)
+        frozen: list[dict[str, object]] = []
+        outcomes: dict[str, object] = {}
+        refs_by_task: dict[str, ArtifactRef] = {}
+        for entry in _payload(schedule, field="schedule").get("tasks", []):
+            if not isinstance(entry, dict) or not isinstance(entry.get("task"), dict) or not isinstance(entry.get("slots"), list):
+                raise RecordValidationError("schedule task is malformed")
+            task_id = entry["task"].get("task_id")
+            if not isinstance(task_id, str):
+                raise RecordValidationError("schedule task id is malformed")
+            frozen.append({"task_id": task_id, "prefix_success": None,
+                           "slot_ids": [slot.get("slot_id") for slot in entry["slots"] if isinstance(slot, dict)]})
+        for ref in blocks:
+            block = _record_for_ref(ref, root=root, kind="resampling_task_block")
+            payload = _payload(block, field="task block")
+            task_id = payload.get("task_id")
+            if not isinstance(task_id, str) or task_id in outcomes:
+                raise RecordValidationError("task blocks have duplicate task coverage")
+            outcomes[task_id] = payload.get("slot_outcomes")
+            refs_by_task[task_id] = ref
+            for row in frozen:
+                if row["task_id"] == task_id:
+                    row["prefix_success"] = payload.get("prefix_success")
+                    break
+        if any(row["prefix_success"] not in (0, 1) for row in frozen):
+            raise RecordValidationError("task blocks must exactly cover the schedule")
+        ordered_blocks = tuple(refs_by_task[row["task_id"]] for row in frozen)
+        candidate = _candidate_subprocess(frozen, outcomes)
+        return seal_blinded_projection(run_root=root, destination=out, schedule_ref=schedule_ref,
+                                       analysis_freeze_ref=freeze_ref, task_block_refs=ordered_blocks, candidate=candidate)
+    if args.command == "analyze":
+        study_ref = _ref(root, args.study, "study_manifest")
+        projection_ref = _ref(root, args.projection, "blinded_projection")
+        ledger_ref = _ref(root, args.assignment, "assignment_ledger")
+        freeze_ref = _ref(root, args.analysis_freeze, "analysis_freeze")
+        packet_ref = _ref(root, args.packet_index, "packet_index_sealed")
+        projection = _record_for_ref(projection_ref, root=root, kind="resampling_blinded_projection")
+        projection_payload = _payload(projection, field="projection")
+        if projection_payload.get("analysis_freeze_ref") != _mapping_ref(freeze_ref):
+            raise RecordValidationError("projection differs from supplied analysis freeze")
+        schedule_ref = _artifact_ref(projection_payload.get("schedule_ref"), field="projection schedule_ref")
+        schedule = _record_for_ref(schedule_ref, root=root, kind="resampling_prefix_schedule")
+        schedule_payload = _payload(schedule, field="schedule")
+        if schedule_payload.get("manifest_ref") != _mapping_ref(study_ref):
+            raise RecordValidationError("projection schedule differs from supplied study")
+        ledger = _record_for_ref(ledger_ref, root=root, kind="resampling_assignment_ledger")
+        prefix_ref = _artifact_ref(_payload(ledger, field="ledger").get("prefix_index_ref"), field="ledger prefix_index_ref")
+        power_final_ref = _artifact_ref(schedule_payload.get("power_final_ref"), field="schedule power_final_ref")
+        sources = _external_sources(args.source_root, args.source, root=root)
+        config_path = _external_file(args.config, root=root, field="analysis config")
+        schema_path = _external_file(args.projection_schema, root=root, field="projection schema")
+        config, seed = _analysis_config(config_path)
+        current = CurrentAnalysisInputs(sources, config_path, schema_path, packet_ref)
+        receipt_out = _out(root, args.unblind_receipt)
+        analysis_out = _out(root, args.out)
+        secret_path = _external_file(args.assignment_key_file, root=root, field="assignment key file")
+        expected = projection_payload.get("expected_task_count")
+        if type(expected) is not int or expected < 1:
+            raise RecordValidationError("projection expected task count is malformed")
+        store = AssignmentSecretStore(secret_path)
+        try:
+            permit = issue_unblind_permit(
+                store.claim_unblind(study_ref, schedule_ref, run_root=root), run_root=root,
+                manifest_ref=study_ref, schedule_ref=schedule_ref, prefix_index_ref=prefix_ref,
+                ledger_ref=ledger_ref, projection_ref=projection_ref, freeze_ref=freeze_ref,
+                expected_task_count=expected,
+            )
+            unblinded = unblind_projection(
+                store.claim_unblind(study_ref, schedule_ref, run_root=root), permit_hmac_sha256=permit,
+                run_root=root, receipt_destination=receipt_out, manifest_ref=study_ref,
+                schedule_ref=schedule_ref, prefix_index_ref=prefix_ref, ledger_ref=ledger_ref,
+                projection_ref=projection_ref, freeze_ref=freeze_ref, expected_task_count=expected,
+                current_analysis_inputs=current,
+            )
+        finally:
+            store.close()
+        rows = _analysis_rows(unblinded.rows)
+        result = analyze_rows(rows, config, seed=seed, manifest_ref=study_ref,
+                              power_final_ref=power_final_ref, run_root=root)
+        freeze = _record_for_ref(freeze_ref, root=root, kind="resampling_analysis_freeze")
+        config_ref = _artifact_ref(_payload(freeze, field="analysis freeze").get("config_ref"), field="analysis freeze config_ref")
+        manifest = _record_for_ref(study_ref, root=root, kind="resampling_study_manifest")
+        return write_record(analysis_out, {
+            "record_kind": "resampling_analysis", "schema_version": "0.1.0",
+            "study_id": manifest["study_id"], "frozen_created_at": manifest["frozen_created_at"],
+            "provenance": manifest["provenance"],
+            "payload": {"analysis_freeze_ref": _mapping_ref(freeze_ref), "projection_ref": _mapping_ref(projection_ref),
+                        "unblind_receipt_ref": _mapping_ref(unblinded.receipt_ref), "config_ref": _mapping_ref(config_ref),
+                        "row_count": len(rows), "result": asdict(result), "numeric_receipt": {"finite": True}},
+        }, run_root=root, role="analysis")
     if args.command == "artifacts":
         required_path = Path(args.required_kinds).resolve(strict=True)
         required = load_json_bytes(required_path.read_bytes(), source=required_path)

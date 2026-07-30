@@ -2226,3 +2226,31 @@ The next event after the archived migration boundary is appended below.
   alternatively design a separate miniature non-authority protocol that cannot
   enter this P0 schedule chain. No P0 result, provider action, packet,
   assignment, spend, or scientific claim was produced.
+
+### EJ-20260730-0205 — Task 9 analysis CLI authority boundary
+
+- **Implementation:** Added the registered `analysis freeze`, `project seal`,
+  `synthetic branches`, and `analyze` command surfaces. Freeze resolves only
+  an external source root plus normalized relative names and external
+  config/projection-schema files, validates a sealed packet parent, and calls
+  the existing snapshotting freeze authority. Project reserves its output
+  before outcome access, invokes the pure projection candidate builder in a
+  `-I` subprocess with stripped bytes only and no controller-root argument,
+  then hands the candidate to the existing trusted Task-6 reconstruction seal.
+  Analyze derives schedule/power context from sealed parents, obtains both
+  unblind-purpose handles internally from the external key file, consumes the
+  permit internally, and only then calls the registered analysis API.
+- **Critical correction / blocker:** The source tree contains no Task-5 opaque
+  branch executor (the controller exports only prefix-era seed derivation), so
+  `synthetic branches` is deliberately fail-closed after its parser/ref
+  admission. It reports `synthetic branch executor is not installed` and never
+  creates a task block. This is not a completed branch route or E2E claim.
+- **Focused evidence:** New parser/refusal tests were observed RED while the
+  commands were absent. After wiring, `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_cli.py tests/resampling_null/test_freeze.py
+  tests/resampling_null/test_blinding.py -q` passed 31 tests; `py_compile` and
+  `git diff --check` passed.
+- **Boundary/non-claim:** No P0 run, completed final, branch, packet delivery,
+  projection, clear outcome, analysis result, provider action, spend, or claim
+  occurred. The next gate is implementation and hostile review of the missing
+  branch executor, followed by a genuinely admitted full P0 lineage.
