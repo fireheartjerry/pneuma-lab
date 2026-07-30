@@ -94,4 +94,3 @@
 - [ ] Commit any final coherent corrections and report
   `implementation_complete; E2E_pending` with exact blockers and no scientific
   claim.
-

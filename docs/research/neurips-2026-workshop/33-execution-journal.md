@@ -2864,3 +2864,36 @@ The next event after the archived migration boundary is appended below.
   broad CLI-module pass until it terminates or is reclassified under review.
 - **Boundary/non-claim:** No P0 screen, final, lineage, provider or benchmark
   action, spend, or scientific claim was produced by this observation.
+
+### EJ-20260730-0225 — Task 8 and Task 9 integration into the empirical branch
+
+- **Action:** Merged `task9/opaque-branch-executor` and then
+  `codex/task8-timing-no-go` into `codex/neurips-2026-empirical`, both with
+  `--no-ff`, in a dedicated merge worktree.
+- **Conflicts:** none. Both branches fork from `4302dfe` and their file sets
+  are disjoint. Task 8 deliberately opened a separate
+  `35-task8-timing-no-go-temporary-handoff.md` instead of editing the shared
+  journal or `34-tasks-6-10-vps-handoff.md`, and it did not touch
+  `docs/project-status.json`, so the Task-9 status entry and journal entries
+  merged untouched. No conflict was resolved by discarding either side.
+- **Integration repair:** Task 8's three new documents each ended with a
+  trailing blank line, which fails the repository's own `git diff --check`
+  gate. Trimmed to a single terminating newline; no other byte of Task-8 work
+  was altered.
+- **Post-merge evidence:** `tests/resampling_null -m milestone` passed 78;
+  `test_timing_no_go.py`, `test_branch_controller.py`,
+  `test_packet_capabilities.py`, `test_controller.py`,
+  `test_package_exports.py` and `tests/smoke` passed together;
+  `tests/test_schema_loads.py` passed; `test_cli.py` passed 25 of 26;
+  `scripts/test_fast.py`, `python -m pneuma_lab.status --check`, `compileall`,
+  the 148-name package export resolution, and `git diff --check` all passed.
+- **Known exclusion, unchanged by this merge:**
+  `test_cli_power_authority_then_screen_uses_closed_authority_media_type`
+  remains the one CLI test with no bounded green run on this host, for the
+  reason recorded in EJ-20260730-0224.
+- **Open item, not decided here:** Task 8 registers no system entry in
+  `docs/project-status.json`. That is the Task-8 owner's status claim to make;
+  it was deliberately not invented during integration.
+- **Boundary/non-claim:** A merge is not evidence. No P0 screen, final,
+  lineage, task block of record, unblind, analysis, provider or benchmark
+  action, spend, or scientific claim was produced.

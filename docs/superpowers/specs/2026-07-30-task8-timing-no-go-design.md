@@ -66,4 +66,3 @@ wrong execution/task ownership, and every forbidden descendant class.
 Schema validation, Python compilation, whitespace checks, a bounded Claude
 contract review, a bounded Codex implementation review, and direct manual
 verification gate `implementation_complete; E2E_pending`.
-

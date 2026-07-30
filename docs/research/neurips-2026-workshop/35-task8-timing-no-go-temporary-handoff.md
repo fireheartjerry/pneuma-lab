@@ -147,4 +147,3 @@ Do not apply these proposals from this branch:
 
 No proposed edit may call the terminated probe a screen, P0 attempt, final,
 scientific result, or scientifically complete Task 8.
-
