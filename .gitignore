@@ -28,6 +28,7 @@ lerna-debug.log*
 .vscode/
 .idea/
 .claude/worktrees/
+.worktrees/
 *.swp
 *.swo
 *~
