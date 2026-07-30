@@ -93,6 +93,18 @@ Implement the exact Task-6 contract in the controlling plan:
 Task 6 must not implement Task 8 power production, choose a tier from outcomes,
 read external benchmark outcomes, or perform paid execution.
 
+**Paired-publication repair (2026-07-30):** The production `analyze` route no
+longer publishes a singleton unblind receipt before it attempts row conversion
+or numerical analysis. Its staged Task-6 API taints before the first
+clear-ledger parse, holds clear rows only in memory, constructs and validates
+the receipt/analysis pair (including the future receipt digest binding), then
+publishes both. A durable no-clear prepared-pair transaction supports recovery
+across arbitrary root-relative output directories: next Task-6 lock finalizes
+an intact pair or deletes a matching partial pair; malformed/substituted state
+blocks fail-closed. Focused failure injection proves no receipt or analysis
+after a builder/second-write failure while taint remains permanent. This is not
+an unblind E2E receipt: no real completed lineage exists yet.
+
 ## Task 7 — registered inference and verdicts
 
 Implement the frozen statistical API and hand-calculation fixtures:
@@ -404,10 +416,14 @@ bytes to the public prefix through the already-sealed packet index, while
 `issue_unblind_permit` now validates only raw ledger bytes/HMAC context. Clear
 ledger parsing is exclusive to `unblind_projection`, after its pre-unblind
 graph and permit checks. Regression spies cover both former decode routes.
-**P1 remains an architectural blocker:** Task-6 has only single-record atomic
-publication. Its required irreversible outcome taint and unblind receipt are
-written before it returns clear rows, whereas the numerical analysis record is
-computed/written by Task 9 afterward. A later numerical/schema failure can
-therefore leave a valid receipt without analysis. Do not call this a paired
-transaction; resolving it requires a reviewed Task-6 staged-unblind/paired
-publication protocol, not a CLI rollback that would erase the mandatory taint.
+**P1 paired-publication repair (2026-07-30):** `analyze` now uses the reviewed
+Task-6 staged transaction rather than receipt-first publication. After the
+mandatory pre-decode taint, it keeps the clear rows in memory while row
+conversion/numerical analysis constructs a validated record bound to the
+future deterministic receipt reference. A durable no-clear prepared-pair
+intent makes the cross-directory two-file commit recoverable: the next Task-6
+lock completes an intact pair or deletes a matching partial pair; malformed or
+substituted state fails closed. Builder and second-write fault injection prove
+neither public target remains on controlled failure and taint persists. This
+is plumbing, not an unblind/analysis E2E: the missing branch authority and
+unrun full P0 remain the next gates.

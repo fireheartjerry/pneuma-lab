@@ -6,11 +6,14 @@ import hashlib
 import hmac
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, cast
+from typing import Callable, Mapping, cast
 
 from .artifacts import (
     _load_direct_scientific_parent,
+    _prepare_destination,
+    _require_manifest_ancestry,
     _read_ref,
+    validate_record,
     validate_preunblind_graph,
     validate_scientific_graph,
     write_record,
@@ -20,8 +23,16 @@ from .errors import RecordValidationError
 from .projection_candidate import ProjectionCandidate, build_candidate
 from .secrets import UnblindSecretHandle, _require_handle_binding
 from .freeze import CurrentAnalysisInputs, verify_current_analysis_inputs, verify_frozen_analysis_inputs
-from .task6_state import mark_outcome_tainted, require_singleton_absent, task6_controller_lock
+from .task6_state import (
+    abort_paired_publication,
+    begin_paired_publication,
+    mark_outcome_tainted,
+    recover_paired_publication,
+    require_singleton_absent,
+    task6_controller_lock,
+)
 from .types import ArtifactRef
+from pneuma_lab.foundation.artifacts import canonical_json_bytes, write_atomic_bytes
 
 
 def _mapping_ref(ref: ArtifactRef) -> dict[str, object]:
@@ -109,6 +120,20 @@ class UnblindResult:
     rows: tuple[dict[str, object], ...]
 
 
+@dataclass(frozen=True, slots=True)
+class PairedUnblindResult:
+    """The sole public result of a completed unblind-and-analysis transaction."""
+
+    receipt_ref: ArtifactRef
+    analysis_ref: ArtifactRef
+
+
+@dataclass(frozen=True, slots=True)
+class _UnblindStage:
+    receipt_record: Mapping[str, object]
+    rows: tuple[dict[str, object], ...]
+
+
 def _validated_permit(
     handle: UnblindSecretHandle, *, run_root: Path, manifest_ref: ArtifactRef,
     schedule_ref: ArtifactRef, prefix_index_ref: ArtifactRef, ledger_ref: ArtifactRef,
@@ -177,42 +202,145 @@ def unblind_projection(
     freeze_ref: ArtifactRef, expected_task_count: int,
     current_analysis_inputs: CurrentAnalysisInputs,
 ) -> UnblindResult:
-    """Authenticate current frozen inputs before any clear-ledger access."""
+    """Legacy receipt-only unblind entry point.
+
+    New controller work must use :func:`unblind_and_publish_analysis`, which
+    cannot leave a receipt behind when downstream analysis fails.
+    """
     with task6_controller_lock(run_root) as root:
         require_singleton_absent(root, "resampling_unblind_receipt")
-        # This intentionally excludes the opaque ledger: graph validation must
-        # precede every ledger open/decode, while the permit validates its raw
-        # digest and binding before the full graph is allowed to inspect it.
-        validate_preunblind_graph(root, ledger_ref)
-        verify_current_analysis_inputs(
-            freeze_ref, run_root=root, inputs=current_analysis_inputs,
+        stage = _stage_unblind_projection_locked(
+            handle, permit_hmac_sha256=permit_hmac_sha256, root=root,
+            manifest_ref=manifest_ref, schedule_ref=schedule_ref,
+            prefix_index_ref=prefix_index_ref, ledger_ref=ledger_ref,
+            projection_ref=projection_ref, freeze_ref=freeze_ref,
+            expected_task_count=expected_task_count,
+            current_analysis_inputs=current_analysis_inputs,
         )
-        actual, projection_payload, _manifest = _validated_permit(
-            handle, run_root=root, manifest_ref=manifest_ref,
-            schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
-            ledger_ref=ledger_ref, projection_ref=projection_ref,
-            freeze_ref=freeze_ref, expected_task_count=expected_task_count,
+        receipt = write_record(
+            receipt_destination, stage.receipt_record, run_root=root,
+            role="unblind_receipt",
         )
-        if not hmac.compare_digest(actual, permit_hmac_sha256):
-            raise RecordValidationError("unblind permit MAC does not match")
-        # Only a valid permit can authorize the graph pass which decodes ledger
-        # structure; its full ancestry is therefore never trusted beforehand.
-        # Taint is intentionally before the first ledger decode.  A crash or
-        # later full-graph validation failure therefore cannot reset a context
-        # that began to expose assignment/outcome information.
-        mark_outcome_tainted(root)
-        validate_scientific_graph(root)
-        ledger_value = _validate_ledger_ancestry(
-            ledger_ref, run_root=root, manifest_ref=manifest_ref,
-            schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
+        return UnblindResult(receipt_ref=receipt, rows=stage.rows)
+
+
+def _stage_unblind_projection_locked(
+    handle: UnblindSecretHandle, *, permit_hmac_sha256: str, root: Path,
+    manifest_ref: ArtifactRef, schedule_ref: ArtifactRef, prefix_index_ref: ArtifactRef,
+    ledger_ref: ArtifactRef, projection_ref: ArtifactRef, freeze_ref: ArtifactRef,
+    expected_task_count: int, current_analysis_inputs: CurrentAnalysisInputs,
+) -> _UnblindStage:
+    """Cross the clear-ledger boundary, retaining all clear rows only in RAM."""
+    # This intentionally excludes the opaque ledger: graph validation must
+    # precede every ledger open/decode, while the permit validates its raw
+    # digest and binding before the full graph is allowed to inspect it.
+    validate_preunblind_graph(root, ledger_ref)
+    verify_current_analysis_inputs(
+        freeze_ref, run_root=root, inputs=current_analysis_inputs,
+    )
+    actual, projection_payload, _manifest = _validated_permit(
+        handle, run_root=root, manifest_ref=manifest_ref,
+        schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
+        ledger_ref=ledger_ref, projection_ref=projection_ref,
+        freeze_ref=freeze_ref, expected_task_count=expected_task_count,
+    )
+    if not hmac.compare_digest(actual, permit_hmac_sha256):
+        raise RecordValidationError("unblind permit MAC does not match")
+    # Taint is intentionally before the first ledger decode.  A crash or
+    # later full-graph validation failure therefore cannot reset a context
+    # that began to expose assignment/outcome information.
+    mark_outcome_tainted(root)
+    validate_scientific_graph(root)
+    ledger_value = _validate_ledger_ancestry(
+        ledger_ref, run_root=root, manifest_ref=manifest_ref,
+        schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
+    )
+    arms = {row["task_id"]: dict(row["slot_arms"]) for row in cast(list[Mapping[str, object]], cast(Mapping[str, object], ledger_value["payload"])["assignments"])}
+    clear_rows = []
+    for row in cast(list[Mapping[str, object]], projection_payload["rows"]):
+        slot_arms = arms.get(cast(str, row["task_id"]))
+        if slot_arms is None:
+            raise RecordValidationError("ledger does not cover blinded projection")
+        clear_rows.append({**dict(row), "slots": [{**dict(slot), "arm": slot_arms[slot["slot_id"]]} for slot in cast(list[Mapping[str, object]], row["slots"])]})
+    receipt_record = {
+        "record_kind": "resampling_unblind_receipt", "schema_version": "0.1.0",
+        "study_id": ledger_value["study_id"], "frozen_created_at": ledger_value["frozen_created_at"],
+        "provenance": ledger_value["provenance"],
+        "payload": {
+            "projection_ref": _mapping_ref(projection_ref),
+            "assignment_ledger_ref": _mapping_ref(ledger_ref),
+            "analysis_freeze_ref": _mapping_ref(freeze_ref),
+            "expected_task_count": expected_task_count, "permit_hmac_sha256": actual,
+        },
+    }
+    return _UnblindStage(receipt_record=receipt_record, rows=tuple(clear_rows))
+
+
+def _ref_for_prepared_record(
+    record: Mapping[str, object], *, run_root: Path, relative_path: str, role: str,
+) -> tuple[Mapping[str, object], ArtifactRef, bytes]:
+    """Validate a not-yet-published record and bind the reference to its bytes."""
+    validated = validate_record(record)
+    _require_manifest_ancestry(validated, run_root=run_root)
+    payload = canonical_json_bytes(validated, indent=4)
+    return validated, ArtifactRef(
+        role=role, relative_path=relative_path,
+        sha256=hashlib.sha256(payload).hexdigest(), byte_count=len(payload),
+        media_type="application/json",
+    ), payload
+
+
+def unblind_and_publish_analysis(
+    handle: UnblindSecretHandle, *, permit_hmac_sha256: str, run_root: Path,
+    receipt_destination: Path, analysis_destination: Path, manifest_ref: ArtifactRef,
+    schedule_ref: ArtifactRef, prefix_index_ref: ArtifactRef, ledger_ref: ArtifactRef,
+    projection_ref: ArtifactRef, freeze_ref: ArtifactRef, expected_task_count: int,
+    current_analysis_inputs: CurrentAnalysisInputs,
+    analysis_builder: Callable[[UnblindResult], Mapping[str, object]],
+) -> PairedUnblindResult:
+    """Publish receipt and analysis together only after in-memory analysis succeeds.
+
+    This is a recoverable all-or-none controller transaction: destinations are
+    preflighted before taint, no clear rows leave memory before the builder has
+    completed, and publication failure removes every target written in this
+    call.  The controller lock prevents a second Task-6 writer from observing
+    a partial pair.
+    """
+    with task6_controller_lock(run_root) as root:
+        recover_paired_publication(root)
+        require_singleton_absent(root, "resampling_unblind_receipt")
+        receipt_target, receipt_relative = _prepare_destination(receipt_destination, root)
+        analysis_target, analysis_relative = _prepare_destination(analysis_destination, root)
+        if receipt_target == analysis_target:
+            raise RecordValidationError("unblind receipt and analysis destinations must differ")
+        stage = _stage_unblind_projection_locked(
+            handle, permit_hmac_sha256=permit_hmac_sha256, root=root,
+            manifest_ref=manifest_ref, schedule_ref=schedule_ref,
+            prefix_index_ref=prefix_index_ref, ledger_ref=ledger_ref,
+            projection_ref=projection_ref, freeze_ref=freeze_ref,
+            expected_task_count=expected_task_count,
+            current_analysis_inputs=current_analysis_inputs,
         )
-        arms = {row["task_id"]: dict(row["slot_arms"]) for row in cast(list[Mapping[str, object]], cast(Mapping[str, object], ledger_value["payload"])["assignments"])}
-        clear_rows = []
-        for row in cast(list[Mapping[str, object]], projection_payload["rows"]):
-            slot_arms = arms.get(cast(str, row["task_id"]))
-            if slot_arms is None:
-                raise RecordValidationError("ledger does not cover blinded projection")
-            clear_rows.append({**dict(row), "slots": [{**dict(slot), "arm": slot_arms[slot["slot_id"]]} for slot in cast(list[Mapping[str, object]], row["slots"])]})
-        record = {"record_kind": "resampling_unblind_receipt", "schema_version": "0.1.0", "study_id": ledger_value["study_id"], "frozen_created_at": ledger_value["frozen_created_at"], "provenance": ledger_value["provenance"], "payload": {"projection_ref": _mapping_ref(projection_ref), "assignment_ledger_ref": _mapping_ref(ledger_ref), "analysis_freeze_ref": _mapping_ref(freeze_ref), "expected_task_count": expected_task_count, "permit_hmac_sha256": actual}}
-        receipt = write_record(receipt_destination, record, run_root=root, role="unblind_receipt")
-        return UnblindResult(receipt_ref=receipt, rows=tuple(clear_rows))
+        receipt_record, receipt_ref, receipt_bytes = _ref_for_prepared_record(
+            stage.receipt_record, run_root=root,
+            relative_path=receipt_relative, role="unblind_receipt",
+        )
+        analysis_record = analysis_builder(UnblindResult(receipt_ref, stage.rows))
+        _analysis_record, analysis_ref, analysis_bytes = _ref_for_prepared_record(
+            analysis_record, run_root=root, relative_path=analysis_relative,
+            role="analysis",
+        )
+        analysis_payload = cast(Mapping[str, object], _analysis_record["payload"])
+        if analysis_payload.get("unblind_receipt_ref") != _mapping_ref(receipt_ref):
+            raise RecordValidationError("analysis does not bind the paired unblind receipt")
+        begin_paired_publication(
+            root, ((receipt_target, receipt_bytes), (analysis_target, analysis_bytes)),
+        )
+        try:
+            write_atomic_bytes(receipt_target, receipt_bytes)
+            write_atomic_bytes(analysis_target, analysis_bytes)
+        except BaseException:
+            abort_paired_publication(root)
+            raise
+        recover_paired_publication(root)
+        return PairedUnblindResult(receipt_ref=receipt_ref, analysis_ref=analysis_ref)

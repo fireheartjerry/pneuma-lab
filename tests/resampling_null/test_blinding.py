@@ -191,3 +191,130 @@ def test_valid_permit_taints_before_full_graph_failure(monkeypatch, tmp_path) ->
             current_analysis_inputs=inputs,
         )
     assert (root / "operational/task6/outcome-tainted.json").is_file()
+
+
+def test_paired_unblind_analysis_builder_failure_publishes_neither_record_but_taints(
+    monkeypatch, tmp_path,
+) -> None:
+    """After clear parsing starts, a failed analysis cannot orphan a receipt."""
+    import pneuma_lab.resampling_null.blinding as blinding
+    from pneuma_lab.resampling_null.freeze import CurrentAnalysisInputs
+    from pneuma_lab.resampling_null.task6_state import require_preunblind_context
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    root = tmp_path / "run"
+    root.mkdir()
+    ref = ArtifactRef("x", "x.json", "0" * 64, 0, "application/json")
+    inputs = CurrentAnalysisInputs({}, tmp_path / "config", tmp_path / "schema", ref)
+    monkeypatch.setattr(blinding, "validate_preunblind_graph", lambda *a: None)
+    monkeypatch.setattr(blinding, "verify_current_analysis_inputs", lambda *a, **k: None)
+    permit = "a" * 64
+    monkeypatch.setattr(blinding, "_validated_permit", lambda *a, **k: (
+        permit, {"rows": [{"task_id": "t", "slots": [{"slot_id": "0"}]}]}, {},
+    ))
+    monkeypatch.setattr(blinding, "validate_scientific_graph", lambda *a: None)
+    monkeypatch.setattr(blinding, "_require_manifest_ancestry", lambda *a, **k: None)
+    monkeypatch.setattr(blinding, "_validate_ledger_ancestry", lambda *a, **k: {
+        "payload": {"assignments": [{"task_id": "t", "slot_arms": {"0": "REAL"}}]},
+        "study_id": "s", "frozen_created_at": "2026-01-01T00:00:00Z",
+        "provenance": {"code_sha256": "0" * 64, "design_sha256": "1" * 64},
+    })
+
+    def fail_after_clear(_stage: object) -> dict[str, object]:
+        raise RecordValidationError("injected analysis failure")
+
+    with pytest.raises(RecordValidationError, match="injected analysis failure"):
+        blinding.unblind_and_publish_analysis(
+            object(), permit_hmac_sha256=permit, run_root=root,
+            receipt_destination=root / "receipt.json", analysis_destination=root / "analysis.json",
+            manifest_ref=ref, schedule_ref=ref, prefix_index_ref=ref, ledger_ref=ref,
+            projection_ref=ref, freeze_ref=ref, expected_task_count=1,
+            current_analysis_inputs=inputs, analysis_builder=fail_after_clear,
+        )
+    assert not (root / "receipt.json").exists()
+    assert not (root / "analysis.json").exists()
+    assert (root / "operational/task6/outcome-tainted.json").is_file()
+    with pytest.raises(RecordValidationError, match="outcome-tainted"):
+        require_preunblind_context(root, "resampling_blinded_projection")
+
+
+def test_paired_unblind_second_publication_failure_rolls_back_receipt(
+    monkeypatch, tmp_path,
+) -> None:
+    """A failing second write leaves no publicly discoverable half-pair."""
+    import hashlib
+    import pneuma_lab.resampling_null.blinding as blinding
+    from pneuma_lab.foundation.artifacts import write_atomic_bytes as real_write
+    from pneuma_lab.resampling_null.freeze import CurrentAnalysisInputs
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    root = tmp_path / "run"
+    root.mkdir()
+    ref = ArtifactRef("x", "x.json", "0" * 64, 0, "application/json")
+    inputs = CurrentAnalysisInputs({}, tmp_path / "config", tmp_path / "schema", ref)
+    permit = "a" * 64
+    monkeypatch.setattr(blinding, "validate_preunblind_graph", lambda *a: None)
+    monkeypatch.setattr(blinding, "verify_current_analysis_inputs", lambda *a, **k: None)
+    monkeypatch.setattr(blinding, "_validated_permit", lambda *a, **k: (
+        permit, {"rows": [{"task_id": "t", "slots": [{"slot_id": "0"}]}]}, {},
+    ))
+    monkeypatch.setattr(blinding, "validate_scientific_graph", lambda *a: None)
+    monkeypatch.setattr(blinding, "_validate_ledger_ancestry", lambda *a, **k: {
+        "payload": {"assignments": [{"task_id": "t", "slot_arms": {"0": "REAL"}}]},
+        "study_id": "s", "frozen_created_at": "2026-01-01T00:00:00Z",
+        "provenance": {"code_sha256": "0" * 64, "design_sha256": "1" * 64},
+    })
+    prepared = 0
+    receipt_ref = None
+    def fake_prepared(_record, *, run_root, relative_path, role):
+        nonlocal prepared, receipt_ref
+        prepared += 1
+        payload = f"{role}-{prepared}".encode("ascii")
+        result_ref = ArtifactRef(role, relative_path, hashlib.sha256(payload).hexdigest(), len(payload), "application/json")
+        if receipt_ref is None:
+            receipt_ref = result_ref
+            return _record, result_ref, payload
+        assert receipt_ref is not None
+        return {"payload": {"unblind_receipt_ref": blinding._mapping_ref(receipt_ref)}}, result_ref, payload
+    monkeypatch.setattr(blinding, "_ref_for_prepared_record", fake_prepared)
+    writes = 0
+    def fail_second(path, payload):
+        nonlocal writes
+        writes += 1
+        if writes == 2:
+            raise OSError("injected publication failure")
+        real_write(path, payload)
+    monkeypatch.setattr(blinding, "write_atomic_bytes", fail_second)
+
+    with pytest.raises(OSError, match="injected publication failure"):
+        blinding.unblind_and_publish_analysis(
+            object(), permit_hmac_sha256=permit, run_root=root,
+            receipt_destination=root / "receipt.json", analysis_destination=root / "analysis.json",
+            manifest_ref=ref, schedule_ref=ref, prefix_index_ref=ref, ledger_ref=ref,
+            projection_ref=ref, freeze_ref=ref, expected_task_count=1,
+            current_analysis_inputs=inputs, analysis_builder=lambda _stage: {},
+        )
+    assert not (root / "receipt.json").exists()
+    assert not (root / "analysis.json").exists()
+    assert not (root / "operational/task6/paired-publication.json").exists()
+    assert (root / "operational/task6/outcome-tainted.json").is_file()
+
+
+def test_next_task6_controller_entry_recovers_a_crashed_partial_pair(tmp_path) -> None:
+    """The durable no-clear transaction makes a crash recoverable, not orphaning."""
+    from pneuma_lab.foundation.artifacts import write_atomic_bytes
+    from pneuma_lab.resampling_null.task6_state import (
+        begin_paired_publication,
+        task6_controller_lock,
+    )
+
+    root = tmp_path / "run"
+    root.mkdir()
+    receipt, analysis = root / "receipt.json", root / "analysis.json"
+    begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")))
+    write_atomic_bytes(receipt, b"receipt")
+    with task6_controller_lock(root):
+        pass
+    assert not receipt.exists()
+    assert not analysis.exists()
+    assert not (root / "operational/task6/paired-publication.json").exists()

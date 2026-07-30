@@ -18,7 +18,8 @@ from .artifacts import (_scientific_documents, seal_artifact_root,
                         seal_study_manifest, verify_artifact_root,
                         validate_record, write_record)
 from .analysis import analyze as analyze_rows
-from .blinding import issue_unblind_permit, seal_blinded_projection, unblind_projection
+from .blinding import (issue_unblind_permit, seal_blinded_projection,
+                        unblind_and_publish_analysis)
 from .freeze import CurrentAnalysisInputs, freeze_analysis
 from .assignment import (load_assignment_authority,
                          require_schedulable_power_final)
@@ -752,6 +753,29 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
         expected = projection_payload.get("expected_task_count")
         if type(expected) is not int or expected < 1:
             raise RecordValidationError("projection expected task count is malformed")
+        freeze = _record_for_ref(freeze_ref, root=root, kind="resampling_analysis_freeze")
+        config_ref = _artifact_ref(_payload(freeze, field="analysis freeze").get("config_ref"), field="analysis freeze config_ref")
+        manifest = _record_for_ref(study_ref, root=root, kind="resampling_study_manifest")
+
+        def build_analysis(unblinded: object) -> dict[str, object]:
+            # The staged unblind result carries only in-memory rows and the
+            # deterministic future receipt ref; no artifact has been written.
+            rows = _analysis_rows(unblinded.rows)  # type: ignore[union-attr]
+            result = analyze_rows(rows, config, seed=seed, manifest_ref=study_ref,
+                                  power_final_ref=power_final_ref, run_root=root)
+            return {
+                "record_kind": "resampling_analysis", "schema_version": "0.1.0",
+                "study_id": manifest["study_id"], "frozen_created_at": manifest["frozen_created_at"],
+                "provenance": manifest["provenance"],
+                "payload": {
+                    "analysis_freeze_ref": _mapping_ref(freeze_ref),
+                    "projection_ref": _mapping_ref(projection_ref),
+                    "unblind_receipt_ref": _mapping_ref(unblinded.receipt_ref),  # type: ignore[union-attr]
+                    "config_ref": _mapping_ref(config_ref), "row_count": len(rows),
+                    "result": asdict(result), "numeric_receipt": {"finite": True},
+                },
+            }
+
         store = AssignmentSecretStore(secret_path)
         try:
             permit = issue_unblind_permit(
@@ -760,29 +784,17 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
                 ledger_ref=ledger_ref, projection_ref=projection_ref, freeze_ref=freeze_ref,
                 expected_task_count=expected,
             )
-            unblinded = unblind_projection(
+            paired = unblind_and_publish_analysis(
                 store.claim_unblind(study_ref, schedule_ref, run_root=root), permit_hmac_sha256=permit,
                 run_root=root, receipt_destination=receipt_out, manifest_ref=study_ref,
                 schedule_ref=schedule_ref, prefix_index_ref=prefix_ref, ledger_ref=ledger_ref,
                 projection_ref=projection_ref, freeze_ref=freeze_ref, expected_task_count=expected,
                 current_analysis_inputs=current,
+                analysis_destination=analysis_out, analysis_builder=build_analysis,
             )
         finally:
             store.close()
-        rows = _analysis_rows(unblinded.rows)
-        result = analyze_rows(rows, config, seed=seed, manifest_ref=study_ref,
-                              power_final_ref=power_final_ref, run_root=root)
-        freeze = _record_for_ref(freeze_ref, root=root, kind="resampling_analysis_freeze")
-        config_ref = _artifact_ref(_payload(freeze, field="analysis freeze").get("config_ref"), field="analysis freeze config_ref")
-        manifest = _record_for_ref(study_ref, root=root, kind="resampling_study_manifest")
-        return write_record(analysis_out, {
-            "record_kind": "resampling_analysis", "schema_version": "0.1.0",
-            "study_id": manifest["study_id"], "frozen_created_at": manifest["frozen_created_at"],
-            "provenance": manifest["provenance"],
-            "payload": {"analysis_freeze_ref": _mapping_ref(freeze_ref), "projection_ref": _mapping_ref(projection_ref),
-                        "unblind_receipt_ref": _mapping_ref(unblinded.receipt_ref), "config_ref": _mapping_ref(config_ref),
-                        "row_count": len(rows), "result": asdict(result), "numeric_receipt": {"finite": True}},
-        }, run_root=root, role="analysis")
+        return paired.analysis_ref
     if args.command == "artifacts":
         required_path = Path(args.required_kinds).resolve(strict=True)
         required = load_json_bytes(required_path.read_bytes(), source=required_path)

@@ -2279,3 +2279,34 @@ The next event after the archived migration boundary is appended below.
   plus paired-publication protocol.
 - **Boundary/non-claim:** No unblind, P0, analysis, provider action, spend, or
   scientific result was executed.
+
+### EJ-20260730-0207 — Task 6 / Task 9 paired unblind-publication repair
+
+- **Correction:** Replaced the CLI's receipt-first unblind/then-analysis write
+  sequence with a staged controller transaction. After the valid permit and
+  irrevocable pre-decode taint, clear rows remain in memory while registered
+  row conversion and numeric analysis construct a fully validated analysis
+  record. The future receipt digest is derived from validated deterministic
+  bytes, so the analysis binds it before either artifact is public. Both output
+  destinations are preflighted before taint; neither may preexist.
+- **Publication recovery:** Since receipt and analysis may reside in different
+  root-relative directories, the single-directory foundation publisher cannot
+  make them one kernel rename. The controller therefore durably writes a
+  no-clear prepared-pair intent (only target paths/digests/sizes), then writes
+  the two already-validated public records. A controlled second-write failure
+  removes the matching first record. Every future Task-6 controller lock
+  recovers a crash: two matching targets complete the transaction; a matching
+  partial target is removed; malformed or substituted targets fail closed.
+  No raw assignment mapping, key, or clear row is serialized in the intent.
+- **Focused evidence:** The new builder-failure regression was observed RED
+  before the staged API existed. It now proves analysis failure leaves neither
+  receipt nor analysis while the outcome taint remains and blocks protected
+  work. A second-write failure-injection regression proves receipt rollback;
+  a simulated crash proves next-lock recovery removes a partial pair.
+  `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_blinding.py
+  tests/resampling_null/test_cli.py -q` passed 34 tests; `py_compile`,
+  project-status check, and whitespace check passed.
+- **Boundary/non-claim:** This is controller integrity plumbing only. No
+  unblind ceremony, P0, provider, benchmark, spending action, or numerical
+  scientific result was executed. The actual full-lineage unblind/analysis E2E
+  remains blocked by the unrun full P0 and absent Task-5 branch executor.

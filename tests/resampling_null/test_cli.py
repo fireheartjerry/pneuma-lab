@@ -349,12 +349,11 @@ def test_cli_analyze_does_not_decode_ledger_before_guard(
     monkeypatch.setattr(cli, "_external_file", lambda value, **kwargs: key)
     monkeypatch.setattr(cli, "_analysis_config", lambda _path: (object(), 0))
     monkeypatch.setattr(cli, "issue_unblind_permit", lambda *args, **kwargs: "permit")
-    monkeypatch.setattr(cli, "unblind_projection", lambda *args, **kwargs: SimpleNamespace(receipt_ref=refs["receipt.json"], rows=()))
+    monkeypatch.setattr(cli, "unblind_and_publish_analysis", lambda *args, **kwargs: SimpleNamespace(analysis_ref=refs["config.json"]))
     @dataclass
     class _Result:
         marker: int = 1
     monkeypatch.setattr(cli, "analyze_rows", lambda *args, **kwargs: _Result())
-    monkeypatch.setattr(cli, "write_record", lambda *args, **kwargs: refs["config.json"])
     args = SimpleNamespace(command="analyze", study="study.json", projection="projection.json",
         assignment="assignment.json", analysis_freeze="freeze.json", packet_index="packet.json",
         source_root="ignored", source=["ignored"], config="ignored", projection_schema="ignored",
