@@ -510,3 +510,15 @@ add a sealed opaque packet-capability layer and then the actual isolated
 restore/attempt/task-block executor.  This checkpoint does not make
 `synthetic branches` available and does not create task blocks or scientific
 evidence.
+
+**Task 10 timing rerun termination (2026-07-30):** The user directed the
+termination of the active all-cell rerun after its elapsed lower bound made a
+passing 12-hour projection mathematically impossible.  The exact screen PID
+exited after `SIGTERM`; the ignored root contains only the study manifest,
+screen lock, and power authority—no screen/marker/shard/final artifact.  This
+is a non-result termination, not a sealed P0 no-go or result.  Future runs must
+stop immediately once a registered lower bound makes the requested decision
+impossible, record the state, and move to the next gate.  The remaining work is
+now implementation-limited, not CPU-process-limited: finish opaque packet
+capabilities and branch execution, then revisit a reviewed formal timing
+no-go representation.

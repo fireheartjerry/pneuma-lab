@@ -6,6 +6,7 @@ and every path accepted after study sealing is a run-root-relative POSIX path.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 from dataclasses import asdict
 import hashlib
 import json
@@ -447,6 +448,59 @@ def _packet_manifest_parents(
     return tokenizer, template, policy, pads
 
 
+def _opaque_guidance_paths(
+    task_id: str,
+    assignment: Mapping[str, object],
+    allocation: Mapping[str, object],
+) -> tuple[str, str]:
+    """Name worker-visible packet payloads by opaque slot capability only."""
+    if type(task_id) is not str or not task_id:
+        raise RecordValidationError("packet task ID is malformed")
+    if assignment.get("task_id") != task_id or allocation.get("task_id") != task_id:
+        raise RecordValidationError("packet assignment/allocation task differs")
+    slot_arms = assignment.get("slot_arms")
+    slot_capabilities = allocation.get("slot_capabilities")
+    if not isinstance(slot_arms, list) or not isinstance(slot_capabilities, list):
+        raise RecordValidationError("packet slot authority is malformed")
+    arm_slots: dict[str, str] = {}
+    for index, item in enumerate(slot_arms):
+        if (
+            not isinstance(item, list)
+            or len(item) != 2
+            or type(item[0]) is not str
+            or type(item[1]) is not str
+            or item[1] not in {"REAL", "SHAM", "NONE", "RESAMPLE"}
+            or item[1] in arm_slots
+        ):
+            raise RecordValidationError(f"packet slot_arms[{index}] is malformed")
+        arm_slots[item[1]] = item[0]
+    capabilities: dict[str, str] = {}
+    for index, item in enumerate(slot_capabilities):
+        if (
+            not isinstance(item, list)
+            or len(item) != 2
+            or type(item[0]) is not str
+            or type(item[1]) is not str
+            or len(item[1]) != 64
+            or any(char not in "0123456789abcdef" for char in item[1])
+            or item[0] in capabilities
+        ):
+            raise RecordValidationError(
+                f"packet slot_capabilities[{index}] is malformed"
+            )
+        capabilities[item[0]] = item[1]
+    if (
+        set(arm_slots) != {"REAL", "SHAM", "NONE", "RESAMPLE"}
+        or set(capabilities) != set(arm_slots.values())
+    ):
+        raise RecordValidationError("packet slot authority must close exactly four arms")
+    slug = hashlib.sha256(task_id.encode("utf-8")).hexdigest()
+    return (
+        f"packet-work/{slug}/guidance-{capabilities[arm_slots['REAL']]}.txt",
+        f"packet-work/{slug}/guidance-{capabilities[arm_slots['SHAM']]}.txt",
+    )
+
+
 def _build_packet_candidate(
     *, study_ref: ArtifactRef, assignment_ref: ArtifactRef, prefix_ref: ArtifactRef,
     tokenizer_ref: ArtifactRef, packet_template_ref: ArtifactRef, packet_policy_ref: ArtifactRef,
@@ -458,11 +512,19 @@ def _build_packet_candidate(
     assignment = _record_for_ref(assignment_ref, root=root, kind="resampling_assignment_ledger")
     prefix_rows = prefix["payload"].get("task_receipts") if isinstance(prefix["payload"], dict) else None
     assignment_rows = assignment["payload"].get("assignments") if isinstance(assignment["payload"], dict) else None
-    if not isinstance(prefix_rows, list) or not isinstance(assignment_rows, list):
+    allocation_rows = assignment["payload"].get("allocation_receipts") if isinstance(assignment["payload"], dict) else None
+    if (
+        not isinstance(prefix_rows, list)
+        or not isinstance(assignment_rows, list)
+        or not isinstance(allocation_rows, list)
+    ):
         raise RecordValidationError("packet build parents are malformed")
     assignments = {row.get("task_id"): row for row in assignment_rows if isinstance(row, dict)}
     if len(assignments) != len(assignment_rows):
         raise RecordValidationError("assignment task coverage is malformed")
+    allocations = {row.get("task_id"): row for row in allocation_rows if isinstance(row, dict)}
+    if len(allocations) != len(allocation_rows) or set(allocations) != set(assignments):
+        raise RecordValidationError("packet allocation task coverage is malformed")
     prefix_by_task = {row.get("task_id"): row for row in prefix_rows if isinstance(row, dict)}
     if len(prefix_by_task) != len(prefix_rows) or set(prefix_by_task) != set(assignments):
         raise RecordValidationError("prefix and assignment task coverage differs")
@@ -478,6 +540,7 @@ def _build_packet_candidate(
             entries.append(NoInterventionPacketMarker(task_id, prefix_ref.sha256, "no_intervention_opportunity"))
             continue
         assignment_row = assignments[task_id]
+        allocation_row = allocations[task_id]
         donor_task_id = assignment_row.get("donor_task_id")
         donor_row = prefix_by_task.get(donor_task_id)
         if type(donor_task_id) is not str or not isinstance(donor_row, dict) or assignment_row.get("donor_match_kind") != "matched":
@@ -500,7 +563,10 @@ def _build_packet_candidate(
                 raise RecordValidationError("packet donor identifiers lack focal-safe aliases")
             mapping[atom] = choices.pop(0)
         rewrites = derive_packet_rewrite_artifacts(mapping, focal_task_id=task_id, donor_task_id=donor_task_id, normalized_real_ref=real, normalized_donor_ref=donor, run_root=root, identifier_map_out=root / f"packet-work/{slug}/identifier-map.json", normalized_sham_out=root / f"packet-work/{slug}/sham.json")
-        entries.append(build_packet_pair(run_root=root, normalized_real_ref=real, normalized_donor_ref=donor, normalized_sham_ref=rewrites.normalized_sham_ref, artifact_store=store, real_relative_path=f"packet-work/{slug}/private-real.txt", sham_relative_path=f"packet-work/{slug}/private-sham.txt", task_id=task_id, donor_task_id=donor_task_id, prefix_index_sha256=prefix_ref.sha256, focal_verifier_ref=focal_verifier, donor_verifier_ref=donor_verifier, assignment_ref=assignment_ref, identifier_map_ref=rewrites.identifier_map_ref, tokenizer_ref=tokenizer_ref, packet_template_ref=packet_template_ref, packet_policy_ref=packet_policy_ref, pad_unit_set_ref=pad_unit_set_ref))
+        real_path, sham_path = _opaque_guidance_paths(
+            task_id, assignment_row, allocation_row
+        )
+        entries.append(build_packet_pair(run_root=root, normalized_real_ref=real, normalized_donor_ref=donor, normalized_sham_ref=rewrites.normalized_sham_ref, artifact_store=store, real_relative_path=real_path, sham_relative_path=sham_path, task_id=task_id, donor_task_id=donor_task_id, prefix_index_sha256=prefix_ref.sha256, focal_verifier_ref=focal_verifier, donor_verifier_ref=donor_verifier, assignment_ref=assignment_ref, identifier_map_ref=rewrites.identifier_map_ref, tokenizer_ref=tokenizer_ref, packet_template_ref=packet_template_ref, packet_policy_ref=packet_policy_ref, pad_unit_set_ref=pad_unit_set_ref))
     return write_packet_candidate(entries, assignment_ref=assignment_ref, prefix_index_ref=prefix_ref, tokenizer_ref=tokenizer_ref, packet_template_ref=packet_template_ref, packet_policy_ref=packet_policy_ref, pad_unit_set_ref=pad_unit_set_ref, run_root=root, out=out)
 
 

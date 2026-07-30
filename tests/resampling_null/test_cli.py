@@ -33,6 +33,25 @@ def test_cli_status_is_a_successful_json_probe(tmp_path: Path, capsys) -> None:
     assert json.loads(capsys.readouterr().out) == {"documents": 0, "status": "ok"}
 
 
+def test_cli_packet_paths_are_bound_to_opaque_slot_capabilities() -> None:
+    from pneuma_lab.resampling_null.cli import _opaque_guidance_paths
+
+    assignment = {
+        "task_id": "task-1",
+        "slot_arms": [["slot-0", "NONE"], ["slot-1", "REAL"],
+                      ["slot-2", "SHAM"], ["slot-3", "RESAMPLE"]],
+    }
+    allocation = {
+        "task_id": "task-1",
+        "slot_capabilities": [["slot-0", "a" * 64], ["slot-1", "b" * 64],
+                              ["slot-2", "c" * 64], ["slot-3", "d" * 64]],
+    }
+    real, sham = _opaque_guidance_paths("task-1", assignment, allocation)
+    assert real.endswith(f"guidance-{'b' * 64}.txt")
+    assert sham.endswith(f"guidance-{'c' * 64}.txt")
+    assert all(arm not in path.lower() for path in (real, sham) for arm in ("real", "sham"))
+
+
 def test_cli_rejects_noncanonical_paths_and_missing_final_refs(tmp_path: Path, capsys) -> None:
     from pneuma_lab.resampling_null.cli import _out, _shards, main
     from pneuma_lab.resampling_null.errors import RecordValidationError

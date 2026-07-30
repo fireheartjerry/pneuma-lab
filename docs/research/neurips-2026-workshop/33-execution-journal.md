@@ -2540,3 +2540,24 @@ The next event after the archived migration boundary is appended below.
   enable `synthetic branches` before those records are independently reviewed.
 - **Boundary/non-claim:** No worker, task block, packet rewrite, provider,
   spend, benchmark execution, unblind, analysis, or P0 result occurred.
+
+### EJ-20260730-0217 — User-authorized termination of decisive timing no-go
+
+- **Action:** After the all-cell timing probe had remained active for more
+  than two hours, the user explicitly directed its termination.  The verified
+  PID was sent `SIGTERM`; it exited cleanly.
+- **Reason:** The registered 200-to-20,000 draw extrapolation has a 100x
+  multiplier, so a passing 43,200-second production projection requires the
+  entire timing probe to finish within 432 seconds.  The live elapsed lower
+  bound already exceeded that threshold by a large margin; additional compute
+  could not change a passing decision.
+- **Observed state:** The ignored rerun root retains only its study manifest,
+  screen lock, and power authority.  It contains no screen record, verifier
+  marker, shard, final, or downstream artifact.
+- **Gate/result:** This is a user-authorized **non-result termination**, not a
+  sealed timing-failure report or a P0 final.  The configuration remains
+  inadmissible on the observed host; a formal no-go representation would need
+  a separately reviewed record path.  Future decisive lower-bound no-gos must
+  stop promptly, preserve state, and proceed to the next implementation gate.
+- **Boundary/non-claim:** No provider/spend/benchmark action, scientific
+  result, schedule, branch, unblind, analysis, or claim occurred.
