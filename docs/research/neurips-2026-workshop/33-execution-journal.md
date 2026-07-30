@@ -2515,3 +2515,28 @@ The next event after the archived migration boundary is appended below.
   screen, a power final, or a synthetic scientific result.
 - **Boundary/non-claim:** Zero spend, provider/benchmark action, validation,
   finalization, schedule, branch, unblind, analysis, and scientific claim.
+
+### EJ-20260730-0216 — Task-9 branch authority: opaque work-order contract
+
+- **Action:** Added the first missing Task-5 descendant primitive:
+  `OpaqueSlotWorkOrder`.  It is frozen and contains only task/snapshot,
+  capability-scoped slot identity, optional private-guidance ref, public
+  parent digests, and immutable branch caps; it has no arm, donor, clear-ledger,
+  or peer-slot field.
+- **Hostile-review finding/correction:** A worker-visible packet reference is
+  an arm side channel.  The contract now requires the composite-snapshot and
+  private-guidance roles and rejects `REAL`/`SHAM`/`NONE`/`RESAMPLE` labels in a
+  worker-visible guidance path.  Existing packet construction currently writes
+  `private-real`/`private-sham` filenames, so it cannot yet feed this worker
+  contract.  This is an explicit implementation dependency, not a reason to
+  relax the opacity rule.
+- **Focused evidence:** A red-first controller test confirms immutable
+  capability-only construction and rejects an arm-labeled guidance ref;
+  `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_controller.py -q` passed, followed by a passing
+  whitespace check.
+- **Next gate:** Introduce a sealed opaque packet-capability view, then
+  implement restore/run/attempt/task-block transactions through it.  Do not
+  enable `synthetic branches` before those records are independently reviewed.
+- **Boundary/non-claim:** No worker, task block, packet rewrite, provider,
+  spend, benchmark execution, unblind, analysis, or P0 result occurred.

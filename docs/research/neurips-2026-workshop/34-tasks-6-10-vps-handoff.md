@@ -497,3 +497,16 @@ spend, benchmark action, or claim is authorized.  Next gate: let the immutable
 probe finish/fail, record the exact receipt or error, then decide whether a
 separate reviewed no-go representation is required.  The missing Task-5 opaque
 branch executor remains an independent blocker for all Task-9 descendants.
+
+**Task 9 opaque-worker contract checkpoint (2026-07-30):** The first missing
+branch primitive, `OpaqueSlotWorkOrder`, is now a frozen public value contract.
+It admits only a composite snapshot, an opaque capability identity, public
+parent digests/caps, and at most a generic private-guidance ref—never an arm,
+donor, clear ledger, or peer slot.  Hostile review caught a concrete side
+channel in the existing packet writer: its `private-real`/`private-sham` paths
+would reveal an arm to a worker.  The new contract rejects those paths, so the
+current packet artifacts cannot yet be passed to a branch worker.  Next gate:
+add a sealed opaque packet-capability layer and then the actual isolated
+restore/attempt/task-block executor.  This checkpoint does not make
+`synthetic branches` available and does not create task blocks or scientific
+evidence.

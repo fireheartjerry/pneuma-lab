@@ -7,6 +7,7 @@ from enum import Enum
 import json
 from math import isfinite
 from pathlib import PurePosixPath
+import re
 from typing import Literal, cast
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
@@ -1142,3 +1143,57 @@ class OpaqueSlotIdentity:
             "execution_order",
         )
         _require_exact_nonnegative_int(self.hardware_lane, "hardware_lane")
+
+
+@dataclass(frozen=True, slots=True)
+class OpaqueSlotWorkOrder:
+    """One worker-visible branch order with no clear arm or ledger field.
+
+    The trusted preparer resolves the clear assignment before creating this
+    record.  A worker can receive exactly this capability-scoped order and its
+    permitted artifact reads; it cannot infer another slot's arm or donor.
+    """
+
+    study_id: str
+    task_id: str
+    benchmark: str
+    slot: OpaqueSlotIdentity
+    snapshot_ref: ArtifactRef
+    private_guidance_ref: ArtifactRef | None
+    prefix_visible_sha256: str
+    packet_index_sha256: str
+    analysis_freeze_sha256: str
+    branch_caps: BranchCaps
+
+    def __post_init__(self) -> None:
+        for name in ("study_id", "task_id", "benchmark"):
+            _require_nonempty_string(getattr(self, name), name)
+        if type(self.slot) is not OpaqueSlotIdentity:
+            raise TypeError("slot must be exact OpaqueSlotIdentity")
+        if not isinstance(self.snapshot_ref, ArtifactRef):
+            raise TypeError("snapshot_ref must be ArtifactRef")
+        if self.snapshot_ref.role != "composite_snapshot":
+            raise ValueError("snapshot_ref must be the composite snapshot role")
+        if self.private_guidance_ref is not None and not isinstance(
+            self.private_guidance_ref, ArtifactRef
+        ):
+            raise TypeError("private_guidance_ref must be ArtifactRef or None")
+        if self.private_guidance_ref is not None:
+            if self.private_guidance_ref.role != "private_guidance":
+                raise ValueError("private_guidance_ref must use private_guidance role")
+            # A worker-visible reference is itself an arm side channel.  The
+            # preparer must publish/select an opaque generic packet name.
+            components = self.private_guidance_ref.relative_path.lower().split("/")
+            if any(
+                re.search(r"(?:^|[-_.])(real|sham|none|resample)(?:[-_.]|$)", part)
+                for part in components
+            ):
+                raise ValueError("private_guidance_ref path must be arm-opaque")
+        for name in (
+            "prefix_visible_sha256",
+            "packet_index_sha256",
+            "analysis_freeze_sha256",
+        ):
+            _require_sha256(getattr(self, name), name)
+        if type(self.branch_caps) is not BranchCaps:
+            raise TypeError("branch_caps must be exact BranchCaps")
