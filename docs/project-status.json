@@ -370,7 +370,9 @@
             "e2e_status": "E2E_pending",
             "evidence_refs": [
                 "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
+                "schemas/resampling-branch-program-registry.schema.json",
                 "schemas/resampling-task-block.schema.json",
+                "src/pneuma_lab/resampling_null/branch_program_authority.py",
                 "src/pneuma_lab/resampling_null/packet_capabilities.py",
                 "src/pneuma_lab/resampling_null/branch_records.py",
                 "src/pneuma_lab/resampling_null/branch_controller.py",
@@ -378,10 +380,10 @@
                 "src/pneuma_lab/resampling_null/cli.py",
                 "tests/resampling_null/test_packet_capabilities.py",
                 "tests/resampling_null/test_branch_controller.py",
+                "tests/resampling_null/test_branch_program_authority.py",
                 "tests/resampling_null/test_cli.py"
             ],
             "blockers": [
-                "B-NEURIPS-TASK9-BRANCH-PROGRAM-AUTHORITY",
                 "B-NEURIPS-TASK9-E2E"
             ]
         }
@@ -671,10 +673,6 @@
         {
             "id": "B-NEURIPS-TASK7-E2E",
             "summary": "Task 7 has no complete authority-backed P0 lineage reaching real unblind and registered analysis; its state is implementation_complete and E2E_pending."
-        },
-        {
-            "id": "B-NEURIPS-TASK9-BRANCH-PROGRAM-AUTHORITY",
-            "summary": "No study manifest names the per-slot branch execution programs an isolated worker replays, so a triggered task cannot execute; synthesizing them outside frozen authority is prohibited."
         },
         {
             "id": "B-NEURIPS-TASK9-E2E",

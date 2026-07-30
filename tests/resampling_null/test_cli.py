@@ -370,18 +370,133 @@ def test_cli_synthetic_branches_fails_closed_and_writes_nothing(
     assert list(root.iterdir()) == []
 
 
-def test_cli_branch_programs_are_not_authorized_by_any_manifest() -> None:
-    """The one remaining branch gate must name what authority is missing.
+def test_cli_branch_programs_resolve_only_through_manifest_authority(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """The CLI delegates exact schedule/work-order context to manifest authority."""
+    import pneuma_lab.resampling_null.cli as cli
+    from pneuma_lab.resampling_null.types import ArtifactRef, TriggerReason
 
-    A triggered task cannot execute until a study manifest names its per-slot
-    branch execution programs.  The CLI must say so rather than substituting a
-    caller-supplied or invented program.
-    """
+    study_ref = ArtifactRef(
+        "study_manifest",
+        "study-manifest.json",
+        "a" * 64,
+        1,
+        "application/json",
+    )
+    expected = tuple(
+        ArtifactRef(
+            "synthetic_execution_program",
+            f"sources/program-{index}.json",
+            str(index + 1) * 64,
+            1,
+            "application/json",
+        )
+        for index in range(4)
+    )
+    captured = {}
+
+    def resolve(**kwargs):
+        captured.update(kwargs)
+        return expected
+
+    monkeypatch.setattr(cli, "resolve_branch_program_refs", resolve)
+    refs = cli._branch_program_refs(
+        root=tmp_path,
+        study_ref=study_ref,
+        task_id="task-1",
+        trigger_reason=TriggerReason.FIRST_ELIGIBLE_MUTATION,
+        scheduled_slots=("s0", "s1", "s2", "s3"),
+        work_orders=("w0", "w1", "w2", "w3"),
+    )
+
+    assert refs == expected
+    assert captured["study_ref"] == study_ref
+    assert captured["task_id"] == "task-1"
+    assert (
+        captured["expected_trigger_reason"]
+        is TriggerReason.FIRST_ELIGIBLE_MUTATION
+    )
+
+
+def test_cli_admits_every_triggered_program_before_first_execution(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A late authority failure cannot leave a partially executed task roster."""
+    from types import SimpleNamespace
+
     import pneuma_lab.resampling_null.cli as cli
     from pneuma_lab.resampling_null.errors import RecordValidationError
+    from pneuma_lab.resampling_null.types import ArtifactRef, TriggerReason
 
-    with pytest.raises(RecordValidationError, match="branch slot execution is not authorized"):
-        cli._branch_program_refs("task-1")
+    def ref(role: str, char: str) -> ArtifactRef:
+        return ArtifactRef(
+            role,
+            f"{role}.json",
+            char * 64,
+            1,
+            "application/json",
+        )
+
+    monkeypatch.setattr(cli, "_ref", lambda _root, _name, role: ref(role, "a"))
+    monkeypatch.setattr(cli, "_schedule_task_ids", lambda *_args, **_kwargs: ("t1", "t2"))
+    monkeypatch.setattr(cli, "_study_id", lambda *_args, **_kwargs: "study-1")
+    authority = SimpleNamespace(
+        branch_caps=object(),
+        task_schedule=SimpleNamespace(
+            task=SimpleNamespace(benchmark="swe"),
+            slots=SimpleNamespace(slots=("s0", "s1", "s2", "s3")),
+        ),
+    )
+    prefix = SimpleNamespace(
+        trigger_reason=TriggerReason.FIRST_ELIGIBLE_MUTATION,
+    )
+    monkeypatch.setattr(
+        cli,
+        "load_prefix_execution_authority",
+        lambda **_kwargs: authority,
+    )
+    monkeypatch.setattr(cli, "load_frozen_prefix_view", lambda **_kwargs: prefix)
+    monkeypatch.setattr(
+        cli,
+        "prepare_opaque_work_orders",
+        lambda **_kwargs: ("w0", "w1", "w2", "w3"),
+    )
+    admissions = 0
+
+    def resolve(*_args, **kwargs):
+        nonlocal admissions
+        admissions += 1
+        if kwargs["task_id"] == "t2":
+            raise RecordValidationError("late authority rejection")
+        return tuple(ref("synthetic_execution_program", char) for char in "1234")
+
+    executions = 0
+
+    def execute(**_kwargs):
+        nonlocal executions
+        executions += 1
+        return ref("task_block", "f")
+
+    monkeypatch.setattr(cli, "_branch_program_refs", resolve)
+    monkeypatch.setattr(cli, "_execute_triggered_block", execute)
+    args = SimpleNamespace(
+        study="study-manifest.json",
+        schedule="prefix-schedule.json",
+        assignment="assignment.json",
+        prefix_index="prefix-index.json",
+        packet_index="packet-index.json",
+        analysis_freeze="analysis-freeze.json",
+        out_prefix="task-blocks",
+    )
+
+    with pytest.raises(RecordValidationError, match="late authority rejection"):
+        cli._synthetic_branches(args, tmp_path)
+
+    assert admissions == 2
+    assert executions == 0
 
 
 def test_cli_analyze_does_not_decode_ledger_before_guard(

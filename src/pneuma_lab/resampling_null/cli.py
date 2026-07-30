@@ -6,7 +6,7 @@ and every path accepted after study sealing is a run-root-relative POSIX path.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
@@ -24,8 +24,15 @@ from .freeze import CurrentAnalysisInputs, freeze_analysis
 from .assignment import (load_assignment_authority,
                          require_schedulable_power_final)
 from .branch_assignment import seal_branch_assignment
-from .branch_controller import (load_frozen_prefix_view, prepare_no_intervention_slots,
-                                prepare_opaque_work_orders, seal_no_intervention_block)
+from .branch_program_authority import resolve_branch_program_refs
+from .branch_controller import (
+    load_frozen_prefix_view,
+    prepare_no_intervention_slots,
+    prepare_opaque_work_orders,
+    seal_no_intervention_block,
+    seal_task_block,
+    seal_unscored_attempt,
+)
 from .errors import RecordValidationError
 from .execution_authority import load_prefix_execution_authority
 from .json_io import load_json_bytes, resolve_inside, run_root
@@ -45,9 +52,10 @@ from .schedule import seal_prefix_schedule
 from .secrets import AssignmentSecretStore
 from .selftest_fixture import seal_synthetic_selftest_study
 from .storage import claim_local_test_storage
+from .synthetic_branch_loop import grade_opaque_slot, run_opaque_slot
 from .synthetic_prefix_loop import run_prefix
 from .types import (AnalysisConfig, AnalysisRow, ArtifactRef, GroupKind, GroupLabel,
-                    TriggerReason)
+                    OpaqueSlotWorkOrder, TriggerReason)
 
 
 class _ArgumentError(ValueError):
@@ -320,7 +328,7 @@ def _parser() -> argparse.ArgumentParser:
     selftest_stage.add_argument("--resume-after-power")
     study = top.add_parser("study").add_subparsers(dest="study_command", required=True)
     seal = study.add_parser("seal", aliases=["create"])
-    for name in ("study", "tasks", "roster", "assignment_program", "provider_lane_plan", "storage_policy_contract", "power_grid", "power_screen_topology", "tokenizer", "packet_template", "packet_policy", "pad_unit_set", "required_kinds"):
+    for name in ("study", "tasks", "roster", "assignment_program", "provider_lane_plan", "branch_program_registry", "storage_policy_contract", "power_grid", "power_screen_topology", "tokenizer", "packet_template", "packet_policy", "pad_unit_set", "required_kinds"):
         seal.add_argument("--" + name.replace("_", "-") + "-source", required=True)
     seal.add_argument("--revision-source", action="append", required=True)
     seal.add_argument("--eligibility-manifest-source")
@@ -570,20 +578,115 @@ def _build_packet_candidate(
     return write_packet_candidate(entries, assignment_ref=assignment_ref, prefix_index_ref=prefix_ref, tokenizer_ref=tokenizer_ref, packet_template_ref=packet_template_ref, packet_policy_ref=packet_policy_ref, pad_unit_set_ref=pad_unit_set_ref, run_root=root, out=out)
 
 
-def _branch_program_refs(task_id: str) -> None:
-    """Fail closed: no study manifest authorizes per-slot branch programs yet.
+def _branch_program_refs(
+    *,
+    root: Path,
+    study_ref: ArtifactRef,
+    task_id: str,
+    trigger_reason: TriggerReason,
+    scheduled_slots: Sequence[object],
+    work_orders: Sequence[OpaqueSlotWorkOrder],
+) -> tuple[ArtifactRef, ArtifactRef, ArtifactRef, ArtifactRef]:
+    """Resolve post-trigger programs through the frozen manifest only."""
 
-    ``run_opaque_slot`` needs one manifest-authorized branch execution program
-    per slot, in the same way ``run_prefix`` needs its prefix program.  The
-    committed study-manifest contract has no field that names them, so there is
-    nothing to resolve and nothing a caller may substitute.  Inventing a
-    program here would let the CLI script four slot trajectories outside frozen
-    authority, which is exactly the fabrication this gate exists to prevent.
-    """
+    return resolve_branch_program_refs(
+        run_root=root,
+        study_ref=study_ref,
+        task_id=task_id,
+        expected_trigger_reason=trigger_reason,
+        scheduled_slots=scheduled_slots,
+        work_orders=work_orders,
+    )
 
-    raise RecordValidationError(
-        "no manifest-authorized branch execution program covers task "
-        f"{task_id!r}; branch slot execution is not authorized"
+
+def _execute_triggered_block(
+    *,
+    authority: object,
+    prefix: object,
+    work_orders: Sequence[OpaqueSlotWorkOrder],
+    program_refs: Sequence[ArtifactRef],
+    schedule_ref: ArtifactRef,
+    prefix_index_ref: ArtifactRef,
+    assignment_ref: ArtifactRef,
+    packet_index_ref: ArtifactRef,
+    analysis_freeze_ref: ArtifactRef,
+    run_root: Path,
+    out: Path,
+) -> ArtifactRef:
+    """Execute and grade one fully admitted synthetic four-slot block."""
+
+    if len(work_orders) != 4 or len(program_refs) != 4:
+        raise RecordValidationError(
+            "triggered execution requires four work orders and four programs"
+        )
+    descriptors = getattr(authority, "implementation_descriptors", ())
+    environment_sources = [
+        descriptor.implementation_source_ref
+        for descriptor in descriptors
+        if getattr(descriptor, "purpose", None) == "environment"
+    ]
+    if len(environment_sources) != 1:
+        raise RecordValidationError(
+            "branch authority must name exactly one environment source"
+        )
+    task_input_ref = getattr(authority, "task_input_ref", None)
+    if type(task_input_ref) is not ArtifactRef:
+        raise RecordValidationError("branch authority lacks exact task input")
+    unscored = tuple(
+        run_opaque_slot(
+            order,
+            run_root=run_root,
+            task_input_ref=task_input_ref,
+            program_ref=program_ref,
+            environment_source_ref=environment_sources[0],
+        )
+        for order, program_ref in zip(work_orders, program_refs, strict=True)
+    )
+    attempt = seal_unscored_attempt(
+        work_orders,
+        unscored,
+        attempt_index=0,
+        run_root=run_root,
+    )
+    if not attempt.complete:
+        raise RecordValidationError(
+            "synthetic branch attempt stopped before four terminal receipts"
+        )
+    prefix_success = getattr(prefix, "prefix_success", None)
+    executions = tuple(
+        grade_opaque_slot(
+            order,
+            receipt,
+            run_root=run_root,
+            task_input_ref=task_input_ref,
+            program_ref=program_ref,
+            environment_source_ref=environment_sources[0],
+            prefix_success=prefix_success,
+        )
+        for order, receipt, program_ref in zip(
+            work_orders,
+            unscored,
+            program_refs,
+            strict=True,
+        )
+    )
+    return seal_task_block(
+        prefix=prefix,
+        task_spec=getattr(getattr(authority, "task_schedule"), "task"),
+        work_orders=work_orders,
+        attempts=(attempt,),
+        terminal_receipts=unscored,
+        execution_receipts=executions,
+        selected_attempt_index=0,
+        outage_receipt=None,
+        validity_event_refs=(),
+        schedule_ref=schedule_ref,
+        prefix_index_ref=prefix_index_ref,
+        assignment_ref=assignment_ref,
+        packet_index_ref=packet_index_ref,
+        analysis_freeze_ref=analysis_freeze_ref,
+        run_root=run_root,
+        out=out,
     )
 
 
@@ -611,7 +714,16 @@ def _synthetic_branches(args: argparse.Namespace, root: Path) -> ArtifactRef | N
     # Admission is a whole-run barrier.  A partially materialized branch stage
     # is worse than none: it would leave a root whose task blocks silently
     # cover only the tasks that happened to be admissible.
-    admitted: list[tuple[str, object, object, Path]] = []
+    admitted: list[
+        tuple[
+            str,
+            object,
+            object,
+            Path,
+            Sequence[OpaqueSlotWorkOrder] | None,
+            Sequence[ArtifactRef] | None,
+        ]
+    ] = []
     for task_id in task_ids:
         authority = load_prefix_execution_authority(
             run_root=root, schedule_ref=schedule_ref, task_id=task_id,
@@ -626,29 +738,57 @@ def _synthetic_branches(args: argparse.Namespace, root: Path) -> ArtifactRef | N
                 prefix=prefix, slots=slots,
                 packet_index_ref=packet_index_ref, run_root=root,
             )
+            work_orders = None
+            program_refs = None
         else:
-            prepare_opaque_work_orders(
+            work_orders = prepare_opaque_work_orders(
                 study_id=study_id,
                 benchmark=authority.task_schedule.task.benchmark,
                 prefix=prefix, slots=slots, branch_caps=authority.branch_caps,
                 packet_index_ref=packet_index_ref, analysis_freeze_ref=freeze_ref,
                 run_root=root,
             )
-            _branch_program_refs(task_id)
-        admitted.append((task_id, authority, prefix, out))
+            program_refs = _branch_program_refs(
+                root=root,
+                study_ref=study_ref,
+                task_id=task_id,
+                trigger_reason=prefix.trigger_reason,
+                scheduled_slots=authority.task_schedule.slots.slots,
+                work_orders=work_orders,
+            )
+        admitted.append(
+            (task_id, authority, prefix, out, work_orders, program_refs)
+        )
     sealed: ArtifactRef | None = None
-    for _task_id, authority, prefix, out in admitted:
-        identities = prepare_no_intervention_slots(
-            prefix=prefix, slots=authority.task_schedule.slots.slots,
-            packet_index_ref=packet_index_ref, run_root=root,
-        )
-        sealed = seal_no_intervention_block(
-            prefix=prefix, task_spec=authority.task_schedule.task,
-            slots=identities, y0_grade=prefix.y0_grade,
-            schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
-            assignment_ref=assignment_ref, packet_index_ref=packet_index_ref,
-            analysis_freeze_ref=freeze_ref, run_root=root, out=out,
-        )
+    for _task_id, authority, prefix, out, work_orders, program_refs in admitted:
+        if prefix.trigger_reason is TriggerReason.NO_INTERVENTION_OPPORTUNITY:
+            identities = prepare_no_intervention_slots(
+                prefix=prefix, slots=authority.task_schedule.slots.slots,
+                packet_index_ref=packet_index_ref, run_root=root,
+            )
+            sealed = seal_no_intervention_block(
+                prefix=prefix, task_spec=authority.task_schedule.task,
+                slots=identities, y0_grade=prefix.y0_grade,
+                schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
+                assignment_ref=assignment_ref, packet_index_ref=packet_index_ref,
+                analysis_freeze_ref=freeze_ref, run_root=root, out=out,
+            )
+        else:
+            if work_orders is None or program_refs is None:
+                raise AssertionError("triggered branch admission lost authority")
+            sealed = _execute_triggered_block(
+                authority=authority,
+                prefix=prefix,
+                work_orders=work_orders,
+                program_refs=program_refs,
+                schedule_ref=schedule_ref,
+                prefix_index_ref=prefix_index_ref,
+                assignment_ref=assignment_ref,
+                packet_index_ref=packet_index_ref,
+                analysis_freeze_ref=freeze_ref,
+                run_root=root,
+                out=out,
+            )
     return sealed
 
 
@@ -715,7 +855,7 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
             path, _ = resolve_inside(Path(args.study), root, require_exists=True)
             validate_record(load_json_bytes(path.read_bytes(), source=path)); return None
         values = vars(args)
-        ref = seal_study_manifest(*[Path(values[n]) for n in ("study_source", "tasks_source", "roster_source", "assignment_program_source", "provider_lane_plan_source", "storage_policy_contract_source", "power_grid_source", "power_screen_topology_source", "tokenizer_source", "packet_template_source", "packet_policy_source", "pad_unit_set_source")], [Path(x) for x in args.revision_source], Path(args.required_kinds_source), eligibility_manifest_source=Path(args.eligibility_manifest_source) if args.eligibility_manifest_source else None, roster_ceremony_policy_source=Path(args.roster_ceremony_policy_source) if args.roster_ceremony_policy_source else None, run_root=root, out=_out(root, args.out)); return ref
+        ref = seal_study_manifest(*[Path(values[n]) for n in ("study_source", "tasks_source", "roster_source", "assignment_program_source", "provider_lane_plan_source", "branch_program_registry_source", "storage_policy_contract_source", "power_grid_source", "power_screen_topology_source", "tokenizer_source", "packet_template_source", "packet_policy_source", "pad_unit_set_source")], [Path(x) for x in args.revision_source], Path(args.required_kinds_source), eligibility_manifest_source=Path(args.eligibility_manifest_source) if args.eligibility_manifest_source else None, roster_ceremony_policy_source=Path(args.roster_ceremony_policy_source) if args.roster_ceremony_policy_source else None, run_root=root, out=_out(root, args.out)); return ref
     if args.command == "power":
         if args.power_command == "authority":
             manifest = _ref(root, args.study, "study_manifest")

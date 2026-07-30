@@ -2897,3 +2897,59 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** A merge is not evidence. No P0 screen, final,
   lineage, task block of record, unblind, analysis, provider or benchmark
   action, spend, or scientific claim was produced.
+
+### EJ-20260730-0226 — Task 9 manifest-bound branch-program authority
+
+- **Scope and authority:** Added the reviewed
+  `resampling_branch_program_registry_v1` contract and made its reference a
+  required study-manifest input. The registry freezes four programs per task
+  by pre-schedule ordinal `0..3`; it does not fabricate future `slot_id` or
+  allocation capabilities. Study sealing copies the registry and recursively
+  verifies/copies its complete program closure before publishing the first
+  scientific record. Registry task coverage must equal the frozen task
+  registry and every program must bind its row's task.
+- **Runtime admission:** Added a manifest-rooted resolver that fresh-reads the
+  study and registry closure, validates program role/media/task/trigger
+  identity, and reconciles branch ordinals to the later
+  schedule/assignment-derived opaque work-order order. `synthetic branches`
+  admits the complete selected task roster before starting the first worker,
+  passes each resolved program to `run_opaque_slot`, seals the complete
+  unscored attempt, grades each terminal receipt in isolation, and publishes
+  the triggered task block. No CLI program-ref input or runtime program
+  synthesis exists.
+- **TDD RED:** The codec test first failed at collection because
+  `branch_program_authority` did not exist. The manifest test then failed
+  because a manifest without `branch_program_registry_ref` still validated.
+  Resolver and CLI delegation tests failed because their entry points did not
+  exist. The first shared milestone run found four direct fixture manifests
+  missing the new required ref; after adding a real registry record, the next
+  run correctly rejected its previously unknown authority role during fresh
+  prefix-graph reconstruction.
+- **Corrections from hostile verification:** The original design attempted to
+  freeze later slot/capability identities in the first scientific record,
+  which is circular; the committed correction uses ordinals and later exact
+  reconciliation. Prefix replay now validates the branch registry record but
+  treats its nested programs as future branch authority rather than importing
+  them into prefix-program occurrence coverage. The full-grid CLI test remains
+  excluded for the pre-existing bounded-runtime reason in EJ-20260730-0224.
+- **Fresh behavior evidence:** The focused registry/CLI gate passed 22 tests;
+  the branch-controller/packet-capability gate passed 30; the study-seal,
+  artifact, and schema gate passed completely; and
+  `tests/resampling_null -m milestone -q` passed 78 tests. The first combined
+  focused command exceeded the mandatory 60-second ceiling and exited `124`,
+  so it is not evidence; the split bounded commands above replace it.
+- **Fresh static/status evidence:** `scripts/test_fast.py` passed 7 tests;
+  `pneuma_lab.status --check`, resampling-null `compileall`, critical
+  Ruff checks over the touched legacy CLI/selftest/prefix loop, full Ruff over
+  the new authority module/tests, focused mypy over the new module, and
+  `git diff --check` all passed. Raw mypy over `artifacts.py` remains blocked
+  by pre-existing unrelated typing debt; the focused new-module command used
+  `--follow-imports=skip` and is the only type-check claim.
+- **Canonical state:** Removed
+  `B-NEURIPS-TASK9-BRANCH-PROGRAM-AUTHORITY`. Task 9 remains
+  `implementation_complete; E2E_pending` with
+  `B-NEURIPS-TASK9-E2E`. The next gate is one genuinely admitted full P0
+  lineage through real branch execution and a task block of record.
+- **Boundary/non-claim:** No compatible P0 final, real lineage, task block of
+  record, unblind, analysis, provider or benchmark action, spend, or scientific
+  claim was produced.
