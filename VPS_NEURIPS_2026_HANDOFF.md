@@ -1,5 +1,14 @@
 # VPS Handoff — Pneuma Lab NeurIPS 2026 Research Program
 
+> **Current-state correction (2026-07-30):** This file's detailed
+> `Exact state at handoff` section is a historical 2026-07-28 snapshot. Tasks
+> 1–5 have since been implemented through synthetic prefix-index publication,
+> and AWS now has $10,000 verified EC2-eligible credit. For the current
+> remaining execution boundary, read
+> `docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md` before the
+> controlling plan and design. Do not use the stale task table or `$0.00`
+> verified-balance statement below as current authority.
+
 **Prepared:** 2026-07-28
 **Repository:** `C:\pneuma-lab` / `https://github.com/fireheartjerry/pneuma-lab.git`
 **Working branch:** `codex/neurips-2026-empirical`

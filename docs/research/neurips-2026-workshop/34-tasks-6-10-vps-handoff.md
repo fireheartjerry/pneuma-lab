@@ -1,0 +1,182 @@
+# Tasks 6–10 VPS execution handoff
+
+**Status:** current execution handoff for the remaining zero-spend core  
+**Prepared:** 2026-07-30  
+**Branch:** `codex/neurips-2026-empirical`  
+**Controlling plan:** `docs/superpowers/plans/2026-07-28-resampling-null-core.md`  
+**Scientific contract:** `docs/superpowers/specs/2026-07-28-neurips-resampling-null-design.md`
+
+This document is a routing summary, not a replacement for the controlling plan,
+design, decision log, or execution journal. Read those authorities completely
+before changing scientific behavior.
+
+## Current boundary
+
+Tasks 1–5 of the benchmark-independent, zero-spend core have been implemented
+through the synthetic prefix-index publication boundary. The delivered surface
+includes typed records and schemas, canonical artifact ancestry, deterministic
+assignment and schedule authority, token-exact REAL/SHAM packet machinery,
+subprocess-backed synthetic prefix execution, independent semantic replay, and
+transactional prefix-index publication.
+
+The delivery remains `synthetic_validation` only. It has produced no external
+model call, benchmark outcome, paid inference, causal result, or promoted
+scientific claim.
+
+The fast test surface was deliberately compressed after implementation. The
+seven-case cold oracle and compact milestone tests are guardrails, not a
+substitute for the Task-10 isolated result-of-record and broader Linux
+verification receipts.
+
+## Required source order
+
+1. `AGENTS.md`
+2. `docs/project-status.json`
+3. `VPS_NEURIPS_2026_HANDOFF.md`
+4. this handoff
+5. `docs/superpowers/plans/2026-07-28-resampling-null-core.md`
+6. `docs/superpowers/specs/2026-07-28-neurips-resampling-null-design.md`
+7. `docs/research/neurips-2026-workshop/15-decision-log.md`
+8. `docs/research/neurips-2026-workshop/32-cloud-spend-ledger.md`
+9. `docs/research/neurips-2026-workshop/33-execution-journal.md` and its
+   sharded event files
+
+If these sources conflict, stop and reconcile authority in the decision log
+before production work. Do not infer current state from commit subjects alone.
+
+## Task 6 — freeze, blinded projection, and gated unblinding
+
+Implement the exact Task-6 contract in the controlling plan:
+
+- pre-outcome freeze of estimands, tests, multiplicity, verdict regions,
+  failure handling, manifests, and executable digests;
+- capability-separated blinded projection that cannot access assignment labels,
+  raw arm identities, or efficacy contrasts;
+- fresh-context unblinding that validates the exact freeze, manifest, selected
+  tier, assignment authority, and `K_unblind` permit;
+- immutable analysis-freeze, blinded-projection, and unblind receipts;
+- permanent context-taint and protected-path enforcement.
+
+Task 6 must not implement Task 8 power production, choose a tier from outcomes,
+read external benchmark outcomes, or perform paid execution.
+
+## Task 7 — registered inference and verdicts
+
+Implement the frozen statistical API and hand-calculation fixtures:
+
+- sharp randomization tests for the registered REAL–SHAM and
+  REAL–retry contrasts;
+- paired NONE/RESAMPLE discordance and retry-instability summaries;
+- average-effect bounds and finite-sample resolution reporting;
+- intersection-union, multiplicity, equivalence, utility, differential-failure,
+  and cap-binding gates exactly as specified;
+- total handling of positive, null, negative, invalid, and infeasible outcomes;
+- manifest-owned inference randomness with no caller-selected scientific seed.
+
+Task 7 consumes finalized authority. It must not tune endpoints, select a
+benchmark roster, alter the subject, or use observed efficacy to change a
+decision region.
+
+## Task 8 — frozen-grid P0 power and type-I authority
+
+Implement the deterministic full-grid producer:
+
+- canonical task-level Bernoulli-pattern probabilities and the complete
+  registered null/alternative grid;
+- `power-outcome-philox-v2` and `inference-philox-v1` domains with the exact
+  manifest bindings;
+- C120/C160 support, deterministic highest-supported-tier selection, and
+  complete power-final ancestry;
+- joint Clopper–Pearson bounds and the paired Gaussian/fallback audits using
+  the same raw production outcomes;
+- fixed global namespace discovery with no caller-selected report set;
+- append-only attempts, resumability, retry accounting, and timing receipts.
+
+The tiny machinery fixture is non-decisive. Only the full configured grid may
+produce P0 authority. P0 may return a clean no-go; passing tests is not the same
+as passing power.
+
+## Task 9 — CLI and deterministic synthetic P0
+
+Implement the plan's exact command surface:
+
+- create and validate the synthetic study root;
+- run/resume the full P0 grid without changing scientific identity;
+- materialize selected descendants only from a completed power final;
+- expose verification/status commands that fail closed on drift;
+- emit canonical, content-addressed artifacts and concise operator output.
+
+The CLI must not expose secret material, arbitrary seed overrides, alternate
+artifact roots after commitment, confirmation shortcuts, provider calls, or
+cloud provisioning.
+
+## Task 10 — isolated result of record and closure
+
+Complete the zero-spend core:
+
+- run the focused behavioral and static gates specified by the plan;
+- build one isolated result-of-record root from the committed fixtures;
+- complete the conditional P0 screen and full grid;
+- resume from the completed final and build the selected descendants;
+- execute deterministic end-to-end verification twice outside the result root;
+- update canonical status and seal a plan/implementation receipt;
+- run the broadest relevant Linux verification justified by shared-surface
+  risk, with every process hard-capped at 60 seconds unless the user explicitly
+  approves otherwise;
+- record exact environment, commands, hashes, outcomes, deviations, review,
+  zero spend, commits, and pushes in the forensic journals.
+
+Task 10 closes only the benchmark-independent synthetic core. It does not
+authorize SWE-bench-Live, τ³, Qwen serving, AWS Batch, paid compute, pilot,
+confirmation, or a causal claim.
+
+## Definition of done
+
+Tasks 6–10 are complete only when:
+
+- every controlling-plan artifact and test exists;
+- the complete synthetic authority graph reconstructs from fresh reads;
+- P0 produces either a valid selected-tier final or an honest immutable no-go;
+- two isolated end-to-end verification runs agree on logical scientific
+  outcomes and decisions;
+- the result-of-record and plan receipt are content-addressed and sealed;
+- independent hostile specification and quality review have no unresolved
+  critical or important finding;
+- status, decision, spend, and execution records are current;
+- the branch is clean, committed, and pushed.
+
+Do not report completion because the fast smoke oracle passes, because code was
+written for all five task names, or because a cloud quota becomes available.
+
+## After Task 10
+
+The next phase is separately gated real-experiment work:
+
+1. SWE-bench-Live and τ³ adapter/roster qualification;
+2. pinned Qwen3.6/vLLM serving and Qwen3.5 simulator parity;
+3. AWS Batch/ECR/S3/DynamoDB/network/watchdog implementation;
+4. a hash-approved, bounded paid Tier-1 spike;
+5. pilot, blinded discovery/confirmation execution, analysis, and submission.
+
+AWS currently has verified $10,000 EC2-eligible YC credit plus a separate $100
+Free Tier credit. On-Demand and Spot G/VT quota requests were opened at 16
+vCPUs and immediately amended through Support to the design-required 48 vCPUs.
+Applied quotas remain zero until AWS approves the cases. Quota availability
+does not bypass any scientific or per-action spending gate.
+
+## VPS start commands
+
+```bash
+git fetch origin
+git switch codex/neurips-2026-empirical
+git pull --ff-only origin codex/neurips-2026-empirical
+git status --short
+git log --oneline -12
+.venv/bin/python -m pneuma_lab.status --check
+python -m pytest -q
+git diff --check
+```
+
+On Windows, use `.venv\Scripts\python.exe` where applicable. Do not install
+missing optional dependencies merely to manufacture a broad-suite pass; record
+the environment blocker and run the narrow authoritative gate for the slice.
