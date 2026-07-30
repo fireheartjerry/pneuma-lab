@@ -5,7 +5,7 @@
     "description": "Frozen estimands, randomization tests, simultaneous bounds, resolution gates, and verdict.",
     "type": "object",
     "x-pneuma-schema-kind": "resampling-study",
-    "x-pneuma-version": "0.1.0",
+    "x-pneuma-version": "0.2.0",
     "required": [
         "record_kind",
         "schema_version",
@@ -16,7 +16,7 @@
     ],
     "properties": {
         "record_kind": { "const": "resampling_analysis" },
-        "schema_version": { "const": "0.1.0" },
+        "schema_version": { "const": "0.2.0" },
         "study_id": { "$ref": "#/$defs/nonempty" },
         "frozen_created_at": { "$ref": "#/$defs/frozen_timestamp" },
         "provenance": { "$ref": "#/$defs/provenance" },
@@ -135,9 +135,9 @@
             ],
             "properties": {
                 "estimate": { "type": "number" },
-                "standard_error": { "type": "number", "minimum": 0 },
-                "simultaneous_lower": { "type": "number" },
-                "simultaneous_upper": { "type": "number" },
+                "standard_error": { "$ref": "#/$defs/nullable_nonnegative" },
+                "simultaneous_lower": { "$ref": "#/$defs/nullable_number" },
+                "simultaneous_upper": { "$ref": "#/$defs/nullable_number" },
                 "randomization": {
                     "oneOf": [
                         { "type": "null" },
@@ -181,21 +181,21 @@
                     "type": "array",
                     "minItems": 2,
                     "maxItems": 3,
-                    "items": { "type": "number", "minimum": 0 }
+                    "items": { "$ref": "#/$defs/nullable_nonnegative" }
                 },
                 "lowers": {
                     "type": "array",
                     "minItems": 2,
                     "maxItems": 3,
-                    "items": { "type": "number" }
+                    "items": { "$ref": "#/$defs/nullable_number" }
                 },
                 "uppers": {
                     "type": "array",
                     "minItems": 2,
                     "maxItems": 3,
-                    "items": { "type": "number" }
+                    "items": { "$ref": "#/$defs/nullable_number" }
                 },
-                "critical_value": { "type": "number", "minimum": 0 },
+                "critical_value": { "$ref": "#/$defs/nullable_nonnegative" },
                 "method": { "const": "task_cluster_rademacher_max_t" },
                 "draws": { "type": "integer", "minimum": 1 },
                 "seed": {
@@ -203,7 +203,11 @@
                     "minimum": 0,
                     "maximum": 18446744073709551615
                 },
-                "quantile_order_1_based": { "type": "integer", "minimum": 1 }
+                "quantile_order_1_based": {
+                    "description": "One-based selected order, or zero when uncertainty is invalid and no quantile exists.",
+                    "type": "integer",
+                    "minimum": 0
+                }
             },
             "additionalProperties": false
         },
@@ -274,8 +278,8 @@
                 "benchmark": { "$ref": "#/$defs/nonempty" },
                 "group_kind": { "enum": ["language", "domain", "issue_family"] },
                 "group_value": { "$ref": "#/$defs/nonempty" },
-                "content": { "type": "number" },
-                "excess": { "type": "number" }
+                "content": { "$ref": "#/$defs/nullable_number" },
+                "excess": { "$ref": "#/$defs/nullable_number" }
             },
             "additionalProperties": false
         },
@@ -359,11 +363,23 @@
                 },
                 "reasons": {
                     "type": "array",
-                    "minItems": 1,
+                    "minItems": 0,
                     "items": { "$ref": "#/$defs/nonempty" }
                 }
             },
             "additionalProperties": false
+        },
+        "nullable_number": {
+            "oneOf": [
+                { "type": "number" },
+                { "type": "null" }
+            ]
+        },
+        "nullable_nonnegative": {
+            "oneOf": [
+                { "type": "number", "minimum": 0 },
+                { "type": "null" }
+            ]
         }
     }
 }

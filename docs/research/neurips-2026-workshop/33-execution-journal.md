@@ -2642,3 +2642,44 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** The clerk was advisory only. No E2E lineage, real
   unblind, paired analysis, scientific result, provider action, or spend was
   produced.
+
+### EJ-20260730-0221 — Task 7 authority, totality, and hostile-review closure
+
+- **Cheap-clerk receipts:** A read-only
+  `claude --dangerously-skip-permissions --print --model haiku --effort low`
+  Task-7 contract audit exhausted its USD 0.18 maximum without output. A
+  read-only `codex --yolo exec --ephemeral` audit used `gpt-5.6-sol` at low
+  reasoning and was terminated by the 60-second test/process ceiling before a
+  final memo; its trace independently exposed caller-selected analysis seed,
+  open config constants, and non-finite schema concerns. A final diff-only
+  Haiku review with a USD 0.22 maximum also hit the 60-second ceiling without
+  usable output. The Codex CLI reported no enforceable dollar bound; no clerk
+  supplied authority or verification.
+- **Red/green authority repair:** Regressions first proved that production
+  `analyze` exposed a seed, frozen config admitted altered decision constants,
+  and CLI config bytes admitted a caller seed. The wrapper now reloads exact
+  power/manifest authority, derives `inference-philox-v1` from study ID plus
+  manifest digest, and exposes no production seed. Config constants are closed
+  to the registered alpha, materiality, draw counts, and failure gap.
+- **Hostile-review repairs:** Sensitivity buckets had incorrectly applied
+  language/domain/issue labels to both benchmarks. They now apply only SWE
+  language and TAU domain/issue-family labels, and reported leave-one estimates
+  use the registered equal-benchmark renormalization. Empty deletions become
+  explicit invalid uncertainty. Analysis schema `0.2.0` serializes invalid
+  uncertainty as JSON null, permits quantile order zero only when no valid
+  quantile exists, rejects unexpected non-finite values, and permits the honest
+  empty reason list of a positive verdict.
+- **Focused evidence:** Red-first tests failed on the exposed seed, mutable
+  constants, caller-seed config, cross-benchmark sensitivity labels, crashing
+  empty deletion, and non-JSON uncertainty. After correction,
+  `tests/resampling_null/test_analysis.py` passed 30 tests. The first broad
+  mixed gate reached the mandatory 60-second ceiling and was treated as no
+  evidence. The narrowed analysis/power/touched-CLI/schema/status gate then
+  passed at exit 0 in 5.81 seconds. The compact Linux milestone passed at exit
+  0 in 5.12 seconds; project-status coherence, Python compilation, whitespace,
+  and diff checks also passed. Hostile fixtures cover asymmetric benchmark
+  effects, differential failure, and no-feedback label imbalance.
+- **Status/boundary:** Task 7 is recorded as
+  `implementation_complete; E2E_pending`. No complete P0 lineage, real unblind,
+  registered analysis artifact, provider/benchmark action, spend, empirical
+  result, or scientific claim was produced.

@@ -167,6 +167,34 @@ same task identifier may therefore occur once in SWE and once in TAU without
 altering the Philox stream; an interleaved cross-benchmark fixture proves
 input-order invariance.
 
+### Task 7 implementation-complete checkpoint (2026-07-30)
+
+Task 7 is `implementation_complete; E2E_pending`. The production wrapper now
+reloads the completed power selection and exact study-manifest/roster bytes,
+rejects missing or changed selected rows, and derives its sole scientific
+Philox root as the first unsigned-big-endian 64 bits of
+`SHA256(FRAME("inference-philox-v1", [TEXT(study_id),
+BYTES(hex_decode(manifest_sha256))]))`. The frozen analysis config contains no
+seed and rejects every non-registered decision constant.
+
+The scalar and batch kernels apply sensitivity groups only where registered:
+SWE language, and TAU domain plus issue family. Leave-one estimates are
+equal-benchmark estimates after renormalizing the affected benchmark; an empty
+deletion is explicit invalid uncertainty, never an exception or silently
+dropped group. Non-finite standard errors/bounds serialize as schema-registered
+JSON nulls under analysis schema `0.2.0`, while unexpected non-finite estimates
+still fail closed. Positive verdicts may honestly carry an empty failure-reason
+list. Focused hostile fixtures cover asymmetric benchmark effects,
+differential branch failure, no-feedback label imbalance, caller-selected RNG,
+and invalid uncertainty.
+
+The design registers no mean-equivalence decision gate: `q0/r95` is the
+NONE/RESAMPLE instability/resolution procedure. Utility and cap-binding remain
+mandatory reported secondary outcomes, not causal-verdict gates. No completed
+authority-backed P0 lineage reaches unblind and analysis, so this checkpoint is
+software implementation evidence only, not an empirical result or scientific
+completion.
+
 ## Task 8 — frozen-grid P0 power and type-I authority
 
 **Task 8B checkpoint (2026-07-30):** The frozen P0 grid/RNG contract and the
@@ -339,10 +367,12 @@ confirmation, or a causal claim.
 
 ## Definition of done
 
-**Current Task 7B status (2026-07-30): incomplete.** A narrow exact-`r95`
-probability-mass repair is committed separately; it does not close the required
-manifest/power admission integration, scalable batch-kernel, or hostile-fixture
-work. Do not promote it to a scientific result or Task-7 completion.
+**Current Task 7 status (2026-07-30): `implementation_complete;
+E2E_pending`.** Manifest/power admission, the scalable batch kernel, closed
+verdicts, manifest-owned inference randomness, invalid-result serialization,
+and focused hostile fixtures are implemented. There is still no real completed
+lineage or analysis result; do not promote passing software gates to scientific
+completion.
 
 Tasks 6–10 are complete only when:
 

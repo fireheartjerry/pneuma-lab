@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
-from dataclasses import asdict
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
@@ -18,7 +17,7 @@ import tempfile
 from .artifacts import (_scientific_documents, seal_artifact_root,
                         seal_study_manifest, verify_artifact_root,
                         validate_record, write_record)
-from .analysis import analyze as analyze_rows
+from .analysis import analysis_result_payload, analyze as analyze_rows
 from .blinding import (issue_unblind_permit, seal_blinded_projection,
                         unblind_and_publish_analysis)
 from .freeze import CurrentAnalysisInputs, freeze_analysis
@@ -206,18 +205,15 @@ def _candidate_subprocess(frozen_schedule: list[dict[str, object]], closed_outco
     return ProjectionCandidate(tuple(rows), canonical, hashlib.sha256(canonical).hexdigest())
 
 
-def _analysis_config(path: Path) -> tuple[AnalysisConfig, int]:
-    """Read the frozen analysis config; the RNG seed is part of those bytes."""
+def _analysis_config(path: Path) -> AnalysisConfig:
+    """Read the closed frozen decision region; randomness is manifest-derived."""
     value = load_json_bytes(path.read_bytes(), source=path)
     if not isinstance(value, dict) or set(value) != {
-        "seed", "alpha", "delta_star", "sharp_draws", "multiplier_draws", "max_differential_failure_gap",
+        "alpha", "delta_star", "sharp_draws", "multiplier_draws", "max_differential_failure_gap",
     }:
         raise RecordValidationError("analysis config has an unregistered shape")
-    seed = value.pop("seed")
-    if type(seed) is not int or not 0 <= seed < 2**64:
-        raise RecordValidationError("analysis config seed must be U64")
     try:
-        return AnalysisConfig(**value), seed
+        return AnalysisConfig(**value)
     except (TypeError, ValueError) as exc:
         raise RecordValidationError("analysis config is invalid") from exc
 
@@ -824,7 +820,7 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
         sources = _external_sources(args.source_root, args.source, root=root)
         config_path = _external_file(args.config, root=root, field="analysis config")
         schema_path = _external_file(args.projection_schema, root=root, field="projection schema")
-        config, seed = _analysis_config(config_path)
+        config = _analysis_config(config_path)
         current = CurrentAnalysisInputs(sources, config_path, schema_path, packet_ref)
         receipt_out = _out(root, args.unblind_receipt)
         analysis_out = _out(root, args.out)
@@ -840,10 +836,10 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
             # The staged unblind result carries only in-memory rows and the
             # deterministic future receipt ref; no artifact has been written.
             rows = _analysis_rows(unblinded.rows)  # type: ignore[union-attr]
-            result = analyze_rows(rows, config, seed=seed, manifest_ref=study_ref,
+            result = analyze_rows(rows, config, manifest_ref=study_ref,
                                   power_final_ref=power_final_ref, run_root=root)
             return {
-                "record_kind": "resampling_analysis", "schema_version": "0.1.0",
+                "record_kind": "resampling_analysis", "schema_version": "0.2.0",
                 "study_id": manifest["study_id"], "frozen_created_at": manifest["frozen_created_at"],
                 "provenance": manifest["provenance"],
                 "payload": {
@@ -851,7 +847,8 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
                     "projection_ref": _mapping_ref(projection_ref),
                     "unblind_receipt_ref": _mapping_ref(unblinded.receipt_ref),  # type: ignore[union-attr]
                     "config_ref": _mapping_ref(config_ref), "row_count": len(rows),
-                    "result": asdict(result), "numeric_receipt": {"finite": True},
+                    "result": analysis_result_payload(result),
+                    "numeric_receipt": {"finite": True},
                 },
             }
 

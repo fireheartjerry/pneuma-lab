@@ -317,6 +317,19 @@ class AnalysisConfig:
     multiplier_draws: int = 99_999
     max_differential_failure_gap: float = 0.02
 
+    def __post_init__(self) -> None:
+        expected = {
+            "alpha": 0.05,
+            "delta_star": 0.05,
+            "sharp_draws": 999_999,
+            "multiplier_draws": 99_999,
+            "max_differential_failure_gap": 0.02,
+        }
+        for name, frozen in expected.items():
+            value = getattr(self, name)
+            if type(value) is not type(frozen) or value != frozen:
+                raise ValueError(f"{name} differs from the frozen analysis contract")
+
 
 @dataclass(frozen=True, slots=True)
 class SecondaryFamilyResult:
@@ -338,8 +351,8 @@ class LeaveOneEstimate:
     benchmark: str
     group_kind: GroupKind
     group_value: str
-    content: float
-    excess: float
+    content: float | None
+    excess: float | None
 
 
 @dataclass(frozen=True, slots=True)

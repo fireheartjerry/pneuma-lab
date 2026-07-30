@@ -341,6 +341,26 @@
             "blockers": [
                 "B-NEURIPS-TASK6-E2E"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_task7",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
+                "schemas/resampling-analysis.schema.json",
+                "src/pneuma_lab/resampling_null/analysis.py",
+                "src/pneuma_lab/resampling_null/types.py",
+                "src/pneuma_lab/resampling_null/cli.py",
+                "tests/resampling_null/test_analysis.py",
+                "tests/resampling_null/test_cli.py",
+                "tests/resampling_null/test_power.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-TASK7-E2E"
+            ]
         }
     ],
     "nine_to_five": {
@@ -624,6 +644,10 @@
         {
             "id": "B-NEURIPS-TASK6-E2E",
             "summary": "Task 6 has no complete authority-backed P0 lineage reaching real unblind and paired analysis; its state is implementation_complete and E2E_pending."
+        },
+        {
+            "id": "B-NEURIPS-TASK7-E2E",
+            "summary": "Task 7 has no complete authority-backed P0 lineage reaching real unblind and registered analysis; its state is implementation_complete and E2E_pending."
         }
     ]
 }

@@ -71,6 +71,7 @@ _CURRENT_SYSTEM_STATE = {
     "pneuma_local_action_guard": ("implemented", "standalone"),
     "pneuma_gauge_msa": ("implemented", "offline_research"),
     "neurips_resampling_null_task6": ("partial", "offline_research"),
+    "neurips_resampling_null_task7": ("partial", "offline_research"),
 }
 
 _CURRENT_NEGATIVE_RESULTS = {

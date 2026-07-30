@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from math import isclose
+from math import inf, isclose
+from inspect import signature
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,8 +21,10 @@ from pneuma_lab.resampling_null.analysis import (
     evaluate_binary_gate_batch,
     classify_verdict,
 )
+import pneuma_lab.resampling_null.analysis as analysis_module
 from pneuma_lab.resampling_null.types import (
-    AnalysisConfig, AnalysisRow, ArtifactRef, BinarySufficientStatisticsBatch,
+    AnalysisConfig, AnalysisResult, AnalysisRow, ArtifactRef, BenchmarkEstimate,
+    BinarySufficientStatisticsBatch,
     ContrastResult, GateResult, GroupKind, GroupLabel, RandomizationResult,
     ResolutionResult, SecondaryFamilyResult, SimultaneousBounds, Verdict,
 )
@@ -269,3 +273,262 @@ def test_outcome_classifier_has_frozen_precedence_and_never_feasibility_no_go() 
     sham_secondary = SecondaryFamilyResult(("sham_packet", "continuation", "total"), (0.01, 0.8, 0.9), (0.03, 1.0, 1.0), bounds)
     assert classify_verdict(content_failure, content=positive, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"), secondary=sham_secondary) is Verdict.SHAM_PACKET_ONLY
     assert classify_verdict(content_failure, content=positive, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"), secondary=secondary) is Verdict.RESAMPLING_CONSISTENT
+
+
+def test_production_analysis_has_no_caller_selected_seed() -> None:
+    from pneuma_lab.resampling_null.analysis import analyze
+
+    assert "seed" not in signature(analyze).parameters
+
+
+def test_manifest_inference_seed_is_domain_bound_and_manifest_owned() -> None:
+    first = ArtifactRef("study_manifest", "study.json", "1" * 64, 1, "application/json")
+    second = ArtifactRef("study_manifest", "study.json", "2" * 64, 1, "application/json")
+
+    assert analysis_module.manifest_inference_seed(first, study_id="study") == 11077569387776841865
+    assert analysis_module.manifest_inference_seed(first, study_id="study") != analysis_module.manifest_inference_seed(
+        second, study_id="study",
+    )
+    assert analysis_module.manifest_inference_seed(first, study_id="study") != analysis_module.manifest_inference_seed(
+        first, study_id="other",
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("alpha", 0.1),
+        ("delta_star", 0.04),
+        ("sharp_draws", 999_998),
+        ("multiplier_draws", 99_998),
+        ("max_differential_failure_gap", 0.03),
+    ],
+)
+def test_analysis_config_rejects_unregistered_decision_regions(
+    field: str, value: float | int,
+) -> None:
+    with pytest.raises(ValueError, match="frozen"):
+        AnalysisConfig(**{field: value})
+
+
+def test_invalid_standard_errors_serialize_as_explicit_nulls() -> None:
+    from pneuma_lab.resampling_null.artifacts import validate_record
+
+    randomization = RandomizationResult(0.0, 1.0, "enumerated_exact", 1, None, None)
+    primary = SimultaneousBounds(
+        "co_primary", ("content", "excess"), (0.0, 0.0), (inf, inf),
+        (-inf, -inf), (inf, inf), inf, "task_cluster_rademacher_max_t",
+        99_999, 7, 0,
+    )
+    secondary_bounds = SimultaneousBounds(
+        "secondary_three", ("sham_packet", "continuation", "total"),
+        (0.0, 0.0, 0.0), (inf, inf, inf), (-inf, -inf, -inf),
+        (inf, inf, inf), inf, "task_cluster_rademacher_max_t", 99_999, 7, 0,
+    )
+    contrast = ContrastResult(0.0, inf, -inf, inf, randomization)
+    result = AnalysisResult(
+        contrast, contrast, ContrastResult(0.0, inf, -inf, inf, None),
+        0.0, 0.0, 0.0, randomization, primary,
+        SecondaryFamilyResult(
+            ("sham_packet", "continuation", "total"), (1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0), secondary_bounds,
+        ),
+        ResolutionResult(0.0, 0.0, 0, "equal_roster_exact_binomial"),
+        0.0, (BenchmarkEstimate("SWE", 0.0, 0.0), BenchmarkEstimate("TAU", 0.0, 0.0)),
+        (), (), Verdict.UNRESOLVED_RESAMPLING, ("content_lower",),
+    )
+
+    payload = analysis_module.analysis_result_payload(result)
+
+    assert payload["content"]["standard_error"] is None
+    assert payload["primary_bounds"]["critical_value"] is None
+    assert payload["primary_bounds"]["standard_errors"] == [None, None]
+    ref = {
+        "role": "test", "relative_path": "test.json", "sha256": "0" * 64,
+        "byte_count": 1, "media_type": "application/json",
+    }
+    validate_record({
+        "record_kind": "resampling_analysis",
+        "schema_version": "0.2.0",
+        "study_id": "study",
+        "frozen_created_at": "2026-07-30T00:00:00Z",
+        "provenance": {"design_sha256": "1" * 64, "code_sha256": "2" * 64},
+        "payload": {
+            "analysis_freeze_ref": ref,
+            "projection_ref": ref,
+            "unblind_receipt_ref": ref,
+            "config_ref": ref,
+            "row_count": 2,
+            "result": payload,
+            "numeric_receipt": {"finite": True},
+        },
+    })
+
+
+def test_sensitivity_groups_apply_only_to_their_registered_benchmark() -> None:
+    ref = ArtifactRef("roster", "roster.json", "0" * 64, 0, "application/json")
+    swe = _row("s", real=1, sham=0, none=0, resample=0)
+    tau = _row("t", benchmark="TAU", real=1, sham=0, none=0, resample=0)
+    swe = AnalysisRow(
+        **{
+            **{field: getattr(swe, field) for field in swe.__dataclass_fields__},
+            "sensitivity_groups": (
+                GroupLabel(GroupKind.LANGUAGE, "python"),
+                GroupLabel(GroupKind.DOMAIN, "not_applicable"),
+                GroupLabel(GroupKind.ISSUE_FAMILY, "not_applicable"),
+            ),
+        }
+    )
+    tau = AnalysisRow(
+        **{
+            **{field: getattr(tau, field) for field in tau.__dataclass_fields__},
+            "sensitivity_groups": (
+                GroupLabel(GroupKind.LANGUAGE, "not_applicable"),
+                GroupLabel(GroupKind.DOMAIN, "retail"),
+                GroupLabel(GroupKind.ISSUE_FAMILY, "action"),
+            ),
+        }
+    )
+
+    statistics = rows_to_binary_sufficient_statistics((swe, tau), roster_ref=ref)
+
+    grouped = {
+        (benchmark, tuple(group.kind for group in labels))
+        for benchmark, labels, _ in statistics.benchmark_group_pattern_counts
+        if labels
+    }
+    assert grouped == {
+        ("SWE", (GroupKind.LANGUAGE,)),
+        ("TAU", (GroupKind.DOMAIN,)),
+        ("TAU", (GroupKind.ISSUE_FAMILY,)),
+    }
+
+
+def test_leave_one_empty_group_is_reported_invalid_instead_of_crashing() -> None:
+    swe = _row("s", real=1, sham=0, none=0, resample=0)
+    tau = _row("t", benchmark="TAU", real=1, sham=0, none=0, resample=0)
+
+    estimates = analysis_module.leave_one_estimates((swe, tau))
+
+    swe_language = next(item for item in estimates if item.benchmark == "SWE")
+    assert swe_language.content is None
+    assert swe_language.excess is None
+
+
+def test_hostile_asymmetric_benchmark_effect_fails_nonnegative_gate() -> None:
+    rows = [
+        *[
+            _row(f"s{index}", real=0, sham=1, none=1, resample=1)
+            for index in range(1, 4)
+        ],
+        _row("s4", real=1, sham=0, none=0, resample=0),
+        *[
+            _row(f"t{index}", benchmark="TAU", real=1, sham=0, none=0, resample=0)
+            for index in range(1, 5)
+        ],
+    ]
+    ref = ArtifactRef("roster", "roster.json", "0" * 64, 0, "application/json")
+
+    gates = evaluate_binary_gate_kernel(
+        rows_to_binary_sufficient_statistics(rows, roster_ref=ref),
+        AnalysisConfig(), critical_value=0.0,
+    )
+
+    assert next(gate for gate in gates if gate.code == "benchmark_nonnegative").passed is False
+
+
+def test_hostile_differential_branch_failure_fails_pipeline_gate() -> None:
+    rows = [
+        _row("s", real=1, sham=0, none=0, resample=0),
+        _row("t", benchmark="TAU", real=1, sham=0, none=0, resample=0),
+    ]
+    rows[0] = AnalysisRow(
+        **{
+            **{field: getattr(rows[0], field) for field in rows[0].__dataclass_fields__},
+            "real_infrastructure_failure": True,
+        }
+    )
+    ref = ArtifactRef("roster", "roster.json", "0" * 64, 0, "application/json")
+
+    gates = evaluate_binary_gate_kernel(
+        rows_to_binary_sufficient_statistics(rows, roster_ref=ref),
+        AnalysisConfig(), critical_value=0.0,
+    )
+
+    failure = next(gate for gate in gates if gate.code == "differential_failure_gap")
+    assert failure.passed is False
+    assert failure.observed == 0.5
+
+
+def test_hostile_no_feedback_label_imbalance_fails_resolution_gates() -> None:
+    rows = [
+        _row("s", real=1, sham=0, none=0, resample=1),
+        _row("t", benchmark="TAU", real=1, sham=0, none=0, resample=1),
+    ]
+    ref = ArtifactRef("roster", "roster.json", "0" * 64, 0, "application/json")
+
+    gates = evaluate_binary_gate_kernel(
+        rows_to_binary_sufficient_statistics(rows, roster_ref=ref),
+        AnalysisConfig(), critical_value=0.0,
+    )
+
+    by_code = {gate.code: gate for gate in gates}
+    assert by_code["content_resolution"].passed is False
+    assert by_code["excess_resolution"].passed is False
+
+
+def test_analyze_reloads_power_and_manifest_authority_before_rows(
+    tmp_path, monkeypatch,
+) -> None:
+    import pneuma_lab.resampling_null.artifacts as artifacts_module
+    import pneuma_lab.resampling_null.assignment as assignment_module
+
+    manifest_ref = ArtifactRef(
+        "study_manifest", "study.json", "1" * 64, 1, "application/json",
+    )
+    final_ref = ArtifactRef(
+        "power_report", "power.json", "2" * 64, 1, "application/json",
+    )
+    roster_ref = ArtifactRef(
+        "power_roster", "roster.json", "3" * 64, 1, "application/json",
+    )
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(
+        assignment_module, "require_schedulable_power_final",
+        lambda manifest, final, *, run_root: (
+            seen.setdefault("admission", (manifest, final, run_root)),
+            SimpleNamespace(selected_task_ids=("task",)),
+        )[1],
+    )
+    monkeypatch.setattr(
+        artifacts_module, "_load_direct_scientific_parent",
+        lambda *args, **kwargs: SimpleNamespace(value={
+            "study_id": "study",
+            "payload": {
+                "roster_ref": {
+                    field: getattr(roster_ref, field)
+                    for field in roster_ref.__dataclass_fields__
+                },
+            },
+        }),
+    )
+    monkeypatch.setattr(
+        analysis_module, "manifest_inference_seed",
+        lambda ref, *, study_id: seen.setdefault("rng", (ref, study_id)) or 7,
+    )
+
+    def stop_at_rows(*args, **kwargs):
+        seen["rows"] = (args, kwargs)
+        raise RuntimeError("row-admission-stop")
+
+    monkeypatch.setattr(analysis_module, "_verify_roster_rows", stop_at_rows)
+
+    with pytest.raises(RuntimeError, match="row-admission-stop"):
+        analysis_module.analyze(
+            (), AnalysisConfig(), manifest_ref=manifest_ref,
+            power_final_ref=final_ref, run_root=tmp_path,
+        )
+
+    assert seen["admission"] == (manifest_ref, final_ref, tmp_path)
+    assert seen["rng"] == (manifest_ref, "study")
+    assert seen["rows"][1]["selected_task_ids"] == ("task",)

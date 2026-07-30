@@ -7,15 +7,18 @@ the authorized analysis wrapper owns those responsibilities in Task 7B.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from dataclasses import asdict
 from fractions import Fraction
 from itertools import product
 from math import ceil, comb, isfinite, sqrt
 from pathlib import Path
 from typing import Literal, Sequence
+import hashlib
 import json
 
 import numpy as np
 
+from .assignment import BytesField, TextField, kdf_frame
 from .types import (
     AnalysisConfig, AnalysisRow, ArtifactRef, BinarySufficientStatistics,
     BinarySufficientStatisticsBatch, GateBatchResult, GateResult, GroupLabel,
@@ -27,6 +30,44 @@ from .types import (
 _ENUMERATION_LIMIT = 100_000
 _DYNAMIC_STATE_LIMIT = 100_000
 _DOMAINS = {"content": 0x43544E54, "excess": 0x45584353, "omnibus": 0x4F4D4E49, "multiplier": 0x4D554C54}
+
+
+def manifest_inference_seed(manifest_ref: ArtifactRef, *, study_id: str) -> int:
+    """Derive the production Philox root from immutable manifest identity."""
+    if type(manifest_ref) is not ArtifactRef or manifest_ref.role != "study_manifest":
+        raise TypeError("inference randomness requires the exact study-manifest ref")
+    if type(study_id) is not str or not study_id:
+        raise ValueError("study_id must be non-empty exact text")
+    digest = hashlib.sha256(kdf_frame(
+        "inference-philox-v1",
+        [TextField(study_id), BytesField(bytes.fromhex(manifest_ref.sha256))],
+    )).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
+def analysis_result_payload(result: AnalysisResult) -> dict[str, object]:
+    """Encode invalid uncertainty as JSON null without hiding other non-finite values."""
+    if type(result) is not AnalysisResult:
+        raise TypeError("result must be an exact AnalysisResult")
+    nullable_fields = {
+        "standard_error", "simultaneous_lower", "simultaneous_upper",
+        "standard_errors", "lowers", "uppers", "critical_value",
+    }
+
+    def convert(value: object, *, field: str) -> object:
+        if isinstance(value, dict):
+            return {key: convert(nested, field=key) for key, nested in value.items()}
+        if isinstance(value, (tuple, list)):
+            return [convert(nested, field=field) for nested in value]
+        if isinstance(value, float) and not isfinite(value):
+            if field not in nullable_fields:
+                raise ValueError(f"unexpected non-finite analysis value at {field}")
+            return None
+        return value
+
+    converted = convert(asdict(result), field="result")
+    assert isinstance(converted, dict)
+    return converted
 
 
 def task_contrasts(row: AnalysisRow) -> dict[str, float]:
@@ -300,6 +341,16 @@ def resampling_resolution(rows: Sequence[AnalysisRow]) -> ResolutionResult:
 _PATTERNS = tuple(product((0, 1), repeat=4))
 
 
+def _group_applies(benchmark: str, group: GroupLabel) -> bool:
+    return (
+        (benchmark == "SWE" and group.kind.value == "language")
+        or (
+            benchmark == "TAU"
+            and group.kind.value in {"domain", "issue_family"}
+        )
+    )
+
+
 def _pattern_index(row: AnalysisRow) -> int:
     return (row.real << 3) | (row.sham << 2) | (row.none << 1) | row.resample
 
@@ -317,7 +368,10 @@ def rows_to_binary_sufficient_statistics(
     for row in rows:
         if not isinstance(row, AnalysisRow):
             raise TypeError("rows must contain AnalysisRow")
-        memberships = ((),) + tuple((group,) for group in row.sensitivity_groups)
+        memberships = ((),) + tuple(
+            (group,) for group in row.sensitivity_groups
+            if _group_applies(row.benchmark, group)
+        )
         for labels in memberships:
             counts = buckets.setdefault((row.benchmark, labels), [0] * 16)
             counts[_pattern_index(row)] += 1
@@ -625,7 +679,45 @@ def _verify_roster_rows(rows: Sequence[AnalysisRow], *, roster_ref: ArtifactRef,
             raise ValueError(f"analysis row {task_id!r} does not match roster membership")
 
 
-def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, seed: int, manifest_ref: ArtifactRef, power_final_ref: ArtifactRef, run_root: Path) -> AnalysisResult:
+def leave_one_estimates(rows: Sequence[AnalysisRow]) -> tuple[LeaveOneEstimate, ...]:
+    """Report registered equal-benchmark estimates after one applicable group deletion."""
+    _weights(rows)
+    registered = sorted(
+        {
+            (row.benchmark, group)
+            for row in rows
+            for group in row.sensitivity_groups
+            if _group_applies(row.benchmark, group)
+        },
+        key=lambda item: (
+            item[0].encode("utf-8"), item[1].kind.value, item[1].value.encode("utf-8"),
+        ),
+    )
+    output: list[LeaveOneEstimate] = []
+    for benchmark, group in registered:
+        retained = [
+            row for row in rows
+            if row.benchmark == benchmark and group not in row.sensitivity_groups
+        ]
+        other = [row for row in rows if row.benchmark != benchmark]
+        if not retained:
+            content = excess = None
+        else:
+            content = (
+                sum(task_contrasts(row)["content"] for row in retained) / len(retained)
+                + sum(task_contrasts(row)["content"] for row in other) / len(other)
+            ) / 2
+            excess = (
+                sum(task_contrasts(row)["excess"] for row in retained) / len(retained)
+                + sum(task_contrasts(row)["excess"] for row in other) / len(other)
+            ) / 2
+        output.append(LeaveOneEstimate(
+            benchmark, group.kind, group.value, content, excess,
+        ))
+    return tuple(output)
+
+
+def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, manifest_ref: ArtifactRef, power_final_ref: ArtifactRef, run_root: Path) -> AnalysisResult:
     """Perform admission-bound registered inference; no claimed roster is accepted."""
     from .assignment import require_schedulable_power_final
     from .artifacts import _load_direct_scientific_parent
@@ -639,6 +731,10 @@ def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, seed: int, m
     payload = manifest.value["payload"]
     if not isinstance(payload, dict):
         raise ValueError("manifest payload is invalid")
+    study_id = manifest.value.get("study_id")
+    if type(study_id) is not str or not study_id:
+        raise ValueError("manifest study_id is invalid")
+    seed = manifest_inference_seed(manifest_ref, study_id=study_id)
     raw_roster_ref = payload.get("roster_ref")
     if not isinstance(raw_roster_ref, dict):
         raise ValueError("manifest lacks roster authority")
@@ -678,18 +774,6 @@ def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, seed: int, m
         )
         for benchmark in ("SWE", "TAU")
     )
-    registered_groups = sorted({group for row in rows for group in row.sensitivity_groups}, key=lambda group: (group.kind.value, group.value))
-    leave_one_items: list[LeaveOneEstimate] = []
-    for group in registered_groups:
-        for benchmark in ("SWE", "TAU"):
-            retained = [row for row in rows if row.benchmark == benchmark and group not in row.sensitivity_groups]
-            if not retained:
-                raise ValueError("registered leave-one group empties a benchmark")
-            leave_one_items.append(LeaveOneEstimate(
-                benchmark, group.kind, group.value,
-                float(sum(task_contrasts(row)["content"] for row in retained) / len(retained)),
-                float(sum(task_contrasts(row)["excess"] for row in retained) / len(retained)),
-            ))
-    leave_one = tuple(leave_one_items)
+    leave_one = leave_one_estimates(rows)
     verdict = classify_verdict(gates, content=content, excess=excess, sham_packet=sham, resolution=resolution, secondary=secondary)
     return AnalysisResult(content, excess, sham, contrast_values["continuation"], contrast_values["total"], contrast_values["null"], omnibus_sharp_pvalue(rows, draws=config.sharp_draws, seed=seed), primary, secondary, resolution, _failure_gap(statistics), benchmark_estimates, leave_one, gates, verdict, tuple(gate.code for gate in gates if not gate.passed))

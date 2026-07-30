@@ -329,6 +329,23 @@ def test_cli_analysis_surface_exposes_only_registered_external_inputs() -> None:
     assert "assignment_key_file" not in vars(project)
 
 
+def test_analysis_config_rejects_a_caller_selected_seed(tmp_path: Path) -> None:
+    from pneuma_lab.resampling_null.cli import _analysis_config
+
+    config = tmp_path / "analysis-config.json"
+    config.write_text(json.dumps({
+        "seed": 7,
+        "alpha": 0.05,
+        "delta_star": 0.05,
+        "sharp_draws": 999_999,
+        "multiplier_draws": 99_999,
+        "max_differential_failure_gap": 0.02,
+    }), encoding="utf-8")
+
+    with pytest.raises(Exception, match="unregistered shape"):
+        _analysis_config(config)
+
+
 def test_cli_synthetic_branches_is_fail_closed_without_branch_executor(
     tmp_path: Path, capsys, monkeypatch,
 ) -> None:
@@ -394,7 +411,7 @@ def test_cli_analyze_does_not_decode_ledger_before_guard(
     monkeypatch.setattr(cli, "_record_for_ref", record)
     monkeypatch.setattr(cli, "_external_sources", lambda *args, **kwargs: {})
     monkeypatch.setattr(cli, "_external_file", lambda value, **kwargs: key)
-    monkeypatch.setattr(cli, "_analysis_config", lambda _path: (object(), 0))
+    monkeypatch.setattr(cli, "_analysis_config", lambda _path: object())
     monkeypatch.setattr(cli, "issue_unblind_permit", lambda *args, **kwargs: "permit")
     monkeypatch.setattr(cli, "unblind_and_publish_analysis", lambda *args, **kwargs: SimpleNamespace(analysis_ref=refs["config.json"]))
     @dataclass
