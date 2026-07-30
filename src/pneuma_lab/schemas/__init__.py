@@ -89,6 +89,7 @@ RESAMPLING_SCHEMA_FILES = (
     "resampling-analysis-freeze.schema.json",
     "resampling-analysis.schema.json",
     "resampling-power-report.schema.json",
+    "resampling-timing-no-go.schema.json",
     "resampling-unblind-receipt.schema.json",
     "resampling-artifact-root.schema.json",
 )
