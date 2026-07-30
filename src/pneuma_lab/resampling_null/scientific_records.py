@@ -14,6 +14,7 @@ from typing import cast
 from .artifacts import validate_record
 from .authority_refs import (
     BoundArtifactRead,
+    _raise_after_descriptor_cleanup,
     decode_artifact_ref,
     load_json_bytes,
 )
@@ -50,12 +51,14 @@ class ScientificRefReader:
         self._physical_bindings: dict[tuple[int, int], ArtifactRef] = {}
 
     def __enter__(self) -> ScientificRefReader:
-        descriptor = os.open(
+        owned_descriptor: int | None = os.open(
             self.run_root,
             os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
         )
+        if owned_descriptor is None:
+            raise AssertionError("scientific root open produced no descriptor")
         try:
-            before = os.fstat(descriptor)
+            before = os.fstat(owned_descriptor)
             named = os.stat(self.run_root, follow_symlinks=False)
             if (
                 not stat.S_ISDIR(before.st_mode)
@@ -65,10 +68,18 @@ class ScientificRefReader:
                 raise RecordValidationError(
                     "scientific run_root identity changed during binding"
                 )
-        except BaseException:
-            os.close(descriptor)
-            raise
-        self._root_descriptor = descriptor
+        except BaseException as primary_error:
+            descriptor_to_close = owned_descriptor
+            owned_descriptor = None
+            if descriptor_to_close is None:
+                raise
+            _raise_after_descriptor_cleanup(
+                descriptor=descriptor_to_close,
+                primary_error=primary_error,
+                message="scientific acquisition and cleanup both failed",
+            )
+        self._root_descriptor = owned_descriptor
+        owned_descriptor = None
         return self
 
     def __exit__(

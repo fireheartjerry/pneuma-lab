@@ -633,6 +633,71 @@ def test_t5_s02cd_authority_reader_aggregates_traversal_and_close_failure(
     assert reader._root_descriptor is None
 
 
+def test_t5_s02cd_authority_acquisition_preserves_fstat_and_close_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "run"
+    root.mkdir()
+    reader = AuthorityRefReader(root)
+    original_close = authority_refs.os.close
+
+    def fstat(_descriptor: int):
+        raise OSError("injected authority fstat failure")
+
+    def close(descriptor: int) -> None:
+        original_close(descriptor)
+        raise OSError("injected authority acquisition close failure")
+
+    monkeypatch.setattr(authority_refs.os, "fstat", fstat)
+    monkeypatch.setattr(authority_refs.os, "close", close)
+    with pytest.raises(BaseExceptionGroup) as captured:
+        reader.__enter__()
+
+    assert [
+        str(error) for error in captured.value.exceptions
+    ] == [
+        "injected authority fstat failure",
+        "injected authority acquisition close failure",
+    ]
+    assert reader._root_descriptor is None
+
+
+def test_t5_s02cd_scientific_acquisition_preserves_identity_and_close_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "run"
+    root.mkdir()
+    reader = ScientificRefReader(root)
+    original_stat = scientific_records.os.stat
+    original_close = scientific_records.os.close
+
+    def stat(path, *args, **kwargs):
+        metadata = original_stat(path, *args, **kwargs)
+        if Path(path) == root and kwargs.get("follow_symlinks") is False:
+            values = list(metadata)
+            values[1] += 1
+            return os.stat_result(values)
+        return metadata
+
+    def close(descriptor: int) -> None:
+        original_close(descriptor)
+        raise OSError("injected scientific acquisition close failure")
+
+    monkeypatch.setattr(scientific_records.os, "stat", stat)
+    monkeypatch.setattr(scientific_records.os, "close", close)
+    with pytest.raises(BaseExceptionGroup) as captured:
+        reader.__enter__()
+
+    assert isinstance(captured.value.exceptions[0], ValueError)
+    assert "identity changed" in str(captured.value.exceptions[0])
+    assert str(captured.value.exceptions[1]) == (
+        "injected scientific acquisition close failure"
+    )
+    assert reader._root_descriptor is None
+
+
 def test_t5_s02cd_controller_reader_aggregates_traversal_and_close_failures(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

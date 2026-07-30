@@ -14,6 +14,146 @@ from pneuma_lab.resampling_null.errors import RecordValidationError
 from pneuma_lab.resampling_null.types import ArtifactRef
 
 
+def test_controller_root_acquisition_preserves_identity_and_close_failures(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    original_fstat = controller_artifacts.os.fstat
+    original_close = controller_artifacts.os.close
+
+    def fstat(descriptor: int):
+        metadata = original_fstat(descriptor)
+        values = list(metadata)
+        values[1] += 1
+        return os.stat_result(values)
+
+    def close(descriptor: int) -> None:
+        original_close(descriptor)
+        raise OSError("injected controller root close failure")
+
+    monkeypatch.setattr(controller_artifacts.os, "fstat", fstat)
+    monkeypatch.setattr(controller_artifacts.os, "close", close)
+    store = object.__new__(ControllerArtifactStore)
+    with pytest.raises(BaseExceptionGroup) as captured:
+        store.__init__(tmp_path)
+
+    assert isinstance(captured.value.exceptions[0], RecordValidationError)
+    assert "identity changed" in str(captured.value.exceptions[0])
+    assert str(captured.value.exceptions[1]) == (
+        "injected controller root close failure"
+    )
+    assert getattr(store, "_root_descriptor", None) is None
+
+
+def test_controller_store_tree_acquisition_clears_stale_owner_and_aggregates(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    original_close = controller_artifacts.os.close
+
+    def open_tree(_root_descriptor: int, _name: str) -> int:
+        raise ValueError("injected controller store tree failure")
+
+    def close(descriptor: int) -> None:
+        original_close(descriptor)
+        raise OSError("injected controller store acquisition close failure")
+
+    monkeypatch.setattr(controller_artifacts, "_mkdir_or_open", open_tree)
+    monkeypatch.setattr(controller_artifacts.os, "close", close)
+    store = object.__new__(ControllerArtifactStore)
+    with pytest.raises(BaseExceptionGroup) as captured:
+        store.__init__(tmp_path)
+
+    assert [
+        str(error) for error in captured.value.exceptions
+    ] == [
+        "injected controller store tree failure",
+        "injected controller store acquisition close failure",
+    ]
+    assert store._root_descriptor is None
+    assert store._artifact_descriptor is None
+
+
+def test_controller_resolver_tree_open_clears_stale_owner_and_aggregates(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    with ControllerArtifactStore(tmp_path):
+        pass
+    original_open = controller_artifacts.os.open
+    original_close = controller_artifacts.os.close
+
+    def open_file(path, flags, *args, **kwargs):
+        if (
+            path == controller_artifacts._ARTIFACT_DIRECTORY
+            and kwargs.get("dir_fd") is not None
+        ):
+            raise OSError("injected controller resolver tree open failure")
+        return original_open(path, flags, *args, **kwargs)
+
+    def close(descriptor: int) -> None:
+        original_close(descriptor)
+        raise OSError("injected controller resolver acquisition close failure")
+
+    monkeypatch.setattr(controller_artifacts.os, "open", open_file)
+    monkeypatch.setattr(controller_artifacts.os, "close", close)
+    resolver = object.__new__(ControllerArtifactResolver)
+    with pytest.raises(BaseExceptionGroup) as captured:
+        resolver.__init__(tmp_path)
+
+    assert isinstance(captured.value.exceptions[0], RecordValidationError)
+    assert "tree could not be freshly bound" in str(
+        captured.value.exceptions[0]
+    )
+    assert isinstance(captured.value.exceptions[0].__cause__, OSError)
+    assert "tree open failure" in str(captured.value.exceptions[0].__cause__)
+    assert str(captured.value.exceptions[1]) == (
+        "injected controller resolver acquisition close failure"
+    )
+    assert resolver._root_descriptor is None
+    assert resolver._artifact_descriptor is None
+
+
+def test_controller_resolver_tree_baseexception_is_primary_and_owner_is_clear(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    with ControllerArtifactStore(tmp_path):
+        pass
+    original_open = controller_artifacts.os.open
+    original_close = controller_artifacts.os.close
+
+    def open_file(path, flags, *args, **kwargs):
+        if (
+            path == controller_artifacts._ARTIFACT_DIRECTORY
+            and kwargs.get("dir_fd") is not None
+        ):
+            raise KeyboardInterrupt("injected resolver acquisition interrupt")
+        return original_open(path, flags, *args, **kwargs)
+
+    def close(descriptor: int) -> None:
+        original_close(descriptor)
+        raise OSError("injected interrupted acquisition close failure")
+
+    monkeypatch.setattr(controller_artifacts.os, "open", open_file)
+    monkeypatch.setattr(controller_artifacts.os, "close", close)
+    resolver = object.__new__(ControllerArtifactResolver)
+    with pytest.raises(BaseExceptionGroup) as captured:
+        resolver.__init__(tmp_path)
+
+    assert [
+        type(error) for error in captured.value.exceptions
+    ] == [
+        KeyboardInterrupt,
+        OSError,
+    ]
+    assert str(captured.value.exceptions[0]) == (
+        "injected resolver acquisition interrupt"
+    )
+    assert resolver._root_descriptor is None
+    assert resolver._artifact_descriptor is None
+
+
 def test_controller_store_is_create_only_content_addressed_and_freshly_resolved(
     tmp_path,
 ) -> None:

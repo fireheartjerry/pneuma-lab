@@ -9,7 +9,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import stat
-from typing import cast
+from typing import NoReturn, cast
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
@@ -30,6 +30,24 @@ _DIRECTORY_FLAGS = (
 )
 _READ_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 _HASH_CHUNK_BYTES = 1024 * 1024
+
+
+def _raise_after_descriptor_cleanup(
+    *,
+    descriptor: int,
+    primary_error: BaseException,
+    message: str,
+) -> NoReturn:
+    """Close one relinquished descriptor without losing its primary failure."""
+
+    try:
+        os.close(descriptor)
+    except BaseException as cleanup_error:
+        raise BaseExceptionGroup(
+            message,
+            [primary_error, cleanup_error],
+        ) from None
+    raise primary_error
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,9 +187,14 @@ class AuthorityRefReader:
         self._semantic_proofs: set[ArtifactRef] = set()
 
     def __enter__(self) -> AuthorityRefReader:
-        descriptor = os.open(self.run_root, _DIRECTORY_FLAGS)
+        owned_descriptor: int | None = os.open(
+            self.run_root,
+            _DIRECTORY_FLAGS,
+        )
+        if owned_descriptor is None:
+            raise AssertionError("authority root open produced no descriptor")
         try:
-            bound = os.fstat(descriptor)
+            bound = os.fstat(owned_descriptor)
             named = os.stat(self.run_root, follow_symlinks=False)
             if (
                 not stat.S_ISDIR(bound.st_mode)
@@ -181,10 +204,18 @@ class AuthorityRefReader:
                 raise RecordValidationError(
                     "authority run_root identity changed during binding"
                 )
-        except BaseException:
-            os.close(descriptor)
-            raise
-        self._root_descriptor = descriptor
+        except BaseException as primary_error:
+            descriptor_to_close = owned_descriptor
+            owned_descriptor = None
+            if descriptor_to_close is None:
+                raise
+            _raise_after_descriptor_cleanup(
+                descriptor=descriptor_to_close,
+                primary_error=primary_error,
+                message="authority acquisition and cleanup both failed",
+            )
+        self._root_descriptor = owned_descriptor
+        owned_descriptor = None
         return self
 
     def __exit__(

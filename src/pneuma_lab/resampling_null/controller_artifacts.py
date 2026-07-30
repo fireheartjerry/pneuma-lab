@@ -13,7 +13,7 @@ import re
 import stat
 from typing import final
 
-from .authority_refs import BoundArtifactRead
+from .authority_refs import BoundArtifactRead, _raise_after_descriptor_cleanup
 from .errors import RecordValidationError
 from .prefix_contracts import CONTROLLER_ROLE_MEDIA
 from .types import ArtifactRef
@@ -45,9 +45,12 @@ def _validate_root(run_root: Path) -> tuple[Path, tuple[int, int]]:
 
 def _bind_root(run_root: Path) -> tuple[Path, int]:
     root, expected_identity = _validate_root(run_root)
+    owned_descriptor: int | None = None
     try:
-        descriptor = os.open(root, _DIRECTORY_FLAGS)
-        bound = os.fstat(descriptor)
+        owned_descriptor = os.open(root, _DIRECTORY_FLAGS)
+        if owned_descriptor is None:
+            raise AssertionError("controller root open produced no descriptor")
+        bound = os.fstat(owned_descriptor)
         if (
             not stat.S_ISDIR(bound.st_mode)
             or (bound.st_dev, bound.st_ino) != expected_identity
@@ -55,11 +58,19 @@ def _bind_root(run_root: Path) -> tuple[Path, int]:
             raise RecordValidationError(
                 "controller artifact root identity changed during binding"
             )
-    except BaseException:
-        if "descriptor" in locals():
-            os.close(descriptor)
-        raise
-    return root, descriptor
+    except BaseException as primary_error:
+        descriptor_to_close = owned_descriptor
+        owned_descriptor = None
+        if descriptor_to_close is None:
+            raise
+        _raise_after_descriptor_cleanup(
+            descriptor=descriptor_to_close,
+            primary_error=primary_error,
+            message="controller root acquisition and cleanup both failed",
+        )
+    if owned_descriptor is None:
+        raise AssertionError("controller root open produced no descriptor")
+    return root, owned_descriptor
 
 
 def _role(value: object) -> str:
@@ -133,23 +144,34 @@ class ControllerArtifactStore:
 
     def __init__(self, run_root: Path) -> None:
         self._writes: dict[ArtifactRef, bytes] = {}
+        self._root_descriptor: int | None = None
+        self._artifact_descriptor: int | None = None
         try:
             self._root, root_descriptor = _bind_root(run_root)
-            self._root_descriptor: int | None = root_descriptor
+            self._root_descriptor = root_descriptor
+            del root_descriptor
         except OSError as exc:
             raise RecordValidationError(
                 "controller artifact root could not be bound"
             ) from exc
-        self._artifact_descriptor: int | None = None
         try:
             self._artifact_descriptor = _mkdir_or_open(
                 self._root_descriptor,
                 _ARTIFACT_DIRECTORY,
             )
-        except BaseException:
-            os.close(self._root_descriptor)
+        except BaseException as primary_error:
+            owned_descriptor = self._root_descriptor
             self._root_descriptor = None
-            raise
+            self._artifact_descriptor = None
+            if owned_descriptor is None:
+                raise
+            _raise_after_descriptor_cleanup(
+                descriptor=owned_descriptor,
+                primary_error=primary_error,
+                message=(
+                    "controller store acquisition and cleanup both failed"
+                ),
+            )
 
     def __enter__(self) -> ControllerArtifactStore:
         self._require_open()
@@ -407,23 +429,44 @@ class ControllerArtifactResolver:
     def __init__(self, run_root: Path) -> None:
         self._path_bindings: dict[str, ArtifactRef] = {}
         self._physical_bindings: dict[tuple[int, int], ArtifactRef] = {}
+        self._root_descriptor: int | None = None
+        self._artifact_descriptor: int | None = None
         try:
             self._root, root_descriptor = _bind_root(run_root)
-            self._root_descriptor: int | None = root_descriptor
-            self._artifact_descriptor: int | None = os.open(
+            self._root_descriptor = root_descriptor
+            del root_descriptor
+        except OSError as exc:
+            raise RecordValidationError(
+                "controller artifact tree could not be freshly bound"
+            ) from exc
+        try:
+            self._artifact_descriptor = os.open(
                 _ARTIFACT_DIRECTORY,
                 _DIRECTORY_FLAGS,
                 dir_fd=self._root_descriptor,
             )
-        except OSError as exc:
-            maybe_root_descriptor = getattr(self, "_root_descriptor", None)
-            if maybe_root_descriptor is not None:
-                os.close(maybe_root_descriptor)
+        except BaseException as acquisition_error:
+            primary_error: BaseException
+            if isinstance(acquisition_error, OSError):
+                wrapped = RecordValidationError(
+                    "controller artifact tree could not be freshly bound"
+                )
+                wrapped.__cause__ = acquisition_error
+                primary_error = wrapped
+            else:
+                primary_error = acquisition_error
+            owned_descriptor = self._root_descriptor
             self._root_descriptor = None
             self._artifact_descriptor = None
-            raise RecordValidationError(
-                "controller artifact tree could not be freshly bound"
-            ) from exc
+            if owned_descriptor is None:
+                raise primary_error
+            _raise_after_descriptor_cleanup(
+                descriptor=owned_descriptor,
+                primary_error=primary_error,
+                message=(
+                    "controller resolver acquisition and cleanup both failed"
+                ),
+            )
 
     def __enter__(self) -> ControllerArtifactResolver:
         self._require_open()
