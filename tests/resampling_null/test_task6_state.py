@@ -83,3 +83,19 @@ def test_preunblind_graph_rejects_an_alternate_ledger_alias_before_loading(tmp_p
     ref = ArtifactRef("ledger", "ledger.json", "0" * 64, 0, "application/json")
     with pytest.raises(RecordValidationError, match="exactly the bound assignment ledger"):
         validate_preunblind_graph(root, ref)
+
+
+def test_preunblind_graph_detects_escaped_ledger_kind_alias(tmp_path) -> None:
+    from pneuma_lab.resampling_null.artifacts import validate_preunblind_graph
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    root = tmp_path / "run"
+    root.mkdir()
+    (root / "ledger.json").write_text('{"record_kind":"other"}', encoding="utf-8")
+    (root / "escaped.json").write_text(
+        '{"record_\\u006b\\u0069nd":"resampling_\\u0061ssignment_ledger"}',
+        encoding="utf-8",
+    )
+    ref = ArtifactRef("ledger", "ledger.json", "0" * 64, 0, "application/json")
+    with pytest.raises(RecordValidationError, match="exactly the bound assignment ledger"):
+        validate_preunblind_graph(root, ref)

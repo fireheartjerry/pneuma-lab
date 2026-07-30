@@ -1144,9 +1144,10 @@ def validate_preunblind_graph(run_root: Path, ledger_ref: ArtifactRef) -> None:
             raw = path.read_bytes()
         except OSError as exc:
             raise RecordValidationError(f"cannot inspect pre-unblind graph: {exc}") from exc
-        # This intentionally performs only a shallow type discovery, never the
-        # assignment-ledger decoder or its outcome-bearing payload traversal.
-        if b'"record_kind"' in raw and b'"resampling_assignment_ledger"' in raw:
+        # This intentionally decodes only top-level JSON keys and the scalar
+        # record_kind value, never the ledger payload.  json string decoding
+        # catches escaped spellings that a raw-byte discriminator would miss.
+        if _top_level_record_kind(raw) == "resampling_assignment_ledger":
             ledger_documents.append(path.resolve(strict=True))
     expected_ledger = (root / ledger_relative).resolve(strict=False)
     if ledger_documents != [expected_ledger]:
@@ -1164,6 +1165,81 @@ def validate_preunblind_graph(run_root: Path, ledger_ref: ArtifactRef) -> None:
         },
         run_root=root,
     )
+
+
+def _top_level_record_kind(payload: bytes) -> str | None:
+    """Safely discriminate the top-level kind without decoding nested values."""
+    try:
+        text = payload.decode("utf-8", "strict")
+    except UnicodeDecodeError as exc:
+        raise RecordValidationError("pre-unblind graph JSON is not UTF-8") from exc
+    decoder = json.JSONDecoder()
+    index, length = 0, len(text)
+
+    def whitespace(position: int) -> int:
+        while position < length and text[position] in " \t\r\n":
+            position += 1
+        return position
+
+    def string(position: int) -> tuple[str, int]:
+        value, end = decoder.raw_decode(text, position)
+        if not isinstance(value, str):
+            raise RecordValidationError("pre-unblind graph object key is not string")
+        return value, end
+
+    def skip(position: int) -> int:
+        position = whitespace(position)
+        if position >= length:
+            raise RecordValidationError("truncated pre-unblind graph JSON")
+        if text[position] == '"':
+            return string(position)[1]
+        if text[position] not in "[{":
+            end = position
+            while end < length and text[end] not in ",]}":
+                end += 1
+            return end
+        opening, closing, depth, quote = text[position], "}" if text[position] == "{" else "]", 0, False
+        while position < length:
+            character = text[position]
+            if quote:
+                if character == "\\":
+                    position += 2
+                    continue
+                if character == '"':
+                    quote = False
+            elif character == '"':
+                quote = True
+            elif character == opening:
+                depth += 1
+            elif character == closing:
+                depth -= 1
+                if depth == 0:
+                    return position + 1
+            position += 1
+        raise RecordValidationError("unterminated pre-unblind graph JSON")
+
+    index = whitespace(index)
+    if index >= length or text[index] != "{":
+        return None
+    index += 1
+    while True:
+        index = whitespace(index)
+        if index < length and text[index] == "}":
+            return None
+        key, index = string(index)
+        index = whitespace(index)
+        if index >= length or text[index] != ":":
+            raise RecordValidationError("malformed pre-unblind graph JSON")
+        index = whitespace(index + 1)
+        if key == "record_kind":
+            value, index = string(index)
+            return value
+        index = whitespace(skip(index))
+        if index >= length or text[index] not in ",}":
+            raise RecordValidationError("malformed pre-unblind graph JSON")
+        if text[index] == "}":
+            return None
+        index += 1
 
 
 def write_jsonl_artifact(

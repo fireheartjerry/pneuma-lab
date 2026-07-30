@@ -1716,3 +1716,11 @@ The next event after the archived migration boundary is appended below.
   permit taints before the full graph throws, plus the existing ordering spy.
   No provider/model/network action, secret disclosure, spend, execution,
   experiment, result, causal claim, or claim promotion occurred.
+
+### EJ-20260730-0176 — Task 6 escaped-ledger discriminator correction
+
+- **Correction to EJ-0175:** Raw substring discovery could miss JSON-escaped
+  `record_kind` keys or values. The pre-permit discriminator now safely decodes
+  only top-level keys and the scalar `record_kind` string while lexically
+  skipping nested payloads; it does not invoke the ledger semantic loader.
+  Escaped ledger aliases and hardlink aliases reject before permit.
