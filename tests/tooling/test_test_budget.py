@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 from scripts.check_test_budget import inspect_test_budget
 
@@ -124,6 +127,100 @@ def test_rejects_forbidden_smoke_collection_constructs_anywhere(tmp_path: Path) 
         "unittest.skipUnless",
         "unittest.skipUnless",
     )
+
+
+def test_rejects_simple_import_aliases_in_smoke_constructs(tmp_path: Path) -> None:
+    smoke = tmp_path / "tests/smoke/test_aliases.py"
+    smoke.parent.mkdir(parents=True)
+    smoke.write_text(
+        "\n".join(
+            (
+                "import pytest as pt",
+                "import unittest as ut",
+                "from pytest import mark",
+                "from pytest import skip as ps",
+                "from pytest import xfail as xf",
+                "from unittest import skip as us",
+                "from unittest import skipIf as skip_if",
+                "from unittest import skipUnless as skip_unless",
+                "",
+                "def subject_calls():",
+                "    pt.skip('forbidden')",
+                "    pt.xfail('forbidden')",
+                "    us('forbidden')",
+                "    skip_if(True, 'forbidden')",
+                "    skip_unless(False, 'forbidden')",
+                "",
+                "@ps('forbidden')",
+                "def subject_skip_decorator():",
+                "    pass",
+                "",
+                "@xf('forbidden')",
+                "def subject_xfail_decorator():",
+                "    pass",
+                "",
+                "@ut.skip('forbidden')",
+                "def subject_unittest_skip_decorator():",
+                "    pass",
+                "",
+                "@ut.skipIf(True, 'forbidden')",
+                "def subject_unittest_skip_if_decorator():",
+                "    pass",
+                "",
+                "@ut.skipUnless(False, 'forbidden')",
+                "def subject_unittest_skip_unless_decorator():",
+                "    pass",
+                "",
+                "@mark.xfail",
+                "def subject_marked_xfail():",
+                "    pass",
+                "",
+                "@mark.parametrize('value', [1, 2])",
+                "def subject_parameterized(value):",
+                "    pass",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    diagnostics = inspect_test_budget(tmp_path)
+
+    assert tuple(item.rsplit(": forbidden ", 1)[1] for item in diagnostics) == (
+        "pytest.mark.parametrize",
+        "pytest.mark.xfail",
+        "pytest.skip",
+        "pytest.skip",
+        "pytest.xfail",
+        "pytest.xfail",
+        "unittest.skip",
+        "unittest.skip",
+        "unittest.skipIf",
+        "unittest.skipIf",
+        "unittest.skipUnless",
+        "unittest.skipUnless",
+    )
+
+
+def test_default_pytest_collection_is_only_the_micro_gate() -> None:
+    environment = os.environ.copy()
+    environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q"],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+        env=environment,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    collected_files = tuple(
+        line for line in result.stdout.splitlines() if line.startswith("tests/")
+    )
+    assert collected_files == (
+        "tests/smoke/test_micro_gate.py: 1",
+    )
+    assert "resampling_null" not in result.stdout
 
 
 def test_missing_budget_directories_are_zero_and_pass(tmp_path: Path) -> None:

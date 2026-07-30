@@ -32,6 +32,33 @@ def _dotted_name(node: ast.expr) -> str | None:
     return None
 
 
+def _import_aliases(tree: ast.Module) -> dict[str, str]:
+    aliases: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for imported in node.names:
+                if imported.name in {"pytest", "unittest"}:
+                    aliases[imported.asname or imported.name] = imported.name
+        elif isinstance(node, ast.ImportFrom) and node.module in {"pytest", "unittest"}:
+            for imported in node.names:
+                if imported.name != "*":
+                    aliases[imported.asname or imported.name] = (
+                        f"{node.module}.{imported.name}"
+                    )
+    return aliases
+
+
+def _canonical_name(node: ast.expr, aliases: dict[str, str]) -> str | None:
+    name = _dotted_name(node)
+    if not name:
+        return None
+    head, separator, tail = name.partition(".")
+    target = aliases.get(head)
+    if not target:
+        return name
+    return f"{target}{separator}{tail}" if separator else target
+
+
 def _count_class_test_defs(node: ast.ClassDef) -> int:
     count = 0
     for member in node.body:
@@ -54,6 +81,7 @@ def _count_test_defs(tree: ast.Module) -> int:
 
 def _smoke_runtime_diagnostics(tree: ast.Module, relative_path: str) -> list[str]:
     diagnostics: list[str] = []
+    aliases = _import_aliases(tree)
     forbidden_calls = {
         "pytest.skip",
         "pytest.xfail",
@@ -65,16 +93,16 @@ def _smoke_runtime_diagnostics(tree: ast.Module, relative_path: str) -> list[str
     }
 
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and _dotted_name(node.func) in forbidden_calls:
-            name = _dotted_name(node.func)
+        if isinstance(node, ast.Call) and _canonical_name(node.func, aliases) in forbidden_calls:
+            name = _canonical_name(node.func, aliases)
             diagnostics.append(f"{relative_path}: forbidden {name}")
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             for decorator in node.decorator_list:
                 if (
                     not isinstance(decorator, ast.Call)
-                    and _dotted_name(decorator) in forbidden_calls
+                    and _canonical_name(decorator, aliases) in forbidden_calls
                 ):
-                    name = _dotted_name(decorator)
+                    name = _canonical_name(decorator, aliases)
                     diagnostics.append(
                         f"{relative_path}: forbidden {name}"
                     )
