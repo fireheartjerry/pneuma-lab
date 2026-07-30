@@ -24,7 +24,10 @@ from .freeze import CurrentAnalysisInputs, freeze_analysis
 from .assignment import (load_assignment_authority,
                          require_schedulable_power_final)
 from .branch_assignment import seal_branch_assignment
+from .branch_controller import (load_frozen_prefix_view, prepare_no_intervention_slots,
+                                prepare_opaque_work_orders, seal_no_intervention_block)
 from .errors import RecordValidationError
+from .execution_authority import load_prefix_execution_authority
 from .json_io import load_json_bytes, resolve_inside, run_root
 from .power import (finalize_synthetic_full_multiplier_report, finalize_synthetic_power_report, finalize_synthetic_validation_failed,
                     load_power_config, seal_roster_bound_power_authority,
@@ -43,7 +46,8 @@ from .secrets import AssignmentSecretStore
 from .selftest_fixture import seal_synthetic_selftest_study
 from .storage import claim_local_test_storage
 from .synthetic_prefix_loop import run_prefix
-from .types import AnalysisConfig, AnalysisRow, ArtifactRef, GroupKind, GroupLabel
+from .types import (AnalysisConfig, AnalysisRow, ArtifactRef, GroupKind, GroupLabel,
+                    TriggerReason)
 
 
 class _ArgumentError(ValueError):
@@ -566,6 +570,96 @@ def _build_packet_candidate(
     return write_packet_candidate(entries, assignment_ref=assignment_ref, prefix_index_ref=prefix_ref, tokenizer_ref=tokenizer_ref, packet_template_ref=packet_template_ref, packet_policy_ref=packet_policy_ref, pad_unit_set_ref=pad_unit_set_ref, run_root=root, out=out)
 
 
+def _branch_program_refs(task_id: str) -> None:
+    """Fail closed: no study manifest authorizes per-slot branch programs yet.
+
+    ``run_opaque_slot`` needs one manifest-authorized branch execution program
+    per slot, in the same way ``run_prefix`` needs its prefix program.  The
+    committed study-manifest contract has no field that names them, so there is
+    nothing to resolve and nothing a caller may substitute.  Inventing a
+    program here would let the CLI script four slot trajectories outside frozen
+    authority, which is exactly the fabrication this gate exists to prevent.
+    """
+
+    raise RecordValidationError(
+        "no manifest-authorized branch execution program covers task "
+        f"{task_id!r}; branch slot execution is not authorized"
+    )
+
+
+def _synthetic_branches(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
+    """Admit branch authority and materialize every task block it permits.
+
+    Admission is real work, not a formality: each task's ancestry, sealed
+    packet capabilities, frozen prefix snapshot, and preregistered slot order
+    are resolved before anything is written.  An untriggered task closes
+    completely here by copying ``Y_0`` to its four opaque slots.  A triggered
+    task prepares its four opaque work orders and then stops at the one
+    remaining authority gate, because no study manifest yet names the per-slot
+    branch execution programs the isolated worker would replay.
+    """
+
+    study_ref = _ref(root, args.study, "study_manifest")
+    schedule_ref = _ref(root, args.schedule, "resampling_prefix_schedule")
+    assignment_ref = _ref(root, args.assignment, "resampling_assignment_ledger")
+    prefix_index_ref = _ref(root, args.prefix_index, "resampling_prefix_receipt")
+    packet_index_ref = _ref(root, args.packet_index, "packet_index_sealed")
+    freeze_ref = _ref(root, args.analysis_freeze, "analysis_freeze")
+    prefix_name = _relative_name(args.out_prefix, field="task block prefix")
+    task_ids = _schedule_task_ids(schedule_ref, study_ref, root=root)
+    study_id = _study_id(study_ref, root=root)
+    # Admission is a whole-run barrier.  A partially materialized branch stage
+    # is worse than none: it would leave a root whose task blocks silently
+    # cover only the tasks that happened to be admissible.
+    admitted: list[tuple[str, object, object, Path]] = []
+    for task_id in task_ids:
+        authority = load_prefix_execution_authority(
+            run_root=root, schedule_ref=schedule_ref, task_id=task_id,
+        )
+        prefix = load_frozen_prefix_view(
+            prefix_index_ref=prefix_index_ref, task_id=task_id, run_root=root,
+        )
+        slots = authority.task_schedule.slots.slots
+        out = _out(root, f"{prefix_name}/{hashlib.sha256(task_id.encode('utf-8')).hexdigest()}.json")
+        if prefix.trigger_reason is TriggerReason.NO_INTERVENTION_OPPORTUNITY:
+            prepare_no_intervention_slots(
+                prefix=prefix, slots=slots,
+                packet_index_ref=packet_index_ref, run_root=root,
+            )
+        else:
+            prepare_opaque_work_orders(
+                study_id=study_id,
+                benchmark=authority.task_schedule.task.benchmark,
+                prefix=prefix, slots=slots, branch_caps=authority.branch_caps,
+                packet_index_ref=packet_index_ref, analysis_freeze_ref=freeze_ref,
+                run_root=root,
+            )
+            _branch_program_refs(task_id)
+        admitted.append((task_id, authority, prefix, out))
+    sealed: ArtifactRef | None = None
+    for _task_id, authority, prefix, out in admitted:
+        identities = prepare_no_intervention_slots(
+            prefix=prefix, slots=authority.task_schedule.slots.slots,
+            packet_index_ref=packet_index_ref, run_root=root,
+        )
+        sealed = seal_no_intervention_block(
+            prefix=prefix, task_spec=authority.task_schedule.task,
+            slots=identities, y0_grade=prefix.y0_grade,
+            schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
+            assignment_ref=assignment_ref, packet_index_ref=packet_index_ref,
+            analysis_freeze_ref=freeze_ref, run_root=root, out=out,
+        )
+    return sealed
+
+
+def _study_id(study_ref: ArtifactRef, *, root: Path) -> str:
+    record = _record_for_ref(study_ref, root=root, kind="resampling_study_manifest")
+    study_id = record.get("study_id")
+    if type(study_id) is not str or not study_id:
+        raise RecordValidationError("study manifest study_id is malformed")
+    return study_id
+
+
 def _require_resumable_selftest(root: Path, final_name: str) -> None:
     """Prove a staged root is power-complete before any descendant write."""
     documents = _scientific_documents(root, excluded=set())
@@ -673,15 +767,7 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
                                     storage_policy_lease=lease, run_root=root, out=out)
     if args.command == "synthetic":
         if args.synthetic_command == "branches":
-            # Task-5's checked-in controller is deliberately prefix-only.  Do
-            # not mint a fake branch success record while the opaque worker
-            # authority is absent.
-            for name, role in (("study", "study_manifest"), ("schedule", "resampling_prefix_schedule"),
-                               ("assignment", "resampling_assignment_ledger"), ("prefix_index", "resampling_prefix_receipt"),
-                               ("packet_index", "packet_index_sealed"), ("analysis_freeze", "analysis_freeze")):
-                _ref(root, getattr(args, name), role)
-            _relative_name(args.out_prefix, field="task block prefix")
-            raise RecordValidationError("synthetic branch executor is not installed")
+            return _synthetic_branches(args, root)
         study_ref = _ref(root, args.study, "study_manifest")
         schedule_ref = _ref(root, args.schedule, "resampling_prefix_schedule")
         task_ids = _schedule_task_ids(schedule_ref, study_ref, root=root)

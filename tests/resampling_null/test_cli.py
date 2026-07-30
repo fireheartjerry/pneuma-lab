@@ -346,24 +346,42 @@ def test_analysis_config_rejects_a_caller_selected_seed(tmp_path: Path) -> None:
         _analysis_config(config)
 
 
-def test_cli_synthetic_branches_is_fail_closed_without_branch_executor(
-    tmp_path: Path, capsys, monkeypatch,
+def test_cli_synthetic_branches_fails_closed_and_writes_nothing(
+    tmp_path: Path, capsys,
 ) -> None:
-    """A parser surface must not pretend the absent Task-5 executor ran."""
+    """Branch admission must fail on absent authority without writing a block.
+
+    The branch executor is installed now, so this no longer asserts a
+    'not installed' stub.  What it asserts is stronger: with no lineage in the
+    root, the command reports one redacted error and leaves the root empty, so
+    a task block cannot appear without real authority behind it.
+    """
     import pneuma_lab.resampling_null.cli as cli
-    from pneuma_lab.resampling_null.types import ArtifactRef
 
     root = tmp_path / "root"
     root.mkdir()
-    ref = ArtifactRef("test", "x.json", "a" * 64, 1, "application/json")
-    monkeypatch.setattr(cli, "_ref", lambda *_args: ref)
     assert cli.main([
         "--run-root", str(root), "synthetic", "branches", "--study", "study.json",
         "--schedule", "schedule.json", "--assignment", "assignment.json",
         "--prefix-index", "prefix.json", "--packet-index", "packet.json",
         "--analysis-freeze", "freeze.json", "--out-prefix", "task-blocks",
     ]) == 2
-    assert json.loads(capsys.readouterr().out)["error"] == "synthetic branch executor is not installed"
+    assert json.loads(capsys.readouterr().out)["status"] == "error"
+    assert list(root.iterdir()) == []
+
+
+def test_cli_branch_programs_are_not_authorized_by_any_manifest() -> None:
+    """The one remaining branch gate must name what authority is missing.
+
+    A triggered task cannot execute until a study manifest names its per-slot
+    branch execution programs.  The CLI must say so rather than substituting a
+    caller-supplied or invented program.
+    """
+    import pneuma_lab.resampling_null.cli as cli
+    from pneuma_lab.resampling_null.errors import RecordValidationError
+
+    with pytest.raises(RecordValidationError, match="branch slot execution is not authorized"):
+        cli._branch_program_refs("task-1")
 
 
 def test_cli_analyze_does_not_decode_ledger_before_guard(

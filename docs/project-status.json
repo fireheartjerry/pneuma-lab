@@ -361,6 +361,29 @@
             "blockers": [
                 "B-NEURIPS-TASK7-E2E"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_task9",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
+                "schemas/resampling-task-block.schema.json",
+                "src/pneuma_lab/resampling_null/packet_capabilities.py",
+                "src/pneuma_lab/resampling_null/branch_records.py",
+                "src/pneuma_lab/resampling_null/branch_controller.py",
+                "src/pneuma_lab/resampling_null/synthetic_branch_loop.py",
+                "src/pneuma_lab/resampling_null/cli.py",
+                "tests/resampling_null/test_packet_capabilities.py",
+                "tests/resampling_null/test_branch_controller.py",
+                "tests/resampling_null/test_cli.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-TASK9-BRANCH-PROGRAM-AUTHORITY",
+                "B-NEURIPS-TASK9-E2E"
+            ]
         }
     ],
     "nine_to_five": {
@@ -648,6 +671,14 @@
         {
             "id": "B-NEURIPS-TASK7-E2E",
             "summary": "Task 7 has no complete authority-backed P0 lineage reaching real unblind and registered analysis; its state is implementation_complete and E2E_pending."
+        },
+        {
+            "id": "B-NEURIPS-TASK9-BRANCH-PROGRAM-AUTHORITY",
+            "summary": "No study manifest names the per-slot branch execution programs an isolated worker replays, so a triggered task cannot execute; synthesizing them outside frozen authority is prohibited."
+        },
+        {
+            "id": "B-NEURIPS-TASK9-E2E",
+            "summary": "Task 9 has no complete authority-backed P0 lineage reaching real branch execution and a task block of record; its state is implementation_complete and E2E_pending."
         }
     ]
 }

@@ -62,6 +62,9 @@ CONTROLLER_ROLE_MEDIA: Mapping[str, str] = MappingProxyType(
         "grade_evidence_receipt": "application/json",
         "verifier_evidence_receipt": "application/json",
         "prefix_candidate_receipt": "application/json",
+        "branch_work_order": "application/json",
+        "branch_attempt": "application/json",
+        "branch_adverse_event": "application/json",
     }
 )
 

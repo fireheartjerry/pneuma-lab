@@ -2683,3 +2683,184 @@ The next event after the archived migration boundary is appended below.
   `implementation_complete; E2E_pending`. No complete P0 lineage, real unblind,
   registered analysis artifact, provider/benchmark action, spend, empirical
   result, or scientific claim was produced.
+
+### EJ-20260730-0222 — Task 9 opaque packet capabilities and branch execution
+
+- **Isolation from concurrent work:** Executed in a separate worktree on branch
+  `task9/opaque-branch-executor`, rebased onto the committed Task-7 head
+  (`4302dfe`) once that agent's tree was clean. No Task-7 statistical
+  primitive, inference gate, verdict, or its tests were modified. Two shared
+  files were touched by necessity and kept narrow: `cli.py` (the
+  `synthetic branches` dispatch only) and `test_cli.py` (only the two tests
+  that asserted the now-removed "executor is not installed" stub).
+- **Sealed opaque packet-capability layer (`packet_capabilities.py`):** The
+  trusted preparer converts a clear `TaskAssignment` plus `PacketPairReceipt`
+  into four preregistered-order opaque grants.
+  `opaque_guidance_relative_path` makes every worker-visible packet name a pure
+  function of `(task_id, allocation capability digest)`, so the REAL packet
+  cannot be handed to the slot allocated SHAM without detection.
+  `SealedSlotCapability` closes worker reads to `WORKER_READABLE_ROLES`, which
+  contains no scientific record kind; `seal_slot_capability` derives authority
+  only from the work order. `SlotArtifactLoader` reads through a
+  descriptor-bound `O_NOFOLLOW` component walk with mandatory digest checks.
+- **Hostile-review receipts (clerk):** A read-only `codex --yolo exec` review of
+  the capability layer returned seven finding categories. Confirmed and
+  repaired: candidate-versus-sealed envelope identity was unchecked; entry
+  `prefix_index_sha256` and `donor_task_id` were unchecked; a no-trigger marker
+  could also carry packet refs; record refs were not role/media validated;
+  guidance bytes were granted without being read; the delimiter-bounded
+  arm-word regex admitted `private REAL.txt`, `guidance(SHAM).txt` and
+  `realPacket.txt`; the reader was pathname-bound and symlink-racy. The
+  arm-word gate is now a plain substring test, which is strictly stronger and
+  safe because every arm word contains a non-hex character, plus a canonical
+  name whitelist. Rejected as out of the documented threat model: hardlink
+  aliasing of digest-pinned bytes, and forgery by a preparer that is already
+  trusted with the clear ledger — both are now stated explicitly rather than
+  implied. One review claim was **corrected**: REAL-versus-SHAM is not, and was
+  never, hidden from the packet-bearing worker itself; the registered property
+  is peer-slot and donor opacity. The module docstring previously overstated
+  this and now does not.
+- **Branch contracts and preparer (`branch_records.py`, `branch_controller.py`):**
+  The task-block value records mirror `resampling-task-block.schema.json` field
+  for field and add two bindings the schema cannot express: each execution
+  receipt names its terminal receipt by digest and slot position, and the
+  published `opaque_arm_id` must equal that slot's capability. The controller
+  holds `prepare_opaque_work_orders`, `prepare_no_intervention_slots`,
+  `seal_unscored_attempt` (preregistered slot order, never grades),
+  `authorize_full_block_rerun` (byte-identical orders, validated pre-endpoint
+  outage only), `finalize_failed_second_attempt`, `seal_task_block` and
+  `seal_no_intervention_block`. These records live outside `types.py`
+  deliberately, to stay clear of the concurrent Task-7 edits; the controlling
+  plan places them in `types.py` and that file placement is an open
+  reconciliation item, not a contract change.
+- **Isolated branch executor (`synthetic_branch_loop.py`):** `run_opaque_slot`
+  spawns one isolated environment subprocess, restores the frozen composite
+  prefix snapshot, and proves snapshot identity, visible-context digest and
+  token-id projection **before** the subject may emit a turn. It then drains
+  the frozen pending prefix tool calls against the branch tool quota, records
+  the post-pending pre-injection digests, and only then lets the optional
+  packet become visible on the first post-trigger model call. It returns an
+  `UnscoredSlotReceipt` that is structurally incapable of naming an outcome.
+  `grade_opaque_slot` is a separate later read-only pass in a fresh disposable
+  environment. Worker read authority widens in three stages, each authorized
+  only by bytes the previous stage verified.
+- **Registered deviations:** the final snapshot is a closed
+  `branch_final_snapshot_v1` under the `composite_snapshot` role, because a
+  full `CompositeSnapshotEnvelope` names roles no worker may read; branch
+  requests use a `branch-request-v1` grammar that has a field for the optional
+  packet; a bound model-call cap terminates as `TOKEN_CAP`, which is the
+  registered unscored failure set's nearest member; `wall_clock_ms` is really
+  measured and is therefore the one nondeterministic receipt field.
+- **CLI:** `synthetic branches` no longer reports "synthetic branch executor is
+  not installed". It performs real admission — ancestry, sealed packet
+  capabilities, frozen prefix view, preregistered slot order — closes an
+  untriggered task completely by copying `Y_0` to its four opaque slots, and
+  for a triggered task prepares the four opaque work orders and then stops at
+  the single remaining authority gate: no study manifest names the per-slot
+  branch execution programs an isolated worker would replay. Inventing those
+  programs in the CLI would script four slot trajectories outside frozen
+  authority, so the gate is deliberate.
+- **Focused evidence:** `tests/resampling_null -m milestone` passed 74 tests;
+  `tests/resampling_null/test_packet_capabilities.py` passed 19;
+  `tests/resampling_null/test_branch_controller.py` passed 7, of which the
+  restore, digest-rejection, seed-divergence and grading tests drive real
+  environment subprocesses. `scripts/test_fast.py`,
+  `python -m pneuma_lab.status --check`, and `git diff --check` passed.
+- **Status/boundary:** Task 9 is recorded as
+  `implementation_complete; E2E_pending`. No compatible P0 final, real
+  lineage, task block of record, unblind, analysis, provider or benchmark
+  action, spend, or scientific claim was produced. The remaining Task-9
+  dependency is manifest-authorized per-slot branch programs plus a genuinely
+  admitted completed final.
+
+### EJ-20260730-0223 — Task 9 branch-layer hostile review and repairs
+
+- **Clerk receipt:** A read-only `codex --yolo exec` review of
+  `branch_records.py`, `branch_controller.py`, `synthetic_branch_loop.py` and
+  the new CLI functions returned six defect categories and one clean category.
+- **Confirmed and repaired:**
+  1. Four pairwise-distinct work orders were not required to be *one block*.
+     A set drawn from different tasks passed both attempt sealing and rerun
+     authorization. `_order_digests` now requires every block-level field
+     (`study_id`, `task_id`, `benchmark`, `snapshot_ref`,
+     `prefix_visible_sha256`, `packet_index_sha256`, `analysis_freeze_sha256`,
+     `branch_caps`) to be identical and every slot-level identity to be
+     distinct; `private_guidance_ref` is deliberately excluded because exactly
+     two of four slots carry one. Rerun authorization compares the outage task
+     against all four orders, not just the first.
+  2. A failed-second-attempt block did not bind its four `FailedSlotReceipt`s
+     to the attempt they died in. A failed receipt can never equal an attempt's
+     embedded unscored receipt, so descent is now proved by reference:
+     `failed_attempt_ref` must equal the selected attempt's `attempt_ref`, and
+     the outage must embed this block's own first attempt.
+  3. `seal_slot_capability(additional_refs=...)` accepted any allowlisted role,
+     so a peer slot's `composite_snapshot` could be passed as `task_input_ref`
+     and read. The generic list now refuses the two slot-identifying roles
+     outright; a grading pass supplies its one legitimate second snapshot
+     through a dedicated `terminal_snapshot_ref` parameter, and
+     `grade_opaque_slot` first proves the receipt's slot and capability equal
+     the order's.
+  4. `environment_source_ref` minted an implementation identity from a
+     caller-asserted digest. The referenced bytes are now read from the
+     checked-out package source — the same file the spawned worker re-hashes
+     against `--source-sha256` — and must reproduce the digest.
+  5. `grade_opaque_slot` did not check `program.task_id == order.task_id`,
+     unlike `run_opaque_slot`. It does now.
+  6. `synthetic branches` published an untriggered task's block before a later
+     triggered task failed admission. Admission is now a whole-run barrier:
+     every task is admitted first, and nothing is written unless all pass.
+- **Rejected with reasons:** the reviewer framed the adverse-zero overwrite in
+  `finalize_failed_second_attempt` as admitting a readable endpoint. It does
+  not: `UnscoredSlotReceipt.endpoint_readable` is structurally `False` and no
+  grader runs on that path, so no endpoint was ever readable. Overwriting the
+  slots that did finish with adverse zeros is the registered conservative
+  behaviour of the controlling plan, and the code now says so. The narrower
+  real gap — the same sealed attempt being relabelled as the second one — was
+  confirmed and closed. Hardlink aliasing of digest-pinned bytes and forgery by
+  an already-trusted preparer remain outside the documented trusted-run-root
+  threat model and are stated rather than silently assumed.
+- **Focused evidence:** four new regressions cover mixed-task work orders,
+  a foreign outage task, a relabelled second attempt, and grading a peer
+  slot's receipt. `tests/resampling_null/test_branch_controller.py` passed 11
+  and `test_packet_capabilities.py` passed 19; `tests/resampling_null -m
+  milestone` passed 78; the CLI module passed 25 excluding its pre-existing
+  slow Gaussian power-screen test, which is unrelated to this slice.
+  `scripts/test_fast.py`, `python -m pneuma_lab.status --check`, compilation,
+  and `git diff --check` passed.
+- **Boundary/non-claim:** No P0 final, lineage, task block of record, unblind,
+  analysis, provider or benchmark action, spend, or scientific claim.
+
+### EJ-20260730-0224 — Correction: one CLI test cannot complete on this host
+
+- **Correction to EJ-20260730-0223.** That entry reported the CLI module as
+  "passed 25 excluding its pre-existing slow Gaussian power-screen test". The
+  exclusion was accurate but the characterisation was too generous, and the
+  correction matters for Task 10's verification planning.
+- **Finding:** `test_cli_power_authority_then_screen_uses_closed_authority_media_type`
+  is not merely slow. It invokes `power screen` with `--phase
+  gaussian_approximation --generation 0 --shard-count 64` against the
+  manifest-bound grid and screen-topology refs — that is the canonical frozen
+  2,916-cell all-cell screen, the same workload EJ-20260730-0215 and
+  EJ-20260730-0217 already recorded as unable to finish within the registered
+  budget on this host. A dedicated single-test run was given 3,000 seconds and
+  was terminated by that ceiling at roughly 41 minutes of sustained ~355% CPU
+  with no assertion failure and no output. It did not pass; it did not fail; it
+  does not terminate in bounded time here.
+- **Attribution:** pre-existing and untouched by the Task-9 slice. `git diff
+  codex/neurips-2026-empirical..HEAD -- tests/resampling_null/test_cli.py`
+  shows the Task-9 change is confined to the two `synthetic branches` tests;
+  this test's body is byte-identical to its parent commit. The only shared
+  runtime files Task 9 touches on its path are `cli.py` (confined to the
+  `synthetic branches` dispatch and its imports) and `prefix_contracts.py`
+  (three added controller-role entries), neither of which can affect a power
+  screen.
+- **Consequence:** `tests/resampling_null/test_cli.py` has no bounded green
+  run of record on this host, and no Task-9 claim rests on one. The evidence
+  Task 9 does rest on is the 25 remaining CLI tests, the compact milestone
+  suite, and the focused branch/capability suites, all of which completed.
+- **Next gate for Task 10, not Task 9:** decide whether this test should be
+  marked as an opt-in tier like the other full-grid work, or reduced to a
+  bounded machinery fixture. Do not silently delete it, and do not report a
+  broad CLI-module pass until it terminates or is reclassified under review.
+- **Boundary/non-claim:** No P0 screen, final, lineage, provider or benchmark
+  action, spend, or scientific claim was produced by this observation.
