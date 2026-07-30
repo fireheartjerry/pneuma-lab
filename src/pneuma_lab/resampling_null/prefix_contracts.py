@@ -1046,25 +1046,23 @@ class PromotedAuthorityAsset:
         _exact_tuple(self.nested_refs, "nested_refs", ArtifactRef)
 
 
-_PROMOTED_AUTHORITY_KIND_AND_FIELD: Mapping[str, tuple[str, str]] = (
-    MappingProxyType(
-        {
-            "tokenizer": ("synthetic_tokenizer_asset_v1", "tokenizer_id"),
-            "prompt_template": (
-                "synthetic_prompt_template_asset_v1",
-                "template_id",
-            ),
-            "clock_source": ("synthetic_clock_asset_v1", "clock_id"),
-            "watchdog_source": (
-                "synthetic_watchdog_asset_v1",
-                "watchdog_id",
-            ),
-            "isolation_qualification": (
-                "synthetic_isolation_qualification_asset_v1",
-                "qualification_id",
-            ),
-        }
-    )
+_PROMOTED_AUTHORITY_KIND_AND_FIELD: Mapping[str, tuple[str, str]] = MappingProxyType(
+    {
+        "tokenizer": ("synthetic_tokenizer_asset_v1", "tokenizer_id"),
+        "prompt_template": (
+            "synthetic_prompt_template_asset_v1",
+            "template_id",
+        ),
+        "clock_source": ("synthetic_clock_asset_v1", "clock_id"),
+        "watchdog_source": (
+            "synthetic_watchdog_asset_v1",
+            "watchdog_id",
+        ),
+        "isolation_qualification": (
+            "synthetic_isolation_qualification_asset_v1",
+            "qualification_id",
+        ),
+    }
 )
 
 
@@ -1153,10 +1151,7 @@ def load_promoted_authority_asset(
         ("record_kind", "schema_version", payload_field),
         f"promoted authority {role}",
     )
-    if (
-        mapping["record_kind"] != expected_kind
-        or mapping["schema_version"] != "1"
-    ):
+    if mapping["record_kind"] != expected_kind or mapping["schema_version"] != "1":
         raise ValueError(f"promoted authority {role} identity is invalid")
     exact_value = _exact_text(mapping[payload_field], payload_field)
     return PromotedAuthorityAsset(
@@ -1693,7 +1688,9 @@ def load_prefix_candidate_receipt(payload: bytes) -> object:
     return receipt
 
 
-_DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+_DIRECTORY_FLAGS = (
+    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW | os.O_CLOEXEC
+)
 _READ_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 
 

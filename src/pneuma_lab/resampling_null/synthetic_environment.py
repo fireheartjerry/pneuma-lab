@@ -501,7 +501,9 @@ from .prefix_contracts import (  # noqa: E402
 from .types import ArtifactRef, FailureKind, ToolCall  # noqa: E402
 
 
-_DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+_DIRECTORY_FLAGS = (
+    os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW | os.O_CLOEXEC
+)
 _ROOT_SUFFIX_ATTEMPTS = 16
 _WORKSPACE_NAME = "prefix-environments"
 _SOURCE_ROOT = Path(__file__).parents[3]

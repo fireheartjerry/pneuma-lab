@@ -13,11 +13,7 @@ from typing import Literal, Protocol, cast
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes, write_atomic_bytes
 
-from .artifacts import RecordValidationError, load_record, write_record
-from .assignment_verification import (
-    require_assignment_publication,
-    verify_synthetic_assignment_graph,
-)
+from .errors import RecordValidationError
 from .types import ArtifactRef
 
 
@@ -26,8 +22,7 @@ class PacketInvalid(ValueError):
 
 
 class Tokenizer(Protocol):
-    def encode(self, text: str) -> tuple[int, ...]:
-        ...
+    def encode(self, text: str) -> tuple[int, ...]: ...
 
 
 class PacketArtifactStore(Protocol):
@@ -37,8 +32,7 @@ class PacketArtifactStore(Protocol):
         text: str,
         *,
         role: Literal["private_guidance"],
-    ) -> ArtifactRef:
-        ...
+    ) -> ArtifactRef: ...
 
 
 class SyntheticPacketArtifactStore:
@@ -125,7 +119,9 @@ class VerifierFinding:
                 raise ValueError(f"{name} must be non-empty text")
         if not isinstance(self.atoms, tuple) or not self.atoms:
             raise TypeError("finding atoms must be a non-empty tuple")
-        if not all(isinstance(atom, (IdentifierAtom, LiteralAtom)) for atom in self.atoms):
+        if not all(
+            isinstance(atom, (IdentifierAtom, LiteralAtom)) for atom in self.atoms
+        ):
             raise TypeError("finding atoms contain an unknown type")
 
 
@@ -139,9 +135,7 @@ class PacketPolicy:
         if type(self.max_findings) is not int or self.max_findings <= 0:
             raise ValueError("max_findings must be a positive exact integer")
         if type(self.max_evidence_tokens) is not int or self.max_evidence_tokens <= 0:
-            raise ValueError(
-                "max_evidence_tokens must be a positive exact integer"
-            )
+            raise ValueError("max_evidence_tokens must be a positive exact integer")
         if type(self.normalizer_version) is not str or not self.normalizer_version:
             raise ValueError("normalizer_version must be non-empty text")
 
@@ -275,12 +269,9 @@ def _finding_signature(finding: VerifierFinding) -> str:
 def _token_count(tokenizer: Tokenizer, text: str) -> int:
     encoded = tokenizer.encode(text)
     if not isinstance(encoded, tuple) or any(
-        type(token_id) is not int
-        for token_id in encoded
+        type(token_id) is not int for token_id in encoded
     ):
-        raise PacketInvalid(
-            "tokenizer must return a tuple of exact integer token IDs"
-        )
+        raise PacketInvalid("tokenizer must return a tuple of exact integer token IDs")
     return len(encoded)
 
 
@@ -372,8 +363,7 @@ def _padding_search(
                     target_token_count=target,
                     states_explored=explored,
                     selected_unit_counts=tuple(
-                        (unit, count)
-                        for unit, count in zip(units, counts, strict=True)
+                        (unit, count) for unit, count in zip(units, counts, strict=True)
                     ),
                     search_algorithm="exact_dynamic_program_v1",
                 )
@@ -405,10 +395,7 @@ def _validated_pad_units(neutral_pad_units: Sequence[str]) -> tuple[str, ...]:
             key=lambda unit: unit.encode("utf-8"),
         )
     )
-    if not units or any(
-        not unit or not _SAFE_PAD.fullmatch(unit)
-        for unit in units
-    ):
+    if not units or any(not unit or not _SAFE_PAD.fullmatch(unit) for unit in units):
         raise PacketInvalid(
             "neutral padding units are empty, executable, or identifying"
         )
@@ -464,7 +451,9 @@ def _build_packet_pair_from_values(
         or not sham_relative_path
         or real_relative_path == sham_relative_path
     ):
-        raise PacketInvalid("REAL and SHAM artifact paths must be non-empty and distinct")
+        raise PacketInvalid(
+            "REAL and SHAM artifact paths must be non-empty and distinct"
+        )
     units = _validated_pad_units(neutral_pad_units)
     retained_count = min(len(real), len(donor), policy.max_findings)
     focal = list(real[:retained_count])
@@ -492,12 +481,19 @@ def _build_packet_pair_from_values(
                 if replacement is None:
                     unmapped.append(atom.entity_id)
                     continue
-                if type(replacement) is not IdentifierAtom or replacement.kind is not atom.kind:
+                if (
+                    type(replacement) is not IdentifierAtom
+                    or replacement.kind is not atom.kind
+                ):
                     raise PacketInvalid("identifier replacement changes entity kind")
-                if replacement.entity_id in donor_identifiers or replacement.entity_id in {
-                    donor_task_id,
-                    task_id,
-                }:
+                if (
+                    replacement.entity_id in donor_identifiers
+                    or replacement.entity_id
+                    in {
+                        donor_task_id,
+                        task_id,
+                    }
+                ):
                     raise PacketInvalid("identifier replacement is not focal-safe")
                 rewritten.append(replacement)
                 rewrite_completed += 1
@@ -600,7 +596,10 @@ def _build_packet_pair_from_values(
     if real_count != sham_count:
         raise PacketInvalid("exact REAL/SHAM token parity is unreachable")
     forbidden = donor_identifiers | {donor_task_id}
-    if any(identifier and (identifier in real_text or identifier in sham_text) for identifier in forbidden):
+    if any(
+        identifier and (identifier in real_text or identifier in sham_text)
+        for identifier in forbidden
+    ):
         raise PacketInvalid("packet text contains donor identity")
 
     real_ref = artifact_store.put_text(
@@ -662,6 +661,8 @@ def _require_parent_record(
     run_root: Path,
     expected_kind: str,
 ) -> dict[str, object]:
+    from .artifacts import load_record
+
     root = Path(run_root).resolve(strict=True)
     path = (root / ref.relative_path).resolve(strict=True)
     try:
@@ -676,13 +677,13 @@ def _require_parent_record(
         raise RecordValidationError("packet parent bytes do not match ArtifactRef")
     record = load_record(path)
     if record.get("record_kind") != expected_kind:
-        raise RecordValidationError(
-            f"packet parent must be {expected_kind}"
-        )
+        raise RecordValidationError(f"packet parent must be {expected_kind}")
     return record
 
 
-def _candidate_entry(entry: PacketPairReceipt | NoInterventionPacketMarker) -> dict[str, object]:
+def _candidate_entry(
+    entry: PacketPairReceipt | NoInterventionPacketMarker,
+) -> dict[str, object]:
     return cast(dict[str, object], asdict(entry))
 
 
@@ -699,6 +700,12 @@ def write_packet_candidate(
     out: Path,
 ) -> ArtifactRef:
     """Publish an immutable candidate index; it is not execution authority."""
+
+    from .artifacts import write_record
+    from .assignment_verification import (
+        require_assignment_publication,
+        verify_synthetic_assignment_graph,
+    )
 
     if not entries:
         raise PacketInvalid("packet candidate must cover at least one task")
@@ -1123,10 +1130,9 @@ def _derive_synthetic_normalized_document(
     if not isinstance(raw_findings, list):
         raise PacketInvalid("synthetic objective findings must be an array")
     findings = tuple(_normalized_finding(value) for value in raw_findings)
-    if (
-        type(features["objective_finding_count"]) is not int
-        or features["objective_finding_count"] != len(findings)
-    ):
+    if type(features["objective_finding_count"]) is not int or features[
+        "objective_finding_count"
+    ] != len(findings):
         raise PacketInvalid("synthetic objective finding count does not recompute")
     finding_ids = [finding.finding_id for finding in findings]
     if len(finding_ids) != len(set(finding_ids)):
@@ -1221,7 +1227,9 @@ def derive_packet_rewrite_artifacts(
         run_root=run_root,
     )
     if not focal or not donor:
-        raise PacketInvalid("triggered rewrite requires non-empty focal and donor findings")
+        raise PacketInvalid(
+            "triggered rewrite requires non-empty focal and donor findings"
+        )
     focal_identifiers = {
         atom
         for finding in focal
@@ -1253,10 +1261,9 @@ def derive_packet_rewrite_artifacts(
     if len(frozen_map) != len(identifier_map):
         raise PacketInvalid("identifier map iteration is not stable")
     destinations = list(frozen_map.values())
-    if (
-        any(type(atom) is not IdentifierAtom for atom in destinations)
-        or len(destinations) != len(set(destinations))
-    ):
+    if any(type(atom) is not IdentifierAtom for atom in destinations) or len(
+        destinations
+    ) != len(set(destinations)):
         raise PacketInvalid("identifier map destinations must be unique identifiers")
     for source, destination in frozen_map.items():
         if (
@@ -1304,9 +1311,7 @@ def derive_packet_rewrite_artifacts(
     sham_findings: list[VerifierFinding] = []
     for focal_finding, donor_finding in zip(focal, donor, strict=False):
         rewritten_atoms = tuple(
-            frozen_map[atom]
-            if isinstance(atom, IdentifierAtom)
-            else atom
+            frozen_map[atom] if isinstance(atom, IdentifierAtom) else atom
             for atom in donor_finding.atoms
         )
         sham_findings.append(
@@ -1653,6 +1658,12 @@ def audit_and_seal_packet_index(
 ) -> ArtifactRef:
     """Audit candidate ancestry/bytes and publish the only execution authority."""
 
+    from .artifacts import write_record
+    from .assignment_verification import (
+        require_assignment_publication,
+        verify_synthetic_assignment_graph,
+    )
+
     candidate = _require_parent_record(
         candidate_ref,
         run_root=run_root,
@@ -1717,8 +1728,7 @@ def audit_and_seal_packet_index(
         for row in schedule_rows
     ]
     if isinstance(expected_task_ids, (str, bytes)) or any(
-        type(task_id) is not str or not task_id
-        for task_id in expected_task_ids
+        type(task_id) is not str or not task_id for task_id in expected_task_ids
     ):
         raise PacketInvalid("expected task roster must contain exact task IDs")
     if len(expected_task_ids) != len(set(expected_task_ids)) or set(
@@ -1730,35 +1740,24 @@ def audit_and_seal_packet_index(
         raise PacketInvalid("candidate entries do not have exact schedule coverage")
     prefix_rows = cast(list[dict[str, object]], prefix_payload["task_receipts"])
     assignments = cast(list[dict[str, object]], assignment_payload["assignments"])
-    if (
-        [cast(str, row["task_id"]) for row in prefix_rows] != schedule_task_ids
-        or [cast(str, row["task_id"]) for row in assignments] != schedule_task_ids
-    ):
+    if [cast(str, row["task_id"]) for row in prefix_rows] != schedule_task_ids or [
+        cast(str, row["task_id"]) for row in assignments
+    ] != schedule_task_ids:
         raise PacketInvalid("prefix/assignment arrays differ from schedule order")
-    prefix_by_task = {
-        cast(str, row["task_id"]): row
-        for row in prefix_rows
-    }
-    assignment_by_task = {
-        cast(str, row["task_id"]): row
-        for row in assignments
-    }
+    prefix_by_task = {cast(str, row["task_id"]): row for row in prefix_rows}
+    assignment_by_task = {cast(str, row["task_id"]): row for row in assignments}
     for entry in entries:
         task_id = cast(str, entry["task_id"])
         prefix_row = prefix_by_task[task_id]
         assignment_row = assignment_by_task[task_id]
-        no_trigger = (
-            prefix_row["trigger_reason"] == "no_intervention_opportunity"
-        )
+        no_trigger = prefix_row["trigger_reason"] == "no_intervention_opportunity"
         is_marker = "trigger_reason" in entry and "real_ref" not in entry
         if no_trigger:
             if (
                 not is_marker
-                or entry.get("trigger_reason")
-                != "no_intervention_opportunity"
+                or entry.get("trigger_reason") != "no_intervention_opportunity"
                 or entry.get("prefix_index_sha256") != prefix_index_ref.sha256
-                or assignment_row.get("donor_match_kind")
-                != "not_applicable_no_trigger"
+                or assignment_row.get("donor_match_kind") != "not_applicable_no_trigger"
             ):
                 raise PacketInvalid("no-trigger task lacks its exact typed marker")
             continue
@@ -1838,10 +1837,7 @@ def audit_and_seal_packet_index(
         "payload": {
             "stage": "sealed",
             "candidate_ref": asdict(candidate_ref),
-            **{
-                field: asdict(ref)
-                for field, ref in exact_candidate_parents.items()
-            },
+            **{field: asdict(ref) for field, ref in exact_candidate_parents.items()},
             "audit_gates": {
                 "roster_complete": True,
                 "ancestry_valid": True,
