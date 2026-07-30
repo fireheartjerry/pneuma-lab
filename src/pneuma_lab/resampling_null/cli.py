@@ -13,7 +13,7 @@ from pathlib import Path, PurePosixPath
 from .artifacts import seal_artifact_root, seal_study_manifest, verify_artifact_root, validate_record
 from .errors import RecordValidationError
 from .json_io import load_json_bytes, resolve_inside, run_root
-from .power import (finalize_synthetic_power_report, finalize_synthetic_validation_failed,
+from .power import (finalize_synthetic_full_multiplier_report, finalize_synthetic_power_report, finalize_synthetic_validation_failed,
                     load_power_config, seal_roster_bound_power_authority,
                     seal_synthetic_power_authority, screen_power_grid,
                     select_validation_cells, simulate_power_shard,
@@ -21,7 +21,18 @@ from .power import (finalize_synthetic_power_report, finalize_synthetic_validati
 from .types import ArtifactRef
 
 
+def _relative_name(value: str, *, field: str) -> str:
+    """Accept exactly one normalized relative POSIX filename, never a host path."""
+    if type(value) is not str or not value or value == "." or "\\" in value or "//" in value:
+        raise RecordValidationError(f"{field} must be a normalized root-relative POSIX path")
+    pure = PurePosixPath(value)
+    if pure.is_absolute() or any(part in {"", ".", ".."} for part in pure.parts) or pure.as_posix() != value:
+        raise RecordValidationError(f"{field} must be a normalized root-relative POSIX path")
+    return value
+
+
 def _ref(root: Path, name: str, role: str) -> ArtifactRef:
+    name = _relative_name(name, field="scientific input")
     path, relative = resolve_inside(Path(name), root, require_exists=True)
     payload = path.read_bytes()
     return ArtifactRef(role=role, relative_path=relative,
@@ -30,15 +41,20 @@ def _ref(root: Path, name: str, role: str) -> ArtifactRef:
 
 
 def _out(root: Path, value: str) -> Path:
-    if PurePosixPath(value).is_absolute() or ".." in PurePosixPath(value).parts:
-        raise RecordValidationError("scientific output must be a normalized root-relative POSIX path")
-    return resolve_inside(Path(value), root, require_exists=False)[0]
+    path, _ = resolve_inside(Path(_relative_name(value, field="scientific output")), root, require_exists=False)
+    if path.exists():
+        raise FileExistsError("scientific output already exists")
+    return path
 
 
 def _shards(root: Path, prefix: str) -> tuple[ArtifactRef, ...]:
-    if PurePosixPath(prefix).is_absolute() or ".." in PurePosixPath(prefix).parts:
-        raise RecordValidationError("shard prefix must be normalized root-relative POSIX")
-    matches = sorted(p for p in root.rglob("*.json") if p.relative_to(root).as_posix().startswith(prefix))
+    prefix = _relative_name(prefix, field="shard prefix")
+    matches = sorted(
+        p for p in root.rglob("*.json")
+        if (relative := p.relative_to(root).as_posix()).startswith(prefix)
+        and len(relative) > len(prefix)
+        and relative[len(prefix):].split("/", 1)[0].split(".", 1)[0].isdigit()
+    )
     return tuple(_ref(root, p.relative_to(root).as_posix(), "power_report") for p in matches)
 
 
@@ -115,7 +131,14 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
         if args.power_command == "validate-fallback": return validate_full_multiplier_fallback(_ref(root, args.screen, "power_report"), _shards(root, args.shard_prefix), config, run_root=root, out=_out(root, args.out))
         selected = sum(bool(x) for x in (args.completed_gaussian, args.completed_full_multiplier, args.synthetic_validation_failed))
         if selected != 1: raise RecordValidationError("finalize requires exactly one closed finalization arm")
-        if args.completed_gaussian: return finalize_synthetic_power_report(_ref(root,args.selected_screen,"power_report"), _shards(root,args.selected_shard_prefix), _ref(root,args.selected_selection,"power_report"), _ref(root,args.selected_validation,"power_report"), config, run_root=root,out=_out(root,args.out))
+        if args.completed_gaussian:
+            if not all((args.selected_screen, args.selected_shard_prefix, args.selected_selection, args.selected_validation)):
+                raise RecordValidationError("Gaussian final requires all selected screen, shard, selection, and validation refs")
+            return finalize_synthetic_power_report(_ref(root,args.selected_screen,"power_report"), _shards(root,args.selected_shard_prefix), _ref(root,args.selected_selection,"power_report"), _ref(root,args.selected_validation,"power_report"), config, run_root=root,out=_out(root,args.out))
+        if args.completed_full_multiplier:
+            if not all((args.selected_screen, args.selected_shard_prefix, args.fallback_validation)):
+                raise RecordValidationError("full-multiplier final requires selected screen, shard, and fallback validation refs")
+            return finalize_synthetic_full_multiplier_report(_ref(root,args.selected_screen,"power_report"), _shards(root,args.selected_shard_prefix), _ref(root,args.fallback_validation,"power_report"), config, run_root=root,out=_out(root,args.out))
         if args.synthetic_validation_failed:
             if not all((args.terminal_attempt, args.terminal_stage, args.reason)):
                 raise RecordValidationError("synthetic failed final requires terminal attempt, stage, and closed reason")
@@ -144,7 +167,8 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
             if not isinstance(manifest, dict):
                 raise RecordValidationError("study manifest is not a JSON object")
             return seal_artifact_root(root, required, _out(root,args.out), study_id=manifest["study_id"], frozen_created_at=manifest["frozen_created_at"], provenance=manifest["provenance"])
-        verify_artifact_root(_out(root,args.receipt), root, required_document_kinds=required); return None
+        receipt, _ = resolve_inside(Path(_relative_name(args.receipt, field="receipt")), root, require_exists=True)
+        verify_artifact_root(receipt, root, required_document_kinds=required); return None
     documents = list(root.rglob("*.json")); _emit(status="ok", documents=len(documents)); return None
 
 
@@ -161,6 +185,6 @@ def main(argv: list[str] | None = None) -> int:
         if exc.code == 0: raise
         _emit(status="error", error="invalid command arguments")
         return 2
-    except (OSError, ValueError, RecordValidationError) as exc:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RecordValidationError) as exc:
         _emit(status="error", error=str(exc).replace("\n", " "))
         return 2

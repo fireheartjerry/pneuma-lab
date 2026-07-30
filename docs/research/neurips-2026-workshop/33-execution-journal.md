@@ -2047,3 +2047,19 @@ The next event after the archived migration boundary is appended below.
   `git diff --check` passed.
 - **Boundary/non-claim:** No selftest, P0 grid/shard, validation, provider
   action, external benchmark, spend, tier selection, or scientific claim ran.
+
+### EJ-20260730-0197 — Task 9 CLI hostile-review correction
+
+- **Correction:** The completed full-multiplier final arm now calls the actual
+  fallback finalizer and requires its exact screen, numeric shard-prefix, and
+  fallback-validation parents. Final arms reject missing selected references
+  before converting them to paths. CLI scientific inputs/outputs now require
+  canonical nonempty POSIX relative names (no dot segments, doubled slash,
+  backslash, or overwrite); shard discovery accepts only the exact numeric
+  suffix boundary. Malformed mappings and type/key failures are normalized to
+  the same one-object redacted JSON failure surface.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_cli.py -q` passed 4 tests; `compileall` and
+  `git diff --check` passed.
+- **Boundary/non-claim:** This correction executed no P0 simulation, full
+  multiplier validation, provider action, benchmark, spend, or claim.

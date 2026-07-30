@@ -196,6 +196,8 @@ study ceremony, closed P0 authority and power attempts, artifact-root
 verification, and status. It is non-executing unless an operator explicitly
 invokes a stage; no full P0/selftest was run for this checkpoint. Remaining
 orchestration descendants are still governed by their existing Task-4–6 APIs.
+The checkpoint correction binds the full-multiplier final to its implemented
+fallback finalizer and rejects malformed/noncanonical paths before record IO.
 
 **Task 8B handoff (2026-07-30):** Power shards now generate real manifest-bound
 `n=20` pattern-count tensors in chunks and route them through the Task-7 batch
