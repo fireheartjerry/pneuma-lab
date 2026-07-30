@@ -1419,6 +1419,41 @@ exact exhaustion, and compares the derived trigger with the sealed program
 claim. This removes independent policy ladders without expanding S02D's
 scientific authority.
 
+#### 5.3.8 DL-145 fail-stop ambiguous final release
+
+DL-145 supersedes DL-144 only after final root-lock release becomes ambiguous.
+Python bytecode cannot atomically bind a numeric fd to its original open file
+description across an arbitrary exception around `LOCK_UN`: arbitrary code may
+close and reuse the same number for the same root inode. Neither `fstat` nor a
+fresh named-root lock probe proves open-file-description ownership. Likewise,
+Python cannot guarantee that a first cleanup exception reaches an explicit list
+before a second asynchronous exception lands before the storage instruction.
+
+The final release state machine is deliberately non-recovering. It arms a
+process-local fail-stop latch and sets `unlock_ambiguous` before explicit
+`LOCK_UN`; only normal return advances to `close_pending`. It sets
+`close_ambiguous` before `close`; only normal return or ordinary `EBADF`
+advances to `closed` and clears the latch. Once either ambiguous phase throws,
+no S02D code may stat, probe, flock, unlock, close, reopen for recovery, or
+otherwise touch that fd. There is no inode-based retry and no fresh-lock
+ownership inference.
+
+An ambiguous final-release failure preserves a committed verified target and
+returns an explicit committed residual. A pre-commit primary remains
+pre-commit, but final-release ambiguity permits no further rollback or
+namespace mutation because lock continuity is unknown. The process then rejects
+all later S02D attempts until restart or out-of-band cleanup proof resets the
+latch. The fd or cooperative lease may remain held; immediate future lock
+availability is not claimed.
+
+When a handler already has both an ordinary primary and cleanup exception, it
+may group them. If a nested asynchronous exception lands before the cleanup
+exception can be stored, the earlier exception is preserved only to the extent
+Python retains it in `__context__` or the exception chain. No atomic aggregate
+claim is made. Normal uninterrupted `LOCK_UN` then close, the DL-144 commit
+point, normal locked pre-commit rollback, cooperative-local namespace rules,
+and the shared occurrence transition remain unchanged.
+
 ### 5.4 Assignment prefix view
 
 Post-prefix donor matching consumes a canonical `AssignmentPrefixView`, not the

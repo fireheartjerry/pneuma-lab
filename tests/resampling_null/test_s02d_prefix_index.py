@@ -19,6 +19,7 @@ import pytest
 import pneuma_lab.resampling_null.prefix_index as prefix_index_module
 from pneuma_lab.resampling_null import run_prefix, seal_prefix_index
 from pneuma_lab.resampling_null.artifacts import validate_record
+from pneuma_lab.resampling_null.errors import RecordValidationError
 from pneuma_lab.resampling_null.evidence import (
     FrozenPrefixReceipt,
     load_controller_provider_cost_closure,
@@ -51,6 +52,17 @@ from tests.resampling_null.provider_authority_fixture import (
     ProviderAuthorityFixture,
 )
 from tests.resampling_null.test_s02c_prefix_loop import _loop_authority
+
+
+@pytest.fixture(autouse=True)
+def _isolate_s02d_release_fail_stop() -> object:
+    """Model a fresh process for each test while preserving in-test fail-stop."""
+
+    prior = getattr(prefix_index_module, "_S02D_RELEASE_FAIL_STOP", None)
+    try:
+        yield
+    finally:
+        setattr(prefix_index_module, "_S02D_RELEASE_FAIL_STOP", prior)
 
 
 def _completed_candidates(
@@ -2473,27 +2485,34 @@ def _instruction_offset(
     return matches[0]
 
 
-def _instruction_after_call_offset(
+def _exception_handler_store_offset(
     function: object,
     *,
     line_fragment: str,
+    handler_name: str,
 ) -> int:
     lines, start = inspect.getsourcelines(function)
-    source_lines = [
-        start + index for index, line in enumerate(lines) if line_fragment in line
-    ]
-    if not source_lines:
-        raise AssertionError(f"source fragment {line_fragment!r} is absent")
-    instructions = tuple(dis.get_instructions(function))
-    call_indexes = [
-        index
-        for index, instruction in enumerate(instructions)
-        if instruction.opname == "CALL"
-        and instruction.positions.lineno == source_lines[0]
-    ]
+    call_indexes = [index for index, line in enumerate(lines) if line_fragment in line]
     if not call_indexes:
-        raise AssertionError(f"call on first {line_fragment!r} line is absent")
-    return instructions[call_indexes[0] + 1].offset
+        raise AssertionError(f"source fragment {line_fragment!r} is absent")
+    handler_lines = [
+        start + index
+        for index, line in enumerate(
+            lines[call_indexes[0] + 1 :],
+            call_indexes[0] + 1,
+        )
+        if line.strip().startswith(f"except BaseException as {handler_name}:")
+    ]
+    if not handler_lines:
+        raise AssertionError(
+            f"handler {handler_name!r} after {line_fragment!r} is absent"
+        )
+    return _instruction_offset(
+        function,
+        opname="STORE_FAST",
+        argval=handler_name,
+        lineno=handler_lines[0],
+    )
 
 
 @contextmanager
@@ -2774,7 +2793,7 @@ def test_s02d_opcode_interrupt_before_outer_result_store_is_committed(
     assert _root_lock_is_available(run_root)
 
 
-def test_s02d_opcode_interrupt_before_final_close_releases_lock(
+def test_s02d_opcode_interrupt_before_final_close_is_fail_stop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2827,7 +2846,13 @@ def test_s02d_opcode_interrupt_before_final_close_releases_lock(
         assert type(captured.value) is BaseExceptionGroup
         assert "committed" in repr(captured.value).lower()
         assert validate_record(json.loads(target.read_bytes()))
-        assert _root_lock_is_available(run_root)
+        with pytest.raises(RecordValidationError, match="fail-stop"):
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=run_root / "later-prefix-index.json",
+            )
     finally:
         if outer_descriptor is not None:
             try:
@@ -2836,7 +2861,7 @@ def test_s02d_opcode_interrupt_before_final_close_releases_lock(
                 pass
 
 
-def test_s02d_opcode_interrupt_after_explicit_unlock_is_reentrant(
+def test_s02d_opcode_interrupt_after_explicit_unlock_is_fail_stop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2891,7 +2916,13 @@ def test_s02d_opcode_interrupt_after_explicit_unlock_is_reentrant(
         assert type(captured.value) is BaseExceptionGroup
         assert "committed" in repr(captured.value).lower()
         assert validate_record(json.loads(target.read_bytes()))
-        assert _root_lock_is_available(run_root)
+        with pytest.raises(RecordValidationError, match="fail-stop"):
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=run_root / "later-prefix-index.json",
+            )
     finally:
         if outer_descriptor is not None:
             try:
@@ -2900,7 +2931,7 @@ def test_s02d_opcode_interrupt_after_explicit_unlock_is_reentrant(
                 pass
 
 
-def test_s02d_opcode_interrupt_before_explicit_unlock_releases_lock(
+def test_s02d_opcode_interrupt_before_explicit_unlock_is_fail_stop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2970,13 +3001,20 @@ def test_s02d_opcode_interrupt_before_explicit_unlock_releases_lock(
         assert "committed" in rendered.lower()
         assert "injected before explicit unlock" in rendered
         assert validate_record(json.loads(target.read_bytes()))
-        assert _root_lock_is_available(run_root)
+        with pytest.raises(RecordValidationError, match="fail-stop"):
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=run_root / "later-prefix-index.json",
+            )
     finally:
         if outer_descriptor is not None:
             try:
                 real_close(outer_descriptor)
             except OSError:
                 pass
+        setattr(prefix_index_module, "_S02D_RELEASE_FAIL_STOP", None)
 
 
 def test_s02d_interrupt_after_close_does_not_close_reused_descriptor(
@@ -3027,7 +3065,13 @@ def test_s02d_interrupt_after_close_does_not_close_reused_descriptor(
         assert validate_record(json.loads(target.read_bytes()))
         assert victim_descriptor is not None
         assert os.read(victim_descriptor, len(b"still-open")) == b"still-open"
-        assert _root_lock_is_available(run_root)
+        with pytest.raises(RecordValidationError, match="fail-stop"):
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=run_root / "later-prefix-index.json",
+            )
     finally:
         if victim_descriptor is not None:
             try:
@@ -3036,7 +3080,7 @@ def test_s02d_interrupt_after_close_does_not_close_reused_descriptor(
                 pass
 
 
-def test_s02d_release_error_survives_caller_store_interrupt(
+def test_s02d_cleanup_error_replaced_before_handler_store_keeps_context(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3047,9 +3091,10 @@ def test_s02d_release_error_survives_caller_store_interrupt(
     real_seal_bound = prefix_index_module._seal_bound_prefix_index
     outer_descriptor: int | None = None
     injected_close_error = False
-    after_release_call = _instruction_after_call_offset(
+    release_handler_store = _exception_handler_store_offset(
         function,
-        line_fragment="_release_root_transaction_causally(transaction)",
+        line_fragment="_release_root_transaction(transaction)",
+        handler_name="exc",
     )
 
     def capture_outer(*args: object, **kwargs: object) -> object:
@@ -3073,8 +3118,8 @@ def test_s02d_release_error_survives_caller_store_interrupt(
         )
         with _interrupt_on_instruction(
             function,
-            should_interrupt=lambda offset: offset == after_release_call,
-            message="boundary interrupt after release helper",
+            should_interrupt=lambda offset: offset == release_handler_store,
+            message="nested interrupt before cleanup handler storage",
         ):
             with pytest.raises(BaseException) as captured:
                 seal_prefix_index(
@@ -3084,14 +3129,23 @@ def test_s02d_release_error_survives_caller_store_interrupt(
                     out=target,
                 )
 
-    rendered = repr(captured.value)
     assert injected_close_error
     assert type(captured.value) is BaseExceptionGroup
-    assert "committed" in rendered.lower()
-    assert "original ambiguous close error" in rendered
-    assert "boundary interrupt after release helper" in rendered
+    assert "committed" in repr(captured.value).lower()
+    assert len(captured.value.exceptions) == 1
+    interrupt = captured.value.exceptions[0]
+    assert type(interrupt) is KeyboardInterrupt
+    assert str(interrupt) == "nested interrupt before cleanup handler storage"
+    assert type(interrupt.__context__) is OSError
+    assert str(interrupt.__context__) == "original ambiguous close error"
     assert validate_record(json.loads(target.read_bytes()))
-    assert _root_lock_is_available(run_root)
+    with pytest.raises(RecordValidationError, match="fail-stop"):
+        seal_prefix_index(
+            run_root=run_root,
+            schedule_ref=fixture.schedule_ref,
+            candidate_refs=candidates,
+            out=run_root / "later-prefix-index.json",
+        )
 
 
 def test_s02d_unlock_aba_preserves_reused_descriptor_and_original_error(
@@ -3100,15 +3154,16 @@ def test_s02d_unlock_aba_preserves_reused_descriptor_and_original_error(
 ) -> None:
     run_root, fixture, candidates = _completed_candidates(tmp_path)
     target = run_root / "prefix-index.json"
-    victim = run_root / "unlock-victim"
-    victim.write_bytes(b"untouched")
+    real_open = prefix_index_module.os.open
     real_close = prefix_index_module.os.close
     real_flock = prefix_index_module.fcntl.flock
     real_seal_bound = prefix_index_module._seal_bound_prefix_index
     outer_descriptor: int | None = None
     victim_descriptor: int | None = None
     injected = False
-    victim_touched = False
+    victim_flock_calls = 0
+    victim_close_calls = 0
+    fresh_probe_calls = 0
 
     def capture_outer(*args: object, **kwargs: object) -> object:
         nonlocal outer_descriptor
@@ -3116,26 +3171,49 @@ def test_s02d_unlock_aba_preserves_reused_descriptor_and_original_error(
         return real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
 
     def unlock_close_reuse(descriptor: int, operation: int) -> object:
-        nonlocal injected, victim_descriptor, victim_touched
+        nonlocal injected, victim_descriptor, victim_flock_calls
         if injected and descriptor == victim_descriptor and operation == fcntl.LOCK_UN:
-            victim_touched = True
+            victim_flock_calls += 1
         result = real_flock(descriptor, operation)
         if (
             not injected
             and descriptor == outer_descriptor
             and operation == fcntl.LOCK_UN
         ):
-            injected = True
             real_close(descriptor)
-            victim_descriptor = os.open(victim, os.O_RDONLY | os.O_CLOEXEC)
+            victim_descriptor = real_open(
+                run_root,
+                prefix_index_module._DIRECTORY_FLAGS,
+            )
             if victim_descriptor != descriptor:
                 raise AssertionError("unlock descriptor was not reused")
+            real_flock(victim_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            injected = True
             raise KeyboardInterrupt("original unlock ABA interruption")
         return result
+
+    def track_close(descriptor: int) -> None:
+        nonlocal victim_close_calls
+        if injected and descriptor == victim_descriptor:
+            victim_close_calls += 1
+        real_close(descriptor)
+
+    def track_open(
+        path: object,
+        flags: int,
+        *args: object,
+        **kwargs: object,
+    ) -> int:
+        nonlocal fresh_probe_calls
+        if injected and os.fspath(path) == os.fspath(run_root):
+            fresh_probe_calls += 1
+        return real_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
 
     try:
         with monkeypatch.context() as scoped:
             scoped.setattr(prefix_index_module.fcntl, "flock", unlock_close_reuse)
+            scoped.setattr(prefix_index_module.os, "close", track_close)
+            scoped.setattr(prefix_index_module.os, "open", track_open)
             scoped.setattr(
                 prefix_index_module,
                 "_seal_bound_prefix_index",
@@ -3155,16 +3233,40 @@ def test_s02d_unlock_aba_preserves_reused_descriptor_and_original_error(
         assert "committed" in rendered.lower()
         assert "original unlock ABA interruption" in rendered
         assert validate_record(json.loads(target.read_bytes()))
-        assert not victim_touched
+        assert victim_flock_calls == 0
+        assert victim_close_calls == 0
+        assert fresh_probe_calls == 0
+        assert not hasattr(prefix_index_module, "_fresh_root_lock_available")
         assert victim_descriptor is not None
-        assert os.read(victim_descriptor, len(b"untouched")) == b"untouched"
-        assert _root_lock_is_available(run_root)
+        assert os.fstat(victim_descriptor).st_ino == os.stat(run_root).st_ino
+        probe = real_open(run_root, prefix_index_module._DIRECTORY_FLAGS)
+        probe_acquired = False
+        try:
+            with pytest.raises(BlockingIOError):
+                real_flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            probe_acquired = True
+        finally:
+            if probe_acquired:
+                real_flock(probe, fcntl.LOCK_UN)
+            real_close(probe)
+        with pytest.raises(RecordValidationError, match="fail-stop"):
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=run_root / "later-prefix-index.json",
+            )
     finally:
         if victim_descriptor is not None:
+            try:
+                real_flock(victim_descriptor, fcntl.LOCK_UN)
+            except OSError:
+                pass
             try:
                 real_close(victim_descriptor)
             except OSError:
                 pass
+        setattr(prefix_index_module, "_S02D_RELEASE_FAIL_STOP", None)
 
 
 def test_s02d_interrupt_before_cleanup_classification_is_committed_residual(

@@ -4331,6 +4331,49 @@ deadline, provider, and tool replay tests remain mandatory. This amendment
 authorizes no provider/model/network call, credential use, spend, branch
 execution, experiment, result, or claim promotion.
 
+### DL-145 S02D fail-stop ambiguous final release
+
+DL-145 supersedes DL-144 only for recovery and causal-reporting claims after an
+instruction-level interruption or exception makes the final root-lock release
+ambiguous. Pure Python cannot prove that a numeric fd still denotes the same
+open file description after arbitrary code may have closed and reused it,
+including reuse for the same root inode. `fstat`, inode equality, and a fresh
+named-root lock probe cannot establish open-file-description ownership. Pure
+Python also cannot atomically store a first cleanup exception in a list before
+a second asynchronous exception can replace control flow at the next bytecode.
+The protocol therefore chooses namespace safety over cleanup liveness and ideal
+exception grouping.
+
+Final release sets `unlock_ambiguous` before explicit `LOCK_UN` and advances to
+`close_pending` only on normal return. It sets `close_ambiguous` before final
+`close` and advances to `closed` only on normal return or ordinary `EBADF`.
+After any exception or interruption while either ambiguous phase is live, S02D
+must never flock, unlock, close, stat, probe, reopen for recovery, or otherwise
+touch that ambiguity-owned fd again. It performs no fresh-lock ownership
+inference and no retry. The verified target is preserved after commit; before
+commit, rollback remains permitted only when it completed under the still-known
+held lock before final release began.
+
+An ambiguous-release failure is an explicit committed or pre-commit release
+residual. A process-local fail-stop latch is armed before the first ambiguous
+release syscall and cleared only after uninterrupted release completion. While
+armed, further S02D transactions fail closed until process termination/restart
+or an out-of-band operator independently proves cleanup and resets the latch.
+The ambiguous fd and even its cooperative lease may remain held until then; no
+immediate future-lock-availability claim is permitted.
+
+Ordinary catchable primary and cleanup failures may still be grouped when both
+are available to one handler. A nested asynchronous exception before handler
+storage is not claimed to be atomically list-preserved; the earlier failure may
+survive only through Python's `__context__` or exception chain. Tests must
+inspect that chain rather than demand an invented atomic aggregate. Required
+REDs cover same-number same-root fd reuse with an independent flock, removal of
+fresh-probe recovery, fail-stop interruption before `LOCK_UN`, and cleanup
+`OSError` followed by instruction-level `KeyboardInterrupt` before handler
+storage. Normal uninterrupted `LOCK_UN` then close, the DL-144 commit point,
+cooperative-local namespace rules, shared tool transitions, and all scientific
+non-claims remain unchanged.
+
 The corrected prefix entry adds:
 
 ```python
