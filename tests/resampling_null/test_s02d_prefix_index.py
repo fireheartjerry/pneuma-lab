@@ -2473,6 +2473,29 @@ def _instruction_offset(
     return matches[0]
 
 
+def _instruction_after_call_offset(
+    function: object,
+    *,
+    line_fragment: str,
+) -> int:
+    lines, start = inspect.getsourcelines(function)
+    source_lines = [
+        start + index for index, line in enumerate(lines) if line_fragment in line
+    ]
+    if not source_lines:
+        raise AssertionError(f"source fragment {line_fragment!r} is absent")
+    instructions = tuple(dis.get_instructions(function))
+    call_indexes = [
+        index
+        for index, instruction in enumerate(instructions)
+        if instruction.opname == "CALL"
+        and instruction.positions.lineno == source_lines[0]
+    ]
+    if not call_indexes:
+        raise AssertionError(f"call on first {line_fragment!r} line is absent")
+    return instructions[call_indexes[0] + 1].offset
+
+
 @contextmanager
 def _interrupt_on_instruction(
     function: object,
@@ -2819,6 +2842,7 @@ def test_s02d_opcode_interrupt_after_explicit_unlock_is_reentrant(
 ) -> None:
     run_root, fixture, candidates = _completed_candidates(tmp_path)
     target = run_root / "prefix-index.json"
+    real_close = prefix_index_module.os.close
     real_flock = prefix_index_module.fcntl.flock
     real_seal_bound = prefix_index_module._seal_bound_prefix_index
     outer_descriptor: int | None = None
@@ -2842,31 +2866,117 @@ def test_s02d_opcode_interrupt_after_explicit_unlock_is_reentrant(
         argval=None,
     )
 
-    with monkeypatch.context() as scoped:
-        scoped.setattr(prefix_index_module.fcntl, "flock", traced_flock)
-        scoped.setattr(
-            prefix_index_module,
-            "_seal_bound_prefix_index",
-            capture_outer,
-        )
-        with _interrupt_on_instruction(
-            traced_flock,
-            should_interrupt=lambda offset: offset == unlock_return and unlocked,
-            message="injected after explicit unlock",
-        ):
-            with pytest.raises(BaseException) as captured:
-                seal_prefix_index(
-                    run_root=run_root,
-                    schedule_ref=fixture.schedule_ref,
-                    candidate_refs=candidates,
-                    out=target,
-                )
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(prefix_index_module.fcntl, "flock", traced_flock)
+            scoped.setattr(
+                prefix_index_module,
+                "_seal_bound_prefix_index",
+                capture_outer,
+            )
+            with _interrupt_on_instruction(
+                traced_flock,
+                should_interrupt=lambda offset: offset == unlock_return and unlocked,
+                message="injected after explicit unlock",
+            ):
+                with pytest.raises(BaseException) as captured:
+                    seal_prefix_index(
+                        run_root=run_root,
+                        schedule_ref=fixture.schedule_ref,
+                        candidate_refs=candidates,
+                        out=target,
+                    )
 
-    assert unlocked
-    assert type(captured.value) is BaseExceptionGroup
-    assert "committed" in repr(captured.value).lower()
-    assert validate_record(json.loads(target.read_bytes()))
-    assert _root_lock_is_available(run_root)
+        assert unlocked
+        assert type(captured.value) is BaseExceptionGroup
+        assert "committed" in repr(captured.value).lower()
+        assert validate_record(json.loads(target.read_bytes()))
+        assert _root_lock_is_available(run_root)
+    finally:
+        if outer_descriptor is not None:
+            try:
+                real_close(outer_descriptor)
+            except OSError:
+                pass
+
+
+def test_s02d_opcode_interrupt_before_explicit_unlock_releases_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    real_close = prefix_index_module.os.close
+    real_flock = prefix_index_module.fcntl.flock
+    real_seal_bound = prefix_index_module._seal_bound_prefix_index
+    outer_descriptor: int | None = None
+    active_descriptor: int | None = None
+    active_operation: int | None = None
+    injected = False
+
+    def capture_outer(*args: object, **kwargs: object) -> object:
+        nonlocal outer_descriptor
+        outer_descriptor = kwargs["root_descriptor"]  # type: ignore[assignment]
+        return real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
+
+    def traced_flock(descriptor: int, operation: int) -> object:
+        nonlocal active_descriptor, active_operation
+        active_descriptor = descriptor
+        active_operation = operation
+        return real_flock(descriptor, operation)
+
+    unlock_call = _instruction_offset(
+        traced_flock,
+        opname="CALL",
+        argval=2,
+    )
+
+    def should_interrupt(offset: int) -> bool:
+        nonlocal injected
+        if (
+            not injected
+            and offset == unlock_call
+            and active_descriptor == outer_descriptor
+            and active_operation == fcntl.LOCK_UN
+        ):
+            injected = True
+            return True
+        return False
+
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(prefix_index_module.fcntl, "flock", traced_flock)
+            scoped.setattr(
+                prefix_index_module,
+                "_seal_bound_prefix_index",
+                capture_outer,
+            )
+            with _interrupt_on_instruction(
+                traced_flock,
+                should_interrupt=should_interrupt,
+                message="injected before explicit unlock",
+            ):
+                with pytest.raises(BaseException) as captured:
+                    seal_prefix_index(
+                        run_root=run_root,
+                        schedule_ref=fixture.schedule_ref,
+                        candidate_refs=candidates,
+                        out=target,
+                    )
+
+        rendered = repr(captured.value)
+        assert injected
+        assert type(captured.value) is BaseExceptionGroup
+        assert "committed" in rendered.lower()
+        assert "injected before explicit unlock" in rendered
+        assert validate_record(json.loads(target.read_bytes()))
+        assert _root_lock_is_available(run_root)
+    finally:
+        if outer_descriptor is not None:
+            try:
+                real_close(outer_descriptor)
+            except OSError:
+                pass
 
 
 def test_s02d_interrupt_after_close_does_not_close_reused_descriptor(
@@ -2917,6 +3027,137 @@ def test_s02d_interrupt_after_close_does_not_close_reused_descriptor(
         assert validate_record(json.loads(target.read_bytes()))
         assert victim_descriptor is not None
         assert os.read(victim_descriptor, len(b"still-open")) == b"still-open"
+        assert _root_lock_is_available(run_root)
+    finally:
+        if victim_descriptor is not None:
+            try:
+                real_close(victim_descriptor)
+            except OSError:
+                pass
+
+
+def test_s02d_release_error_survives_caller_store_interrupt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    function = prefix_index_module.seal_prefix_index
+    real_close = prefix_index_module.os.close
+    real_seal_bound = prefix_index_module._seal_bound_prefix_index
+    outer_descriptor: int | None = None
+    injected_close_error = False
+    after_release_call = _instruction_after_call_offset(
+        function,
+        line_fragment="_release_root_transaction_causally(transaction)",
+    )
+
+    def capture_outer(*args: object, **kwargs: object) -> object:
+        nonlocal outer_descriptor
+        outer_descriptor = kwargs["root_descriptor"]  # type: ignore[assignment]
+        return real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
+
+    def close_then_fail(descriptor: int) -> None:
+        nonlocal injected_close_error
+        real_close(descriptor)
+        if descriptor == outer_descriptor:
+            injected_close_error = True
+            raise OSError("original ambiguous close error")
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(prefix_index_module.os, "close", close_then_fail)
+        scoped.setattr(
+            prefix_index_module,
+            "_seal_bound_prefix_index",
+            capture_outer,
+        )
+        with _interrupt_on_instruction(
+            function,
+            should_interrupt=lambda offset: offset == after_release_call,
+            message="boundary interrupt after release helper",
+        ):
+            with pytest.raises(BaseException) as captured:
+                seal_prefix_index(
+                    run_root=run_root,
+                    schedule_ref=fixture.schedule_ref,
+                    candidate_refs=candidates,
+                    out=target,
+                )
+
+    rendered = repr(captured.value)
+    assert injected_close_error
+    assert type(captured.value) is BaseExceptionGroup
+    assert "committed" in rendered.lower()
+    assert "original ambiguous close error" in rendered
+    assert "boundary interrupt after release helper" in rendered
+    assert validate_record(json.loads(target.read_bytes()))
+    assert _root_lock_is_available(run_root)
+
+
+def test_s02d_unlock_aba_preserves_reused_descriptor_and_original_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    victim = run_root / "unlock-victim"
+    victim.write_bytes(b"untouched")
+    real_close = prefix_index_module.os.close
+    real_flock = prefix_index_module.fcntl.flock
+    real_seal_bound = prefix_index_module._seal_bound_prefix_index
+    outer_descriptor: int | None = None
+    victim_descriptor: int | None = None
+    injected = False
+    victim_touched = False
+
+    def capture_outer(*args: object, **kwargs: object) -> object:
+        nonlocal outer_descriptor
+        outer_descriptor = kwargs["root_descriptor"]  # type: ignore[assignment]
+        return real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
+
+    def unlock_close_reuse(descriptor: int, operation: int) -> object:
+        nonlocal injected, victim_descriptor, victim_touched
+        if injected and descriptor == victim_descriptor and operation == fcntl.LOCK_UN:
+            victim_touched = True
+        result = real_flock(descriptor, operation)
+        if (
+            not injected
+            and descriptor == outer_descriptor
+            and operation == fcntl.LOCK_UN
+        ):
+            injected = True
+            real_close(descriptor)
+            victim_descriptor = os.open(victim, os.O_RDONLY | os.O_CLOEXEC)
+            if victim_descriptor != descriptor:
+                raise AssertionError("unlock descriptor was not reused")
+            raise KeyboardInterrupt("original unlock ABA interruption")
+        return result
+
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(prefix_index_module.fcntl, "flock", unlock_close_reuse)
+            scoped.setattr(
+                prefix_index_module,
+                "_seal_bound_prefix_index",
+                capture_outer,
+            )
+            with pytest.raises(BaseException) as captured:
+                seal_prefix_index(
+                    run_root=run_root,
+                    schedule_ref=fixture.schedule_ref,
+                    candidate_refs=candidates,
+                    out=target,
+                )
+
+        rendered = repr(captured.value)
+        assert injected
+        assert type(captured.value) is BaseExceptionGroup
+        assert "committed" in rendered.lower()
+        assert "original unlock ABA interruption" in rendered
+        assert validate_record(json.loads(target.read_bytes()))
+        assert not victim_touched
+        assert victim_descriptor is not None
+        assert os.read(victim_descriptor, len(b"untouched")) == b"untouched"
         assert _root_lock_is_available(run_root)
     finally:
         if victim_descriptor is not None:

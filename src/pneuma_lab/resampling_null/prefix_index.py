@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field as dataclass_field
 import errno
 import fcntl
 import hashlib
@@ -164,13 +164,19 @@ class _OwnedPrefixPublication:
 @dataclass(slots=True)
 class _SealTransactionState:
     descriptor: int
+    root: Path
     publication: _OwnedPrefixPublication | None = None
+    root_identity: tuple[int, int] | None = None
     release_phase: Literal[
         "unlock_pending",
+        "unlock_ambiguous",
+        "unlock_retry_ambiguous",
         "close_pending",
         "close_ambiguous",
         "closed",
     ] = "unlock_pending"
+    unlock_retry_used: bool = False
+    release_errors: list[BaseException] = dataclass_field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -2218,18 +2224,110 @@ def _seal_bound_prefix_index(
         raise
 
 
+def _fresh_root_lock_available(transaction: _SealTransactionState) -> bool:
+    """Probe the named root without using an ambiguity-owned descriptor."""
+
+    if transaction.root_identity is None:
+        raise RecordValidationError(
+            "ambiguous root unlock lacks a bound descriptor identity"
+        )
+    named = os.stat(transaction.root, follow_symlinks=False)
+    if (named.st_dev, named.st_ino) != transaction.root_identity:
+        raise RecordValidationError(
+            "named root identity changed during ambiguous unlock recovery"
+        )
+    probe = os.open(transaction.root, _DIRECTORY_FLAGS)
+    acquired = False
+    primary: BaseException | None = None
+    try:
+        probed = os.fstat(probe)
+        if (probed.st_dev, probed.st_ino) != transaction.root_identity:
+            raise RecordValidationError(
+                "fresh root probe identity differs during unlock recovery"
+            )
+        try:
+            fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        acquired = True
+        fcntl.flock(probe, fcntl.LOCK_UN)
+        acquired = False
+        return True
+    except BaseException as exc:
+        primary = exc
+    finally:
+        cleanup_errors: list[BaseException] = []
+        if acquired:
+            try:
+                fcntl.flock(probe, fcntl.LOCK_UN)
+            except BaseException as exc:
+                cleanup_errors.append(exc)
+        try:
+            os.close(probe)
+        except BaseException as exc:
+            cleanup_errors.append(exc)
+        errors = [
+            *(() if primary is None else (primary,)),
+            *cleanup_errors,
+        ]
+        if len(errors) == 1:
+            raise errors[0]
+        if errors:
+            raise BaseExceptionGroup(
+                "fresh root unlock probe cleanup failed",
+                errors,
+            )
+    raise AssertionError("fresh root lock probe produced no result")
+
+
+def _recover_ambiguous_root_unlock(
+    transaction: _SealTransactionState,
+) -> None:
+    """Resolve an interrupted unlock without touching a reused descriptor."""
+
+    if transaction.root_identity is None:
+        raise RecordValidationError(
+            "ambiguous root unlock lacks a bound descriptor identity"
+        )
+    try:
+        ambiguous = os.fstat(transaction.descriptor)
+    except OSError as exc:
+        if exc.errno == errno.EBADF:
+            transaction.release_phase = "close_ambiguous"
+            return
+        raise
+    if (ambiguous.st_dev, ambiguous.st_ino) != transaction.root_identity:
+        transaction.release_phase = "close_ambiguous"
+        return
+    if _fresh_root_lock_available(transaction):
+        transaction.release_phase = "close_ambiguous"
+        return
+    if transaction.unlock_retry_used:
+        raise RecordValidationError(
+            "ambiguous root unlock remains held after one safe retry"
+        )
+    transaction.unlock_retry_used = True
+    transaction.release_phase = "unlock_retry_ambiguous"
+    fcntl.flock(transaction.descriptor, fcntl.LOCK_UN)
+    transaction.release_phase = "close_ambiguous"
+    if not _fresh_root_lock_available(transaction):
+        raise RecordValidationError(
+            "root lock remains unavailable after ambiguous unlock retry"
+        )
+
+
 def _release_root_transaction(transaction: _SealTransactionState) -> None:
     """Explicitly unlock, then close without risking a recycled descriptor."""
 
     if transaction.release_phase == "unlock_pending":
-        try:
-            fcntl.flock(transaction.descriptor, fcntl.LOCK_UN)
-        except OSError as exc:
-            if exc.errno == errno.EBADF:
-                transaction.release_phase = "closed"
-                return
-            raise
+        transaction.release_phase = "unlock_ambiguous"
+        fcntl.flock(transaction.descriptor, fcntl.LOCK_UN)
         transaction.release_phase = "close_pending"
+    elif transaction.release_phase in {
+        "unlock_ambiguous",
+        "unlock_retry_ambiguous",
+    }:
+        _recover_ambiguous_root_unlock(transaction)
     if transaction.release_phase == "close_pending":
         transaction.release_phase = "close_ambiguous"
         try:
@@ -2244,38 +2342,28 @@ def _release_root_transaction(transaction: _SealTransactionState) -> None:
 
 def _release_root_transaction_causally(
     transaction: _SealTransactionState,
-) -> BaseException | None:
+) -> None:
     """Preserve cleanup interruption while safely re-entering release once."""
 
-    errors: list[BaseException] = []
     for _attempt in range(2):
         try:
             _release_root_transaction(transaction)
         except BaseException as exc:
-            errors.append(exc)
+            transaction.release_errors.append(exc)
         else:
             break
-    if not errors:
-        return None
-    if len(errors) == 1:
-        return errors[0]
-    return BaseExceptionGroup(
-        "prefix-index root transaction release repeatedly failed",
-        errors,
-    )
 
 
 def _seal_transaction_outcome(
     *,
     transaction: _SealTransactionState,
     primary: BaseException | None,
-    cleanup: BaseException | None,
 ) -> tuple[ArtifactRef | None, BaseException | None]:
     """Classify one fully closed transaction without performing mutation."""
 
     errors = [
         *(() if primary is None else (primary,)),
-        *(() if cleanup is None else (cleanup,)),
+        *transaction.release_errors,
     ]
     if transaction.publication is not None:
         if errors:
@@ -2318,10 +2406,9 @@ def seal_prefix_index(
         raise NotADirectoryError(root)
     relative_path = _exact_output_relative_path(root=root, out=out)
     descriptor = os.open(root, _DIRECTORY_FLAGS)
-    transaction = _SealTransactionState(descriptor)
+    transaction = _SealTransactionState(descriptor, root)
     result: _OwnedPrefixPublication | None = None
     primary: BaseException | None = None
-    cleanup: BaseException | None = None
     try:
         try:
             try:
@@ -2330,7 +2417,8 @@ def seal_prefix_index(
                 raise RecordValidationError(
                     "prefix-index root transaction lock is unavailable"
                 ) from lock_error
-            os.fstat(descriptor)
+            locked_root = os.fstat(descriptor)
+            transaction.root_identity = (locked_root.st_dev, locked_root.st_ino)
             result = _seal_bound_prefix_index(
                 root=root,
                 root_descriptor=descriptor,
@@ -2346,23 +2434,13 @@ def seal_prefix_index(
         except BaseException as exc:
             primary = exc
         finally:
-            cleanup = _release_root_transaction_causally(transaction)
+            _release_root_transaction_causally(transaction)
         outcome_ref, outcome_error = _seal_transaction_outcome(
             transaction=transaction,
             primary=primary,
-            cleanup=cleanup,
         )
     except BaseException as boundary_error:
-        retry_cleanup = _release_root_transaction_causally(transaction)
-        if retry_cleanup is not None:
-            cleanup = (
-                retry_cleanup
-                if cleanup is None
-                else BaseExceptionGroup(
-                    "prefix-index transaction cleanup repeatedly failed",
-                    [cleanup, retry_cleanup],
-                )
-            )
+        _release_root_transaction_causally(transaction)
         primary = (
             boundary_error
             if primary is None
@@ -2374,7 +2452,6 @@ def seal_prefix_index(
         outcome_ref, outcome_error = _seal_transaction_outcome(
             transaction=transaction,
             primary=primary,
-            cleanup=cleanup,
         )
     if outcome_error is not None:
         raise outcome_error
