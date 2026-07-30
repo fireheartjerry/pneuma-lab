@@ -70,7 +70,10 @@
 | Check current project status | `.venv/bin/python -m pneuma_lab.status --check` |
 | Install current dev extras | `pip install -e ".[dev]"` |
 | Check WSL2 foundation readiness | `.venv/bin/python -m pneuma_lab.foundation doctor` |
-| Run the full suite | `.venv/bin/python -m pytest tests/ -q` |
+| Default cold oracle (smoke only) | `python -m pytest -q` |
+| Opt-in Qwen collection/run | `python -m pytest tests/test_foundation_qwen_smoke.py -m qwen_smoke -q` |
+| Foundation suite (explicit, slow; suitable Linux environment) | `python -m pytest tests/ -m foundation -q` |
+| Compact paper milestone | `python -m pytest tests/resampling_null -m milestone -q` |
 | Run schema tests only | `.venv/bin/python -m pytest tests/test_schema_loads.py -q` |
 | Check whitespace | `git diff --check` |
 | List tracked/untracked state | `git status --short` |
@@ -78,6 +81,10 @@
 `uv sync --frozen --python 3.12 --extra dev` is the deterministic Task 3
 target, but remains fail-closed until slice 1 regenerates `uv.lock` and
 `uv lock --check --python 3.12` passes.
+
+Default pytest discovery is intentionally restricted to `tests/smoke`. Bare
+marker commands cannot discover Qwen, foundation, or milestone tests; name an
+explicit test path as above.
 
 ## How To Do X
 

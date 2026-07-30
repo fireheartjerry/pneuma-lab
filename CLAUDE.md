@@ -180,20 +180,23 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
 Useful commands:
 
 ```txt
-python -m pytest -q                      # fast NeurIPS loop (excludes the foundation program)
-python -m pytest -m "not qwen_smoke" -q  # full suite (includes foundation; 26 Windows CRLF shard tests xfail)
-python -m pytest -m foundation -q        # foundation program only
+python -m pytest -q                                                    # default cold oracle: smoke only
+python -m pytest tests/test_foundation_qwen_smoke.py -m qwen_smoke -q # opt-in Qwen smoke
+python -m pytest tests/ -m foundation -q                              # explicit, slow foundation suite; suitable Linux environment
+python -m pytest tests/resampling_null -m milestone -q                # compact paper milestone
 pip install -e ".[dev]"
 python -m pneuma_lab.status --check
 python -m pytest tests/test_schema_loads.py -q
 git diff --check
 ```
 
-The default `pytest` excludes the `foundation` local-Qwen program (auto-marked by
-filename in `tests/conftest.py`, ~52% of the suite and filesystem-heavy) so the
-daily loop stays fast; it is off the NeurIPS paper critical path. On Windows the
-foundation shard-digest tests fail on a CRLF checkout and are xfailed (env
-artifact, not a regression); run the full suite before milestones.
+Default pytest discovery is intentionally restricted to `tests/smoke`; bare
+marker commands cannot discover opt-in Qwen, foundation, or milestone tests.
+The explicit-path commands above retain the marker opt-outs and allow a final
+`-m` selector to opt in. The foundation program is filesystem-heavy and off the
+NeurIPS paper critical path; run its explicit suite only in a suitable Linux
+environment. On Windows the foundation shard-digest tests fail on a CRLF
+checkout and are xfailed (environment artifact, not a regression).
 
 ## Schema Rules
 

@@ -246,6 +246,22 @@ def test_pytest_config_keeps_opt_in_markers_out_of_default_collection() -> None:
         env=environment,
         check=False,
     )
+    bare_marker_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-q",
+            "-m",
+            "qwen_smoke",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        env=environment,
+        check=False,
+    )
     selected_result = subprocess.run(
         [
             sys.executable,
@@ -267,8 +283,25 @@ def test_pytest_config_keeps_opt_in_markers_out_of_default_collection() -> None:
     assert '-m "not qwen_smoke and not foundation"' in addopts
     assert default_result.returncode == 5, default_result.stderr
     assert "tests/test_foundation_qwen_smoke.py:" not in default_result.stdout
+    assert bare_marker_result.returncode == 5, bare_marker_result.stderr
+    assert "tests/test_foundation_qwen_smoke.py:" not in bare_marker_result.stdout
     assert selected_result.returncode == 0, selected_result.stderr
     assert "tests/test_foundation_qwen_smoke.py: 1" in selected_result.stdout
+
+
+def test_documented_pytest_commands_name_opt_in_paths() -> None:
+    root = Path(__file__).resolve().parents[2]
+    required_commands = (
+        "python -m pytest -q",
+        "python -m pytest tests/test_foundation_qwen_smoke.py -m qwen_smoke -q",
+        "python -m pytest tests/ -m foundation -q",
+        "python -m pytest tests/resampling_null -m milestone -q",
+    )
+
+    for guide_name in ("AGENTS.md", "CLAUDE.md"):
+        guide = (root / guide_name).read_text(encoding="utf-8")
+        for command in required_commands:
+            assert command in guide, f"{guide_name} must document: {command}"
 
 
 def test_missing_budget_directories_are_zero_and_pass(tmp_path: Path) -> None:
