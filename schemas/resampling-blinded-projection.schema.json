@@ -106,9 +106,6 @@
         "blinded_outcome": {
             "type": "object",
             "required": [
-                "task_id",
-                "benchmark",
-                "opaque_arm_id",
                 "success",
                 "prefix_success",
                 "partial_reward",
@@ -116,9 +113,6 @@
                 "counters"
             ],
             "properties": {
-                "task_id": { "$ref": "#/$defs/nonempty" },
-                "benchmark": { "$ref": "#/$defs/nonempty" },
-                "opaque_arm_id": { "$ref": "#/$defs/nonempty" },
                 "success": { "enum": [0, 1] },
                 "prefix_success": { "enum": [0, 1] },
                 "partial_reward": { "type": "number" },

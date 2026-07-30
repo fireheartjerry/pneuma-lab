@@ -78,7 +78,7 @@ def build_candidate(
 
     rows: list[dict[str, object]] = []
     task_ids: set[str] = set()
-    for schedule_row in sorted(frozen_schedule, key=lambda row: str(row.get("task_id"))):
+    for schedule_row in frozen_schedule:
         task_id = schedule_row.get("task_id")
         prefix_success = schedule_row.get("prefix_success")
         slot_ids = schedule_row.get("slot_ids")

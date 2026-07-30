@@ -1635,3 +1635,16 @@ The next event after the archived migration boundary is appended below.
 - **Static and non-claim:** `git diff --check` and byte compilation passed. No
   provider/model/network call, secret disclosure, spend, execution, experiment,
   result, causal claim, or claim promotion occurred.
+
+### EJ-20260730-0172 — Task 6 review correction
+
+- **Review correction:** The first checkpoint did not preserve provided schedule
+  order and the blinded-outcome schema still exposed forbidden identity fields.
+  The candidate now preserves frozen order; the schema is closed to only binary
+  outcomes, finite reward, failure bit, and counters. Freeze verification now
+  compares copied current bytes and rejects reserved source-name collisions.
+- **Fresh gate:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_freeze.py tests/resampling_null/test_blinding.py
+  tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q` passed
+  211 tests; byte compilation and `git diff --check` passed. This remains a
+  guarded implementation slice, not a result or scientific claim.

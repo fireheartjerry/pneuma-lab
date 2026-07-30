@@ -46,7 +46,7 @@ def test_candidate_sorts_schedule_and_strips_outcomes() -> None:
         },
     )
 
-    assert [row["task_id"] for row in candidate.rows] == ["a", "z"]
+    assert [row["task_id"] for row in candidate.rows] == ["z", "a"]
     assert [slot["label"] for slot in candidate.rows[0]["slots"]] == ["A", "B", "C", "D"]
     assert "artifact_ref" not in repr(candidate.rows)
 

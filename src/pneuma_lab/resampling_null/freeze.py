@@ -103,6 +103,8 @@ def freeze_analysis(
     if packet_index.value["study_id"] != study_id:
         raise RecordValidationError("sealed packet index has another study")
     all_sources = dict(source_paths)
+    if {"config", "projection_schema"} & set(all_sources):
+        raise ValueError("source names collide with reserved freeze inputs")
     all_sources["config"] = config_path
     all_sources["projection_schema"] = projection_schema_path
     snapshots = snapshot_sources(run_root, all_sources)
@@ -124,3 +126,29 @@ def freeze_analysis(
         },
     }
     return write_record(destination, record, run_root=run_root, role="analysis_freeze")
+
+
+def verify_analysis_freeze(
+    freeze_ref: ArtifactRef, *, run_root: Path, source_paths: Mapping[str, Path],
+    config_path: Path, projection_schema_path: Path, packet_index_ref: ArtifactRef,
+) -> None:
+    """Fail closed when any copied input or sealed packet parent has drifted."""
+    freeze = _load_direct_scientific_parent(
+        {"role": freeze_ref.role, "relative_path": freeze_ref.relative_path, "sha256": freeze_ref.sha256, "byte_count": freeze_ref.byte_count, "media_type": freeze_ref.media_type},
+        run_root=run_root, field="freeze_ref", expected_kind="resampling_analysis_freeze",
+    )
+    payload = freeze.value["payload"]
+    assert isinstance(payload, Mapping)
+    if payload.get("packet_index_ref") != {"role": packet_index_ref.role, "relative_path": packet_index_ref.relative_path, "sha256": packet_index_ref.sha256, "byte_count": packet_index_ref.byte_count, "media_type": packet_index_ref.media_type}:
+        raise RecordValidationError("analysis freeze packet index differs")
+    _load_direct_scientific_parent(payload["packet_index_ref"], run_root=run_root, field="packet_index_ref", expected_kind="resampling_packet_index", expected_stage="sealed")
+    inputs = dict(source_paths)
+    if {"config", "projection_schema"} & set(inputs):
+        raise ValueError("source names collide with reserved freeze inputs")
+    inputs["config"] = config_path
+    inputs["projection_schema"] = projection_schema_path
+    refs = list(payload["source_refs"]) + [payload["config_ref"], payload["projection_schema_ref"]]
+    expected = sorted((Path(path).read_bytes() for path in inputs.values()), key=lambda value: hashlib.sha256(value).hexdigest())
+    observed = sorted((_resolve_inside(Path(ref["relative_path"]), run_root, require_exists=True)[0].read_bytes() for ref in refs if isinstance(ref, Mapping)), key=lambda value: hashlib.sha256(value).hexdigest())
+    if expected != observed:
+        raise RecordValidationError("analysis freeze copied input bytes differ")
