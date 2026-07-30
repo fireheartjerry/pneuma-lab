@@ -73,6 +73,21 @@ def _bind_root(run_root: Path) -> tuple[Path, int]:
     return root, owned_descriptor
 
 
+def _normalize_root_binding_error(
+    error: BaseException,
+    *,
+    message: str,
+) -> BaseException:
+    primary = error.exceptions[0] if isinstance(error, BaseExceptionGroup) else error
+    if not isinstance(primary, OSError):
+        return error
+    wrapped = RecordValidationError(message)
+    wrapped.__cause__ = primary
+    if isinstance(error, BaseExceptionGroup):
+        return error.derive((wrapped, *error.exceptions[1:]))
+    return wrapped
+
+
 def _role(value: object) -> str:
     if type(value) is not str:
         raise TypeError("role must be exact text")
@@ -99,19 +114,36 @@ def _mkdir_or_open(parent: int, name: str) -> int:
         os.fsync(parent)
     except FileExistsError:
         pass
+    owned_descriptor: int | None = None
     try:
-        descriptor = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent)
+        owned_descriptor = os.open(
+            name,
+            _DIRECTORY_FLAGS,
+            dir_fd=parent,
+        )
     except OSError as exc:
         raise RecordValidationError(
             f"controller artifact directory is unsafe: {name!r}"
         ) from exc
-    metadata = os.fstat(descriptor)
-    if not stat.S_ISDIR(metadata.st_mode):
-        os.close(descriptor)
-        raise RecordValidationError(
-            f"controller artifact component is not a directory: {name!r}"
+    if owned_descriptor is None:
+        raise AssertionError("artifact directory open produced no descriptor")
+    try:
+        metadata = os.fstat(owned_descriptor)
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise RecordValidationError(
+                f"controller artifact component is not a directory: {name!r}"
+            )
+    except BaseException as primary_error:
+        descriptor_to_close = owned_descriptor
+        owned_descriptor = None
+        _raise_after_descriptor_cleanup(
+            descriptor=descriptor_to_close,
+            primary_error=primary_error,
+            message=(
+                "controller artifact directory validation and cleanup both failed"
+            ),
         )
-    return descriptor
+    return owned_descriptor
 
 
 def _write_all(descriptor: int, payload: bytes) -> None:
@@ -150,10 +182,14 @@ class ControllerArtifactStore:
             self._root, root_descriptor = _bind_root(run_root)
             self._root_descriptor = root_descriptor
             del root_descriptor
-        except OSError as exc:
-            raise RecordValidationError(
-                "controller artifact root could not be bound"
-            ) from exc
+        except BaseException as error:
+            normalized = _normalize_root_binding_error(
+                error,
+                message="controller artifact root could not be bound",
+            )
+            if normalized is error:
+                raise
+            raise normalized
         try:
             self._artifact_descriptor = _mkdir_or_open(
                 self._root_descriptor,
@@ -168,9 +204,7 @@ class ControllerArtifactStore:
             _raise_after_descriptor_cleanup(
                 descriptor=owned_descriptor,
                 primary_error=primary_error,
-                message=(
-                    "controller store acquisition and cleanup both failed"
-                ),
+                message=("controller store acquisition and cleanup both failed"),
             )
 
     def __enter__(self) -> ControllerArtifactStore:
@@ -435,10 +469,14 @@ class ControllerArtifactResolver:
             self._root, root_descriptor = _bind_root(run_root)
             self._root_descriptor = root_descriptor
             del root_descriptor
-        except OSError as exc:
-            raise RecordValidationError(
-                "controller artifact tree could not be freshly bound"
-            ) from exc
+        except BaseException as error:
+            normalized = _normalize_root_binding_error(
+                error,
+                message=("controller artifact tree could not be freshly bound"),
+            )
+            if normalized is error:
+                raise
+            raise normalized
         try:
             self._artifact_descriptor = os.open(
                 _ARTIFACT_DIRECTORY,
@@ -463,9 +501,7 @@ class ControllerArtifactResolver:
             _raise_after_descriptor_cleanup(
                 descriptor=owned_descriptor,
                 primary_error=primary_error,
-                message=(
-                    "controller resolver acquisition and cleanup both failed"
-                ),
+                message=("controller resolver acquisition and cleanup both failed"),
             )
 
     def __enter__(self) -> ControllerArtifactResolver:

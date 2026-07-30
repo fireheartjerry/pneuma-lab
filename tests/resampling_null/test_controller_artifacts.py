@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import stat
 
 import pytest
 
@@ -12,6 +13,59 @@ from pneuma_lab.resampling_null.controller_artifacts import (
 )
 from pneuma_lab.resampling_null.errors import RecordValidationError
 from pneuma_lab.resampling_null.types import ArtifactRef
+
+
+@pytest.mark.parametrize(
+    ("consumer_type", "expected_message"),
+    [
+        (
+            ControllerArtifactStore,
+            "controller artifact root could not be bound",
+        ),
+        (
+            ControllerArtifactResolver,
+            "controller artifact tree could not be freshly bound",
+        ),
+    ],
+)
+@pytest.mark.parametrize("close_fails", [False, True])
+def test_controller_root_fstat_oserror_keeps_public_primary_with_cleanup(
+    tmp_path,
+    monkeypatch,
+    consumer_type,
+    expected_message: str,
+    close_fails: bool,
+) -> None:
+    original_close = controller_artifacts.os.close
+
+    def fstat(_descriptor: int):
+        raise OSError("injected controller root fstat failure")
+
+    def close(descriptor: int) -> None:
+        original_close(descriptor)
+        if close_fails:
+            raise OSError("injected controller root cleanup failure")
+
+    monkeypatch.setattr(controller_artifacts.os, "fstat", fstat)
+    monkeypatch.setattr(controller_artifacts.os, "close", close)
+    consumer = object.__new__(consumer_type)
+    with pytest.raises(BaseException) as captured:
+        consumer.__init__(tmp_path)
+
+    if close_fails:
+        assert isinstance(captured.value, BaseExceptionGroup)
+        primary = captured.value.exceptions[0]
+        assert str(captured.value.exceptions[1]) == (
+            "injected controller root cleanup failure"
+        )
+    else:
+        primary = captured.value
+    assert isinstance(primary, RecordValidationError)
+    assert str(primary) == expected_message
+    assert isinstance(primary.__cause__, OSError)
+    assert str(primary.__cause__) == "injected controller root fstat failure"
+    assert consumer._root_descriptor is None
+    assert consumer._artifact_descriptor is None
 
 
 def test_controller_root_acquisition_preserves_identity_and_close_failures(
@@ -64,12 +118,92 @@ def test_controller_store_tree_acquisition_clears_stale_owner_and_aggregates(
     with pytest.raises(BaseExceptionGroup) as captured:
         store.__init__(tmp_path)
 
-    assert [
-        str(error) for error in captured.value.exceptions
-    ] == [
+    assert [str(error) for error in captured.value.exceptions] == [
         "injected controller store tree failure",
         "injected controller store acquisition close failure",
     ]
+    assert store._root_descriptor is None
+    assert store._artifact_descriptor is None
+
+
+def test_controller_store_tree_fstat_and_close_failures_are_causal(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    original_fstat = controller_artifacts.os.fstat
+    original_close = controller_artifacts.os.close
+    calls = 0
+    tree_descriptor: int | None = None
+    closed: list[int] = []
+
+    def fstat(descriptor: int):
+        nonlocal calls, tree_descriptor
+        calls += 1
+        if calls == 2:
+            tree_descriptor = descriptor
+            raise OSError("injected artifact tree fstat failure")
+        return original_fstat(descriptor)
+
+    def close(descriptor: int) -> None:
+        closed.append(descriptor)
+        original_close(descriptor)
+        if descriptor == tree_descriptor:
+            raise OSError("injected artifact tree close failure")
+
+    monkeypatch.setattr(controller_artifacts.os, "fstat", fstat)
+    monkeypatch.setattr(controller_artifacts.os, "close", close)
+    store = object.__new__(ControllerArtifactStore)
+    with pytest.raises(BaseExceptionGroup) as captured:
+        store.__init__(tmp_path)
+
+    assert [str(error) for error in captured.value.exceptions] == [
+        "injected artifact tree fstat failure",
+        "injected artifact tree close failure",
+    ]
+    assert tree_descriptor in closed
+    assert len(closed) == 2
+    assert store._root_descriptor is None
+    assert store._artifact_descriptor is None
+
+
+def test_controller_store_tree_not_directory_preserves_primary_on_close_failure(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    original_fstat = controller_artifacts.os.fstat
+    original_close = controller_artifacts.os.close
+    calls = 0
+    tree_descriptor: int | None = None
+    closed: list[int] = []
+
+    def fstat(descriptor: int):
+        nonlocal calls, tree_descriptor
+        calls += 1
+        metadata = original_fstat(descriptor)
+        if calls == 2:
+            tree_descriptor = descriptor
+            values = list(metadata)
+            values[0] = stat.S_IFREG | 0o600
+            return os.stat_result(values)
+        return metadata
+
+    def close(descriptor: int) -> None:
+        closed.append(descriptor)
+        original_close(descriptor)
+        if descriptor == tree_descriptor:
+            raise OSError("injected non-directory close failure")
+
+    monkeypatch.setattr(controller_artifacts.os, "fstat", fstat)
+    monkeypatch.setattr(controller_artifacts.os, "close", close)
+    store = object.__new__(ControllerArtifactStore)
+    with pytest.raises(BaseExceptionGroup) as captured:
+        store.__init__(tmp_path)
+
+    assert isinstance(captured.value.exceptions[0], RecordValidationError)
+    assert "not a directory" in str(captured.value.exceptions[0])
+    assert str(captured.value.exceptions[1]) == ("injected non-directory close failure")
+    assert tree_descriptor in closed
+    assert len(closed) == 2
     assert store._root_descriptor is None
     assert store._artifact_descriptor is None
 
@@ -102,9 +236,7 @@ def test_controller_resolver_tree_open_clears_stale_owner_and_aggregates(
         resolver.__init__(tmp_path)
 
     assert isinstance(captured.value.exceptions[0], RecordValidationError)
-    assert "tree could not be freshly bound" in str(
-        captured.value.exceptions[0]
-    )
+    assert "tree could not be freshly bound" in str(captured.value.exceptions[0])
     assert isinstance(captured.value.exceptions[0].__cause__, OSError)
     assert "tree open failure" in str(captured.value.exceptions[0].__cause__)
     assert str(captured.value.exceptions[1]) == (
@@ -141,9 +273,7 @@ def test_controller_resolver_tree_baseexception_is_primary_and_owner_is_clear(
     with pytest.raises(BaseExceptionGroup) as captured:
         resolver.__init__(tmp_path)
 
-    assert [
-        type(error) for error in captured.value.exceptions
-    ] == [
+    assert [type(error) for error in captured.value.exceptions] == [
         KeyboardInterrupt,
         OSError,
     ]
@@ -421,7 +551,9 @@ def test_success_path_close_failure_removes_artifact_for_retry(
 
     monkeypatch.setattr(controller_artifacts.os, "close", close_then_fail_once)
     with pytest.raises(ExceptionGroup) as raised:
-        store.write(role="provider_request", payload=b"x", media_type="application/json")
+        store.write(
+            role="provider_request", payload=b"x", media_type="application/json"
+        )
     assert "successful-path close failure" in str(raised.value.exceptions[0])
     monkeypatch.setattr(controller_artifacts.os, "close", real_close)
     ref = store.write(
@@ -445,7 +577,9 @@ def test_base_exception_after_create_removes_artifact_for_retry(
 
     monkeypatch.setattr(controller_artifacts, "_write_all", interrupt_write)
     with pytest.raises(KeyboardInterrupt, match="write interruption"):
-        store.write(role="provider_request", payload=b"x", media_type="application/json")
+        store.write(
+            role="provider_request", payload=b"x", media_type="application/json"
+        )
     monkeypatch.setattr(controller_artifacts, "_write_all", real_write_all)
     ref = store.write(
         role="provider_request",
@@ -475,7 +609,9 @@ def test_base_exception_preserves_cleanup_errors_in_base_exception_group(
     monkeypatch.setattr(controller_artifacts, "_write_all", interrupt_write)
     monkeypatch.setattr(controller_artifacts.os, "unlink", fail_unlink)
     with pytest.raises(BaseExceptionGroup) as raised:
-        store.write(role="provider_request", payload=b"x", media_type="application/json")
+        store.write(
+            role="provider_request", payload=b"x", media_type="application/json"
+        )
     assert isinstance(raised.value.exceptions[0], InjectedInterruption)
     assert "cleanup failure" in str(raised.value.exceptions[1])
     monkeypatch.setattr(controller_artifacts.os, "unlink", real_unlink)
@@ -504,7 +640,9 @@ def test_verification_and_descriptor_close_failures_are_all_preserved(
     monkeypatch.setattr(controller_artifacts, "_read_and_hash", corrupt_read)
     monkeypatch.setattr(controller_artifacts.os, "close", fail_read_and_role_close)
     with pytest.raises(ExceptionGroup) as raised:
-        store.write(role="provider_request", payload=b"x", media_type="application/json")
+        store.write(
+            role="provider_request", payload=b"x", media_type="application/json"
+        )
     messages = " | ".join(str(error) for error in raised.value.exceptions)
     assert "bytes changed" in messages
     assert "injected close failure 2" in messages
@@ -568,7 +706,9 @@ def test_failed_write_reports_cleanup_uncertainty(tmp_path, monkeypatch) -> None
     monkeypatch.setattr(controller_artifacts.os, "write", fail_write)
     monkeypatch.setattr(controller_artifacts.os, "unlink", fail_unlink)
     with pytest.raises(ExceptionGroup, match="cleanup is uncertain"):
-        store.write(role="provider_request", payload=b"x", media_type="application/json")
+        store.write(
+            role="provider_request", payload=b"x", media_type="application/json"
+        )
     monkeypatch.setattr(controller_artifacts.os, "write", real_write)
     monkeypatch.setattr(controller_artifacts.os, "unlink", real_unlink)
     store.close()
