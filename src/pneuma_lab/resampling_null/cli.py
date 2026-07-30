@@ -25,6 +25,15 @@ from .selftest_fixture import seal_synthetic_selftest_study
 from .types import ArtifactRef
 
 
+class _ArgumentError(ValueError):
+    """Redacted parser failure that never lets argparse print usage."""
+
+
+class _JsonArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise _ArgumentError("invalid command arguments")
+
+
 def _relative_name(value: str, *, field: str) -> str:
     """Accept exactly one normalized relative POSIX filename, never a host path."""
     if type(value) is not str or not value or value == "." or "\\" in value or "//" in value:
@@ -70,7 +79,7 @@ def _emit(ref: ArtifactRef | None = None, *, status: str = "ok", **extra: object
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="pneuma_lab.resampling_null", add_help=True)
+    parser = _JsonArgumentParser(prog="pneuma_lab.resampling_null", add_help=True)
     parser.add_argument("--run-root", required=True)
     parser.add_argument("--debug", action="store_true")
     top = parser.add_subparsers(dest="command", required=True)
@@ -145,6 +154,17 @@ def _require_resumable_selftest(root: Path, final_name: str) -> None:
 
 def _selftest(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
     if args.stop_after_study:
+        if (root / "study-manifest.json").exists() or any(
+            root.rglob("p0-core-receipt.json")
+        ):
+            raise RecordValidationError(
+                "study-only selftest requires an empty scientific root"
+            )
+        documents = _scientific_documents(root, excluded=set())
+        if documents:
+            raise RecordValidationError(
+                "study-only selftest requires an empty scientific root"
+            )
         return seal_synthetic_selftest_study(root)
     if args.resume_after_power:
         _require_resumable_selftest(root, args.resume_after_power)
@@ -221,6 +241,7 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
+    debug = "--debug" in (argv if argv is not None else __import__("sys").argv[1:])
     try:
         args = parser.parse_args(argv)
         if (
@@ -236,7 +257,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except SystemExit as exc:
         if exc.code == 0: raise
-        _emit(status="error", error="invalid command arguments")
+        _emit(status="error", error="invalid command arguments",
+              **({"debug": "argument parsing failed"} if debug else {}))
+        return 2
+    except _ArgumentError:
+        _emit(status="error", error="invalid command arguments",
+              **({"debug": "argument parsing failed"} if debug else {}))
         return 2
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RecordValidationError) as exc:
         _emit(status="error", error=str(exc).replace("\n", " "))

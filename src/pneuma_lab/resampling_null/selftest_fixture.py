@@ -167,6 +167,9 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         "pads",
     ):
         sources[name] = write_json(external / f"{name}.json", {"name": name})
+    fixture_root = Path(__file__).resolve().parents[3] / "fixtures" / "resampling_null"
+    sources["power-grid"] = fixture_root / "p0-power-grid.json"
+    sources["power-topology"] = fixture_root / "p0-power-screen-topology.json"
     sources["required"] = write_json(
         external / "required.json",
         list(FROZEN_UPSTREAM_KINDS),

@@ -2090,3 +2090,24 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** The focused test sealed only a synthetic fixture
   manifest and copied inputs. No P0 work, provider action, external benchmark,
   spend, tier selection, or scientific claim occurred.
+
+### EJ-20260730-0199 — Task 9 hostile-review repair: frozen P0 stage binding
+
+- **Correction:** Replaced the selftest materializer's placeholder power inputs
+  with the exact committed frozen `p0-power-grid.json` and a committed frozen
+  screen-topology contract. The study manifest now binds their copied artifact
+  identities, and a synthetic authority can load the manifest-bound P0 config
+  without invoking a screen or grid. Study-only preflight occurs before source
+  materialization: an existing manifest or receipt refuses with no write.
+  CLI parsing now uses a redacted parser exception rather than argparse's usage
+  emitter; malformed input produces exactly one JSON object on stdout and no
+  stderr. Explicit `--debug` adds only the safe classification
+  `argument parsing failed`, never a traceback or secret value.
+- **Focused evidence:** New tests were first observed RED for placeholder-grid
+  binding, mutation-before-refusal, and argparse stderr leakage. `timeout 60s
+  .venv/bin/python -m pytest tests/resampling_null/test_cli.py -q` then passed
+  10 tests. `compileall`, `git diff --check`, and
+  `.venv/bin/python -m pneuma_lab.status --check` passed.
+- **Boundary/non-claim:** This loaded configuration only; it did not run a P0
+  screen, shard, validation, final, provider, benchmark, paid action, or make a
+  tier/scientific claim. Resume descendants remain intentionally unimplemented.
