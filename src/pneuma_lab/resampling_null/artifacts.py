@@ -863,6 +863,12 @@ def _validate_semantics(value: dict[str, object]) -> None:
                     raise RecordValidationError(
                         "blinded slots must be ordered A, B, C, D"
                     )
+                for slot in slots:
+                    if isinstance(slot, Mapping) and isinstance(slot.get("outcome"), Mapping):
+                        if "artifact_ref" in cast(Mapping[str, object], slot["outcome"]):
+                            raise RecordValidationError(
+                                "blinded outcomes must not expose artifact references"
+                            )
     elif kind == "resampling_artifact_root":
         entries = cast(list[dict[str, object]], payload["entries"])
         paths = [cast(str, entry["relative_path"]) for entry in entries]
@@ -2746,6 +2752,8 @@ def _validate_scientific_ancestry(
             )
 
     if schedule is not None and projection is not None:
+        from .projection_candidate import build_candidate
+
         projection_payload = _power_payload(projection)
         projection_rows = cast(
             list[Mapping[str, object]],
@@ -2794,6 +2802,16 @@ def _validate_scientific_ancestry(
                 task_payload["slot_outcomes"],
             )
 
+            reconstructed = build_candidate(
+                [{
+                    "task_id": task_id,
+                    "prefix_success": task_payload["prefix_success"],
+                    "slot_ids": schedule_slot_ids,
+                }],
+                {task_id: outcomes},
+            )
+            reconstructed_slots = reconstructed.rows[0]["slots"]
+
             expected_row = {
                 "task_id": task_id,
                 "benchmark": task_payload["benchmark"],
@@ -2803,12 +2821,7 @@ def _validate_scientific_ancestry(
                 "prefix_success": task_payload["prefix_success"],
                 "triggered": task_payload["triggered"],
                 "slots": [
-                    {
-                        "label": label,
-                        "slot_id": schedule_slot_ids[slot_index],
-                        "outcome": outcomes[slot_index],
-                    }
-                    for slot_index, label in enumerate(("A", "B", "C", "D"))
+                    slot for slot in cast(list[dict[str, object]], reconstructed_slots)
                 ],
                 "pipeline_valid": task_payload["pipeline_valid"],
                 "validity_codes": task_payload["validity_codes"],
@@ -2818,6 +2831,25 @@ def _validate_scientific_ancestry(
                     f"projection row {index} is not the exact frozen "
                     f"reconstruction of task block {task_id!r}"
                 )
+
+        candidate = build_candidate(
+            [
+                {
+                    "task_id": task_id,
+                    "prefix_success": _power_payload(task_by_id[task_id])["prefix_success"],
+                    "slot_ids": [slot["slot_id"] for slot in cast(list[Mapping[str, object]], schedule_by_task[task_id]["slots"])],
+                }
+                for task_id in schedule_task_ids
+            ],
+            {
+                task_id: cast(list[Mapping[str, object]], _power_payload(task_by_id[task_id])["slot_outcomes"])
+                for task_id in schedule_task_ids
+            },
+        )
+        if projection_payload["projection_candidate_sha256"] != candidate.sha256:
+            raise RecordValidationError(
+                "projection_candidate_sha256 does not match stripped reconstruction"
+            )
 
     if projection is not None:
         projection_payload = _power_payload(projection)

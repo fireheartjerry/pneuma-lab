@@ -9,6 +9,11 @@
 > controlling plan and design. Do not use the stale task table or `$0.00`
 > verified-balance statement below as current authority.
 
+> **Task-6 checkpoint (2026-07-30):** immutable analysis-source snapshots,
+> a capability-minimal opaque projection candidate, trusted sealing, and
+> purpose-bound unblind permit framing are present. This is machinery only;
+> it produces no empirical result or promoted claim.
+
 **Prepared:** 2026-07-28
 **Repository:** `C:\pneuma-lab` / `https://github.com/fireheartjerry/pneuma-lab.git`
 **Working branch:** `codex/neurips-2026-empirical`

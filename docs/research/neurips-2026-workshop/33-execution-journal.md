@@ -1617,3 +1617,21 @@ The next event after the archived migration boundary is appended below.
 - **GREEN and bounded compatibility:** The exact three-test gate passed with 89 deselected in 3.07 seconds. The interposed same-root victim remained open and independently locked with zero post-exception touches; plain external contention performed zero unlock/close and fail-stopped later S02D; normal uncontended acquisition followed by `fstat` failure still normally unlocked/closed and allowed retry. `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_s02d_prefix_index.py -q` passed all 92 checks in 52.59 seconds.
 - **Fresh static/status:** Focused Ruff lint/format, exact focused mypy for `prefix_index.py`, byte compilation, project-status coherence, `git diff --check`, and the frozen DL-147 plan/design hashes passed.
 - **Boundary/non-claims:** This correction removes only S02D acquisition-exception recovery and its liveness claim. It performs no provider/model/network/external call, credential use, spend, branch execution, training, scientific experiment, empirical result, causal result, phenomenal-consciousness claim, or claim promotion. The pre-existing untracked `raw_root_placeholder` remained untouched.
+
+### EJ-20260730-0171 — Task 6 freeze and blinded-projection checkpoint
+
+- **TDD receipt:** Added focused RED tests for missing freeze/candidate modules,
+  then for duplicate/escaping analysis snapshots, capability isolation in a clean
+  subprocess, deterministic A–D ordering, prefix mismatch, and incomplete
+  coverage. The REDs failed because the modules did not exist; the focused
+  `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_freeze.py tests/resampling_null/test_blinding.py -q`
+  gate is GREEN: 6 passed.
+- **Implementation boundary:** Analysis source/config/schema bytes are copied
+  under `sources/analysis-freeze`, bound to a validated sealed packet index, and
+  published through the immutable record writer. The candidate module imports
+  neither artifact/assignment/secret/packet loaders nor arm records; it emits
+  only the closed blinded outcome fields. Trusted sealing reloads parents and
+  artifact validation recomputes the stripped candidate digest.
+- **Static and non-claim:** `git diff --check` and byte compilation passed. No
+  provider/model/network call, secret disclosure, spend, execution, experiment,
+  result, causal claim, or claim promotion occurred.

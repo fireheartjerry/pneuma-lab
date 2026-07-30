@@ -49,6 +49,14 @@ before production work. Do not infer current state from commit subjects alone.
 
 ## Task 6 — freeze, blinded projection, and gated unblinding
 
+**Implementation checkpoint (2026-07-30):** analysis inputs now snapshot into
+the immutable source namespace; the projection candidate is a subprocess-tested
+pure module that accepts only stripped opaque outcomes; trusted sealing reloads
+schedule/freeze/task-block ancestry and validates the recomputable candidate
+digest. Unblind permit framing consumes the nominal unblind handle and derives
+only the unblind subkey. Full Task-6 end-to-end receipt and taint coverage
+remain the next verification gate.
+
 Implement the exact Task-6 contract in the controlling plan:
 
 - pre-outcome freeze of estimands, tests, multiplicity, verdict regions,

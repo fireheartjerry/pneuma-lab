@@ -27,6 +27,7 @@
                 "analysis_freeze_ref",
                 "task_block_refs",
                 "rows",
+                "projection_candidate_sha256",
                 "expected_task_count",
                 "complete"
             ],
@@ -43,6 +44,7 @@
                     "uniqueItems": true,
                     "items": { "$ref": "#/$defs/blinded_row" }
                 },
+                "projection_candidate_sha256": { "$ref": "#/$defs/sha256" },
                 "expected_task_count": { "type": "integer", "minimum": 0 },
                 "complete": { "const": true }
             },
@@ -101,7 +103,7 @@
             },
             "additionalProperties": false
         },
-        "branch_outcome": {
+        "blinded_outcome": {
             "type": "object",
             "required": [
                 "task_id",
@@ -111,8 +113,7 @@
                 "prefix_success",
                 "partial_reward",
                 "infrastructure_failure",
-                "counters",
-                "artifact_ref"
+                "counters"
             ],
             "properties": {
                 "task_id": { "$ref": "#/$defs/nonempty" },
@@ -122,8 +123,7 @@
                 "prefix_success": { "enum": [0, 1] },
                 "partial_reward": { "type": "number" },
                 "infrastructure_failure": { "type": "boolean" },
-                "counters": { "$ref": "#/$defs/resource_counters" },
-                "artifact_ref": { "$ref": "#/$defs/artifact_ref" }
+                "counters": { "$ref": "#/$defs/resource_counters" }
             },
             "additionalProperties": false
         },
@@ -133,7 +133,7 @@
             "properties": {
                 "label": { "enum": ["A", "B", "C", "D"] },
                 "slot_id": { "$ref": "#/$defs/nonempty" },
-                "outcome": { "$ref": "#/$defs/branch_outcome" }
+                "outcome": { "$ref": "#/$defs/blinded_outcome" }
             },
             "additionalProperties": false
         },
