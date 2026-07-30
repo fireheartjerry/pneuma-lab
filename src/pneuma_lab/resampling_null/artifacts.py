@@ -27,6 +27,7 @@ from .authority_refs import (
     exact_text,
     walk_artifact_refs as _walk_artifact_refs,
 )
+from .branch_program_authority import load_branch_program_registry
 from .errors import RecordValidationError
 from .json_io import (
     load_json_bytes as _load_json_bytes,
@@ -39,7 +40,7 @@ from .preflight import (
     validate_assignment_program,
     validate_task_registry,
 )
-from .prefix_contracts import AUTHORITY_ASSET_ROLE_MEDIA
+from .prefix_contracts import AUTHORITY_ASSET_ROLE_MEDIA, load_synthetic_prefix_program
 from .provider_contracts import validate_provider_lane_plan
 from .types import ArtifactRef
 
@@ -1424,6 +1425,82 @@ def _plan_provider_v2_closure(
     return planned
 
 
+def _plan_branch_program_closure(
+    registry_copy: _SourceCopy,
+    *,
+    known_copies: Sequence[_SourceCopy],
+    run_root: Path,
+) -> list[_SourceCopy]:
+    """Plan every manifest-frozen program dependency from one source root."""
+
+    registry = load_branch_program_registry(registry_copy.payload)
+    source_root = registry_copy.source.parent.resolve(strict=True)
+    known_by_ref = {copy.ref: copy for copy in known_copies}
+    known_by_path = {copy.ref.relative_path: copy.ref for copy in known_copies}
+    pending = [
+        entry.program_ref
+        for task in registry.tasks
+        for entry in task.programs
+    ]
+    planned: list[_SourceCopy] = []
+    observed: set[ArtifactRef] = set()
+    while pending:
+        ref = pending.pop(0)
+        if ref in observed:
+            continue
+        observed.add(ref)
+        known = known_by_ref.get(ref)
+        if known is not None:
+            if ref.media_type == "application/json":
+                nested = _load_json_bytes(known.payload, source=known.source)
+                pending.extend(_walk_artifact_refs(nested))
+            continue
+        conflicting = known_by_path.get(ref.relative_path)
+        if conflicting is not None and conflicting != ref:
+            raise RecordValidationError(
+                "branch program nested ref conflicts with an existing source path"
+            )
+        try:
+            source, relative = _resolve_inside(
+                registry_copy.source.parent / Path(ref.relative_path),
+                source_root,
+                require_exists=True,
+            )
+        except (FileNotFoundError, RecordValidationError) as exc:
+            raise RecordValidationError(
+                f"branch program nested ref source is missing: {ref.relative_path!r}"
+            ) from exc
+        if relative != ref.relative_path or not source.is_file():
+            raise RecordValidationError(
+                f"branch program nested ref source is not canonical: {ref.relative_path!r}"
+            )
+        payload = source.read_bytes()
+        if (
+            hashlib.sha256(payload).hexdigest() != ref.sha256
+            or len(payload) != ref.byte_count
+        ):
+            raise RecordValidationError(
+                f"branch program nested ref bytes mismatch: {ref.relative_path!r}"
+            )
+        destination, destination_relative = _resolve_inside(
+            Path(run_root) / Path(ref.relative_path),
+            run_root,
+            require_exists=False,
+        )
+        if destination_relative != ref.relative_path:
+            raise RecordValidationError(
+                "branch program nested destination path is not canonical"
+            )
+        copy = _SourceCopy(source, payload, destination, ref)
+        planned.append(copy)
+        known_by_ref[ref] = copy
+        known_by_path[ref.relative_path] = ref
+        if ref.media_type == "application/json":
+            nested = _load_json_bytes(payload, source=source)
+            pending.extend(_walk_artifact_refs(nested))
+    return planned
+
+
 def _ref_mapping(ref: ArtifactRef) -> dict[str, object]:
     return cast(dict[str, object], asdict(ref))
 
@@ -1498,6 +1575,7 @@ def seal_study_manifest(
     roster_source: Path,
     assignment_program_source: Path,
     provider_lane_plan_source: Path,
+    branch_program_registry_source: Path,
     storage_policy_contract_source: Path,
     power_grid_source: Path,
     power_screen_topology_source: Path,
@@ -1588,6 +1666,11 @@ def seal_study_manifest(
         (assignment_program_source, "assignment-program", "assignment_program"),
         (provider_lane_plan_source, "provider-lane-plan", "provider_lane_plan"),
         (
+            branch_program_registry_source,
+            "branch-program-registry",
+            "branch_program_registry",
+        ),
+        (
             storage_policy_contract_source,
             "storage-policy-contract",
             "storage_policy_contract",
@@ -1653,7 +1736,26 @@ def seal_study_manifest(
         known_copies=copies + revision_copies + conditional_copies,
         run_root=root,
     )
-    all_copies = copies + revision_copies + conditional_copies + provider_nested_copies
+    registry_copy = next(
+        copy for copy in copies if copy.ref.role == "branch_program_registry"
+    )
+    branch_program_nested_copies = _plan_branch_program_closure(
+        registry_copy,
+        known_copies=(
+            copies
+            + revision_copies
+            + conditional_copies
+            + provider_nested_copies
+        ),
+        run_root=root,
+    )
+    all_copies = (
+        copies
+        + revision_copies
+        + conditional_copies
+        + provider_nested_copies
+        + branch_program_nested_copies
+    )
     destinations = [copy.destination for copy in all_copies]
     if len(destinations) != len(set(destinations)):
         raise RecordValidationError("source copies have conflicting destinations")
@@ -1677,6 +1779,9 @@ def seal_study_manifest(
         ),
         "assignment_program_ref": _ref_mapping(by_role["assignment_program"]),
         "provider_lane_plan_ref": _ref_mapping(by_role["provider_lane_plan"]),
+        "branch_program_registry_ref": _ref_mapping(
+            by_role["branch_program_registry"]
+        ),
         "storage_policy_contract_ref": _ref_mapping(by_role["storage_policy_contract"]),
         "power_grid_ref": _ref_mapping(by_role["power_grid"]),
         "power_screen_topology_ref": _ref_mapping(by_role["power_screen_topology"]),
@@ -1726,8 +1831,8 @@ def seal_study_manifest(
             raise RecordValidationError(
                 "v2 provider plan requires a closed task registry"
             )
-        registry = dict(task_value)
-        validate_task_registry(registry)
+        task_registry = dict(task_value)
+        validate_task_registry(task_registry)
         roster_copy = next(copy for copy in copies if copy.ref.role == "roster")
         assignment_copy = next(
             copy for copy in copies if copy.ref.role == "assignment_program"
@@ -1764,11 +1869,49 @@ def seal_study_manifest(
                 validate_provider_lane_plan(
                     provider_value,
                     reader=reader,
-                    registry=registry,
+                    registry=task_registry,
                     tokenizer_ref=by_role["tokenizer"],
                     manifest_revisions=tuple(copy.ref for copy in revision_copies),
                     schedule_authority=execution_authority,
                 )
+                branch_registry = load_branch_program_registry(registry_copy.payload)
+                registry_task_ids = tuple(
+                    task.task_id for task in branch_registry.tasks
+                )
+                task_rows = cast(list[object], task_registry.get("tasks"))
+                task_ids = tuple(
+                    exact_text(
+                        cast(Mapping[str, object], row).get("task_id"),
+                        field="task registry task_id",
+                    )
+                    for row in task_rows
+                )
+                if registry_task_ids != tuple(sorted(task_ids)):
+                    raise RecordValidationError(
+                        "branch program registry task coverage differs from task registry"
+                    )
+                for task in branch_registry.tasks:
+                    for entry in task.programs:
+                        reader.verify_closure(
+                            entry.program_ref,
+                            field=(
+                                f"branch program task {task.task_id!r} "
+                                f"ordinal {entry.branch_ordinal}"
+                            ),
+                            expected_role="synthetic_execution_program",
+                        )
+                        try:
+                            program = load_synthetic_prefix_program(
+                                reader.read_bytes(entry.program_ref)
+                            )
+                        except (TypeError, ValueError) as exc:
+                            raise RecordValidationError(
+                                "branch execution program is invalid"
+                            ) from exc
+                        if program.task_id != task.task_id:
+                            raise RecordValidationError(
+                                "branch execution program task binding mismatch"
+                            )
     from .publication import BoundPublication
 
     with BoundPublication(root) as publication:

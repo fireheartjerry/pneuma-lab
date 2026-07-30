@@ -271,6 +271,16 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         },
         role="tool_schema",
     )
+    synthetic_grade_ref = authority_asset(
+        "branch-grade.json",
+        {"record_kind": "synthetic_grade_result_v1", "schema_version": "1"},
+        role="synthetic_grade_result",
+    )
+    synthetic_verifier_ref = authority_asset(
+        "branch-verifier.json",
+        {"record_kind": "synthetic_verifier_result_v1", "schema_version": "1"},
+        role="synthetic_verifier_result",
+    )
     clock_ref = authority_asset(
         "clock.json",
         {
@@ -446,6 +456,7 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         role="isolation_contract",
     )
     task_lanes = []
+    branch_registry_tasks = []
     for fixture_task in tasks:
         task_id = fixture_task["task_id"]
         task_common = {
@@ -468,6 +479,48 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
                 },
             },
             role="task_input",
+        )
+        branch_program_ref = authority_asset(
+            f"branch-program-{task_id}.json",
+            {
+                "record_kind": "synthetic_prefix_program_v1",
+                "schema_version": "1",
+                "task_id": task_id,
+                "expected_trigger_reason": "no_intervention_opportunity",
+                "tool_schema_ref": tool_schema_ref,
+                "provider_transcript": [],
+                "tool_observations": [],
+                "grade_result": {
+                    "evidence_ref": synthetic_grade_ref,
+                    "success": 0,
+                    "partial_reward": 0.0,
+                    "infrastructure_failure": False,
+                },
+                "verifier_result": {
+                    "evidence_ref": synthetic_verifier_ref,
+                    "finding_count": 0,
+                },
+                "failure_injection": {
+                    "stage": "none",
+                    "subject_role": None,
+                    "call_index": None,
+                    "tool_call_id": None,
+                },
+                "clock_trace": [{"label": "prefix_epoch", "uint64_ms": 1}],
+            },
+            role="synthetic_execution_program",
+        )
+        branch_registry_tasks.append(
+            {
+                "task_id": task_id,
+                "programs": [
+                    {
+                        "branch_ordinal": ordinal,
+                        "program_ref": branch_program_ref,
+                    }
+                    for ordinal in range(4)
+                ],
+            }
         )
         fixture_environment_ref = authority_asset(
             f"environment-{task_id}.json",
@@ -548,6 +601,14 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
             "task_lanes": task_lanes,
         },
     )
+    sources["branch-program-registry"] = write_json(
+        external / "branch-program-registry.json",
+        {
+            "record_kind": "resampling_branch_program_registry_v1",
+            "schema_version": "0.1.0",
+            "tasks": branch_registry_tasks,
+        },
+    )
     study = write_json(
         external / "study.json",
         _fixture_record(
@@ -567,6 +628,7 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
             sources["roster"],
             sources["assignment"],
             sources["provider"],
+            sources["branch-program-registry"],
             sources["storage-policy"],
             sources["power-grid"],
             sources["power-topology"],

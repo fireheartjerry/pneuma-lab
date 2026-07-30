@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,23 @@ def _file_paths(root: Path) -> list[str]:
         for path in root.rglob("*")
         if path.is_file()
     )
+
+
+def test_study_seal_binds_branch_registry_and_complete_program_closure(
+    tmp_path: Path,
+) -> None:
+    fixture = ProviderAuthorityFixture.build_study(tmp_path, failure_mode=None)
+
+    fixture.seal()
+
+    manifest = json.loads(
+        (fixture.run_root / "study-manifest.json").read_text(encoding="utf-8")
+    )
+    registry_ref = manifest["payload"]["branch_program_registry_ref"]
+    assert registry_ref["role"] == "branch_program_registry"
+    assert (fixture.run_root / registry_ref["relative_path"]).is_file()
+    for nested in fixture.nested_refs:
+        assert (fixture.run_root / nested["relative_path"]).is_file()
 
 
 def test_study_seal_preserves_peer_manifest_on_no_replace_race(

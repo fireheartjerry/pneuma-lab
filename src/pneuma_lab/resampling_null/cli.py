@@ -320,7 +320,7 @@ def _parser() -> argparse.ArgumentParser:
     selftest_stage.add_argument("--resume-after-power")
     study = top.add_parser("study").add_subparsers(dest="study_command", required=True)
     seal = study.add_parser("seal", aliases=["create"])
-    for name in ("study", "tasks", "roster", "assignment_program", "provider_lane_plan", "storage_policy_contract", "power_grid", "power_screen_topology", "tokenizer", "packet_template", "packet_policy", "pad_unit_set", "required_kinds"):
+    for name in ("study", "tasks", "roster", "assignment_program", "provider_lane_plan", "branch_program_registry", "storage_policy_contract", "power_grid", "power_screen_topology", "tokenizer", "packet_template", "packet_policy", "pad_unit_set", "required_kinds"):
         seal.add_argument("--" + name.replace("_", "-") + "-source", required=True)
     seal.add_argument("--revision-source", action="append", required=True)
     seal.add_argument("--eligibility-manifest-source")
@@ -715,7 +715,7 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
             path, _ = resolve_inside(Path(args.study), root, require_exists=True)
             validate_record(load_json_bytes(path.read_bytes(), source=path)); return None
         values = vars(args)
-        ref = seal_study_manifest(*[Path(values[n]) for n in ("study_source", "tasks_source", "roster_source", "assignment_program_source", "provider_lane_plan_source", "storage_policy_contract_source", "power_grid_source", "power_screen_topology_source", "tokenizer_source", "packet_template_source", "packet_policy_source", "pad_unit_set_source")], [Path(x) for x in args.revision_source], Path(args.required_kinds_source), eligibility_manifest_source=Path(args.eligibility_manifest_source) if args.eligibility_manifest_source else None, roster_ceremony_policy_source=Path(args.roster_ceremony_policy_source) if args.roster_ceremony_policy_source else None, run_root=root, out=_out(root, args.out)); return ref
+        ref = seal_study_manifest(*[Path(values[n]) for n in ("study_source", "tasks_source", "roster_source", "assignment_program_source", "provider_lane_plan_source", "branch_program_registry_source", "storage_policy_contract_source", "power_grid_source", "power_screen_topology_source", "tokenizer_source", "packet_template_source", "packet_policy_source", "pad_unit_set_source")], [Path(x) for x in args.revision_source], Path(args.required_kinds_source), eligibility_manifest_source=Path(args.eligibility_manifest_source) if args.eligibility_manifest_source else None, roster_ceremony_policy_source=Path(args.roster_ceremony_policy_source) if args.roster_ceremony_policy_source else None, run_root=root, out=_out(root, args.out)); return ref
     if args.command == "power":
         if args.power_command == "authority":
             manifest = _ref(root, args.study, "study_manifest")

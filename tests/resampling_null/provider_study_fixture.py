@@ -298,6 +298,46 @@ def build_provider_study_fixture(
         },
         role="tool_schema",
     )
+    synthetic_grade_ref = authority_asset(
+        "branch-grade.json",
+        {"record_kind": "synthetic_grade_result_v1", "schema_version": "1"},
+        role="synthetic_grade_result",
+    )
+    synthetic_verifier_ref = authority_asset(
+        "branch-verifier.json",
+        {"record_kind": "synthetic_verifier_result_v1", "schema_version": "1"},
+        role="synthetic_verifier_result",
+    )
+    branch_program_ref = authority_asset(
+        "branch-program-task-1.json",
+        {
+            "record_kind": "synthetic_prefix_program_v1",
+            "schema_version": "1",
+            "task_id": "task-1",
+            "expected_trigger_reason": "no_intervention_opportunity",
+            "tool_schema_ref": tool_schema_ref,
+            "provider_transcript": [],
+            "tool_observations": [],
+            "grade_result": {
+                "evidence_ref": synthetic_grade_ref,
+                "success": 0,
+                "partial_reward": 0.0,
+                "infrastructure_failure": False,
+            },
+            "verifier_result": {
+                "evidence_ref": synthetic_verifier_ref,
+                "finding_count": 0,
+            },
+            "failure_injection": {
+                "stage": "none",
+                "subject_role": None,
+                "call_index": None,
+                "tool_call_id": None,
+            },
+            "clock_trace": [{"label": "prefix_epoch", "uint64_ms": 1}],
+        },
+        role="synthetic_execution_program",
+    )
     clock_ref = authority_asset(
         "clock.json",
         {
@@ -521,6 +561,37 @@ def build_provider_study_fixture(
             ],
         },
     )
+    registry_program_ref = (
+        {
+            **branch_program_ref,
+            "relative_path": "sources/provider-authority/missing-program.json",
+        }
+        if failure_mode == "branch_program_dangling"
+        else branch_program_ref
+    )
+    sources["branch-program-registry"] = write_json(
+        external / "branch-program-registry.json",
+        {
+            "record_kind": "resampling_branch_program_registry_v1",
+            "schema_version": "0.1.0",
+            "tasks": [
+                {
+                    "task_id": (
+                        "task-foreign"
+                        if failure_mode == "branch_program_task"
+                        else "task-1"
+                    ),
+                    "programs": [
+                        {
+                            "branch_ordinal": ordinal,
+                            "program_ref": registry_program_ref,
+                        }
+                        for ordinal in range(4)
+                    ],
+                }
+            ],
+        },
+    )
     study = write_json(
         external / "study.json",
         _fixture_record(
@@ -543,6 +614,7 @@ def build_provider_study_fixture(
             sources["roster"],
             sources["assignment"],
             sources["provider"],
+            sources["branch-program-registry"],
             sources["storage-policy"],
             sources["power-grid"],
             sources["power-topology"],
@@ -586,6 +658,9 @@ def build_provider_study_fixture(
             watchdog_ref,
             qualification_ref,
             revision_deep_ref,
+            branch_program_ref,
+            synthetic_grade_ref,
+            synthetic_verifier_ref,
         ),
     )
 

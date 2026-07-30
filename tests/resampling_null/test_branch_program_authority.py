@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
 from pneuma_lab.resampling_null.branch_program_authority import (
     load_branch_program_registry,
 )
+from pneuma_lab.resampling_null.artifacts import validate_record
 from pneuma_lab.resampling_null.errors import RecordValidationError
+from tests.resampling_null.provider_authority_fixture import ProviderAuthorityFixture
 
 
 def _ref(char: str) -> dict[str, object]:
@@ -116,3 +119,65 @@ def test_branch_program_registry_requires_canonical_unique_task_order(
 
     with pytest.raises(RecordValidationError):
         load_branch_program_registry(_bytes(value))
+
+
+def test_study_manifest_requires_branch_program_registry_authority() -> None:
+    ref = _ref("a")
+    payload = {
+        "task_registry_ref": ref,
+        "roster_ref": ref,
+        "eligibility_manifest_ref": None,
+        "roster_ceremony_policy_ref": None,
+        "assignment_program_ref": ref,
+        "provider_lane_plan_ref": ref,
+        "storage_policy_contract_ref": ref,
+        "power_grid_ref": ref,
+        "power_screen_topology_ref": ref,
+        "tokenizer_ref": ref,
+        "packet_template_ref": ref,
+        "packet_policy_ref": ref,
+        "pad_unit_set_ref": ref,
+        "source_revision_refs": [ref],
+        "commitment_scheme": "resampling-null-key-ceremony-v1",
+        "roster_local_nonce_commitment_sha256": "a" * 64,
+        "schedule_seed_commitment_sha256": "b" * 64,
+        "assignment_master_key_commitment_sha256": "c" * 64,
+        "required_document_kinds_ref": ref,
+    }
+    manifest = {
+        "record_kind": "resampling_study_manifest",
+        "schema_version": "0.1.0",
+        "study_id": "study-1",
+        "frozen_created_at": "2026-07-30T00:00:00Z",
+        "provenance": {
+            "design_sha256": "d" * 64,
+            "code_sha256": "e" * 64,
+        },
+        "payload": payload,
+    }
+
+    with pytest.raises(RecordValidationError):
+        validate_record(manifest)
+
+
+@pytest.mark.parametrize(
+    ("failure_mode", "message"),
+    (
+        ("branch_program_task", "task coverage differs"),
+        ("branch_program_dangling", "nested ref source is missing"),
+    ),
+)
+def test_study_seal_rejects_invalid_branch_program_authority_without_writes(
+    tmp_path: Path,
+    failure_mode: str,
+    message: str,
+) -> None:
+    fixture = ProviderAuthorityFixture.build_study(
+        tmp_path,
+        failure_mode=failure_mode,
+    )
+
+    with pytest.raises(RecordValidationError, match=message):
+        fixture.seal()
+
+    assert list(fixture.run_root.iterdir()) == []
