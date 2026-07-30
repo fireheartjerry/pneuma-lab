@@ -2726,6 +2726,55 @@ def test_s02d_normal_transactions_release_process_reservation(
     assert not reservation.locked()
 
 
+def test_s02d_ordinary_root_open_error_releases_process_reservation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    first_target = run_root / "failed-prefix-index.json"
+    second_target = run_root / "successful-prefix-index.json"
+    real_open = prefix_index_module.os.open
+    injected = False
+    failure = OSError("ordinary root open failure")
+
+    def fail_first_root_open(
+        path: object,
+        flags: int,
+        *args: object,
+        **kwargs: object,
+    ) -> int:
+        nonlocal injected
+        if not injected and os.fspath(path) == os.fspath(run_root):
+            injected = True
+            raise failure
+        return real_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(prefix_index_module.os, "open", fail_first_root_open)
+        with pytest.raises(OSError, match="ordinary root open failure") as captured:
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=first_target,
+            )
+
+        assert injected
+        assert captured.value is failure
+        assert not first_target.exists()
+        assert not prefix_index_module._S02D_PROCESS_RESERVATION.locked()
+        result = seal_prefix_index(
+            run_root=run_root,
+            schedule_ref=fixture.schedule_ref,
+            candidate_refs=candidates,
+            out=second_target,
+        )
+
+    assert type(result) is ArtifactRef
+    assert validate_record(json.loads(second_target.read_bytes()))
+    assert not prefix_index_module._S02D_PROCESS_RESERVATION.locked()
+
+
 def test_s02d_interrupt_after_locked_fstat_is_precommit_and_releases_lock(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

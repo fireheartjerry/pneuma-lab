@@ -2303,7 +2303,11 @@ def seal_prefix_index(
             "S02D process reservation or final-release fail-stop is active; "
             "restart or operator cleanup proof is required"
         )
-    descriptor = os.open(root, _DIRECTORY_FLAGS)
+    try:
+        descriptor = os.open(root, _DIRECTORY_FLAGS)
+    except OSError:
+        _S02D_PROCESS_RESERVATION.release()
+        raise
     transaction = _SealTransactionState(descriptor)
     result: _OwnedPrefixPublication | None = None
     primary: BaseException | None = None
