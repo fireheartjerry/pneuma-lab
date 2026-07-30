@@ -2408,3 +2408,28 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** This runs one bounded screen preflight only. It does
   not execute a production shard, validation, multiplier fallback, final P0,
   schedule, provider, spend, benchmark, or scientific result.
+
+### EJ-20260730-0212 — Task-10 canonical P0 timing admission deviation
+
+- **Action:** Created the ignored canonical synthetic root
+  `build/research/neurips-2026-workshop/p0-canonical`, sealed its study
+  manifest (`4a0c0d9f...`), sealed synthetic power authority
+  (`136aee9708...`), and sealed the Gaussian screen
+  (`95b34c87...`) with the manifest-bound committed grid/topology and the
+  admissible immutable 64-shard topology. The historical plan's 16-shard
+  example is not admissible against the current frozen timing projection.
+- **Observed deviation:** One production shard (`shard_index=0`) was begun as
+  an exact registered timing measurement. It remained CPU-bound across eight
+  numerical threads for approximately 13 minutes 35 seconds without writing a
+  shard artifact. A sequential 64-shard extrapolation therefore exceeds the
+  frozen 43,200-second (12-hour) cap. The process was sent `SIGTERM` before it
+  emitted any scientific shard record; no other shard was launched.
+- **Gate/result:** This is a timing-admission no-go, not a partial P0 result.
+  The pre-run screen's 3,436-second projection was non-conservative in this
+  environment. Do not resume, shrink the grid, alter shard count, or claim a
+  completed/failed P0 final from this root. Reconcile the production timing
+  estimator and rerun a newly screened immutable generation before any P0
+  continuation.
+- **Boundary/non-claim:** Zero spend, no provider or benchmark action, no
+  validation/finalization, no schedule/descendant, and no scientific result or
+  claim. The terminated command left no `shard-0.json` artifact.

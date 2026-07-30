@@ -450,3 +450,15 @@ authentication without deleting their victim. The old public receipt-only
 `unblind_projection` route is removed. This is plumbing, not an
 unblind/analysis E2E: the missing branch authority and unrun full P0 remain the
 next gates.
+
+**Task 10 canonical timing gate (2026-07-30):** The canonical synthetic study,
+authority, and Gaussian screen were sealed under the exact committed grid and
+64-shard topology. A real production shard-0 timing measurement then ran for
+about 13 minutes 35 seconds without producing a shard artifact; extrapolating
+that measured work across 64 sequential shards exceeds the frozen 12-hour cap.
+The process was terminated before publication and no other shard ran. This is
+a governed timing-admission no-go, not an incomplete P0 result: do not resume,
+weaken the grid, alter the sealed topology, or synthesize a final. Next gate:
+repair/revalidate the production timing estimator, screen a new immutable
+generation, and only then consider a fresh full P0 run. Zero spend/provider/
+benchmark activity and no claim occurred.
