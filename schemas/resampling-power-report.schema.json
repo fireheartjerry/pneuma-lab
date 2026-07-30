@@ -463,6 +463,8 @@
                 "selected_cells",
                 "interval_receipts",
                 "validation_dataset_count",
+                "raw_counts_ref",
+                "numeric_receipt_ref",
                 "approximation_receipt"
             ],
             "properties": {
@@ -510,6 +512,8 @@
                     "type": "integer",
                     "minimum": 1
                 },
+                "raw_counts_ref": { "$ref": "#/$defs/artifact_ref" },
+                "numeric_receipt_ref": { "$ref": "#/$defs/artifact_ref" },
                 "approximation_receipt": {
                     "$ref": "#/$defs/approximation_receipt"
                 }

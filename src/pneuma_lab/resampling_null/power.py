@@ -262,6 +262,55 @@ def evaluate_simulated_pattern_batch(
     )
 
 
+def _raw_contrast_rows(counts: BenchmarkPatternCounts) -> np.ndarray:
+    """Expand only one 20-task sufficient-statistic tensor for multiplier work.
+
+    This is deliberately local and ephemeral: validation stores counts and
+    commitments, never task-level simulated outcomes.
+    """
+    patterns = np.asarray(counts.pattern_counts[:16], dtype=np.int64)
+    rows: list[tuple[float, float]] = []
+    for index, count in enumerate(patterns):
+        r, s, n, z = ((index >> shift) & 1 for shift in (3, 2, 1, 0))
+        rows.extend(((float(r - s), float(r - (n + z) / 2.0)),) * int(count))
+    result = np.asarray(rows, dtype=float)
+    if result.shape != (sum(counts.pattern_counts[:16]), 2):
+        raise RecordValidationError("raw multiplier rows do not reconstruct the count tensor")
+    return result
+
+
+def full_multiplier_gate_pass(
+    swe: BenchmarkPatternCounts, tau: BenchmarkPatternCounts, *, authority_kind: str,
+    tier_membership_sha256: str, grid_content_digest: str, phase: str, cell_id: str,
+    replicate_index: int, multiplier_draws: int,
+) -> bool:
+    """Run the registered 99,999-draw Rademacher max comparison on raw counts.
+
+    The implementation intentionally has no Gaussian critical-value fallback:
+    callers either execute this exact bounded routine or do not claim a
+    multiplier result.
+    """
+    if type(multiplier_draws) is not int or multiplier_draws != 99999:
+        raise RecordValidationError("full multiplier validation requires exactly 99,999 draws")
+    rows = np.concatenate((_raw_contrast_rows(swe), _raw_contrast_rows(tau)), axis=0)
+    if rows.shape[0] != 40:
+        raise RecordValidationError("full multiplier validation requires two n=20 benchmarks")
+    observed = rows.mean(axis=0)
+    centered = rows - observed
+    scale = np.sqrt(np.mean(centered * centered, axis=0) / rows.shape[0])
+    if np.any(scale <= 0.0):
+        return False
+    observed_z = observed / scale
+    rng = philox_generator(authority_kind, tier_membership_sha256, grid_content_digest,
+                           "validation", phase, cell_id, replicate_index,
+                           "multiplier_rademacher", 0)
+    # Bounded memory (~32 MB) and all raw-count operations stay in-process.
+    signs = rng.integers(0, 2, size=(multiplier_draws, rows.shape[0]), dtype=np.int8) * 2 - 1
+    draws = (signs @ centered) / rows.shape[0] / scale
+    critical = np.sort(np.max(draws, axis=1))[int(np.ceil((1.0 - 0.05) * multiplier_draws)) - 1]
+    return bool(np.all(observed_z >= critical))
+
+
 def pattern_count_digest(counts: BenchmarkPatternCounts) -> str:
     """Stable leaf commitment for one regenerated benchmark/replicate tensor."""
     return hashlib.sha256(canonical_json_bytes({
@@ -984,10 +1033,23 @@ def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approxima
         digest=grid_content_sha256(config.grid_ref, run_root=run_root), phase=phase,
         roster_group_sizes=_roster_group_sizes(authority, run_root=run_root),
         dataset_count=grid.screen_datasets_per_cell, draw_domain="screen")
+    if phase == "full_multiplier_fallback":
+        # Measure the actual registered expensive kernel before allowing a
+        # fallback screen.  A passing Gaussian never enters this branch.
+        swe, tau = replay_pattern_chunk(frozen_power_cells()[0], authority=authority,
+            grid_digest=grid_content_sha256(config.grid_ref, run_root=run_root), phase=phase,
+            roster_group_sizes=_roster_group_sizes(authority, run_root=run_root), start=0, count=1,
+            draw_domain="validation")[0]
+        full_multiplier_gate_pass(swe, tau, authority_kind=authority.authority_kind,
+            tier_membership_sha256=authority.tier_membership_sha256,
+            grid_content_digest=grid_content_sha256(config.grid_ref, run_root=run_root), phase=phase,
+            cell_id=frozen_power_cells()[0].cell_id, replicate_index=0,
+            multiplier_draws=grid.multiplier_draws)
     elapsed = perf_counter() - started
     # The receipt is a measured screen-kernel projection over the declared
     # shard topology; it is never the previous fabricated constant `1`.
-    projected = max(2, int(np.ceil(elapsed * shard_count)))
+    multiplier_work = len(frozen_power_cells()) * grid.datasets_per_cell if phase == "full_multiplier_fallback" else shard_count
+    projected = max(2, int(np.ceil(elapsed * multiplier_work)))
     if projected > grid.max_projected_wall_seconds:
         raise RecordValidationError("screen projection exceeds frozen 12-hour wall-clock cap")
     kernel = "power-screen-gaussian-v1" if phase == "gaussian_approximation" else "power-screen-full-multiplier-v1"
@@ -1185,6 +1247,53 @@ def select_validation_cells(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactR
     return _write_power(out, payload, run_root=run_root)
 
 
+def _write_validation_evidence(out: Path, value: Mapping[str, object], *, run_root: Path,
+                               role: str) -> ArtifactRef:
+    """Write canonical non-record evidence only after the report prewrite guard."""
+    raw = canonical_json_bytes(dict(value), indent=None)
+    digest = hashlib.sha256(raw).hexdigest()
+    path = Path(run_root) / "power-validation" / f"{out.stem}-{digest[:16]}-{role}.json"
+    if path.exists() and path.read_bytes() != raw:
+        raise RecordValidationError("validation evidence destination has immutable conflicting bytes")
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_atomic_bytes(path, raw)
+    return _artifact_ref_for_path(path, Path(run_root), role, "application/json")
+
+
+def _tier_decision(*, authority: PowerAuthority, rows: list[Mapping[str, object]]) -> str:
+    if authority.authority_kind == "synthetic_validation":
+        return "CONDITIONAL_ONLY"
+    # Both roster tiers consume the same full grid today; keep the decision
+    # derived from receipts rather than accepting a caller's preferred tier.
+    alternatives = [row for row in rows if cast(str, row["family"]) == "alternative"]
+    nulls = [row for row in rows if cast(str, row["family"]) != "alternative"]
+    passes = (all(cast(float, row["lower"]) >= 0.80 for row in alternatives)
+              and all(cast(float, row["upper"]) <= 0.05 for row in nulls))
+    return "C160" if passes else "FEASIBILITY_NO_GO"
+
+
+def _validation_family_totals(cell: PowerCell, *, authority: PowerAuthority, digest: str,
+                              phase: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]],
+                              dataset_count: int, multiplier_draws: int) -> tuple[dict[str, int], dict[str, int]]:
+    """Independently regenerate validation-domain outcomes for both engines."""
+    gaussian, _ = _gate_totals_for_cell(cell, authority=authority, digest=digest, phase=phase,
+                                        roster_group_sizes=roster_group_sizes, dataset_count=dataset_count,
+                                        draw_domain="validation")
+    multiplier_pass = 0
+    for replicate in range(dataset_count):
+        swe, tau = replay_pattern_chunk(cell, authority=authority, grid_digest=digest, phase=phase,
+                                        roster_group_sizes=roster_group_sizes, start=replicate, count=1,
+                                        draw_domain="validation")[0]
+        multiplier_pass += int(full_multiplier_gate_pass(
+            swe, tau, authority_kind=authority.authority_kind,
+            tier_membership_sha256=authority.tier_membership_sha256,
+            grid_content_digest=digest, phase=phase, cell_id=cell.cell_id,
+            replicate_index=replicate, multiplier_draws=multiplier_draws,
+        ))
+    return gaussian, {"dataset_count": dataset_count, "causal_pass_count": multiplier_pass}
+
+
 def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], selection_ref: ArtifactRef, config: PowerConfig, *, run_root: Path, out: Path) -> ArtifactRef:
     screen = _report(screen_ref, run_root=run_root, stage="screen")
     _assert_power_write_open(config, run_root=run_root, stage="validation", phase="gaussian_approximation", generation=cast(int, screen["generation"]))
@@ -1192,24 +1301,40 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
     shards = _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
     if selection["parent_refs"] != [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]]:
         raise RecordValidationError("validation selection does not bind the complete shard set")
-    by_id = {cast(str, row["cell_id"]): row for shard in shards for row in cast(list[Mapping[str, object]], shard["cell_results"])}
     grid = _load_power_grid(config.grid_ref, run_root=run_root)
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    digest = grid_content_sha256(config.grid_ref, run_root=run_root)
+    layout = _roster_group_sizes(authority, run_root=run_root)
+    by_cell = {cell.cell_id: cell for cell in frozen_power_cells()}
+    raw_rows: list[dict[str, object]] = []
+    for selected_id in cast(list[str], selection["selected_cells"]):
+        for family in ("alternative", "null_both", "null_content", "null_excess"):
+            cell_id = selected_id.replace("alternative", family, 1)
+            gaussian, multiplier = _validation_family_totals(
+                by_cell[cell_id], authority=authority, digest=digest, phase="gaussian_approximation",
+                roster_group_sizes=layout, dataset_count=grid.validation_datasets_per_cell,
+                multiplier_draws=grid.multiplier_draws,
+            )
+            raw_rows.append({"cell_id": cell_id, "family": family, "gaussian_gate_totals": gaussian,
+                             "full_multiplier_gate_totals": multiplier})
     lower_tail, upper_tail = 0.05 / 729, 0.05 / 2187
-    receipts = [{
-        "cell_id": cell_id,
-        "alternative_power_lower": clopper_pearson_lower(
-            cast(int, cast(Mapping[str, object], by_id[cell_id]["gate_totals"])["causal_pass_count"]),
-            cast(int, cast(Mapping[str, object], by_id[cell_id]["gate_totals"])["dataset_count"]), tail_probability=lower_tail,
-        ),
-        "null_false_positive_upper": clopper_pearson_upper(
-            max(cast(int, cast(Mapping[str, object], by_id[cell_id.replace("alternative", family, 1)]["gate_totals"])["causal_pass_count"])
-                for family in ("null_both", "null_content", "null_excess")),
-            cast(int, cast(Mapping[str, object], by_id[cell_id.replace("alternative", "null_both", 1)]["gate_totals"])["dataset_count"]), tail_probability=upper_tail,
-        ),
-    } for cell_id in cast(list[str], selection["selected_cells"])]
+    receipts = []
+    for cell_id in cast(list[str], selection["selected_cells"]):
+        alternate = next(row for row in raw_rows if row["cell_id"] == cell_id)
+        null_rows = [row for row in raw_rows if cast(str, row["cell_id"]).replace(cast(str, row["family"]), "alternative", 1) == cell_id and row["family"] != "alternative"]
+        receipts.append({"cell_id": cell_id,
+            "alternative_power_lower": clopper_pearson_lower(cast(int, cast(Mapping[str, object], alternate["full_multiplier_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=lower_tail),
+            "null_false_positive_upper": clopper_pearson_upper(max(cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"]) for row in null_rows), grid.validation_datasets_per_cell, tail_probability=upper_tail)})
+    gaussian_rows = [{"family": row["family"], "lower": clopper_pearson_lower(cast(int, cast(Mapping[str, object], row["gaussian_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=lower_tail), "upper": clopper_pearson_upper(cast(int, cast(Mapping[str, object], row["gaussian_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=upper_tail)} for row in raw_rows]
+    multiplier_rows = [{"family": row["family"], "lower": clopper_pearson_lower(cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=lower_tail), "upper": clopper_pearson_upper(cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=upper_tail)} for row in raw_rows]
+    maximum = max(abs(cast(int, cast(Mapping[str, object], row["gaussian_gate_totals"])["causal_pass_count"]) - cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"])) / grid.validation_datasets_per_cell for row in raw_rows)
+    gaussian_decision, multiplier_decision = _tier_decision(authority=authority, rows=gaussian_rows), _tier_decision(authority=authority, rows=multiplier_rows)
+    raw_ref = _write_validation_evidence(out, {"contract_id": "p0-validation-raw-counts-v1", "draw_domain": "validation", "dataset_count": grid.validation_datasets_per_cell, "multiplier_draws": grid.multiplier_draws, "rows": raw_rows}, run_root=run_root, role="power_validation_raw_counts")
+    numeric_ref = _write_validation_evidence(out, {"contract_id": "p0-validation-decision-v1", "interval_receipts": receipts, "gaussian_decision": gaussian_decision, "full_multiplier_decision": multiplier_decision}, run_root=run_root, role="power_validation_numeric_receipt")
     payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-gaussian-vs-multiplier-validation-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
     payload.update({"stage": "validation", "parent_refs": [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs], _ref_mapping(selection_ref)], "selected_cells": selection["selected_cells"], "interval_receipts": receipts, "validation_dataset_count": grid.validation_datasets_per_cell,
-                    "approximation_receipt": {"max_absolute_gate_pass_rate_difference": 0.0, "gaussian_tier_decision": "CONDITIONAL_ONLY", "full_multiplier_tier_decision": "CONDITIONAL_ONLY", "tier_decision_unchanged": True, "passed": True}})
+                    "raw_counts_ref": _ref_mapping(raw_ref), "numeric_receipt_ref": _ref_mapping(numeric_ref),
+                    "approximation_receipt": {"max_absolute_gate_pass_rate_difference": maximum, "gaussian_tier_decision": gaussian_decision, "full_multiplier_tier_decision": multiplier_decision, "tier_decision_unchanged": gaussian_decision == multiplier_decision, "passed": maximum <= 0.01 and gaussian_decision == multiplier_decision}})
     return _write_power(out, payload, run_root=run_root)
 
 
@@ -1230,6 +1355,63 @@ def finalize_synthetic_power_report(screen_ref: ArtifactRef, shard_refs: tuple[A
     payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-final-gaussian-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
     payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in attempts],
                     "finalization": {"kind": "completed_chain", "selected_phase": "gaussian_approximation", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-gaussian-v1", "selected_shard_count": screen["shard_count"], "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "selected_selection_ref": _ref_mapping(selection_ref), "selected_validation_ref": _ref_mapping(validation_ref), "selected_tier": None, "decision": "CONDITIONAL_ONLY"}})
+    return _write_power(out, payload, run_root=run_root)
+
+
+def validate_full_multiplier_fallback(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...],
+                                      config: PowerConfig, *, run_root: Path, out: Path) -> ArtifactRef:
+    """Execute the phase-closed full-grid fallback, never a second Gaussian pass."""
+    screen = _report(screen_ref, run_root=run_root, stage="screen")
+    _assert_power_write_open(config, run_root=run_root, stage="validation",
+                             phase="full_multiplier_fallback", generation=cast(int, screen["generation"]))
+    if screen["phase"] != "full_multiplier_fallback":
+        raise RecordValidationError("full-grid validator requires a fallback screen")
+    shards = _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
+    trigger = cast(Mapping[str, object], screen["fallback_trigger_ref"])
+    failed = _report(ArtifactRef(**dict(trigger)), run_root=run_root, stage="validation")
+    if failed["phase"] != "gaussian_approximation" or failed["approximation_receipt"]["passed"] is not False:  # type: ignore[index]
+        raise RecordValidationError("fallback requires the terminal failed Gaussian validation")
+    grid, authority = _load_power_grid(config.grid_ref, run_root=run_root), load_power_authority(config.authority_ref, run_root=run_root)
+    digest, layout = grid_content_sha256(config.grid_ref, run_root=run_root), _roster_group_sizes(authority, run_root=run_root)
+    raw_rows: list[dict[str, object]] = []
+    for cell in frozen_power_cells():
+        # The fallback producer regenerates every dataset in its own phase and
+        # evaluates the full multiplier; it never relabels Gaussian shard totals.
+        passed = 0
+        for replicate in range(grid.datasets_per_cell):
+            swe, tau = replay_pattern_chunk(cell, authority=authority, grid_digest=digest,
+                phase="full_multiplier_fallback", roster_group_sizes=layout,
+                start=replicate, count=1)[0]
+            passed += int(full_multiplier_gate_pass(swe, tau, authority_kind=authority.authority_kind,
+                tier_membership_sha256=authority.tier_membership_sha256, grid_content_digest=digest,
+                phase="full_multiplier_fallback", cell_id=cell.cell_id, replicate_index=replicate,
+                multiplier_draws=grid.multiplier_draws))
+        lower_tail = grid.familywise_alpha / 729 if cell.family == "alternative" else grid.familywise_alpha / 2187
+        raw_rows.append({"cell_id": cell.cell_id, "family": cell.family,
+            "gate_totals": {"dataset_count": grid.datasets_per_cell, "causal_pass_count": passed},
+            "lower": clopper_pearson_lower(passed, grid.datasets_per_cell, tail_probability=lower_tail),
+            "upper": clopper_pearson_upper(passed, grid.datasets_per_cell, tail_probability=lower_tail)})
+    decision = _tier_decision(authority=authority, rows=raw_rows)
+    raw_ref = _write_validation_evidence(out, {"contract_id": "p0-full-multiplier-raw-counts-v1", "multiplier_draws": grid.multiplier_draws, "rows": raw_rows}, run_root=run_root, role="power_full_multiplier_raw_counts")
+    numeric_ref = _write_validation_evidence(out, {"contract_id": "p0-full-multiplier-decision-v1", "decision": decision, "complete_cell_ids": [row["cell_id"] for row in raw_rows]}, run_root=run_root, role="power_full_multiplier_numeric_receipt")
+    payload = _record_base(config, phase="full_multiplier_fallback", generation=cast(int, screen["generation"]), kernel_id="power-full-grid-validation-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
+    payload.update({"stage": "validation", "parent_refs": [_ref_mapping(ArtifactRef(**dict(trigger))), _ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]], "fallback_trigger_ref": dict(trigger), "complete_cell_ids": [row["cell_id"] for row in raw_rows], "expected_cell_count": len(frozen_power_cells()), "observed_cell_count": len(raw_rows), "raw_counts_ref": _ref_mapping(raw_ref), "numeric_receipt_ref": _ref_mapping(numeric_ref), "selected_tier": None if decision == "CONDITIONAL_ONLY" or decision == "FEASIBILITY_NO_GO" else int(decision[1:]), "decision": "CONDITIONAL_ONLY" if decision == "CONDITIONAL_ONLY" else ("NO_GO" if decision == "FEASIBILITY_NO_GO" else "GO")})
+    return _write_power(out, payload, run_root=run_root)
+
+
+def finalize_synthetic_full_multiplier_report(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], validation_ref: ArtifactRef, config: PowerConfig, *, run_root: Path, out: Path) -> ArtifactRef:
+    """Close only a completed fallback chain; Gaussian success cannot reach here."""
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    if authority.authority_kind != "synthetic_validation":
+        raise RecordValidationError("synthetic fallback finalizer cannot select a confirmation tier")
+    screen, validation = _report(screen_ref, run_root=run_root, stage="screen"), _report(validation_ref, run_root=run_root, stage="validation")
+    if screen["phase"] != "full_multiplier_fallback" or validation["phase"] != "full_multiplier_fallback":
+        raise RecordValidationError("fallback finalizer requires fallback-only records")
+    _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
+    attempts = _authority_attempt_refs(config, run_root=run_root)
+    trigger = cast(Mapping[str, object], screen["fallback_trigger_ref"])
+    payload = _record_base(config, phase="full_multiplier_fallback", generation=cast(int, screen["generation"]), kernel_id="power-final-full-multiplier-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
+    payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in attempts], "finalization": {"kind": "completed_chain", "selected_phase": "full_multiplier_fallback", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-full-multiplier-v1", "selected_shard_count": screen["shard_count"], "fallback_trigger_ref": dict(trigger), "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "full_grid_validation_ref": _ref_mapping(validation_ref), "selected_tier": None, "decision": "CONDITIONAL_ONLY"}})
     return _write_power(out, payload, run_root=run_root)
 
 

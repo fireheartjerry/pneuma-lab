@@ -43,6 +43,25 @@ def test_clopper_pearson_uses_one_sided_tail_without_halving() -> None:
     assert clopper_pearson_upper(0, 10, tail_probability=0.05) > 0.0
 
 
+def test_full_multiplier_uses_frozen_rademacher_draws_on_raw_pattern_counts() -> None:
+    """The fallback comparison is an engine calculation, not a Gaussian label."""
+    from pneuma_lab.resampling_null.power import full_multiplier_gate_pass
+
+    counts = simulate_benchmark_pattern_counts(
+        p0=0.4, gamma=0.6, rho=0.4, family="alternative", task_count=20,
+        authority_kind="synthetic_validation", tier_membership_sha256="1" * 64,
+        grid_content_digest="2" * 64, phase="gaussian_approximation",
+        cell_id="alternative:swe-00:tau-00", replicate_index=7,
+        joint_group_sizes=(20,), draw_domain="validation",
+    )
+    assert isinstance(full_multiplier_gate_pass(
+        counts, counts, authority_kind="synthetic_validation",
+        tier_membership_sha256="1" * 64, grid_content_digest="2" * 64,
+        phase="gaussian_approximation", cell_id="alternative:swe-00:tau-00",
+        replicate_index=7, multiplier_draws=99999,
+    ), bool)
+
+
 def test_public_philox_mapping_is_repeatable_and_domain_separated() -> None:
     key = "1" * 64
     grid = "2" * 64

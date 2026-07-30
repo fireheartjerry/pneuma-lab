@@ -1977,3 +1977,20 @@ The next event after the archived migration boundary is appended below.
   needs fresh 2,000-outcome validation-domain runs, a true full-multiplier
   fallback producer/finalizer, and complete end-to-end closure tests. No P0
   outcome, type-I bound, tier selection, provider action, or spend occurred.
+
+### EJ-20260730-0193 — Task 8B multiplier-validation closure substrate
+
+- **Implementation:** Replaced the fabricated Gaussian validation receipt with
+  validation-domain count regeneration, actual one-sided Clopper--Pearson
+  intervals, and a deterministic 99,999-draw raw-count Rademacher max test.
+  Added the phase-closed full-grid fallback producer/finalizer: it is reachable
+  only from a persisted failed Gaussian validation, measures the real multiplier
+  kernel before screen admission, and writes canonical raw-count and decision
+  receipts.  Synthetic results remain null-tier `CONDITIONAL_ONLY`.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power.py tests/resampling_null/test_power_authority.py -q`
+  passed after the multiplier engine test was first observed failing on the
+  missing public routine.
+- **Boundary/non-claim:** No 2,000-outcome validation or full-grid fallback was
+  executed here. Those calculations are intentionally expensive evidence work,
+  not a unit-test fixture; no P0 result, provider action, spend, or claim exists.
