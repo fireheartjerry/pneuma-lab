@@ -120,6 +120,16 @@ The primitive `seed` parameters are deliberately test/kernel inputs; Task 7B
 must derive them from the manifest-owned inference RNG contract and expose no
 caller-selected scientific seed.
 
+### Task 7A correction — review finding closure (2026-07-30)
+
+The original omnibus used a row-sample standard error, which is not the
+registered statistic and can become non-finite on a single informative task.
+It now uses equal-benchmark weighted `T_k` with the exact conditional 12-way
+allocation variance of each unordered task outcome. The registered roster is
+now explicitly closed to exactly `SWE` and `TAU`; no one- or three-benchmark
+generalization is silently accepted. Multiplier inputs are sorted by unique
+`task_id` before Philox draws, making input permutations byte-identical.
+
 ## Task 8 — frozen-grid P0 power and type-I authority
 
 Implement the deterministic full-grid producer:

@@ -1741,3 +1741,19 @@ The next event after the archived migration boundary is appended below.
   scientific seed derivation, binary kernels, gates, verdicts, experiments,
   spend, or any causal claim. Task 7B must bind every production seed to the
   manifest-owned inference RNG contract.
+
+### EJ-20260730-0178 — Task 7A hostile-review correction
+
+- **Finding and correction:** The first omnibus implementation incorrectly
+  studentized by a row sample standard error. It now calculates each
+  equal-benchmark weighted component's conditional 12-allocation variance from
+  unordered within-task outcomes. This makes the registered one-task-positive
+  fixture finite (`max T = sqrt(8 / 3)`) and preserves the sharp-null meaning.
+  The primitives now reject any roster other than exactly SWE and TAU, and the
+  multiplier canonicalizes a unique task-ID order before consuming Philox bits.
+- **Fresh focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_analysis.py -q` passed 12 tests. Ruff, byte
+  compilation, and `git diff --check` passed.
+- **Boundary/non-claim:** This correction remains pure Task 7A statistical
+  machinery. It does not add manifest ancestry, binary kernels, `analyze`,
+  gates, verdicts, or externally authorized inference randomness.

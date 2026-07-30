@@ -36,10 +36,9 @@ def task_contrasts(row: AnalysisRow) -> dict[str, float]:
 
 def _weights(rows: Sequence[AnalysisRow]) -> dict[str, Fraction]:
     by_benchmark: dict[str, int] = Counter(row.benchmark for row in rows)
-    if not by_benchmark:
-        raise ValueError("rows must not be empty")
-    benchmark_count = len(by_benchmark)
-    return {benchmark: Fraction(1, benchmark_count * count) for benchmark, count in by_benchmark.items()}
+    if set(by_benchmark) != {"SWE", "TAU"}:
+        raise ValueError("registered analysis requires exactly SWE and TAU rows")
+    return {benchmark: Fraction(1, 2 * count) for benchmark, count in by_benchmark.items()}
 
 
 def _observed(rows: Sequence[AnalysisRow], name: str) -> Fraction:
@@ -109,23 +108,48 @@ def sharp_excess_pvalue(rows: Sequence[AnalysisRow], *, draws: int, seed: int) -
     return _product_tail(observed, choices, rows, "excess", draws, seed, "excess")
 
 
-def _studentized(values: Sequence[Fraction]) -> float:
-    if not values:
-        return 0.0
-    mean = sum(values, Fraction()) / len(values)
-    if len(values) < 2:
-        return 0.0 if mean == 0 else float("inf")
-    variance = sum((float(value - mean) ** 2 for value in values)) / (len(values) - 1)
-    return float(mean) / sqrt(variance / len(values)) if variance else (0.0 if mean == 0 else float("inf"))
+def _omnibus_local_statistics(row: AnalysisRow) -> tuple[tuple[Fraction, Fraction], ...]:
+    values = (row.real, row.sham, row.none, row.resample)
+    return tuple(
+        (
+            Fraction(values[real] - values[sham]),
+            Fraction(2 * values[real] - values[remaining[0]] - values[remaining[1]], 2),
+        )
+        for real in range(4)
+        for sham in range(4)
+        if real != sham
+        for remaining in ([index for index in range(4) if index not in (real, sham)],)
+    )
+
+
+def _omnibus_variances(rows: Sequence[AnalysisRow]) -> tuple[float, float]:
+    weights = _weights(rows)
+    variances = [0.0, 0.0]
+    for row in rows:
+        local = _omnibus_local_statistics(row)
+        for contrast_index in range(2):
+            values = [float(item[contrast_index]) for item in local]
+            mean = sum(values) / len(values)
+            variances[contrast_index] += float(weights[row.benchmark] ** 2) * sum(
+                (value - mean) ** 2 for value in values
+            ) / len(values)
+    return tuple(variances)  # type: ignore[return-value]
 
 
 def omnibus_sharp_pvalue(rows: Sequence[AnalysisRow], *, draws: int, seed: int) -> RandomizationResult:
     """Full 12-way, sharp-global-null studentized max-T Fisher test."""
-    _weights(rows)
-    observed_values = [[Fraction(row.real - row.sham), Fraction(2 * row.real - row.none - row.resample, 2)] for row in rows]
-    observed = max(_studentized([value[k] for value in observed_values]) for k in range(2))
-    # NONE and RESAMPLE are exchangeable here: choose ordered REAL/SHAM slots.
-    allocations = tuple((real, sham) for real in range(4) for sham in range(4) if real != sham)
+    weights = _weights(rows)
+    local_statistics = [_omnibus_local_statistics(row) for row in rows]
+    variances = _omnibus_variances(rows)
+    observed_components = (
+        float(_observed(rows, "content")), float(_observed(rows, "excess"))
+    )
+    if any(variance == 0.0 and component != 0.0 for variance, component in zip(variances, observed_components, strict=True)):
+        raise ValueError("omnibus conditional variance is zero for a nonzero statistic")
+    observed = max(
+        component / sqrt(variance) if variance else 0.0
+        for component, variance in zip(observed_components, variances, strict=True)
+    )
     support_size = 12 ** len(rows)
     if support_size > _ENUMERATION_LIMIT:
         if type(draws) is not int or draws <= 0:
@@ -134,25 +158,17 @@ def omnibus_sharp_pvalue(rows: Sequence[AnalysisRow], *, draws: int, seed: int) 
         exceeds = 0
         for _ in range(draws):
             sampled = []
-            for row in rows:
-                values = (row.real, row.sham, row.none, row.resample)
-                order = allocations[int(generator.integers(12))]
-                real, sham = order
-                remaining = [index for index in range(4) if index not in order]
-                sampled.append((Fraction(values[real] - values[sham]), Fraction(2 * values[real] - values[remaining[0]] - values[remaining[1]], 2)))
-            statistic = max(_studentized([value[k] for value in sampled]) for k in range(2))
+            for local in local_statistics:
+                sampled.append(local[int(generator.integers(12))])
+            totals = [sum((weights[row.benchmark] * value[index] for row, value in zip(rows, sampled, strict=True)), Fraction()) for index in range(2)]
+            statistic = max(float(total) / sqrt(variance) if variance else 0.0 for total, variance in zip(totals, variances, strict=True))
             exceeds += statistic >= observed
         p_value = (1 + exceeds) / (1 + draws)
         return RandomizationResult(observed, p_value, "add_one_monte_carlo", None, draws, sqrt(p_value * (1 - p_value) / draws))
     exceeds = 0
-    for allocation_product in product(allocations, repeat=len(rows)):
-        sampled = []
-        for row, order in zip(rows, allocation_product, strict=True):
-            values = (row.real, row.sham, row.none, row.resample)
-            real, sham = order
-            remaining = [index for index in range(4) if index not in order]
-            sampled.append((Fraction(values[real] - values[sham]), Fraction(2 * values[real] - values[remaining[0]] - values[remaining[1]], 2)))
-        statistic = max(_studentized([value[k] for value in sampled]) for k in range(2))
+    for sampled in product(*local_statistics):
+        totals = [sum((weights[row.benchmark] * value[index] for row, value in zip(rows, sampled, strict=True)), Fraction()) for index in range(2)]
+        statistic = max(float(total) / sqrt(variance) if variance else 0.0 for total, variance in zip(totals, variances, strict=True))
         exceeds += statistic >= observed
     return RandomizationResult(observed, exceeds / support_size, "enumerated_exact", support_size, None, None)
 
@@ -170,13 +186,17 @@ def multiplier_lower_bounds(rows: Sequence[AnalysisRow], *, contrast_names: tupl
     """Benchmark-stratified task-cluster Rademacher max-t lower bounds."""
     if not contrast_names or type(draws) is not int or draws <= 0:
         raise ValueError("contrast_names and a positive exact draws are required")
+    canonical_rows = tuple(sorted(rows, key=lambda row: row.task_id))
+    if len({row.task_id for row in canonical_rows}) != len(canonical_rows):
+        raise ValueError("task_id values must be unique")
+    _weights(canonical_rows)
     grouped: dict[str, list[AnalysisRow]] = defaultdict(list)
-    for row in rows:
+    for row in canonical_rows:
         grouped[row.benchmark].append(row)
     if not grouped:
         raise ValueError("rows must not be empty")
     b_count = len(grouped)
-    estimates = tuple(float(_observed(rows, name)) for name in contrast_names)
+    estimates = tuple(float(_observed(canonical_rows, name)) for name in contrast_names)
     matrices: list[np.ndarray] = []
     valid = True
     for benchmark_rows in grouped.values():
