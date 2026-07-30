@@ -110,7 +110,8 @@
                 "numeric_contract",
                 "projected_wall_seconds",
                 "cell_count",
-                "dataset_count"
+                "dataset_count",
+                "timing_probe"
             ],
             "properties": {
                 "stage": { "const": "screen" },
@@ -154,6 +155,26 @@
                     "type": "integer",
                     "minimum": 1,
                     "not": { "type": "boolean" }
+                },
+                "timing_probe": {
+                    "type": "object",
+                    "required": [
+                        "contract_id",
+                        "dataset_count",
+                        "cell_count",
+                        "cell_ids_sha256",
+                        "replay_receipts_sha256",
+                        "measured_wall_seconds"
+                    ],
+                    "properties": {
+                        "contract_id": { "const": "p0-production-timing-probe-v1" },
+                        "dataset_count": { "const": 200 },
+                        "cell_count": { "const": 2916 },
+                        "cell_ids_sha256": { "$ref": "#/$defs/sha256" },
+                        "replay_receipts_sha256": { "$ref": "#/$defs/sha256" },
+                        "measured_wall_seconds": { "type": "number", "exclusiveMinimum": 0 }
+                    },
+                    "additionalProperties": false
                 }
             },
             "allOf": [

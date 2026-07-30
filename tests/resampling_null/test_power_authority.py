@@ -257,7 +257,14 @@ def _staged_screen(tmp_path: Path, *, decision_authority: str = "synthetic_valid
                 "config_ref": {"role": config_ref.role, "relative_path": config_ref.relative_path, "sha256": config_ref.sha256, "byte_count": config_ref.byte_count, "media_type": config_ref.media_type},
                 "numeric_fixture_ref": {"role": numeric_ref.role, "relative_path": numeric_ref.relative_path, "sha256": numeric_ref.sha256, "byte_count": numeric_ref.byte_count, "media_type": numeric_ref.media_type},
                 "numeric_contract": {"numpy_version": "2.3.5", "gauss_hermite_order": 96, "gauss_legendre_order": 128, "probability_tolerance": 1e-10, "gaussian_root_tolerance": 1e-10, "gaussian_root_max_iterations": 200, "clopper_pearson_tolerance": 1e-12, "clopper_pearson_max_iterations": 200},
-                "projected_wall_seconds": 1, "cell_count": 1, "dataset_count": 1,
+                "projected_wall_seconds": 1, "cell_count": 2916, "dataset_count": 200,
+                "timing_probe": {
+                    "contract_id": "p0-production-timing-probe-v1",
+                    "dataset_count": 200, "cell_count": 2916,
+                    "cell_ids_sha256": "c" * 64,
+                    "replay_receipts_sha256": "d" * 64,
+                    "measured_wall_seconds": 1.0,
+                },
             },
         }, run_root=tmp_path, role="power_report",
     )
@@ -316,6 +323,35 @@ def test_tiny_synthetic_shards_cannot_enter_the_authority_merge(tmp_path: Path, 
             screen, shards, config, run_root=tmp_path, out=tmp_path / "power/selection.json"
         )
     assert first_screen.relative_path != screen.relative_path
+
+
+def test_screen_rejects_a_slow_production_representative_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered cap applies before a slow real shard can fan out."""
+    manifest_ref = _manifest(tmp_path, roster_kind="synthetic_fixture")
+    authority_ref = seal_synthetic_power_authority(
+        manifest_ref, run_root=tmp_path, out=tmp_path / "power/authority.json",
+    )
+    config = load_power_config(
+        authority_ref, _ref(tmp_path, "inputs/grid.json", "power_grid"),
+        _ref(tmp_path, "inputs/topology.json", "power_screen_topology"), run_root=tmp_path,
+    )
+    monkeypatch.setattr(
+        "pneuma_lab.resampling_null.power._production_timing_probe",
+        lambda **_: {
+            "contract_id": "p0-production-timing-probe-v1", "dataset_count": 200,
+            "cell_count": 2916, "cell_ids_sha256": "a" * 64,
+            "replay_receipts_sha256": "b" * 64, "measured_wall_seconds": 500.0,
+        },
+    )
+
+    with pytest.raises(RecordValidationError, match="projection exceeds frozen 12-hour"):
+        screen_power_grid(
+            config, phase="gaussian_approximation", generation=0, shard_count=64,
+            fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/screen.json",
+        )
+    assert not (tmp_path / "power/screen.json").exists()
 
 
 def test_shard_records_replay_receipts_and_task7_gate_totals_not_static_binomials(

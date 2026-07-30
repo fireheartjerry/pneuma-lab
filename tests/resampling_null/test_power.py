@@ -153,13 +153,49 @@ def test_simulated_batch_preserves_joint_groups_for_leave_one_gate() -> None:
     assert grouped.causal_pass.shape == (1,)
 
 
-def test_screen_projection_uses_full_production_work_per_shard() -> None:
+def test_screen_projection_charges_the_entire_production_workload() -> None:
     from pneuma_lab.resampling_null.power import _projected_screen_wall_seconds
 
     assert _projected_screen_wall_seconds(
         elapsed_seconds=2.0, measured_datasets_per_cell=200, cell_count=2916,
         production_datasets_per_cell=20_000, shard_count=4,
-    ) == 145_800
+    ) == 583_200
+
+
+def test_production_timing_probe_replays_every_frozen_cell(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cheap single-cell proxy cannot authorize the full P0 workload."""
+    from pneuma_lab.resampling_null import power
+
+    cells = power.frozen_power_cells()[:2]
+    seen: list[tuple[str, int, str]] = []
+
+    def fake_gate(cell: object, **kwargs: object) -> tuple[dict[str, int], dict[str, object]]:
+        seen.append((getattr(cell, "cell_id"), kwargs["dataset_count"], kwargs["draw_domain"]))
+        return {"dataset_count": 200, "causal_pass_count": 1}, {"cell_id": getattr(cell, "cell_id")}
+
+    monkeypatch.setattr(power, "_gate_totals_for_cell", fake_gate)
+    monkeypatch.setattr(power, "perf_counter", iter((10.0, 12.0)).__next__)
+    authority = power.SyntheticPowerAuthority(
+        "1", "synthetic_validation",
+        ArtifactRef("manifest", "inputs/study.json", "c" * 64, 1, "application/json"),
+        ArtifactRef("roster", "inputs/roster.json", "d" * 64, 1, "application/json"),
+        "b" * 64,
+    )
+    receipt = power._production_timing_probe(
+        cells=cells, authority=authority, digest="a" * 64, phase="gaussian_approximation",
+        roster_group_sizes=((20,), (20,)), joint_group_labels=None,
+        datasets_per_cell=200,
+    )
+
+    assert seen == [(cell.cell_id, 200, "screen") for cell in cells]
+    assert receipt["cell_count"] == 2
+    assert receipt["replay_receipts_sha256"] == power._production_timing_probe_commitment(
+        cells=cells, authority=authority, digest="a" * 64, phase="gaussian_approximation",
+        roster_group_sizes=((20,), (20,)), joint_group_labels=None,
+        datasets_per_cell=200,
+    )
 
 
 def test_replay_merkle_receipt_rejects_a_tampered_leaf() -> None:

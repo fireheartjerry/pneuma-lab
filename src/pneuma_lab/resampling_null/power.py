@@ -1062,7 +1062,13 @@ def _assert_power_write_open(config: PowerConfig, *, run_root: Path, stage: str,
 def _projected_screen_wall_seconds(*, elapsed_seconds: float, measured_datasets_per_cell: int,
                                   cell_count: int, production_datasets_per_cell: int,
                                   shard_count: int) -> int:
-    """Fail-closed per-shard projection from measured work to production work."""
+    """Fail-closed total-work projection from measured work to production work.
+
+    A shard count partitions immutable receipts; it is not an authorization to
+    assume that an unimplemented controller will supply that many concurrent
+    workers.  The registered 12-hour cap therefore charges the complete
+    workload, irrespective of a resume topology.
+    """
     if (not np.isfinite(elapsed_seconds) or elapsed_seconds <= 0.0
             or any(type(value) is not int or value <= 0 for value in (
                 measured_datasets_per_cell, cell_count, production_datasets_per_cell, shard_count,
@@ -1070,8 +1076,96 @@ def _projected_screen_wall_seconds(*, elapsed_seconds: float, measured_datasets_
         raise RecordValidationError("screen timing projection requires positive finite measured work")
     return int(np.ceil(
         elapsed_seconds / measured_datasets_per_cell * cell_count
-        * production_datasets_per_cell / shard_count
+        * production_datasets_per_cell
     ))
+
+
+def _production_timing_probe_commitment(
+    *, cells: tuple[PowerCell, ...], authority: PowerAuthority, digest: str,
+    phase: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]],
+    joint_group_labels: tuple[
+        tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
+    ] | None, datasets_per_cell: int,
+) -> str:
+    """Replay the fixed all-cell screen kernel and commit its exact receipts.
+
+    This intentionally uses the same count tensors and Task-7 gate as a grid
+    shard.  It is expensive enough to be a real admission test, but bounded by
+    the manifest-frozen 200 draws per cell rather than production's 20,000.
+    """
+    receipts: list[str] = []
+    for cell in cells:
+        totals, receipt = _gate_totals_for_cell(
+            cell, authority=authority, digest=digest, phase=phase,
+            roster_group_sizes=roster_group_sizes, dataset_count=datasets_per_cell,
+            draw_domain="screen", joint_group_labels=joint_group_labels,
+        )
+        receipts.append(hashlib.sha256(canonical_json_bytes({
+            "cell_id": cell.cell_id, "gate_totals": totals,
+            "replay_receipt": receipt,
+        }, indent=None)).hexdigest())
+    return hashlib.sha256(canonical_json_bytes({
+        "contract_id": "p0-production-timing-probe-v1",
+        "authority_kind": authority.authority_kind,
+        "manifest_ref": _ref_mapping(authority.manifest_ref),
+        "roster_ref": _ref_mapping(authority.roster_ref),
+        "tier_membership_sha256": authority.tier_membership_sha256,
+        "grid_content_sha256": digest,
+        "phase": phase,
+        "dataset_count": datasets_per_cell,
+        "cell_ids": [cell.cell_id for cell in cells],
+        "cell_replay_receipt_sha256s": receipts,
+    }, indent=None)).hexdigest()
+
+
+def _production_timing_probe(
+    *, cells: tuple[PowerCell, ...], authority: PowerAuthority, digest: str,
+    phase: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]],
+    joint_group_labels: tuple[
+        tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
+    ] | None, datasets_per_cell: int,
+) -> dict[str, object]:
+    """Run the frozen representative timing work and return its replay handle."""
+    started = perf_counter()
+    commitment = _production_timing_probe_commitment(
+        cells=cells, authority=authority, digest=digest, phase=phase,
+        roster_group_sizes=roster_group_sizes, joint_group_labels=joint_group_labels,
+        datasets_per_cell=datasets_per_cell,
+    )
+    elapsed = perf_counter() - started
+    if not np.isfinite(elapsed) or elapsed <= 0.0:
+        raise RecordValidationError("production timing probe must observe positive finite elapsed time")
+    return {
+        "contract_id": "p0-production-timing-probe-v1",
+        "dataset_count": datasets_per_cell,
+        "cell_count": len(cells),
+        "cell_ids_sha256": hashlib.sha256(canonical_json_bytes(
+            [cell.cell_id for cell in cells], indent=None,
+        )).hexdigest(),
+        "replay_receipts_sha256": commitment,
+        "measured_wall_seconds": elapsed,
+    }
+
+
+def validate_production_timing_probe(
+    receipt: Mapping[str, object], *, cells: tuple[PowerCell, ...], authority: PowerAuthority,
+    digest: str, phase: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]],
+    joint_group_labels: tuple[
+        tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
+    ] | None, datasets_per_cell: int,
+) -> None:
+    """Replay a sealed screen probe; elapsed time is evidence, not a secret input."""
+    if receipt.get("contract_id") != "p0-production-timing-probe-v1":
+        raise RecordValidationError("screen timing probe has an unknown contract")
+    expected_ids = hashlib.sha256(canonical_json_bytes([cell.cell_id for cell in cells], indent=None)).hexdigest()
+    if receipt.get("dataset_count") != datasets_per_cell or receipt.get("cell_count") != len(cells) or receipt.get("cell_ids_sha256") != expected_ids:
+        raise RecordValidationError("screen timing probe does not bind the frozen production layout")
+    if receipt.get("replay_receipts_sha256") != _production_timing_probe_commitment(
+        cells=cells, authority=authority, digest=digest, phase=phase,
+        roster_group_sizes=roster_group_sizes, joint_group_labels=joint_group_labels,
+        datasets_per_cell=datasets_per_cell,
+    ):
+        raise RecordValidationError("screen timing probe replay receipts differ from regenerated production work")
 
 
 def _current_failed_gaussian_validation(config: PowerConfig, *, run_root: Path) -> ArtifactRef:
@@ -1110,34 +1204,34 @@ def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approxima
         if fallback_trigger_ref != current_failed:
             raise RecordValidationError("fallback trigger is not the current terminal failed Gaussian validation")
     grid = _load_power_grid(config.grid_ref, run_root=run_root)
-    # Measure the registered 200-dataset screen kernel and extrapolate its
-    # observed per-cell time to the full immutable grid.  `1` was a lie.
-    started = perf_counter()
     authority = load_power_authority(config.authority_ref, run_root=run_root)
-    _gate_totals_for_cell(frozen_power_cells()[0], authority=authority,
-        digest=grid_content_sha256(config.grid_ref, run_root=run_root), phase=phase,
-        roster_group_sizes=_roster_group_sizes(authority, run_root=run_root),
-        dataset_count=grid.screen_datasets_per_cell, draw_domain="screen",
-        joint_group_labels=_roster_joint_group_labels(authority, run_root=run_root))
+    cells = frozen_power_cells()
+    digest = grid_content_sha256(config.grid_ref, run_root=run_root)
+    layout = _roster_group_sizes(authority, run_root=run_root)
+    labels = _roster_joint_group_labels(authority, run_root=run_root)
+    # The timing receipt replays every production cell through the same Task-7
+    # count gate as a shard.  A single convenient cell is neither representative
+    # nor authority to promise a parallel executor.
+    timing_probe = _production_timing_probe(
+        cells=cells, authority=authority, digest=digest, phase=phase,
+        roster_group_sizes=layout, joint_group_labels=labels,
+        datasets_per_cell=grid.screen_datasets_per_cell,
+    )
     if phase == "full_multiplier_fallback":
         # Measure the actual registered expensive kernel before allowing a
         # fallback screen.  A passing Gaussian never enters this branch.
-        swe, tau = replay_pattern_chunk(frozen_power_cells()[0], authority=authority,
-            grid_digest=grid_content_sha256(config.grid_ref, run_root=run_root), phase=phase,
-            roster_group_sizes=_roster_group_sizes(authority, run_root=run_root), start=0, count=1,
+        swe, tau = replay_pattern_chunk(cells[0], authority=authority,
+            grid_digest=digest, phase=phase, roster_group_sizes=layout, start=0, count=1,
             draw_domain="validation")[0]
         full_multiplier_gate_pass(swe, tau, authority_kind=authority.authority_kind,
             tier_membership_sha256=authority.tier_membership_sha256,
-            grid_content_digest=grid_content_sha256(config.grid_ref, run_root=run_root), phase=phase,
-            cell_id=frozen_power_cells()[0].cell_id, replicate_index=0,
+            grid_content_digest=digest, phase=phase, cell_id=cells[0].cell_id, replicate_index=0,
             multiplier_draws=grid.multiplier_draws)
-    elapsed = perf_counter() - started
-    # A screen measures a fixed number of datasets for one cell.  Project that
-    # measured work across the full immutable grid, production datasets, and
-    # the frozen parallel shard topology.  Anything else is numerology.
+    # `_production_timing_probe` measured 200 datasets for *all* cells; reduce
+    # to a per-cell numerator solely to reuse the explicit total-work formula.
     projected = _projected_screen_wall_seconds(
-        elapsed_seconds=elapsed, measured_datasets_per_cell=grid.screen_datasets_per_cell,
-        cell_count=len(frozen_power_cells()), production_datasets_per_cell=grid.datasets_per_cell,
+        elapsed_seconds=cast(float, timing_probe["measured_wall_seconds"]) / len(cells),
+        measured_datasets_per_cell=grid.screen_datasets_per_cell, cell_count=len(cells), production_datasets_per_cell=grid.datasets_per_cell,
         shard_count=shard_count,
     )
     if projected > grid.max_projected_wall_seconds:
@@ -1145,7 +1239,8 @@ def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approxima
     kernel = "power-screen-gaussian-v1" if phase == "gaussian_approximation" else "power-screen-full-multiplier-v1"
     payload = _record_base(config, phase=phase, generation=generation, kernel_id=kernel, shard_count=shard_count, run_root=run_root)
     payload.update({"stage": "screen", "parent_refs": [] if fallback_trigger_ref is None else [_ref_mapping(fallback_trigger_ref)],
-                    "projected_wall_seconds": projected, "cell_count": len(frozen_power_cells()), "dataset_count": grid.screen_datasets_per_cell})
+                    "projected_wall_seconds": projected, "cell_count": len(cells), "dataset_count": grid.screen_datasets_per_cell,
+                    "timing_probe": timing_probe})
     if fallback_trigger_ref is not None:
         payload["fallback_trigger_ref"] = _ref_mapping(fallback_trigger_ref)
     return _write_power(out, payload, run_root=run_root)

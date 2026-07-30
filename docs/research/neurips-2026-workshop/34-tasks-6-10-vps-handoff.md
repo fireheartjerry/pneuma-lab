@@ -188,6 +188,17 @@ The tiny machinery fixture is non-decisive. Only the full configured grid may
 produce P0 authority. P0 may return a clean no-go; passing tests is not the same
 as passing power.
 
+**Timing-admission correction (2026-07-30):** The first canonical production
+shard disproved the previous screen estimator: it sampled one convenient cell
+and credited a shard partition as guaranteed concurrency. Screens now execute
+the frozen 200-dataset screen-domain work for all 2,916 cells through the same
+Task-7 count gate as production, commit an all-cell replay-receipt digest, and
+charge the total 20,000-dataset workload against the 12-hour cap without a
+parallelism discount. A screen that exceeds the cap writes no screen record and
+permits only a later immutable generation after a genuine implementation or
+topology correction; shrinking the scientific grid, inventing benchmark data,
+or declaring more shards is not a remedy.
+
 ## Task 9 — CLI and deterministic synthetic P0
 
 Implement the plan's exact command surface:

@@ -6823,10 +6823,12 @@ prefix. Only that referenced authority may select a tier or emit
 `FEASIBILITY_NO_GO`.
 
 Before production, `screen_power_grid` runs exactly 200 datasets for every one
-of the 729 alternative and 2,187 null cells on the declared CPU topology. It
-must reproduce the committed numeric fixture digest, declare a positive
-`shard_count`, and project the complete 20,000-dataset grid at `<= 43,200`
-seconds. A failed screen permits vectorization/repartitioning and another
+of the 729 alternative and 2,187 null cells through the production Task-7 gate
+and commits the deterministic all-cell replay-receipt hash. It must reproduce
+the committed numeric fixture digest, declare a positive `shard_count`, and
+project the complete 20,000-dataset grid at `<= 43,200` seconds from the total
+measured workload. A shard count partitions immutable receipts; it is never
+credit for unproven concurrent capacity. A failed screen permits vectorization/repartitioning and another
 sealed screen under the same authority and phase with `generation += 1`; the
 new generation may declare another count but never overwrites the failed
 generation or permits a smaller scientific grid. If the bound still fails,

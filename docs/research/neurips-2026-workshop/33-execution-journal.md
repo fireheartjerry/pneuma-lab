@@ -2433,3 +2433,31 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** Zero spend, no provider or benchmark action, no
   validation/finalization, no schedule/descendant, and no scientific result or
   claim. The terminated command left no `shard-0.json` artifact.
+
+### EJ-20260730-0213 — Task-8B timing-admission repair
+
+- **Root cause:** The sealed screen measured only `frozen_power_cells()[0]` at
+  200 draws, then divided the extrapolated total by its artifact shard count.
+  Production instead evaluates every frozen cell through the Task-7 count gate,
+  while the current operator path executes those receipt partitions
+  sequentially. The canonical shard-0 timing therefore exposed a structural,
+  not stochastic, under-estimate.
+- **Correction:** A screen now runs the manifest-frozen 200 screen-domain draws
+  for all 2,916 cells through the production gate, commits a deterministic
+  all-cell replay-receipt digest bound to authority, roster membership, grid,
+  phase, and cell order, and projects all 20,000-dataset production work with
+  no assumed concurrency discount. The receipt is replayable through the
+  exported validator. The power-report schema requires this timing receipt.
+- **Focused evidence:** Test-first regression changes the former four-shard
+  optimistic projection from 145,800 to 583,200 seconds; a mocked slow
+  production-representative probe is rejected before a screen record can be
+  written. The all-cell probe test proves every cell receives exactly 200
+  screen-domain Task-7 draws. `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power.py tests/resampling_null/test_power_authority.py
+  tests/test_schema_loads.py -q` passed.
+- **Next gate:** Run a new immutable canonical screen generation. If its
+  committed total-work projection exceeds 43,200 seconds, finalize only the
+  appropriate non-decisive synthetic timing failure; do not resume the old
+  shard, change the scientific grid, or claim P0 evidence.
+- **Boundary/non-claim:** No production shard, P0 final, validation, provider,
+  spend, benchmark result, or scientific claim was produced by this repair.
