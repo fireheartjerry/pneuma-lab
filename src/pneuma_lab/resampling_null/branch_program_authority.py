@@ -16,7 +16,7 @@ from .authority_refs import (
 )
 from .errors import RecordValidationError
 from .prefix_contracts import load_synthetic_prefix_program
-from .types import ArtifactRef, OpaqueSlotWorkOrder
+from .types import ArtifactRef, OpaqueSlotWorkOrder, TriggerReason
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,10 +182,16 @@ def resolve_branch_program_refs(
     run_root: Path,
     study_ref: ArtifactRef,
     task_id: str,
+    expected_trigger_reason: TriggerReason,
     scheduled_slots: Sequence[object],
     work_orders: Sequence[OpaqueSlotWorkOrder],
 ) -> tuple[ArtifactRef, ArtifactRef, ArtifactRef, ArtifactRef]:
     """Resolve four programs solely through the sealed study-manifest root."""
+
+    if type(expected_trigger_reason) is not TriggerReason:
+        raise RecordValidationError(
+            "expected_trigger_reason must be exact TriggerReason"
+        )
 
     from .scientific_records import ScientificRefReader, decode_scientific_parent
 
@@ -239,5 +245,9 @@ def resolve_branch_program_refs(
             if program.task_id != task_id:
                 raise RecordValidationError(
                     "branch execution program task binding mismatch"
+                )
+            if program.expected_trigger_reason is not expected_trigger_reason:
+                raise RecordValidationError(
+                    "branch execution program trigger binding mismatch"
                 )
     return refs

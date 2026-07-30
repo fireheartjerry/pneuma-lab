@@ -17,6 +17,7 @@ from pneuma_lab.resampling_null.types import (
     BranchCaps,
     OpaqueSlotIdentity,
     OpaqueSlotWorkOrder,
+    TriggerReason,
 )
 from tests.resampling_null.provider_authority_fixture import ProviderAuthorityFixture
 
@@ -261,9 +262,28 @@ def test_branch_program_resolution_is_rooted_only_in_study_manifest(
         run_root=fixture.run_root,
         study_ref=study_ref,
         task_id="task-1",
+        expected_trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
         scheduled_slots=tuple(order.slot for order in orders),
         work_orders=orders,
     )
 
     assert len(refs) == 4
     assert all(ref.role == "synthetic_execution_program" for ref in refs)
+
+
+def test_branch_program_resolution_rejects_wrong_frozen_trigger(
+    tmp_path: Path,
+) -> None:
+    fixture = ProviderAuthorityFixture.build_study(tmp_path, failure_mode=None)
+    study_ref = fixture.seal()
+    orders = _work_orders()
+
+    with pytest.raises(RecordValidationError, match="trigger binding mismatch"):
+        resolve_branch_program_refs(
+            run_root=fixture.run_root,
+            study_ref=study_ref,
+            task_id="task-1",
+            expected_trigger_reason=TriggerReason.FIRST_ELIGIBLE_MUTATION,
+            scheduled_slots=tuple(order.slot for order in orders),
+            work_orders=orders,
+        )
