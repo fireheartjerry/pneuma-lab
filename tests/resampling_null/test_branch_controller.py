@@ -830,3 +830,121 @@ def test_grade_opaque_slot_binds_its_source_to_the_terminal_receipt(
     )
     assert execution.outcome.counters == unscored.counters
     assert execution.outcome.prefix_success == 1
+
+
+def test_block_transactions_reject_work_orders_from_more_than_one_task(
+    tmp_path: Path,
+) -> None:
+    """Four pairwise-distinct orders are not automatically one block.
+
+    Hostile review found that distinctness alone admitted a set drawn from
+    different tasks, which would let an attempt or a rerun be sealed over four
+    slots that never shared a snapshot.
+    """
+    from dataclasses import replace
+
+    snapshot_ref = _seal_prefix_snapshot(tmp_path)
+    orders = _block_orders(tmp_path, snapshot_ref)
+    foreign = (replace(orders[0], task_id="task-other"), *orders[1:])
+    receipts = [_synthetic_receipt(order, run_root=tmp_path) for order in foreign]
+    with pytest.raises(RecordValidationError, match="must share task_id"):
+        seal_unscored_attempt(foreign, receipts, attempt_index=0, run_root=tmp_path)
+
+    mixed_benchmark = (replace(orders[0], benchmark="TAU"), *orders[1:])
+    with pytest.raises(RecordValidationError, match="must share benchmark"):
+        seal_unscored_attempt(
+            mixed_benchmark,
+            [_synthetic_receipt(order, run_root=tmp_path) for order in mixed_benchmark],
+            attempt_index=0,
+            run_root=tmp_path,
+        )
+
+
+def test_rerun_authority_rejects_an_outage_naming_another_task(
+    tmp_path: Path,
+) -> None:
+    from dataclasses import replace
+
+    snapshot_ref = _seal_prefix_snapshot(tmp_path)
+    orders = _block_orders(tmp_path, snapshot_ref)
+    receipts = [_synthetic_receipt(order, run_root=tmp_path) for order in orders]
+    interrupted = seal_unscored_attempt(
+        orders, receipts[:1], attempt_index=0, run_root=tmp_path
+    )
+    outage, _event_ref = _outage(orders, interrupted, run_root=tmp_path)
+    foreign_outage = replace(outage, task_id="task-other")
+    with pytest.raises(RecordValidationError, match="names a different task"):
+        authorize_full_block_rerun(
+            orders, interrupted, foreign_outage, run_root=tmp_path
+        )
+
+
+def test_failed_finalization_requires_two_distinct_sealed_attempts(
+    tmp_path: Path,
+) -> None:
+    snapshot_ref = _seal_prefix_snapshot(tmp_path)
+    orders = _block_orders(tmp_path, snapshot_ref)
+    receipts = [_synthetic_receipt(order, run_root=tmp_path) for order in orders]
+    first = seal_unscored_attempt(
+        orders, receipts[:1], attempt_index=0, run_root=tmp_path
+    )
+    outage, event_ref = _outage(orders, first, run_root=tmp_path)
+    with ControllerArtifactStore(tmp_path) as store:
+        adverse_ref = store.write(
+            role="branch_adverse_event",
+            payload=canonical_json_bytes(
+                {"record_kind": "branch_adverse_event_v1", "kind": "infrastructure"},
+                indent=None,
+            ),
+            media_type="application/json",
+        )
+    del event_ref
+    # Re-labelling the same sealed attempt as the second one would let a single
+    # interruption close a block that never got a second try.
+    same = AttemptReceipt(
+        attempt_index=1,
+        attempt_ref=first.attempt_ref,
+        work_order_sha256s=first.work_order_sha256s,
+        terminal_receipts=first.terminal_receipts,
+        complete=False,
+        endpoint_readable=False,
+    )
+    with pytest.raises(RecordValidationError, match="distinct sealed attempt"):
+        finalize_failed_second_attempt(
+            orders,
+            first_attempt=first,
+            failed_second_attempt=same,
+            outage=outage,
+            adverse_event_ref=adverse_ref,
+            provider_cost_refs=tuple(
+                receipt.provider_cost_ref for receipt in receipts
+            ),
+            prefix_success=1,
+            run_root=tmp_path,
+        )
+
+
+def test_grading_refuses_a_receipt_from_another_slot(
+    tmp_path: Path, prepared: tuple[Path, SlotFixture],
+) -> None:
+    """A grade must be bound to the slot whose trajectory it scores."""
+    run_root, fixture = prepared
+    unscored = _run(fixture, run_root)
+    other = build_slot_fixture(
+        run_root,
+        label="peer",
+        seed=999,
+        with_guidance=False,
+        snapshot_ref=fixture.work_order.snapshot_ref,
+        execution_order=1,
+    )
+    with pytest.raises(RecordValidationError, match="does not belong to this"):
+        grade_opaque_slot(
+            other.work_order,
+            unscored,
+            run_root=run_root,
+            task_input_ref=other.task_input_ref,
+            program_ref=other.program_ref,
+            environment_source_ref=_environment_source_ref(),
+            prefix_success=1,
+        )

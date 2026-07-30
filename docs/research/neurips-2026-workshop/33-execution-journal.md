@@ -2772,3 +2772,60 @@ The next event after the archived migration boundary is appended below.
   action, spend, or scientific claim was produced. The remaining Task-9
   dependency is manifest-authorized per-slot branch programs plus a genuinely
   admitted completed final.
+
+### EJ-20260730-0223 — Task 9 branch-layer hostile review and repairs
+
+- **Clerk receipt:** A read-only `codex --yolo exec` review of
+  `branch_records.py`, `branch_controller.py`, `synthetic_branch_loop.py` and
+  the new CLI functions returned six defect categories and one clean category.
+- **Confirmed and repaired:**
+  1. Four pairwise-distinct work orders were not required to be *one block*.
+     A set drawn from different tasks passed both attempt sealing and rerun
+     authorization. `_order_digests` now requires every block-level field
+     (`study_id`, `task_id`, `benchmark`, `snapshot_ref`,
+     `prefix_visible_sha256`, `packet_index_sha256`, `analysis_freeze_sha256`,
+     `branch_caps`) to be identical and every slot-level identity to be
+     distinct; `private_guidance_ref` is deliberately excluded because exactly
+     two of four slots carry one. Rerun authorization compares the outage task
+     against all four orders, not just the first.
+  2. A failed-second-attempt block did not bind its four `FailedSlotReceipt`s
+     to the attempt they died in. A failed receipt can never equal an attempt's
+     embedded unscored receipt, so descent is now proved by reference:
+     `failed_attempt_ref` must equal the selected attempt's `attempt_ref`, and
+     the outage must embed this block's own first attempt.
+  3. `seal_slot_capability(additional_refs=...)` accepted any allowlisted role,
+     so a peer slot's `composite_snapshot` could be passed as `task_input_ref`
+     and read. The generic list now refuses the two slot-identifying roles
+     outright; a grading pass supplies its one legitimate second snapshot
+     through a dedicated `terminal_snapshot_ref` parameter, and
+     `grade_opaque_slot` first proves the receipt's slot and capability equal
+     the order's.
+  4. `environment_source_ref` minted an implementation identity from a
+     caller-asserted digest. The referenced bytes are now read from the
+     checked-out package source — the same file the spawned worker re-hashes
+     against `--source-sha256` — and must reproduce the digest.
+  5. `grade_opaque_slot` did not check `program.task_id == order.task_id`,
+     unlike `run_opaque_slot`. It does now.
+  6. `synthetic branches` published an untriggered task's block before a later
+     triggered task failed admission. Admission is now a whole-run barrier:
+     every task is admitted first, and nothing is written unless all pass.
+- **Rejected with reasons:** the reviewer framed the adverse-zero overwrite in
+  `finalize_failed_second_attempt` as admitting a readable endpoint. It does
+  not: `UnscoredSlotReceipt.endpoint_readable` is structurally `False` and no
+  grader runs on that path, so no endpoint was ever readable. Overwriting the
+  slots that did finish with adverse zeros is the registered conservative
+  behaviour of the controlling plan, and the code now says so. The narrower
+  real gap — the same sealed attempt being relabelled as the second one — was
+  confirmed and closed. Hardlink aliasing of digest-pinned bytes and forgery by
+  an already-trusted preparer remain outside the documented trusted-run-root
+  threat model and are stated rather than silently assumed.
+- **Focused evidence:** four new regressions cover mixed-task work orders,
+  a foreign outage task, a relabelled second attempt, and grading a peer
+  slot's receipt. `tests/resampling_null/test_branch_controller.py` passed 11
+  and `test_packet_capabilities.py` passed 19; `tests/resampling_null -m
+  milestone` passed 78; the CLI module passed 25 excluding its pre-existing
+  slow Gaussian power-screen test, which is unrelated to this slice.
+  `scripts/test_fast.py`, `python -m pneuma_lab.status --check`, compilation,
+  and `git diff --check` passed.
+- **Boundary/non-claim:** No P0 final, lineage, task block of record, unblind,
+  analysis, provider or benchmark action, spend, or scientific claim.

@@ -607,7 +607,11 @@ def _synthetic_branches(args: argparse.Namespace, root: Path) -> ArtifactRef | N
     freeze_ref = _ref(root, args.analysis_freeze, "analysis_freeze")
     prefix_name = _relative_name(args.out_prefix, field="task block prefix")
     task_ids = _schedule_task_ids(schedule_ref, study_ref, root=root)
-    sealed: ArtifactRef | None = None
+    study_id = _study_id(study_ref, root=root)
+    # Admission is a whole-run barrier.  A partially materialized branch stage
+    # is worse than none: it would leave a root whose task blocks silently
+    # cover only the tasks that happened to be admissible.
+    admitted: list[tuple[str, object, object, Path]] = []
     for task_id in task_ids:
         authority = load_prefix_execution_authority(
             run_root=root, schedule_ref=schedule_ref, task_id=task_id,
@@ -616,30 +620,35 @@ def _synthetic_branches(args: argparse.Namespace, root: Path) -> ArtifactRef | N
             prefix_index_ref=prefix_index_ref, task_id=task_id, run_root=root,
         )
         slots = authority.task_schedule.slots.slots
-        # Reserve the destination before any branch side effect, exactly as the
-        # packet build path does; a task block never overwrites.
         out = _out(root, f"{prefix_name}/{hashlib.sha256(task_id.encode('utf-8')).hexdigest()}.json")
         if prefix.trigger_reason is TriggerReason.NO_INTERVENTION_OPPORTUNITY:
-            identities = prepare_no_intervention_slots(
+            prepare_no_intervention_slots(
                 prefix=prefix, slots=slots,
                 packet_index_ref=packet_index_ref, run_root=root,
             )
-            sealed = seal_no_intervention_block(
-                prefix=prefix, task_spec=authority.task_schedule.task,
-                slots=identities, y0_grade=prefix.y0_grade,
-                schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
-                assignment_ref=assignment_ref, packet_index_ref=packet_index_ref,
-                analysis_freeze_ref=freeze_ref, run_root=root, out=out,
+        else:
+            prepare_opaque_work_orders(
+                study_id=study_id,
+                benchmark=authority.task_schedule.task.benchmark,
+                prefix=prefix, slots=slots, branch_caps=authority.branch_caps,
+                packet_index_ref=packet_index_ref, analysis_freeze_ref=freeze_ref,
+                run_root=root,
             )
-            continue
-        prepare_opaque_work_orders(
-            study_id=_study_id(study_ref, root=root),
-            benchmark=authority.task_schedule.task.benchmark,
-            prefix=prefix, slots=slots, branch_caps=authority.branch_caps,
-            packet_index_ref=packet_index_ref, analysis_freeze_ref=freeze_ref,
-            run_root=root,
+            _branch_program_refs(task_id)
+        admitted.append((task_id, authority, prefix, out))
+    sealed: ArtifactRef | None = None
+    for _task_id, authority, prefix, out in admitted:
+        identities = prepare_no_intervention_slots(
+            prefix=prefix, slots=authority.task_schedule.slots.slots,
+            packet_index_ref=packet_index_ref, run_root=root,
         )
-        _branch_program_refs(task_id)
+        sealed = seal_no_intervention_block(
+            prefix=prefix, task_spec=authority.task_schedule.task,
+            slots=identities, y0_grade=prefix.y0_grade,
+            schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
+            assignment_ref=assignment_ref, packet_index_ref=packet_index_ref,
+            analysis_freeze_ref=freeze_ref, run_root=root, out=out,
+        )
     return sealed
 
 

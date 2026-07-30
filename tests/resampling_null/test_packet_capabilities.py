@@ -460,21 +460,41 @@ def test_capability_sealing_derives_authority_only_from_its_work_order() -> None
         "application/json",
     )
     assert program in seal_slot_capability(order, additional_refs=(program,)).readable_refs
-    with pytest.raises(RecordValidationError, match="only from the work order"):
-        seal_slot_capability(order, additional_refs=(_guidance_ref_for(_CAPS[1]),))
-    with pytest.raises(RecordValidationError, match="never be readable"):
-        seal_slot_capability(
-            order,
-            additional_refs=(
-                ArtifactRef(
-                    "resampling_assignment_ledger",
-                    "assignment.json",
-                    "c" * 64,
-                    3,
-                    "application/json",
-                ),
-            ),
-        )
+    # The two slot-identifying roles may never arrive through the generic list:
+    # a packet and a composite snapshot both name a specific slot, so both come
+    # only from the work order (or, for grading, its own named parameter).
+    for smuggled in (
+        _guidance_ref_for(_CAPS[1]),
+        _guidance_ref_for(_CAPS[0]),
+        ArtifactRef(
+            "composite_snapshot",
+            "controller-artifacts/composite_snapshot/" + "9" * 64,
+            "9" * 64,
+            1,
+            "application/json",
+        ),
+        ArtifactRef(
+            "resampling_assignment_ledger",
+            "assignment.json",
+            "c" * 64,
+            3,
+            "application/json",
+        ),
+    ):
+        with pytest.raises(RecordValidationError, match="may not be added"):
+            seal_slot_capability(order, additional_refs=(smuggled,))
+    terminal = ArtifactRef(
+        "composite_snapshot",
+        "controller-artifacts/composite_snapshot/" + "8" * 64,
+        "8" * 64,
+        1,
+        "application/json",
+    )
+    assert terminal in seal_slot_capability(
+        order, terminal_snapshot_ref=terminal
+    ).readable_refs
+    with pytest.raises(RecordValidationError, match="composite_snapshot role"):
+        seal_slot_capability(order, terminal_snapshot_ref=program)
     assert seal_slot_capability(_work_order(None)).readable_refs == (
         order.snapshot_ref,
     )

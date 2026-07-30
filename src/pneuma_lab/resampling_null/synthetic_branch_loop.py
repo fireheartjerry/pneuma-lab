@@ -440,6 +440,42 @@ def _run_subject_loop(
     )
 
 
+_LOCAL_SOURCE_ROOT = Path(__file__).parents[3]
+
+
+def _verify_source_bytes(ref: ArtifactRef, *, run_root: Path) -> None:
+    """Prove a source reference names local bytes that reproduce its digest.
+
+    The reference is checked against the checked-out package source, not the
+    run root, because that is the file the spawned worker re-hashes against
+    ``--source-sha256`` before it will serve a single operation.  Verifying it
+    here turns a caller-asserted implementation identity into a checked one.
+    """
+
+    del run_root  # the environment identity is a source claim, not an artifact
+    root = _LOCAL_SOURCE_ROOT.resolve(strict=True)
+    named = root / ref.relative_path
+    if named.is_symlink():
+        raise RecordValidationError(
+            f"source reference must not be a symlink: {ref.relative_path!r}"
+        )
+    try:
+        resolved = named.resolve(strict=True)
+        resolved.relative_to(root)
+    except (OSError, ValueError) as exc:
+        raise RecordValidationError(
+            f"unreadable source reference {ref.relative_path!r}"
+        ) from exc
+    payload = resolved.read_bytes()
+    if (
+        len(payload) != ref.byte_count
+        or hashlib.sha256(payload).hexdigest() != ref.sha256
+    ):
+        raise RecordValidationError(
+            f"source reference bytes mismatch: {ref.relative_path!r}"
+        )
+
+
 def _spawn_isolated_handle(
     *,
     run_root: Path,
@@ -451,6 +487,11 @@ def _spawn_isolated_handle(
         raise RecordValidationError(
             "environment_source_ref must be exact ArtifactRef"
         )
+    # The environment identity is a claim about which reviewed source the
+    # worker subprocess re-hashes at startup.  Reading the referenced bytes
+    # here makes the claim checkable instead of caller-asserted; a ref naming
+    # an absent or altered source cannot mint an implementation identity.
+    _verify_source_bytes(environment_source_ref, run_root=run_root)
     factory = SyntheticEnvironmentFactory(
         task_input_bytes=task_input_bytes,
         program_bytes=program_bytes,
@@ -697,13 +738,17 @@ def grade_opaque_slot(
         raise RecordValidationError("prefix_success must be exact 0 or 1")
     root = Path(run_root)
 
+    if (
+        unscored.slot_id != order.slot.slot_id
+        or unscored.opaque_capability_id != order.slot.opaque_capability_id
+    ):
+        raise RecordValidationError(
+            "the unscored receipt does not belong to this work order's slot"
+        )
     final_capability = seal_slot_capability(
         order,
-        additional_refs=(
-            task_input_ref,
-            program_ref,
-            unscored.final_snapshot_ref,
-        ),
+        additional_refs=(task_input_ref, program_ref),
+        terminal_snapshot_ref=unscored.final_snapshot_ref,
     )
     with SlotArtifactLoader(final_capability, run_root=root) as loader:
         final = decode_prefix_snapshot(loader.read_bytes(unscored.final_snapshot_ref))
@@ -714,13 +759,15 @@ def grade_opaque_slot(
         additional_refs=(
             task_input_ref,
             program_ref,
-            unscored.final_snapshot_ref,
             final.environment_snapshot_ref,
         ),
+        terminal_snapshot_ref=unscored.final_snapshot_ref,
     )
     with SlotArtifactLoader(restore_capability, run_root=root) as loader:
         environment_snapshot_bytes = loader.read_bytes(final.environment_snapshot_ref)
     program = load_synthetic_prefix_program(program_bytes)
+    if program.task_id != order.task_id:
+        raise RecordValidationError("sealed program names a different task")
 
     fleet, handle = _spawn_isolated_handle(
         run_root=root,

@@ -525,6 +525,20 @@ class TaskBlock:
                 )
             if self.outage_receipt is None:
                 raise ValueError("a failed second attempt requires an outage receipt")
+            # A FailedSlotReceipt can never equal an attempt's embedded
+            # UnscoredSlotReceipt, so descent is proved by reference instead:
+            # every failed slot must name the selected attempt it died in.
+            if any(
+                receipt.failed_attempt_ref != selected_attempt.attempt_ref
+                for receipt in terminal_receipts
+            ):
+                raise ValueError(
+                    "failed slot receipts must name the selected failed attempt"
+                )
+            if self.outage_receipt.first_attempt != self.attempts[0]:
+                raise ValueError(
+                    "the outage receipt must embed this block's first attempt"
+                )
         else:
             if not selected_attempt.complete:
                 raise ValueError("the selected attempt must be complete")

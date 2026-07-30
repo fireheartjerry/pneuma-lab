@@ -90,6 +90,15 @@ WORKER_READABLE_ROLES = frozenset(
 )
 
 
+# Roles a caller may add to a capability.  Deliberately excludes
+# composite_snapshot and private_guidance: those two identify a slot, and the
+# only admissible values come from the work order itself.
+_ADDITIONAL_READABLE_ROLES = WORKER_READABLE_ROLES - {
+    "composite_snapshot",
+    "private_guidance",
+}
+
+
 def require_arm_opaque_relative_path(relative_path: str, *, field: str) -> str:
     """Reject a worker-visible path that spells an arm anywhere.
 
@@ -716,6 +725,7 @@ def seal_slot_capability(
     work_order: object,
     *,
     additional_refs: Sequence[ArtifactRef] = (),
+    terminal_snapshot_ref: ArtifactRef | None = None,
 ) -> SealedSlotCapability:
     """Derive a worker's read authority from its own work order.
 
@@ -733,12 +743,31 @@ def seal_slot_capability(
     refs: list[ArtifactRef] = [work_order.snapshot_ref]
     if work_order.private_guidance_ref is not None:
         refs.append(work_order.private_guidance_ref)
+    if terminal_snapshot_ref is not None:
+        # The single second snapshot a grading pass legitimately needs.  It has
+        # its own named parameter so it cannot be smuggled through the generic
+        # list; the caller must separately prove the receipt it came from
+        # belongs to this slot.
+        if type(terminal_snapshot_ref) is not ArtifactRef:
+            raise RecordValidationError(
+                "terminal_snapshot_ref must be ArtifactRef or None"
+            )
+        if terminal_snapshot_ref.role != "composite_snapshot":
+            raise RecordValidationError(
+                "terminal_snapshot_ref must use the composite_snapshot role"
+            )
+        refs.append(terminal_snapshot_ref)
     for ref in additional_refs:
         if type(ref) is not ArtifactRef:
             raise RecordValidationError("additional_refs must contain ArtifactRef records")
-        if ref.role == GUIDANCE_ROLE:
+        if ref.role not in _ADDITIONAL_READABLE_ROLES:
+            # The two roles a caller must never supply are the ones that carry
+            # slot identity: a composite snapshot names a slot's frozen
+            # trajectory, and guidance names a slot's packet.  Both come only
+            # from the work order, so passing a peer slot's snapshot under
+            # another argument name cannot widen this capability.
             raise RecordValidationError(
-                "guidance authority comes only from the work order"
+                f"role {ref.role!r} may not be added to a slot capability"
             )
         refs.append(ref)
     return SealedSlotCapability(

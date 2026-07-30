@@ -373,8 +373,42 @@ def prepare_no_intervention_slots(
 def _order_digests(
     work_orders: Sequence[OpaqueSlotWorkOrder],
 ) -> tuple[str, str, str, str]:
+    """Digest four orders that must together be one task's frozen block.
+
+    Distinct digests alone are not enough: four orders drawn from different
+    tasks are pairwise distinct too, and would let an attempt, a rerun, or a
+    task block be sealed over a set that never shared a snapshot.  Everything
+    that is a property of the *block* rather than of a *slot* is required to be
+    identical here, and everything that identifies a slot is required to be
+    distinct.
+    """
+
     if len(work_orders) != 4:
         raise RecordValidationError("an attempt must cover exactly four work orders")
+    if any(type(order) is not OpaqueSlotWorkOrder for order in work_orders):
+        raise RecordValidationError("work orders must be exact OpaqueSlotWorkOrder")
+    head = work_orders[0]
+    # private_guidance_ref is deliberately absent: exactly two of the four
+    # slots carry one, and requiring equality there would forbid the packet
+    # allocation this block exists to run.
+    for field in (
+        "study_id",
+        "task_id",
+        "benchmark",
+        "snapshot_ref",
+        "prefix_visible_sha256",
+        "packet_index_sha256",
+        "analysis_freeze_sha256",
+        "branch_caps",
+    ):
+        if any(getattr(order, field) != getattr(head, field) for order in work_orders):
+            raise RecordValidationError(
+                f"work orders in one block must share {field}"
+            )
+    slot_ids = [order.slot.slot_id for order in work_orders]
+    capabilities = [order.slot.opaque_capability_id for order in work_orders]
+    if len(set(slot_ids)) != 4 or len(set(capabilities)) != 4:
+        raise RecordValidationError("work orders must name four distinct opaque slots")
     digests = tuple(work_order_digest(order) for order in work_orders)
     if len(set(digests)) != 4:
         raise RecordValidationError("work orders must be pairwise distinct")
@@ -489,7 +523,9 @@ def authorize_full_block_rerun(
         raise RecordValidationError(
             "rerun authority requires the identical four work orders"
         )
-    if outage.task_id != work_orders[0].task_id:
+    # _order_digests already proved the four orders share one task, so this
+    # single comparison binds the outage to the whole block, not to one slot.
+    if any(outage.task_id != order.task_id for order in work_orders):
         raise RecordValidationError("the outage names a different task")
     # The provider event must exist and reproduce its digest before a rerun is
     # authorized; an unbacked outage claim cannot buy a second attempt.
@@ -547,6 +583,15 @@ def finalize_failed_second_attempt(
             )
     if (first_attempt.attempt_index, failed_second_attempt.attempt_index) != (0, 1):
         raise RecordValidationError("failed finalization requires attempts 0 then 1")
+    if failed_second_attempt.attempt_ref == first_attempt.attempt_ref:
+        raise RecordValidationError(
+            "the second attempt must be a distinct sealed attempt"
+        )
+    # Overwriting the slots that did finish with adverse zeros is the
+    # registered conservative behaviour, not an oversight: a doubly interrupted
+    # block has no admissible outcome, and no endpoint ever became readable
+    # because UnscoredSlotReceipt.endpoint_readable is structurally False and
+    # no grader is invoked on this path.
     if outage.first_attempt != first_attempt:
         raise RecordValidationError(
             "the outage must embed the exact interrupted first attempt"
