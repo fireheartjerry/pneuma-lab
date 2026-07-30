@@ -67,9 +67,10 @@ production reset API. The focused adversarial gate covers durable taint and
 concurrent alternate-destination singleton rejection. Review correction:
 `unblind_projection` now requires an exact `CurrentAnalysisInputs` value and
 calls the full external-byte/packet-parent `verify_analysis_freeze` comparison
-before any ledger read. A ledger-excluding graph pass runs before permit
-validation; the complete graph may parse the ledger only after the controlled
-permit routine accepts its handle/context/raw digest binding.
+before any ledger read. A ledger-excluding graph pass discovers and rejects any
+alternate ledger identity (including an alias/hardlink) before permit
+validation; after a valid controlled permit, the durable taint marker is
+installed before the complete graph is permitted to parse ledger structure.
 
 Implement the exact Task-6 contract in the controlling plan:
 

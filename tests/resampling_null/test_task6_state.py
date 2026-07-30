@@ -68,3 +68,18 @@ def test_singleton_check_covers_alternate_destinations_and_concurrent_controller
     first_thread.join(timeout=2)
     second_thread.join(timeout=2)
     assert observed == ["rejected"]
+
+
+def test_preunblind_graph_rejects_an_alternate_ledger_alias_before_loading(tmp_path) -> None:
+    from pneuma_lab.resampling_null.artifacts import validate_preunblind_graph
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    root = tmp_path / "run"
+    root.mkdir()
+    ledger = root / "ledger.json"
+    ledger.write_text('{"record_kind":"resampling_assignment_ledger"}', encoding="utf-8")
+    alias = root / "alternate.json"
+    alias.hardlink_to(ledger)
+    ref = ArtifactRef("ledger", "ledger.json", "0" * 64, 0, "application/json")
+    with pytest.raises(RecordValidationError, match="exactly the bound assignment ledger"):
+        validate_preunblind_graph(root, ref)

@@ -1127,10 +1127,33 @@ def validate_preunblind_graph(run_root: Path, ledger_ref: ArtifactRef) -> None:
     authenticated its public parents and handle.
     """
     root = _run_root(run_root)
-    ledger_path, _ = _resolve_inside(
+    ledger_path, ledger_relative = _resolve_inside(
         Path(ledger_ref.relative_path), root, require_exists=False,
     )
-    documents = _scientific_documents(root, excluded=(ledger_path,))
+    # Do not trust the supplied path as an exclusion capability.  Discover
+    # every ledger-shaped JSON file first (including an alternate hardlink or
+    # byte-identical alias) and permit exactly the one bound relative name.
+    ledger_documents: list[Path] = []
+    for path in root.rglob("*.json"):
+        relative = path.relative_to(root)
+        if _is_operational(relative) or (
+            relative.parts and relative.parts[0] == "sources"
+        ):
+            continue
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise RecordValidationError(f"cannot inspect pre-unblind graph: {exc}") from exc
+        # This intentionally performs only a shallow type discovery, never the
+        # assignment-ledger decoder or its outcome-bearing payload traversal.
+        if b'"record_kind"' in raw and b'"resampling_assignment_ledger"' in raw:
+            ledger_documents.append(path.resolve(strict=True))
+    expected_ledger = (root / ledger_relative).resolve(strict=False)
+    if ledger_documents != [expected_ledger]:
+        raise RecordValidationError(
+            "pre-unblind graph must contain exactly the bound assignment ledger"
+        )
+    documents = _scientific_documents(root, excluded=tuple(ledger_documents))
     if not documents:
         raise RecordValidationError("scientific graph is empty")
     _validate_kind_identities(

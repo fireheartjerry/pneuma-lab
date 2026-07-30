@@ -1698,3 +1698,21 @@ The next event after the archived migration boundary is appended below.
   passed 220 tests in under three seconds; byte compilation and `git diff
   --check` passed. No provider/model/network action, secret disclosure, spend,
   execution, experiment, result, causal claim, or claim promotion occurred.
+
+### EJ-20260730-0175 — Task 6 taint-before-ledger-graph correction
+
+- **Correction to EJ-0174:** The complete graph pass can decode assignment
+  ledger structure. It previously ran before the durable outcome-taint marker,
+  so a failure at that boundary could leave a potentially exposed context
+  apparently clean. After the non-ledger graph/current-input/packet-parent and
+  valid handle/permit checks, unblinding now fsyncs the one-way taint marker
+  immediately before full graph validation. Invalid permit/HMAC paths remain
+  untainted because they stop before that boundary.
+- **Alias discovery:** The pre-unblind graph no longer blindly excludes the
+  supplied ledger path. It shallowly discovers all ledger-shaped scientific
+  JSON names and accepts exactly one matching bound name; an alternate path,
+  hardlink, or byte-identical alias rejects before controlled ledger loading.
+- **Focused proof:** Added a graph-failure regression showing that a valid
+  permit taints before the full graph throws, plus the existing ordering spy.
+  No provider/model/network action, secret disclosure, spend, execution,
+  experiment, result, causal claim, or claim promotion occurred.

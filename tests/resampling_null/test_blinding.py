@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from pneuma_lab.resampling_null.errors import RecordValidationError
+
 
 pytestmark = pytest.mark.milestone
 
@@ -143,3 +145,28 @@ def test_unblind_checks_graph_and_current_inputs_before_ledger_loader(monkeypatc
     )
     assert result.receipt_ref == ref
     assert observed == ["pregraph", "current", "permit", "graph", "ledger"]
+
+
+def test_valid_permit_taints_before_full_graph_failure(monkeypatch, tmp_path) -> None:
+    """A graph parser interruption cannot leave a potentially exposed run clean."""
+    import pneuma_lab.resampling_null.blinding as blinding
+    from pneuma_lab.resampling_null.freeze import CurrentAnalysisInputs
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    root = tmp_path / "run"
+    root.mkdir()
+    ref = ArtifactRef("x", "x.json", "0" * 64, 0, "application/json")
+    inputs = CurrentAnalysisInputs({}, tmp_path / "config", tmp_path / "schema", ref)
+    monkeypatch.setattr(blinding, "validate_preunblind_graph", lambda *a: None)
+    monkeypatch.setattr(blinding, "verify_current_analysis_inputs", lambda *a, **k: None)
+    monkeypatch.setattr(blinding, "_validated_permit", lambda *a, **k: ("permit", {"rows": []}, {}))
+    monkeypatch.setattr(blinding, "validate_scientific_graph", lambda *a: (_ for _ in ()).throw(RecordValidationError("graph failure")))
+    with pytest.raises(RecordValidationError, match="graph failure"):
+        blinding.unblind_projection(
+            object(), permit_hmac_sha256="permit", run_root=root,
+            receipt_destination=root / "receipt.json", manifest_ref=ref,
+            schedule_ref=ref, prefix_index_ref=ref, ledger_ref=ref,
+            projection_ref=ref, freeze_ref=ref, expected_task_count=0,
+            current_analysis_inputs=inputs,
+        )
+    assert (root / "operational/task6/outcome-tainted.json").is_file()

@@ -199,11 +199,11 @@ def unblind_projection(
             raise RecordValidationError("unblind permit MAC does not match")
         # Only a valid permit can authorize the graph pass which decodes ledger
         # structure; its full ancestry is therefore never trusted beforehand.
-        validate_scientific_graph(root)
         # Taint is intentionally before the first ledger decode.  A crash or
-        # later validation failure therefore cannot reset a context that began
-        # to expose assignment/outcome information.
+        # later full-graph validation failure therefore cannot reset a context
+        # that began to expose assignment/outcome information.
         mark_outcome_tainted(root)
+        validate_scientific_graph(root)
         ledger_value = _validate_ledger_ancestry(
             ledger_ref, run_root=root, manifest_ref=manifest_ref,
             schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
