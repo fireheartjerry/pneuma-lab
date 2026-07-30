@@ -172,6 +172,7 @@ def test_create_and_verify_host_specific_lower_bound(tmp_path: Path) -> None:
     assert payload["projection"] == {
         "formula": "ceil(elapsed_lower_bound_seconds * production_datasets_per_cell / screen_datasets_per_cell)",
         "cell_count": 2916,
+        "shard_count": 64,
         "screen_datasets_per_cell": 200,
         "production_datasets_per_cell": 20000,
         "multiplier": 100,
@@ -256,3 +257,22 @@ def test_creation_rejects_missing_or_drifting_binding(tmp_path: Path) -> None:
     with pytest.raises(RecordValidationError, match="digest|binding"):
         create_timing_no_go(drifted, run_root=tmp_path)
 
+
+def test_creation_rejects_power_authority_media_type_drift(tmp_path: Path) -> None:
+    bindings = _fixture(tmp_path)
+    with pytest.raises(RecordValidationError, match="media type"):
+        replace(
+            bindings,
+            power_authority_ref=replace(
+                bindings.power_authority_ref, media_type="application/json"
+            ),
+        )
+
+
+def test_verification_rejects_malformed_file_at_forbidden_path(
+    tmp_path: Path,
+) -> None:
+    path = create_timing_no_go(_fixture(tmp_path), run_root=tmp_path)
+    (tmp_path / "power/screen.json").write_bytes(b"not-json\n")
+    with pytest.raises(RecordValidationError, match="forbidden descendant"):
+        verify_timing_no_go(path, run_root=tmp_path)

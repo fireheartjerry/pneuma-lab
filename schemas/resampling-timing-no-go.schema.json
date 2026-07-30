@@ -76,6 +76,7 @@
                     "required": [
                         "formula",
                         "cell_count",
+                        "shard_count",
                         "screen_datasets_per_cell",
                         "production_datasets_per_cell",
                         "multiplier",
@@ -90,6 +91,9 @@
                         },
                         "cell_count": {
                             "const": 2916
+                        },
+                        "shard_count": {
+                            "const": 64
                         },
                         "screen_datasets_per_cell": {
                             "const": 200
