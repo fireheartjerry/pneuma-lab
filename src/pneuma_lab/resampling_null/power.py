@@ -345,16 +345,14 @@ def _authority_from_manifest(manifest_ref: ArtifactRef, *, run_root: Path, expec
         return SyntheticPowerAuthority("1", "synthetic_validation", manifest_ref, roster_ref, membership)
     if roster["roster_kind"] != "eligible_confirmation":
         raise RecordValidationError("roster-bound authority requires eligible_confirmation roster")
-    eligibility_ref = decode_artifact_ref(eligibility, field="manifest eligibility_manifest_ref", expected_role="eligibility_manifest")
-    _validate_confirmation_eligibility(
-        eligibility_ref,
-        roster,
-        study_id=_manifest_study_id(manifest_ref, run_root=run_root),
-        frozen_created_at=_manifest_frozen_created_at(manifest_ref, run_root=run_root),
-        manifest_payload=manifest,
-        run_root=run_root,
+    # `ConfirmationPreflightRegistry` deliberately exposes no reviewed live
+    # ceremony adapter.  A local JSON beacon/timestamp receipt cannot prove it
+    # was externally authenticated, so accepting one here would mint false
+    # confirmation authority.  Future support must arrive through a
+    # manifest-approved opaque capability, never a caller callback or blob.
+    raise RecordValidationError(
+        "roster-bound power authority unavailable: no reviewed verified ceremony adapter"
     )
-    return RosterBoundPowerAuthority("1", "roster_bound_selection", manifest_ref, eligibility_ref, roster_ref, membership)
 
 
 def _authority_value(authority: PowerAuthority) -> dict[str, object]:

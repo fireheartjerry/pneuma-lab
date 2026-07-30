@@ -141,12 +141,13 @@ input-order invariance.
 ## Task 8 — frozen-grid P0 power and type-I authority
 
 **Task 8A checkpoint (2026-07-30):** The frozen P0 grid/RNG contract and the
-two closed power-authority blobs are implemented. Roster-bound authority now
-reconstructs manifest-pinned eligibility membership, group labels, and reserves
-rather than trusting file presence; staged report validation re-derives grid,
-topology, authority, and both grid/RNG digests. This is not a simulator or a
-P0 result. Screen, shard, selection, validation, finalization, and CLI work
-remain unimplemented.
+synthetic closed power-authority blob are implemented. Roster-bound authority
+is intentionally unavailable: the repository has no reviewed verified external
+ceremony adapter, so arbitrary local beacon/timestamp JSON cannot mint
+confirmation authority. Staged report validation re-derives grid, topology,
+authority, and both grid/RNG digests. This is not a simulator, P0 result, or
+confirmation claim. Screen, shard, selection, validation, finalization, and
+CLI work remain unimplemented.
 
 Implement the deterministic full-grid producer:
 

@@ -198,23 +198,22 @@ def test_authority_rejects_wrong_roster_arm_and_tampered_grid_contract(tmp_path:
         load_power_config(authority_ref, _ref(tmp_path, "inputs/grid.json", "power_grid"), _ref(tmp_path, "inputs/topology.json", "power_screen_topology"), run_root=tmp_path)
 
 
-def test_roster_bound_authority_requires_manifest_bound_eligibility(tmp_path: Path) -> None:
+def test_roster_bound_authority_fails_closed_without_reviewed_ceremony_adapter(tmp_path: Path) -> None:
     manifest_ref = _manifest(tmp_path, roster_kind="eligible_confirmation", eligibility=True)
 
-    authority_ref = seal_roster_bound_power_authority(manifest_ref, run_root=tmp_path, out=tmp_path / "authority.json")
+    with pytest.raises(RecordValidationError, match="no reviewed verified ceremony adapter"):
+        seal_roster_bound_power_authority(manifest_ref, run_root=tmp_path, out=tmp_path / "authority.json")
 
-    assert load_power_authority(authority_ref, run_root=tmp_path).authority_kind == "roster_bound_selection"
 
+def test_roster_bound_authority_rejects_arbitrary_beacon_and_timestamp_bytes(tmp_path: Path) -> None:
+    manifest_ref = _manifest(tmp_path, roster_kind="eligible_confirmation", eligibility=True)
+    path = tmp_path / "inputs/eligibility.json"
+    eligibility = __import__("json").loads(path.read_text())
+    eligibility["timestamp_receipt"] = {"precommit_sha256": "0" * 64, "timestamp": "forged"}
+    eligibility["beacon_receipt"] = {"chain_hash": "0" * 64, "round": 0, "randomness_hex": "0" * 64}
+    path.write_bytes(canonical_json_bytes(eligibility, indent=None))
 
-def test_roster_bound_authority_rejects_eligibility_group_or_tier_mismatch(tmp_path: Path) -> None:
-    manifest_ref = _manifest(
-        tmp_path,
-        roster_kind="eligible_confirmation",
-        eligibility=True,
-        eligibility_tier_mismatch=True,
-    )
-
-    with pytest.raises(RecordValidationError, match="tier membership differs"):
+    with pytest.raises(RecordValidationError, match="no reviewed verified ceremony adapter"):
         seal_roster_bound_power_authority(manifest_ref, run_root=tmp_path, out=tmp_path / "authority.json")
 
 

@@ -1888,3 +1888,17 @@ The next event after the archived migration boundary is appended below.
   tests/resampling_null/test_power_authority.py -q` passed 6 tests; Ruff and
   byte compilation passed. No external ceremony, provider, spend, simulation,
   or scientific result occurred.
+
+### EJ-20260730-0188 — Task 8A confirmation authority fail-closed correction
+
+- **Finding and correction:** The exact local frames prove internal byte
+  consistency but do not authenticate an external timestamp or drand receipt.
+  The preflight contract confirms that no reviewed live ceremony adapter exists.
+  Roster-bound authority now always raises `RecordValidationError` with the
+  explicit unavailable-adapter reason; arbitrary beacon/timestamp fields are
+  therefore rejected rather than treated as proof. The prior local ceremony
+  parsing is non-authoritative and cannot mint an authority blob.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power_authority.py -q` passed 6 tests, including
+  arbitrary beacon/timestamp rejection. No confirmation authority, provider
+  action, spend, simulator, P0 result, or claim exists.
