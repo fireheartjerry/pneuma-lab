@@ -2382,54 +2382,6 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
     assert target.is_file()
 
 
-def test_s02d_locked_root_fstat_failure_releases_transaction_lock(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    run_root, fixture, candidates = _completed_candidates(tmp_path)
-    target = run_root / "prefix-index.json"
-    real_fstat = prefix_index_module.os.fstat
-    leaked_descriptor: int | None = None
-    injected = False
-
-    def failing_fstat(descriptor: int) -> object:
-        nonlocal injected, leaked_descriptor
-        try:
-            descriptor_path = Path(f"/proc/self/fd/{descriptor}").resolve()
-        except OSError:
-            descriptor_path = None
-        if not injected and descriptor_path == run_root:
-            injected = True
-            leaked_descriptor = descriptor
-            raise OSError("injected locked-root fstat failure")
-        return real_fstat(descriptor)
-
-    with monkeypatch.context() as scoped:
-        scoped.setattr(prefix_index_module.os, "fstat", failing_fstat)
-        with pytest.raises(OSError, match="locked-root fstat"):
-            seal_prefix_index(
-                run_root=run_root,
-                schedule_ref=fixture.schedule_ref,
-                candidate_refs=candidates,
-                out=target,
-            )
-
-    contender = os.open(run_root, prefix_index_module._DIRECTORY_FLAGS)
-    try:
-        fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(contender, fcntl.LOCK_UN)
-    finally:
-        os.close(contender)
-        if leaked_descriptor is not None:
-            try:
-                os.close(leaked_descriptor)
-            except OSError:
-                pass
-
-    assert injected
-    assert not target.exists()
-
-
 def test_s02d_postcommit_lock_close_failure_preserves_verified_target(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2701,31 +2653,6 @@ def test_s02d_process_reservation_rejects_overlap_before_root_open(
                 pass
 
 
-def test_s02d_normal_transactions_release_process_reservation(
-    tmp_path: Path,
-) -> None:
-    run_root, fixture, candidates = _completed_candidates(tmp_path)
-
-    first = seal_prefix_index(
-        run_root=run_root,
-        schedule_ref=fixture.schedule_ref,
-        candidate_refs=candidates,
-        out=run_root / "first-prefix-index.json",
-    )
-    assert type(first) is ArtifactRef
-    reservation = prefix_index_module._S02D_PROCESS_RESERVATION
-    assert not reservation.locked()
-
-    second = seal_prefix_index(
-        run_root=run_root,
-        schedule_ref=fixture.schedule_ref,
-        candidate_refs=candidates,
-        out=run_root / "second-prefix-index.json",
-    )
-    assert type(second) is ArtifactRef
-    assert not reservation.locked()
-
-
 def test_s02d_ordinary_root_open_error_releases_process_reservation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2775,43 +2702,73 @@ def test_s02d_ordinary_root_open_error_releases_process_reservation(
     assert not prefix_index_module._S02D_PROCESS_RESERVATION.locked()
 
 
-def test_s02d_interrupt_after_locked_fstat_is_precommit_and_releases_lock(
+def test_s02d_lock_acquisition_aba_preserves_same_root_victim(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     run_root, fixture, candidates = _completed_candidates(tmp_path)
     target = run_root / "prefix-index.json"
-    function = prefix_index_module.seal_prefix_index
-    fstat_line = _source_line(function, "os.fstat(descriptor)")
-    armed = False
-    outer_descriptor: int | None = None
+    real_open = prefix_index_module.os.open
+    real_close = prefix_index_module.os.close
     real_flock = prefix_index_module.fcntl.flock
+    real_fstat = prefix_index_module.os.fstat
+    transaction_descriptor: int | None = None
+    victim_descriptor: int | None = None
+    injected = False
+    victim_flock_calls = 0
+    victim_close_calls = 0
+    victim_fstat_calls = 0
+    post_injected_root_opens = 0
 
-    def capture_flock(descriptor: int, operation: int) -> object:
-        nonlocal outer_descriptor
-        if operation == fcntl.LOCK_EX | fcntl.LOCK_NB:
-            outer_descriptor = descriptor
-        return real_flock(descriptor, operation)
+    def acquire_close_reuse(descriptor: int, operation: int) -> object:
+        nonlocal injected, transaction_descriptor, victim_descriptor
+        nonlocal victim_flock_calls
+        if injected and descriptor == victim_descriptor:
+            victim_flock_calls += 1
+        result = real_flock(descriptor, operation)
+        if not injected and operation == fcntl.LOCK_EX | fcntl.LOCK_NB:
+            transaction_descriptor = descriptor
+            real_close(descriptor)
+            victim_descriptor = real_open(
+                run_root,
+                prefix_index_module._DIRECTORY_FLAGS,
+            )
+            if victim_descriptor != descriptor:
+                raise AssertionError("acquisition descriptor was not reused")
+            real_flock(victim_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            injected = True
+            raise KeyboardInterrupt("original acquisition ABA interruption")
+        return result
 
-    def interrupt_after_fstat(
-        frame: object,
-        event: str,
-        _argument: object,
-    ) -> object:
-        nonlocal armed
-        if getattr(frame, "f_code") is function.__code__ and event == "line":
-            line = getattr(frame, "f_lineno")
-            if armed and line != fstat_line:
-                sys.settrace(None)
-                raise KeyboardInterrupt("injected after locked fstat")
-            if line == fstat_line:
-                armed = True
-        return interrupt_after_fstat
+    def track_close(descriptor: int) -> None:
+        nonlocal victim_close_calls
+        if injected and descriptor == victim_descriptor:
+            victim_close_calls += 1
+        real_close(descriptor)
 
-    with monkeypatch.context() as scoped:
-        scoped.setattr(prefix_index_module.fcntl, "flock", capture_flock)
-        sys.settrace(interrupt_after_fstat)
-        try:
+    def track_fstat(descriptor: int) -> object:
+        nonlocal victim_fstat_calls
+        if injected and descriptor == victim_descriptor:
+            victim_fstat_calls += 1
+        return real_fstat(descriptor)
+
+    def track_open(
+        path: object,
+        flags: int,
+        *args: object,
+        **kwargs: object,
+    ) -> int:
+        nonlocal post_injected_root_opens
+        if injected and os.fspath(path) == os.fspath(run_root):
+            post_injected_root_opens += 1
+        return real_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
+
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(prefix_index_module.fcntl, "flock", acquire_close_reuse)
+            scoped.setattr(prefix_index_module.os, "close", track_close)
+            scoped.setattr(prefix_index_module.os, "fstat", track_fstat)
+            scoped.setattr(prefix_index_module.os, "open", track_open)
             with pytest.raises(BaseException) as captured:
                 seal_prefix_index(
                     run_root=run_root,
@@ -2819,23 +2776,134 @@ def test_s02d_interrupt_after_locked_fstat_is_precommit_and_releases_lock(
                     candidate_refs=candidates,
                     out=target,
                 )
-        finally:
-            sys.settrace(None)
 
-    try:
+        assert injected
+        assert transaction_descriptor == victim_descriptor
         assert type(captured.value) is BaseExceptionGroup
         assert "precommit" in repr(captured.value).lower()
+        assert "original acquisition ABA interruption" in repr(captured.value)
+        assert victim_flock_calls == 0
+        assert victim_close_calls == 0
+        assert victim_fstat_calls == 0
+        assert post_injected_root_opens == 0
         assert not target.exists()
-        contender = os.open(run_root, prefix_index_module._DIRECTORY_FLAGS)
+        assert prefix_index_module._S02D_PROCESS_RESERVATION.locked()
+        assert prefix_index_module._S02D_RELEASE_FAIL_STOP is not None
+        assert victim_descriptor is not None
+        real_fstat(victim_descriptor)
+        probe = real_open(run_root, prefix_index_module._DIRECTORY_FLAGS)
         try:
-            real_flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            real_flock(contender, fcntl.LOCK_UN)
+            with pytest.raises(BlockingIOError):
+                real_flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
         finally:
-            os.close(contender)
+            real_close(probe)
+        with pytest.raises(RecordValidationError, match="fail-stop"):
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=run_root / "later-prefix-index.json",
+            )
     finally:
-        if outer_descriptor is not None:
+        if victim_descriptor is not None:
             try:
-                os.close(outer_descriptor)
+                real_flock(victim_descriptor, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            try:
+                real_close(victim_descriptor)
+            except OSError:
+                pass
+
+
+def test_s02d_interrupt_before_lock_acquisition_is_fail_stop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    real_flock = prefix_index_module.fcntl.flock
+    real_close = prefix_index_module.os.close
+    real_fstat = prefix_index_module.os.fstat
+    active_descriptor: int | None = None
+    active_operation: int | None = None
+    injected = False
+    post_interrupt_touches = 0
+
+    def traced_flock(descriptor: int, operation: int) -> object:
+        nonlocal active_descriptor, active_operation, post_interrupt_touches
+        if injected and descriptor == active_descriptor:
+            post_interrupt_touches += 1
+        active_descriptor = descriptor
+        active_operation = operation
+        return real_flock(descriptor, operation)
+
+    lock_call = _instruction_offset(
+        traced_flock,
+        opname="CALL",
+        argval=2,
+    )
+
+    def should_interrupt(offset: int) -> bool:
+        nonlocal injected
+        if (
+            not injected
+            and offset == lock_call
+            and active_operation == fcntl.LOCK_EX | fcntl.LOCK_NB
+        ):
+            injected = True
+            return True
+        return False
+
+    def track_close(descriptor: int) -> None:
+        nonlocal post_interrupt_touches
+        if injected and descriptor == active_descriptor:
+            post_interrupt_touches += 1
+        real_close(descriptor)
+
+    def track_fstat(descriptor: int) -> object:
+        nonlocal post_interrupt_touches
+        if injected and descriptor == active_descriptor:
+            post_interrupt_touches += 1
+        return real_fstat(descriptor)
+
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(prefix_index_module.fcntl, "flock", traced_flock)
+            scoped.setattr(prefix_index_module.os, "close", track_close)
+            scoped.setattr(prefix_index_module.os, "fstat", track_fstat)
+            with _interrupt_on_instruction(
+                traced_flock,
+                should_interrupt=should_interrupt,
+                message="injected before initial lock acquisition",
+            ):
+                with pytest.raises(BaseException) as captured:
+                    seal_prefix_index(
+                        run_root=run_root,
+                        schedule_ref=fixture.schedule_ref,
+                        candidate_refs=candidates,
+                        out=target,
+                    )
+
+        assert injected
+        assert type(captured.value) is BaseExceptionGroup
+        assert "precommit" in repr(captured.value).lower()
+        assert "injected before initial lock acquisition" in repr(captured.value)
+        assert post_interrupt_touches == 0
+        assert not target.exists()
+        assert prefix_index_module._S02D_PROCESS_RESERVATION.locked()
+        assert prefix_index_module._S02D_RELEASE_FAIL_STOP is not None
+        with pytest.raises(RecordValidationError, match="fail-stop"):
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=run_root / "later-prefix-index.json",
+            )
+    finally:
+        if active_descriptor is not None:
+            try:
+                real_close(active_descriptor)
             except OSError:
                 pass
 
@@ -3528,29 +3596,91 @@ def test_s02d_interrupt_before_cleanup_classification_is_committed_residual(
     assert validate_record(json.loads(target.read_bytes()))
 
 
-def test_s02d_rejects_when_cooperative_root_transaction_lock_is_held(
+def test_s02d_contention_and_later_fstat_failure_release_reservation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     run_root, fixture, candidates = _completed_candidates(tmp_path)
     target = run_root / "prefix-index.json"
+    real_close = prefix_index_module.os.close
+    real_flock = prefix_index_module.fcntl.flock
+    real_fstat = prefix_index_module.os.fstat
+    transaction_descriptor: int | None = None
+    transaction_unlock_calls = 0
+    transaction_close_calls = 0
+    fstat_injected = False
     competing_descriptor = os.open(
         run_root,
         prefix_index_module._DIRECTORY_FLAGS,
     )
     fcntl.flock(competing_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def track_flock(descriptor: int, operation: int) -> object:
+        nonlocal transaction_descriptor, transaction_unlock_calls
+        if operation == fcntl.LOCK_EX | fcntl.LOCK_NB:
+            transaction_descriptor = descriptor
+        if operation == fcntl.LOCK_UN and descriptor == transaction_descriptor:
+            transaction_unlock_calls += 1
+        return real_flock(descriptor, operation)
+
+    def track_close(descriptor: int) -> None:
+        nonlocal transaction_close_calls
+        if descriptor == transaction_descriptor:
+            transaction_close_calls += 1
+        real_close(descriptor)
+
+    def fail_first_root_fstat(descriptor: int) -> object:
+        nonlocal fstat_injected
+        try:
+            descriptor_path = Path(f"/proc/self/fd/{descriptor}").resolve()
+        except OSError:
+            descriptor_path = None
+        if not fstat_injected and descriptor_path == run_root:
+            fstat_injected = True
+            raise OSError("injected locked-root fstat failure")
+        return real_fstat(descriptor)
+
     try:
-        with pytest.raises(BaseException, match="lock|lease"):
+        with monkeypatch.context() as scoped:
+            scoped.setattr(prefix_index_module.fcntl, "flock", track_flock)
+            scoped.setattr(prefix_index_module.os, "close", track_close)
+            with pytest.raises(RecordValidationError, match="lock|lease") as captured:
+                seal_prefix_index(
+                    run_root=run_root,
+                    schedule_ref=fixture.schedule_ref,
+                    candidate_refs=candidates,
+                    out=target,
+                )
+    finally:
+        fcntl.flock(competing_descriptor, fcntl.LOCK_UN)
+        os.close(competing_descriptor)
+
+    assert type(captured.value.__cause__) is BlockingIOError
+    assert transaction_unlock_calls == 0
+    assert transaction_close_calls == 1
+    assert not target.exists()
+    assert not prefix_index_module._S02D_PROCESS_RESERVATION.locked()
+    with monkeypatch.context() as scoped:
+        scoped.setattr(prefix_index_module.os, "fstat", fail_first_root_fstat)
+        with pytest.raises(OSError, match="locked-root fstat"):
             seal_prefix_index(
                 run_root=run_root,
                 schedule_ref=fixture.schedule_ref,
                 candidate_refs=candidates,
                 out=target,
             )
-    finally:
-        fcntl.flock(competing_descriptor, fcntl.LOCK_UN)
-        os.close(competing_descriptor)
-
+    assert fstat_injected
     assert not target.exists()
+    assert not prefix_index_module._S02D_PROCESS_RESERVATION.locked()
+    result = seal_prefix_index(
+        run_root=run_root,
+        schedule_ref=fixture.schedule_ref,
+        candidate_refs=candidates,
+        out=target,
+    )
+    assert type(result) is ArtifactRef
+    assert validate_record(json.loads(target.read_bytes()))
+    assert not prefix_index_module._S02D_PROCESS_RESERVATION.locked()
 
 
 def test_s02d_reports_prequarantine_ownership_loss_and_preserves_replacement(

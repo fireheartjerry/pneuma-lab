@@ -167,12 +167,14 @@ class _SealTransactionState:
     descriptor: int
     publication: _OwnedPrefixPublication | None = None
     release_phase: Literal[
+        "lock_pending",
+        "lock_ambiguous",
         "unlock_pending",
         "unlock_ambiguous",
         "close_pending",
         "close_ambiguous",
         "closed",
-    ] = "unlock_pending"
+    ] = "lock_pending"
 
 
 _S02D_RELEASE_FAIL_STOP: _SealTransactionState | None = None
@@ -2224,6 +2226,66 @@ def _seal_bound_prefix_index(
         raise
 
 
+def _raise_root_lock_contention(
+    transaction: _SealTransactionState,
+    contention: BlockingIOError,
+) -> None:
+    """Close one proven-unlocked descriptor and report ordinary contention."""
+
+    global _S02D_RELEASE_FAIL_STOP
+
+    transaction.release_phase = "close_ambiguous"
+    try:
+        os.close(transaction.descriptor)
+    except OSError as exc:
+        if exc.errno != errno.EBADF:
+            raise BaseExceptionGroup(
+                "precommit root-lock contention close ambiguous residual",
+                [contention, exc],
+            )
+    except BaseException as exc:
+        raise BaseExceptionGroup(
+            "precommit root-lock contention close ambiguous residual",
+            [contention, exc],
+        )
+    transaction.release_phase = "closed"
+    _S02D_RELEASE_FAIL_STOP = None
+    _S02D_PROCESS_RESERVATION.release()
+    raise RecordValidationError(
+        "prefix-index root transaction lock is unavailable"
+    ) from contention
+
+
+def _acquire_root_transaction(transaction: _SealTransactionState) -> None:
+    """Acquire once; ambiguous ownership is process-fail-stop."""
+
+    global _S02D_RELEASE_FAIL_STOP
+
+    if transaction.release_phase != "lock_pending":
+        raise AssertionError("root transaction acquisition cannot be retried")
+    transaction.release_phase = "lock_ambiguous"
+    _S02D_RELEASE_FAIL_STOP = transaction
+    try:
+        fcntl.flock(
+            transaction.descriptor,
+            fcntl.LOCK_EX | fcntl.LOCK_NB,
+        )
+    except BlockingIOError as contention:
+        if contention.errno not in {errno.EAGAIN, errno.EWOULDBLOCK}:
+            raise BaseExceptionGroup(
+                "precommit root-lock acquisition ambiguous residual",
+                [contention],
+            )
+        _raise_root_lock_contention(transaction, contention)
+    except BaseException as exc:
+        raise BaseExceptionGroup(
+            "precommit root-lock acquisition ambiguous residual",
+            [exc],
+        )
+    transaction.release_phase = "unlock_pending"
+    _S02D_RELEASE_FAIL_STOP = None
+
+
 def _release_root_transaction(transaction: _SealTransactionState) -> None:
     """Perform one normal release; ambiguity is process-fail-stop."""
 
@@ -2231,8 +2293,8 @@ def _release_root_transaction(transaction: _SealTransactionState) -> None:
 
     if transaction.release_phase != "unlock_pending":
         raise AssertionError("root transaction release cannot be retried")
-    _S02D_RELEASE_FAIL_STOP = transaction
     transaction.release_phase = "unlock_ambiguous"
+    _S02D_RELEASE_FAIL_STOP = transaction
     fcntl.flock(transaction.descriptor, fcntl.LOCK_UN)
     transaction.release_phase = "close_pending"
     transaction.release_phase = "close_ambiguous"
@@ -2314,12 +2376,7 @@ def seal_prefix_index(
     release_error: BaseException | None = None
     try:
         try:
-            try:
-                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BaseException as lock_error:
-                raise RecordValidationError(
-                    "prefix-index root transaction lock is unavailable"
-                ) from lock_error
+            _acquire_root_transaction(transaction)
             os.fstat(descriptor)
             result = _seal_bound_prefix_index(
                 root=root,
@@ -2335,20 +2392,18 @@ def seal_prefix_index(
                 )
         except BaseException as exc:
             primary = exc
-        try:
-            _release_root_transaction(transaction)
-        except BaseException as exc:
-            release_error = exc
+        if transaction.release_phase == "unlock_pending":
+            try:
+                _release_root_transaction(transaction)
+            except BaseException as exc:
+                release_error = exc
         outcome_ref, outcome_error = _seal_transaction_outcome(
             transaction=transaction,
             primary=primary,
             release_error=release_error,
         )
     except BaseException as boundary_error:
-        if (
-            _S02D_RELEASE_FAIL_STOP is not transaction
-            and transaction.release_phase == "unlock_pending"
-        ):
+        if transaction.release_phase == "unlock_pending":
             try:
                 _release_root_transaction(transaction)
             except BaseException as exc:

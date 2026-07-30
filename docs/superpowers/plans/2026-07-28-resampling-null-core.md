@@ -4374,6 +4374,43 @@ storage. Normal uninterrupted `LOCK_UN` then close, the DL-144 commit point,
 cooperative-local namespace rules, shared tool transitions, and all scientific
 non-claims remain unchanged.
 
+### DL-146 S02D fail-stop ambiguous initial acquisition
+
+DL-146 supersedes DL-145 only for ambiguity around the initial nonblocking root
+`LOCK_EX` acquisition. The same open-file-description limit applies
+symmetrically: after arbitrary code or an instruction-level interruption around
+`flock(fd, LOCK_EX | LOCK_NB)`, a numeric fd, inode match, or probe cannot prove
+whether the original open file description acquired the lease or whether the fd
+was closed and reused. Acquisition therefore begins in `lock_pending`, arms the
+existing process reservation, and stores `lock_ambiguous` before the flock
+syscall. Only normal return advances to `unlock_pending` and authorizes normal
+transaction work plus the existing final-release state machine.
+
+The documented ordinary `BlockingIOError`/`EWOULDBLOCK` result from the
+nonblocking syscall is the closed no-lock-acquired outcome. S02D performs no
+`LOCK_UN`; it enters `close_ambiguous` before one descriptor close. Normal close
+return or ordinary `EBADF` advances to `closed`, releases the owning process
+reservation, and then raises the existing root-lock-unavailable
+`RecordValidationError` from the original contention exception. Any other close
+failure is an explicit precommit acquisition-cleanup residual and leaves the
+process fail-stop reservation armed.
+
+Any other `BaseException`, including instruction-level interruption while
+`lock_ambiguous` is live, has unknown acquisition ownership. S02D performs zero
+`fstat`, flock, unlock, close, probe, reopen, or retry operations on that numeric
+fd, leaves the process reservation and fail-stop armed, produces an explicit
+precommit acquisition residual when catchable, and rejects later S02D calls
+until restart or out-of-band operator proof. It makes no open-file-description
+ownership inference and no immediate liveness claim.
+
+Required REDs cover same-number same-root replacement after a real successful
+`LOCK_EX`, interruption immediately before the acquisition syscall after phase
+arm, ordinary external contention with no-lock close and reusable process
+reservation, and normal acquisition followed by root-`fstat` failure with
+ordinary unlock/close and retry. DL-145 final release, DL-144 commit and locked
+rollback, cooperative-local namespace scope, shared occurrence transitions,
+and all scientific non-claims remain unchanged.
+
 The corrected prefix entry adds:
 
 ```python

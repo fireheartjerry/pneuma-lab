@@ -1454,6 +1454,35 @@ claim is made. Normal uninterrupted `LOCK_UN` then close, the DL-144 commit
 point, normal locked pre-commit rollback, cooperative-local namespace rules,
 and the shared occurrence transition remain unchanged.
 
+#### 5.3.9 DL-146 fail-stop ambiguous initial acquisition
+
+DL-146 applies DL-145's open-file-description limit symmetrically to the first
+nonblocking root `LOCK_EX`. The process reservation is already held when the
+transaction state starts at `lock_pending`. S02D stores `lock_ambiguous` before
+calling `flock(fd, LOCK_EX | LOCK_NB)`. Only normal return proves acquisition
+for this cooperative protocol, advances to `unlock_pending`, and permits root
+`fstat`, traversal, publication, or normal final release.
+
+Ordinary `BlockingIOError`/`EWOULDBLOCK` is the syscall's closed contention
+outcome and proves that this open file description acquired no lock. S02D
+performs no unlock, stores `close_ambiguous` before one close, and on normal
+close return or ordinary `EBADF` advances to `closed`, releases the process
+reservation, and raises the existing lock-unavailable `RecordValidationError`
+from the contention exception. Any other close failure remains an explicit
+precommit acquisition-cleanup residual with the process fail-stop armed.
+
+Any other `BaseException` while `lock_ambiguous` is live makes initial
+acquisition ownership unknowable. S02D must not `fstat`, flock, unlock, close,
+probe, reopen, or retry that numeric fd. It leaves the process reservation and
+fail-stop armed, classifies an explicit precommit acquisition residual when
+catchable, and rejects later S02D until restart or out-of-band cleanup proof.
+Same-number reuse for the same root inode grants no recovery authority.
+
+After normal acquisition, later precommit failures retain DL-144's ordinary
+locked rollback and use DL-145's normal unlock/close state machine. DL-145 final
+release, the DL-144 commit point, cooperative-local namespace scope, shared
+occurrence transitions, and all scientific non-claims remain unchanged.
+
 ### 5.4 Assignment prefix view
 
 Post-prefix donor matching consumes a canonical `AssignmentPrefixView`, not the
