@@ -733,7 +733,7 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
             raise RecordValidationError("projection schedule differs from supplied study")
         # The packet index is public and sealed before the freeze.  It binds
         # the opaque ledger bytes to the public prefix without parsing the
-        # clear slot map; that parse is exclusive to unblind_projection.
+        # clear slot map; that parse is exclusive to the paired unblind stage.
         packet = _record_for_ref(packet_ref, root=root, kind="resampling_packet_index")
         packet_payload = _payload(packet, field="packet index")
         if packet_payload.get("stage") != "sealed":

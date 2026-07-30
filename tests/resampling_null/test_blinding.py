@@ -108,7 +108,6 @@ def test_trusted_sealer_rejects_a_byte_different_caller_candidate(monkeypatch, t
     documents = iter([schedule, freeze, block])
     monkeypatch.setattr(blinding, "_load_direct_scientific_parent", lambda *args, **kwargs: type("D", (), {"value": next(documents)})())
     monkeypatch.setattr(blinding, "verify_frozen_analysis_inputs", lambda *args, **kwargs: None)
-    monkeypatch.setattr(blinding, "write_record", lambda *args, **kwargs: pytest.fail("must not publish"))
     valid = build_candidate(
         [{"task_id": "t", "prefix_success": 0, "slot_ids": [str(i) for i in range(4)]}],
         {"t": block["payload"]["slot_outcomes"]},
@@ -135,20 +134,18 @@ def test_unblind_checks_graph_and_current_inputs_before_ledger_loader(monkeypatc
     monkeypatch.setattr(blinding, "_validated_permit", lambda *a, **k: observed.append("permit") or ("permit", {"rows": []}, {}))
     monkeypatch.setattr(blinding, "validate_scientific_graph", lambda *a: observed.append("graph"))
     monkeypatch.setattr(blinding, "_validate_ledger_ancestry", lambda *a, **k: observed.append("ledger") or {"payload": {"assignments": []}, "study_id": "s", "frozen_created_at": "2026-01-01T00:00:00Z", "provenance": {}})
-    monkeypatch.setattr(blinding, "write_record", lambda *a, **k: ref)
-    result = blinding.unblind_projection(
-        object(), permit_hmac_sha256="permit", run_root=root,
-        receipt_destination=root / "receipt.json", manifest_ref=ref,
+    result = blinding._stage_unblind_projection_locked(
+        object(), permit_hmac_sha256="permit", root=root, manifest_ref=ref,
         schedule_ref=ref, prefix_index_ref=ref, ledger_ref=ref,
         projection_ref=ref, freeze_ref=ref, expected_task_count=0,
         current_analysis_inputs=inputs,
     )
-    assert result.receipt_ref == ref
+    assert result.rows == ()
     assert observed == ["pregraph", "current", "permit", "graph", "ledger"]
 
 
 def test_permit_issuance_never_decodes_the_clear_ledger(monkeypatch, tmp_path) -> None:
-    """Only unblind_projection may cross from byte binding to clear parsing."""
+    """Only the private paired-unblind stage may cross to clear parsing."""
     import pneuma_lab.resampling_null.blinding as blinding
     from pneuma_lab.resampling_null.types import ArtifactRef
 
@@ -183,9 +180,8 @@ def test_valid_permit_taints_before_full_graph_failure(monkeypatch, tmp_path) ->
     monkeypatch.setattr(blinding, "_validated_permit", lambda *a, **k: ("permit", {"rows": []}, {}))
     monkeypatch.setattr(blinding, "validate_scientific_graph", lambda *a: (_ for _ in ()).throw(RecordValidationError("graph failure")))
     with pytest.raises(RecordValidationError, match="graph failure"):
-        blinding.unblind_projection(
-            object(), permit_hmac_sha256="permit", run_root=root,
-            receipt_destination=root / "receipt.json", manifest_ref=ref,
+        blinding._stage_unblind_projection_locked(
+            object(), permit_hmac_sha256="permit", root=root, manifest_ref=ref,
             schedule_ref=ref, prefix_index_ref=ref, ledger_ref=ref,
             projection_ref=ref, freeze_ref=ref, expected_task_count=0,
             current_analysis_inputs=inputs,
@@ -244,7 +240,6 @@ def test_paired_unblind_second_publication_failure_rolls_back_receipt(
     """A failing second write leaves no publicly discoverable half-pair."""
     import hashlib
     import pneuma_lab.resampling_null.blinding as blinding
-    from pneuma_lab.foundation.artifacts import write_atomic_bytes as real_write
     from pneuma_lab.resampling_null.freeze import CurrentAnalysisInputs
     from pneuma_lab.resampling_null.types import ArtifactRef
 
@@ -277,14 +272,12 @@ def test_paired_unblind_second_publication_failure_rolls_back_receipt(
         assert receipt_ref is not None
         return {"payload": {"unblind_receipt_ref": blinding._mapping_ref(receipt_ref)}}, result_ref, payload
     monkeypatch.setattr(blinding, "_ref_for_prepared_record", fake_prepared)
-    writes = 0
-    def fail_second(path, payload):
-        nonlocal writes
-        writes += 1
-        if writes == 2:
+    real_install = blinding.install_paired_publication_entry
+    def fail_second(root, index):
+        if index == 1:
             raise OSError("injected publication failure")
-        real_write(path, payload)
-    monkeypatch.setattr(blinding, "write_atomic_bytes", fail_second)
+        real_install(root, index)
+    monkeypatch.setattr(blinding, "install_paired_publication_entry", fail_second)
 
     with pytest.raises(OSError, match="injected publication failure"):
         blinding.unblind_and_publish_analysis(
@@ -302,9 +295,10 @@ def test_paired_unblind_second_publication_failure_rolls_back_receipt(
 
 def test_next_task6_controller_entry_recovers_a_crashed_partial_pair(tmp_path) -> None:
     """The durable no-clear transaction makes a crash recoverable, not orphaning."""
-    from pneuma_lab.foundation.artifacts import write_atomic_bytes
     from pneuma_lab.resampling_null.task6_state import (
         begin_paired_publication,
+        install_paired_publication_entry,
+        prepare_paired_publication_entry,
         task6_controller_lock,
     )
 
@@ -312,9 +306,62 @@ def test_next_task6_controller_entry_recovers_a_crashed_partial_pair(tmp_path) -
     root.mkdir()
     receipt, analysis = root / "receipt.json", root / "analysis.json"
     begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")))
-    write_atomic_bytes(receipt, b"receipt")
+    prepare_paired_publication_entry(root, 0, b"receipt")
+    install_paired_publication_entry(root, 0)
     with task6_controller_lock(root):
         pass
     assert not receipt.exists()
     assert not analysis.exists()
     assert not (root / "operational/task6/paired-publication.json").exists()
+
+
+def test_paired_recovery_never_deletes_same_bytes_replacement(tmp_path) -> None:
+    """Digest equality alone is not ownership of a post-crash target."""
+    from pneuma_lab.foundation.artifacts import write_atomic_bytes
+    from pneuma_lab.resampling_null.errors import RecordValidationError
+    from pneuma_lab.resampling_null.task6_state import (
+        begin_paired_publication,
+        install_paired_publication_entry,
+        prepare_paired_publication_entry,
+        recover_paired_publication,
+    )
+
+    root = tmp_path / "run"
+    root.mkdir()
+    receipt, analysis = root / "receipt.json", root / "analysis.json"
+    begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")))
+    prepare_paired_publication_entry(root, 0, b"receipt")
+    prepare_paired_publication_entry(root, 1, b"analysis")
+    install_paired_publication_entry(root, 0)
+    receipt.unlink()
+    write_atomic_bytes(receipt, b"receipt")
+    with pytest.raises(RecordValidationError, match="ownership"):
+        recover_paired_publication(root)
+    assert receipt.read_bytes() == b"receipt"
+
+
+def test_paired_install_never_overwrites_a_post_preflight_creator(tmp_path) -> None:
+    """The public install uses no-replace creation, not a checked-then-replace race."""
+    from pneuma_lab.foundation.artifacts import write_atomic_bytes
+    from pneuma_lab.resampling_null.task6_state import (
+        begin_paired_publication,
+        install_paired_publication_entry,
+        prepare_paired_publication_entry,
+    )
+
+    root = tmp_path / "run"
+    root.mkdir()
+    receipt, analysis = root / "receipt.json", root / "analysis.json"
+    begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")))
+    prepare_paired_publication_entry(root, 0, b"receipt")
+    write_atomic_bytes(receipt, b"post-preflight creator")
+    with pytest.raises(FileExistsError, match="already exists"):
+        install_paired_publication_entry(root, 0)
+    assert receipt.read_bytes() == b"post-preflight creator"
+
+
+def test_receipt_only_unblind_entrypoint_is_not_public() -> None:
+    """No compatibility route may reintroduce the orphan-receipt defect."""
+    import pneuma_lab.resampling_null.blinding as blinding
+
+    assert not hasattr(blinding, "unblind_projection")

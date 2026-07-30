@@ -26,13 +26,15 @@ from .freeze import CurrentAnalysisInputs, verify_current_analysis_inputs, verif
 from .task6_state import (
     abort_paired_publication,
     begin_paired_publication,
+    install_paired_publication_entry,
     mark_outcome_tainted,
+    prepare_paired_publication_entry,
     recover_paired_publication,
     require_singleton_absent,
     task6_controller_lock,
 )
 from .types import ArtifactRef
-from pneuma_lab.foundation.artifacts import canonical_json_bytes, write_atomic_bytes
+from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
 
 def _mapping_ref(ref: ArtifactRef) -> dict[str, object]:
@@ -195,35 +197,6 @@ def _validate_ledger_ancestry(
     return ledger.value
 
 
-def unblind_projection(
-    handle: UnblindSecretHandle, *, permit_hmac_sha256: str, run_root: Path,
-    receipt_destination: Path, manifest_ref: ArtifactRef, schedule_ref: ArtifactRef,
-    prefix_index_ref: ArtifactRef, ledger_ref: ArtifactRef, projection_ref: ArtifactRef,
-    freeze_ref: ArtifactRef, expected_task_count: int,
-    current_analysis_inputs: CurrentAnalysisInputs,
-) -> UnblindResult:
-    """Legacy receipt-only unblind entry point.
-
-    New controller work must use :func:`unblind_and_publish_analysis`, which
-    cannot leave a receipt behind when downstream analysis fails.
-    """
-    with task6_controller_lock(run_root) as root:
-        require_singleton_absent(root, "resampling_unblind_receipt")
-        stage = _stage_unblind_projection_locked(
-            handle, permit_hmac_sha256=permit_hmac_sha256, root=root,
-            manifest_ref=manifest_ref, schedule_ref=schedule_ref,
-            prefix_index_ref=prefix_index_ref, ledger_ref=ledger_ref,
-            projection_ref=projection_ref, freeze_ref=freeze_ref,
-            expected_task_count=expected_task_count,
-            current_analysis_inputs=current_analysis_inputs,
-        )
-        receipt = write_record(
-            receipt_destination, stage.receipt_record, run_root=root,
-            role="unblind_receipt",
-        )
-        return UnblindResult(receipt_ref=receipt, rows=stage.rows)
-
-
 def _stage_unblind_projection_locked(
     handle: UnblindSecretHandle, *, permit_hmac_sha256: str, root: Path,
     manifest_ref: ArtifactRef, schedule_ref: ArtifactRef, prefix_index_ref: ArtifactRef,
@@ -337,8 +310,10 @@ def unblind_and_publish_analysis(
             root, ((receipt_target, receipt_bytes), (analysis_target, analysis_bytes)),
         )
         try:
-            write_atomic_bytes(receipt_target, receipt_bytes)
-            write_atomic_bytes(analysis_target, analysis_bytes)
+            prepare_paired_publication_entry(root, 0, receipt_bytes)
+            prepare_paired_publication_entry(root, 1, analysis_bytes)
+            install_paired_publication_entry(root, 0)
+            install_paired_publication_entry(root, 1)
         except BaseException:
             abort_paired_publication(root)
             raise

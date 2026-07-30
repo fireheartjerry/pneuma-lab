@@ -2310,3 +2310,30 @@ The next event after the archived migration boundary is appended below.
   unblind ceremony, P0, provider, benchmark, spending action, or numerical
   scientific result was executed. The actual full-lineage unblind/analysis E2E
   remains blocked by the unrun full P0 and absent Task-5 branch executor.
+
+### EJ-20260730-0208 — Hostile-review repair: pair ownership and no-replace install
+
+- **Correction:** Review correctly rejected the initial recovery design: a
+  digest-matched replacement could be deleted, and a check-then-atomic-replace
+  writer could overwrite a post-preflight creator. Pair entries now receive
+  private, owner-only staging paths before any public install. Their exact
+  `(device,inode)` identities are durably recorded only after full bytes are
+  fsynced. The private link remains until commit/recovery, pinning that inode
+  against same-bytes replacement/reuse.
+- **Publication/recovery rule:** Public installation is POSIX `link` from that
+  bound staging inode, which atomically creates the target and fails if any
+  later writer already created it; it never replaces. Recovery removes only
+  targets and staging files whose identity *and* bytes match the transaction.
+  An external/replaced/malformed target leaves all suspect files in place and
+  raises a fail-closed ownership error. The obsolete public receipt-only
+  `unblind_projection` entry point was removed; only the paired route may
+  expose a staged clear projection to the controller callback.
+- **Focused evidence:** New adversarial tests prove a same-byte replacement is
+  retained with an ownership failure, and a post-preflight creator is never
+  overwritten. The existing injected second-install failure still removes only
+  the owned first target. `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_blinding.py tests/resampling_null/test_cli.py -q`
+  passed 37 tests after the repair.
+- **Boundary/non-claim:** No clear assignment mapping, key, or arm is written
+  to the no-clear transaction intent or exposed through this repair. No P0,
+  provider, spend, unblind ceremony, or scientific result was run.

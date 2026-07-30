@@ -421,9 +421,14 @@ Task-6 staged transaction rather than receipt-first publication. After the
 mandatory pre-decode taint, it keeps the clear rows in memory while row
 conversion/numerical analysis constructs a validated record bound to the
 future deterministic receipt reference. A durable no-clear prepared-pair
-intent makes the cross-directory two-file commit recoverable: the next Task-6
-lock completes an intact pair or deletes a matching partial pair; malformed or
-substituted state fails closed. Builder and second-write fault injection prove
-neither public target remains on controlled failure and taint persists. This
-is plumbing, not an unblind/analysis E2E: the missing branch authority and
+intent makes the cross-directory two-file commit recoverable. Hostile review
+required owner-bound recovery: each public target is exclusively installed by
+POSIX hard-linking an owner-only staged inode (never replacement), and its
+private link stays until commit/recovery. The intent binds the staged
+`(device,inode)` plus digest; recovery deletes only that exact owned file and
+fails closed on malformed/substituted/same-byte replacement state. Builder and
+second-install fault injection prove neither public target remains on
+controlled failure while taint persists; a post-preflight creator is not
+overwritten. The old public receipt-only `unblind_projection` route is removed.
+This is plumbing, not an unblind/analysis E2E: the missing branch authority and
 unrun full P0 remain the next gates.
