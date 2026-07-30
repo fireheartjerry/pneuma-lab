@@ -2032,3 +2032,18 @@ The next event after the archived migration boundary is appended below.
   fallback, provider action, spend, tier selection, or scientific claim ran.
   The full lifecycle remains deliberately unrun: its 2,000-outcome / 99,999-draw
   evidence path is not a bounded unit-test fixture.
+
+### EJ-20260730-0196 — Task 9 conditional CLI slice
+
+- **Implementation:** Added the fail-closed module entry point and JSON-only
+  command adapter for study sealing/validation, synthetic or roster-bound power
+  authority, immutable screen/shard/selection/validation/final stages, artifact
+  sealing/verification, and read-only status. Scientific paths are confined to
+  normalized root-relative names; the parser has no seed, roster, decision
+  authority, provider, cloud, or secret option. The synthetic terminal arm
+  requires an explicit closed terminal stage and reason.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_cli.py -q` passed (2 tests); `compileall` and
+  `git diff --check` passed.
+- **Boundary/non-claim:** No selftest, P0 grid/shard, validation, provider
+  action, external benchmark, spend, tier selection, or scientific claim ran.

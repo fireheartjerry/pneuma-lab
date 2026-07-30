@@ -190,6 +190,13 @@ The CLI must not expose secret material, arbitrary seed overrides, alternate
 artifact roots after commitment, confirmation shortcuts, provider calls, or
 cloud provisioning.
 
+**Task 9 CLI checkpoint (2026-07-30):** `python -m
+pneuma_lab.resampling_null` now has a root-confined JSON command adapter for
+study ceremony, closed P0 authority and power attempts, artifact-root
+verification, and status. It is non-executing unless an operator explicitly
+invokes a stage; no full P0/selftest was run for this checkpoint. Remaining
+orchestration descendants are still governed by their existing Task-4–6 APIs.
+
 **Task 8B handoff (2026-07-30):** Power shards now generate real manifest-bound
 `n=20` pattern-count tensors in chunks and route them through the Task-7 batch
 gate. Persist only aggregate gate totals plus compact replay/Merkle receipts;
