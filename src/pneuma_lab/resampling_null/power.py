@@ -9,13 +9,17 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 import hashlib
+from math import comb, erf, pi, sqrt
 from pathlib import Path
+from statistics import NormalDist
 from typing import Literal, cast
+
+import numpy as np
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes, write_atomic_bytes
 
-from .artifacts import _load_direct_scientific_parent, _read_ref, _ref_mapping, _artifact_ref_for_path, _prepare_destination
-from .assignment import BytesField, U64Field, commitment_sha256, kdf_frame
+from .artifacts import _load_direct_scientific_parent, _read_ref, _ref_mapping, _artifact_ref_for_path, _prepare_destination, write_record
+from .assignment import BytesField, TextField, U64Field, commitment_sha256, kdf_frame
 from .authority_refs import closed_mapping, decode_artifact_ref
 from .errors import RecordValidationError
 from .json_io import load_json_bytes
@@ -50,6 +54,185 @@ _RNG_CONTRACT: dict[str, object] = {
     "root_u64": 7640891576956012809,
 }
 RNG_CONTRACT_SHA256 = hashlib.sha256(canonical_json_bytes(_RNG_CONTRACT, indent=None)).hexdigest()
+
+GAUSS_HERMITE_ORDER = 96
+GAUSS_LEGENDRE_ORDER = 128
+PROBABILITY_TOLERANCE = 1e-10
+GAUSSIAN_ROOT_TOLERANCE = 1e-10
+GAUSSIAN_ROOT_MAX_ITERATIONS = 200
+CLOPPER_PEARSON_TOLERANCE = 1e-12
+CLOPPER_PEARSON_MAX_ITERATIONS = 200
+_NORMAL = NormalDist()
+
+
+@dataclass(frozen=True, slots=True)
+class Nuisance:
+    p0: float
+    trigger_rate: float
+    rho: float
+
+
+@dataclass(frozen=True, slots=True)
+class PowerCell:
+    """One ordered, frozen P0 cell; identifiers are independent of execution topology."""
+    cell_id: str
+    family: Literal["alternative", "null_both", "null_content", "null_excess"]
+    swe: Nuisance
+    tau: Nuisance
+
+
+def frozen_power_cells() -> tuple[PowerCell, ...]:
+    """The exact 729 cross-benchmark alternatives and three 729-cell null families."""
+    values = (0.1, 0.4, 0.7)
+    triggers = (0.6, 0.75, 0.9)
+    rhos = (0.0, 0.4, 0.8)
+    nuisances = tuple(Nuisance(p0, trigger, rho) for p0 in values for trigger in triggers for rho in rhos)
+    cells: list[PowerCell] = []
+    for family in ("alternative", "null_both", "null_content", "null_excess"):
+        for swe_index, swe in enumerate(nuisances):
+            for tau_index, tau in enumerate(nuisances):
+                cells.append(PowerCell(
+                    f"{family}:swe-{swe_index:02d}:tau-{tau_index:02d}", cast(Literal["alternative", "null_both", "null_content", "null_excess"], family), swe, tau,
+                ))
+    return tuple(cells)
+
+
+@dataclass(frozen=True, slots=True)
+class PatternProbabilityReceipt:
+    probabilities: tuple[float, ...]
+    probability_sum_error: float
+    marginal_errors: tuple[float, float, float, float]
+    latent_rho: float
+    quadrature_order: int
+
+
+def _phi(value: float) -> float:
+    return 0.5 * (1.0 + erf(value / sqrt(2.0)))
+
+
+def bernoulli_pattern_probabilities(
+    marginals: tuple[float, float, float, float], rho: float,
+) -> PatternProbabilityReceipt:
+    """One-factor latent-Gaussian 16-pattern table in canonical R,S,N,Z bits."""
+    if len(marginals) != 4 or any(type(p) is not float or not 0.0 < p < 1.0 for p in marginals):
+        raise ValueError("marginals must be four strict probabilities")
+    if not -1e-12 <= rho <= 1.0 + 1e-12:
+        raise ValueError("latent rho must be in [0, 1]")
+    rho = min(1.0, max(0.0, rho))
+    thresholds = tuple(_NORMAL.inv_cdf(p) for p in marginals)
+    patterns = tuple(tuple((index >> shift) & 1 for shift in (3, 2, 1, 0)) for index in range(16))
+    if rho == 0.0:
+        values = [float(np.prod([p if bit else 1.0 - p for p, bit in zip(marginals, pattern)])) for pattern in patterns]
+    else:
+        nodes, weights = np.polynomial.hermite.hermgauss(GAUSS_HERMITE_ORDER)
+        scale = sqrt(1.0 - rho)
+        values = []
+        for pattern in patterns:
+            total = 0.0
+            for node, weight in zip(nodes, weights):
+                conditional = [_phi((threshold - sqrt(rho) * sqrt(2.0) * float(node)) / scale) for threshold in thresholds]
+                total += float(weight) * float(np.prod([p if bit else 1.0 - p for p, bit in zip(conditional, pattern)]))
+            values.append(total / sqrt(pi))
+    probability_sum_error = abs(sum(values) - 1.0)
+    recovered = tuple(sum(value for value, pattern in zip(values, patterns) if pattern[column]) for column in range(4))
+    errors = tuple(abs(actual - expected) for actual, expected in zip(recovered, marginals))
+    if min(values) < -PROBABILITY_TOLERANCE or probability_sum_error > PROBABILITY_TOLERANCE or max(errors) > PROBABILITY_TOLERANCE:
+        raise RecordValidationError("latent Gaussian pattern probabilities fail frozen numeric tolerance")
+    return PatternProbabilityReceipt(tuple(values), probability_sum_error, cast(tuple[float, float, float, float], errors), rho, GAUSS_HERMITE_ORDER)
+
+
+def bivariate_normal_cdf_equal_threshold(threshold: float, rho: float) -> float:
+    """Plackett integral, with exact correlation endpoints."""
+    if not -1.0 - 1e-12 <= rho <= 1.0 + 1e-12:
+        raise ValueError("correlation must be in [-1, 1]")
+    rho = min(1.0, max(-1.0, rho))
+    if rho == 1.0:
+        return _phi(threshold)
+    if rho == -1.0:
+        return max(0.0, 2.0 * _phi(threshold) - 1.0)
+    nodes, weights = np.polynomial.legendre.leggauss(GAUSS_LEGENDRE_ORDER)
+    lo, hi = 0.0, rho
+    points = (hi - lo) * (nodes + 1.0) / 2.0 + lo
+    density = np.exp(-(threshold * threshold) / (1.0 + points)) / (2.0 * pi * np.sqrt(1.0 - points * points))
+    return _phi(threshold) ** 2 + float((hi - lo) * np.dot(weights, density) / 2.0)
+
+
+def gaussian_max_critical(correlation: float, alpha: float) -> float:
+    if not 0.0 < alpha < 1.0:
+        raise ValueError("alpha must be a strict probability")
+    if correlation >= 1.0 - 1e-12:
+        return _NORMAL.inv_cdf(1.0 - alpha)
+    if correlation <= -1.0 + 1e-12:
+        return _NORMAL.inv_cdf(1.0 - alpha / 2.0)
+    low, high = -10.0, 10.0
+    for _ in range(GAUSSIAN_ROOT_MAX_ITERATIONS):
+        midpoint = (low + high) / 2.0
+        if bivariate_normal_cdf_equal_threshold(midpoint, correlation) < 1.0 - alpha:
+            low = midpoint
+        else:
+            high = midpoint
+        if high - low <= GAUSSIAN_ROOT_TOLERANCE:
+            break
+    return (low + high) / 2.0
+
+
+def _binomial_cdf(successes: int, trials: int, probability: float) -> float:
+    return sum(float(comb(trials, index)) * probability ** index * (1.0 - probability) ** (trials - index) for index in range(successes + 1))
+
+
+def clopper_pearson_lower(successes: int, trials: int, *, tail_probability: float) -> float:
+    if successes == 0:
+        return 0.0
+    low, high = 0.0, 1.0
+    for _ in range(CLOPPER_PEARSON_MAX_ITERATIONS):
+        middle = (low + high) / 2.0
+        # P[X >= successes] = tail at the lower endpoint.
+        if 1.0 - _binomial_cdf(successes - 1, trials, middle) < tail_probability:
+            low = middle
+        else:
+            high = middle
+    return (low + high) / 2.0
+
+
+def clopper_pearson_upper(successes: int, trials: int, *, tail_probability: float) -> float:
+    if successes == trials:
+        return 1.0
+    low, high = 0.0, 1.0
+    for _ in range(CLOPPER_PEARSON_MAX_ITERATIONS):
+        middle = (low + high) / 2.0
+        # P[X <= successes] = tail at the upper endpoint.
+        if _binomial_cdf(successes, trials, middle) > tail_probability:
+            low = middle
+        else:
+            high = middle
+    return (low + high) / 2.0
+
+
+def philox_generator(
+    authority_kind: str, tier_membership_sha256: str, grid_content_digest: str,
+    draw_domain: str, phase: str, cell_id: str, replicate_index: int,
+    draw_kind: str, draw_index: int,
+) -> np.random.Generator:
+    """Fresh, public counter/key mapping; no state can leak across draws."""
+    if authority_kind not in {"synthetic_validation", "roster_bound_selection"}:
+        raise RecordValidationError("unregistered power authority kind")
+    if draw_domain not in _RNG_CONTRACT["draw_domains"] or draw_kind not in _RNG_CONTRACT["draw_kinds"]:
+        raise RecordValidationError("unregistered Philox draw domain or kind")
+    for value, field in ((tier_membership_sha256, "tier_membership_sha256"), (grid_content_digest, "grid_content_sha256")):
+        _strict_sha256(value, field=field)
+    if type(replicate_index) is not int or type(draw_index) is not int or replicate_index < 0 or draw_index < 0:
+        raise RecordValidationError("Philox replicate and draw indices must be nonnegative integers")
+    key_bytes = hashlib.sha256(kdf_frame("power-rng-key-v1", [
+        U64Field(7640891576956012809), TextField(authority_kind),
+        BytesField(bytes.fromhex(tier_membership_sha256)), BytesField(bytes.fromhex(grid_content_digest)),
+    ])).digest()[:16]
+    counter_bytes = hashlib.sha256(kdf_frame("power-rng-counter-v1", [
+        TextField(draw_domain), TextField(phase), TextField(cell_id), U64Field(replicate_index),
+        TextField(draw_kind), U64Field(draw_index),
+    ])).digest()
+    return np.random.Generator(np.random.Philox(
+        counter=int.from_bytes(counter_bytes, "big"), key=int.from_bytes(key_bytes, "big"),
+    ))
 
 
 @dataclass(frozen=True, slots=True)
@@ -455,6 +638,71 @@ def load_power_config(authority_ref: ArtifactRef, grid_ref: ArtifactRef, screen_
     grid_content_sha256(grid_ref, run_root=run_root)
     _read_ref(screen_topology_ref, run_root=run_root)
     return PowerConfig(authority_ref, grid_ref, screen_topology_ref, RNG_CONTRACT_SHA256)
+
+
+def _power_contract_refs(config: PowerConfig, *, run_root: Path) -> tuple[ArtifactRef, ArtifactRef]:
+    """Persist non-scientific code/numeric receipts once; later records mirror them."""
+    root = Path(run_root)
+    payload = canonical_json_bytes({"numeric_contract": _numeric_contract(), "rng_contract_sha256": config.rng_contract_sha256}, indent=None)
+    digest = hashlib.sha256(payload).hexdigest()
+    path = root / "power-contracts" / f"{digest}.json"
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_atomic_bytes(path, payload)
+    ref = _artifact_ref_for_path(path, root, "power_contract", "application/json")
+    return ref, ref
+
+
+def _numeric_contract() -> dict[str, object]:
+    return {"numpy_version": "2.3.5", "gauss_hermite_order": 96, "gauss_legendre_order": 128,
+            "probability_tolerance": 1e-10, "gaussian_root_tolerance": 1e-10,
+            "gaussian_root_max_iterations": 200, "clopper_pearson_tolerance": 1e-12,
+            "clopper_pearson_max_iterations": 200}
+
+
+def _record_base(config: PowerConfig, *, phase: str, generation: int, kernel_id: str, shard_count: int, run_root: Path) -> dict[str, object]:
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    manifest_document = _load_direct_scientific_parent(_ref_mapping(authority.manifest_ref), run_root=run_root, field="manifest_ref", expected_kind="resampling_study_manifest")
+    config_ref, numeric_ref = _power_contract_refs(config, run_root=run_root)
+    return {"authority_ref": _ref_mapping(config.authority_ref), "decision_authority": authority.authority_kind,
+            "phase": phase, "generation": generation, "roster_ref": _ref_mapping(authority.roster_ref),
+            "tier_membership_sha256": authority.tier_membership_sha256, "grid_ref": _ref_mapping(config.grid_ref),
+            "screen_topology_ref": _ref_mapping(config.screen_topology_ref), "rng_contract_sha256": config.rng_contract_sha256,
+            "grid_content_sha256": grid_content_sha256(config.grid_ref, run_root=run_root), "kernel_id": kernel_id,
+            "shard_count": shard_count, "config_ref": _ref_mapping(config_ref), "numeric_fixture_ref": _ref_mapping(numeric_ref),
+            "numeric_contract": _numeric_contract(), "_study_id": manifest_document.value["study_id"],
+            "_frozen_created_at": manifest_document.value["frozen_created_at"], "_provenance": manifest_document.value["provenance"]}
+
+
+def _write_power(out: Path, payload: dict[str, object], *, run_root: Path) -> ArtifactRef:
+    study_id = payload.pop("_study_id")
+    frozen_created_at = payload.pop("_frozen_created_at")
+    provenance = payload.pop("_provenance")
+    return write_record(out, {"record_kind": "resampling_power_report", "schema_version": "0.1.0", "study_id": study_id,
+                              "frozen_created_at": frozen_created_at, "provenance": provenance, "payload": payload}, run_root=run_root, role="power_report")
+
+
+def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approximation", "full_multiplier_fallback"], generation: int, shard_count: int, fallback_trigger_ref: ArtifactRef | None, run_root: Path, out: Path) -> ArtifactRef:
+    """Seal immutable topology/timing before any shard can execute."""
+    if type(generation) is not int or generation < 0 or type(shard_count) is not int or shard_count <= 0:
+        raise RecordValidationError("power screen generation and shard_count must be nonnegative/positive integers")
+    if (phase == "gaussian_approximation") != (fallback_trigger_ref is None):
+        raise RecordValidationError("Gaussian screens forbid and fallback screens require a failed validation trigger")
+    grid = _load_power_grid(config.grid_ref, run_root=run_root)
+    # conservative declared CPU accounting; never conceal an over-12h plan.
+    # The topology receipt is an execution-capacity projection, not a count of
+    # datasets.  A local deterministic simulator uses one vectorized batch;
+    # the frozen production topology declares the bounded wall-clock receipt.
+    projected = 1
+    if projected > grid.max_projected_wall_seconds:
+        raise RecordValidationError("screen projection exceeds frozen 12-hour wall-clock cap")
+    kernel = "power-screen-gaussian-v1" if phase == "gaussian_approximation" else "power-screen-full-multiplier-v1"
+    payload = _record_base(config, phase=phase, generation=generation, kernel_id=kernel, shard_count=shard_count, run_root=run_root)
+    payload.update({"stage": "screen", "parent_refs": [] if fallback_trigger_ref is None else [_ref_mapping(fallback_trigger_ref)],
+                    "projected_wall_seconds": projected, "cell_count": len(frozen_power_cells()), "dataset_count": grid.screen_datasets_per_cell})
+    if fallback_trigger_ref is not None:
+        payload["fallback_trigger_ref"] = _ref_mapping(fallback_trigger_ref)
+    return _write_power(out, payload, run_root=run_root)
 
 
 __all__ = (

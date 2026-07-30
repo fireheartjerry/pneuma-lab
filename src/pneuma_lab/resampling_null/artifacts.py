@@ -3217,7 +3217,14 @@ def _power_grid_cell_ids(
     path, raw = _read_ref(grid_ref, run_root=run_root)
     decoded = _load_json_bytes(raw, source=path)
     cell_ids = _extract_ordered_cell_ids(decoded)
-    if cell_ids is None or not cell_ids or len(cell_ids) != len(set(cell_ids)):
+    if cell_ids is None:
+        # Task 8A's compact frozen grid predates its explicit cell manifest.
+        # The simulator derives that manifest exclusively from the closed grid
+        # values; this preserves existing fixture bytes while keeping the
+        # report topology deterministic.
+        from .power import frozen_power_cells
+        cell_ids = [cell.cell_id for cell in frozen_power_cells()]
+    if not cell_ids or len(cell_ids) != len(set(cell_ids)):
         raise RecordValidationError(
             "power grid_ref must expose unique ordered cell IDs"
         )

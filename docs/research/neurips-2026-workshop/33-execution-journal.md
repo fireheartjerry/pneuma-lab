@@ -1902,3 +1902,17 @@ The next event after the archived migration boundary is appended below.
   tests/resampling_null/test_power_authority.py -q` passed 6 tests, including
   arbitrary beacon/timestamp rejection. No confirmation authority, provider
   action, spend, simulator, P0 result, or claim exists.
+
+### EJ-20260730-0189 — Task 8B deterministic P0 substrate
+
+- **Implementation:** Added public ordered frozen grid expansion (729
+  alternative and 2,187 null-family cells), 96-point Gauss-Hermite pattern
+  probabilities, 128-point Plackett integration, bounded Gaussian-max and
+  one-sided Clopper-Pearson inversions, framed Philox mapping, and immutable
+  synthetic screen-record creation. The screen accepts no seed, generator,
+  roster override, decision authority, provider, or spend input.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power.py tests/resampling_null/test_power_authority.py -q`
+  passed 11 tests.
+- **Boundary/non-claim:** The synthetic screen is not a P0 result or tier
+  selection and never mints roster-bound confirmation authority.
