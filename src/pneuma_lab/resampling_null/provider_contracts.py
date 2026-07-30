@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
+from typing import Literal, cast
 
 from .authority_refs import AuthorityRefReader, closed_mapping, exact_nonnegative_int
 from .errors import RecordValidationError
@@ -64,6 +64,7 @@ class ValidatedTaskLane:
     requires_user_simulator: bool
     program_ref: ArtifactRef | None
     program_tool_schema_ref: ArtifactRef | None
+    actor_roles: tuple[Literal["primary_subject", "user_simulator"], ...]
     descriptors: tuple[ImplementationDescriptor, ...]
 
 
@@ -373,6 +374,7 @@ def _decode_task_lane(
             if task_input.program is not None
             else None
         ),
+        actor_roles=task_input.actor_roles,
         descriptors=tuple(descriptors),
     )
 

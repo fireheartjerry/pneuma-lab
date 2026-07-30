@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import cast
+from typing import Literal, cast
 
 from .authority_refs import (
     AuthorityRefReader,
@@ -91,6 +91,37 @@ class ValidatedTaskInput:
     requires_user_simulator: bool
     program_ref: ArtifactRef | None
     program: SyntheticPrefixProgram | None
+    actor_roles: tuple[Literal["primary_subject", "user_simulator"], ...]
+
+
+def _synthetic_actor_roles(
+    task_input: Mapping[str, object],
+    *,
+    transcript_length: int,
+) -> tuple[Literal["primary_subject", "user_simulator"], ...]:
+    """Derive the worker's exact environment-controlled actor sequence."""
+
+    canonical_payload = task_input.get("canonical_task_payload")
+    actor_value = (
+        canonical_payload.get("synthetic_actor_order")
+        if type(canonical_payload) is dict
+        else task_input.get("synthetic_actor_order")
+    )
+    if actor_value is None:
+        return tuple("primary_subject" for _ in range(transcript_length))
+    if (
+        type(actor_value) is not list
+        or len(actor_value) != transcript_length
+        or any(
+            type(role) is not str or role not in ("primary_subject", "user_simulator")
+            for role in actor_value
+        )
+    ):
+        raise RecordValidationError("task actor order is invalid")
+    return cast(
+        tuple[Literal["primary_subject", "user_simulator"], ...],
+        tuple(actor_value),
+    )
 
 
 def _closed_mapping(
@@ -677,6 +708,7 @@ def validate_task_input(
             ),
             program_ref=None,
             program=None,
+            actor_roles=(),
         )
     program_ref = decode_contract_ref(
         task_input["synthetic_execution_program_ref"],
@@ -778,6 +810,10 @@ def validate_task_input(
         ),
         program_ref=program_ref,
         program=program,
+        actor_roles=_synthetic_actor_roles(
+            task_input,
+            transcript_length=len(program.provider_transcript),
+        ),
     )
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from dataclasses import asdict, replace
 import fcntl
 import hashlib
@@ -257,6 +258,7 @@ def _terminal_turn_graph(
     tmp_path: Path,
     *,
     subject_role: str = "primary_subject",
+    bind_derived_actor: bool = True,
 ) -> prefix_index_module._CandidateGraph:
     graph = _nonempty_execution_graph(tmp_path)
     row = graph.program.provider_transcript[0]
@@ -277,16 +279,62 @@ def _terminal_turn_graph(
             simulator_contract_caps=graph.authority.subject_contract_caps,
             simulator_contract_ref=model_ref,
         )
+    if bind_derived_actor and hasattr(graph.authority, "actor_roles"):
+        graph.authority = replace(
+            graph.authority,
+            actor_roles=(subject_role,),
+        )
+    request = canonical_json_bytes(
+        {
+            "context_base64": base64.b64encode(
+                (
+                    b"synthetic-simulator-context"
+                    if subject_role == "user_simulator"
+                    else b'{"instruction":"four tools"}\n'
+                )
+            ).decode("ascii"),
+            "subject_role": subject_role,
+        },
+        indent=None,
+    )
+    request_ref = ArtifactRef(
+        "synthetic_request",
+        f"sources/{subject_role}-terminal-request.json",
+        hashlib.sha256(request).hexdigest(),
+        len(request),
+        "application/json",
+    )
+    controller_request_ref = replace(
+        request_ref,
+        role="provider_request",
+        relative_path=(
+            "controller-artifacts/provider_request/"
+            f"{hashlib.sha256(request).hexdigest()}"
+        ),
+    )
+    token_payload = canonical_json_bytes({"token_ids": list(request)}, indent=None)
+    token_ref = ArtifactRef(
+        "input_token_ids",
+        "controller-artifacts/input_token_ids/"
+        f"{hashlib.sha256(token_payload).hexdigest()}",
+        hashlib.sha256(token_payload).hexdigest(),
+        len(token_payload),
+        "application/json",
+    )
     intent = replace(
         graph.provider_ledger.ledger.intents[0],
         subject_role=subject_role,
         seed=seed,
+        request_ref=controller_request_ref,
+        input_token_ids_ref=token_ref,
         model_contract_ref=model_ref,
     )
     attempt = replace(
         graph.provider_ledger.ledger.attempts[0],
         subject_role=subject_role,
         seed=seed,
+        request_ref=controller_request_ref,
+        input_token_ids_ref=token_ref,
         model_contract_ref=model_ref,
         generated_tokens=len(response),
     )
@@ -307,6 +355,9 @@ def _terminal_turn_graph(
                 subject_role=subject_role,
                 seed=seed,
                 model_contract_sha256=model_ref.sha256,
+                expected_request_ref=request_ref,
+                expected_request_sha256=request_ref.sha256,
+                expected_input_token_ids=tuple(request),
                 typed_turn=turn,
                 reported_output_token_ids=tuple(response),
                 reported_generated_tokens=len(response),
@@ -325,6 +376,9 @@ def _terminal_turn_graph(
             ),
         ),
     )
+    graph.payloads[request_ref] = request
+    graph.payloads[controller_request_ref] = request
+    graph.payloads[token_ref] = token_payload
     graph.payloads[row.response_ref] = response
     graph.tool_ledger = replace(graph.tool_ledger, boundaries=())
     graph.receipt = replace(
@@ -339,6 +393,18 @@ def _terminal_turn_graph(
         cumulative_mutation=False,
     )
     return graph
+
+
+def _replay_authority_with_actor_roles(
+    authority: object,
+    actor_roles: tuple[str, ...],
+) -> SimpleNamespace:
+    values = {
+        name: getattr(authority, name)
+        for name in getattr(authority, "__dataclass_fields__")
+    }
+    values["actor_roles"] = actor_roles
+    return SimpleNamespace(**values)
 
 
 @pytest.mark.parametrize(
@@ -609,10 +675,71 @@ def test_s02d_accepts_clean_provider_terminal_turn(
     prefix_index_module._assert_exact_execution_replay(graph)
 
 
+def test_s02d_rejects_coherent_row_role_swap_against_task_actor_order(
+    tmp_path: Path,
+) -> None:
+    graph = _terminal_turn_graph(
+        tmp_path,
+        subject_role="user_simulator",
+        bind_derived_actor=False,
+    )
+    graph.authority = _replay_authority_with_actor_roles(
+        graph.authority,
+        ("primary_subject",),
+    )  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="actor"):
+        prefix_index_module._assert_exact_execution_replay(graph)
+
+
+def test_s02d_rejects_initial_simulator_context_against_first_task_actor(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    graph.authority = _replay_authority_with_actor_roles(
+        graph.authority,
+        ("primary_subject",),
+    )  # type: ignore[assignment]
+    snapshot_bytes = canonical_json_bytes(
+        {
+            "branch_pending_calls": [],
+            "episode_terminal": False,
+            "failure_kind": "none",
+            "mutation_committed": False,
+            "program_sha256": hashlib.sha256(graph.program_bytes).hexdigest(),
+            "simulator_context": base64.b64encode(
+                b"synthetic-simulator-context"
+            ).decode("ascii"),
+            "terminal_unexecuted_remainder": [],
+            "turns": [],
+            "verifier_eligible": False,
+            "visible_context": base64.b64encode(b"task").decode("ascii"),
+        },
+        indent=None,
+    )
+    snapshot_ref = ArtifactRef(
+        "environment_snapshot",
+        "controller-artifacts/environment_snapshot/initial.json",
+        hashlib.sha256(snapshot_bytes).hexdigest(),
+        len(snapshot_bytes),
+        "application/json",
+    )
+    graph.payloads[snapshot_ref] = snapshot_bytes
+    graph.initial_restore = SimpleNamespace(  # type: ignore[assignment]
+        episode_terminal=False,
+        failure_kind=prefix_index_module.FailureKind.NONE,
+        initial_environment_snapshot_ref=snapshot_ref,
+    )
+
+    with pytest.raises(ValueError, match="simulator context|actor"):
+        prefix_index_module._assert_exact_execution_replay(graph)
+
+
 def test_s02d_accepts_initially_terminal_empty_execution(
     tmp_path: Path,
 ) -> None:
     graph = _nonempty_execution_graph(tmp_path)
+    graph.authority = replace(graph.authority, actor_roles=())
     graph.initial_restore = SimpleNamespace(  # type: ignore[assignment]
         episode_terminal=True,
         failure_kind=prefix_index_module.FailureKind.NONE,
@@ -739,6 +866,7 @@ def test_s02d_rejects_row_after_clean_provider_terminal(
     )
     graph.authority = replace(
         graph.authority,
+        actor_roles=("primary_subject", "primary_subject"),
         prefix_caps=replace(graph.authority.prefix_caps, model_calls=2),
         subject_contract_caps=replace(
             graph.authority.subject_contract_caps,
@@ -971,6 +1099,10 @@ def test_s02d_rejects_provider_row_after_first_adverse_status(
                 14,
             ),
         ),
+    )
+    graph.authority = replace(
+        graph.authority,
+        actor_roles=("primary_subject", "primary_subject"),
     )
 
     with pytest.raises(ValueError, match="continues after terminal outcome"):
@@ -1246,14 +1378,23 @@ def test_s02d_reconciles_nonselected_reachable_program_leaves(
         scientific_refs=set(),
     )
     authority_graph = _nonempty_execution_graph(tmp_path / "authority")
-    occurrence_authority = _program_occurrence_authority(authority_graph)
+    selected_authority = _program_occurrence_authority(
+        authority_graph,
+        task_id=selected.task_id,
+        actor_roles=(),
+    )
+    foreign_authority = _program_occurrence_authority(
+        authority_graph,
+        task_id=foreign.task_id,
+        actor_roles=(),
+    )
 
     with pytest.raises(ValueError, match="grade"):
         prefix_index_module._assert_all_program_occurrences(
             traversal,
             program_authorities={
-                selected_ref: (occurrence_authority,),
-                foreign_ref: (occurrence_authority,),
+                selected_ref: (selected_authority,),
+                foreign_ref: (foreign_authority,),
             },
         )
 
@@ -1335,8 +1476,17 @@ def _program_occurrence_authority(
     graph: prefix_index_module._CandidateGraph,
     *,
     prefix_caps: object | None = None,
+    actor_roles: tuple[str, ...] | None = None,
+    task_id: str | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
+        task_id=graph.program.task_id if task_id is None else task_id,
+        prefix_seed=graph.authority.task_schedule.prefix_seed,
+        actor_roles=(
+            tuple(row.subject_role for row in graph.program.provider_transcript)
+            if actor_roles is None
+            else actor_roles
+        ),
         prefix_caps=graph.authority.prefix_caps if prefix_caps is None else prefix_caps,
         simulator_caps=graph.authority.simulator_caps,
         subject_contract_caps=graph.authority.subject_contract_caps,
@@ -1344,6 +1494,60 @@ def _program_occurrence_authority(
         subject_contract_ref=graph.authority.subject_contract_ref,
         simulator_contract_ref=graph.authority.simulator_contract_ref,
     )
+
+
+def test_s02d_shared_program_validates_each_task_actor_order(
+    tmp_path: Path,
+) -> None:
+    graph = _terminal_turn_graph(tmp_path, subject_role="user_simulator")
+    program_ref = graph.authority.program_ref
+    traversal = prefix_index_module._FreshTraversal(
+        visited={},
+        path_bindings={},
+        physical_bindings={},
+        payloads=graph.payloads,
+        nested={},
+        decoded={program_ref: graph.program},
+        scientific_refs=set(),
+    )
+
+    with pytest.raises(ValueError, match="actor"):
+        prefix_index_module._assert_all_program_occurrences(
+            traversal,
+            program_authorities={
+                program_ref: (
+                    _program_occurrence_authority(
+                        graph,
+                        actor_roles=("user_simulator",),
+                    ),
+                    _program_occurrence_authority(
+                        graph,
+                        actor_roles=("primary_subject",),
+                    ),
+                )
+            },
+        )
+
+
+def test_s02d_nonselected_rejects_coherent_wrong_prefix_seed(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    row = graph.program.provider_transcript[0]
+    graph.program = replace(
+        graph.program,
+        provider_transcript=(replace(row, seed=row.seed + 1),),
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+
+    with pytest.raises(ValueError, match="seed"):
+        prefix_index_module._assert_program_occurrence_replay(
+            program=graph.program,
+            responses=responses,
+            raw_events=raw_events,
+            payloads=graph.payloads,
+            authority=_program_occurrence_authority(graph),
+        )
 
 
 def test_s02d_nonselected_rejects_on_time_timeout_late_claim(
@@ -1404,6 +1608,79 @@ def test_s02d_nonselected_accepts_provider_error_with_parsed_response(
         payloads=graph.payloads,
         authority=_program_occurrence_authority(graph),
     )
+
+
+def test_s02d_nonselected_token_overshoot_stops_before_later_row(
+    tmp_path: Path,
+) -> None:
+    graph = _terminal_turn_graph(tmp_path)
+    first = graph.program.provider_transcript[0]
+    assert first.response_ref is not None
+    response = _response_bytes(finish_reason="stop", text="done")
+    first = replace(
+        first,
+        typed_turn=SubjectTurn("done", (), len(response), "stop"),
+        reported_output_token_ids=tuple(response),
+        reported_generated_tokens=len(response),
+    )
+    second_event = canonical_json_bytes(
+        {
+            "observed_at_ms": 5,
+            "record_kind": "synthetic_raw_provider_event_v1",
+            "schema_version": "1",
+            "transport_kind": "response",
+        },
+        indent=None,
+    )
+    second_event_ref = ArtifactRef(
+        "synthetic_provider_event",
+        "sources/token-overshoot-second-event.json",
+        hashlib.sha256(second_event).hexdigest(),
+        len(second_event),
+        "application/json",
+    )
+    second = replace(
+        first,
+        call_index=1,
+        seed=prefix_index_module.derive_call_seed(
+            graph.authority.task_schedule.prefix_seed,
+            "primary_subject",
+            1,
+        ),
+        provider_event_ref=second_event_ref,
+    )
+    graph.payloads[first.response_ref] = response
+    graph.payloads[second_event_ref] = second_event
+    graph.program = replace(
+        graph.program,
+        provider_transcript=(first, second),
+        clock_trace=(
+            SyntheticClockRead("prefix_epoch", 1),
+            SyntheticClockRead("before_primary_subject_0", 2),
+            SyntheticClockRead("after_primary_subject_0", 3),
+            SyntheticClockRead("before_primary_subject_1", 4),
+            SyntheticClockRead("after_primary_subject_1", 5),
+        ),
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+    prefix_caps = replace(
+        graph.authority.prefix_caps,
+        generated_tokens=len(response) - 1,
+        model_calls=2,
+    )
+
+    with pytest.raises(ValueError, match="continues after terminal outcome"):
+        prefix_index_module._assert_program_occurrence_replay(
+            program=graph.program,
+            responses=responses,
+            raw_events=raw_events,
+            payloads=graph.payloads,
+            authority=_program_occurrence_authority(
+                graph,
+                prefix_caps=prefix_caps,
+                actor_roles=("primary_subject", "primary_subject"),
+            ),
+        )
 
 
 def test_s02d_nonselected_rejects_unexplained_zero_tool_evidence(

@@ -9,7 +9,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import stat
-from typing import Any, Mapping, cast
+from typing import Any, Literal, Mapping, cast
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
@@ -195,12 +195,38 @@ class _ExecutionReplayResult:
 
 @dataclass(frozen=True, slots=True)
 class _ProgramReplayAuthority:
+    task_id: str
+    prefix_seed: int
+    actor_roles: tuple[Literal["primary_subject", "user_simulator"], ...]
     prefix_caps: PrefixCaps
     simulator_caps: CallContractCaps
     subject_contract_caps: CallContractCaps
     simulator_contract_caps: CallContractCaps | None
     subject_contract_ref: ArtifactRef
     simulator_contract_ref: ArtifactRef | None
+
+
+def _assert_program_actor_binding(
+    *,
+    program: SyntheticPrefixProgram,
+    task_id: str,
+    actor_roles: tuple[Literal["primary_subject", "user_simulator"], ...],
+) -> None:
+    """Bind transcript roles to the task-derived environment actor sequence."""
+
+    if program.task_id != task_id:
+        raise ValueError("program task identity differs from occurrence authority")
+    if len(actor_roles) != len(program.provider_transcript):
+        raise ValueError("task actor order length differs from provider transcript")
+    if any(
+        row.subject_role != actor_role
+        for row, actor_role in zip(
+            program.provider_transcript,
+            actor_roles,
+            strict=True,
+        )
+    ):
+        raise ValueError("provider transcript role differs from task-derived actor")
 
 
 def _exact_output_relative_path(*, root: Path, out: Path) -> str:
@@ -843,6 +869,11 @@ def _assert_exact_execution_replay(graph: _CandidateGraph) -> _ExecutionReplayRe
     program = graph.program
     receipt = graph.receipt
     ledger = graph.provider_ledger.ledger
+    _assert_program_actor_binding(
+        program=program,
+        task_id=authority.task_schedule.task.task_id,
+        actor_roles=authority.actor_roles,
+    )
     replay = _ClockTraceReplay(program.clock_trace)
     prefix_epoch = replay.consume("prefix_epoch")
     deadline = prefix_epoch + authority.prefix_caps.wall_clock_ms
@@ -869,6 +900,28 @@ def _assert_exact_execution_replay(graph: _CandidateGraph) -> _ExecutionReplayRe
     )
     if initial_failure is not FailureKind.NONE:
         terminal_state = True
+    initial_snapshot_ref = (
+        None
+        if graph.initial_restore is None
+        else getattr(
+            graph.initial_restore,
+            "initial_environment_snapshot_ref",
+            None,
+        )
+    )
+    if initial_snapshot_ref is not None:
+        if type(initial_snapshot_ref) is not ArtifactRef:
+            raise TypeError("initial environment snapshot ref must be exact")
+        initial_state = _decode_snapshot_state(graph.payloads[initial_snapshot_ref])
+        expected_initial_simulator = (
+            bool(authority.actor_roles) and authority.actor_roles[0] == "user_simulator"
+        )
+        if (
+            initial_state.simulator_context is not None
+        ) is not expected_initial_simulator:
+            raise ValueError(
+                "initial simulator context differs from task-derived actor"
+            )
     if rows := program.provider_transcript:
         if terminal_state or initial_failure is not FailureKind.NONE:
             raise ValueError("initial terminal or failed restore cannot dispatch")
@@ -1368,6 +1421,11 @@ def _assert_program_occurrence_replay(
 ) -> None:
     """Replay one occurrence under its validated manifest provider lane."""
 
+    _assert_program_actor_binding(
+        program=program,
+        task_id=authority.task_id,
+        actor_roles=authority.actor_roles,
+    )
     replay = _ClockTraceReplay(program.clock_trace)
     prefix_epoch = replay.consume("prefix_epoch")
     deadline = prefix_epoch + authority.prefix_caps.wall_clock_ms
@@ -1380,6 +1438,13 @@ def _assert_program_occurrence_replay(
     for row in program.provider_transcript:
         if stopped:
             raise ValueError("provider transcript continues after terminal outcome")
+        expected_seed = derive_call_seed(
+            authority.prefix_seed,
+            row.subject_role,
+            row.call_index,
+        )
+        if row.seed != expected_seed:
+            raise ValueError("program call seed differs from task prefix seed")
         before = replay.consume(f"before_{row.subject_role}_{row.call_index}")
         completion = replay.consume(f"after_{row.subject_role}_{row.call_index}")
         if before > completion:
@@ -1433,7 +1498,7 @@ def _assert_program_occurrence_replay(
             ),
             expected_role=row.subject_role,
             expected_call_index=row.call_index,
-            expected_seed=row.seed,
+            expected_seed=expected_seed,
             expected_model_sha256=model_ref.sha256,
             deadline_ms=deadline,
             completion_ms=completion,
@@ -1455,6 +1520,13 @@ def _assert_program_occurrence_replay(
         if validated.typed_turn is not None:
             derived_turns[row.subject_role] += 1
         if _provider_failure(validated.status) is not FailureKind.NONE:
+            stopped = True
+            continue
+        if (
+            validated.generated_tokens > role_caps.per_call_generated_tokens
+            or derived_tokens[row.subject_role]
+            > min(lane_token_cap, role_caps.aggregate_generated_tokens)
+        ):
             stopped = True
             continue
         if validated.typed_turn is None:
@@ -1926,9 +1998,17 @@ def _seal_bound_prefix_index(
         for task_lane in validated_plan.task_lanes:
             if task_lane.program_ref is None:
                 raise ValueError("validated task lane lacks execution program")
+            task_authority = authorities.get(task_lane.task_id)
+            if task_authority is None:
+                raise ValueError(
+                    "program occurrence task lacks selected schedule authority"
+                )
             lane = validated_plan.lanes[task_lane.prefix_lane_ordinal]
             occurrence_authorities.setdefault(task_lane.program_ref, []).append(
                 _ProgramReplayAuthority(
+                    task_id=task_lane.task_id,
+                    prefix_seed=task_authority.task_schedule.prefix_seed,
+                    actor_roles=task_lane.actor_roles,
                     prefix_caps=lane.prefix_caps,
                     simulator_caps=lane.simulator_caps,
                     subject_contract_caps=lane.subject_contract_caps,

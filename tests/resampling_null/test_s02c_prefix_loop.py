@@ -860,6 +860,7 @@ def _loop_authority(root: Path) -> PrefixExecutionAuthority:
         simulator_caps=CallContractCaps(0, 0, 0, 0, 0),
         subject_contract_caps=CallContractCaps(10_000, 1, 1, 10_000, 1),
         simulator_contract_caps=None,
+        actor_roles=("primary_subject",),
         task_input_ref=task_input_ref,
         environment_contract_ref=generic("environment_contract"),
         grader_contract_ref=generic("grader_contract"),

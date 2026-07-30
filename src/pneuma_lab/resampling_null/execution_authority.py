@@ -53,6 +53,7 @@ class PrefixExecutionAuthority:
     simulator_caps: CallContractCaps
     subject_contract_caps: CallContractCaps
     simulator_contract_caps: CallContractCaps | None
+    actor_roles: tuple[Literal["primary_subject", "user_simulator"], ...]
     task_input_ref: ArtifactRef
     environment_contract_ref: ArtifactRef
     grader_contract_ref: ArtifactRef
@@ -115,6 +116,11 @@ class PrefixExecutionAuthority:
             raise TypeError(
                 "simulator_contract_caps must be exact CallContractCaps or None"
             )
+        if type(self.actor_roles) is not tuple or any(
+            type(role) is not str or role not in ("primary_subject", "user_simulator")
+            for role in self.actor_roles
+        ):
+            raise TypeError("actor_roles must be an exact closed-role tuple")
         if (
             self.simulator_contract_ref is not None
             and type(self.simulator_contract_ref) is not ArtifactRef
@@ -285,6 +291,7 @@ def _project_task_authority(
         simulator_caps=selected_lane.simulator_caps,
         subject_contract_caps=selected_lane.subject_contract_caps,
         simulator_contract_caps=selected_lane.simulator_contract_caps,
+        actor_roles=task_row.actor_roles,
         task_input_ref=task_row.task_input_ref,
         environment_contract_ref=task_row.environment_contract_ref,
         grader_contract_ref=task_row.grader_contract_ref,
