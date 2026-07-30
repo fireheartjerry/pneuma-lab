@@ -4411,6 +4411,33 @@ ordinary unlock/close and retry. DL-145 final release, DL-144 commit and locked
 rollback, cooperative-local namespace scope, shared occurrence transitions,
 and all scientific non-claims remain unchanged.
 
+### DL-147 S02D no recoverable acquisition exception
+
+DL-147 supersedes DL-146 only for its contention-recoverability claim. Under
+the admitted Python call-interposition threat model, exception class and errno
+do not prove kernel origin: wrapped code may successfully acquire `LOCK_EX`,
+close and reuse the numeric fd for the same root, independently lock that new
+open file description, and only then raise `BlockingIOError(EWOULDBLOCK)`.
+DL-146's special contention close could therefore close the unrelated victim.
+
+Every `BaseException` from initial `flock(fd, LOCK_EX | LOCK_NB)`, including
+`BlockingIOError`, `EAGAIN`, and `EWOULDBLOCK`, is acquisition-ambiguous.
+After it escapes, S02D performs zero `fstat`, flock, unlock, close, probe,
+reopen, or retry operations on that numeric fd. The `lock_ambiguous` state,
+process reservation, and fail-stop remain armed; the exception is an explicit
+precommit acquisition residual, and later S02D calls reject until process
+restart or out-of-band operator proof. Normal flock return alone advances to
+`unlock_pending`.
+
+The ordinary-contention close/release helper and all immediate contention
+liveness claims are deleted. Tests cover both interposed successful-acquire/
+same-root-reuse followed by `BlockingIOError(EWOULDBLOCK)` and plain external
+contention, manually cleaning ambiguity-owned test descriptors only after
+assertions. Normal uncontended acquisition followed by `fstat` failure retains
+ordinary locked cleanup and retry. DL-146's acquisition phases, DL-145 final
+release, DL-144 commit/rollback, cooperative-local scope, shared transitions,
+and all scientific non-claims remain unchanged.
+
 The corrected prefix entry adds:
 
 ```python

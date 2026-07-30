@@ -1483,6 +1483,28 @@ locked rollback and use DL-145's normal unlock/close state machine. DL-145 final
 release, the DL-144 commit point, cooperative-local namespace scope, shared
 occurrence transitions, and all scientific non-claims remain unchanged.
 
+#### 5.3.10 DL-147 no recoverable acquisition exception
+
+DL-147 removes DL-146's `BlockingIOError`/`EWOULDBLOCK` recovery exception.
+Within the admitted Python interposition model, a wrapper can acquire the lock,
+close and reuse the same numeric fd for the same root, independently lock that
+replacement open file description, and then synthesize the documented errno.
+Exception type and errno therefore cannot prove nonacquisition.
+
+Every `BaseException` escaping initial `LOCK_EX | LOCK_NB` leaves
+`lock_ambiguous`, the process reservation, and fail-stop armed. S02D performs
+no `fstat`, flock, unlock, close, probe, reopen, or retry on the numeric fd and
+returns an explicit precommit acquisition residual. Later S02D rejects until
+restart or out-of-band operator proof. Only normal flock return advances to
+`unlock_pending`.
+
+There is no ordinary-contention close, reservation release, or immediate
+liveness claim. Plain external contention is intentionally fail-stop and its
+ambiguity-owned test fd is cleaned only out of band after assertions. Normal
+uncontended acquisition and later locked precommit cleanup remain unchanged, as
+do DL-145 final release, DL-144 commit/rollback, cooperative-local scope, shared
+transitions, and every scientific non-claim.
+
 ### 5.4 Assignment prefix view
 
 Post-prefix donor matching consumes a canonical `AssignmentPrefixView`, not the

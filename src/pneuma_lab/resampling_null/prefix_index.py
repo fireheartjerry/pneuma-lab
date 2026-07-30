@@ -2226,36 +2226,6 @@ def _seal_bound_prefix_index(
         raise
 
 
-def _raise_root_lock_contention(
-    transaction: _SealTransactionState,
-    contention: BlockingIOError,
-) -> None:
-    """Close one proven-unlocked descriptor and report ordinary contention."""
-
-    global _S02D_RELEASE_FAIL_STOP
-
-    transaction.release_phase = "close_ambiguous"
-    try:
-        os.close(transaction.descriptor)
-    except OSError as exc:
-        if exc.errno != errno.EBADF:
-            raise BaseExceptionGroup(
-                "precommit root-lock contention close ambiguous residual",
-                [contention, exc],
-            )
-    except BaseException as exc:
-        raise BaseExceptionGroup(
-            "precommit root-lock contention close ambiguous residual",
-            [contention, exc],
-        )
-    transaction.release_phase = "closed"
-    _S02D_RELEASE_FAIL_STOP = None
-    _S02D_PROCESS_RESERVATION.release()
-    raise RecordValidationError(
-        "prefix-index root transaction lock is unavailable"
-    ) from contention
-
-
 def _acquire_root_transaction(transaction: _SealTransactionState) -> None:
     """Acquire once; ambiguous ownership is process-fail-stop."""
 
@@ -2270,13 +2240,6 @@ def _acquire_root_transaction(transaction: _SealTransactionState) -> None:
             transaction.descriptor,
             fcntl.LOCK_EX | fcntl.LOCK_NB,
         )
-    except BlockingIOError as contention:
-        if contention.errno not in {errno.EAGAIN, errno.EWOULDBLOCK}:
-            raise BaseExceptionGroup(
-                "precommit root-lock acquisition ambiguous residual",
-                [contention],
-            )
-        _raise_root_lock_contention(transaction, contention)
     except BaseException as exc:
         raise BaseExceptionGroup(
             "precommit root-lock acquisition ambiguous residual",
