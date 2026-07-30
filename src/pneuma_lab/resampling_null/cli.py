@@ -10,7 +10,10 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 
-from .artifacts import seal_artifact_root, seal_study_manifest, verify_artifact_root, validate_record
+from .artifacts import (_scientific_documents, seal_artifact_root,
+                        seal_study_manifest, verify_artifact_root,
+                        validate_record)
+from .assignment import require_schedulable_power_final
 from .errors import RecordValidationError
 from .json_io import load_json_bytes, resolve_inside, run_root
 from .power import (finalize_synthetic_full_multiplier_report, finalize_synthetic_power_report, finalize_synthetic_validation_failed,
@@ -18,6 +21,7 @@ from .power import (finalize_synthetic_full_multiplier_report, finalize_syntheti
                     seal_synthetic_power_authority, screen_power_grid,
                     select_validation_cells, simulate_power_shard,
                     validate_gaussian_approximation, validate_full_multiplier_fallback)
+from .selftest_fixture import seal_synthetic_selftest_study
 from .types import ArtifactRef
 
 
@@ -70,6 +74,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-root", required=True)
     parser.add_argument("--debug", action="store_true")
     top = parser.add_subparsers(dest="command", required=True)
+    selftest = top.add_parser("selftest")
+    selftest.add_argument("--defer-artifact-root", action="store_true")
+    selftest_stage = selftest.add_mutually_exclusive_group()
+    selftest_stage.add_argument("--stop-after-study", action="store_true")
+    selftest_stage.add_argument("--resume-after-power")
     study = top.add_parser("study").add_subparsers(dest="study_command", required=True)
     seal = study.add_parser("seal", aliases=["create"])
     for name in ("study", "tasks", "roster", "assignment_program", "provider_lane_plan", "storage_policy_contract", "power_grid", "power_screen_topology", "tokenizer", "packet_template", "packet_policy", "pad_unit_set", "required_kinds"):
@@ -109,7 +118,45 @@ def _config(args: argparse.Namespace, root: Path):
     return load_power_config(_ref(root, args.authority, "power_authority"), _ref(root, args.grid_ref, "power_grid"), _ref(root, args.screen_topology_ref, "power_screen_topology"), run_root=root)
 
 
+def _require_resumable_selftest(root: Path, final_name: str) -> None:
+    """Prove a staged root is power-complete before any descendant write."""
+    documents = _scientific_documents(root, excluded=set())
+    manifests = [
+        path for path, document in documents.items()
+        if document.value["record_kind"] == "resampling_study_manifest"
+    ]
+    if len(manifests) != 1:
+        raise RecordValidationError("resume requires exactly one study manifest")
+    manifest_name = manifests[0]
+    final_ref = _ref(root, final_name, "power_report")
+    manifest_ref = _ref(root, manifest_name, "study_manifest")
+    require_schedulable_power_final(manifest_ref, final_ref, run_root=root)
+    unexpected = [
+        path for path, document in documents.items()
+        if document.value["record_kind"] not in {
+            "resampling_study_manifest", "resampling_power_report",
+        }
+    ]
+    if unexpected:
+        raise RecordValidationError(
+            "resume requires no schedule or later scientific artifacts"
+        )
+
+
+def _selftest(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
+    if args.stop_after_study:
+        return seal_synthetic_selftest_study(root)
+    if args.resume_after_power:
+        _require_resumable_selftest(root, args.resume_after_power)
+        raise RecordValidationError(
+            "selftest descendants are not implemented in this CLI checkpoint"
+        )
+    raise RecordValidationError("selftest fixture bundle is not installed")
+
+
 def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
+    if args.command == "selftest":
+        return _selftest(args, root)
     if args.command == "study":
         if args.study_command == "validate":
             path, _ = resolve_inside(Path(args.study), root, require_exists=True)
@@ -176,6 +223,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     try:
         args = parser.parse_args(argv)
+        if (
+            args.command == "selftest"
+            and args.stop_after_study
+            and args.defer_artifact_root
+        ):
+            parser.error("--stop-after-study cannot defer an absent artifact root")
         root = run_root(Path(args.run_root))
         result = _dispatch(args, root)
         if result is not None: _emit(result)

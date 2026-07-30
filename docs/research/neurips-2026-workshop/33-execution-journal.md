@@ -2063,3 +2063,30 @@ The next event after the archived migration boundary is appended below.
   `git diff --check` passed.
 - **Boundary/non-claim:** This correction executed no P0 simulation, full
   multiplier validation, provider action, benchmark, spend, or claim.
+
+### EJ-20260730-0198 — Task 9 selftest staging preflight checkpoint
+
+- **Implementation:** Added the exact `selftest` parser surface with an
+  explicit `--stop-after-study`/`--resume-after-power` mutual exclusion and
+  rejected the meaningless `--stop-after-study --defer-artifact-root` pair.
+  The committed production-owned, zero-spend fixture materializer now writes
+  its fixed source closure under `sources/selftest-fixture/` and uses the real
+  study-seal contract to create only `study-manifest.json` and copied inputs.
+  Resume performs its read-only admission check before any descendant write:
+  exactly one study manifest, a root-confined final reference, the manifest's
+  complete compatible schedulable power chain, and no schedule or later
+  scientific record. It returns a specific redacted checkpoint gate instead of
+  pretending descendant materialization exists.
+- **Focused evidence:** The new parser/resume tests were first observed RED
+  (the command was absent and argparse returned only a generic error), then
+  `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_cli.py -q`
+  passed 7 tests. `compileall`, `git diff --check`, and
+  `.venv/bin/python -m pneuma_lab.status --check` passed.
+- **Blocker/next gate:** The materializer is a deliberately minimal committed
+  fixture closure, not the planned public static JSON bundle, and its source
+  stage has no completed P0 final. Next, bind the frozen public P0
+  grid/roster/topology fixture identities into that closure, then implement the
+  selected-descendant materializer against an admitted completed final.
+- **Boundary/non-claim:** The focused test sealed only a synthetic fixture
+  manifest and copied inputs. No P0 work, provider action, external benchmark,
+  spend, tier selection, or scientific claim occurred.

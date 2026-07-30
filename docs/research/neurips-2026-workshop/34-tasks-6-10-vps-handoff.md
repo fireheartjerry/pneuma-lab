@@ -199,6 +199,20 @@ orchestration descendants are still governed by their existing Task-4–6 APIs.
 The checkpoint correction binds the full-multiplier final to its implemented
 fallback finalizer and rejects malformed/noncanonical paths before record IO.
 
+**Task 9 selftest staging preflight (2026-07-30):** The CLI now recognizes the
+three planned `selftest` forms and rejects ambiguous study-only/artifact-root
+deferral. Resume is read-only until it proves one manifest, an exact compatible
+complete power chain, and no schedule/later scientific record. The current
+checkpoint then returns a redacted “descendants not implemented” gate. A
+committed production-owned zero-spend fixture materializer now uses the live
+study-seal contract: `--stop-after-study` writes only
+`study-manifest.json` plus `sources/` closure/copies—no power, schedule,
+assignment, packets, analysis, or receipt. It is intentionally a minimal
+fixture materializer rather than the plan's final public static JSON bundle;
+next bind the frozen P0 grid/roster/topology identities, hostile-review the
+fixture closure, then add descendant materialization only after a real admitted
+completed final.
+
 **Task 8B handoff (2026-07-30):** Power shards now generate real manifest-bound
 `n=20` pattern-count tensors in chunks and route them through the Task-7 batch
 gate. Persist only aggregate gate totals plus compact replay/Merkle receipts;
