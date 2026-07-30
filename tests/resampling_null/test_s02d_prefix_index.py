@@ -4,6 +4,7 @@ from dataclasses import asdict, replace
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -193,7 +194,12 @@ def _nonempty_execution_graph(
         program=opened._program,
         program_bytes=opened._program_bytes,
         payloads=payloads,
-        snapshot=None,  # type: ignore[arg-type]
+        snapshot=SimpleNamespace(  # type: ignore[arg-type]
+            episode_terminal=(
+                opened.trigger_reason is TriggerReason.NO_INTERVENTION_OPPORTUNITY
+            ),
+            cumulative_mutation=False,
+        ),
         initial_restore=None,  # type: ignore[arg-type]
         grade_restore=None,  # type: ignore[arg-type]
         verifier_restore=None,  # type: ignore[arg-type]
@@ -404,7 +410,7 @@ def test_s02d_replays_terminal_precedence_before_mutation_trigger(
             )
         graph.program = replace(
             graph.program,
-            clock_trace=tuple(shifted),
+            clock_trace=tuple(shifted[:5]),
         )
     else:
         graph.authority = replace(
@@ -415,16 +421,24 @@ def test_s02d_replays_terminal_precedence_before_mutation_trigger(
             ),
         )
         graph.tool_ledger = replace(graph.tool_ledger, boundaries=())
+        graph.program = replace(
+            graph.program,
+            clock_trace=graph.program.clock_trace[:3],
+            tool_observations=(),
+        )
     graph.program = replace(
         graph.program,
         expected_trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
         tool_observations=(
-            replace(
-                graph.program.tool_observations[0],
-                mutation_committed=True,
-                verifier_eligible=True,
-            ),
-            *graph.program.tool_observations[1:],
+            (
+                replace(
+                    graph.program.tool_observations[0],
+                    mutation_committed=True,
+                    verifier_eligible=True,
+                ),
+            )
+            if overshoot == "wall_before_mutation"
+            else ()
         ),
     )
     expected_wall = (
@@ -599,6 +613,124 @@ def test_s02d_rejects_provider_row_after_first_adverse_status(
         prefix_index_module._assert_execution_semantics(graph)
 
 
+@pytest.mark.parametrize(
+    "tamper",
+    ["swapped_provider_pair", "cross_stream_reorder", "unused_extra_read"],
+)
+def test_s02d_consumes_exact_clock_trace_sequence(
+    tmp_path: Path,
+    tamper: str,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    trace = list(graph.program.clock_trace)
+    if tamper == "swapped_provider_pair":
+        trace[1], trace[2] = trace[2], trace[1]
+    elif tamper == "cross_stream_reorder":
+        trace[2], trace[3] = trace[3], trace[2]
+    else:
+        trace.append(SyntheticClockRead("unused_extra_read", trace[-1].uint64_ms))
+    object.__setattr__(graph.program, "clock_trace", tuple(trace))
+
+    with pytest.raises(ValueError, match="clock"):
+        prefix_index_module._assert_execution_semantics(graph)
+
+
+def test_s02d_rejects_unconsumed_tool_observation(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    extra = replace(
+        graph.program.tool_observations[-1],
+        call_id="unconsumed-call",
+    )
+    graph.program = replace(
+        graph.program,
+        tool_observations=(*graph.program.tool_observations, extra),
+    )
+
+    with pytest.raises(ValueError, match="tool observation"):
+        prefix_index_module._assert_execution_semantics(graph)
+
+
+def test_s02d_rederives_provider_seed_from_schedule(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    row = graph.program.provider_transcript[0]
+    changed_seed = row.seed + 1
+    intent_ref = graph.provider_ledger.ledger.intent_refs[0]
+    attempt_ref = graph.provider_ledger.attempt_refs[0]
+    event_ref = graph.provider_ledger.ledger.attempts[0].provider_event_ref
+    settlement_ref = graph.cost_record.settlement_refs[0]
+    changed_intent = replace(
+        graph.provider_ledger.ledger.intents[0],
+        seed=changed_seed,
+    )
+    changed_attempt = replace(
+        graph.provider_ledger.ledger.attempts[0],
+        seed=changed_seed,
+    )
+    graph.program = replace(
+        graph.program,
+        provider_transcript=(replace(row, seed=changed_seed),),
+    )
+    graph.provider_ledger = replace(
+        graph.provider_ledger,
+        ledger=replace(
+            graph.provider_ledger.ledger,
+            intents=(changed_intent,),
+            attempts=(changed_attempt,),
+        ),
+    )
+    graph.intents[intent_ref] = changed_intent
+    graph.attempts[attempt_ref] = changed_attempt
+    graph.events[event_ref] = replace(
+        graph.events[event_ref],
+        seed=changed_seed,
+    )
+    graph.settlements[settlement_ref] = replace(
+        graph.settlements[settlement_ref],
+        seed=changed_seed,
+    )
+    graph.receipt = replace(
+        graph.receipt,
+        call_seeds=(replace(graph.receipt.call_seeds[0], seed=changed_seed),),
+    )
+
+    with pytest.raises(ValueError, match="seed"):
+        prefix_index_module._assert_execution_semantics(graph)
+
+
+def test_s02d_binds_edge_local_and_cumulative_mutation(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    boundaries = (
+        replace(
+            graph.tool_ledger.boundaries[0],
+            mutation_committed=True,
+            verifier_eligible_after=False,
+        ),
+        replace(
+            graph.tool_ledger.boundaries[1],
+            mutation_committed=False,
+            verifier_eligible_after=True,
+        ),
+    )
+
+    prefix_index_module._assert_mutation_semantics(
+        boundaries=boundaries,
+        final_edge_mutation=False,
+        snapshot_cumulative=True,
+    )
+    with pytest.raises(ValueError, match="mutation"):
+        prefix_index_module._assert_mutation_semantics(
+            boundaries=boundaries,
+            final_edge_mutation=True,
+            snapshot_cumulative=False,
+        )
+
+
 def test_s02d_derives_trigger_instead_of_trusting_program_claim(
     tmp_path: Path,
 ) -> None:
@@ -636,7 +768,7 @@ def test_s02d_seals_exact_schedule_order_after_fresh_graph_reload(
     ] == ["task-1", "task-foreign"]
 
 
-def test_s02d_full_seal_routes_candidates_through_nonempty_replay(
+def test_s02d_full_seal_routing_probe_invokes_nonempty_replay(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -709,6 +841,55 @@ def test_s02d_reconciles_nonselected_reachable_program_leaves(
     )
 
     with pytest.raises(ValueError, match="grade"):
+        prefix_index_module._assert_all_program_occurrences(traversal)
+
+
+@pytest.mark.parametrize(
+    "tamper",
+    ["raw_transport", "clock_extra", "tool_observation_extra"],
+)
+def test_s02d_replays_every_reachable_program_occurrence(
+    tmp_path: Path,
+    tamper: str,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    program_ref = graph.authority.program_ref
+    if tamper == "raw_transport":
+        event_ref = graph.program.provider_transcript[0].provider_event_ref
+        raw_event = json.loads(graph.payloads[event_ref])
+        raw_event["transport_kind"] = "provider_error"
+        graph.payloads[event_ref] = canonical_json_bytes(raw_event, indent=None)
+    elif tamper == "clock_extra":
+        trace = (
+            *graph.program.clock_trace,
+            SyntheticClockRead(
+                "unconsumed_nonselected_clock",
+                graph.program.clock_trace[-1].uint64_ms,
+            ),
+        )
+        graph.program = replace(graph.program, clock_trace=trace)
+    else:
+        graph.program = replace(
+            graph.program,
+            tool_observations=(
+                *graph.program.tool_observations,
+                replace(
+                    graph.program.tool_observations[-1],
+                    call_id="unconsumed-nonselected-tool",
+                ),
+            ),
+        )
+    traversal = prefix_index_module._FreshTraversal(
+        visited={},
+        path_bindings={},
+        physical_bindings={},
+        payloads=graph.payloads,
+        nested={},
+        decoded={program_ref: graph.program},
+        scientific_refs=set(),
+    )
+
+    with pytest.raises(ValueError):
         prefix_index_module._assert_all_program_occurrences(traversal)
 
 
@@ -967,6 +1148,7 @@ def test_s02d_publication_fault_removes_only_owned_target(
         "directory_close",
         "verification_close",
         "rollback_guard_dup",
+        "after_close_guard_close",
         "final_root_close",
     ],
 )
@@ -988,6 +1170,8 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
     injected = False
     verification_read = False
     outer_root_descriptor: int | None = None
+    rollback_guard_descriptor: int | None = None
+    seal_bound_complete = False
 
     def descriptor_path(descriptor: int) -> Path | None:
         try:
@@ -1035,7 +1219,7 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
         return real_stat(path, *args, **kwargs)
 
     def failing_dup(descriptor: int) -> int:
-        nonlocal injected
+        nonlocal injected, rollback_guard_descriptor
         if (
             stage == "rollback_guard_dup"
             and not injected
@@ -1044,7 +1228,14 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
         ):
             injected = True
             raise OSError("injected rollback guard dup failure")
-        return real_dup(descriptor)
+        duplicated = real_dup(descriptor)
+        if (
+            seal_bound_complete
+            and descriptor == outer_root_descriptor
+            and target.exists()
+        ):
+            rollback_guard_descriptor = duplicated
+        return duplicated
 
     def failing_validate(record: object) -> object:
         nonlocal injected
@@ -1083,6 +1274,11 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
                 and path == target
             )
             or (
+                stage == "after_close_guard_close"
+                and not injected
+                and descriptor == rollback_guard_descriptor
+            )
+            or (
                 stage == "final_root_close"
                 and not injected
                 and descriptor == outer_root_descriptor
@@ -1095,9 +1291,11 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
         real_close(descriptor)
 
     def capture_outer_root(*args: object, **kwargs: object) -> object:
-        nonlocal outer_root_descriptor
+        nonlocal outer_root_descriptor, seal_bound_complete
         outer_root_descriptor = kwargs["root_descriptor"]  # type: ignore[assignment]
-        return real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
+        result = real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
+        seal_bound_complete = True
+        return result
 
     with monkeypatch.context() as scoped:
         scoped.setattr(prefix_index_module.os, "open", failing_open)
@@ -1129,3 +1327,64 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
         out=target,
     )
     assert target.is_file()
+
+
+def test_s02d_atomic_rollback_never_unlinks_a_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    target = run_root / "prefix-index.json"
+    survivor = run_root / "owned-survivor"
+    root_descriptor = prefix_index_module.os.open(
+        run_root,
+        prefix_index_module._DIRECTORY_FLAGS,
+    )
+    owned = prefix_index_module._publish_once(
+        root_descriptor=root_descriptor,
+        relative_path="prefix-index.json",
+        payload=b"owned-payload",
+    )
+    real_unlink = prefix_index_module.os.unlink
+    injected = False
+
+    def racing_unlink(
+        name: object,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        nonlocal injected
+        if name == "prefix-index.json":
+            injected = True
+            directory = kwargs["dir_fd"]
+            prefix_index_module.os.rename(
+                "prefix-index.json",
+                "owned-survivor",
+                src_dir_fd=directory,
+                dst_dir_fd=directory,
+            )
+            replacement = prefix_index_module.os.open(
+                "prefix-index.json",
+                prefix_index_module.os.O_WRONLY
+                | prefix_index_module.os.O_CREAT
+                | prefix_index_module.os.O_EXCL,
+                0o600,
+                dir_fd=directory,
+            )
+            prefix_index_module.os.write(replacement, b"replacement")
+            prefix_index_module.os.close(replacement)
+        real_unlink(name, *args, **kwargs)
+
+    monkeypatch.setattr(prefix_index_module.os, "unlink", racing_unlink)
+    try:
+        prefix_index_module._rollback_owned_publication(
+            root_descriptor=root_descriptor,
+            owned=owned,
+        )
+    finally:
+        prefix_index_module.os.close(root_descriptor)
+
+    assert not target.exists()
+    assert not survivor.exists()
+    assert not injected
