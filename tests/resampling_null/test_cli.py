@@ -115,6 +115,34 @@ def test_cli_selftest_study_binds_frozen_p0_inputs_and_admits_power_config(
     assert load_power_config(authority, grid, topology, run_root=tmp_path)
 
 
+def test_cli_power_authority_then_screen_uses_closed_authority_media_type(
+    tmp_path: Path, capsys,
+) -> None:
+    """The canonical CLI refs must replay the authority's closed media type."""
+    from pneuma_lab.resampling_null.cli import main
+
+    assert main(["--run-root", str(tmp_path), "selftest", "--stop-after-study"]) == 0
+    capsys.readouterr()
+    manifest = json.loads((tmp_path / "study-manifest.json").read_text(encoding="utf-8"))
+    payload = manifest["payload"]
+    assert main([
+        "--run-root", str(tmp_path), "power", "authority", "synthetic",
+        "--study", "study-manifest.json", "--out", "power/authority.json",
+    ]) == 0
+    capsys.readouterr()
+    assert main([
+        "--run-root", str(tmp_path), "power", "screen",
+        "--authority", "power/authority.json",
+        "--grid-ref", payload["power_grid_ref"]["relative_path"],
+        "--screen-topology-ref", payload["power_screen_topology_ref"]["relative_path"],
+        "--phase", "gaussian_approximation", "--generation", "0", "--shard-count", "64",
+        "--out", "power/screen.json",
+    ]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "ok"
+    assert json.loads((tmp_path / "power/screen.json").read_text(encoding="utf-8"))["payload"]["stage"] == "screen"
+
+
 def test_cli_selftest_uses_exact_frozen_roster_and_is_byte_deterministic(
     tmp_path: Path, capsys,
 ) -> None:

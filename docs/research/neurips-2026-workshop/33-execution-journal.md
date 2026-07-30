@@ -2384,3 +2384,27 @@ The next event after the archived migration boundary is appended below.
   tests/resampling_null/test_cli.py -q` passed 39 tests.
 - **Boundary/non-claim:** No master key, recovery key, unblind mapping, P0,
   provider action, spend, or scientific result was persisted or executed.
+
+### EJ-20260730-0211 — Task-9 repair: preserve closed power-ref media identity
+
+- **Correction:** The canonical CLI `_ref` adapter had reconstructed every
+  artifact reference as generic `application/json`. Consequently, a genuine
+  `power authority synthetic` record could not enter the immediately following
+  `power screen` command: `load_power_authority` correctly rejected the
+  downgraded authority identity. The adapter now has an explicit power-role
+  media registry: `power_authority` uses the closed
+  `application/vnd.pneuma.power-authority+json` media type, while the frozen
+  grid, screen topology, and JSON power reports remain explicitly
+  `application/json`.
+- **Focused evidence:** A fresh selftest study root seals a synthetic authority
+  through the public CLI, then runs the canonical Gaussian `power screen`
+  command against the manifest's own grid/topology refs. The screen succeeds
+  with the registered 64-shard topology and writes a stage=`screen` report.
+  The initial test failed before the fix with the exact closed-media rejection.
+  `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_cli.py::test_cli_power_authority_then_screen_uses_closed_authority_media_type
+  tests/resampling_null/test_cli.py::test_cli_selftest_study_binds_frozen_p0_inputs_and_admits_power_config -q`
+  passed 2 tests; whitespace check passed.
+- **Boundary/non-claim:** This runs one bounded screen preflight only. It does
+  not execute a production shard, validation, multiplier fallback, final P0,
+  schedule, provider, spend, benchmark, or scientific result.

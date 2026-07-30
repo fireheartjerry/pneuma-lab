@@ -211,6 +211,18 @@ orchestration descendants are still governed by their existing Task-4–6 APIs.
 The checkpoint correction binds the full-multiplier final to its implemented
 fallback finalizer and rejects malformed/noncanonical paths before record IO.
 
+**Task 9 power-ref media repair (2026-07-30):** The CLI's canonical
+argv-to-`ArtifactRef` boundary now preserves the closed power-authority media
+identity rather than reconstructing it as generic JSON. Grid, screen-topology,
+and power-report roles are explicitly audited as JSON; only
+`power_authority` receives its registered vendor media type. A new no-mock
+fresh-root command test proves `power authority synthetic` feeds the
+manifest-bound Gaussian `power screen` command and produces a screen report.
+This is a bounded feasibility preflight, not a P0 execution or result. Next
+gate remains the absent Task-5 opaque branch executor, followed by a genuinely
+admitted full P0 lifecycle; do not treat this screen record as a final or
+descendant admission.
+
 **Task 9 selftest staging preflight (2026-07-30):** The CLI now recognizes the
 three planned `selftest` forms and rejects ambiguous study-only/artifact-root
 deferral. Resume is read-only until it proves one manifest, an exact compatible

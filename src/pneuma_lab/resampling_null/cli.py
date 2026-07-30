@@ -30,7 +30,8 @@ from .power import (finalize_synthetic_full_multiplier_report, finalize_syntheti
                     load_power_config, seal_roster_bound_power_authority,
                     seal_synthetic_power_authority, screen_power_grid,
                     select_validation_cells, simulate_power_shard,
-                    validate_gaussian_approximation, validate_full_multiplier_fallback)
+                    validate_gaussian_approximation, validate_full_multiplier_fallback,
+                    POWER_AUTHORITY_MEDIA_TYPE)
 from .packets import (IdentifierAtom, NoInterventionPacketMarker,
                       SyntheticPacketArtifactStore, audit_and_seal_packet_index,
                       build_packet_pair, derive_packet_rewrite_artifacts,
@@ -47,6 +48,18 @@ from .types import AnalysisConfig, AnalysisRow, ArtifactRef, GroupKind, GroupLab
 
 class _ArgumentError(ValueError):
     """Redacted parser failure that never lets argparse print usage."""
+
+
+# ArtifactRef identity includes media type.  Most controller records are JSON,
+# but power authority is deliberately a closed capability format.  Keep this
+# role mapping adjacent to the argv-to-ref boundary so a CLI replay cannot
+# silently downgrade a sealed authority to generic JSON.
+_REF_MEDIA_BY_ROLE = {
+    "power_authority": POWER_AUTHORITY_MEDIA_TYPE,
+    "power_grid": "application/json",
+    "power_screen_topology": "application/json",
+    "power_report": "application/json",
+}
 
 
 class _JsonArgumentParser(argparse.ArgumentParser):
@@ -70,7 +83,7 @@ def _ref(root: Path, name: str, role: str) -> ArtifactRef:
     payload = path.read_bytes()
     return ArtifactRef(role=role, relative_path=relative,
                        sha256=hashlib.sha256(payload).hexdigest(), byte_count=len(payload),
-                       media_type="application/json")
+                       media_type=_REF_MEDIA_BY_ROLE.get(role, "application/json"))
 
 
 def _out(root: Path, value: str) -> Path:
