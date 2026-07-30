@@ -15,7 +15,9 @@ def test_smoke_dependencies_import_without_posix_directory_constant() -> None:
     program = "\n".join(
         (
             "import os",
-            "del os.O_DIRECTORY",
+            "for name in ('O_DIRECTORY', 'O_NOFOLLOW', 'O_CLOEXEC'):",
+            "    if hasattr(os, name):",
+            "        delattr(os, name)",
             "import pneuma_lab.resampling_null.packets",
             "import pneuma_lab.resampling_null.synthetic_environment",
         )
