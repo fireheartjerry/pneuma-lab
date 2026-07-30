@@ -1,0 +1,305 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/resampling-timing-no-go.schema.json",
+    "title": "Resampling Timing Lower-Bound No-Go",
+    "description": "Closed Task-8 timing-admission representation of a host-specific lower-bound infeasibility observation. It is never a power screen, attempt, final, or scientific result.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "record_kind",
+        "payload"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": "0.1.0"
+        },
+        "record_kind": {
+            "const": "resampling_timing_no_go"
+        },
+        "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "outcome",
+                "bindings",
+                "projection",
+                "monotonic_evidence",
+                "termination_evidence",
+                "execution_provenance",
+                "artifact_absence",
+                "claims"
+            ],
+            "properties": {
+                "outcome": {
+                    "const": "timing_infeasible_lower_bound"
+                },
+                "bindings": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "study_manifest_ref",
+                        "power_authority_ref",
+                        "power_grid_ref",
+                        "power_screen_topology_ref",
+                        "termination_evidence_ref",
+                        "run_root_identity_sha256",
+                        "host_identity_sha256"
+                    ],
+                    "properties": {
+                        "study_manifest_ref": {
+                            "$ref": "#/$defs/artifact_ref"
+                        },
+                        "power_authority_ref": {
+                            "$ref": "#/$defs/artifact_ref"
+                        },
+                        "power_grid_ref": {
+                            "$ref": "#/$defs/artifact_ref"
+                        },
+                        "power_screen_topology_ref": {
+                            "$ref": "#/$defs/artifact_ref"
+                        },
+                        "termination_evidence_ref": {
+                            "$ref": "#/$defs/artifact_ref"
+                        },
+                        "run_root_identity_sha256": {
+                            "$ref": "#/$defs/sha256"
+                        },
+                        "host_identity_sha256": {
+                            "$ref": "#/$defs/sha256"
+                        }
+                    }
+                },
+                "projection": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "formula",
+                        "cell_count",
+                        "screen_datasets_per_cell",
+                        "production_datasets_per_cell",
+                        "multiplier",
+                        "max_projected_wall_seconds",
+                        "admissible_probe_threshold_seconds",
+                        "elapsed_lower_bound_seconds",
+                        "projected_wall_seconds_lower_bound"
+                    ],
+                    "properties": {
+                        "formula": {
+                            "const": "ceil(elapsed_lower_bound_seconds * production_datasets_per_cell / screen_datasets_per_cell)"
+                        },
+                        "cell_count": {
+                            "const": 2916
+                        },
+                        "screen_datasets_per_cell": {
+                            "const": 200
+                        },
+                        "production_datasets_per_cell": {
+                            "const": 20000
+                        },
+                        "multiplier": {
+                            "const": 100
+                        },
+                        "max_projected_wall_seconds": {
+                            "const": 43200
+                        },
+                        "admissible_probe_threshold_seconds": {
+                            "const": 432
+                        },
+                        "elapsed_lower_bound_seconds": {
+                            "type": "integer",
+                            "exclusiveMinimum": 432
+                        },
+                        "projected_wall_seconds_lower_bound": {
+                            "type": "integer",
+                            "exclusiveMinimum": 43200
+                        }
+                    }
+                },
+                "monotonic_evidence": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "source",
+                        "started_monotonic_ns",
+                        "observed_monotonic_ns",
+                        "elapsed_lower_bound_seconds",
+                        "semantics"
+                    ],
+                    "properties": {
+                        "source": {
+                            "const": "time.monotonic_ns"
+                        },
+                        "started_monotonic_ns": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "observed_monotonic_ns": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "elapsed_lower_bound_seconds": {
+                            "type": "integer",
+                            "exclusiveMinimum": 432
+                        },
+                        "semantics": {
+                            "const": "conservative_lower_bound"
+                        }
+                    }
+                },
+                "termination_evidence": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "authorization",
+                        "event_id",
+                        "signal",
+                        "exit_status",
+                        "probe_status"
+                    ],
+                    "properties": {
+                        "authorization": {
+                            "const": "user_explicit"
+                        },
+                        "event_id": {
+                            "const": "EJ-20260730-0217"
+                        },
+                        "signal": {
+                            "const": "SIGTERM"
+                        },
+                        "exit_status": {
+                            "const": "clean"
+                        },
+                        "probe_status": {
+                            "const": "terminated_incomplete"
+                        }
+                    }
+                },
+                "execution_provenance": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "execution_owner",
+                        "machinery_owner",
+                        "promotes_task_10_completion",
+                        "promotes_task_8_scientific_completion"
+                    ],
+                    "properties": {
+                        "execution_owner": {
+                            "const": "task_10_canonical_timing_rerun"
+                        },
+                        "machinery_owner": {
+                            "const": "task_8_timing_admission"
+                        },
+                        "promotes_task_10_completion": {
+                            "const": false
+                        },
+                        "promotes_task_8_scientific_completion": {
+                            "const": false
+                        }
+                    }
+                },
+                "artifact_absence": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "screen_record",
+                        "timing_verifier",
+                        "power_shard",
+                        "power_final",
+                        "downstream_artifact"
+                    ],
+                    "properties": {
+                        "screen_record": {
+                            "const": false
+                        },
+                        "timing_verifier": {
+                            "const": false
+                        },
+                        "power_shard": {
+                            "const": false
+                        },
+                        "power_final": {
+                            "const": false
+                        },
+                        "downstream_artifact": {
+                            "const": false
+                        }
+                    }
+                },
+                "claims": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "completed_screen",
+                        "p0_attempt",
+                        "p0_final",
+                        "scientific_result",
+                        "task_8_scientifically_complete",
+                        "task_10_complete"
+                    ],
+                    "properties": {
+                        "completed_screen": {
+                            "const": false
+                        },
+                        "p0_attempt": {
+                            "const": false
+                        },
+                        "p0_final": {
+                            "const": false
+                        },
+                        "scientific_result": {
+                            "const": false
+                        },
+                        "task_8_scientifically_complete": {
+                            "const": false
+                        },
+                        "task_10_complete": {
+                            "const": false
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "$defs": {
+        "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+        },
+        "artifact_ref": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "role",
+                "relative_path",
+                "sha256",
+                "byte_count",
+                "media_type"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "relative_path": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "byte_count": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "media_type": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        }
+    },
+    "x-pneuma-schema-kind": "research_evidence_contract",
+    "x-pneuma-version": "0.1.0"
+}
