@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import hashlib
 from pathlib import Path
-import sys
-import unicodedata
+from collections.abc import Mapping
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 from pneuma_lab.resampling_null.artifacts import (
@@ -110,17 +108,14 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
             ),
         )
 
-    task = {
-        "task_id": "task-1",
-        "benchmark": "swe",
-        "stratum": "python",
-        "lineage": "repo-1",
-        "groups": [
-            {"kind": "language", "value": "python"},
-            {"kind": "domain", "value": "software"},
-            {"kind": "issue_family", "value": "bug"},
-        ],
-    }
+    fixture_root = Path(__file__).resolve().parents[3] / "fixtures" / "resampling_null"
+    roster_source = fixture_root / "p0-roster-synthetic.json"
+    roster_value = __import__("json").loads(roster_source.read_text(encoding="utf-8"))
+    tasks = [
+        {key: value for key, value in task.items() if key != "tiers"}
+        for task in roster_value["tasks"]
+    ]
+    task = tasks[0]
     revision_deep_source = write_json(
         external / "sources" / "provider-authority" / "revision-deep.json",
         {
@@ -140,7 +135,7 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
             {
                 "record_kind": "resampling_task_registry_v1",
                 "schema_version": "1",
-                "tasks": [task],
+                "tasks": tasks,
             },
         ),
         "tokenizer": write_json(
@@ -167,7 +162,6 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         "pads",
     ):
         sources[name] = write_json(external / f"{name}.json", {"name": name})
-    fixture_root = Path(__file__).resolve().parents[3] / "fixtures" / "resampling_null"
     sources["power-grid"] = fixture_root / "p0-power-grid.json"
     sources["power-topology"] = fixture_root / "p0-power-screen-topology.json"
     sources["required"] = write_json(
@@ -192,21 +186,7 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         subtree="revisions",
         role="source_revision",
     )
-    sources["roster"] = write_json(
-        external / "roster.json",
-        {
-            "record_kind": "resampling_roster_v1",
-            "schema_version": "1",
-            "roster_kind": (
-                "eligible_confirmation"
-                if failure_mode
-                in {"confirmation_missing", "confirmation_conditional"}
-                else "synthetic_fixture"
-            ),
-            "supported_tiers": [120, 160],
-            "tasks": [{**task, "tiers": [120, 160]}],
-        },
-    )
+    sources["roster"] = roster_source
     sources["assignment"] = write_json(
         external / "assignment.json",
         {
@@ -246,11 +226,8 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
             },
             "assignment_runtime_contract": {
                 "implementation": "CPython",
-                "python_version": (
-                    f"{sys.version_info.major}.{sys.version_info.minor}."
-                    f"{sys.version_info.micro}"
-                ),
-                "unicodedata_unidata_version": unicodedata.unidata_version,
+                "python_version": "3.12.0",
+                "unicodedata_unidata_version": "15.0.0",
             },
             "backend_receipt_ref": (
                 revision_ref
@@ -468,6 +445,71 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         },
         role="isolation_contract",
     )
+    task_lanes = []
+    for fixture_task in tasks:
+        task_id = fixture_task["task_id"]
+        task_common = {
+            "schema_version": "1",
+            "task_id": task_id,
+            "benchmark": fixture_task["benchmark"],
+            "build_id": "fixture-build",
+            "source_revision_refs": [revision_ref],
+        }
+        fixture_input_ref = authority_asset(
+            f"task-input-{task_id}.json",
+            {
+                "record_kind": "prefix_task_input_v1",
+                "schema_version": "1",
+                "task_id": task_id,
+                "benchmark": fixture_task["benchmark"],
+                "requires_user_simulator": True,
+                "canonical_task_payload": {
+                    "instruction": "fixture", "nested_ref": revision_deep_ref,
+                },
+            },
+            role="task_input",
+        )
+        fixture_environment_ref = authority_asset(
+            f"environment-{task_id}.json",
+            {**task_common, "record_kind": "prefix_environment_contract_v1",
+             "nominal_factory_type": "FixtureEnvironmentFactory",
+             "snapshot_grammar": "fixture-snapshot-v1",
+             "restore_grammar": "fixture-restore-v1",
+             "raw_evidence_grammar": "fixture-environment-evidence-v1",
+             "runtime_id": "cpython-fixture", "container_digest": "sha256:" + SHA_A},
+            role="environment_contract",
+        )
+        fixture_grader_ref = authority_asset(
+            f"grader-{task_id}.json",
+            {**task_common, "record_kind": "prefix_grader_contract_v1",
+             "nominal_type": "FixtureGrader", "raw_evidence_grammar": "fixture-grade-evidence-v1",
+             "runtime_id": "cpython-fixture", "container_digest": "sha256:" + SHA_A},
+            role="grader_contract",
+        )
+        fixture_verifier_ref = authority_asset(
+            f"verifier-{task_id}.json",
+            {**task_common, "record_kind": "prefix_verifier_contract_v1",
+             "nominal_type": "FixtureVerifier", "raw_evidence_grammar": "fixture-verifier-evidence-v1",
+             "runtime_id": "cpython-fixture", "container_digest": "sha256:" + SHA_A},
+            role="verifier_contract",
+        )
+        fixture_isolation_ref = authority_asset(
+            f"isolation-{task_id}.json",
+            {**task_common, "record_kind": "prefix_isolation_contract_v1",
+             "distinct_environment_instances": True, "distinct_processes": True,
+             "distinct_roots": True, "no_shared_writable_state": True,
+             "qualification_ref": qualification_ref},
+            role="isolation_contract",
+        )
+        task_lanes.append({
+            "task_id": task_id, "prefix_lane_ordinal": 0,
+            "lane_ordinals_by_execution_rank": [0, 0, 0, 0],
+            "task_input_ref": fixture_input_ref,
+            "environment_contract_ref": fixture_environment_ref,
+            "grader_contract_ref": fixture_grader_ref,
+            "verifier_contract_ref": fixture_verifier_ref,
+            "isolation_contract_ref": fixture_isolation_ref,
+        })
     sources["provider"] = write_json(
         external / "provider.json",
         {
@@ -503,18 +545,7 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
                     "meter_contract_ref": meter_ref,
                 }
             ],
-            "task_lanes": [
-                {
-                    "task_id": "task-1",
-                    "prefix_lane_ordinal": 0,
-                    "lane_ordinals_by_execution_rank": [0, 0, 0, 0],
-                    "task_input_ref": task_input_ref,
-                    "environment_contract_ref": environment_ref,
-                    "grader_contract_ref": grader_ref,
-                    "verifier_contract_ref": verifier_ref,
-                    "isolation_contract_ref": isolation_ref,
-                }
-            ],
+            "task_lanes": task_lanes,
         },
     )
     study = write_json(

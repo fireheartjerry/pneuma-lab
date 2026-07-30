@@ -214,9 +214,12 @@ screen-topology bytes into the manifest, and proves a synthetic authority can
 load that configuration without running it. Preflight is before any write for
 a pre-existing manifest/receipt, and malformed CLI input emits one redacted
 stdout JSON object (with a safe debug classification only on explicit
-`--debug`). The fixture roster remains minimal rather than the final public P0
-roster bundle. Next: hostile-review the full fixture closure, then add
-descendant materialization only after a real admitted completed final.
+`--debug`). **Correction:** it now binds/copies the exact committed 40-task
+SWE/TAU `p0-roster-synthetic.json`, derives the matching task registry and
+offline provider lane closure, and fixes CPython/Unicode identity rather than
+leaking host values. Two stage roots have byte-identical manifests. Next:
+hostile-review the full fixture closure, then add descendant materialization
+only after a real admitted completed final.
 
 **Task 8B handoff (2026-07-30):** Power shards now generate real manifest-bound
 `n=20` pattern-count tensors in chunks and route them through the Task-7 batch

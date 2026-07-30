@@ -2111,3 +2111,22 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** This loaded configuration only; it did not run a P0
   screen, shard, validation, final, provider, benchmark, paid action, or make a
   tier/scientific claim. Resume descendants remain intentionally unimplemented.
+
+### EJ-20260730-0200 — Task 9 hostile-review repair: full roster determinism
+
+- **Correction:** Replaced the one-task selftest roster/registry shortcut with
+  the exact committed `fixtures/resampling_null/p0-roster-synthetic.json`.
+  The materializer derives its closed task registry from all 40 frozen roster
+  tasks and constructs corresponding offline provider-contract lanes; it no
+  longer imports host Python or Unicode versions into scientific source bytes.
+  The registered runtime identity is fixed at CPython 3.12.0 / Unicode 15.0.0.
+- **Focused evidence:** The pre-repair study-stage test was observed RED with
+  `provider task lanes do not exactly cover the task registry`; after the full
+  lane closure, it passed. The new exact-roster/determinism test verifies the
+  copied roster digest, 40 tasks across SWE and TAU, and byte-identical manifest
+  output from two separate roots. `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_cli.py -q` passed 11 tests; `compileall` and
+  `git diff --check` passed.
+- **Boundary/non-claim:** This materialized only deterministic synthetic study
+  inputs and a manifest. No P0 screen/shard/validation/final, provider,
+  benchmark execution, spend, tier selection, or scientific claim occurred.
