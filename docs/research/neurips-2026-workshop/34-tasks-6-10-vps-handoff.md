@@ -397,3 +397,17 @@ does not write, claim, or simulate task blocks. No compatible P0 final, branch,
 projection, unblind, analysis, provider action, spend, or result was run. Next
 gate: implement and independently review the missing opaque branch authority,
 then execute only a genuinely admitted full P0 lineage.
+
+**Task 9 P0 unblind-boundary repair (2026-07-30):** `analyze` no longer opens
+or decodes the clear assignment ledger. It binds the supplied opaque ledger
+bytes to the public prefix through the already-sealed packet index, while
+`issue_unblind_permit` now validates only raw ledger bytes/HMAC context. Clear
+ledger parsing is exclusive to `unblind_projection`, after its pre-unblind
+graph and permit checks. Regression spies cover both former decode routes.
+**P1 remains an architectural blocker:** Task-6 has only single-record atomic
+publication. Its required irreversible outcome taint and unblind receipt are
+written before it returns clear rows, whereas the numerical analysis record is
+computed/written by Task 9 afterward. A later numerical/schema failure can
+therefore leave a valid receipt without analysis. Do not call this a paired
+transaction; resolving it requires a reviewed Task-6 staged-unblind/paired
+publication protocol, not a CLI rollback that would erase the mandatory taint.

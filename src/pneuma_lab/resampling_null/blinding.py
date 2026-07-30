@@ -148,8 +148,6 @@ def issue_unblind_permit(
 ) -> str:
     """Issue a one-use permit after independently validating public ancestry."""
     permit, _projection, _manifest = _validated_permit(handle, run_root=run_root, manifest_ref=manifest_ref, schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref, ledger_ref=ledger_ref, projection_ref=projection_ref, freeze_ref=freeze_ref, expected_task_count=expected_task_count)
-    _validate_ledger_ancestry(ledger_ref, run_root=run_root, manifest_ref=manifest_ref,
-                              schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref)
     return permit
 
 

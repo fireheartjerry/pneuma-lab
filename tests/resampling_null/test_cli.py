@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 
 def test_cli_requires_a_root_and_emits_redacted_json_error(capsys) -> None:
     from pneuma_lab.resampling_null.cli import main
@@ -298,6 +300,66 @@ def test_cli_synthetic_branches_is_fail_closed_without_branch_executor(
         "--analysis-freeze", "freeze.json", "--out-prefix", "task-blocks",
     ]) == 2
     assert json.loads(capsys.readouterr().out)["error"] == "synthetic branch executor is not installed"
+
+
+def test_cli_analyze_does_not_decode_ledger_before_guard(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    """The CLI may bind the opaque ledger ref, but cannot parse it itself."""
+    import stat
+    from dataclasses import dataclass
+    from types import SimpleNamespace
+    import pneuma_lab.resampling_null.cli as cli
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    root = tmp_path / "root"
+    root.mkdir()
+    key = tmp_path / "key"
+    key.write_bytes(b"k" * 32)
+    key.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    refs = {
+        name: ArtifactRef(role, name, char * 64, 1, "application/json")
+        for name, role, char in (
+            ("study.json", "study_manifest", "a"), ("projection.json", "blinded_projection", "b"),
+            ("assignment.json", "resampling_assignment_ledger", "c"), ("freeze.json", "analysis_freeze", "d"),
+            ("packet.json", "packet_index_sealed", "e"), ("schedule.json", "resampling_prefix_schedule", "f"),
+            ("prefix.json", "prefix_index", "1"), ("power.json", "power_report", "2"),
+            ("config.json", "analysis_source", "3"), ("receipt.json", "unblind_receipt", "4"),
+        )
+    }
+    def record(ref, *, root, kind):
+        if kind == "resampling_assignment_ledger":
+            pytest.fail("CLI decoded clear assignment ledger")
+        if kind == "resampling_blinded_projection":
+            return {"payload": {"analysis_freeze_ref": vars_ref(refs["freeze.json"]), "schedule_ref": vars_ref(refs["schedule.json"]), "expected_task_count": 1}}
+        if kind == "resampling_prefix_schedule":
+            return {"payload": {"manifest_ref": vars_ref(refs["study.json"]), "power_final_ref": vars_ref(refs["power.json"])}}
+        if kind == "resampling_packet_index":
+            return {"payload": {"stage": "sealed", "assignment_ref": vars_ref(refs["assignment.json"]), "prefix_index_ref": vars_ref(refs["prefix.json"])}}
+        if kind == "resampling_analysis_freeze":
+            return {"payload": {"config_ref": vars_ref(refs["config.json"])}}
+        if kind == "resampling_study_manifest":
+            return {"study_id": "s", "frozen_created_at": "2026-01-01T00:00:00Z", "provenance": {"code_sha256": "0" * 64, "design_sha256": "1" * 64}, "payload": {}}
+        raise AssertionError(kind)
+    def vars_ref(ref):
+        return {"role": ref.role, "relative_path": ref.relative_path, "sha256": ref.sha256, "byte_count": ref.byte_count, "media_type": ref.media_type}
+    monkeypatch.setattr(cli, "_ref", lambda _root, name, _role: refs[name])
+    monkeypatch.setattr(cli, "_record_for_ref", record)
+    monkeypatch.setattr(cli, "_external_sources", lambda *args, **kwargs: {})
+    monkeypatch.setattr(cli, "_external_file", lambda value, **kwargs: key)
+    monkeypatch.setattr(cli, "_analysis_config", lambda _path: (object(), 0))
+    monkeypatch.setattr(cli, "issue_unblind_permit", lambda *args, **kwargs: "permit")
+    monkeypatch.setattr(cli, "unblind_projection", lambda *args, **kwargs: SimpleNamespace(receipt_ref=refs["receipt.json"], rows=()))
+    @dataclass
+    class _Result:
+        marker: int = 1
+    monkeypatch.setattr(cli, "analyze_rows", lambda *args, **kwargs: _Result())
+    monkeypatch.setattr(cli, "write_record", lambda *args, **kwargs: refs["config.json"])
+    args = SimpleNamespace(command="analyze", study="study.json", projection="projection.json",
+        assignment="assignment.json", analysis_freeze="freeze.json", packet_index="packet.json",
+        source_root="ignored", source=["ignored"], config="ignored", projection_schema="ignored",
+        assignment_key_file=str(key), unblind_receipt="receipt.json", out="analysis.json")
+    assert cli._dispatch(args, root) == refs["config.json"]
 
 
 def test_cli_packets_rejects_noncanonical_root_names_before_writing(

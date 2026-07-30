@@ -147,6 +147,27 @@ def test_unblind_checks_graph_and_current_inputs_before_ledger_loader(monkeypatc
     assert observed == ["pregraph", "current", "permit", "graph", "ledger"]
 
 
+def test_permit_issuance_never_decodes_the_clear_ledger(monkeypatch, tmp_path) -> None:
+    """Only unblind_projection may cross from byte binding to clear parsing."""
+    import pneuma_lab.resampling_null.blinding as blinding
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    ref = ArtifactRef("x", "x.json", "0" * 64, 0, "application/json")
+    monkeypatch.setattr(
+        blinding, "_validated_permit",
+        lambda *args, **kwargs: ("permit", {}, {}),
+    )
+    monkeypatch.setattr(
+        blinding, "_validate_ledger_ancestry",
+        lambda *args, **kwargs: pytest.fail("permit issuance decoded clear ledger"),
+    )
+    assert blinding.issue_unblind_permit(
+        object(), run_root=tmp_path, manifest_ref=ref, schedule_ref=ref,
+        prefix_index_ref=ref, ledger_ref=ref, projection_ref=ref, freeze_ref=ref,
+        expected_task_count=1,
+    ) == "permit"
+
+
 def test_valid_permit_taints_before_full_graph_failure(monkeypatch, tmp_path) -> None:
     """A graph parser interruption cannot leave a potentially exposed run clean."""
     import pneuma_lab.resampling_null.blinding as blinding

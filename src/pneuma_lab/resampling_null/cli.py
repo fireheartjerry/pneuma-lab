@@ -718,7 +718,7 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
     if args.command == "analyze":
         study_ref = _ref(root, args.study, "study_manifest")
         projection_ref = _ref(root, args.projection, "blinded_projection")
-        ledger_ref = _ref(root, args.assignment, "assignment_ledger")
+        ledger_ref = _ref(root, args.assignment, "resampling_assignment_ledger")
         freeze_ref = _ref(root, args.analysis_freeze, "analysis_freeze")
         packet_ref = _ref(root, args.packet_index, "packet_index_sealed")
         projection = _record_for_ref(projection_ref, root=root, kind="resampling_blinded_projection")
@@ -730,8 +730,16 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
         schedule_payload = _payload(schedule, field="schedule")
         if schedule_payload.get("manifest_ref") != _mapping_ref(study_ref):
             raise RecordValidationError("projection schedule differs from supplied study")
-        ledger = _record_for_ref(ledger_ref, root=root, kind="resampling_assignment_ledger")
-        prefix_ref = _artifact_ref(_payload(ledger, field="ledger").get("prefix_index_ref"), field="ledger prefix_index_ref")
+        # The packet index is public and sealed before the freeze.  It binds
+        # the opaque ledger bytes to the public prefix without parsing the
+        # clear slot map; that parse is exclusive to unblind_projection.
+        packet = _record_for_ref(packet_ref, root=root, kind="resampling_packet_index")
+        packet_payload = _payload(packet, field="packet index")
+        if packet_payload.get("stage") != "sealed":
+            raise RecordValidationError("analysis requires a sealed packet index")
+        if packet_payload.get("assignment_ref") != _mapping_ref(ledger_ref):
+            raise RecordValidationError("packet index differs from supplied assignment ledger")
+        prefix_ref = _artifact_ref(packet_payload.get("prefix_index_ref"), field="packet prefix_index_ref")
         power_final_ref = _artifact_ref(schedule_payload.get("power_final_ref"), field="schedule power_final_ref")
         sources = _external_sources(args.source_root, args.source, root=root)
         config_path = _external_file(args.config, root=root, field="analysis config")

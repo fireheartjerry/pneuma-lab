@@ -2254,3 +2254,28 @@ The next event after the archived migration boundary is appended below.
   projection, clear outcome, analysis result, provider action, spend, or claim
   occurred. The next gate is implementation and hostile review of the missing
   branch executor, followed by a genuinely admitted full P0 lineage.
+
+### EJ-20260730-0206 — Task 9 P0 clear-ledger boundary repair
+
+- **Correction:** Hostile review found that `analyze` decoded the clear
+  assignment ledger before permit issue and that `issue_unblind_permit` decoded
+  it after HMAC creation. The CLI now derives the public prefix parent from the
+  sealed packet index and checks its opaque ledger ref by exact equality; it
+  never parses ledger JSON. Permit issuance binds raw bytes only. The sole
+  clear-ledger parser remains `unblind_projection`, after pregraph and permit
+  checks.
+- **Focused evidence:** New spies were observed RED against both old paths.
+  `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_blinding.py::test_permit_issuance_never_decodes_the_clear_ledger
+  tests/resampling_null/test_cli.py::test_cli_analyze_does_not_decode_ledger_before_guard -q`
+  passed 2 tests; compile and whitespace checks passed.
+- **P1 architecture audit:** Existing Task-6 `unblind_projection` must durably
+  taint before outcome parsing and writes its singleton receipt before returning
+  rows. Task-9 numerical analysis is subsequently computed and atomically
+  written with a separate single-record `write_record`; no paired transaction
+  primitive exists. A later analysis failure can leave the receipt without an
+  analysis record. This is recorded as unresolved—not papered over with unsafe
+  receipt/taint rollback. A future repair requires a reviewed staged-unblind
+  plus paired-publication protocol.
+- **Boundary/non-claim:** No unblind, P0, analysis, provider action, spend, or
+  scientific result was executed.
