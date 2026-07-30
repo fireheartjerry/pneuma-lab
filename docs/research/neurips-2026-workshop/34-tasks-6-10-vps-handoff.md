@@ -221,6 +221,24 @@ leaking host values. Two stage roots have byte-identical manifests. Next:
 hostile-review the full fixture closure, then add descendant materialization
 only after a real admitted completed final.
 
+**Task 9 selected-descendant CLI checkpoint (2026-07-30):** The CLI now wires
+the first three descendant transitions to the existing Task-3/4 APIs:
+`schedule seal`, `synthetic prefixes`, and `assignment seal`. Schedule
+admission reloads the exact manifest/final pair and requires a completed,
+compatible schedulable final before it resolves an external, root-excluded
+decimal U64 seed file or allocates an output/lease. Prefix materialization
+accepts only study/schedule refs, proves direct study ancestry, and performs
+the existing per-task synthetic candidate/replay plus prefix-index sealing.
+Assignment accepts only schedule/prefix refs and an external root-excluded,
+owner-custodied 32-byte key file, with the existing in-memory commitment check
+and local-test lease. Root names are canonical relative POSIX paths and never
+overwrite. Focused CLI tests cover parser admission, missing authority/no-write
+failure, and a bounded schedule routing fixture; whitespace and status checks
+pass. This is plumbing only: no compatible final, prefix execution, ledger,
+provider, benchmark, spend, or result-of-record was run. Next gate: hostile
+review the command-to-API boundary and add a real completed-final synthetic
+fixture before claiming any descendant execution evidence.
+
 **Task 8B handoff (2026-07-30):** Power shards now generate real manifest-bound
 `n=20` pattern-count tensors in chunks and route them through the Task-7 batch
 gate. Persist only aggregate gate totals plus compact replay/Merkle receipts;

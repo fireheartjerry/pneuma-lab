@@ -2130,3 +2130,26 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** This materialized only deterministic synthetic study
   inputs and a manifest. No P0 screen/shard/validation/final, provider,
   benchmark execution, spend, tier selection, or scientific claim occurred.
+
+### EJ-20260730-0201 — Task 9 selected-descendant CLI wiring checkpoint
+
+- **Implementation:** Added fail-closed `schedule seal`, `synthetic prefixes`,
+  and `assignment seal` parser/dispatch routes. Schedule preflights the exact
+  root-confined manifest and complete compatible final before output/lease
+  allocation, then accepts only an external decimal-U64 seed reveal. Prefixes
+  take only direct study/schedule refs; assignment takes only direct
+  schedule/prefix refs plus an external secret-file handle, preserving the
+  existing single-use, in-memory 32-byte commitment check. All new root-side
+  names reuse strict normalized POSIX/no-overwrite handling.
+- **Focused evidence:** The parser-surface test was observed RED because all
+  three commands were absent. After wiring, `timeout 60s .venv/bin/python -m
+  pytest tests/resampling_null/test_cli.py -q` passed 15 tests; `git diff
+  --check` and `.venv/bin/python -m pneuma_lab.status --check` passed.
+- **Blocker/next gate:** The success routing fixture is bounded at the CLI/API
+  boundary because no completed P0 final exists. A hostile review must inspect
+  ancestor/ref/secret handling, then a genuine admitted synthetic final is
+  required before running prefixes or assignment and before making any
+  descendant-execution claim.
+- **Boundary/non-claim:** No power simulation/final, prefix/provider action,
+  assignment ledger, benchmark outcome, paid action, or scientific result was
+  executed.

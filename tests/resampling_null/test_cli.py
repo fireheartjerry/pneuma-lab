@@ -158,6 +158,101 @@ def test_cli_malformed_arguments_emit_only_one_redacted_json_object(capsys) -> N
     }
 
 
+def test_cli_descendant_commands_reject_missing_power_or_external_secret_before_write(
+    tmp_path: Path, capsys,
+) -> None:
+    """No descendant may create an output until its authority inputs resolve."""
+    from pneuma_lab.resampling_null.cli import main
+
+    root = tmp_path / "root"
+    root.mkdir()
+    seed = tmp_path / "schedule-seed"
+    seed.write_text("7\n", encoding="ascii")
+    assert main([
+        "--run-root", str(root), "schedule", "seal", "--study", "study.json",
+        "--power-final", "power-final.json", "--schedule-seed-file", str(seed),
+        "--out", "prefix-schedule.json",
+    ]) == 2
+    assert json.loads(capsys.readouterr().out)["status"] == "error"
+    assert not (root / "prefix-schedule.json").exists()
+    assert main([
+        "--run-root", str(root), "assignment", "seal", "--schedule", "schedule.json",
+        "--prefix-index", "prefix-index.json", "--assignment-key-file", str(root / "key"),
+        "--out", "assignment.json",
+    ]) == 2
+    assert json.loads(capsys.readouterr().out)["status"] == "error"
+    assert not (root / "assignment.json").exists()
+
+
+def test_cli_descendant_commands_are_present_and_require_ref_only_inputs(
+    tmp_path: Path, capsys,
+) -> None:
+    from pneuma_lab.resampling_null.cli import main
+
+    root = tmp_path / "root"
+    root.mkdir()
+    assert main([
+        "--run-root", str(root), "synthetic", "prefixes", "--study", "study.json",
+        "--schedule", "schedule.json", "--out", "prefix-index.json",
+    ]) == 2
+    assert json.loads(capsys.readouterr().out)["status"] == "error"
+
+
+def test_cli_parses_only_the_registered_schedule_prefix_and_assignment_surface() -> None:
+    from pneuma_lab.resampling_null.cli import _parser
+
+    parser = _parser()
+    schedule = parser.parse_args([
+        "--run-root", "/tmp/root", "schedule", "seal", "--study", "study.json",
+        "--power-final", "power-final.json", "--schedule-seed-file", "/tmp/seed",
+        "--out", "prefix-schedule.json",
+    ])
+    prefixes = parser.parse_args([
+        "--run-root", "/tmp/root", "synthetic", "prefixes", "--study", "study.json",
+        "--schedule", "prefix-schedule.json", "--out", "prefix-index.json",
+    ])
+    assignment = parser.parse_args([
+        "--run-root", "/tmp/root", "assignment", "seal", "--schedule", "prefix-schedule.json",
+        "--prefix-index", "prefix-index.json", "--assignment-key-file", "/tmp/key",
+        "--out", "assignment-ledger.json",
+    ])
+    assert (schedule.command, prefixes.command, assignment.command) == (
+        "schedule", "synthetic", "assignment",
+    )
+
+
+def test_cli_schedule_success_routes_only_bound_refs_and_external_seed(
+    tmp_path: Path, capsys, monkeypatch,
+) -> None:
+    """The CLI can only hand the sealed API opaque root refs and a revealed seed."""
+    import pneuma_lab.resampling_null.cli as cli
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "study.json").write_text("{}", encoding="utf-8")
+    (root / "power-final.json").write_text("{}", encoding="utf-8")
+    seed = tmp_path / "schedule-seed"
+    seed.write_text("7\n", encoding="ascii")
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(cli, "require_schedulable_power_final", lambda *args, **kwargs: seen.setdefault("authority", args))
+    monkeypatch.setattr(cli, "claim_local_test_storage", lambda **kwargs: seen.setdefault("lease", kwargs))
+
+    def seal(manifest, final, *, schedule_seed_reveal, storage_policy_lease, run_root, out):
+        seen.update(manifest=manifest, final=final, seed=schedule_seed_reveal, out=out)
+        return ArtifactRef("resampling_prefix_schedule", "prefix-schedule.json", "a" * 64, 1, "application/json")
+
+    monkeypatch.setattr(cli, "seal_prefix_schedule", seal)
+    assert cli.main([
+        "--run-root", str(root), "schedule", "seal", "--study", "study.json",
+        "--power-final", "power-final.json", "--schedule-seed-file", str(seed),
+        "--out", "prefix-schedule.json",
+    ]) == 0
+    assert json.loads(capsys.readouterr().out)["output"] == "prefix-schedule.json"
+    assert seen["seed"] == 7
+    assert seen["out"] == root / "prefix-schedule.json"
+
+
 def test_cli_selftest_resume_requires_one_manifest_before_any_write(
     tmp_path: Path, capsys,
 ) -> None:

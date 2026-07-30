@@ -13,7 +13,9 @@ from pathlib import Path, PurePosixPath
 from .artifacts import (_scientific_documents, seal_artifact_root,
                         seal_study_manifest, verify_artifact_root,
                         validate_record)
-from .assignment import require_schedulable_power_final
+from .assignment import (load_assignment_authority,
+                         require_schedulable_power_final)
+from .branch_assignment import seal_branch_assignment
 from .errors import RecordValidationError
 from .json_io import load_json_bytes, resolve_inside, run_root
 from .power import (finalize_synthetic_full_multiplier_report, finalize_synthetic_power_report, finalize_synthetic_validation_failed,
@@ -21,7 +23,12 @@ from .power import (finalize_synthetic_full_multiplier_report, finalize_syntheti
                     seal_synthetic_power_authority, screen_power_grid,
                     select_validation_cells, simulate_power_shard,
                     validate_gaussian_approximation, validate_full_multiplier_fallback)
+from .prefix_index import seal_prefix_index
+from .schedule import seal_prefix_schedule
+from .secrets import AssignmentSecretStore
 from .selftest_fixture import seal_synthetic_selftest_study
+from .storage import claim_local_test_storage
+from .synthetic_prefix_loop import run_prefix
 from .types import ArtifactRef
 
 
@@ -71,6 +78,63 @@ def _shards(root: Path, prefix: str) -> tuple[ArtifactRef, ...]:
     return tuple(_ref(root, p.relative_to(root).as_posix(), "power_report") for p in matches)
 
 
+def _external_file(value: str, *, root: Path, field: str) -> Path:
+    """Resolve a required external file while forbidding controller-root custody."""
+    try:
+        path = Path(value).resolve(strict=True)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise RecordValidationError(f"{field} cannot be resolved") from exc
+    if not path.is_file():
+        raise RecordValidationError(f"{field} must identify a regular file")
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return path
+    raise RecordValidationError(f"{field} must remain outside run_root")
+
+
+def _schedule_seed(path: Path) -> int:
+    try:
+        text = path.read_bytes().decode("ascii").strip()
+    except UnicodeDecodeError as exc:
+        raise RecordValidationError("schedule seed file must be ASCII U64") from exc
+    if not text or not text.isdecimal():
+        raise RecordValidationError("schedule seed file must contain one decimal U64")
+    value = int(text)
+    if value >= 2**64:
+        raise RecordValidationError("schedule seed file must contain one decimal U64")
+    return value
+
+
+def _schedule_task_ids(schedule_ref: ArtifactRef, study_ref: ArtifactRef, *, root: Path) -> tuple[str, ...]:
+    """Check the supplied study is the schedule's exact direct authority."""
+    path, _ = resolve_inside(Path(schedule_ref.relative_path), root, require_exists=True)
+    record = validate_record(load_json_bytes(path.read_bytes(), source=path))
+    if record["record_kind"] != "resampling_prefix_schedule":
+        raise RecordValidationError("schedule ref has wrong record kind")
+    payload = record["payload"]
+    if not isinstance(payload, dict) or payload.get("manifest_ref") != {
+        "role": study_ref.role, "relative_path": study_ref.relative_path,
+        "sha256": study_ref.sha256, "byte_count": study_ref.byte_count,
+        "media_type": study_ref.media_type,
+    }:
+        raise RecordValidationError("schedule does not descend from supplied study")
+    tasks = payload.get("tasks")
+    if not isinstance(tasks, list) or not tasks:
+        raise RecordValidationError("schedule has no selected tasks")
+    ids: list[str] = []
+    for task in tasks:
+        if not isinstance(task, dict) or not isinstance(task.get("task"), dict):
+            raise RecordValidationError("schedule task is malformed")
+        task_id = task["task"].get("task_id")
+        if not isinstance(task_id, str) or not task_id:
+            raise RecordValidationError("schedule task id is malformed")
+        ids.append(task_id)
+    if len(ids) != len(set(ids)):
+        raise RecordValidationError("schedule task ids must be unique")
+    return tuple(ids)
+
+
 def _emit(ref: ArtifactRef | None = None, *, status: str = "ok", **extra: object) -> None:
     payload: dict[str, object] = {"status": status, **extra}
     if ref is not None:
@@ -116,6 +180,17 @@ def _parser() -> argparse.ArgumentParser:
             if name == "validate": p.add_argument("--selection", required=True)
         else:
             p.add_argument("--selected-screen"); p.add_argument("--selected-shard-prefix"); p.add_argument("--selected-selection"); p.add_argument("--selected-validation"); p.add_argument("--fallback-validation"); p.add_argument("--completed-gaussian", action="store_true"); p.add_argument("--completed-full-multiplier", action="store_true"); p.add_argument("--synthetic-validation-failed", action="store_true"); p.add_argument("--terminal-attempt"); p.add_argument("--terminal-stage", choices=("screen", "shard", "selection", "validation")); p.add_argument("--reason", choices=("gaussian_screen_exhausted", "full_multiplier_screen_exhausted", "numeric_fixture_failed", "runtime_bound_exceeded", "attempt_incomplete", "synthetic_validation_gate_failed"))
+    schedule = top.add_parser("schedule").add_subparsers(dest="schedule_command", required=True)
+    schedule_seal = schedule.add_parser("seal")
+    schedule_seal.add_argument("--study", required=True); schedule_seal.add_argument("--power-final", required=True)
+    schedule_seal.add_argument("--schedule-seed-file", required=True); schedule_seal.add_argument("--out", required=True)
+    synthetic = top.add_parser("synthetic").add_subparsers(dest="synthetic_command", required=True)
+    prefixes = synthetic.add_parser("prefixes")
+    prefixes.add_argument("--study", required=True); prefixes.add_argument("--schedule", required=True); prefixes.add_argument("--out", required=True)
+    assignment = top.add_parser("assignment").add_subparsers(dest="assignment_command", required=True)
+    assignment_seal = assignment.add_parser("seal")
+    assignment_seal.add_argument("--schedule", required=True); assignment_seal.add_argument("--prefix-index", required=True)
+    assignment_seal.add_argument("--assignment-key-file", required=True); assignment_seal.add_argument("--out", required=True)
     artifacts = top.add_parser("artifacts").add_subparsers(dest="artifact_command", required=True)
     for name in ("seal", "verify"):
         p = artifacts.add_parser(name); p.add_argument("--required-kinds", required=True); p.add_argument("--out" if name == "seal" else "--receipt", required=True)
@@ -221,6 +296,41 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
                     continue
             return finalize_synthetic_validation_failed(tuple(attempts), _ref(root,args.terminal_attempt,"power_report"), terminal_stage=args.terminal_stage, reason=args.reason, config=config, run_root=root,out=_out(root,args.out))
         raise RecordValidationError("synthetic CLI cannot finalize a roster-bound multiplier selection")
+    if args.command == "schedule":
+        manifest_ref = _ref(root, args.study, "study_manifest")
+        final_ref = _ref(root, args.power_final, "power_report")
+        # Validate the entire final chain before allocating an output or a lease.
+        require_schedulable_power_final(manifest_ref, final_ref, run_root=root)
+        seed_path = _external_file(args.schedule_seed_file, root=root, field="schedule seed file")
+        seed = _schedule_seed(seed_path)
+        out = _out(root, args.out)
+        lease = claim_local_test_storage(transaction="prefix", run_root=root, manifest_ref=manifest_ref, schedule_ref=None)
+        return seal_prefix_schedule(manifest_ref, final_ref, schedule_seed_reveal=seed,
+                                    storage_policy_lease=lease, run_root=root, out=out)
+    if args.command == "synthetic":
+        study_ref = _ref(root, args.study, "study_manifest")
+        schedule_ref = _ref(root, args.schedule, "resampling_prefix_schedule")
+        task_ids = _schedule_task_ids(schedule_ref, study_ref, root=root)
+        out = _out(root, args.out)
+        candidates = tuple(run_prefix(run_root=root, schedule_ref=schedule_ref, task_id=task_id) for task_id in task_ids)
+        return seal_prefix_index(run_root=root, schedule_ref=schedule_ref, candidate_refs=candidates,
+                                 out=out)
+    if args.command == "assignment":
+        schedule_ref = _ref(root, args.schedule, "resampling_prefix_schedule")
+        prefix_ref = _ref(root, args.prefix_index, "resampling_prefix_receipt")
+        authority = load_assignment_authority(schedule_ref, prefix_ref, run_root=root)
+        secret_path = _external_file(args.assignment_key_file, root=root, field="assignment key file")
+        out = _out(root, args.out)
+        store = AssignmentSecretStore(secret_path)
+        try:
+            handle = store.claim_assignment(authority.manifest_ref, schedule_ref, run_root=root)
+            lease = claim_local_test_storage(transaction="assignment", run_root=root,
+                                             manifest_ref=authority.manifest_ref, schedule_ref=schedule_ref)
+            return seal_branch_assignment(schedule_ref, prefix_ref, assignment_secret_handle=handle,
+                                          matching_backend_session=None, storage_policy_lease=lease,
+                                          run_root=root, out=out)
+        finally:
+            store.close()
     if args.command == "artifacts":
         required_path = Path(args.required_kinds).resolve(strict=True)
         required = load_json_bytes(required_path.read_bytes(), source=required_path)
