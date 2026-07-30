@@ -1209,6 +1209,19 @@ def _roster_joint_group_labels(authority: PowerAuthority, *, run_root: Path) -> 
     return labels("SWE"), labels("TAU")
 
 
+def _receipt_joint_group_labels(joint_group_labels: tuple[
+    tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
+] | None) -> list[list[list[dict[str, str]]]] | None:
+    """Serialize the canonical joint-cell labels that determine Task-7 gates."""
+    if joint_group_labels is None:
+        return None
+    return [
+        [[{"kind": label.kind.value, "value": label.value} for label in cell]
+         for cell in benchmark]
+        for benchmark in joint_group_labels
+    ]
+
+
 def _gate_totals_for_cell(
     cell: PowerCell, *, authority: PowerAuthority, digest: str, phase: str,
     roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]], dataset_count: int,
@@ -1241,12 +1254,17 @@ def _gate_totals_for_cell(
         chunks.append({"start": start, "dataset_count": count, "causal_pass_count": chunk_passes,
                        "merkle_root_sha256": merkle_root(chunk_leaves)})
     totals = {"dataset_count": dataset_count, "causal_pass_count": causal_count}
-    layout = hashlib.sha256(canonical_json_bytes({"SWE": list(roster_group_sizes[0]), "TAU": list(roster_group_sizes[1])}, indent=None)).hexdigest()
+    receipt_labels = _receipt_joint_group_labels(joint_group_labels)
+    layout = hashlib.sha256(canonical_json_bytes({
+        "SWE": list(roster_group_sizes[0]), "TAU": list(roster_group_sizes[1]),
+        "joint_group_labels": receipt_labels,
+    }, indent=None)).hexdigest()
     receipt: dict[str, object] = {
         "contract_id": "p0-count-replay-merkle-v2", "cell_id": cell.cell_id,
         "authority_kind": authority.authority_kind, "tier_membership_sha256": authority.tier_membership_sha256,
         "grid_content_sha256": digest, "phase": phase, "draw_domain": draw_domain, "critical_value": critical_value, "dataset_count": dataset_count,
-        "group_layout_sha256": layout, "chunk_size": chunk_size, "chunk_count": len(chunks),
+        "group_layout_sha256": layout, "joint_group_labels": receipt_labels,
+        "chunk_size": chunk_size, "chunk_count": len(chunks),
         "chunks": chunks, "full_merkle_root_sha256": merkle_root(tuple(leaves)),
         "aggregate_gate_totals": totals,
     }
@@ -1254,7 +1272,10 @@ def _gate_totals_for_cell(
 
 
 def validate_power_execution_receipt(result: Mapping[str, object], *, authority: PowerAuthority,
-                                     grid_digest: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]]) -> None:
+                                     grid_digest: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]],
+                                     joint_group_labels: tuple[
+                                         tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
+                                     ] | None = None) -> None:
     """Replay every committed chunk and bind it to the persisted aggregate.
 
     This is intentionally expensive: a receipt that cannot be recomputed is a
@@ -1273,7 +1294,8 @@ def validate_power_execution_receipt(result: Mapping[str, object], *, authority:
         raise RecordValidationError("power shard receipt has invalid draw contract")
     expected_totals, expected = _gate_totals_for_cell(cell, authority=authority, digest=grid_digest,
         phase=cast(str, receipt.get("phase")), roster_group_sizes=roster_group_sizes,
-        dataset_count=cast(int, receipt.get("dataset_count")), draw_domain=domain, critical_value=float(critical))
+        dataset_count=cast(int, receipt.get("dataset_count")), draw_domain=domain, critical_value=float(critical),
+        joint_group_labels=joint_group_labels)
     if expected != dict(receipt) or expected_totals != result.get("gate_totals"):
         raise RecordValidationError("power shard replay receipt or aggregate totals differ from regenerated tensors")
 

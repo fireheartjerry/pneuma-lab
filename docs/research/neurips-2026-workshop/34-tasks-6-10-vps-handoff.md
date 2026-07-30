@@ -206,6 +206,13 @@ ref or a passing Gaussian is not a fallback trigger. Timing admission is
 per-cell measured work projected to full production cells/datasets per shard;
 if it exceeds the frozen cap, stop rather than shrinking the estimate.
 
+**Task 8B final receipt handoff (2026-07-30):** Persist canonical ordered
+joint-cell group labels—not only their sizes—in every replay receipt and bind
+them into `group_layout_sha256`. Artifact identity replay must reload those
+labels from the authority roster and pass them into the Task-7 batch gate. An
+equal-size label swap is a receipt failure; do not accept a shape-only gate
+test as evidence that leave-one sensitivity was executed.
+
 ## Task 10 — isolated result of record and closure
 
 Complete the zero-spend core:

@@ -2012,3 +2012,23 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** No P0 grid, Gaussian validation, multiplier fallback,
   provider action, external benchmark, spend, tier selection, or scientific
   claim was run or created.
+
+### EJ-20260730-0195 — Task 8B canonical joint-label receipt binding
+
+- **Implementation:** The replay receipt now serializes the canonical ordered
+  `(benchmark, joint-cell, group-kind, value)` labels and includes them in its
+  layout digest. Identity validation reloads those exact labels from the roster
+  and passes them into receipt replay; equal-sized joint cells can no longer be
+  relabeled without detection. The power-report schema requires the label
+  commitment. A controlled batch confirms that registering a hostile group
+  changes the Task-7 leave-one-group result, rather than merely changing tensor
+  shape.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power.py tests/resampling_null/test_power_authority.py -q`
+  passed 25 tests; `timeout 60s .venv/bin/python -m pytest
+  tests/test_schema_loads.py -q` passed 201 tests. `git diff --check` and
+  `compileall` also passed.
+- **Boundary/non-claim:** No P0 grid, Gaussian validation, full-multiplier
+  fallback, provider action, spend, tier selection, or scientific claim ran.
+  The full lifecycle remains deliberately unrun: its 2,000-outcome / 99,999-draw
+  evidence path is not a bounded unit-test fixture.

@@ -3530,7 +3530,7 @@ def _validate_power_identities(
     # The authority blob is a referenced, closed contract rather than a
     # scientific record kind.  Validate it before trusting any report mirrors.
     # Importing here avoids a module-import cycle with the generic artifact IO.
-    from .power import (_roster_group_sizes, grid_content_sha256, load_power_authority,
+    from .power import (_roster_group_sizes, _roster_joint_group_labels, grid_content_sha256, load_power_authority,
                         load_power_config, validate_power_execution_receipt)
 
     for document in documents:
@@ -3557,9 +3557,11 @@ def _validate_power_identities(
             raise RecordValidationError("power grid_content_sha256 differs from closed grid bytes")
         if payload["stage"] == "shard":
             layout = _roster_group_sizes(authority, run_root=run_root)
+            joint_group_labels = _roster_joint_group_labels(authority, run_root=run_root)
             for result in cast(list[Mapping[str, object]], payload["cell_results"]):
                 validate_power_execution_receipt(result, authority=authority,
-                    grid_digest=cast(str, payload["grid_content_sha256"]), roster_group_sizes=layout)
+                    grid_digest=cast(str, payload["grid_content_sha256"]), roster_group_sizes=layout,
+                    joint_group_labels=joint_group_labels)
     _validate_power_attempt_topology(documents, run_root=run_root)
     by_authority: dict[str, list[_ScientificDocument]] = {}
     for document in documents:

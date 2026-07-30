@@ -193,3 +193,64 @@ def test_replay_receipt_commits_every_chunk_and_aggregate_gate_totals() -> None:
     assert receipt["chunk_count"] == 3
     assert sum(chunk["dataset_count"] for chunk in receipt["chunks"]) == 257
     assert receipt["aggregate_gate_totals"] == totals
+
+
+def test_execution_receipt_binds_canonical_joint_group_labels() -> None:
+    """Equal-sized labels are not interchangeable under Task-7 leave-one gates."""
+    from pneuma_lab.resampling_null.power import (SyntheticPowerAuthority, _gate_totals_for_cell,
+                                                   validate_power_execution_receipt)
+
+    authority = SyntheticPowerAuthority("1", "synthetic_validation",
+        ArtifactRef("manifest", "study.json", "a" * 64, 1, "application/json"),
+        ArtifactRef("roster", "roster.json", "b" * 64, 1, "application/json"), "1" * 64)
+    alpha = GroupLabel(GroupKind.LANGUAGE, "alpha")
+    beta = GroupLabel(GroupKind.LANGUAGE, "beta")
+    labels = (((alpha,), (beta,)), ((alpha,), (beta,)))
+    _, receipt = _gate_totals_for_cell(frozen_power_cells()[0], authority=authority,
+        digest="2" * 64, phase="gaussian_approximation", roster_group_sizes=((8, 12), (7, 13)),
+        dataset_count=1, joint_group_labels=labels)
+
+    assert receipt["joint_group_labels"] == [
+        [[{"kind": "language", "value": "alpha"}], [{"kind": "language", "value": "beta"}]],
+        [[{"kind": "language", "value": "alpha"}], [{"kind": "language", "value": "beta"}]],
+    ]
+    result = {"cell_id": frozen_power_cells()[0].cell_id, "family": frozen_power_cells()[0].family,
+              "gate_totals": receipt["aggregate_gate_totals"], "replay_receipt": receipt}
+    validate_power_execution_receipt(result, authority=authority, grid_digest="2" * 64,
+        roster_group_sizes=((8, 12), (7, 13)), joint_group_labels=labels)
+    receipt["joint_group_labels"] = [
+        [[{"kind": "language", "value": "beta"}], [{"kind": "language", "value": "alpha"}]],
+        [[{"kind": "language", "value": "alpha"}], [{"kind": "language", "value": "beta"}]],
+    ]
+    with pytest.raises(Exception, match="replay receipt|aggregate totals"):
+        validate_power_execution_receipt(result, authority=authority, grid_digest="2" * 64,
+            roster_group_sizes=((8, 12), (7, 13)), joint_group_labels=labels)
+
+
+def test_leave_one_group_gate_changes_outcome_when_a_group_is_registered() -> None:
+    """The Task-7 leave-one gate consumes the registered group tensor."""
+    from pneuma_lab.resampling_null.power import BenchmarkPatternCounts
+
+    positive = (0,) * 8 + (19,) + (0,) * 7
+    negative = (0,) * 4 + (1,) + (0,) * 11
+    swe = BenchmarkPatternCounts(
+        pattern_counts=tuple(left + right for left, right in zip(positive, negative, strict=True)),
+        triggered_pattern_counts=(0,) * 16, no_trigger_pattern_counts=(0,) * 16,
+        joint_group_pattern_counts=(positive, negative), triggered_count=0,
+        expected_content=0.0, expected_excess=0.0,
+    )
+    tau = BenchmarkPatternCounts(
+        pattern_counts=(20,) + (0,) * 15, triggered_pattern_counts=(0,) * 16,
+        no_trigger_pattern_counts=(0,) * 16, joint_group_pattern_counts=((20,) + (0,) * 15,) * 2,
+        triggered_count=0, expected_content=0.0, expected_excess=0.0,
+    )
+    roster_ref = ArtifactRef("roster", "inputs/roster.json", "3" * 64, 1, "application/json")
+    labels = ((GroupLabel(GroupKind.LANGUAGE, "good"),), (GroupLabel(GroupKind.LANGUAGE, "bad"),))
+    ungrouped = evaluate_simulated_pattern_batch(swe, tau, roster_ref=roster_ref, critical_value=1.96)
+    grouped = evaluate_simulated_pattern_batch(
+        swe, tau, roster_ref=roster_ref, critical_value=1.96,
+        joint_group_labels=(labels, ((), ())),
+    )
+
+    assert ungrouped.all_leave_one_nonnegative.tolist() == [True]
+    assert grouped.all_leave_one_nonnegative.tolist() == [False]

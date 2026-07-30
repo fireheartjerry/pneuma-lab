@@ -311,7 +311,7 @@
             "type": "object",
             "required": [
                 "contract_id", "cell_id", "authority_kind", "tier_membership_sha256",
-                "grid_content_sha256", "phase", "dataset_count", "group_layout_sha256",
+                "grid_content_sha256", "phase", "dataset_count", "group_layout_sha256", "joint_group_labels",
                 "draw_domain", "critical_value", "chunk_size", "chunk_count", "chunks", "full_merkle_root_sha256",
                 "aggregate_gate_totals"
             ],
@@ -326,6 +326,23 @@
                 "critical_value": { "type": "number", "minimum": 0 },
                 "dataset_count": { "type": "integer", "minimum": 1 },
                 "group_layout_sha256": { "$ref": "#/$defs/sha256" },
+                "joint_group_labels": {
+                    "type": "array", "minItems": 2, "maxItems": 2,
+                    "items": {
+                        "type": "array", "minItems": 1,
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "object", "required": ["kind", "value"],
+                                "properties": {
+                                    "kind": { "enum": ["language", "domain", "issue_family"] },
+                                    "value": { "$ref": "#/$defs/nonempty" }
+                                },
+                                "additionalProperties": false
+                            }
+                        }
+                    }
+                },
                 "full_merkle_root_sha256": { "$ref": "#/$defs/sha256" },
                 "chunk_size": { "type": "integer", "minimum": 1, "maximum": 256 },
                 "chunk_count": { "type": "integer", "minimum": 1 },
