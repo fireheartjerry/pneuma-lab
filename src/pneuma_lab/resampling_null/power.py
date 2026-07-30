@@ -10,11 +10,14 @@ from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
+from functools import lru_cache
 import hashlib
 from math import erf, exp, lgamma, log, pi, sqrt
 from pathlib import Path
 import os
+import re
 from statistics import NormalDist
+import threading
 from time import perf_counter
 from typing import Literal, cast
 
@@ -131,21 +134,45 @@ def _phi(value: float) -> float:
     return 0.5 * (1.0 + erf(value / sqrt(2.0)))
 
 
+@lru_cache(maxsize=None)
+def _gauss_hermite_nodes_weights(order: int) -> tuple[np.ndarray, np.ndarray]:
+    """Cache the frozen quadrature rule; its eigen-solve is input-independent."""
+    nodes, weights = np.polynomial.hermite.hermgauss(order)
+    nodes.setflags(write=False)
+    weights.setflags(write=False)
+    return nodes, weights
+
+
 def bernoulli_pattern_probabilities(
     marginals: tuple[float, float, float, float], rho: float,
 ) -> PatternProbabilityReceipt:
-    """One-factor latent-Gaussian 16-pattern table in canonical R,S,N,Z bits."""
+    """One-factor latent-Gaussian 16-pattern table in canonical R,S,N,Z bits.
+
+    The table is a pure function of ``(marginals, rho)``, and a P0 cell holds
+    both fixed across every one of its replicates, so the quadrature is
+    memoized.  The receipt is a frozen dataclass of tuples, so a cached value
+    cannot be mutated by a caller and the returned bytes are identical to a
+    recomputed table.
+    """
     if len(marginals) != 4 or any(type(p) is not float or not 0.0 < p < 1.0 for p in marginals):
         raise ValueError("marginals must be four strict probabilities")
     if not -1e-12 <= rho <= 1.0 + 1e-12:
         raise ValueError("latent rho must be in [0, 1]")
+    return _bernoulli_pattern_probabilities(cast(tuple[float, float, float, float], tuple(marginals)), rho)
+
+
+@lru_cache(maxsize=None)
+def _bernoulli_pattern_probabilities(
+    marginals: tuple[float, float, float, float], rho: float,
+) -> PatternProbabilityReceipt:
+    """Validated quadrature body; see `bernoulli_pattern_probabilities`."""
     rho = min(1.0, max(0.0, rho))
     thresholds = tuple(_NORMAL.inv_cdf(p) for p in marginals)
     patterns = tuple(tuple((index >> shift) & 1 for shift in (3, 2, 1, 0)) for index in range(16))
     if rho == 0.0:
         values = [float(np.prod([p if bit else 1.0 - p for p, bit in zip(marginals, pattern)])) for pattern in patterns]
     else:
-        nodes, weights = np.polynomial.hermite.hermgauss(GAUSS_HERMITE_ORDER)
+        nodes, weights = _gauss_hermite_nodes_weights(GAUSS_HERMITE_ORDER)
         scale = sqrt(1.0 - rho)
         values = []
         for pattern in patterns:
@@ -202,12 +229,13 @@ def simulate_benchmark_pattern_counts(
     if triggered_count != triggered_exact:
         raise RecordValidationError("gamma * benchmark roster count must be exact")
     prefix = "gaussian_validation" if draw_domain == "validation" else draw_domain
-    partition_rng = philox_generator(
+    # Every `_philox_draw` result is consumed inline on the next expression: the
+    # slot is shared per thread and is invalidated by the following reseed.
+    # This is the exact uniform fixed-size subset allocation over joint cells.
+    triggered_by_group = _philox_draw(
         authority_kind, tier_membership_sha256, grid_content_digest, draw_domain,
         phase, cell_id, replicate_index, f"{prefix}_trigger_partition", 0,
-    )
-    # This is the exact uniform fixed-size subset allocation over joint cells.
-    triggered_by_group = partition_rng.multivariate_hypergeometric(
+    ).multivariate_hypergeometric(
         np.asarray(joint_group_sizes, dtype=np.int64), triggered_count,
     )
     marginals = _triggered_marginals(p0, gamma, family)
@@ -216,30 +244,28 @@ def simulate_benchmark_pattern_counts(
     no_trigger_patterns = np.zeros(16, dtype=np.int64)
     joint_patterns: list[tuple[int, ...]] = []
     for group_index, (group_size, triggered_here) in enumerate(zip(joint_group_sizes, triggered_by_group, strict=True)):
-        pattern_rng = philox_generator(
+        triggered_here_patterns = _philox_draw(
             authority_kind, tier_membership_sha256, grid_content_digest, draw_domain,
             phase, cell_id, replicate_index, f"{prefix}_triggered_pattern", group_index,
-        )
-        triggered_here_patterns = pattern_rng.multinomial(int(triggered_here), probabilities)
+        ).multinomial(int(triggered_here), probabilities)
         triggered_patterns += triggered_here_patterns
-        no_trigger_rng = philox_generator(
+        successes = int(_philox_draw(
             authority_kind, tier_membership_sha256, grid_content_digest, draw_domain,
             phase, cell_id, replicate_index, f"{prefix}_no_trigger_success", group_index,
-        )
-        successes = int(no_trigger_rng.binomial(group_size - int(triggered_here), p0))
+        ).binomial(group_size - int(triggered_here), p0))
         # No-trigger rows are exactly (B,B,B,B), not an independent four-arm draw.
         no_trigger_patterns[15] += successes
         no_trigger_patterns[0] += group_size - int(triggered_here) - successes
         local = triggered_here_patterns.copy()
         local[15] += successes
         local[0] += group_size - int(triggered_here) - successes
-        joint_patterns.append(tuple(int(value) for value in local))
+        joint_patterns.append(tuple(local.tolist()))
     expected_content = gamma * (marginals[0] - marginals[1])
     expected_excess = gamma * (marginals[0] - (marginals[2] + marginals[3]) / 2.0)
     return BenchmarkPatternCounts(
-        tuple(int(value) for value in triggered_patterns + no_trigger_patterns),
-        tuple(int(value) for value in triggered_patterns),
-        tuple(int(value) for value in no_trigger_patterns),
+        tuple((triggered_patterns + no_trigger_patterns).tolist()),
+        tuple(triggered_patterns.tolist()),
+        tuple(no_trigger_patterns.tolist()),
         tuple(joint_patterns),
         triggered_count, expected_content, expected_excess,
     )
@@ -528,12 +554,83 @@ def clopper_pearson_upper(successes: int, trials: int, *, tail_probability: floa
     return (low + high) / 2.0
 
 
+@lru_cache(maxsize=16)
+def _philox_key_bytes(
+    authority_kind: str, tier_membership_sha256: str, grid_content_digest: str,
+) -> bytes:
+    """The registered Philox key frame varies only with run-fixed authority."""
+    return hashlib.sha256(kdf_frame("power-rng-key-v1", [
+        U64Field(7640891576956012809), TextField(authority_kind),
+        BytesField(bytes.fromhex(tier_membership_sha256)), BytesField(bytes.fromhex(grid_content_digest)),
+    ])).digest()[:16]
+
+
+class _PhiloxDrawSlot(threading.local):
+    """One reusable per-thread Philox that never escapes this module."""
+
+    def __init__(self) -> None:
+        self.bit_generator = np.random.Philox(counter=0, key=0)
+        self.generator = np.random.Generator(self.bit_generator)
+
+
+_PHILOX_SLOT = _PhiloxDrawSlot()
+_PHILOX_MASK64 = (1 << 64) - 1
+
+
+def _philox_limbs(value: int, words: int) -> np.ndarray:
+    """numpy maps an integer counter/key to little-endian 64-bit limbs."""
+    return np.asarray(
+        [(value >> (64 * index)) & _PHILOX_MASK64 for index in range(words)], dtype=np.uint64,
+    )
+
+
+def _philox_draw(
+    authority_kind: str, tier_membership_sha256: str, grid_content_digest: str,
+    draw_domain: str, phase: str, cell_id: str, replicate_index: int,
+    draw_kind: str, draw_index: int,
+) -> np.random.Generator:
+    """Reseed the per-thread Philox to the registered public counter/key.
+
+    A freshly constructed `np.random.Philox` holds exactly these little-endian
+    limbs with an empty output buffer, so the emitted stream is identical to
+    `philox_generator`.  This exists only because allocating a generator costs
+    an order of magnitude more than assigning its state, and a P0 grid derives
+    tens of millions of them.  The returned object is shared per thread and is
+    valid only until the next call, so every caller must consume it inline;
+    `philox_generator` remains the public, non-aliasing entry point.
+    """
+    counter, key = _philox_counter_and_key(
+        authority_kind, tier_membership_sha256, grid_content_digest,
+        draw_domain, phase, cell_id, replicate_index, draw_kind, draw_index,
+    )
+    _PHILOX_SLOT.bit_generator.state = {
+        "bit_generator": "Philox",
+        "state": {"counter": _philox_limbs(counter, 4), "key": _philox_limbs(key, 2)},
+        "buffer": np.zeros(4, dtype=np.uint64), "buffer_pos": 4,
+        "has_uint32": 0, "uinteger": 0,
+    }
+    return _PHILOX_SLOT.generator
+
+
 def philox_generator(
     authority_kind: str, tier_membership_sha256: str, grid_content_digest: str,
     draw_domain: str, phase: str, cell_id: str, replicate_index: int,
     draw_kind: str, draw_index: int,
 ) -> np.random.Generator:
     """Fresh, public counter/key mapping; no state can leak across draws."""
+    counter, key = _philox_counter_and_key(
+        authority_kind, tier_membership_sha256, grid_content_digest,
+        draw_domain, phase, cell_id, replicate_index, draw_kind, draw_index,
+    )
+    return np.random.Generator(np.random.Philox(counter=counter, key=key))
+
+
+def _philox_counter_and_key(
+    authority_kind: str, tier_membership_sha256: str, grid_content_digest: str,
+    draw_domain: str, phase: str, cell_id: str, replicate_index: int,
+    draw_kind: str, draw_index: int,
+) -> tuple[int, int]:
+    """Derive the registered public Philox counter and key integers."""
     if authority_kind not in {"synthetic_validation", "roster_bound_selection"}:
         raise RecordValidationError("unregistered power authority kind")
     if draw_domain not in _RNG_CONTRACT["draw_domains"] or draw_kind not in _RNG_CONTRACT["draw_kinds"]:
@@ -542,17 +639,12 @@ def philox_generator(
         _strict_sha256(value, field=field)
     if type(replicate_index) is not int or type(draw_index) is not int or replicate_index < 0 or draw_index < 0:
         raise RecordValidationError("Philox replicate and draw indices must be nonnegative integers")
-    key_bytes = hashlib.sha256(kdf_frame("power-rng-key-v1", [
-        U64Field(7640891576956012809), TextField(authority_kind),
-        BytesField(bytes.fromhex(tier_membership_sha256)), BytesField(bytes.fromhex(grid_content_digest)),
-    ])).digest()[:16]
+    key_bytes = _philox_key_bytes(authority_kind, tier_membership_sha256, grid_content_digest)
     counter_bytes = hashlib.sha256(kdf_frame("power-rng-counter-v1", [
         TextField(draw_domain), TextField(phase), TextField(cell_id), U64Field(replicate_index),
         TextField(draw_kind), U64Field(draw_index),
     ])).digest()
-    return np.random.Generator(np.random.Philox(
-        counter=int.from_bytes(counter_bytes, "big"), key=int.from_bytes(key_bytes, "big"),
-    ))
+    return int.from_bytes(counter_bytes, "big"), int.from_bytes(key_bytes, "big")
 
 
 @dataclass(frozen=True, slots=True)
@@ -626,8 +718,11 @@ class PowerConfig:
     rng_contract_sha256: str
 
 
+_LOWERCASE_SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
+
+
 def _strict_sha256(value: object, *, field: str) -> str:
-    if type(value) is not str or len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
+    if type(value) is not str or _LOWERCASE_SHA256.match(value) is None:
         raise RecordValidationError(f"{field} must be a lowercase SHA-256 digest")
     return cast(str, value)
 

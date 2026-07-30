@@ -9,8 +9,9 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import asdict
 from fractions import Fraction
+from functools import lru_cache
 from itertools import product
-from math import ceil, comb, isfinite, sqrt
+from math import ceil, comb, gcd, isfinite, lcm, sqrt
 from pathlib import Path
 from typing import Literal, Sequence
 import hashlib
@@ -428,41 +429,130 @@ def _failure_gap(statistics: BinarySufficientStatistics) -> float:
     return max(abs(left - right) for left in rates for right in rates)
 
 
+def _convolve_masses(left: dict[int, int], right: dict[int, int]) -> dict[int, int]:
+    """Exact integer convolution of two finite mass functions."""
+    result: dict[int, int] = {}
+    for left_value, left_mass in left.items():
+        for right_value, right_mass in right.items():
+            shifted = left_value + right_value
+            result[shifted] = result.get(shifted, 0) + left_mass * right_mass
+    return result
+
+
+_ChoiceGroups = tuple[tuple[tuple[int, ...], int], ...]
+
+
+@lru_cache(maxsize=4096)
+def _sequential_state_bound(groups: _ChoiceGroups) -> int | None:
+    """Bound the distinct states any sequential prefix convolution can hold.
+
+    All reachable prefix sums lie on the lattice spanned by the within-choice
+    option differences and inside the total option span, so
+    ``span // step + 1`` bounds every prefix.  ``None`` means no positive
+    lattice step exists and the caller must not take the regrouped path.
+    """
+    span = 0
+    step = 0
+    for options, repeats in groups:
+        low, high = min(options), max(options)
+        span += (high - low) * repeats
+        for option in options:
+            step = gcd(step, option - low)
+    if span == 0:
+        return 1
+    if step <= 0:
+        return None
+    return span // step + 1
+
+
+def _grouped_convolution(groups: _ChoiceGroups) -> dict[int, int]:
+    """Convolve identical option multisets by exponentiation, not one by one."""
+    distribution: dict[int, int] = {0: 1}
+    for options, repeats in groups:
+        single: dict[int, int] = {}
+        for option in options:
+            single[option] = single.get(option, 0) + 1
+        while repeats:
+            if repeats & 1:
+                distribution = _convolve_masses(distribution, single)
+            repeats >>= 1
+            if repeats:
+                single = _convolve_masses(single, single)
+    return distribution
+
+
+@lru_cache(maxsize=8192)
+def _grouped_exact_tail(groups: _ChoiceGroups, observed: int) -> float:
+    """Exact one-sided tail for a bounded randomization support.
+
+    Both the support and the observed statistic are integer numerators over one
+    common denominator, so this is a pure function of its arguments and every
+    replicate that reduces to the same configuration reuses it.
+    """
+    distribution = _grouped_convolution(groups)
+    total = sum(distribution.values())
+    return sum(mass for value, mass in distribution.items() if value >= observed) / total
+
+
 def _count_sharp_tail(counts: np.ndarray, *, excess: bool, draws: int, seed: int) -> np.ndarray:
-    """Exact count-level Fisher tails; no task-row reconstruction is involved."""
+    """Exact count-level Fisher tails; no task-row reconstruction is involved.
+
+    Every registered option value is an exact rational with denominator
+    ``2 * n`` (content) or ``4 * n`` (excess) for its benchmark, so the whole
+    randomization support is represented here as integer numerators over the
+    single common denominator ``lcm(4 * n_SWE, 4 * n_TAU)``.  That is a change
+    of representation only: the per-choice order, the state-limit rule, the
+    Philox fallback draw sequence, the ``>=`` comparisons, and the emitted
+    tail values are identical to the equivalent `Fraction` arithmetic, which
+    `tests/resampling_null/test_analysis.py` pins directly.
+    """
     result = np.empty(counts.shape[0], dtype=float)
     for run in range(counts.shape[0]):
-        choices: list[tuple[Fraction, ...]] = []
-        observed = Fraction()
-        for benchmark_index, benchmark in enumerate(("SWE", "TAU")):
-            n = int(counts[run, benchmark_index].sum())
-            weight = Fraction(1, 2 * n)
+        rosters = [int(counts[run, benchmark_index].sum()) for benchmark_index in range(2)]
+        denominator = lcm(*(4 * roster for roster in rosters))
+        choices: list[tuple[int, ...]] = []
+        multiset: dict[tuple[int, ...], int] = {}
+        observed = 0
+        for benchmark_index, roster in enumerate(rosters):
+            scale = denominator // (4 * roster)
             for index, amount in enumerate(counts[run, benchmark_index]):
                 real, sham, none, resample = _PATTERNS[index]
                 if excess:
                     values = (real, none, resample)
-                    options = tuple(weight * Fraction(3 * value - sum(values), 2) for value in values)
-                    observed += weight * Fraction(2 * real - none - resample, 2) * int(amount)
+                    total_value = sum(values)
+                    options = tuple((3 * value - total_value) * scale for value in values)
+                    observed += (2 * real - none - resample) * scale * int(amount)
                 else:
-                    options = (weight * (real - sham), weight * (sham - real))
-                    observed += weight * (real - sham) * int(amount)
-                choices.extend([options] * int(amount))
-        support = 1
+                    options = ((real - sham) * 2 * scale, (sham - real) * 2 * scale)
+                    observed += (real - sham) * 2 * scale * int(amount)
+                repeats = int(amount)
+                if repeats:
+                    choices.extend([options] * repeats)
+                    multiset[options] = multiset.get(options, 0) + repeats
+        groups: _ChoiceGroups = tuple(sorted(multiset.items()))
+        bounded = _sequential_state_bound(groups)
+        if bounded is not None and bounded <= _DYNAMIC_STATE_LIMIT:
+            # Every sequential prefix provably stays under the dynamic-state
+            # limit, so the exact branch is the only reachable one and the
+            # convolution may be regrouped.  Addition is commutative and
+            # associative, so the resulting mass function, its total, and the
+            # emitted tail are identical to the per-choice loop below.
+            result[run] = _grouped_exact_tail(groups, observed)
+            continue
+        distribution: dict[int, int] = {0: 1}
         for options in choices:
-            support *= len(options)
-        distribution: Counter[Fraction] = Counter({Fraction(): 1})
-        for options in choices:
-            following: Counter[Fraction] = Counter()
+            following: dict[int, int] = {}
             for previous, mass in distribution.items():
                 for option in options:
-                    following[previous + option] += mass
+                    shifted = previous + option
+                    following[shifted] = following.get(shifted, 0) + mass
             distribution = following
             if len(distribution) > _DYNAMIC_STATE_LIMIT:
                 # Same Philox/add-one rule and domain as the scalar primitive.
                 generator = _rng(seed, "excess" if excess else "content")
                 exceeds = 0
                 for _ in range(draws):
-                    statistic = sum((options[int(generator.integers(len(options)))] for options in choices), Fraction())
+                    statistic = sum(options[int(generator.integers(len(options)))] for options in choices)
                     exceeds += statistic >= observed
                 result[run] = (1 + exceeds) / (1 + draws)
                 break
@@ -475,34 +565,41 @@ def _count_sharp_tail(counts: np.ndarray, *, excess: bool, draws: int, seed: int
 def _count_resolution(counts: np.ndarray) -> np.ndarray:
     """Exact count-level NONE/RESAMPLE sign-flip resolution by integer DP."""
     output = np.empty(counts.shape[0], dtype=float)
+    discordant_patterns = [index for index, pattern in enumerate(_PATTERNS) if pattern[2] != pattern[3]]
     for run in range(counts.shape[0]):
-        roster = [int(counts[run, benchmark].sum()) for benchmark in range(2)]
-        discordant = [int(sum(counts[run, benchmark, index] for index, pattern in enumerate(_PATTERNS) if pattern[2] != pattern[3])) for benchmark in range(2)]
-        if roster[0] == roster[1]:
-            n, m = roster[0], sum(discordant)
-            masses: Counter[Fraction] = Counter()
-            for k in range(m + 1):
-                masses[abs(Fraction(2 * k - m, 2 * n))] += comb(m, k)
-        else:
-            distribution: Counter[Fraction] = Counter({Fraction(): 1})
-            for benchmark, m in enumerate(discordant):
-                weight = Fraction(1, 2 * roster[benchmark])
-                for _ in range(m):
-                    following: Counter[Fraction] = Counter()
-                    for old, mass in distribution.items():
-                        following[old + weight] += mass
-                        following[old - weight] += mass
-                    distribution = following
-            masses = Counter()
-            for value, mass in distribution.items():
-                masses[abs(value)] += mass
-        total, cumulative = sum(masses.values()), 0
-        for value in sorted(masses):
-            cumulative += masses[value]
-            if cumulative * 20 >= total * 19:
-                output[run] = float(value)
-                break
+        roster = tuple(int(counts[run, benchmark].sum()) for benchmark in range(2))
+        discordant = tuple(int(sum(counts[run, benchmark, index] for index in discordant_patterns)) for benchmark in range(2))
+        output[run] = _resolution_value(roster, discordant)
     return output
+
+
+@lru_cache(maxsize=4096)
+def _resolution_value(roster: tuple[int, int], discordant: tuple[int, int]) -> float:
+    """The registered r95 depends only on roster sizes and discordant counts."""
+    if roster[0] == roster[1]:
+        n, m = roster[0], sum(discordant)
+        masses: Counter[Fraction] = Counter()
+        for k in range(m + 1):
+            masses[abs(Fraction(2 * k - m, 2 * n))] += comb(m, k)
+    else:
+        distribution: Counter[Fraction] = Counter({Fraction(): 1})
+        for benchmark, m in enumerate(discordant):
+            weight = Fraction(1, 2 * roster[benchmark])
+            for _ in range(m):
+                following: Counter[Fraction] = Counter()
+                for old, mass in distribution.items():
+                    following[old + weight] += mass
+                    following[old - weight] += mass
+                distribution = following
+        masses = Counter()
+        for value, mass in distribution.items():
+            masses[abs(value)] += mass
+    total, cumulative = sum(masses.values()), 0
+    for value in sorted(masses):
+        cumulative += masses[value]
+        if cumulative * 20 >= total * 19:
+            return float(value)
+    raise ValueError("resolution mass function has no registered 95% quantile")
 
 
 def evaluate_binary_gate_kernel(

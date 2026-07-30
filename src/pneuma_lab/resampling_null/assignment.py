@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 import hashlib
 import hmac
 from pathlib import Path
@@ -454,15 +455,35 @@ def _u32(value: int, *, field: str) -> bytes:
     return value.to_bytes(4, "big")
 
 
+_TEXT_CACHE_MAX_LENGTH = 256
+
+
+def _text_reject_reason(value: str) -> str | None:
+    """Field-independent text admission; the caller supplies the field label."""
+    if not value:
+        return "must be non-empty"
+    if unicodedata.normalize("NFC", value) != value:
+        return "must already be NFC-normalized"
+    if any(unicodedata.category(character).startswith("C") for character in value):
+        return "contains a forbidden Unicode category"
+    return None
+
+
+@lru_cache(maxsize=8192)
+def _cached_text_reject_reason(value: str) -> str | None:
+    return _text_reject_reason(value)
+
+
 def _text_payload(value: object, *, field: str) -> bytes:
     if type(value) is not str:
         raise TypeError(f"{field} must be a string")
-    if not value:
-        raise ValueError(f"{field} must be non-empty")
-    if unicodedata.normalize("NFC", value) != value:
-        raise ValueError(f"{field} must already be NFC-normalized")
-    if any(unicodedata.category(character).startswith("C") for character in value):
-        raise ValueError(f"{field} contains a forbidden Unicode category")
+    # Admission is a pure function of the string, and derivation frames re-encode
+    # the same bounded identifiers millions of times in a P0 grid, so short
+    # values reuse a bounded cache.  Long values stay uncached.
+    reason = (_cached_text_reject_reason(value) if len(value) <= _TEXT_CACHE_MAX_LENGTH
+              else _text_reject_reason(value))
+    if reason is not None:
+        raise ValueError(f"{field} {reason}")
     try:
         payload = value.encode("utf-8", errors="strict")
     except UnicodeEncodeError as exc:
