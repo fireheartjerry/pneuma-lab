@@ -7,9 +7,11 @@
 ## Objective
 
 Create one identical canonical developer/PR gate for native Windows and Linux.
-It must complete within five seconds when run inside either operating system,
-with a warm-run target below one second. Thirty seconds is the absolute
-regression ceiling, not the target.
+Optimize primarily for the hot agent loop: repeated test runs in one checkout
+while Codex or Claude edits a small number of files. A no-change warm run targets
+100 milliseconds, while a cold run inside either operating system must complete
+within five seconds. Thirty seconds is the absolute regression ceiling, not the
+target.
 
 The current shape is unacceptable: `tests/resampling_null/` contains 437 test
 functions across roughly 740 KiB, and the S02D file alone expands to 92 cases
@@ -34,18 +36,31 @@ Pytest markers alone are insufficient because pytest still discovers, imports,
 and parametrizes excluded files. The default gate therefore uses a dedicated
 `tests/smoke/` collection root containing at most eight test cases.
 
-`python scripts/test_fast.py` is the canonical cross-platform command. The
-wrapper:
+`python scripts/test_fast.py` is the canonical cross-platform command. It is a
+client for one checkout-scoped resident test daemon:
 
-- invokes pytest only on `tests/smoke/`;
-- sets `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`;
-- sets `PYTHONDONTWRITEBYTECODE=1`;
-- disables pytest's cache provider and terminal verbosity;
-- uses a five-second subprocess deadline; and
-- propagates the child exit code without retries.
+- the first invocation starts the daemon and performs one cold run;
+- later invocations reuse the same initialized CPython process;
+- the daemon preloads only the micro-gate dependency graph;
+- the client enforces a five-second response deadline;
+- any protocol error, failed check, invalidation failure, or timeout kills the
+  daemon and returns failure without retrying; and
+- the daemon exits after one hour idle or when its checkout fingerprint changes.
 
-`python -m pytest -q` is configured to select the same `tests/smoke/` root, but
-the wrapper is the timing authority for CI.
+The daemon uses a localhost authenticated `multiprocessing.connection` channel,
+which is implemented on both Windows and Linux. Its random auth key and endpoint
+metadata live only under ignored `build/testd/`. The protocol accepts only
+`run`, `status`, and `stop`; it never evaluates caller-supplied Python.
+
+`python -m pytest -q` remains the cold, ordinary, independently understandable
+fallback over the same assertions in `tests/smoke/`. The daemon is the timing
+authority for the agent loop; cold CI may use either path but must periodically
+cross-check daemon results against pytest.
+
+The daemon snapshots working directory, environment, warning filters, random
+state, registered validators, and fixture digests before each run. The checks
+are pure and receive immutable inputs. Any unexplained state drift fails the
+run and kills the daemon instead of contaminating later verdicts.
 
 The eight-case maximum covers:
 
@@ -127,7 +142,7 @@ Retain only:
 
 ## Harness-Level Optimizations
 
-Use aggressive but portable optimizations:
+Use aggressive portable optimizations:
 
 - explicit collection roots instead of global discovery plus markers;
 - one test module for the micro-gate to minimize import and collection work;
@@ -141,36 +156,75 @@ Use aggressive but portable optimizations:
 - no autouse fixtures outside the micro-suite; and
 - direct imports from narrow modules rather than package-wide eager imports.
 
-Do not use marshal/pickle caches, private CPython bytecode APIs, import-hook
-monkeypatching, or timing races. Those techniques would make portability and
-reproducibility worse. The goal is dark performance magic, not cursed state.
+Use these benchmark-gated CPython-specific accelerators in the daemon:
+
+- call `gc.collect()` once after preload, then `gc.freeze()` and disable cyclic
+  GC during each pure micro-run;
+- deliberately warm CPython 3.12 adaptive bytecode and inline caches before the
+  daemon reports ready, retaining specialization across agent runs;
+- intern repeated schema keys and bind hot callables/constants into local tuples;
+- store canonical fixture bytes in one read-only mmap slab and expose
+  `memoryview` slices without copying;
+- pre-seed shared SHA-256 prefix states and use `.copy()` for related records;
+- compile project modules into checked-hash code objects keyed by CPython magic,
+  cache tag, source SHA-256, dependency SHA-256, OS, architecture, and lockfile;
+- marshal those locally compiled code objects into one content-addressed mmap
+  pack with a compact offset table;
+- install a narrow `MetaPathFinder` that serves only exact-hash
+  `pneuma_lab`/micro-harness modules from that pack;
+- use `CodeType.replace()` only to specialize generated harness dispatch with
+  immutable check/fixture constants; and
+- prebind the resulting check vector and call it directly, bypassing pytest
+  collection, fixtures, hooks, reports, and plugin dispatch on hot runs.
+
+The bytecode pack is never trusted by filename. Before `marshal.loads`, the
+daemon verifies the pack digest, interpreter magic/cache tag, platform tuple,
+exact source/dependency hashes, and `uv.lock` hash. Any mismatch deletes or
+ignores the pack and recompiles from source. Production functions under test
+must not be patched or replaced; specialization is restricted to generated
+harness dispatch and immutable fixture access.
+
+After every source edit, the client sends a compact stat fingerprint. Unchanged
+files remain O(1) metadata checks. Any size/mtime drift triggers SHA-256 of the
+affected dependency closure; semantic drift restarts the daemon before running.
+This gives aggressive incremental invalidation without returning a pass from
+stale production code.
 
 ## Stable Commands
 
 ```text
 python scripts/test_fast.py
+python scripts/test_fast.py --cold
 python -m pytest -q
 python -m pytest tests/ -m milestone -q
 python -m pytest tests/ -m forensic -q
 ```
 
-The first two select the identical portable micro-suite. The other commands are
-explicit and never run in ordinary CI.
+The first command uses the resident daemon. `--cold` starts a disposable daemon
+and is the optimized cold-path receipt. Pytest runs the same logical checks
+without the daemon or bytecode pack. Milestone and forensic commands are
+explicit and never run in the ordinary agent loop.
 
 ## Acceptance Criteria
 
 1. Default collection contains no more than eight cases.
-2. Three consecutive warm native-Windows runs and three consecutive warm Linux
-   runs each finish within five seconds; median warm runtime targets one second.
-3. A cold run inside either already-provisioned operating system finishes within
-   ten seconds.
-4. The resampling suite contains at most 65 test functions, with at most four in
+2. Ten consecutive no-change warm runs on native Windows and ten on Linux have
+   median wall time at or below 100 milliseconds and p95 at or below 250
+   milliseconds.
+3. A relevant one-file edit invalidates, reloads, and runs within two seconds.
+4. A cold optimized run inside either already-provisioned operating system
+   finishes within five seconds; cold pytest finishes within ten seconds.
+5. The resampling suite contains at most 65 test functions, with at most four in
    S02D.
-5. The micro-gate detects controlled schema, authorization, packet-symmetry, and
+6. The micro-gate detects controlled schema, authorization, packet-symmetry, and
    artifact-tamper defects.
-6. The micro-gate has zero skips, xfails, external calls, credential use,
+7. The micro-gate has zero skips, xfails, external calls, credential use,
    provider actions, spend, or scientific experiments.
-7. Project-status coherence and `git diff --check` remain separate cheap gates.
+8. Fifty alternating daemon/pytest runs over controlled passing and failing
+   mutations produce identical verdicts.
+9. A stale, corrupted, foreign-platform, or wrong-interpreter bytecode pack is
+   rejected before code-object loading.
+10. Project-status coherence and `git diff --check` remain separate cheap gates.
 
 ## Non-Goals
 
