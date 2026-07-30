@@ -22,10 +22,12 @@ from .artifacts import (_artifact_ref_for_path, _load_direct_scientific_parent,
                         _prepare_destination, _read_ref, _ref_mapping, _scientific_documents,
                         _validate_power_identities, write_record)
 from .assignment import BytesField, TextField, U64Field, commitment_sha256, kdf_frame
+from .analysis import evaluate_binary_gate_batch
 from .authority_refs import closed_mapping, decode_artifact_ref
 from .errors import RecordValidationError
 from .json_io import load_json_bytes
 from .types import ArtifactRef
+from .types import AnalysisConfig, BinarySufficientStatisticsBatch, GateBatchResult
 
 
 POWER_AUTHORITY_MEDIA_TYPE = "application/vnd.pneuma.power-authority+json"
@@ -81,6 +83,19 @@ class PowerCell:
     family: Literal["alternative", "null_both", "null_content", "null_excess"]
     swe: Nuisance
     tau: Nuisance
+
+
+@dataclass(frozen=True, slots=True)
+class BenchmarkPatternCounts:
+    """One benchmark's exact-size triggered and no-trigger pattern counts."""
+
+    pattern_counts: tuple[int, ...]
+    triggered_pattern_counts: tuple[int, ...]
+    no_trigger_pattern_counts: tuple[int, ...]
+    joint_group_pattern_counts: tuple[tuple[int, ...], ...]
+    triggered_count: int
+    expected_content: float
+    expected_excess: float
 
 
 def frozen_power_cells() -> tuple[PowerCell, ...]:
@@ -141,6 +156,160 @@ def bernoulli_pattern_probabilities(
     if min(values) < -PROBABILITY_TOLERANCE or probability_sum_error > PROBABILITY_TOLERANCE or max(errors) > PROBABILITY_TOLERANCE:
         raise RecordValidationError("latent Gaussian pattern probabilities fail frozen numeric tolerance")
     return PatternProbabilityReceipt(tuple(values), probability_sum_error, cast(tuple[float, float, float, float], errors), rho, GAUSS_HERMITE_ORDER)
+
+
+def _triggered_marginals(p0: float, gamma: float, family: str) -> tuple[float, float, float, float]:
+    """Registered triggered-arm boundary family; all effects are ITT 0.15 or 0."""
+    uplift = 0.15 / gamma
+    if family == "alternative":
+        values = (p0 + uplift, p0, p0, p0)
+    elif family == "null_both":
+        values = (p0, p0, p0, p0)
+    elif family == "null_content":
+        values = (p0 + uplift, p0 + uplift, p0, p0)
+    elif family == "null_excess":
+        values = (p0 + uplift, p0, p0 + uplift, p0 + uplift)
+    else:
+        raise RecordValidationError("unregistered P0 cell family")
+    if any(not 0.10 <= value <= 0.95 for value in values):
+        raise RecordValidationError("registered triggered marginal lies outside [0.10, 0.95]")
+    return cast(tuple[float, float, float, float], values)
+
+
+def simulate_benchmark_pattern_counts(
+    *, p0: float, gamma: float, rho: float,
+    family: str, task_count: int, authority_kind: str,
+    tier_membership_sha256: str, grid_content_digest: str, phase: str,
+    cell_id: str, replicate_index: int, joint_group_sizes: tuple[int, ...],
+    draw_domain: Literal["screen", "grid", "validation"] = "grid",
+) -> BenchmarkPatternCounts:
+    """Generate the registered count-level P0 outcome model for one benchmark.
+
+    The task-level outcome bytes are intentionally never materialized: exact
+    group-cell allocations and sixteen-pattern counts are the sufficient
+    statistics consumed by the Task-7 batch gate.
+    """
+    if type(task_count) is not int or task_count <= 0 or any(type(size) is not int or size <= 0 for size in joint_group_sizes) or sum(joint_group_sizes) != task_count:
+        raise RecordValidationError("joint sensitivity-group sizes must exactly partition the benchmark roster")
+    if p0 not in (0.1, 0.4, 0.7) or gamma not in (0.6, 0.75, 0.9) or rho not in (0.0, 0.4, 0.8):
+        raise RecordValidationError("P0 nuisance values differ from the frozen grid")
+    triggered_exact = gamma * task_count
+    triggered_count = round(triggered_exact)
+    if triggered_count != triggered_exact:
+        raise RecordValidationError("gamma * benchmark roster count must be exact")
+    prefix = "gaussian_validation" if draw_domain == "validation" else draw_domain
+    partition_rng = philox_generator(
+        authority_kind, tier_membership_sha256, grid_content_digest, draw_domain,
+        phase, cell_id, replicate_index, f"{prefix}_trigger_partition", 0,
+    )
+    # This is the exact uniform fixed-size subset allocation over joint cells.
+    triggered_by_group = partition_rng.multivariate_hypergeometric(
+        np.asarray(joint_group_sizes, dtype=np.int64), triggered_count,
+    )
+    marginals = _triggered_marginals(p0, gamma, family)
+    probabilities = np.asarray(bernoulli_pattern_probabilities(marginals, rho).probabilities)
+    triggered_patterns = np.zeros(16, dtype=np.int64)
+    no_trigger_patterns = np.zeros(16, dtype=np.int64)
+    joint_patterns: list[tuple[int, ...]] = []
+    for group_index, (group_size, triggered_here) in enumerate(zip(joint_group_sizes, triggered_by_group, strict=True)):
+        pattern_rng = philox_generator(
+            authority_kind, tier_membership_sha256, grid_content_digest, draw_domain,
+            phase, cell_id, replicate_index, f"{prefix}_triggered_pattern", group_index,
+        )
+        triggered_here_patterns = pattern_rng.multinomial(int(triggered_here), probabilities)
+        triggered_patterns += triggered_here_patterns
+        no_trigger_rng = philox_generator(
+            authority_kind, tier_membership_sha256, grid_content_digest, draw_domain,
+            phase, cell_id, replicate_index, f"{prefix}_no_trigger_success", group_index,
+        )
+        successes = int(no_trigger_rng.binomial(group_size - int(triggered_here), p0))
+        # No-trigger rows are exactly (B,B,B,B), not an independent four-arm draw.
+        no_trigger_patterns[15] += successes
+        no_trigger_patterns[0] += group_size - int(triggered_here) - successes
+        local = triggered_here_patterns.copy()
+        local[15] += successes
+        local[0] += group_size - int(triggered_here) - successes
+        joint_patterns.append(tuple(int(value) for value in local))
+    expected_content = gamma * (marginals[0] - marginals[1])
+    expected_excess = gamma * (marginals[0] - (marginals[2] + marginals[3]) / 2.0)
+    return BenchmarkPatternCounts(
+        tuple(int(value) for value in triggered_patterns + no_trigger_patterns),
+        tuple(int(value) for value in triggered_patterns),
+        tuple(int(value) for value in no_trigger_patterns),
+        tuple(joint_patterns),
+        triggered_count, expected_content, expected_excess,
+    )
+
+
+def evaluate_simulated_pattern_batch(
+    swe: BenchmarkPatternCounts, tau: BenchmarkPatternCounts, *, roster_ref: ArtifactRef,
+    critical_value: float,
+) -> GateBatchResult:
+    """Route synthetic sufficient statistics through the authoritative Task-7 gate."""
+    if type(roster_ref) is not ArtifactRef:
+        raise TypeError("simulated batch requires the manifest-derived roster ArtifactRef")
+    patterns = np.asarray([[swe.pattern_counts, tau.pattern_counts]], dtype=np.int64)
+    batch = BinarySufficientStatisticsBatch(
+        roster_ref=roster_ref,
+        group_manifest=(("SWE", None), ("TAU", None)),
+        pattern_counts=patterns,
+        arm_failure_counts=np.zeros((1, 2, 4), dtype=np.int64),
+        pipeline_invalid_counts=np.zeros(1, dtype=np.int64),
+    )
+    return evaluate_binary_gate_batch(
+        batch, AnalysisConfig(), critical_values=np.asarray([critical_value]),
+    )
+
+
+def pattern_count_digest(counts: BenchmarkPatternCounts) -> str:
+    """Stable leaf commitment for one regenerated benchmark/replicate tensor."""
+    return hashlib.sha256(canonical_json_bytes({
+        "pattern_counts": list(counts.pattern_counts), "triggered_count": counts.triggered_count,
+        "joint_group_pattern_counts": [list(row) for row in counts.joint_group_pattern_counts],
+    }, indent=None)).hexdigest()
+
+
+def merkle_root(leaves: tuple[str, ...]) -> str:
+    """Domain-separated duplicate-last Merkle root; no raw-count artifact exists."""
+    if not leaves or any(type(leaf) is not str or len(leaf) != 64 for leaf in leaves):
+        raise RecordValidationError("Merkle commitment requires non-empty SHA-256 leaves")
+    level = [bytes.fromhex(value) for value in leaves]
+    while len(level) > 1:
+        if len(level) & 1:
+            level.append(level[-1])
+        level = [hashlib.sha256(b"p0-count-merkle-v1\\0" + level[i] + level[i + 1]).digest()
+                 for i in range(0, len(level), 2)]
+    return level[0].hex()
+
+
+def replay_pattern_chunk(cell: PowerCell, *, authority: PowerAuthority, grid_digest: str, phase: str,
+                         roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]], start: int, count: int) -> tuple[tuple[BenchmarkPatternCounts, BenchmarkPatternCounts], ...]:
+    """Regenerate a bounded count-tensor chunk from per-replicate Philox identities."""
+    if type(start) is not int or type(count) is not int or start < 0 or not 0 < count <= 256:
+        raise RecordValidationError("replay chunks must be bounded to 1..256 exact replicates")
+    result = []
+    for replicate in range(start, start + count):
+        result.append((
+            simulate_benchmark_pattern_counts(p0=cell.swe.p0, gamma=cell.swe.trigger_rate, rho=cell.swe.rho, family=cell.family, task_count=sum(roster_group_sizes[0]), authority_kind=authority.authority_kind, tier_membership_sha256=authority.tier_membership_sha256, grid_content_digest=grid_digest, phase=phase, cell_id=cell.cell_id, replicate_index=replicate, joint_group_sizes=roster_group_sizes[0]),
+            simulate_benchmark_pattern_counts(p0=cell.tau.p0, gamma=cell.tau.trigger_rate, rho=cell.tau.rho, family=cell.family, task_count=sum(roster_group_sizes[1]), authority_kind=authority.authority_kind, tier_membership_sha256=authority.tier_membership_sha256, grid_content_digest=grid_digest, phase=phase, cell_id=cell.cell_id, replicate_index=replicate, joint_group_sizes=roster_group_sizes[1]),
+        ))
+    return tuple(result)
+
+
+def power_replay_receipt(cell: PowerCell, *, authority: PowerAuthority, grid_digest: str, phase: str,
+                         roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]], dataset_count: int,
+                         replay_start: int = 0, replay_count: int = 8) -> dict[str, object]:
+    rows = replay_pattern_chunk(cell, authority=authority, grid_digest=grid_digest, phase=phase, roster_group_sizes=roster_group_sizes, start=replay_start, count=replay_count)
+    leaves = tuple(hashlib.sha256((pattern_count_digest(swe) + pattern_count_digest(tau)).encode("ascii")).hexdigest() for swe, tau in rows)
+    layout = hashlib.sha256(canonical_json_bytes({"SWE": list(roster_group_sizes[0]), "TAU": list(roster_group_sizes[1])}, indent=None)).hexdigest()
+    return {"contract_id": "p0-count-replay-merkle-v1", "cell_id": cell.cell_id, "authority_kind": authority.authority_kind, "tier_membership_sha256": authority.tier_membership_sha256, "grid_content_sha256": grid_digest, "phase": phase, "dataset_count": dataset_count, "group_layout_sha256": layout, "replay_start": replay_start, "replay_count": replay_count, "leaf_sha256s": list(leaves), "merkle_root_sha256": merkle_root(leaves)}
+
+
+def validate_power_replay_receipt(receipt: Mapping[str, object], cell: PowerCell, *, authority: PowerAuthority,
+                                  grid_digest: str, phase: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]]) -> None:
+    expected = power_replay_receipt(cell, authority=authority, grid_digest=grid_digest, phase=phase, roster_group_sizes=roster_group_sizes, dataset_count=cast(int, receipt.get("dataset_count")), replay_start=cast(int, receipt.get("replay_start")), replay_count=cast(int, receipt.get("replay_count")))
+    if dict(receipt) != expected:
+        raise RecordValidationError("power replay/Merkle receipt differs from regenerated count tensors")
 
 
 def bivariate_normal_cdf_equal_threshold(threshold: float, rho: float) -> float:
@@ -807,8 +976,60 @@ def _same_config(payload: Mapping[str, object], config: PowerConfig, *, run_root
             raise RecordValidationError(f"power parent {field} differs from config")
 
 
-def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_index: int, run_root: Path, out: Path) -> ArtifactRef:
-    """Produce deterministic count-level results, partitioned only by frozen screen topology."""
+def _roster_group_sizes(authority: PowerAuthority, *, run_root: Path) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Return the manifest-bound benchmark roster sizes; P0 never invents rows."""
+    rows = _roster_rows(_load_roster(authority.roster_ref, run_root=run_root))
+    counts = {"SWE": 0, "TAU": 0}
+    for task_id in rows:
+        benchmark = task_id.split("-", 1)[0].upper()
+        if benchmark in counts:
+            counts[benchmark] += 1
+    if any(counts[name] != 20 for name in ("SWE", "TAU")):
+        raise RecordValidationError("P0 execution requires exactly n=20 manifest tasks per benchmark")
+    return ((counts["SWE"],), (counts["TAU"],))
+
+
+def _gate_totals_for_cell(
+    cell: PowerCell, *, authority: PowerAuthority, digest: str, phase: str,
+    roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]], dataset_count: int,
+) -> tuple[dict[str, int], dict[str, object]]:
+    """Evaluate bounded real count tensors and retain only aggregate gate totals."""
+    chunk_size = 128
+    causal_count = 0
+    leaves: list[str] = []
+    for start in range(0, dataset_count, chunk_size):
+        count = min(chunk_size, dataset_count - start)
+        rows = replay_pattern_chunk(cell, authority=authority, grid_digest=digest, phase=phase,
+                                    roster_group_sizes=roster_group_sizes, start=start, count=count)
+        patterns = np.asarray([[swe.pattern_counts, tau.pattern_counts] for swe, tau in rows], dtype=np.int64)
+        gate = evaluate_binary_gate_batch(
+            BinarySufficientStatisticsBatch(
+                roster_ref=authority.roster_ref, group_manifest=(("SWE", None), ("TAU", None)),
+                pattern_counts=patterns, arm_failure_counts=np.zeros((count, 2, 4), dtype=np.int64),
+                pipeline_invalid_counts=np.zeros(count, dtype=np.int64),
+            ),
+            AnalysisConfig(), critical_values=np.full(count, 1.96),
+        )
+        causal_count += int(np.count_nonzero(gate.causal_pass))
+        leaves.extend(hashlib.sha256((pattern_count_digest(swe) + pattern_count_digest(tau)).encode("ascii")).hexdigest()
+                      for swe, tau in rows)
+    receipt = power_replay_receipt(
+        cell, authority=authority, grid_digest=digest, phase=phase,
+        roster_group_sizes=roster_group_sizes, dataset_count=dataset_count,
+        replay_start=0, replay_count=min(8, dataset_count),
+    )
+    receipt["full_merkle_root_sha256"] = merkle_root(tuple(leaves))
+    receipt["chunk_size"] = chunk_size
+    return {"dataset_count": dataset_count, "causal_pass_count": causal_count}, receipt
+
+
+def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_index: int, run_root: Path, out: Path,
+                         max_datasets: int | None = None, max_cells: int | None = None) -> ArtifactRef:
+    """Produce real n=20 pattern counts in resumable bounded batches.
+
+    ``max_datasets`` is a synthetic-only test escape hatch.  Its receipt is
+    explicitly incomplete, and merge consumers reject it as authority.
+    """
     screen = _report(screen_ref, run_root=run_root, stage="screen")
     _same_config(screen, config, run_root=run_root)
     count = cast(int, screen["shard_count"])
@@ -822,17 +1043,27 @@ def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_
     grid = _load_power_grid(config.grid_ref, run_root=run_root)
     authority = load_power_authority(config.authority_ref, run_root=run_root)
     digest = grid_content_sha256(config.grid_ref, run_root=run_root)
+    if max_datasets is not None and (type(max_datasets) is not int or not 0 < max_datasets <= grid.datasets_per_cell):
+        raise RecordValidationError("max_datasets must be a positive bounded integer")
+    if max_cells is not None and (type(max_cells) is not int or not 0 < max_cells <= end - start):
+        raise RecordValidationError("max_cells must be a positive bounded integer")
+    if (max_datasets is not None or max_cells is not None) and authority.authority_kind != "synthetic_validation":
+        raise RecordValidationError("only synthetic fixtures may use incomplete P0 shard execution")
+    dataset_count = grid.datasets_per_cell if max_datasets is None else max_datasets
+    roster_group_sizes = _roster_group_sizes(authority, run_root=run_root)
     results: list[dict[str, object]] = []
-    for cell in cells[start:end]:
-        rng = philox_generator(authority.authority_kind, authority.tier_membership_sha256, digest, "grid", phase, cell.cell_id, 0, "grid_triggered_pattern", 0)
-        # Count-level deterministic Bernoulli draw: no task-row construction.
-        alternative_rate = 0.82 if cell.family == "alternative" else 0.03
-        alt = int(rng.binomial(grid.datasets_per_cell, alternative_rate))
-        null = int(rng.binomial(grid.datasets_per_cell, 0.03))
-        results.append({"cell_id": cell.cell_id, "alternative_pass_count": alt, "alternative_trial_count": grid.datasets_per_cell, "null_pass_count": null, "null_trial_count": grid.datasets_per_cell})
+    for cell in cells[start:end if max_cells is None else min(end, start + max_cells)]:
+        totals, receipt = _gate_totals_for_cell(cell, authority=authority, digest=digest, phase=phase,
+                                                roster_group_sizes=roster_group_sizes, dataset_count=dataset_count)
+        # A P0 family is evaluated by the same Task-7 gate; there is no second
+        # static-binomial simulator hiding behind a convenient field name.
+        results.append({"cell_id": cell.cell_id, "alternative_gate_totals": totals,
+                        "null_gate_totals": totals, "replay_receipt": receipt})
     kernel = "power-grid-gaussian-v1" if phase == "gaussian_approximation" else "power-grid-full-multiplier-v1"
     payload = _record_base(config, phase=phase, generation=cast(int, screen["generation"]), kernel_id=kernel, shard_count=count, run_root=run_root)
-    payload.update({"stage": "shard", "parent_refs": [_ref_mapping(screen_ref)], "shard_index": shard_index, "cell_results": results, "dataset_count": grid.datasets_per_cell})
+    payload.update({"stage": "shard", "parent_refs": [_ref_mapping(screen_ref)], "shard_index": shard_index,
+                    "cell_results": results, "dataset_count": dataset_count,
+                    "execution_complete": dataset_count == grid.datasets_per_cell and max_cells is None})
     return _write_power(out, payload, run_root=run_root)
 
 
@@ -845,6 +1076,9 @@ def _complete_shards(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...
         raise RecordValidationError("shards must be complete ordered zero-based topology")
     if any(shard["parent_refs"] != [_ref_mapping(screen_ref)] for shard in shards):
         raise RecordValidationError("shard parent does not match selected screen")
+    grid = _load_power_grid(config.grid_ref, run_root=run_root)
+    if any(shard["execution_complete"] is not True or shard["dataset_count"] != grid.datasets_per_cell for shard in shards):
+        raise RecordValidationError("incomplete synthetic shard receipts cannot enter an authority merge")
     return shards
 
 
@@ -855,7 +1089,11 @@ def select_validation_cells(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactR
     shards = _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
     results = [row for shard in shards for row in cast(list[Mapping[str, object]], shard["cell_results"])]
     alternative = [row for row in results if cast(str, row["cell_id"]).startswith("alternative:")]
-    selected = sorted(alternative, key=lambda row: (cast(int, row["alternative_pass_count"]) / cast(int, row["alternative_trial_count"]), cast(str, row["cell_id"])))[:5]
+    selected = sorted(alternative, key=lambda row: (
+        cast(int, cast(Mapping[str, object], row["alternative_gate_totals"])["causal_pass_count"])
+        / cast(int, cast(Mapping[str, object], row["alternative_gate_totals"])["dataset_count"]),
+        cast(str, row["cell_id"]),
+    ))[:5]
     payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-worst-five-selection-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
     payload.update({"stage": "selection", "parent_refs": [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]], "selected_cells": [row["cell_id"] for row in selected], "candidate_count": len(alternative), "selection_count": 5})
     return _write_power(out, payload, run_root=run_root)
@@ -870,9 +1108,17 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
     by_id = {cast(str, row["cell_id"]): row for shard in shards for row in cast(list[Mapping[str, object]], shard["cell_results"])}
     grid = _load_power_grid(config.grid_ref, run_root=run_root)
     lower_tail, upper_tail = 0.05 / 729, 0.05 / 2187
-    receipts = [{"cell_id": cell_id,
-                 "alternative_power_lower": clopper_pearson_lower(cast(int, by_id[cell_id]["alternative_pass_count"]), cast(int, by_id[cell_id]["alternative_trial_count"]), tail_probability=lower_tail),
-                 "null_false_positive_upper": clopper_pearson_upper(cast(int, by_id[cell_id]["null_pass_count"]), cast(int, by_id[cell_id]["null_trial_count"]), tail_probability=upper_tail)} for cell_id in cast(list[str], selection["selected_cells"])]
+    receipts = [{
+        "cell_id": cell_id,
+        "alternative_power_lower": clopper_pearson_lower(
+            cast(int, cast(Mapping[str, object], by_id[cell_id]["alternative_gate_totals"])["causal_pass_count"]),
+            cast(int, cast(Mapping[str, object], by_id[cell_id]["alternative_gate_totals"])["dataset_count"]), tail_probability=lower_tail,
+        ),
+        "null_false_positive_upper": clopper_pearson_upper(
+            cast(int, cast(Mapping[str, object], by_id[cell_id]["null_gate_totals"])["causal_pass_count"]),
+            cast(int, cast(Mapping[str, object], by_id[cell_id]["null_gate_totals"])["dataset_count"]), tail_probability=upper_tail,
+        ),
+    } for cell_id in cast(list[str], selection["selected_cells"])]
     payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-gaussian-vs-multiplier-validation-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
     payload.update({"stage": "validation", "parent_refs": [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs], _ref_mapping(selection_ref)], "selected_cells": selection["selected_cells"], "interval_receipts": receipts, "validation_dataset_count": grid.validation_datasets_per_cell,
                     "approximation_receipt": {"max_absolute_gate_pass_rate_difference": 0.0, "gaussian_tier_decision": "CONDITIONAL_ONLY", "full_multiplier_tier_decision": "CONDITIONAL_ONLY", "tier_decision_unchanged": True, "passed": True}})

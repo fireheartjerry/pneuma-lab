@@ -889,37 +889,39 @@ def _validate_semantics(value: dict[str, object]) -> None:
                 raise RecordValidationError(
                     "power shard dataset_count must be an exact integer"
                 )
-            count_fields = (
-                "alternative_pass_count",
-                "alternative_trial_count",
-                "null_pass_count",
-                "null_trial_count",
-            )
+            if type(payload.get("execution_complete")) is not bool:
+                raise RecordValidationError("power shard execution_complete must be a strict boolean")
             for index, result in enumerate(
                 cast(list[Mapping[str, object]], payload["cell_results"])
             ):
-                if any(type(result.get(field)) is not int for field in count_fields):
-                    raise RecordValidationError(
-                        f"power shard cell_results[{index}] counts must be "
-                        "exact integers"
-                    )
-                alternative_pass = cast(int, result["alternative_pass_count"])
-                alternative_trial = cast(int, result["alternative_trial_count"])
-                null_pass = cast(int, result["null_pass_count"])
-                null_trial = cast(int, result["null_trial_count"])
-                if not (
-                    0 <= alternative_pass <= alternative_trial
-                    and 0 <= null_pass <= null_trial
-                ):
-                    raise RecordValidationError(
-                        f"power shard cell_results[{index}] pass counts must "
-                        "be bounded by trial counts"
-                    )
-                if alternative_trial != dataset_count or null_trial != dataset_count:
-                    raise RecordValidationError(
-                        f"power shard cell_results[{index}] trial counts must "
-                        "equal shard dataset_count"
-                    )
+                for arm in ("alternative_gate_totals", "null_gate_totals"):
+                    totals = result.get(arm)
+                    if not isinstance(totals, Mapping) or any(
+                        type(totals.get(field)) is not int
+                        for field in ("dataset_count", "causal_pass_count")
+                    ):
+                        raise RecordValidationError(
+                            f"power shard cell_results[{index}] {arm} must contain exact gate totals"
+                        )
+                    trials = cast(int, totals["dataset_count"])
+                    passed = cast(int, totals["causal_pass_count"])
+                    if trials != dataset_count or not 0 <= passed <= trials:
+                        raise RecordValidationError(
+                            f"power shard cell_results[{index}] {arm} is not bounded by shard dataset_count"
+                        )
+                receipt = result.get("replay_receipt")
+                if not isinstance(receipt, Mapping) or receipt.get("cell_id") != result.get("cell_id"):
+                    raise RecordValidationError("power shard replay receipt must bind its cell")
+                if receipt.get("dataset_count") != dataset_count or receipt.get("replay_count") != len(receipt.get("leaf_sha256s", [])):
+                    raise RecordValidationError("power shard replay receipt count does not bind aggregate totals")
+                if type(receipt.get("full_merkle_root_sha256")) is not str or len(cast(str, receipt["full_merkle_root_sha256"])) != 64:
+                    raise RecordValidationError("power shard replay receipt lacks a full Merkle commitment")
+                # Keep the staged validator independent of raw P0 tensors while
+                # still rejecting a forged compact replay frontier.
+                from .power import merkle_root
+                leaves = receipt.get("leaf_sha256s")
+                if not isinstance(leaves, list) or receipt.get("merkle_root_sha256") != merkle_root(tuple(cast(str, leaf) for leaf in leaves)):
+                    raise RecordValidationError("power shard replay receipt Merkle frontier is invalid")
         elif stage == "selection":
             selected = cast(list[object], payload["selected_cells"])
             if payload["selection_count"] != len(selected) or cast(

@@ -1939,3 +1939,21 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** This creates no canonical run artifact and performs
   no provider call, confirmation action, spend, external benchmark execution,
   P0 claim, or tier selection.
+
+### EJ-20260730-0191 — Task 8B count-level authority-path migration
+
+- **Implementation:** Replaced the static-binomial shard shortcut with framed
+  Philox regeneration of exact `n=20` fixed-size trigger partitions and
+  sixteen-pattern sufficient statistics. Every bounded chunk passes through
+  the Task-7 batch gate; artifacts retain only compact gate totals, an
+  eight-leaf replay frontier, and a full Merkle commitment. Staged validation
+  rejects malformed totals/frontiers, and merge consumers reject incomplete
+  synthetic chunks before selection/finalization.
+- **Focused evidence:** `timeout 60 .venv/bin/python -m pytest
+  tests/resampling_null/test_power.py tests/resampling_null/test_power_authority.py
+  tests/test_schema_loads.py -q` passed. The tiny two-dataset/one-cell fixture
+  proves receipt formation and separately proves it cannot enter an authority
+  merge.
+- **Boundary/non-claim:** Production remains unrun and requires the complete
+  frozen grid. The fixture escape hatch is synthetic-only and cannot mint a
+  selection, final report, tier, result, or claim.

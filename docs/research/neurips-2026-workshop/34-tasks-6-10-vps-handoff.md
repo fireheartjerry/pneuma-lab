@@ -183,6 +183,14 @@ The CLI must not expose secret material, arbitrary seed overrides, alternate
 artifact roots after commitment, confirmation shortcuts, provider calls, or
 cloud provisioning.
 
+**Task 8B handoff (2026-07-30):** Power shards now generate real manifest-bound
+`n=20` pattern-count tensors in chunks and route them through the Task-7 batch
+gate. Persist only aggregate gate totals plus compact replay/Merkle receipts;
+do not restore a binomial-rate shortcut or serialize raw simulated rows.
+Production uses the frozen full grid. `max_datasets`/`max_cells` are
+synthetic-fixture-only and deliberately produce incomplete shards that merge
+consumers reject.
+
 ## Task 10 — isolated result of record and closure
 
 Complete the zero-spend core:

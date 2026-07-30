@@ -54,6 +54,22 @@ def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligib
     roster_commitment = commitment_sha256("roster-local-nonce", study_id, BytesField(nonce))
     schedule_commitment = "d" * 64
     assignment_commitment = "e" * 64
+    tasks = [
+        {
+            "task_id": f"{prefix}-{index:03d}",
+            "benchmark": benchmark,
+            "stratum": stratum,
+            "lineage": f"{prefix}-lineage-{index:03d}",
+            "groups": groups,
+            "tiers": [120, 160],
+        }
+        for benchmark, prefix, stratum, groups in (
+            ("SWE", "swe", "python", [{"kind": "language", "value": "Python"}, {"kind": "domain", "value": "systems"}]),
+            ("TAU", "tau", "retail", [{"kind": "domain", "value": "retail"}, {"kind": "issue_family", "value": "refund"}]),
+        )
+        for index in range(1, 21)
+    ]
+    task_ids = [task["task_id"] for task in tasks]
     roster = _write(
         root,
         "inputs/roster.json",
@@ -62,16 +78,7 @@ def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligib
             "schema_version": "1",
             "roster_kind": roster_kind,
             "supported_tiers": [120, 160],
-            "tasks": [
-                {
-                    "task_id": "swe-001",
-                    "benchmark": "SWE",
-                    "stratum": "python",
-                    "lineage": "repo-1",
-                    "groups": [{"kind": "language", "value": "Python"}],
-                    "tiers": [120, 160],
-                }
-            ],
+            "tasks": tasks,
         },
     )
     grid = _write(
@@ -139,10 +146,10 @@ def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligib
                 "beacon_receipt": beacon,
                 "roster_local_nonce_hex": nonce.hex(),
                 "roster_seed_sha256": roster_seed,
-                "accepted_task_ids": ["swe-001"],
+                "accepted_task_ids": task_ids,
                 "rejected_task_ids": [],
-                "tier_membership": {"120": ["swe-001"], "160": [] if eligibility_tier_mismatch else ["swe-001"]},
-                "group_labels": {"swe-001": [{"kind": "language", "value": "Python"}]},
+                "tier_membership": {"120": task_ids, "160": [] if eligibility_tier_mismatch else task_ids},
+                "group_labels": {task["task_id"]: task["groups"] for task in tasks},
                 "reserves": [],
             },
         ) if eligibility else None
@@ -278,8 +285,8 @@ def test_staged_report_rejects_swapped_manifest_topology_ref(tmp_path: Path) -> 
         _validate_power_identities([screen], run_root=tmp_path)
 
 
-def test_synthetic_final_discovers_every_prior_authority_attempt(tmp_path: Path) -> None:
-    """A resumed generation cannot omit an earlier immutable screen."""
+def test_tiny_synthetic_shards_cannot_enter_the_authority_merge(tmp_path: Path) -> None:
+    """Bounded fixture work is evidence plumbing, never a shortcut to authority."""
     manifest_ref = _manifest(tmp_path, roster_kind="synthetic_fixture")
     authority_ref = seal_synthetic_power_authority(
         manifest_ref, run_root=tmp_path, out=tmp_path / "power/authority.json"
@@ -300,24 +307,40 @@ def test_synthetic_final_discovers_every_prior_authority_attempt(tmp_path: Path)
     )
     shards = tuple(
         simulate_power_shard(screen, config, shard_index=index, run_root=tmp_path,
-                             out=tmp_path / f"power/shard-{index}.json")
+                             out=tmp_path / f"power/shard-{index}.json", max_datasets=2,
+                             max_cells=1)
         for index in range(2)
     )
-    selection = select_validation_cells(
-        screen, shards, config, run_root=tmp_path, out=tmp_path / "power/selection.json"
-    )
-    validation = validate_gaussian_approximation(
-        screen, shards, selection, config, run_root=tmp_path,
-        out=tmp_path / "power/validation.json",
-    )
+    with pytest.raises(RecordValidationError, match="incomplete synthetic shard"):
+        select_validation_cells(
+            screen, shards, config, run_root=tmp_path, out=tmp_path / "power/selection.json"
+        )
+    assert first_screen.relative_path != screen.relative_path
 
-    final_ref = finalize_synthetic_power_report(
-        screen, shards, selection, validation, config, run_root=tmp_path,
-        out=tmp_path / "power/final.json",
-    )
-    final = __import__("json").loads((tmp_path / final_ref.relative_path).read_text())
-    refs = final["payload"]["all_attempt_refs"]
 
-    assert first_screen.relative_path in {ref["relative_path"] for ref in refs}
-    assert final["payload"]["finalization"]["decision"] == "CONDITIONAL_ONLY"
-    validate_scientific_graph(tmp_path)
+def test_shard_records_replay_receipts_and_task7_gate_totals_not_static_binomials(
+    tmp_path: Path,
+) -> None:
+    manifest_ref = _manifest(tmp_path, roster_kind="synthetic_fixture")
+    authority_ref = seal_synthetic_power_authority(
+        manifest_ref, run_root=tmp_path, out=tmp_path / "power/authority.json"
+    )
+    config = load_power_config(
+        authority_ref, _ref(tmp_path, "inputs/grid.json", "power_grid"),
+        _ref(tmp_path, "inputs/topology.json", "power_screen_topology"), run_root=tmp_path,
+    )
+    screen = screen_power_grid(
+        config, phase="gaussian_approximation", generation=0, shard_count=1,
+        fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/screen.json",
+    )
+    shard = simulate_power_shard(
+        screen, config, shard_index=0, run_root=tmp_path, out=tmp_path / "power/shard.json",
+        max_datasets=2, max_cells=1,
+    )
+    payload = __import__("json").loads((tmp_path / shard.relative_path).read_text())["payload"]
+    cell = payload["cell_results"][0]
+
+    assert "replay_receipt" in cell
+    assert cell["alternative_gate_totals"]["dataset_count"] == 2
+    assert cell["null_gate_totals"]["dataset_count"] == 2
+    assert "alternative_pass_count" not in cell
