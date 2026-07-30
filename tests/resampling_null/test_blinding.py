@@ -273,10 +273,10 @@ def test_paired_unblind_second_publication_failure_rolls_back_receipt(
         return {"payload": {"unblind_receipt_ref": blinding._mapping_ref(receipt_ref)}}, result_ref, payload
     monkeypatch.setattr(blinding, "_ref_for_prepared_record", fake_prepared)
     real_install = blinding.install_paired_publication_entry
-    def fail_second(root, index):
+    def fail_second(root, index, *, auth_key):
         if index == 1:
             raise OSError("injected publication failure")
-        real_install(root, index)
+        real_install(root, index, auth_key=auth_key)
     monkeypatch.setattr(blinding, "install_paired_publication_entry", fail_second)
 
     with pytest.raises(OSError, match="injected publication failure"):
@@ -304,12 +304,13 @@ def test_next_task6_controller_entry_recovers_a_crashed_partial_pair(tmp_path) -
 
     root = tmp_path / "run"
     root.mkdir()
+    key = b"k" * 32
     receipt, analysis = root / "receipt.json", root / "analysis.json"
-    begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")))
-    prepare_paired_publication_entry(root, 0, b"receipt")
-    install_paired_publication_entry(root, 0)
-    with task6_controller_lock(root):
-        pass
+    begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")), auth_key=key)
+    prepare_paired_publication_entry(root, 0, b"receipt", auth_key=key)
+    install_paired_publication_entry(root, 0, auth_key=key)
+    from pneuma_lab.resampling_null.task6_state import recover_paired_publication
+    recover_paired_publication(root, auth_key=key)
     assert not receipt.exists()
     assert not analysis.exists()
     assert not (root / "operational/task6/paired-publication.json").exists()
@@ -328,15 +329,16 @@ def test_paired_recovery_never_deletes_same_bytes_replacement(tmp_path) -> None:
 
     root = tmp_path / "run"
     root.mkdir()
+    key = b"k" * 32
     receipt, analysis = root / "receipt.json", root / "analysis.json"
-    begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")))
-    prepare_paired_publication_entry(root, 0, b"receipt")
-    prepare_paired_publication_entry(root, 1, b"analysis")
-    install_paired_publication_entry(root, 0)
+    begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")), auth_key=key)
+    prepare_paired_publication_entry(root, 0, b"receipt", auth_key=key)
+    prepare_paired_publication_entry(root, 1, b"analysis", auth_key=key)
+    install_paired_publication_entry(root, 0, auth_key=key)
     receipt.unlink()
     write_atomic_bytes(receipt, b"receipt")
     with pytest.raises(RecordValidationError, match="ownership"):
-        recover_paired_publication(root)
+        recover_paired_publication(root, auth_key=key)
     assert receipt.read_bytes() == b"receipt"
 
 
@@ -351,13 +353,63 @@ def test_paired_install_never_overwrites_a_post_preflight_creator(tmp_path) -> N
 
     root = tmp_path / "run"
     root.mkdir()
+    key = b"k" * 32
     receipt, analysis = root / "receipt.json", root / "analysis.json"
-    begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")))
-    prepare_paired_publication_entry(root, 0, b"receipt")
+    begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")), auth_key=key)
+    prepare_paired_publication_entry(root, 0, b"receipt", auth_key=key)
     write_atomic_bytes(receipt, b"post-preflight creator")
     with pytest.raises(FileExistsError, match="already exists"):
-        install_paired_publication_entry(root, 0)
+        install_paired_publication_entry(root, 0, auth_key=key)
     assert receipt.read_bytes() == b"post-preflight creator"
+
+
+def test_preidentity_crash_window_recovers_only_the_keyed_private_temp(monkeypatch, tmp_path) -> None:
+    """A crash after O_EXCL staging but before identity journaling is recoverable."""
+    import json
+    import pneuma_lab.resampling_null.task6_state as state
+
+    root = tmp_path / "run"
+    root.mkdir()
+    key = b"k" * 32
+    receipt, analysis = root / "receipt.json", root / "analysis.json"
+    state.begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")), auth_key=key)
+    original = state._write_transaction
+    monkeypatch.setattr(state, "_write_transaction", lambda *_a, **_k: (_ for _ in ()).throw(OSError("injected journal crash")))
+    with pytest.raises(OSError, match="injected journal crash"):
+        state.prepare_paired_publication_entry(root, 0, b"receipt", auth_key=key)
+    intent = json.loads((root / "operational/task6/paired-publication.json").read_text())
+    staged = root / intent["entries"][0]["temporary_relative_path"]
+    assert staged.is_file()
+    monkeypatch.setattr(state, "_write_transaction", original)
+    state.recover_paired_publication(root, auth_key=key)
+    assert not staged.exists()
+    assert not (root / "operational/task6/paired-publication.json").exists()
+
+
+def test_forged_or_hardlinked_preidentity_intent_never_deletes_victim(tmp_path) -> None:
+    """Authenticated intent rejects forgery; keyed-temp sweep unlinks only its alias."""
+    import json
+    import os
+    from pneuma_lab.resampling_null.errors import RecordValidationError
+    from pneuma_lab.resampling_null.task6_state import begin_paired_publication, recover_paired_publication
+
+    root = tmp_path / "run"
+    root.mkdir()
+    key = b"k" * 32
+    receipt, analysis, victim = root / "receipt.json", root / "analysis.json", root / "victim.json"
+    victim.write_bytes(b"victim")
+    begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")), auth_key=key)
+    transaction = root / "operational/task6/paired-publication.json"
+    intent = json.loads(transaction.read_text())
+    staged = root / intent["entries"][0]["temporary_relative_path"]
+    os.link(victim, staged)
+    forged = json.loads(transaction.read_text())
+    forged["entries"][1]["temporary_relative_path"] = "victim.json"
+    transaction.write_text(json.dumps(forged), encoding="utf-8")
+    with pytest.raises(RecordValidationError, match="authentication"):
+        recover_paired_publication(root, auth_key=key)
+    assert victim.read_bytes() == b"victim"
+    assert staged.exists()
 
 
 def test_receipt_only_unblind_entrypoint_is_not_public() -> None:

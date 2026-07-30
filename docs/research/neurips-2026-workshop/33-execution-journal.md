@@ -2294,15 +2294,16 @@ The next event after the archived migration boundary is appended below.
   make them one kernel rename. The controller therefore durably writes a
   no-clear prepared-pair intent (only target paths/digests/sizes), then writes
   the two already-validated public records. A controlled second-write failure
-  removes the matching first record. Every future Task-6 controller lock
-  recovers a crash: two matching targets complete the transaction; a matching
+  removes the matching first record. A future authenticated paired-unblind
+  controller rederives the permit-bound transaction key and recovers a crash:
+  two matching targets complete the transaction; a matching
   partial target is removed; malformed or substituted targets fail closed.
   No raw assignment mapping, key, or clear row is serialized in the intent.
 - **Focused evidence:** The new builder-failure regression was observed RED
   before the staged API existed. It now proves analysis failure leaves neither
   receipt nor analysis while the outcome taint remains and blocks protected
   work. A second-write failure-injection regression proves receipt rollback;
-  a simulated crash proves next-lock recovery removes a partial pair.
+  a simulated crash proves authenticated next-controller recovery removes a partial pair.
   `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_blinding.py
   tests/resampling_null/test_cli.py -q` passed 34 tests; `py_compile`,
   project-status check, and whitespace check passed.
@@ -2337,3 +2338,27 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** No clear assignment mapping, key, or arm is written
   to the no-clear transaction intent or exposed through this repair. No P0,
   provider, spend, unblind ceremony, or scientific result was run.
+
+### EJ-20260730-0209 — Hostile-review repair: authenticated crash recovery
+
+- **Correction:** Review found the remaining crash window between private temp
+  creation and the later inode-identity journal update. The intent now
+  predeclares a keyed private staging name before creation. Recovery can sweep
+  that exact authenticated alias when identity is absent, so a controller crash
+  cannot permanently strand the run. Once identity exists, deletion remains
+  exact inode-plus-byte ownership only.
+- **Intent authority:** The intent carries an HMAC over state/entries using a
+  non-persisted key derived from the already validated in-memory unblind permit
+  under a pair-specific domain. After a crash, the legitimate controller
+  rederives that permit from a fresh bound unblind handle and the committed
+  refs; a bare lock has no deletion authority and fails closed. Mutated intent
+  bytes therefore cannot redirect recovery cleanup. No raw secret is stored.
+- **Focused evidence:** Fault injection after private `O_EXCL` creation but
+  before identity journal update recovers the keyed temp and intent. A forged
+  intent that names a victim via a hard-linked staging alias fails
+  authentication and leaves the victim/alias intact. `timeout 60s
+  .venv/bin/python -m pytest tests/resampling_null/test_blinding.py
+  tests/resampling_null/test_cli.py -q` passed 39 tests.
+- **Boundary/non-claim:** This recovery authorization is controller plumbing;
+  no external data, key, arm mapping, P0, provider, spend, or scientific result
+  was exposed or executed.

@@ -263,6 +263,17 @@ def _ref_for_prepared_record(
     ), payload
 
 
+def _pair_transaction_key(permit_hmac_sha256: str) -> bytes:
+    """Derive a non-persisted transaction authenticator from the valid permit."""
+    try:
+        permit = bytes.fromhex(permit_hmac_sha256)
+    except ValueError as exc:
+        raise RecordValidationError("unblind permit MAC is malformed") from exc
+    if len(permit) != 32:
+        raise RecordValidationError("unblind permit MAC is malformed")
+    return hmac.new(permit, b"task6-paired-publication-v1", hashlib.sha256).digest()
+
+
 def unblind_and_publish_analysis(
     handle: UnblindSecretHandle, *, permit_hmac_sha256: str, run_root: Path,
     receipt_destination: Path, analysis_destination: Path, manifest_ref: ArtifactRef,
@@ -280,7 +291,8 @@ def unblind_and_publish_analysis(
     a partial pair.
     """
     with task6_controller_lock(run_root) as root:
-        recover_paired_publication(root)
+        transaction_key = _pair_transaction_key(permit_hmac_sha256)
+        recover_paired_publication(root, auth_key=transaction_key)
         require_singleton_absent(root, "resampling_unblind_receipt")
         receipt_target, receipt_relative = _prepare_destination(receipt_destination, root)
         analysis_target, analysis_relative = _prepare_destination(analysis_destination, root)
@@ -308,14 +320,15 @@ def unblind_and_publish_analysis(
             raise RecordValidationError("analysis does not bind the paired unblind receipt")
         begin_paired_publication(
             root, ((receipt_target, receipt_bytes), (analysis_target, analysis_bytes)),
+            auth_key=transaction_key,
         )
         try:
-            prepare_paired_publication_entry(root, 0, receipt_bytes)
-            prepare_paired_publication_entry(root, 1, analysis_bytes)
-            install_paired_publication_entry(root, 0)
-            install_paired_publication_entry(root, 1)
+            prepare_paired_publication_entry(root, 0, receipt_bytes, auth_key=transaction_key)
+            prepare_paired_publication_entry(root, 1, analysis_bytes, auth_key=transaction_key)
+            install_paired_publication_entry(root, 0, auth_key=transaction_key)
+            install_paired_publication_entry(root, 1, auth_key=transaction_key)
         except BaseException:
-            abort_paired_publication(root)
+            abort_paired_publication(root, auth_key=transaction_key)
             raise
-        recover_paired_publication(root)
+        recover_paired_publication(root, auth_key=transaction_key)
         return PairedUnblindResult(receipt_ref=receipt_ref, analysis_ref=analysis_ref)

@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import fcntl
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -44,10 +45,6 @@ def task6_controller_lock(run_root: Path) -> Iterator[Path]:
     fd = os.open(root / _LOCK, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
-        # A process can die between the two paired writes.  Every later Task-6
-        # controller entry resolves that durable intent before it can observe
-        # or add to a half-published scientific graph.
-        recover_paired_publication(root)
         yield root
     finally:
         fcntl.flock(fd, fcntl.LOCK_UN)
@@ -127,8 +124,14 @@ def _write_all(descriptor: int, payload: bytes) -> None:
         written += count
 
 
-def _write_transaction(root: Path, value: dict[str, object]) -> None:
+def _transaction_mac(value: dict[str, object], auth_key: bytes) -> str:
+    unsigned = {"state": value["state"], "entries": value["entries"]}
+    return hmac.new(auth_key, canonical_json_bytes(unsigned, indent=None), hashlib.sha256).hexdigest()
+
+
+def _write_transaction(root: Path, value: dict[str, object], auth_key: bytes) -> None:
     transaction = _pair_transaction_path(root)
+    value = {"state": value["state"], "entries": value["entries"], "auth_hmac_sha256": _transaction_mac(value, auth_key)}
     payload = canonical_json_bytes(value, indent=None)
     temporary = transaction.parent / f".{transaction.name}.{secrets.token_hex(16)}.tmp"
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
@@ -158,15 +161,17 @@ def _inside(root: Path, relative: str, *, field: str) -> Path:
     return target
 
 
-def _load_transaction(root: Path) -> tuple[dict[str, object], list[dict[str, object]]]:
+def _load_transaction(root: Path, auth_key: bytes) -> tuple[dict[str, object], list[dict[str, object]]]:
     transaction = _pair_transaction_path(root)
     try:
         value = json.loads(transaction.read_text(encoding="utf-8"))
         entries = value["entries"] if value.get("state") == "prepared_v2" else None
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, AttributeError, KeyError, TypeError) as exc:
         raise RecordValidationError("paired publication transaction is malformed") from exc
-    if not isinstance(value, dict) or not isinstance(entries, list) or len(entries) != 2:
+    if not isinstance(value, dict) or set(value) != {"state", "entries", "auth_hmac_sha256"} or not isinstance(entries, list) or len(entries) != 2 or not isinstance(value["auth_hmac_sha256"], str):
         raise RecordValidationError("paired publication transaction is malformed")
+    if not hmac.compare_digest(value["auth_hmac_sha256"], _transaction_mac(value, auth_key)):
+        raise RecordValidationError("paired publication transaction authentication failed")
     for entry in entries:
         required = {"relative_path", "sha256", "byte_count", "temporary_relative_path", "temporary_identity"}
         if not isinstance(entry, dict) or set(entry) != required:
@@ -184,7 +189,7 @@ def _load_transaction(root: Path) -> tuple[dict[str, object], list[dict[str, obj
     return value, entries
 
 
-def begin_paired_publication(root: Path, entries: tuple[tuple[Path, bytes], ...]) -> None:
+def begin_paired_publication(root: Path, entries: tuple[tuple[Path, bytes], ...], *, auth_key: bytes) -> None:
     """Durably name private, no-replace staging files before public install."""
     if len(entries) != 2 or entries[0][0] == entries[1][0]:
         raise RecordValidationError("paired publication requires two distinct targets")
@@ -203,13 +208,14 @@ def begin_paired_publication(root: Path, entries: tuple[tuple[Path, bytes], ...]
             "relative_path": relative,
             "sha256": hashlib.sha256(payload).hexdigest(),
             "byte_count": len(payload),
-            "temporary_relative_path": (target.parent / f".{target.name}.{secrets.token_hex(16)}.task6-pair.tmp").relative_to(root).as_posix(),
+            "temporary_relative_path": (target.parent / f".{target.name}.{hmac.new(auth_key, (relative + secrets.token_hex(16)).encode(), hashlib.sha256).hexdigest()}.task6-pair.tmp").relative_to(root).as_posix(),
             "temporary_identity": None,
         })
     transaction.parent.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(transaction, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
     try:
-        payload = canonical_json_bytes({"state": "prepared_v2", "entries": encoded_entries}, indent=None)
+        value = {"state": "prepared_v2", "entries": encoded_entries}
+        payload = canonical_json_bytes({**value, "auth_hmac_sha256": _transaction_mac(value, auth_key)}, indent=None)
         _write_all(descriptor, payload)
         os.fsync(descriptor)
     finally:
@@ -238,9 +244,9 @@ def _owned(path: Path, entry: dict[str, object]) -> bool:
     return actual == identity and len(payload) == entry["byte_count"] and hashlib.sha256(payload).hexdigest() == entry["sha256"]
 
 
-def prepare_paired_publication_entry(root: Path, index: int, payload: bytes) -> None:
+def prepare_paired_publication_entry(root: Path, index: int, payload: bytes, *, auth_key: bytes) -> None:
     """Write one private staged file and durably bind its creation identity."""
-    value, entries = _load_transaction(root)
+    value, entries = _load_transaction(root, auth_key)
     if type(index) is not int or not 0 <= index < len(entries):
         raise RecordValidationError("paired publication entry index is invalid")
     entry = entries[index]
@@ -260,12 +266,12 @@ def prepare_paired_publication_entry(root: Path, index: int, payload: bytes) -> 
         os.close(descriptor)
     _fsync_parent(temporary)
     entry["temporary_identity"] = _identity(temporary)
-    _write_transaction(root, value)
+    _write_transaction(root, value, auth_key)
 
 
-def install_paired_publication_entry(root: Path, index: int) -> None:
+def install_paired_publication_entry(root: Path, index: int, *, auth_key: bytes) -> None:
     """Atomically create one public target from its bound private staging inode."""
-    _value, entries = _load_transaction(root)
+    _value, entries = _load_transaction(root, auth_key)
     if type(index) is not int or not 0 <= index < len(entries):
         raise RecordValidationError("paired publication entry index is invalid")
     entry = entries[index]
@@ -286,12 +292,12 @@ def install_paired_publication_entry(root: Path, index: int) -> None:
     # inode, so a same-bytes replacement cannot recycle the owned identity.
 
 
-def recover_paired_publication(root: Path) -> None:
+def recover_paired_publication(root: Path, *, auth_key: bytes) -> None:
     """Finish a completed pair or erase an interrupted partial pair fail-closed."""
     transaction = _pair_transaction_path(root)
     if not transaction.exists():
         return
-    _value, entries = _load_transaction(root)
+    _value, entries = _load_transaction(root, auth_key)
     targets: list[Path] = []
     temporaries: list[Path] = []
     target_present = 0
@@ -300,6 +306,11 @@ def recover_paired_publication(root: Path) -> None:
         temporary = _inside(root, entry["temporary_relative_path"], field="temporary target")
         for candidate, label in ((target, "target"), (temporary, "temporary target")):
             if candidate.exists():
+                # The authenticated keyed temporary name is safe to sweep in
+                # the tiny crash window before its inode can be journaled.
+                if candidate == temporary and entry["temporary_identity"] is None:
+                    temporaries.append(candidate)
+                    continue
                 if not _owned(candidate, entry):
                     raise RecordValidationError(f"paired publication {label} ownership mismatch")
                 (targets if candidate == target else temporaries).append(candidate)
@@ -317,6 +328,6 @@ def recover_paired_publication(root: Path) -> None:
     _unlink_fsynced(transaction)
 
 
-def abort_paired_publication(root: Path) -> None:
+def abort_paired_publication(root: Path, *, auth_key: bytes) -> None:
     """Recover synchronously after a controlled publication exception."""
-    recover_paired_publication(root)
+    recover_paired_publication(root, auth_key=auth_key)

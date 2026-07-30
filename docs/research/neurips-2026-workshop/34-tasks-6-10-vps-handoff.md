@@ -99,8 +99,8 @@ or numerical analysis. Its staged Task-6 API taints before the first
 clear-ledger parse, holds clear rows only in memory, constructs and validates
 the receipt/analysis pair (including the future receipt digest binding), then
 publishes both. A durable no-clear prepared-pair transaction supports recovery
-across arbitrary root-relative output directories: next Task-6 lock finalizes
-an intact pair or deletes a matching partial pair; malformed/substituted state
+across arbitrary root-relative output directories: an authenticated future
+paired-unblind controller finalizes an intact pair or deletes a matching partial pair; malformed/substituted state
 blocks fail-closed. Focused failure injection proves no receipt or analysis
 after a builder/second-write failure while taint remains permanent. This is not
 an unblind E2E receipt: no real completed lineage exists yet.
@@ -429,6 +429,11 @@ private link stays until commit/recovery. The intent binds the staged
 fails closed on malformed/substituted/same-byte replacement state. Builder and
 second-install fault injection prove neither public target remains on
 controlled failure while taint persists; a post-preflight creator is not
-overwritten. The old public receipt-only `unblind_projection` route is removed.
-This is plumbing, not an unblind/analysis E2E: the missing branch authority and
-unrun full P0 remain the next gates.
+overwritten. The intent HMAC is derived only from the in-memory validated
+unblind permit; a fresh bound handle rederives it after crash, while a bare
+lock cannot delete pending state. Predeclared keyed staging names make the
+pre-identity crash window recoverable; forged intent/hardlink attempts fail
+authentication without deleting their victim. The old public receipt-only
+`unblind_projection` route is removed. This is plumbing, not an
+unblind/analysis E2E: the missing branch authority and unrun full P0 remain the
+next gates.
