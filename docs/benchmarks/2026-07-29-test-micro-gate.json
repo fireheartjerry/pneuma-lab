@@ -1,0 +1,27 @@
+{
+  "command": [
+    ".venv/bin/python",
+    "scripts/test_fast.py",
+    "--cold"
+  ],
+  "durations_ns": [
+    786551210,
+    755753139,
+    682813082,
+    775049944,
+    736745139,
+    675645232,
+    698642480,
+    763756126,
+    795211248,
+    711748466
+  ],
+  "git_commit": "d4b41ee3b4cb686447e4fc9121e36fdfea6fbd26",
+  "label": "linux-cold",
+  "median_ns": 746249139,
+  "p95_ns": 795211248,
+  "platform": "Linux-6.8.0-136-generic-x86_64-with-glibc2.39",
+  "python_cache_tag": "cpython-312",
+  "python_version": "3.12.3",
+  "runs": 10
+}
