@@ -11,7 +11,7 @@ from typing import Mapping, cast
 from .artifacts import _load_direct_scientific_parent, write_record
 from .assignment import BytesField, TextField, _derive_unblind_subkey_into, _read_exact_master_into, commitment_sha256, kdf_frame
 from .errors import RecordValidationError
-from .projection_candidate import build_candidate
+from .projection_candidate import ProjectionCandidate, build_candidate
 from .secrets import UnblindSecretHandle, _require_handle_binding
 from .types import ArtifactRef
 
@@ -23,7 +23,8 @@ def _mapping_ref(ref: ArtifactRef) -> dict[str, object]:
 def seal_blinded_projection(
     *, run_root: Path, destination: Path, schedule_ref: ArtifactRef,
     analysis_freeze_ref: ArtifactRef, task_block_refs: tuple[ArtifactRef, ...],
-) -> UnblindResult:
+    candidate: ProjectionCandidate,
+) -> ArtifactRef:
     """Reload authoritative parents and publish one reconstructed projection."""
     schedule = _load_direct_scientific_parent(_mapping_ref(schedule_ref), run_root=run_root, field="schedule_ref", expected_kind="resampling_prefix_schedule")
     freeze = _load_direct_scientific_parent(_mapping_ref(analysis_freeze_ref), run_root=run_root, field="analysis_freeze_ref", expected_kind="resampling_analysis_freeze")
@@ -43,7 +44,15 @@ def seal_blinded_projection(
         slots = cast(list[Mapping[str, object]], entry["slots"])
         frozen.append({"task_id": task_id, "prefix_success": payload["prefix_success"], "slot_ids": [slot["slot_id"] for slot in slots]})
         outcomes[task_id] = cast(list[Mapping[str, object]], payload["slot_outcomes"])
-    candidate = build_candidate(frozen, outcomes)
+    rebuilt_candidate = build_candidate(frozen, outcomes)
+    if (
+        type(candidate) is not ProjectionCandidate
+        or candidate.canonical_bytes != rebuilt_candidate.canonical_bytes
+    ):
+        raise RecordValidationError(
+            "caller candidate bytes differ from trusted reconstruction"
+        )
+    candidate = rebuilt_candidate
     for index, base in enumerate(candidate.rows):
         task_id = cast(str, base["task_id"])
         schedule_entry = schedule_rows[index]
@@ -68,7 +77,7 @@ def seal_blinded_projection(
     return write_record(destination, record, run_root=run_root, role="blinded_projection")
 
 
-def framed_unblind_permit(
+def _framed_unblind_permit(
     handle: UnblindSecretHandle, *, study_id: str, manifest_ref: ArtifactRef,
     schedule_ref: ArtifactRef, prefix_index_ref: ArtifactRef, ledger_ref: ArtifactRef,
     projection_ref: ArtifactRef, freeze_ref: ArtifactRef, expected_task_count: int,
