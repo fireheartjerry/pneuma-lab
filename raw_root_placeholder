@@ -1,0 +1,653 @@
+head=d535ed930df8ddb7792930f5b19f49caae290fdf
+remote=d535ed930df8ddb7792930f5b19f49caae290fdf
+ M docs/research/neurips-2026-workshop/33-execution-journal.md
+?? raw_root_placeholder
+1013-altered-signature, and wrong-key vectors; parsing a signature-shaped hex string
+1014-is not verification. The recorded Windows cp311 abi3 wheel SHA-256
+1015-`e5dfc1e64de5677cec922ffa8da89c546d0415bf6efdf081842e5d44c84e1f0e`
+1016-is planning provenance only and cannot authorize the Python 3.12/Linux
+1017-environment. The reviewed implementation receipt must instead bind the exact
+1018-Linux artifacts selected by the regenerated lock and the frozen interpreter,
+1019-platform, and installed-distribution evidence.
+1020-
+1021-Task 3 does **not** install or implement the official `drand-client`/Sigstore
+1022-Node dependency graph, a pinned Node runtime lock, or the nominal live ceremony
+1023-adapter. Those require their own reviewed adapter plan with exact Node/runtime
+1024-artifacts, package lock, offline verification KATs, and capability boundary.
+1025-Until that adapter is implemented and reviewed,
+1026-`ConfirmationPreflightRegistry.claim_roster_ceremony` remains unavailable and
+1027-fails closed for eligible confirmation. Synthetic fixtures, mocked signatures,
+1028-or test-only ceremony evidence cannot be relabeled, wrapped, or promoted into
+1029-an eligible-confirmation capability.
+1030-
+1031:Task 3 owns only the completed-final **consumer** contract. Slices 2 and 11
+1032-freeze and close `resampling-power-report.schema.json`; slice 7 implements and
+1033:tests `require_schedulable_power_final` against test-only, hand-authored
+1034-complete authority chains. Task 3 creates no power attempt/final producer,
+1035-simulator, or production fixture. Task 8 remains the sole producer and
+1036-simulator of power reports.
+1037-
+1038-### Step 1: Write failing assignment tests
+1039-
+1040-Test:
+1041-
+1042-- the exact frame hex, frame SHA-256, derived seed, schedule commitment, five
+1043-  HKDF subkeys, two bounded draws, and capability in design section 4.0 match
+1044-  their known-answer vectors;
+1045-- framed derivations distinguish the former colon collision
+1046-  `("a:b", "c") != ("a", "b:c")`, while both members of the former NUL
+1047-  collision `("a\0b", "c")` / `("a", "b\0c")` reject before framing;
+1048-- tags/identifiers reject non-NFC text, controls, format controls, private-use/
+1049-  unassigned code points, and lone surrogates before encoding;
+1050-- task-registry, qualification receipt/evidence/universe, ceremony policy,
+1051-  selection/precommit/Sigstore bundle/reveal/eligibility/roster,
+--
+1079-  `source_revision_ref`; their recomputed digests match the redundant pinned
+1080-  digests, and an unreferenced lookalike implementation fails;
+1081-- schedule derivation accepts only roles `prefix`, `slot-0..3`, and
+1082-  `execution-order-0..3`; execution order sorts by `(order_digest, ordinal)` on
+1083-  digest collision and maps rank exactly to the frozen provider-lane ordinal;
+1084-- every `U64` and `uniform_below.upper` check rejects booleans; `uniform_below`
+1085-  accepts only exact integers `1..2^64` and terminates at `upper == 2^64`;
+1086-- an exhaustive small-word analogue proves equal accepted preimage counts for
+1087-  every result, while the production 64-bit limit formula is exact;
+1088-- roster-local-nonce, schedule, and assignment-master commitments cannot substitute
+1089-  for one another; the wrong value/label/study/length or beacon-derived final
+1090-  roster seed fails before a draw;
+1091-- assignment master/subkeys never appear in argv values, environment, run-root
+1092-  bytes, records, logs, exception text, worker orders, or capability payloads;
+1093-- core code independently verifies each scoped secret master and derives only
+1094-  four assignment keys or only `K_unblind`; arbitrary provider/lookalike,
+1095-  subclassed, wrong-purpose, stale, swapped-file, or reused handles reject;
+1096-- roster input order cannot affect bytes or digest;
+1097:- `seal_prefix_schedule` has no assignment-program/provider-lane argument,
+1098-  loads both only through `manifest_ref`, requires a completed
+1099-  `power_final_ref`, and rejects a manifest commitment or referenced asset
+1100-  mismatch;
+1101:- the Task-3 `require_schedulable_power_final` consumer accepts only
+1102-  test-only, hand-authored, schema-valid complete chains for its focused tests;
+1103-  reloads the authority/grid/topology, every declared attempt, terminal arm,
+1104-  roster/tier membership, selected decision, and parent closure; rejects
+1105-  incomplete, orphaned, cross-authority, caller-mirrored, or post-final chains;
+1106-  and exposes no power-report producer/simulator API;
+1107-- an eligible-confirmation manifest contains the exact copied ceremony-policy
+1108-  and final eligibility refs whose nested A–E ancestry resolves; a synthetic
+1109-  manifest contains null for both and rejects every ceremony source/capability;
+1110-  fabricating/substituting a post-seal ceremony blob cannot create authority;
+1111-- roster-bound schedule sealing accepts only a completed `GO` final, derives
+1112-  tier 120/160 and exactly that manifest-pinned eligibility subset, and stores
+1113-  the final ref, closed authority, selected tier, and selected-membership
+1114-  digest;
+1115-- synthetic schedule sealing accepts only a completed `CONDITIONAL_ONLY` final
+1116-  with null tier and schedules the complete fixture roster; feasibility no-go,
+1117-  synthetic failure, incomplete, cross-authority, or unrelated finals reject;
+1118-- prefix, assignment, packet, task-block, projection, and analysis coverage is
+1119-  exact against selected schedule membership, never the unselected manifest
+--
+1672-)
+1673-
+1674-
+1675-@dataclass(frozen=True, slots=True)
+1676-class StoragePolicyReceipt:
+1677-    record_kind: Literal["storage_policy_receipt_v1"]
+1678-    schema_version: Literal["1"]
+1679-    transaction: Literal["prefix", "assignment"]
+1680-    intent: StorageTransactionIntent
+1681-    transaction_intent_sha256: str
+1682-    publication_commit: StoragePublicationCommit
+1683-    fresh_at_publication_commit: Literal[True]
+1684-    publication_commit_recorded: Literal[True]
+1685-    publication_commit_consumes_lease: Literal[True]
+1686-    fixed_receipt_is_acceptance_marker: Literal[True]
+1687-
+1688-
+1689-@dataclass(frozen=True, slots=True)
+1690:class LocalTestStorageLease:
+1691-    """Synthetic-only process lock; core creates and consumes it once."""
+1692-
+1693-
+1694-class ConfirmationRosterCeremonyCapability:
+1695-    """Opaque, nominal, single-use capability; no public constructor/subclass."""
+1696-
+1697-    @property
+1698-    def source_sha256s(self) -> tuple[str, str, str, str, str, str, str]:
+1699-        ...
+1700-
+1701-
+1702:class ConfirmationStorageLease:
+1703-    """Opaque nominal live provider lease; no public constructor/subclassing."""
+1704-
+1705-
+1706:StoragePolicyLease = (
+1707:    LocalTestStorageLease | ConfirmationStorageLease
+1708-)
+1709-
+1710-
+1711-@dataclass(frozen=True, slots=True)
+1712-class ExactMatchingEdge:
+1713-    focal_task_id: str
+1714-    donor_task_id: str
+1715-    primary_cost: tuple[int, int, int]
+1716-    tie_hmac_sha256: str
+1717-
+1718-
+1719-@dataclass(frozen=True, slots=True)
+1720-class ExactMatchingConstraints:
+1721-    one_outgoing: Literal[True]
+1722-    one_incoming: Literal[True]
+1723-    forbid_self: Literal[True]
+1724-    forbid_same_lineage: Literal[True]
+1725-    forbid_two_cycle: Literal[True]
+--
+1802-        qualification_universe_source: Path,
+1803-        selection_program_source: Path,
+1804-        precommit_source: Path,
+1805-        anchor_source: Path,
+1806-        reveal_source: Path,
+1807-        eligibility_source: Path,
+1808-        ceremony_policy_source: Path,
+1809-        study_id: str,
+1810-    ) -> ConfirmationRosterCeremonyCapability:
+1811-        ...
+1812-
+1813-    def claim_storage(
+1814-        self,
+1815-        *,
+1816-        transaction: Literal["prefix", "assignment"],
+1817-        run_root: Path,
+1818-        manifest_ref: ArtifactRef,
+1819-        schedule_ref: ArtifactRef | None,
+1820:    ) -> ConfirmationStorageLease:
+1821-        ...
+1822-
+1823-    def open_matching_backend(
+1824-        self,
+1825-        *,
+1826-        run_root: Path,
+1827-        manifest_ref: ArtifactRef,
+1828-        schedule_ref: ArtifactRef,
+1829-        prefix_index_ref: ArtifactRef,
+1830-    ) -> ConfirmationMatchingBackendSession:
+1831-        ...
+1832-
+1833-
+1834-@dataclass(frozen=True, slots=True)
+1835-class PrefixSchedule:
+1836-    study_id: str
+1837-    frozen_created_at: str
+1838-    manifest_ref: ArtifactRef
+--
+1941-    assignment_prefix_view_sha256: str
+1942-    assignment_mode: AssignmentMode
+1943-    matching_proof_refs: tuple[ArtifactRef, ...]
+1944-    assignments: tuple[TaskAssignment, ...]
+1945-    allocation_receipts: tuple[AllocationReceipt, ...]
+1946-    donor_match_receipts: tuple[DonorMatchReceipt, ...]
+1947-
+1948-
+1949-@dataclass(frozen=True, slots=True)
+1950-class ScheduleSelection:
+1951-    schedule_authority: Literal[
+1952-        "synthetic_validation",
+1953-        "roster_bound_selection",
+1954-    ]
+1955-    selected_tier: Literal[120, 160] | None
+1956-    selected_task_ids: tuple[str, ...]
+1957-
+1958-
+1959:def require_schedulable_power_final(
+1960-    manifest_ref: ArtifactRef,
+1961-    power_final_ref: ArtifactRef,
+1962-    *,
+1963-    run_root: Path,
+1964-) -> ScheduleSelection:
+1965-    ...
+1966-
+1967-
+1968:def seal_prefix_schedule(
+1969-    manifest_ref: ArtifactRef,
+1970-    power_final_ref: ArtifactRef,
+1971-    *,
+1972-    schedule_seed_reveal: int,
+1973:    storage_policy_lease: StoragePolicyLease,
+1974-    run_root: Path,
+1975-    out: Path,
+1976-) -> ArtifactRef:
+1977-    ...
+1978-
+1979-
+1980-def seal_branch_assignment(
+1981-    schedule_ref: ArtifactRef,
+1982-    prefix_index_ref: ArtifactRef,
+1983-    *,
+1984-    assignment_secret_handle: AssignmentSecretHandle,
+1985-    matching_backend_session: ConfirmationMatchingBackendSession | None,
+1986:    storage_policy_lease: StoragePolicyLease,
+1987-    run_root: Path,
+1988-    out: Path,
+1989-) -> ArtifactRef:
+1990-    ...
+1991-
+1992-
+1993-def require_assignment_reconstruction(
+1994-    ledger_ref: ArtifactRef,
+1995-    *,
+1996-    assignment_secret_handle: AssignmentSecretHandle,
+1997-    matching_backend_session: ConfirmationMatchingBackendSession | None,
+1998-    run_root: Path,
+1999-) -> AssignmentLedger:
+2000-    ...
+2001-
+2002-
+2003-def require_confirmation_assignment(
+2004-    ledger_ref: ArtifactRef,
+--
+2355-intentionally absent from this scientific contract so equivalent scratch roots
+2356-retain byte-identical scientific inputs.
+2357-
+2358-The evidence ref resolves the separately copied deterministic
+2359-`inputs/storage/measurement-evidence.json` with media type
+2360-`application/vnd.pneuma.storage-measurement+json`. Its closed
+2361-`storage_measurement_evidence_v1` object has exactly `schema_version`,
+2362-`provider_kind`, `storage_resource_id`, `resource_version`,
+2363-`mount_identity_sha256`, `encryption_at_rest = true`,
+2364-`encryption_algorithm`, `kms_key_version`, `acl_enforced = true`,
+2365-`acl_policy_sha256`, canonical `measured_at_utc`, `verifier_identity`,
+2366-`verifier_public_key_ed25519_hex`, and `verifier_signature_ed25519_hex`.
+2367-The signature covers compact canonical bytes with its own field omitted.
+2368-Contract/evidence resource, encryption, KMS, ACL, and verifier-key fields must
+2369-match exactly; `measurement_sha256` equals `measurement_evidence_ref.sha256`.
+2370-Study seal copies this source only for confirmation and rejects a missing,
+2371-unknown-field, stale, bad-signature, mismatched, or local-test evidence source.
+2372-
+2373:`seal_prefix_schedule` loads the task registry, roster, conditional eligibility
+2374-manifest, provider-lane mapping, and assignment program only through ArtifactRefs
+2375-inside the validated manifest. It accepts no free task list, eligibility ref,
+2376-program ref, provider-plan ref, authority, tier, membership, or claimed digest.
+2377:Its only Task-8 seam is `require_schedulable_power_final`, which reloads the
+2378-final and all attempts and returns only closed authority, selected tier, and
+2379-selected task IDs—never Task-8 internals or caller mirrors. Task 3 freezes and
+2380:validates this completed-final consumer contract, including test-only
+2381-hand-authored complete chains; it contains no attempt/final writer, simulator,
+2382-or production fixture. Task 8 is the sole power-report producer and simulator.
+2383-Roster-bound
+2384-requires a completed `GO` chain and derives exactly the C120/C160 rows selected
+2385-by its tier from the manifest-owned eligibility/roster. Synthetic requires a
+2386-completed `CONDITIONAL_ONLY` chain with null tier and derives the complete
+2387-fixture roster. Every failure/no-go/cross-authority arm rejects before a
+2388-schedule write.
+2389-
+2390-Before checking the schedule-seed reveal, it consumes the exact nominal
+2391-`storage_policy_lease`. Confirmation accepts only a registry-held live lease
+2392-bound to the manifest, null schedule, pinned evidence/resource, and current
+2393-root; synthetic accepts only the exact local-test lease type. The core starts
+2394-the lease before destination creation or scientific/raw writes and obtains the
+2395-closed `begin` observation with lease ID, generation zero, expiry, and renewal
+2396-sequence zero. Inside that still-live lease it performs the selected-membership
+2397-check, schedule-seed verification, and deterministic schedule derivation
+2398-specified below. Only after all of those succeed does it write the exact
+--
+2534-`release_required = true`; any release failure leaves
+2535-a durable committed, consumed, non-reusable state with cleanup pending and
+2536-cannot mutate that proof.
+2537-
+2538-The core constructs the unique final receipt from the exact intent and commit
+2539-proof, writes/fsyncs it at a same-directory temporary path, installs it once at
+2540-`operational/storage-policy/assignment.json`, and fsyncs that parent. The exact
+2541-ledger-plus-fixed-receipt pair is the only durable local acceptance predicate.
+2542-A crash after ledger install but before registry commit quarantines the ledger
+2543-and forbids recovery commit; a crash after durable registry commit may only
+2544-fetch the existing proof and deterministically finalize the same receipt.
+2545-Before scientific install, a retry may replace the non-authoritative intent and
+2546-safely reuse byte-identical unreachable CAS objects only after proving the
+2547-ledger path absent and atomically aborting/consuming the old uncommitted lease;
+2548-a later reachability GC may delete those blobs. Abort/release cleanup may be
+2549-retried idempotently but cannot alter or authorize the accepted pair. No branch
+2550-endpoint is an input.
+2551-
+2552:`ConfirmationStorageLease` is an exact non-subclassable nominal type with a
+2553-private registry nonce, tuple binding, lease ID, and registry membership/state
+2554-check; it is not a `Protocol`. The trusted registry verifies the
+2555-manifest-pinned evidence signature and freshness, independently queries the
+2556-provider/OS for that immutable resource, locks or leases the resource/mount, and
+2557-signs begin, ordered renewal, and non-releasing end observations. Each
+2558-observation serializes the lease ID, registry-issued generation, expiry,
+2559-renewal sequence, complete binding tuple, provider measurement, and
+2560-`releases_lease = false`; observations never close the lease. The separate
+2561-publication-commit call accepts only the original nominal live handle after
+2562-end, the exact canonical transaction-intent bytes/digest, and the already
+2563-fsynced scientific path/digest. The registry independently rechecks tuple and
+2564-time, prepares the canonical proof and, in confirmation mode, its required
+2565-signature, then atomically stores those exact bytes, the unique commit ID, and
+2566-`live -> end_observed -> committed_consumed` state before responding or
+2567-attempting release. If and only if the scientific path is absent and no commit
+2568-exists, recovery may instead atomically change
+2569-`end_observed -> aborted_consumed` before release and fresh-intent replacement.
+2570-End and commit/abort each occur exactly once; no renewal follows end; no second
+schemas/resampling-power-report.schema.json:588:                    "const": "power-final-gaussian-v1"
+schemas/resampling-power-report.schema.json:636:                    "const": "power-final-full-multiplier-v1"
+schemas/resampling-power-report.schema.json:691:                        "power-final-gaussian-v1",
+schemas/resampling-power-report.schema.json:692:                        "power-final-full-multiplier-v1"
+schemas/resampling-power-report.schema.json:742:                        "power-final-gaussian-v1",
+schemas/resampling-power-report.schema.json:743:                        "power-final-full-multiplier-v1"
+schemas/resampling-prefix-schedule.schema.json:27:                "power_final_ref",
+schemas/resampling-prefix-schedule.schema.json:36:                "power_final_ref": { "$ref": "#/$defs/artifact_ref" },
+tests/resampling_null/test_artifacts.py:155:            "storage_policy_contract_ref": _ref("sources/storage-policy.json"),
+tests/resampling_null/test_artifacts.py:171:            "power_final_ref": _ref("parents/power-final.json", role="power_final"),
+tests/resampling_null/test_artifacts.py:877:    completed = _power_payload("final")
+tests/resampling_null/test_artifacts.py:884:        "selected_kernel_id": "power-final-gaussian-v1",
+tests/resampling_null/test_artifacts.py:909:        "selected_kernel_id": "power-final-full-multiplier-v1",
+tests/resampling_null/test_artifacts.py:919:    no_go = _power_payload("final")
+tests/resampling_null/test_artifacts.py:1042:        "storage_policy": raw("storage-policy.json", {"mode": "local_test"}),
+tests/resampling_null/test_artifacts.py:1087:        "storage_policy_contract_ref": raws["storage_policy"],
+tests/resampling_null/test_artifacts.py:1110:    schedule_payload["power_final_ref"] = raws["power_config"]
+tests/resampling_null/test_artifacts.py:2026:            "selected_kernel_id": "power-final-gaussian-v1",
+tests/resampling_null/test_artifacts.py:2031:                if variant == "power-finalization-shard-gap"
+tests/resampling_null/test_artifacts.py:2078:            "terminal_kernel_id": "power-final-gaussian-v1",
+tests/resampling_null/test_artifacts.py:2179:                "terminal_kernel_id": "power-final-full-multiplier-v1",
+tests/resampling_null/test_artifacts.py:2190:                "selected_kernel_id": "power-final-full-multiplier-v1",
+tests/resampling_null/test_artifacts.py:2284:            "selected_kernel_id": "power-final-gaussian-v1",
+tests/resampling_null/test_artifacts.py:2364:            "selected_kernel_id": "power-final-full-multiplier-v1",
+tests/resampling_null/test_artifacts.py:2411:        finalization["terminal_kernel_id"] = "power-final-full-multiplier-v1"
+tests/resampling_null/test_artifacts.py:2415:    final_payload = _power_payload("final")
+tests/resampling_null/test_artifacts.py:2416:    bind_power(final_payload, phase=selected_phase)
+tests/resampling_null/test_artifacts.py:2423:        "power/final.json",
+tests/resampling_null/test_artifacts.py:2592:    ("final", "gaussian_approximation"): "power-final-gaussian-v1",
+tests/resampling_null/test_artifacts.py:2608:    ): "power-final-full-multiplier-v1",
+tests/resampling_null/test_artifacts.py:2647:def test_t3_s02_power_nonfinal_requires_every_authority_mirror(
+tests/resampling_null/test_artifacts.py:2678:    payload["kernel_id"] = "power-final-gaussian-v1"
+tests/resampling_null/test_artifacts.py:2719:def test_t3_s02_power_final_accepts_synthetic_failure_arm(phase: str) -> None:
+tests/resampling_null/test_artifacts.py:2723:            _t3_s02_power_payload("final", phase=phase),
+tests/resampling_null/test_artifacts.py:2739:def test_t3_s02_power_failed_finalization_requires_terminal_identity(
+tests/resampling_null/test_artifacts.py:2743:    payload = _t3_s02_power_payload("final", phase=phase)
+tests/resampling_null/test_artifacts.py:2762:def test_t3_s02_power_completed_finalization_requires_selected_identity(
+tests/resampling_null/test_artifacts.py:2766:    payload = _t3_s02_power_payload("final", phase=phase)
+tests/resampling_null/test_artifacts.py:3049:        "storage_policy_contract_ref",
+tests/resampling_null/test_artifacts.py:3101:            storage_policy_contract_source=source,
+tests/resampling_null/test_artifacts.py:4128:        "power-finalization-shard-gap",
+tests/resampling_null/test_artifacts.py:4498:    final_path = root / "power/final.json"
+tests/resampling_null/test_artifacts.py:4523:        "terminal_kernel_id": "power-final-full-multiplier-v1",
+tests/resampling_null/test_artifacts.py:4583:    payload = _power_payload("final")
+src/pneuma_lab/resampling_null/artifacts.py:1077:    storage_policy_contract_source: Path,
+src/pneuma_lab/resampling_null/artifacts.py:1167:            storage_policy_contract_source,
+src/pneuma_lab/resampling_null/artifacts.py:1169:            "storage_policy_contract",
+src/pneuma_lab/resampling_null/artifacts.py:1248:        "storage_policy_contract_ref": _ref_mapping(by_role["storage_policy_contract"]),
+src/pneuma_lab/resampling_null/artifacts.py:2572:    ("final", "gaussian_approximation"): "power-final-gaussian-v1",
+src/pneuma_lab/resampling_null/artifacts.py:2588:    ): "power-final-full-multiplier-v1",
+src/pneuma_lab/resampling_null/artifacts.py:2761:            if _power_payload(document)["stage"] != "final"
+src/pneuma_lab/resampling_null/artifacts.py:3044:                f"power authority {authority!r} requires exactly one final"
+src/pneuma_lab/resampling_null/artifacts.py:3046:        final_payload = _power_payload(finals[0])
+src/pneuma_lab/resampling_null/artifacts.py:3124:                    "completed power finalization selected_kernel_id is not "
+src/pneuma_lab/resampling_null/artifacts.py:3144:                    "completed power finalization must select the terminal "
+src/pneuma_lab/resampling_null/artifacts.py:3183:                        f"power finalization {field} must be one ArtifactRef"
+src/pneuma_lab/resampling_null/artifacts.py:3188:                        f"power finalization {field} is not an attempted report"
+src/pneuma_lab/resampling_null/artifacts.py:3197:                        f"power finalization {field} has wrong stage, phase, or generation"
+src/pneuma_lab/resampling_null/artifacts.py:3211:                    "power finalization selected_shard_count differs from "
+src/pneuma_lab/resampling_null/artifacts.py:3249:                    "power finalization selected_shard_refs do not exactly "
+src/pneuma_lab/resampling_null/artifacts.py:3363:                    "synthetic power authority cannot finalize FEASIBILITY_NO_GO"
+src/pneuma_lab/resampling_null/artifacts.py:3370:                    "roster-bound power authority cannot finalize "
+src/pneuma_lab/resampling_null/artifacts.py:3399:                    "power finalization terminal_phase does not match its attempt"
+src/pneuma_lab/resampling_null/artifacts.py:3404:                    "power finalization terminal_kernel_id is not derived "
+src/pneuma_lab/resampling_null/artifacts.py:3409:                    "power finalization terminal_shard_count differs from "
+schemas/resampling-study-manifest.schema.json:32:                "storage_policy_contract_ref",
+schemas/resampling-study-manifest.schema.json:63:                "storage_policy_contract_ref": { "$ref": "#/$defs/artifact_ref" },
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/resampling-power-report.schema.json",
+    "title": "Resampling-Null Power Report",
+    "description": "Append-only screen, shard, selection, validation, or final power artifact.",
+    "type": "object",
+    "x-pneuma-schema-kind": "resampling-study",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "record_kind",
+        "schema_version",
+        "study_id",
+        "frozen_created_at",
+        "provenance",
+        "payload"
+    ],
+    "properties": {
+        "record_kind": { "const": "resampling_power_report" },
+        "schema_version": { "const": "0.1.0" },
+        "study_id": { "$ref": "#/$defs/nonempty" },
+        "frozen_created_at": { "$ref": "#/$defs/frozen_timestamp" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "payload": {
+            "oneOf": [
+                { "$ref": "#/$defs/screen_payload" },
+                { "$ref": "#/$defs/shard_payload" },
+                { "$ref": "#/$defs/selection_payload" },
+                { "$ref": "#/$defs/gaussian_validation_payload" },
+                { "$ref": "#/$defs/full_multiplier_validation_payload" },
+                { "$ref": "#/$defs/final_payload" }
+            ]
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "nonempty": { "type": "string", "minLength": 1 },
+        "probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "frozen_timestamp": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+        },
+        "provenance": {
+            "type": "object",
+            "required": ["design_sha256", "code_sha256"],
+            "properties": {
+                "design_sha256": { "$ref": "#/$defs/sha256" },
+                "code_sha256": { "$ref": "#/$defs/sha256" }
+            },
+            "additionalProperties": false
+        },
+        "artifact_ref": {
+            "type": "object",
+            "required": ["role", "relative_path", "sha256", "byte_count", "media_type"],
+            "properties": {
+                "role": { "$ref": "#/$defs/nonempty" },
+                "relative_path": {
+                    "type": "string",
+                    "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"
+                },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "byte_count": { "type": "integer", "minimum": 0 },
+                "media_type": { "$ref": "#/$defs/nonempty" }
+            },
+            "additionalProperties": false
+        },
+        "numeric_contract": {
+            "type": "object",
+            "required": [
+                "numpy_version",
+                "gauss_hermite_order",
+                "gauss_legendre_order",
+                "probability_tolerance",
+                "gaussian_root_tolerance",
+                "gaussian_root_max_iterations",
+                "clopper_pearson_tolerance",
+                "clopper_pearson_max_iterations"
+            ],
+            "properties": {
+                "numpy_version": { "$ref": "#/$defs/nonempty" },
+                "gauss_hermite_order": { "const": 96 },
+                "gauss_legendre_order": { "const": 128 },
+                "probability_tolerance": { "const": 1e-10 },
+                "gaussian_root_tolerance": { "const": 1e-10 },
+                "gaussian_root_max_iterations": { "const": 200 },
+                "clopper_pearson_tolerance": { "const": 1e-12 },
+                "clopper_pearson_max_iterations": { "const": 200 }
+            },
+            "additionalProperties": false
+        },
+        "screen_payload": {
+            "type": "object",
+            "required": [
+                "stage",
+                "authority_ref",
+                "decision_authority",
+                "phase",
+                "generation",
+                "roster_ref",
+                "tier_membership_sha256",
+                "grid_ref",
+                "screen_topology_ref",
+                "rng_contract_sha256",
+                "kernel_id",
+                "shard_count",
+                "parent_refs",
+                "config_ref",
+                "numeric_fixture_ref",
+                "numeric_contract",
+                "projected_wall_seconds",
+                "cell_count",
+                "dataset_count"
+            ],
+            "properties": {
+                "stage": { "const": "screen" },
+                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
+                "decision_authority": {
+                    "enum": ["synthetic_validation", "roster_bound_selection"]
+                },
+                "phase": {
+                    "enum": ["gaussian_approximation", "full_multiplier_fallback"]
+                },
+                "generation": { "type": "integer", "minimum": 0 },
+                "roster_ref": { "$ref": "#/$defs/artifact_ref" },
+                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
+                "grid_ref": { "$ref": "#/$defs/artifact_ref" },
+                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
+                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "kernel_id": {
+                    "enum": [
+                        "power-screen-gaussian-v1",
+                        "power-screen-full-multiplier-v1"
+                    ]
+                },
+                "shard_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                },
+                "parent_refs": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/artifact_ref" }
+                },
+                "config_ref": { "$ref": "#/$defs/artifact_ref" },
+                "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
+                "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
+                "fallback_trigger_ref": { "$ref": "#/$defs/artifact_ref" },
+                "projected_wall_seconds": { "type": "integer", "minimum": 0 },
+                "cell_count": { "type": "integer", "minimum": 1 },
+                "dataset_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "phase": { "const": "gaussian_approximation" }
+                        },
+                        "required": ["phase"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kernel_id": {
+                                "const": "power-screen-gaussian-v1"
+                            }
+                        },
+                        "not": { "required": ["fallback_trigger_ref"] }
+                    },
+                    "else": {
+                        "properties": {
+                            "kernel_id": {
+                                "const": "power-screen-full-multiplier-v1"
+                            }
+                        },
+                        "required": ["fallback_trigger_ref"]
+                    }
+                }
+            ],
+            "additionalProperties": false
+        },
+        "shard_payload": {
+            "type": "object",
+            "required": [
+                "stage",
+                "authority_ref",
+                "decision_authority",
+                "phase",
+                "generation",
+                "roster_ref",
+                "tier_membership_sha256",
+                "grid_ref",
+                "screen_topology_ref",
+                "rng_contract_sha256",
+                "kernel_id",
+                "parent_refs",
+                "config_ref",
+                "numeric_fixture_ref",
+                "numeric_contract",
+                "shard_index",
+                "shard_count",
+                "cell_results",
+                "dataset_count"
+            ],
+            "properties": {
+                "stage": { "const": "shard" },
+                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
+                "decision_authority": {
+                    "enum": ["synthetic_validation", "roster_bound_selection"]
+                },
+                "phase": {
+                    "enum": ["gaussian_approximation", "full_multiplier_fallback"]
+                },
+                "generation": { "type": "integer", "minimum": 0 },
+                "roster_ref": { "$ref": "#/$defs/artifact_ref" },
+                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
+                "grid_ref": { "$ref": "#/$defs/artifact_ref" },
+                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
+                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "kernel_id": {
+                    "enum": [
+                        "power-grid-gaussian-v1",
+                        "power-grid-full-multiplier-v1"
+                    ]
+                },
+                "parent_refs": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/artifact_ref" }
+                },
+                "config_ref": { "$ref": "#/$defs/artifact_ref" },
+                "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
+                "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
+                "shard_index": { "type": "integer", "minimum": 0 },
+                "shard_count": { "type": "integer", "minimum": 1 },
+                "cell_results": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "$ref": "#/$defs/cell_result" }
+                },
+                "dataset_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": { "type": "boolean" }
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "phase": { "const": "gaussian_approximation" }
+                        },
+                        "required": ["phase"]
+                    },
+                    "then": {
+                        "properties": {
