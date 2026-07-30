@@ -19,7 +19,7 @@ EXPECTED_MANIFEST_COUNT = 1
 EXPECTED_FOUNDATION_COUNT = 6
 # Measurement-system analysis of an elicited metric channel (gauge card).
 EXPECTED_GAUGE_COUNT = 1
-EXPECTED_RESAMPLING_COUNT = 13
+EXPECTED_RESAMPLING_COUNT = 14
 
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
@@ -173,6 +173,7 @@ def test_foundation_schema_bucket_registered() -> None:
 def test_resampling_schema_bucket_registered() -> None:
     assert pls.RESAMPLING_SCHEMA_FILES == (
         "resampling-study-manifest.schema.json",
+        "resampling-branch-program-registry.schema.json",
         "resampling-prefix-schedule.schema.json",
         "resampling-prefix-receipt.schema.json",
         "resampling-assignment-ledger.schema.json",
@@ -192,7 +193,7 @@ def test_resampling_schema_bucket_registered() -> None:
 
 
 def test_t3_s02_operational_storage_stays_outside_scientific_schema_registry() -> None:
-    assert len(pls.RESAMPLING_SCHEMA_FILES) == 13
+    assert len(pls.RESAMPLING_SCHEMA_FILES) == 14
     assert all("storage" not in filename for filename in pls.RESAMPLING_SCHEMA_FILES)
     assert all(
         "matching-proof" not in filename for filename in pls.RESAMPLING_SCHEMA_FILES

@@ -80,6 +80,7 @@ FOUNDATION_SCHEMA_FILES = (
 
 RESAMPLING_SCHEMA_FILES = (
     "resampling-study-manifest.schema.json",
+    "resampling-branch-program-registry.schema.json",
     "resampling-prefix-schedule.schema.json",
     "resampling-prefix-receipt.schema.json",
     "resampling-assignment-ledger.schema.json",
