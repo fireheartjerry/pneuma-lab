@@ -57,7 +57,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests/smoke"]
 pythonpath = ["src"]
-addopts = "--import-mode=importlib -p no:cacheprovider -q"
+addopts = "--import-mode=importlib -p no:cacheprovider -q -m \"not qwen_smoke and not foundation\""
 markers = [
     "milestone: bounded NeurIPS execution milestone test",
     "forensic: retained forensic evidence test outside the default smoke suite",

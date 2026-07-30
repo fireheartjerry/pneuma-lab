@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tomllib
 
 from scripts.check_test_budget import inspect_test_budget
 
@@ -221,6 +222,53 @@ def test_default_pytest_collection_is_only_the_micro_gate() -> None:
         "tests/smoke/test_micro_gate.py: 1",
     )
     assert "resampling_null" not in result.stdout
+
+
+def test_pytest_config_keeps_opt_in_markers_out_of_default_collection() -> None:
+    root = Path(__file__).resolve().parents[2]
+    configuration = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    addopts = configuration["tool"]["pytest"]["ini_options"]["addopts"]
+    environment = os.environ.copy()
+    environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+
+    default_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/test_foundation_qwen_smoke.py",
+            "--collect-only",
+            "-q",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        env=environment,
+        check=False,
+    )
+    selected_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/test_foundation_qwen_smoke.py",
+            "--collect-only",
+            "-q",
+            "-m",
+            "qwen_smoke",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        env=environment,
+        check=False,
+    )
+
+    assert '-m "not qwen_smoke and not foundation"' in addopts
+    assert default_result.returncode == 5, default_result.stderr
+    assert "tests/test_foundation_qwen_smoke.py:" not in default_result.stdout
+    assert selected_result.returncode == 0, selected_result.stderr
+    assert "tests/test_foundation_qwen_smoke.py: 1" in selected_result.stdout
 
 
 def test_missing_budget_directories_are_zero_and_pass(tmp_path: Path) -> None:
