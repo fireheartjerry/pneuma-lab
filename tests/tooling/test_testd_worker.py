@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from pneuma_lab.testd.manifest import TestManifest
@@ -33,5 +35,7 @@ def test_worker_executes_once_and_reports_bounded_result() -> None:
     assert result.exit_code == 0
     assert result.node_ids == (node,)
     assert result.worker_pid > 0
+    assert re.fullmatch(r"[0-9a-f]{64}", result.application_fingerprint)
+    assert re.fullmatch(r"[0-9a-f]{64}", result.dependency_fingerprint)
     with pytest.raises(RuntimeError, match="consumed"):
         worker.execute(RunRequest("run", (node,), ()))
