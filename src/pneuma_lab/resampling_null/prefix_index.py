@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import errno
 import fcntl
 import hashlib
 import json
@@ -158,6 +159,18 @@ class _FreshTraversal:
 class _OwnedPrefixPublication:
     ref: ArtifactRef
     identity: tuple[int, int]
+
+
+@dataclass(slots=True)
+class _SealTransactionState:
+    descriptor: int
+    publication: _OwnedPrefixPublication | None = None
+    release_phase: Literal[
+        "unlock_pending",
+        "close_pending",
+        "close_ambiguous",
+        "closed",
+    ] = "unlock_pending"
 
 
 @dataclass(slots=True)
@@ -2028,6 +2041,7 @@ def _seal_bound_prefix_index(
     schedule_ref: ArtifactRef,
     candidate_refs: tuple[ArtifactRef, ...],
     relative_path: str,
+    transaction: _SealTransactionState,
 ) -> _OwnedPrefixPublication:
     root_identity = os.fstat(root_descriptor)
     named_before = os.stat(root, follow_symlinks=False)
@@ -2186,8 +2200,11 @@ def _seal_bound_prefix_index(
             relative_path=relative_path,
             expected=published,
         )
+        transaction.publication = published
         return published
     except BaseException as primary:
+        if transaction.publication is not None:
+            raise
         try:
             _rollback_owned_publication(
                 root_descriptor=root_descriptor,
@@ -2201,9 +2218,56 @@ def _seal_bound_prefix_index(
         raise
 
 
+def _release_root_transaction(transaction: _SealTransactionState) -> None:
+    """Explicitly unlock, then close without risking a recycled descriptor."""
+
+    if transaction.release_phase == "unlock_pending":
+        try:
+            fcntl.flock(transaction.descriptor, fcntl.LOCK_UN)
+        except OSError as exc:
+            if exc.errno == errno.EBADF:
+                transaction.release_phase = "closed"
+                return
+            raise
+        transaction.release_phase = "close_pending"
+    if transaction.release_phase == "close_pending":
+        transaction.release_phase = "close_ambiguous"
+        try:
+            os.close(transaction.descriptor)
+        except OSError as exc:
+            if exc.errno == errno.EBADF:
+                transaction.release_phase = "closed"
+                return
+            raise
+        transaction.release_phase = "closed"
+
+
+def _release_root_transaction_causally(
+    transaction: _SealTransactionState,
+) -> BaseException | None:
+    """Preserve cleanup interruption while safely re-entering release once."""
+
+    errors: list[BaseException] = []
+    for _attempt in range(2):
+        try:
+            _release_root_transaction(transaction)
+        except BaseException as exc:
+            errors.append(exc)
+        else:
+            break
+    if not errors:
+        return None
+    if len(errors) == 1:
+        return errors[0]
+    return BaseExceptionGroup(
+        "prefix-index root transaction release repeatedly failed",
+        errors,
+    )
+
+
 def _seal_transaction_outcome(
     *,
-    result: _OwnedPrefixPublication | None,
+    transaction: _SealTransactionState,
     primary: BaseException | None,
     cleanup: BaseException | None,
 ) -> tuple[ArtifactRef | None, BaseException | None]:
@@ -2213,13 +2277,13 @@ def _seal_transaction_outcome(
         *(() if primary is None else (primary,)),
         *(() if cleanup is None else (cleanup,)),
     ]
-    if result is not None:
+    if transaction.publication is not None:
         if errors:
             return None, BaseExceptionGroup(
                 "committed prefix-index publication cleanup residual",
                 errors,
             )
-        return result.ref, None
+        return transaction.publication.ref, None
     if not errors:
         return None, AssertionError(
             "prefix-index transaction produced no committed result"
@@ -2254,10 +2318,10 @@ def seal_prefix_index(
         raise NotADirectoryError(root)
     relative_path = _exact_output_relative_path(root=root, out=out)
     descriptor = os.open(root, _DIRECTORY_FLAGS)
+    transaction = _SealTransactionState(descriptor)
     result: _OwnedPrefixPublication | None = None
     primary: BaseException | None = None
     cleanup: BaseException | None = None
-    close_attempted = False
     try:
         try:
             try:
@@ -2273,27 +2337,32 @@ def seal_prefix_index(
                 schedule_ref=schedule_ref,
                 candidate_refs=candidate_refs,
                 relative_path=relative_path,
+                transaction=transaction,
             )
+            if transaction.publication is not result:
+                raise AssertionError(
+                    "returned publication differs from committed transaction state"
+                )
         except BaseException as exc:
             primary = exc
         finally:
-            close_attempted = True
-            try:
-                os.close(descriptor)
-            except BaseException as exc:
-                cleanup = exc
+            cleanup = _release_root_transaction_causally(transaction)
         outcome_ref, outcome_error = _seal_transaction_outcome(
-            result=result,
+            transaction=transaction,
             primary=primary,
             cleanup=cleanup,
         )
     except BaseException as boundary_error:
-        if not close_attempted:
-            close_attempted = True
-            try:
-                os.close(descriptor)
-            except BaseException as exc:
-                cleanup = exc
+        retry_cleanup = _release_root_transaction_causally(transaction)
+        if retry_cleanup is not None:
+            cleanup = (
+                retry_cleanup
+                if cleanup is None
+                else BaseExceptionGroup(
+                    "prefix-index transaction cleanup repeatedly failed",
+                    [cleanup, retry_cleanup],
+                )
+            )
         primary = (
             boundary_error
             if primary is None
@@ -2303,7 +2372,7 @@ def seal_prefix_index(
             )
         )
         outcome_ref, outcome_error = _seal_transaction_outcome(
-            result=result,
+            transaction=transaction,
             primary=primary,
             cleanup=cleanup,
         )

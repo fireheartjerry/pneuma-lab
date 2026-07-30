@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import base64
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, replace
+import dis
 import fcntl
 import hashlib
 import inspect
@@ -2449,6 +2452,85 @@ def _source_line(function: object, fragment: str) -> int:
     return matches[0]
 
 
+def _instruction_offset(
+    function: object,
+    *,
+    opname: str,
+    argval: object,
+    lineno: int | None = None,
+) -> int:
+    matches = [
+        instruction.offset
+        for instruction in dis.get_instructions(function)
+        if instruction.opname == opname
+        and instruction.argval == argval
+        and (lineno is None or instruction.positions.lineno == lineno)
+    ]
+    if len(matches) != 1:
+        raise AssertionError(
+            f"instruction {opname} {argval!r} is not unique: {matches!r}"
+        )
+    return matches[0]
+
+
+@contextmanager
+def _interrupt_on_instruction(
+    function: object,
+    *,
+    should_interrupt: Callable[[int], bool],
+    message: str,
+) -> Iterator[None]:
+    monitoring = sys.monitoring
+    tool_id: int | None = None
+    for candidate in range(5, -1, -1):
+        try:
+            monitoring.use_tool_id(candidate, "s02d-instruction-test")
+        except ValueError:
+            continue
+        tool_id = candidate
+        break
+    if tool_id is None:
+        raise AssertionError("no sys.monitoring tool ID is available")
+
+    def interrupt(code: object, instruction_offset: int) -> None:
+        if code is function.__code__ and should_interrupt(instruction_offset):
+            raise KeyboardInterrupt(message)
+
+    monitoring.register_callback(
+        tool_id,
+        monitoring.events.INSTRUCTION,
+        interrupt,
+    )
+    monitoring.set_local_events(
+        tool_id,
+        function.__code__,
+        monitoring.events.INSTRUCTION,
+    )
+    try:
+        yield
+    finally:
+        monitoring.set_local_events(tool_id, function.__code__, 0)
+        monitoring.register_callback(
+            tool_id,
+            monitoring.events.INSTRUCTION,
+            None,
+        )
+        monitoring.free_tool_id(tool_id)
+
+
+def _root_lock_is_available(run_root: Path) -> bool:
+    descriptor = os.open(run_root, prefix_index_module._DIRECTORY_FLAGS)
+    try:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        return True
+    finally:
+        os.close(descriptor)
+
+
 def test_s02d_interrupt_after_locked_fstat_is_precommit_and_releases_lock(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2514,7 +2596,7 @@ def test_s02d_interrupt_after_locked_fstat_is_precommit_and_releases_lock(
                 pass
 
 
-def test_s02d_interrupt_before_verified_publication_return_rolls_back(
+def test_s02d_interrupt_before_verified_publication_return_is_committed(
     tmp_path: Path,
 ) -> None:
     run_root, fixture, candidates = _completed_candidates(tmp_path)
@@ -2549,8 +2631,42 @@ def test_s02d_interrupt_before_verified_publication_return_rolls_back(
         sys.settrace(None)
 
     assert type(captured.value) is BaseExceptionGroup
+    assert "committed" in repr(captured.value).lower()
+    assert validate_record(json.loads(target.read_bytes()))
+    assert _root_lock_is_available(run_root)
+
+
+def test_s02d_opcode_interrupt_before_transaction_commit_rolls_back(
+    tmp_path: Path,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    function = prefix_index_module._seal_bound_prefix_index
+    commit_line = _source_line(function, "transaction.publication = published")
+    commit_store = _instruction_offset(
+        function,
+        opname="STORE_ATTR",
+        argval="publication",
+        lineno=commit_line,
+    )
+
+    with _interrupt_on_instruction(
+        function,
+        should_interrupt=lambda offset: offset == commit_store,
+        message="injected before transaction commit",
+    ):
+        with pytest.raises(BaseException) as captured:
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=target,
+            )
+
+    assert type(captured.value) is BaseExceptionGroup
     assert "precommit" in repr(captured.value).lower()
     assert not target.exists()
+    assert _root_lock_is_available(run_root)
 
 
 def test_s02d_interrupt_after_verified_result_is_committed_residual(
@@ -2600,6 +2716,214 @@ def test_s02d_interrupt_after_verified_result_is_committed_residual(
     assert type(captured.value) is BaseExceptionGroup
     assert "committed" in repr(captured.value).lower()
     assert validate_record(json.loads(target.read_bytes()))
+
+
+def test_s02d_opcode_interrupt_before_outer_result_store_is_committed(
+    tmp_path: Path,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    function = prefix_index_module.seal_prefix_index
+    result_line = _source_line(function, "result = _seal_bound_prefix_index(")
+    result_store = _instruction_offset(
+        function,
+        opname="STORE_FAST",
+        argval="result",
+        lineno=result_line,
+    )
+
+    with _interrupt_on_instruction(
+        function,
+        should_interrupt=lambda offset: offset == result_store,
+        message="injected before outer result store",
+    ):
+        with pytest.raises(BaseException) as captured:
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=target,
+            )
+
+    assert type(captured.value) is BaseExceptionGroup
+    assert "committed" in repr(captured.value).lower()
+    assert validate_record(json.loads(target.read_bytes()))
+    assert _root_lock_is_available(run_root)
+
+
+def test_s02d_opcode_interrupt_before_final_close_releases_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    real_close = prefix_index_module.os.close
+    real_seal_bound = prefix_index_module._seal_bound_prefix_index
+    outer_descriptor: int | None = None
+    active_descriptor: int | None = None
+
+    def capture_outer(*args: object, **kwargs: object) -> object:
+        nonlocal outer_descriptor
+        outer_descriptor = kwargs["root_descriptor"]  # type: ignore[assignment]
+        return real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
+
+    def traced_close(descriptor: int) -> None:
+        nonlocal active_descriptor
+        active_descriptor = descriptor
+        real_close(descriptor)
+
+    close_call = _instruction_offset(
+        traced_close,
+        opname="CALL",
+        argval=1,
+    )
+
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(prefix_index_module.os, "close", traced_close)
+            scoped.setattr(
+                prefix_index_module,
+                "_seal_bound_prefix_index",
+                capture_outer,
+            )
+            with _interrupt_on_instruction(
+                traced_close,
+                should_interrupt=lambda offset: (
+                    offset == close_call and active_descriptor == outer_descriptor
+                ),
+                message="injected before final close",
+            ):
+                with pytest.raises(BaseException) as captured:
+                    seal_prefix_index(
+                        run_root=run_root,
+                        schedule_ref=fixture.schedule_ref,
+                        candidate_refs=candidates,
+                        out=target,
+                    )
+
+        assert type(captured.value) is BaseExceptionGroup
+        assert "committed" in repr(captured.value).lower()
+        assert validate_record(json.loads(target.read_bytes()))
+        assert _root_lock_is_available(run_root)
+    finally:
+        if outer_descriptor is not None:
+            try:
+                real_close(outer_descriptor)
+            except OSError:
+                pass
+
+
+def test_s02d_opcode_interrupt_after_explicit_unlock_is_reentrant(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    real_flock = prefix_index_module.fcntl.flock
+    real_seal_bound = prefix_index_module._seal_bound_prefix_index
+    outer_descriptor: int | None = None
+    unlocked = False
+
+    def capture_outer(*args: object, **kwargs: object) -> object:
+        nonlocal outer_descriptor
+        outer_descriptor = kwargs["root_descriptor"]  # type: ignore[assignment]
+        return real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
+
+    def traced_flock(descriptor: int, operation: int) -> object:
+        nonlocal unlocked
+        result = real_flock(descriptor, operation)
+        if descriptor == outer_descriptor and operation == fcntl.LOCK_UN:
+            unlocked = True
+        return result
+
+    unlock_return = _instruction_offset(
+        traced_flock,
+        opname="RETURN_VALUE",
+        argval=None,
+    )
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(prefix_index_module.fcntl, "flock", traced_flock)
+        scoped.setattr(
+            prefix_index_module,
+            "_seal_bound_prefix_index",
+            capture_outer,
+        )
+        with _interrupt_on_instruction(
+            traced_flock,
+            should_interrupt=lambda offset: offset == unlock_return and unlocked,
+            message="injected after explicit unlock",
+        ):
+            with pytest.raises(BaseException) as captured:
+                seal_prefix_index(
+                    run_root=run_root,
+                    schedule_ref=fixture.schedule_ref,
+                    candidate_refs=candidates,
+                    out=target,
+                )
+
+    assert unlocked
+    assert type(captured.value) is BaseExceptionGroup
+    assert "committed" in repr(captured.value).lower()
+    assert validate_record(json.loads(target.read_bytes()))
+    assert _root_lock_is_available(run_root)
+
+
+def test_s02d_interrupt_after_close_does_not_close_reused_descriptor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    victim = run_root / "victim"
+    victim.write_bytes(b"still-open")
+    real_close = prefix_index_module.os.close
+    real_seal_bound = prefix_index_module._seal_bound_prefix_index
+    outer_descriptor: int | None = None
+    victim_descriptor: int | None = None
+
+    def capture_outer(*args: object, **kwargs: object) -> object:
+        nonlocal outer_descriptor
+        outer_descriptor = kwargs["root_descriptor"]  # type: ignore[assignment]
+        return real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
+
+    def close_then_reuse(descriptor: int) -> None:
+        nonlocal victim_descriptor
+        real_close(descriptor)
+        if descriptor == outer_descriptor:
+            victim_descriptor = os.open(victim, os.O_RDONLY | os.O_CLOEXEC)
+            if victim_descriptor != descriptor:
+                raise AssertionError("closed transaction descriptor was not reused")
+            raise KeyboardInterrupt("injected after close and descriptor reuse")
+
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(prefix_index_module.os, "close", close_then_reuse)
+            scoped.setattr(
+                prefix_index_module,
+                "_seal_bound_prefix_index",
+                capture_outer,
+            )
+            with pytest.raises(BaseException) as captured:
+                seal_prefix_index(
+                    run_root=run_root,
+                    schedule_ref=fixture.schedule_ref,
+                    candidate_refs=candidates,
+                    out=target,
+                )
+
+        assert type(captured.value) is BaseExceptionGroup
+        assert "committed" in repr(captured.value).lower()
+        assert validate_record(json.loads(target.read_bytes()))
+        assert victim_descriptor is not None
+        assert os.read(victim_descriptor, len(b"still-open")) == b"still-open"
+        assert _root_lock_is_available(run_root)
+    finally:
+        if victim_descriptor is not None:
+            try:
+                real_close(victim_descriptor)
+            except OSError:
+                pass
 
 
 def test_s02d_interrupt_before_cleanup_classification_is_committed_residual(
