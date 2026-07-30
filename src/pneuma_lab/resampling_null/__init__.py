@@ -111,6 +111,8 @@ __all__ = (
     "SecondaryFamilyResult",
     "SimultaneousBounds",
     "run_prefix",
+    "grade_opaque_slot",
+    "run_opaque_slot",
     "CallContractCaps",
     "load_prefix_execution_authority",
     "load_initial_restore_qualification_receipt",
@@ -283,6 +285,8 @@ _LAZY_EXPORTS = MappingProxyType({
     "SecondaryFamilyResult": ("types", "SecondaryFamilyResult"),
     "SimultaneousBounds": ("types", "SimultaneousBounds"),
     "run_prefix": ("synthetic_prefix_loop", "run_prefix"),
+    "grade_opaque_slot": ("synthetic_branch_loop", "grade_opaque_slot"),
+    "run_opaque_slot": ("synthetic_branch_loop", "run_opaque_slot"),
     "CallContractCaps": ("types", "CallContractCaps"),
     "load_prefix_execution_authority": (
         "execution_authority",
