@@ -186,9 +186,11 @@ def multiplier_lower_bounds(rows: Sequence[AnalysisRow], *, contrast_names: tupl
     """Benchmark-stratified task-cluster Rademacher max-t lower bounds."""
     if not contrast_names or type(draws) is not int or draws <= 0:
         raise ValueError("contrast_names and a positive exact draws are required")
-    canonical_rows = tuple(sorted(rows, key=lambda row: row.task_id))
-    if len({row.task_id for row in canonical_rows}) != len(canonical_rows):
-        raise ValueError("task_id values must be unique")
+    canonical_rows = tuple(
+        sorted(rows, key=lambda row: (row.benchmark.encode("utf-8"), row.task_id.encode("utf-8")))
+    )
+    if len({(row.benchmark, row.task_id) for row in canonical_rows}) != len(canonical_rows):
+        raise ValueError("(benchmark, task_id) pairs must be unique")
     _weights(canonical_rows)
     grouped: dict[str, list[AnalysisRow]] = defaultdict(list)
     for row in canonical_rows:

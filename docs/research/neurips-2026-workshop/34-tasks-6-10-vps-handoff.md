@@ -130,6 +130,14 @@ now explicitly closed to exactly `SWE` and `TAU`; no one- or three-benchmark
 generalization is silently accepted. Multiplier inputs are sorted by unique
 `task_id` before Philox draws, making input permutations byte-identical.
 
+### Task 7A correction — canonical multiplier identity (2026-07-30)
+
+Multiplier canonicalization is the exact UTF-8 byte ordering of
+`(benchmark, task_id)`, and uniqueness is required only for that pair. The
+same task identifier may therefore occur once in SWE and once in TAU without
+altering the Philox stream; an interleaved cross-benchmark fixture proves
+input-order invariance.
+
 ## Task 8 — frozen-grid P0 power and type-I authority
 
 Implement the deterministic full-grid producer:

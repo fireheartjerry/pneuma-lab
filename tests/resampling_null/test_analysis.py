@@ -150,6 +150,26 @@ def test_multiplier_philox_order_is_canonicalized_by_task_id() -> None:
     )
 
 
+def test_multiplier_canonicalizes_interleaved_cross_benchmark_task_ids() -> None:
+    rows = [
+        _row("z", real=1, sham=0, none=0, resample=0),
+        _row("a", benchmark="TAU", real=0, sham=1, none=1, resample=1),
+        _row("a", real=0, sham=1, none=1, resample=1),
+        _row("z", benchmark="TAU", real=1, sham=0, none=0, resample=0),
+    ]
+
+    forward = multiplier_lower_bounds(
+        rows, contrast_names=("content", "excess"), family_name="co_primary",
+        draws=7, seed=5,
+    )
+    reversed_rows = multiplier_lower_bounds(
+        list(reversed(rows)), contrast_names=("content", "excess"),
+        family_name="co_primary", draws=7, seed=5,
+    )
+
+    assert forward == reversed_rows
+
+
 def test_frozen_quantile_has_no_interpolation() -> None:
     value, order = conservative_multiplier_quantile([0.0, 1.0, 2.0, 3.0], alpha=0.05)
     assert (value, order) == (3.0, 4)

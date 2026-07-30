@@ -1757,3 +1757,16 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** This correction remains pure Task 7A statistical
   machinery. It does not add manifest ancestry, binary kernels, `analyze`,
   gates, verdicts, or externally authorized inference randomness.
+
+### EJ-20260730-0179 — Task 7A canonical identity correction
+
+- **Finding and correction:** Global `task_id` uniqueness was unnecessarily
+  strict and the multiplier sort key was not the frozen cross-benchmark
+  identity. Multiplier draws now sort exact UTF-8 `(benchmark, task_id)` bytes
+  and require uniqueness only of that pair.
+- **Focused evidence:** An interleaved SWE/TAU fixture reuses `a` and `z` task
+  IDs across benchmarks and produces bit-identical bounds after input reversal.
+  `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_analysis.py
+  -q` passed 13 tests; Ruff and `git diff --check` passed.
+- **Boundary/non-claim:** Pure Task 7A correction only; Task 7B remains owner
+  of manifest reconstruction, gate evaluation, analysis admission, and verdicts.
