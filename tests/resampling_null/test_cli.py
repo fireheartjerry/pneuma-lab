@@ -256,6 +256,48 @@ def test_cli_packets_rejects_noncanonical_root_names_before_writing(
     assert not (root / "packet-candidate.json").exists()
 
 
+def test_cli_packets_build_reserves_existing_candidate_before_packet_work(
+    tmp_path: Path, capsys, monkeypatch,
+) -> None:
+    """An occupied final name cannot leave build sidecars behind."""
+    import pneuma_lab.resampling_null.cli as cli
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    root = tmp_path / "root"
+    root.mkdir()
+    for name in ("study.json", "assignment.json", "prefix.json", "candidate.json"):
+        (root / name).write_text("{}", encoding="utf-8")
+    refs = {
+        name: ArtifactRef("test", name, "a" * 64, 2, "application/json")
+        for name in ("study.json", "assignment.json", "prefix.json")
+    }
+    called = False
+    monkeypatch.setattr(cli, "_ref", lambda _root, name, _role: refs[name])
+    monkeypatch.setattr(
+        cli, "_packet_manifest_parents",
+        lambda *_args, **_kwargs: tuple(
+            ArtifactRef(role, f"{role}.json", digest * 64, 1, "application/json")
+            for role, digest in (("tokenizer", "b"), ("template", "c"), ("policy", "d"), ("pad", "e"))
+        ),
+    )
+    def build(**_kwargs: object) -> ArtifactRef:
+        nonlocal called
+        called = True
+        (root / "packet-work").mkdir()
+        raise AssertionError("build must not run")
+    monkeypatch.setattr(cli, "_build_packet_candidate", build)
+
+    before = sorted(path.relative_to(root).as_posix() for path in root.rglob("*"))
+    assert cli.main([
+        "--run-root", str(root), "packets", "build", "--study", "study.json",
+        "--assignment", "assignment.json", "--prefix-index", "prefix.json",
+        "--out-candidate", "candidate.json",
+    ]) == 2
+    assert json.loads(capsys.readouterr().out)["status"] == "error"
+    assert not called
+    assert sorted(path.relative_to(root).as_posix() for path in root.rglob("*")) == before
+
+
 def test_cli_packets_build_and_audit_route_exact_manifest_parents(
     tmp_path: Path, capsys, monkeypatch,
 ) -> None:

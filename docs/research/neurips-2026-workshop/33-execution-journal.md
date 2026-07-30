@@ -2178,3 +2178,23 @@ The next event after the archived migration boundary is appended below.
   genuinely admitted synthetic final can authorize descendant execution.
 - **Boundary/non-claim:** No P0 work, provider action, benchmark execution,
   secret handling, spend, packet delivery, causal result, or claim occurred.
+
+### EJ-20260730-0203 — Task 9 packet prewrite closure correction
+
+- **Correction:** Made `packets build` reserve its candidate output name in a
+  named preflight step before entering the Task-5 builder, rather than relying
+  on argument-evaluation order. The new occupied-output regression asserts that
+  an existing candidate leaves the root byte-for-byte path-set unchanged and
+  never enters the packet-work builder.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_cli.py -q` passed 19 tests; `git diff --check`
+  passed.
+- **Blocker/next gate:** A requested no-mock build-to-audit CLI integration
+  test is not honestly constructible from the current provider fixture. Its
+  deliberately minimal sealed manifest aliases tokenizer-shaped blobs as
+  roster/storage refs: replacing them with local-test-valid assets breaks the
+  fixture's promoted-authority replay, while preserving them fails the storage
+  lease admission. A dedicated valid synthetic lineage fixture is therefore a
+  later Task-9 fixture slice, not something this command patch may forge.
+- **Boundary/non-claim:** No packet build/audit, P0, provider, benchmark,
+  secret, spend, or claim was executed.

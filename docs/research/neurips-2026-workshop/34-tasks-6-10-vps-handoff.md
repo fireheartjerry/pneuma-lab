@@ -352,3 +352,12 @@ controller plumbing: no candidate/sealed packet index, packet content,
 provider/benchmark action, P0 result, spending, or claim exists. Next gate:
 hostile-review this command boundary, then produce a genuinely admitted
 synthetic final before any descendant execution is attempted.
+
+**Packet prewrite correction:** Build now reserves the candidate destination
+before any Task-5 packet-work side effect; an occupied output has a focused
+zero-sidecar regression. The requested real no-mock build→audit CLI fixture is
+still blocked: the existing provider fixture is intentionally not a valid
+local-test storage lineage, and mutating its placeholder roster/storage refs
+invalidates its promoted-authority replay. Do not fabricate that closure. Next
+fixture slice: promote one dedicated fully valid synthetic lineage, then use it
+for a genuine command-level build/audit receipt.

@@ -462,11 +462,15 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
             study_ref, assignment_ref, prefix_ref, root=root,
         )
         if args.packets_command == "build":
+            # Reserve the candidate name before Task-5 can write packet-work
+            # derivatives.  Keep this separate from the call for reviewable
+            # no-side-effect ordering.
+            candidate_out = _out(root, args.out_candidate)
             return _build_packet_candidate(
                 study_ref=study_ref, assignment_ref=assignment_ref, prefix_ref=prefix_ref,
                 tokenizer_ref=tokenizer_ref, packet_template_ref=template_ref,
                 packet_policy_ref=policy_ref, pad_unit_set_ref=pads_ref, root=root,
-                out=_out(root, args.out_candidate),
+                out=candidate_out,
             )
         candidate_ref = _ref(root, args.candidate, "packet_index_candidate")
         schedule_ref = _ref(root, args.schedule, "resampling_prefix_schedule")
