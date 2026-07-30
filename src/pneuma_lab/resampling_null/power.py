@@ -807,6 +807,30 @@ def finalize_synthetic_power_report(screen_ref: ArtifactRef, shard_refs: tuple[A
     return _write_power(out, payload, run_root=run_root)
 
 
+def finalize_synthetic_validation_failed(
+    all_attempt_refs: tuple[ArtifactRef, ...], terminal_attempt_ref: ArtifactRef,
+    *, terminal_stage: Literal["screen", "shard", "selection", "validation"],
+    reason: Literal["gaussian_screen_exhausted", "full_multiplier_screen_exhausted", "numeric_fixture_failed", "runtime_bound_exceeded", "attempt_incomplete", "synthetic_validation_gate_failed"],
+    config: PowerConfig, run_root: Path, out: Path,
+) -> ArtifactRef:
+    """Closed nondecisive terminal arm; never a disguised feasibility decision."""
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    if authority.authority_kind != "synthetic_validation" or not all_attempt_refs or terminal_attempt_ref not in all_attempt_refs:
+        raise RecordValidationError("synthetic terminal final requires its own complete attempted chain")
+    terminal = _report(terminal_attempt_ref, run_root=run_root, stage=terminal_stage)
+    if terminal_stage == "validation" and reason == "attempt_incomplete":
+        raise RecordValidationError("a persisted validation cannot be labelled attempt_incomplete")
+    if terminal_stage == "validation" and reason != "synthetic_validation_gate_failed":
+        raise RecordValidationError("a persisted synthetic validation requires synthetic_validation_gate_failed")
+    phase = cast(str, terminal["phase"])
+    kernel = "power-final-gaussian-v1" if phase == "gaussian_approximation" else "power-final-full-multiplier-v1"
+    payload = _record_base(config, phase=phase, generation=cast(int, terminal["generation"]), kernel_id=kernel, shard_count=cast(int, terminal["shard_count"]), run_root=run_root)
+    payload.pop("kernel_id")
+    payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in all_attempt_refs], "all_attempt_refs": [_ref_mapping(ref) for ref in all_attempt_refs],
+                    "finalization": {"kind": "synthetic_validation_failed", "terminal_attempt_ref": _ref_mapping(terminal_attempt_ref), "terminal_stage": terminal_stage, "terminal_phase": phase, "terminal_kernel_id": kernel, "terminal_shard_count": terminal["shard_count"], "reason": reason, "selected_tier": None, "decision": "CONDITIONAL_ONLY"}})
+    return _write_power(out, payload, run_root=run_root)
+
+
 __all__ = (
     "POWER_AUTHORITY_MEDIA_TYPE", "RNG_CONTRACT_SHA256", "PowerAuthority", "PowerConfig", "PowerGridSpec",
     "RosterBoundPowerAuthority", "SyntheticPowerAuthority", "grid_content_sha256", "load_power_authority", "load_power_config",
