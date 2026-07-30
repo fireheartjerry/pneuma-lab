@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pneuma_lab.foundation.artifacts import write_atomic_bytes
 
-from .artifacts import _load_direct_scientific_parent, _resolve_inside, write_record
+from .artifacts import _load_direct_scientific_parent, _read_ref, _resolve_inside, write_record
 from .errors import RecordValidationError
 from .types import ArtifactRef
 
@@ -152,3 +152,21 @@ def verify_analysis_freeze(
     observed = sorted((_resolve_inside(Path(ref["relative_path"]), run_root, require_exists=True)[0].read_bytes() for ref in refs if isinstance(ref, Mapping)), key=lambda value: hashlib.sha256(value).hexdigest())
     if expected != observed:
         raise RecordValidationError("analysis freeze copied input bytes differ")
+
+
+def verify_frozen_analysis_inputs(freeze_ref: ArtifactRef, *, run_root: Path) -> None:
+    """Verify every immutable CurrentAnalysisInputs snapshot before unblinding."""
+    freeze = _load_direct_scientific_parent(
+        {"role": freeze_ref.role, "relative_path": freeze_ref.relative_path, "sha256": freeze_ref.sha256, "byte_count": freeze_ref.byte_count, "media_type": freeze_ref.media_type},
+        run_root=run_root, field="freeze_ref", expected_kind="resampling_analysis_freeze",
+    )
+    payload = freeze.value["payload"]
+    assert isinstance(payload, Mapping)
+    refs = list(payload["source_refs"]) + [payload["config_ref"], payload["projection_schema_ref"]]
+    for index, value in enumerate(refs):
+        if not isinstance(value, Mapping):
+            raise RecordValidationError("frozen analysis input ref is malformed")
+        ref = ArtifactRef(**dict(value))
+        if not ref.relative_path.startswith("sources/analysis-freeze/"):
+            raise RecordValidationError("CurrentAnalysisInputs must remain in immutable source namespace")
+        _read_ref(ref, run_root=run_root)

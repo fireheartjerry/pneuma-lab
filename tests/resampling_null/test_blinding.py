@@ -68,3 +68,28 @@ def test_trusted_sealer_is_not_exposed_by_the_candidate_module() -> None:
 
     assert not hasattr(candidate, "seal_blinded_projection")
     assert callable(seal_blinded_projection)
+
+
+def test_trusted_sealer_rejects_a_byte_different_caller_candidate(monkeypatch, tmp_path) -> None:
+    """A digest match is insufficient: the supplied sealed bytes are checked."""
+    import pneuma_lab.resampling_null.blinding as blinding
+    from pneuma_lab.resampling_null.projection_candidate import ProjectionCandidate, build_candidate
+
+    schedule = {
+        "payload": {"tasks": [{"task": {"task_id": "t", "lineage": []}, "slots": [{"slot_id": str(i)} for i in range(4)]}]},
+        "study_id": "s", "frozen_created_at": "2026-01-01T00:00:00Z", "provenance": {"code_sha256": "0" * 64, "design_sha256": "1" * 64},
+    }
+    block = {"payload": {"task_id": "t", "prefix_success": 0, "slot_outcomes": [{"success": 0, "prefix_success": 0, "partial_reward": 0.0, "infrastructure_failure": False, "counters": {"generated_tokens": 0, "model_calls": 0, "tool_calls": 0, "wall_clock_ms": 0}}] * 4, "benchmark": "b", "stratum": "x", "sensitivity_groups": [], "triggered": False, "pipeline_valid": True, "validity_codes": []}}
+    freeze = {"study_id": "s"}
+    documents = iter([schedule, freeze, block])
+    monkeypatch.setattr(blinding, "_load_direct_scientific_parent", lambda *args, **kwargs: type("D", (), {"value": next(documents)})())
+    monkeypatch.setattr(blinding, "verify_frozen_analysis_inputs", lambda *args, **kwargs: None)
+    monkeypatch.setattr(blinding, "write_record", lambda *args, **kwargs: pytest.fail("must not publish"))
+    valid = build_candidate(
+        [{"task_id": "t", "prefix_success": 0, "slot_ids": [str(i) for i in range(4)]}],
+        {"t": block["payload"]["slot_outcomes"]},
+    )
+    mismatched = ProjectionCandidate(valid.rows, b"[]", valid.sha256)
+    ref = __import__("pneuma_lab.resampling_null.types", fromlist=["ArtifactRef"]).ArtifactRef("x", "x.json", "0" * 64, 0, "application/json")
+    with pytest.raises(Exception, match="caller candidate bytes"):
+        blinding._seal_blinded_projection_locked(run_root=tmp_path, destination=tmp_path / "out.json", schedule_ref=ref, analysis_freeze_ref=ref, task_block_refs=(ref,), candidate=mismatched)

@@ -8,11 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, cast
 
-from .artifacts import _load_direct_scientific_parent, write_record
+from .artifacts import _load_direct_scientific_parent, _read_ref, validate_scientific_graph, write_record
 from .assignment import BytesField, TextField, _derive_unblind_subkey_into, _read_exact_master_into, commitment_sha256, kdf_frame
 from .errors import RecordValidationError
 from .projection_candidate import ProjectionCandidate, build_candidate
 from .secrets import UnblindSecretHandle, _require_handle_binding
+from .freeze import verify_frozen_analysis_inputs
+from .task6_state import mark_outcome_tainted, require_singleton_absent, task6_controller_lock
 from .types import ArtifactRef
 
 
@@ -26,8 +28,26 @@ def seal_blinded_projection(
     candidate: ProjectionCandidate,
 ) -> ArtifactRef:
     """Reload authoritative parents and publish one reconstructed projection."""
+    # The lock covers discovery and install, so an alternate destination cannot
+    # manufacture a second singleton between check and write.
+    with task6_controller_lock(run_root) as root:
+        require_singleton_absent(root, "resampling_blinded_projection")
+        validate_scientific_graph(root)
+        return _seal_blinded_projection_locked(
+            run_root=root, destination=destination, schedule_ref=schedule_ref,
+            analysis_freeze_ref=analysis_freeze_ref, task_block_refs=task_block_refs,
+            candidate=candidate,
+        )
+
+
+def _seal_blinded_projection_locked(
+    *, run_root: Path, destination: Path, schedule_ref: ArtifactRef,
+    analysis_freeze_ref: ArtifactRef, task_block_refs: tuple[ArtifactRef, ...],
+    candidate: ProjectionCandidate,
+) -> ArtifactRef:
     schedule = _load_direct_scientific_parent(_mapping_ref(schedule_ref), run_root=run_root, field="schedule_ref", expected_kind="resampling_prefix_schedule")
     freeze = _load_direct_scientific_parent(_mapping_ref(analysis_freeze_ref), run_root=run_root, field="analysis_freeze_ref", expected_kind="resampling_analysis_freeze")
+    verify_frozen_analysis_inputs(analysis_freeze_ref, run_root=run_root)
     blocks = [_load_direct_scientific_parent(_mapping_ref(ref), run_root=run_root, field="task_block_ref", expected_kind="resampling_task_block") for ref in task_block_refs]
     by_task = {cast(str, cast(Mapping[str, object], block.value["payload"])["task_id"]): block for block in blocks}
     schedule_rows = cast(list[Mapping[str, object]], cast(Mapping[str, object], schedule.value["payload"])["tasks"])
@@ -108,12 +128,15 @@ def _validated_permit(
     schedule_ref: ArtifactRef, prefix_index_ref: ArtifactRef, ledger_ref: ArtifactRef,
     projection_ref: ArtifactRef, freeze_ref: ArtifactRef, expected_task_count: int,
 ) -> tuple[str, Mapping[str, object], Mapping[str, object]]:
-    """Validate all non-clear parents and consume exactly one unblind handle."""
+    """Validate every non-clear parent before the clear-ledger parser runs."""
     manifest = _load_direct_scientific_parent(_mapping_ref(manifest_ref), run_root=run_root, field="manifest_ref", expected_kind="resampling_study_manifest")
     schedule = _load_direct_scientific_parent(_mapping_ref(schedule_ref), run_root=run_root, field="schedule_ref", expected_kind="resampling_prefix_schedule")
     prefix = _load_direct_scientific_parent(_mapping_ref(prefix_index_ref), run_root=run_root, field="prefix_index_ref", expected_kind="resampling_prefix_receipt")
     freeze = _load_direct_scientific_parent(_mapping_ref(freeze_ref), run_root=run_root, field="freeze_ref", expected_kind="resampling_analysis_freeze")
     projection = _load_direct_scientific_parent(_mapping_ref(projection_ref), run_root=run_root, field="projection_ref", expected_kind="resampling_blinded_projection")
+    # This checks the exact ledger bytes and digest before any JSON decode of it.
+    _read_ref(ledger_ref, run_root=run_root)
+    verify_frozen_analysis_inputs(freeze_ref, run_root=run_root)
     schedule_payload = cast(Mapping[str, object], schedule.value["payload"])
     projection_payload = cast(Mapping[str, object], projection.value["payload"])
     if schedule_payload.get("manifest_ref") != _mapping_ref(manifest_ref) or cast(Mapping[str, object], prefix.value["payload"]).get("schedule_ref") != _mapping_ref(schedule_ref) or projection_payload.get("schedule_ref") != _mapping_ref(schedule_ref) or projection_payload.get("analysis_freeze_ref") != _mapping_ref(freeze_ref) or projection_payload.get("expected_task_count") != expected_task_count or projection_payload.get("complete") is not True:
@@ -139,10 +162,28 @@ def issue_unblind_permit(
 ) -> str:
     """Issue a one-use permit after independently validating public ancestry."""
     permit, _projection, _manifest = _validated_permit(handle, run_root=run_root, manifest_ref=manifest_ref, schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref, ledger_ref=ledger_ref, projection_ref=projection_ref, freeze_ref=freeze_ref, expected_task_count=expected_task_count)
-    ledger = _load_direct_scientific_parent(_mapping_ref(ledger_ref), run_root=run_root, field="ledger_ref", expected_kind="resampling_assignment_ledger")
-    if cast(Mapping[str, object], ledger.value["payload"]).get("manifest_ref") != _mapping_ref(manifest_ref) or cast(Mapping[str, object], ledger.value["payload"]).get("schedule_ref") != _mapping_ref(schedule_ref):
-        raise RecordValidationError("ledger does not descend from permit context")
+    _validate_ledger_ancestry(ledger_ref, run_root=run_root, manifest_ref=manifest_ref,
+                              schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref)
     return permit
+
+
+def _validate_ledger_ancestry(
+    ledger_ref: ArtifactRef, *, run_root: Path, manifest_ref: ArtifactRef,
+    schedule_ref: ArtifactRef, prefix_index_ref: ArtifactRef,
+) -> Mapping[str, object]:
+    """Parse clear ledger only after its raw ref and public context are verified."""
+    ledger = _load_direct_scientific_parent(
+        _mapping_ref(ledger_ref), run_root=run_root, field="ledger_ref",
+        expected_kind="resampling_assignment_ledger",
+    )
+    payload = cast(Mapping[str, object], ledger.value["payload"])
+    if (
+        payload.get("manifest_ref") != _mapping_ref(manifest_ref)
+        or payload.get("schedule_ref") != _mapping_ref(schedule_ref)
+        or payload.get("prefix_index_ref") != _mapping_ref(prefix_index_ref)
+    ):
+        raise RecordValidationError("ledger does not descend from complete unblind context")
+    return ledger.value
 
 
 def unblind_projection(
@@ -156,14 +197,24 @@ def unblind_projection(
     actual, projection_payload, manifest = _validated_permit(handle, run_root=run_root, manifest_ref=manifest_ref, schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref, ledger_ref=ledger_ref, projection_ref=projection_ref, freeze_ref=freeze_ref, expected_task_count=expected_task_count)
     if not hmac.compare_digest(actual, permit_hmac_sha256):
         raise RecordValidationError("unblind permit MAC does not match")
-    ledger = _load_direct_scientific_parent(_mapping_ref(ledger_ref), run_root=run_root, field="ledger_ref", expected_kind="resampling_assignment_ledger")
-    arms = {row["task_id"]: dict(row["slot_arms"]) for row in cast(list[Mapping[str, object]], cast(Mapping[str, object], ledger.value["payload"])["assignments"])}
-    clear_rows = []
-    for row in cast(list[Mapping[str, object]], projection_payload["rows"]):
-        slot_arms = arms.get(cast(str, row["task_id"]))
-        if slot_arms is None:
-            raise RecordValidationError("ledger does not cover blinded projection")
-        clear_rows.append({**dict(row), "slots": [{**dict(slot), "arm": slot_arms[slot["slot_id"]]} for slot in cast(list[Mapping[str, object]], row["slots"])]})
-    record = {"record_kind": "resampling_unblind_receipt", "schema_version": "0.1.0", "study_id": ledger.value["study_id"], "frozen_created_at": ledger.value["frozen_created_at"], "provenance": ledger.value["provenance"], "payload": {"projection_ref": _mapping_ref(projection_ref), "assignment_ledger_ref": _mapping_ref(ledger_ref), "analysis_freeze_ref": _mapping_ref(freeze_ref), "expected_task_count": expected_task_count, "permit_hmac_sha256": actual}}
-    receipt = write_record(receipt_destination, record, run_root=run_root, role="unblind_receipt")
-    return UnblindResult(receipt_ref=receipt, rows=tuple(clear_rows))
+    with task6_controller_lock(run_root) as root:
+        require_singleton_absent(root, "resampling_unblind_receipt")
+        # Taint is intentionally before the first ledger decode.  A crash or
+        # later validation failure therefore cannot reset a context that began
+        # to expose assignment/outcome information.
+        mark_outcome_tainted(root)
+        ledger_value = _validate_ledger_ancestry(
+            ledger_ref, run_root=root, manifest_ref=manifest_ref,
+            schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
+        )
+        validate_scientific_graph(root)
+        arms = {row["task_id"]: dict(row["slot_arms"]) for row in cast(list[Mapping[str, object]], cast(Mapping[str, object], ledger_value["payload"])["assignments"])}
+        clear_rows = []
+        for row in cast(list[Mapping[str, object]], projection_payload["rows"]):
+            slot_arms = arms.get(cast(str, row["task_id"]))
+            if slot_arms is None:
+                raise RecordValidationError("ledger does not cover blinded projection")
+            clear_rows.append({**dict(row), "slots": [{**dict(slot), "arm": slot_arms[slot["slot_id"]]} for slot in cast(list[Mapping[str, object]], row["slots"])]})
+        record = {"record_kind": "resampling_unblind_receipt", "schema_version": "0.1.0", "study_id": ledger_value["study_id"], "frozen_created_at": ledger_value["frozen_created_at"], "provenance": ledger_value["provenance"], "payload": {"projection_ref": _mapping_ref(projection_ref), "assignment_ledger_ref": _mapping_ref(ledger_ref), "analysis_freeze_ref": _mapping_ref(freeze_ref), "expected_task_count": expected_task_count, "permit_hmac_sha256": actual}}
+        receipt = write_record(receipt_destination, record, run_root=root, role="unblind_receipt")
+        return UnblindResult(receipt_ref=receipt, rows=tuple(clear_rows))

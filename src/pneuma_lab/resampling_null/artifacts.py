@@ -1080,6 +1080,10 @@ def write_record(
     """Validate completely, publish atomically without overwrite, and reference."""
 
     validated = validate_record(value)
+    # Task-6 protected records must never be created after an unblind read.
+    # Import locally to keep the general artifact layer independent at import time.
+    from .task6_state import require_preunblind_context
+    require_preunblind_context(run_root, cast(str, validated["record_kind"]))
     if validated["record_kind"] != "resampling_study_manifest":
         _require_manifest_ancestry(validated, run_root=run_root)
     target, _relative = _resolve_inside(
@@ -1097,6 +1101,22 @@ def write_record(
     target, _relative = _prepare_destination(path, run_root)
     write_atomic_json(target, validated)
     return _artifact_ref_for_path(target, run_root, role, "application/json")
+
+
+def validate_scientific_graph(run_root: Path) -> None:
+    """Validate the complete currently-present scientific graph (no root needed)."""
+    root = _run_root(run_root)
+    documents = _scientific_documents(root, excluded=())
+    if not documents:
+        raise RecordValidationError("scientific graph is empty")
+    _validate_kind_identities(
+        documents,
+        required_document_kinds={
+            cast(str, document.value["record_kind"])
+            for document in documents.values()
+        },
+        run_root=root,
+    )
 
 
 def write_jsonl_artifact(
@@ -4177,4 +4197,5 @@ __all__ = [
     "verify_digest_link",
     "seal_artifact_root",
     "verify_artifact_root",
+    "validate_scientific_graph",
 ]

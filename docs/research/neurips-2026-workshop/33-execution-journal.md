@@ -1648,3 +1648,28 @@ The next event after the archived migration boundary is appended below.
   tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q` passed
   211 tests; byte compilation and `git diff --check` passed. This remains a
   guarded implementation slice, not a result or scientific claim.
+
+### EJ-20260730-0173 — Task 6 irreversible-taint and singleton correction
+
+- **Correction to EJ-0171/0172:** Those checkpoints did not establish a
+  run-wide singleton transaction or permanent post-unblind protection. The
+  implementation now has a dedicated Task-6 controller lock (not the
+  prefix-index transaction), scans the full run namespace for existing blinded
+  projection/unblind receipts, validates the complete present scientific graph,
+  and serializes discovery through atomic record installation.
+- **Unblind ordering:** Before any ledger decode, the unblinder reloads and
+  binds manifest/schedule/prefix/freeze/projection, verifies every immutable
+  `CurrentAnalysisInputs` byte ref and the raw ledger digest, and consumes the
+  nominal unblind handle. It then writes/fsyncs a one-way outcome-taint marker
+  before decoding assignment rows. There is intentionally no production reset;
+  later freeze, task-block, or projection creation rejects.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_artifacts.py tests/resampling_null/test_assignment.py
+  tests/resampling_null/test_freeze.py tests/resampling_null/test_blinding.py
+  tests/resampling_null/test_task6_state.py -q` passed 16 tests in under one
+  second. The adversarial tests cover durable taint and a concurrent controller
+  attempting an alternate projection destination. `git diff --check` and byte
+  compilation passed.
+- **Boundary/non-claims:** No provider/model/network action, secret disclosure,
+  spend, training, branch execution, experiment, empirical result, causal
+  claim, or claim promotion occurred.

@@ -56,7 +56,15 @@ schedule/freeze/task-block ancestry and validates the recomputable candidate
 digest. Unblind permit framing consumes the nominal unblind handle and derives
 only the unblind subkey. Review correction now preserves frozen schedule order,
 closes the blinded outcome schema, and verifies copied freeze inputs. Full
-Task-6 end-to-end receipt and taint coverage remain the next verification gate.
+Task-6 controller hardening is now complete: sealing and unblinding take a
+dedicated run-root controller lock, reject run-wide duplicate singleton records
+regardless of output path, verify the complete present scientific graph, and
+verify every frozen `CurrentAnalysisInputs` snapshot. Unblinding verifies public
+context and raw ledger bytes before ledger decoding, then writes a durable,
+one-way outcome-taint marker before assignment rows are exposed. That marker
+rejects later freeze, task-block, and blinded-projection work; there is no
+production reset API. The focused adversarial gate covers durable taint and
+concurrent alternate-destination singleton rejection.
 
 Implement the exact Task-6 contract in the controlling plan:
 
