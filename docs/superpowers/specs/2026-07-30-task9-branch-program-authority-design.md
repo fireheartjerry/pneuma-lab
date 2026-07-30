@@ -14,16 +14,20 @@ referenced `resampling_branch_program_registry_v1` record is the sole authority
 for post-trigger branch programs. CLI arguments, runtime-generated programs,
 prefix-program reuse, and fixture-only substitutions are inadmissible.
 
-The registry contains canonical task rows. Each row binds one task identity to
-exactly four branch-program entries in the preregistered slot order. Each entry
-binds:
+The registry contains canonical task rows. Each row binds one frozen task
+identity to exactly four branch-program references by branch ordinal
+`0, 1, 2, 3`. Duplicate, missing, extra, or reordered tasks or ordinals fail
+closed.
 
-- the opaque slot identity;
-- the allocation capability digest used by the work order; and
-- one `synthetic_execution_program` artifact reference.
-
-Task rows and slot rows use the canonical schedule order. Duplicate, missing,
-extra, or reordered tasks or slots fail closed.
+The first scientific record cannot name a schedule `slot_id` or allocation
+capability: both are derived only after the committed schedule seed is opened
+and the assignment is sealed. Binding either value in the study manifest would
+create circular authority. Instead, branch ordinal is the preregistered
+pre-schedule identity. At execution, ordinal `i` is reconciled to the exact
+`i`th slot and allocation capability in the later schedule/assignment-derived
+opaque work-order tuple. The resulting task/ordinal/program-to-slot mapping is
+therefore deterministic without pretending future opaque identities existed at
+study freeze.
 
 ## Sealing
 
@@ -46,15 +50,17 @@ event, tool-result, grade, verifier, clock, and environment references.
 ## Runtime resolution
 
 `_branch_program_refs` accepts the sealed study manifest, schedule authority,
-task identity, and prepared opaque work orders. It reads only manifest-reachable
-artifacts and returns four program references in the work orders'
-preregistered order.
+task identity, and prepared opaque work orders. It reads only
+manifest-reachable artifacts and returns four program references by registry
+ordinal after proving that the supplied work-order tuple has the exact later
+schedule/assignment-derived slot and capability order.
 
 Resolution revalidates:
 
 - registry identity and manifest binding;
 - exact task coverage;
-- exact slot and allocation-capability coverage;
+- exact branch-ordinal coverage;
+- exact reconciliation to the schedule/assignment-derived work-order order;
 - program task identity;
 - program role and JSON media type; and
 - complete sealed program closure.
@@ -66,10 +72,11 @@ program row and remains on the identity path.
 ## Failure behavior
 
 All ambiguity fails closed before branch execution. In particular, the system
-rejects missing or extra tasks, fewer or more than four slots, duplicate slot
-or capability identities, reordered slots, swapped program references, wrong
-task bindings, malformed or unsealed nested references, and any caller attempt
-to supply a replacement program.
+rejects missing or extra tasks, fewer or more than four ordinals, duplicate or
+reordered ordinals, malformed later work-order order, duplicate later slot or
+capability identities, swapped program references, wrong task bindings,
+malformed or unsealed nested references, and any caller attempt to supply a
+replacement program.
 
 No fallback derives a branch program from the prefix program. No code creates
 branch programs after the manifest is sealed.
@@ -80,7 +87,7 @@ Tests must first fail against the current authority stub, then prove:
 
 - schema and codec strictness for the registry;
 - deterministic sealing and full nested closure copying;
-- exact task/slot/capability coverage;
+- exact task/ordinal coverage and later work-order reconciliation;
 - rejection of every hostile mismatch listed above;
 - manifest-only CLI resolution in preregistered order;
 - whole-run admission before mutation; and
