@@ -34,7 +34,6 @@ from .json_io import (
     resolve_inside as _resolve_inside,
     run_root as _run_root,
 )
-from .publication import BoundPublication
 from .preflight import (
     ASSIGNMENT_PROGRAM_GRAMMAR,
     validate_assignment_program,
@@ -1630,6 +1629,8 @@ def seal_study_manifest(
                     manifest_revisions=tuple(copy.ref for copy in revision_copies),
                     schedule_authority=execution_authority,
                 )
+    from .publication import BoundPublication
+
     with BoundPublication(root) as publication:
         for copy in all_copies:
             publication.publish_bytes(
