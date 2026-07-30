@@ -140,6 +140,14 @@ input-order invariance.
 
 ## Task 8 — frozen-grid P0 power and type-I authority
 
+**Task 8A checkpoint (2026-07-30):** The frozen P0 grid/RNG contract and the
+two closed power-authority blobs are implemented. Roster-bound authority now
+reconstructs manifest-pinned eligibility membership, group labels, and reserves
+rather than trusting file presence; staged report validation re-derives grid,
+topology, authority, and both grid/RNG digests. This is not a simulator or a
+P0 result. Screen, shard, selection, validation, finalization, and CLI work
+remain unimplemented.
+
 Implement the deterministic full-grid producer:
 
 - canonical task-level Bernoulli-pattern probabilities and the complete

@@ -1852,3 +1852,24 @@ The next event after the archived migration boundary is appended below.
   not implement a simulator, screen, shard, selection, validation, finalizer,
   CLI, provider action, spend, benchmark execution, P0 result, or tier choice.
   Synthetic authority remains conditional-only and non-decisive by contract.
+
+### EJ-20260730-0186 — Task 8A authority-proof correction
+
+- **Finding and correction:** The first roster-bound authority check proved
+  only that the manifest-pinned eligibility blob existed. That was not an
+  authority proof. It now requires a closed eligibility grammar with the
+  study-bound commitment/reveal receipts, accepted/rejected identities, nested
+  C120/C160 membership, exact per-task group labels, and ordered disjoint
+  reserves; each surface must reproduce the manifest roster exactly.
+- **Staged-record correction:** `resampling_power_report` now persists
+  `grid_content_sha256` in addition to the complete RNG-contract digest.
+  Artifact validation reloads the authority and calls the closed config/grid
+  loaders before accepting report mirrors, rejecting swapped topology/grid refs
+  and malformed or noncanonical grid content.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power_authority.py
+  tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q`
+  passed 211 tests, including real schema-valid staged-screen attacks. Ruff,
+  byte compilation, and `git diff --check` passed.
+- **Boundary/non-claim:** Still no simulator, screening, tier selection,
+  provider action, spend, benchmark execution, P0 result, or promoted claim.

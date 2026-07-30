@@ -3532,12 +3532,15 @@ def _validate_power_identities(
     # The authority blob is a referenced, closed contract rather than a
     # scientific record kind.  Validate it before trusting any report mirrors.
     # Importing here avoids a module-import cycle with the generic artifact IO.
-    from .power import RNG_CONTRACT_SHA256, load_power_authority
+    from .power import grid_content_sha256, load_power_authority, load_power_config
 
     for document in documents:
         payload = _power_payload(document)
         authority_ref = ArtifactRef(**cast(dict[str, Any], dict(payload["authority_ref"])))
         authority = load_power_authority(authority_ref, run_root=run_root)
+        grid_ref = ArtifactRef(**cast(dict[str, Any], dict(payload["grid_ref"])))
+        topology_ref = ArtifactRef(**cast(dict[str, Any], dict(payload["screen_topology_ref"])))
+        load_power_config(authority_ref, grid_ref, topology_ref, run_root=run_root)
         if payload["decision_authority"] != authority.authority_kind:
             raise RecordValidationError("power decision_authority is not derived from authority_ref")
         _require_artifact_ref_equal(
@@ -3547,24 +3550,12 @@ def _validate_power_identities(
         )
         if payload["tier_membership_sha256"] != authority.tier_membership_sha256:
             raise RecordValidationError("power tier_membership_sha256 is not derived from authority_ref")
-        manifest = _load_direct_scientific_parent(
-            _ref_mapping(authority.manifest_ref),
-            run_root=run_root,
-            field="power authority manifest_ref",
-            expected_kind="resampling_study_manifest",
-        )
-        manifest_payload = _power_payload(manifest)
-        for field, manifest_field in (
-            ("grid_ref", "power_grid_ref"),
-            ("screen_topology_ref", "power_screen_topology_ref"),
-        ):
-            _require_artifact_ref_equal(
-                payload[field],
-                manifest_payload[manifest_field],
-                field=f"power {field}",
-            )
-        if payload["rng_contract_sha256"] != RNG_CONTRACT_SHA256:
+        if payload["rng_contract_sha256"] != load_power_config(
+            authority_ref, grid_ref, topology_ref, run_root=run_root
+        ).rng_contract_sha256:
             raise RecordValidationError("power rng_contract_sha256 differs from frozen grid contract")
+        if payload["grid_content_sha256"] != grid_content_sha256(grid_ref, run_root=run_root):
+            raise RecordValidationError("power grid_content_sha256 differs from closed grid bytes")
     _validate_power_attempt_topology(documents, run_root=run_root)
     by_authority: dict[str, list[_ScientificDocument]] = {}
     for document in documents:

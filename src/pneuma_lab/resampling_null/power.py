@@ -138,6 +138,16 @@ def _manifest(ref: ArtifactRef, *, run_root: Path) -> Mapping[str, object]:
     return payload
 
 
+def _manifest_study_id(ref: ArtifactRef, *, run_root: Path) -> str:
+    document = _load_direct_scientific_parent(
+        _ref_mapping(ref), run_root=run_root, field="manifest_ref", expected_kind="resampling_study_manifest"
+    )
+    study_id = document.value["study_id"]
+    if type(study_id) is not str or not study_id:
+        raise RecordValidationError("study manifest has invalid study_id")
+    return study_id
+
+
 def _manifest_ref(payload: Mapping[str, object], name: str) -> ArtifactRef:
     return decode_artifact_ref(payload.get(name), field=f"manifest {name}")
 
@@ -151,6 +161,90 @@ def _load_roster(ref: ArtifactRef, *, run_root: Path) -> Mapping[str, object]:
     if roster["roster_kind"] not in {"synthetic_fixture", "eligible_confirmation"}:
         raise RecordValidationError("power roster has unsupported roster_kind")
     return roster
+
+
+def _roster_rows(roster: Mapping[str, object]) -> dict[str, tuple[tuple[int, ...], tuple[tuple[str, str], ...]]]:
+    """Return the exact accepted identity/tier/group surface for confirmation."""
+    rows: dict[str, tuple[tuple[int, ...], tuple[tuple[str, str], ...]]] = {}
+    for index, task_value in enumerate(cast(list[object], roster["tasks"])):
+        task = closed_mapping(task_value, fields={"task_id", "benchmark", "stratum", "lineage", "groups", "tiers"}, field=f"power roster task[{index}]")
+        task_id = task["task_id"]
+        if type(task_id) is not str or not task_id or task_id in rows:
+            raise RecordValidationError("power roster task IDs must be unique strict text")
+        tiers = task["tiers"]
+        groups = task["groups"]
+        if not isinstance(tiers, list) or not isinstance(groups, list):
+            raise RecordValidationError("power roster tiers/groups must be arrays")
+        group_rows: list[tuple[str, str]] = []
+        for group_index, group_value in enumerate(groups):
+            group = closed_mapping(group_value, fields={"kind", "value"}, field=f"power roster task[{index}].groups[{group_index}]")
+            if type(group["kind"]) is not str or type(group["value"]) is not str:
+                raise RecordValidationError("power roster group fields must be strict text")
+            group_rows.append((cast(str, group["kind"]), cast(str, group["value"])))
+        rows[task_id] = (tuple(cast(list[int], tiers)), tuple(group_rows))
+    return rows
+
+
+def _validate_confirmation_eligibility(
+    eligibility_ref: ArtifactRef,
+    roster: Mapping[str, object],
+    *,
+    study_id: str,
+    run_root: Path,
+) -> None:
+    """Prove the manifest-pinned eligibility source derives this exact roster.
+
+    This is intentionally a closed source grammar.  A file that merely exists
+    is not evidence of confirmation eligibility—cute try, attacker.
+    """
+    path, raw = _read_ref(eligibility_ref, run_root=run_root)
+    value = load_json_bytes(raw, source=path)
+    fields = {
+        "record_kind", "schema_version", "study_id", "precommit_sha256",
+        "beacon_receipt_sha256", "roster_local_nonce_reveal_sha256", "roster_seed_sha256",
+        "accepted_task_ids", "rejected_task_ids", "tier_membership", "group_labels", "reserves",
+    }
+    eligibility = closed_mapping(value, fields=fields, field="confirmation eligibility manifest")
+    if eligibility["record_kind"] != "resampling_eligibility_manifest_v1" or eligibility["schema_version"] != "1" or eligibility["study_id"] != study_id:
+        raise RecordValidationError("confirmation eligibility manifest has wrong identity or study_id")
+    for field in ("precommit_sha256", "beacon_receipt_sha256", "roster_local_nonce_reveal_sha256", "roster_seed_sha256"):
+        _strict_sha256(eligibility[field], field=f"confirmation eligibility {field}")
+    accepted = eligibility["accepted_task_ids"]
+    rejected = eligibility["rejected_task_ids"]
+    if not isinstance(accepted, list) or not isinstance(rejected, list) or any(type(value) is not str or not value for value in [*accepted, *rejected]) or accepted != sorted(set(accepted)) or rejected != sorted(set(rejected)) or set(accepted) & set(rejected):
+        raise RecordValidationError("confirmation eligibility accepted/rejected task IDs must be disjoint strict sorted sets")
+    roster_rows = _roster_rows(roster)
+    if accepted != sorted(roster_rows):
+        raise RecordValidationError("confirmation eligibility accepted task IDs do not exactly reproduce roster")
+    memberships = closed_mapping(eligibility["tier_membership"], fields={"120", "160"}, field="confirmation eligibility tier_membership")
+    tier_ids: dict[int, list[str]] = {}
+    for tier in (120, 160):
+        values = memberships[str(tier)]
+        if not isinstance(values, list) or any(type(value) is not str for value in values) or values != sorted(set(values)):
+            raise RecordValidationError("confirmation eligibility tier membership must be sorted unique task IDs")
+        tier_ids[tier] = cast(list[str], values)
+        if set(values) != {task_id for task_id, (tiers, _groups) in roster_rows.items() if tier in tiers}:
+            raise RecordValidationError("confirmation eligibility tier membership differs from roster")
+    if not set(tier_ids[160]).issubset(tier_ids[120]):
+        raise RecordValidationError("confirmation eligibility C160 membership must be nested in C120")
+    labels = eligibility["group_labels"]
+    if not isinstance(labels, Mapping) or set(labels) != set(roster_rows):
+        raise RecordValidationError("confirmation eligibility group labels must exactly cover roster")
+    for task_id, (_tiers, expected_groups) in roster_rows.items():
+        groups = labels[task_id]
+        if not isinstance(groups, list):
+            raise RecordValidationError("confirmation eligibility group labels must be arrays")
+        actual: list[tuple[str, str]] = []
+        for group_index, group_value in enumerate(groups):
+            group = closed_mapping(group_value, fields={"kind", "value"}, field=f"confirmation eligibility group_labels.{task_id}[{group_index}]")
+            if type(group["kind"]) is not str or type(group["value"]) is not str:
+                raise RecordValidationError("confirmation eligibility group label must use strict text")
+            actual.append((cast(str, group["kind"]), cast(str, group["value"])))
+        if tuple(actual) != expected_groups:
+            raise RecordValidationError("confirmation eligibility group labels differ from roster")
+    reserves = eligibility["reserves"]
+    if not isinstance(reserves, list) or any(type(value) is not str or not value for value in reserves) or reserves != sorted(set(reserves)) or set(reserves) & set(accepted):
+        raise RecordValidationError("confirmation eligibility reserves must be ordered, unique, and disjoint from accepted roster")
 
 
 def _tier_membership_sha256(roster: Mapping[str, object]) -> str:
@@ -205,7 +299,12 @@ def _authority_from_manifest(manifest_ref: ArtifactRef, *, run_root: Path, expec
     if roster["roster_kind"] != "eligible_confirmation":
         raise RecordValidationError("roster-bound authority requires eligible_confirmation roster")
     eligibility_ref = decode_artifact_ref(eligibility, field="manifest eligibility_manifest_ref", expected_role="eligibility_manifest")
-    _read_ref(eligibility_ref, run_root=run_root)
+    _validate_confirmation_eligibility(
+        eligibility_ref,
+        roster,
+        study_id=_manifest_study_id(manifest_ref, run_root=run_root),
+        run_root=run_root,
+    )
     return RosterBoundPowerAuthority("1", "roster_bound_selection", manifest_ref, eligibility_ref, roster_ref, membership)
 
 
@@ -290,19 +389,29 @@ def _load_power_grid(grid_ref: ArtifactRef, *, run_root: Path) -> PowerGridSpec:
     return PowerGridSpec("1", (120, 160), (0.1, 0.4, 0.7), (0.6, 0.75, 0.9), (0.0, 0.4, 0.8), 20000, 200, 43200, 5, 2000, 99999, 0.15, 0.8, 0.05, 96, 128, 1e-10, 1e-10, 200, 1e-12, 200, PowerRngContract(**cast(dict[str, object], rng)))
 
 
+def grid_content_sha256(grid_ref: ArtifactRef, *, run_root: Path) -> str:
+    """Return the scientific grid digest only after complete closed parsing."""
+    path, raw = _read_ref(grid_ref, run_root=run_root)
+    value = load_json_bytes(raw, source=path)
+    if canonical_json_bytes(value, indent=None) != raw:
+        raise RecordValidationError("power grid bytes must be compact canonical JSON")
+    _load_power_grid(grid_ref, run_root=run_root)
+    return hashlib.sha256(raw).hexdigest()
+
+
 def load_power_config(authority_ref: ArtifactRef, grid_ref: ArtifactRef, screen_topology_ref: ArtifactRef, *, run_root: Path) -> PowerConfig:
     """Return the only public config constructor, rejecting all ref overrides."""
     authority = load_power_authority(authority_ref, run_root=run_root)
     manifest = _manifest(authority.manifest_ref, run_root=run_root)
     if grid_ref != _manifest_ref(manifest, "power_grid_ref") or screen_topology_ref != _manifest_ref(manifest, "power_screen_topology_ref"):
         raise RecordValidationError("power grid/topology refs must exactly equal manifest-bound refs")
-    _load_power_grid(grid_ref, run_root=run_root)
+    grid_content_sha256(grid_ref, run_root=run_root)
     _read_ref(screen_topology_ref, run_root=run_root)
     return PowerConfig(authority_ref, grid_ref, screen_topology_ref, RNG_CONTRACT_SHA256)
 
 
 __all__ = (
     "POWER_AUTHORITY_MEDIA_TYPE", "RNG_CONTRACT_SHA256", "PowerAuthority", "PowerConfig", "PowerGridSpec",
-    "RosterBoundPowerAuthority", "SyntheticPowerAuthority", "load_power_authority", "load_power_config",
+    "RosterBoundPowerAuthority", "SyntheticPowerAuthority", "grid_content_sha256", "load_power_authority", "load_power_config",
     "seal_roster_bound_power_authority", "seal_synthetic_power_authority",
 )

@@ -101,6 +101,7 @@
                 "grid_ref",
                 "screen_topology_ref",
                 "rng_contract_sha256",
+                "grid_content_sha256",
                 "kernel_id",
                 "shard_count",
                 "parent_refs",
@@ -126,6 +127,7 @@
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
                 "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
                 "kernel_id": {
                     "enum": [
                         "power-screen-gaussian-v1",
@@ -195,6 +197,7 @@
                 "grid_ref",
                 "screen_topology_ref",
                 "rng_contract_sha256",
+                "grid_content_sha256",
                 "kernel_id",
                 "parent_refs",
                 "config_ref",
@@ -220,6 +223,7 @@
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
                 "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
                 "kernel_id": {
                     "enum": [
                         "power-grid-gaussian-v1",
@@ -321,6 +325,7 @@
                 "grid_ref",
                 "screen_topology_ref",
                 "rng_contract_sha256",
+                "grid_content_sha256",
                 "kernel_id",
                 "shard_count",
                 "parent_refs",
@@ -344,6 +349,7 @@
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
                 "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
                 "kernel_id": {
                     "const": "power-worst-five-selection-v1"
                 },
@@ -423,6 +429,7 @@
                 "grid_ref",
                 "screen_topology_ref",
                 "rng_contract_sha256",
+                "grid_content_sha256",
                 "kernel_id",
                 "shard_count",
                 "parent_refs",
@@ -447,6 +454,7 @@
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
                 "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
                 "kernel_id": {
                     "const": "power-gaussian-vs-multiplier-validation-v1"
                 },
@@ -497,6 +505,7 @@
                 "grid_ref",
                 "screen_topology_ref",
                 "rng_contract_sha256",
+                "grid_content_sha256",
                 "kernel_id",
                 "shard_count",
                 "parent_refs",
@@ -525,6 +534,7 @@
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
                 "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
                 "kernel_id": {
                     "const": "power-full-grid-validation-v1"
                 },
@@ -776,6 +786,7 @@
                 "grid_ref",
                 "screen_topology_ref",
                 "rng_contract_sha256",
+                "grid_content_sha256",
                 "parent_refs",
                 "config_ref",
                 "numeric_fixture_ref",
@@ -798,6 +809,7 @@
                 "grid_ref": { "$ref": "#/$defs/artifact_ref" },
                 "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
                 "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
+                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
                 "parent_refs": {
                     "type": "array",
                     "minItems": 1,

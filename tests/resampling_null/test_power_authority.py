@@ -9,8 +9,10 @@ import pytest
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 from pneuma_lab.resampling_null.errors import RecordValidationError
+from pneuma_lab.resampling_null.artifacts import _scientific_documents, _validate_power_identities, write_record
 from pneuma_lab.resampling_null.power import (
     RNG_CONTRACT_SHA256,
+    grid_content_sha256,
     load_power_authority,
     load_power_config,
     seal_roster_bound_power_authority,
@@ -37,7 +39,7 @@ def _write(root: Path, path: str, value: object) -> ArtifactRef:
     return _ref(root, path, path.rsplit("/", 1)[-1].removesuffix(".json"))
 
 
-def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False) -> ArtifactRef:
+def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligibility_tier_mismatch: bool = False) -> ArtifactRef:
     roster = _write(
         root,
         "inputs/roster.json",
@@ -100,9 +102,24 @@ def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False) -> Art
     )
     topology = _write(root, "inputs/topology.json", {"topology": "local"})
     eligibility_ref = (
-        _write(root, "inputs/eligibility.json", {"eligible": ["swe-001"]})
-        if eligibility
-        else None
+        _write(
+            root,
+            "inputs/eligibility.json",
+            {
+                "record_kind": "resampling_eligibility_manifest_v1",
+                "schema_version": "1",
+                "study_id": "p0-test",
+                "precommit_sha256": "1" * 64,
+                "beacon_receipt_sha256": "2" * 64,
+                "roster_local_nonce_reveal_sha256": "3" * 64,
+                "roster_seed_sha256": "4" * 64,
+                "accepted_task_ids": ["swe-001"],
+                "rejected_task_ids": [],
+                "tier_membership": {"120": ["swe-001"], "160": [] if eligibility_tier_mismatch else ["swe-001"]},
+                "group_labels": {"swe-001": [{"kind": "language", "value": "Python"}]},
+                "reserves": [],
+            },
+        ) if eligibility else None
     )
     return _write(
         root,
@@ -169,3 +186,68 @@ def test_roster_bound_authority_requires_manifest_bound_eligibility(tmp_path: Pa
     authority_ref = seal_roster_bound_power_authority(manifest_ref, run_root=tmp_path, out=tmp_path / "authority.json")
 
     assert load_power_authority(authority_ref, run_root=tmp_path).authority_kind == "roster_bound_selection"
+
+
+def test_roster_bound_authority_rejects_eligibility_group_or_tier_mismatch(tmp_path: Path) -> None:
+    manifest_ref = _manifest(
+        tmp_path,
+        roster_kind="eligible_confirmation",
+        eligibility=True,
+        eligibility_tier_mismatch=True,
+    )
+
+    with pytest.raises(RecordValidationError, match="tier membership differs"):
+        seal_roster_bound_power_authority(manifest_ref, run_root=tmp_path, out=tmp_path / "authority.json")
+
+
+def _staged_screen(tmp_path: Path, *, decision_authority: str = "synthetic_validation", topology_path: str = "inputs/topology.json") -> None:
+    manifest_ref = _manifest(tmp_path, roster_kind="synthetic_fixture")
+    authority_ref = seal_synthetic_power_authority(manifest_ref, run_root=tmp_path, out=tmp_path / "power/authority.json")
+    grid_ref = _ref(tmp_path, "inputs/grid.json", "power_grid")
+    topology_ref = _ref(tmp_path, topology_path, "power_screen_topology")
+    config_ref = _write(tmp_path, "inputs/config.json", {"fixture": "config"})
+    numeric_ref = _write(tmp_path, "inputs/numeric.json", {"fixture": "numeric"})
+    roster_ref = _ref(tmp_path, "inputs/roster.json", "roster")
+    write_record(
+        tmp_path / "power/screen.json",
+        {
+            "record_kind": "resampling_power_report",
+            "schema_version": "0.1.0",
+            "study_id": "p0-test",
+            "frozen_created_at": "2026-07-30T00:00:00Z",
+            "provenance": {"design_sha256": "a" * 64, "code_sha256": "b" * 64},
+            "payload": {
+                "stage": "screen", "authority_ref": {"role": authority_ref.role, "relative_path": authority_ref.relative_path, "sha256": authority_ref.sha256, "byte_count": authority_ref.byte_count, "media_type": authority_ref.media_type},
+                "decision_authority": decision_authority, "phase": "gaussian_approximation", "generation": 0,
+                "roster_ref": {"role": roster_ref.role, "relative_path": roster_ref.relative_path, "sha256": roster_ref.sha256, "byte_count": roster_ref.byte_count, "media_type": roster_ref.media_type},
+                "tier_membership_sha256": load_power_authority(authority_ref, run_root=tmp_path).tier_membership_sha256,
+                "grid_ref": {"role": grid_ref.role, "relative_path": grid_ref.relative_path, "sha256": grid_ref.sha256, "byte_count": grid_ref.byte_count, "media_type": grid_ref.media_type},
+                "screen_topology_ref": {"role": topology_ref.role, "relative_path": topology_ref.relative_path, "sha256": topology_ref.sha256, "byte_count": topology_ref.byte_count, "media_type": topology_ref.media_type},
+                "rng_contract_sha256": RNG_CONTRACT_SHA256, "grid_content_sha256": grid_content_sha256(grid_ref, run_root=tmp_path),
+                "kernel_id": "power-screen-gaussian-v1", "shard_count": 1, "parent_refs": [],
+                "config_ref": {"role": config_ref.role, "relative_path": config_ref.relative_path, "sha256": config_ref.sha256, "byte_count": config_ref.byte_count, "media_type": config_ref.media_type},
+                "numeric_fixture_ref": {"role": numeric_ref.role, "relative_path": numeric_ref.relative_path, "sha256": numeric_ref.sha256, "byte_count": numeric_ref.byte_count, "media_type": numeric_ref.media_type},
+                "numeric_contract": {"numpy_version": "2.3.5", "gauss_hermite_order": 96, "gauss_legendre_order": 128, "probability_tolerance": 1e-10, "gaussian_root_tolerance": 1e-10, "gaussian_root_max_iterations": 200, "clopper_pearson_tolerance": 1e-12, "clopper_pearson_max_iterations": 200},
+                "projected_wall_seconds": 1, "cell_count": 1, "dataset_count": 1,
+            },
+        }, run_root=tmp_path, role="power_report",
+    )
+
+
+def test_staged_report_rejects_nonderived_authority_mirror_before_topology_walk(tmp_path: Path) -> None:
+    _staged_screen(tmp_path, decision_authority="roster_bound_selection")
+    documents = _scientific_documents(tmp_path, excluded=(tmp_path / "inputs/roster.json",))
+    screen = documents["power/screen.json"]
+
+    with pytest.raises(RecordValidationError, match="decision_authority is not derived"):
+        _validate_power_identities([screen], run_root=tmp_path)
+
+
+def test_staged_report_rejects_swapped_manifest_topology_ref(tmp_path: Path) -> None:
+    _write(tmp_path, "inputs/other-topology.json", {"topology": "other"})
+    _staged_screen(tmp_path, topology_path="inputs/other-topology.json")
+    documents = _scientific_documents(tmp_path, excluded=(tmp_path / "inputs/roster.json",))
+    screen = documents["power/screen.json"]
+
+    with pytest.raises(RecordValidationError, match="grid/topology refs must exactly equal"):
+        _validate_power_identities([screen], run_root=tmp_path)
