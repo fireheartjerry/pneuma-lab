@@ -1525,6 +1525,7 @@ def _assert_program_occurrence_replay(
     deadline = prefix_epoch + authority.prefix_caps.wall_clock_ms
     observation_position = 0
     stopped = False
+    ended = not program.provider_transcript
     derived_tokens = {"primary_subject": 0, "user_simulator": 0}
     derived_calls = {"primary_subject": 0, "user_simulator": 0}
     derived_turns = {"primary_subject": 0, "user_simulator": 0}
@@ -1617,6 +1618,7 @@ def _assert_program_occurrence_replay(
             derived_turns[row.subject_role] += 1
         if _provider_failure(validated.status) is not FailureKind.NONE:
             stopped = True
+            ended = True
             continue
         if (
             validated.generated_tokens > role_caps.per_call_generated_tokens
@@ -1624,6 +1626,7 @@ def _assert_program_occurrence_replay(
             > min(lane_token_cap, role_caps.aggregate_generated_tokens)
         ):
             stopped = True
+            ended = True
             continue
         if validated.typed_turn is None:
             raise ValueError("completed occurrence lacks parsed turn")
@@ -1631,6 +1634,7 @@ def _assert_program_occurrence_replay(
             if validated.typed_turn.tool_calls:
                 raise ValueError("terminal provider turn cannot contain tools")
             stopped = True
+            ended = True
             continue
         if row.subject_role != "primary_subject":
             continue
@@ -1645,6 +1649,7 @@ def _assert_program_occurrence_replay(
             )
             if pretool_failure is not FailureKind.NONE:
                 stopped = True
+                ended = True
                 break
             if observation_position >= len(program.tool_observations):
                 raise ValueError("queued tool lacks an exact observation")
@@ -1677,6 +1682,7 @@ def _assert_program_occurrence_replay(
             if transition.stopped:
                 trigger = transition.trigger_reason
                 stopped = True
+                ended = True
                 break
     if observation_position != len(program.tool_observations):
         raise ValueError("tool observation program has unconsumed rows")
@@ -1685,6 +1691,8 @@ def _assert_program_occurrence_replay(
         raise ValueError(
             "program expected trigger differs from exact occurrence replay"
         )
+    if not ended:
+        raise ValueError("nonempty program reached a nonterminal live end state")
 
 
 def _verify_published(
@@ -2178,6 +2186,7 @@ def _seal_bound_prefix_index(
             relative_path=relative_path,
             expected=published,
         )
+        return published
     except BaseException as primary:
         try:
             _rollback_owned_publication(
@@ -2190,7 +2199,37 @@ def _seal_bound_prefix_index(
                 [primary, rollback],
             )
         raise
-    return published
+
+
+def _seal_transaction_outcome(
+    *,
+    result: _OwnedPrefixPublication | None,
+    primary: BaseException | None,
+    cleanup: BaseException | None,
+) -> tuple[ArtifactRef | None, BaseException | None]:
+    """Classify one fully closed transaction without performing mutation."""
+
+    errors = [
+        *(() if primary is None else (primary,)),
+        *(() if cleanup is None else (cleanup,)),
+    ]
+    if result is not None:
+        if errors:
+            return None, BaseExceptionGroup(
+                "committed prefix-index publication cleanup residual",
+                errors,
+            )
+        return result.ref, None
+    if not errors:
+        return None, AssertionError(
+            "prefix-index transaction produced no committed result"
+        )
+    if len(errors) == 1 and isinstance(errors[0], Exception):
+        return None, errors[0]
+    return None, BaseExceptionGroup(
+        "prefix-index precommit transaction interrupted or cleanup failed",
+        errors,
+    )
 
 
 def seal_prefix_index(
@@ -2217,21 +2256,17 @@ def seal_prefix_index(
     descriptor = os.open(root, _DIRECTORY_FLAGS)
     result: _OwnedPrefixPublication | None = None
     primary: BaseException | None = None
-    committed = False
+    cleanup: BaseException | None = None
+    close_attempted = False
     try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BaseException as lock_error:
-        primary = RecordValidationError(
-            "prefix-index root transaction lock is unavailable"
-        )
-        primary.__cause__ = lock_error
-    else:
         try:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BaseException as lock_error:
+                raise RecordValidationError(
+                    "prefix-index root transaction lock is unavailable"
+                ) from lock_error
             os.fstat(descriptor)
-        except BaseException as root_error:
-            primary = root_error
-    if primary is None:
-        try:
             result = _seal_bound_prefix_index(
                 root=root,
                 root_descriptor=descriptor,
@@ -2239,39 +2274,44 @@ def seal_prefix_index(
                 candidate_refs=candidate_refs,
                 relative_path=relative_path,
             )
-            committed = True
         except BaseException as exc:
             primary = exc
-    cleanup: BaseException | None = None
-    try:
-        os.close(descriptor)
-    except BaseException as exc:
-        cleanup = exc
-    if primary is not None:
-        if cleanup is not None:
-            raise BaseExceptionGroup(
-                "prefix-index precommit transaction cleanup failed",
-                [primary, cleanup],
+        finally:
+            close_attempted = True
+            try:
+                os.close(descriptor)
+            except BaseException as exc:
+                cleanup = exc
+        outcome_ref, outcome_error = _seal_transaction_outcome(
+            result=result,
+            primary=primary,
+            cleanup=cleanup,
+        )
+    except BaseException as boundary_error:
+        if not close_attempted:
+            close_attempted = True
+            try:
+                os.close(descriptor)
+            except BaseException as exc:
+                cleanup = exc
+        primary = (
+            boundary_error
+            if primary is None
+            else BaseExceptionGroup(
+                "prefix-index transaction and boundary interruption",
+                [primary, boundary_error],
             )
-        raise primary
-    if not committed or result is None:
-        errors: list[BaseException] = [
-            AssertionError("prefix-index transaction produced no committed result")
-        ]
-        if cleanup is not None:
-            errors.append(cleanup)
-        if len(errors) == 1:
-            raise errors[0]
-        raise BaseExceptionGroup(
-            "prefix-index precommit transaction cleanup failed",
-            errors,
         )
-    if cleanup is not None:
-        raise BaseExceptionGroup(
-            "committed prefix-index publication cleanup residual",
-            [cleanup],
+        outcome_ref, outcome_error = _seal_transaction_outcome(
+            result=result,
+            primary=primary,
+            cleanup=cleanup,
         )
-    return result.ref
+    if outcome_error is not None:
+        raise outcome_error
+    if outcome_ref is None:
+        raise AssertionError("successful transaction outcome lacks an ArtifactRef")
+    return outcome_ref
 
 
 __all__ = ("seal_prefix_index",)

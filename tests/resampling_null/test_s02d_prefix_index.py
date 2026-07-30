@@ -4,9 +4,11 @@ import base64
 from dataclasses import asdict, replace
 import fcntl
 import hashlib
+import inspect
 import json
 import os
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -1824,6 +1826,81 @@ def test_s02d_nonselected_rejects_expected_trigger_tamper(
         )
 
 
+def test_s02d_nonselected_rejects_nonterminal_no_tool_eof(
+    tmp_path: Path,
+) -> None:
+    graph = _terminal_turn_graph(tmp_path)
+    row = graph.program.provider_transcript[0]
+    assert row.response_ref is not None
+    response = _response_bytes(finish_reason="stop", text="still alive")
+    graph.payloads[row.response_ref] = response
+    graph.program = replace(
+        graph.program,
+        provider_transcript=(
+            replace(
+                row,
+                typed_turn=SubjectTurn("still alive", (), len(response), "stop"),
+                reported_output_token_ids=tuple(response),
+                reported_generated_tokens=len(response),
+            ),
+        ),
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+
+    with pytest.raises(ValueError, match="nonterminal|live|end state"):
+        prefix_index_module._assert_program_occurrence_replay(
+            program=graph.program,
+            responses=responses,
+            raw_events=raw_events,
+            payloads=graph.payloads,
+            authority=_program_occurrence_authority(graph),
+        )
+
+
+def test_s02d_nonselected_rejects_subfour_tool_nonterminal_eof(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    row = graph.program.provider_transcript[0]
+    assert row.typed_turn is not None
+    assert row.response_ref is not None
+    calls = row.typed_turn.tool_calls[:3]
+    response = _response_bytes(
+        finish_reason=row.typed_turn.finish_reason,
+        text=row.typed_turn.text,
+        tool_calls=calls,
+    )
+    graph.payloads[row.response_ref] = response
+    graph.program = replace(
+        graph.program,
+        expected_trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+        provider_transcript=(
+            replace(
+                row,
+                typed_turn=replace(
+                    row.typed_turn,
+                    tool_calls=calls,
+                    generated_tokens=len(response),
+                ),
+                reported_output_token_ids=tuple(response),
+                reported_generated_tokens=len(response),
+            ),
+        ),
+        tool_observations=graph.program.tool_observations[:3],
+        clock_trace=graph.program.clock_trace[:9],
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+
+    with pytest.raises(ValueError, match="nonterminal|live|end state"):
+        prefix_index_module._assert_program_occurrence_replay(
+            program=graph.program,
+            responses=responses,
+            raw_events=raw_events,
+            payloads=graph.payloads,
+            authority=_program_occurrence_authority(graph),
+        )
+
+
 def test_s02d_nonselected_rejects_unexplained_zero_tool_evidence(
     tmp_path: Path,
 ) -> None:
@@ -2360,6 +2437,224 @@ def test_s02d_postcommit_lock_close_failure_preserves_verified_target(
             )
 
     assert injected
+    assert "committed" in repr(captured.value).lower()
+    assert validate_record(json.loads(target.read_bytes()))
+
+
+def _source_line(function: object, fragment: str) -> int:
+    lines, start = inspect.getsourcelines(function)
+    matches = [start + index for index, line in enumerate(lines) if fragment in line]
+    if len(matches) != 1:
+        raise AssertionError(f"source fragment {fragment!r} is not unique")
+    return matches[0]
+
+
+def test_s02d_interrupt_after_locked_fstat_is_precommit_and_releases_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    function = prefix_index_module.seal_prefix_index
+    fstat_line = _source_line(function, "os.fstat(descriptor)")
+    armed = False
+    outer_descriptor: int | None = None
+    real_flock = prefix_index_module.fcntl.flock
+
+    def capture_flock(descriptor: int, operation: int) -> object:
+        nonlocal outer_descriptor
+        if operation == fcntl.LOCK_EX | fcntl.LOCK_NB:
+            outer_descriptor = descriptor
+        return real_flock(descriptor, operation)
+
+    def interrupt_after_fstat(
+        frame: object,
+        event: str,
+        _argument: object,
+    ) -> object:
+        nonlocal armed
+        if getattr(frame, "f_code") is function.__code__ and event == "line":
+            line = getattr(frame, "f_lineno")
+            if armed and line != fstat_line:
+                sys.settrace(None)
+                raise KeyboardInterrupt("injected after locked fstat")
+            if line == fstat_line:
+                armed = True
+        return interrupt_after_fstat
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(prefix_index_module.fcntl, "flock", capture_flock)
+        sys.settrace(interrupt_after_fstat)
+        try:
+            with pytest.raises(BaseException) as captured:
+                seal_prefix_index(
+                    run_root=run_root,
+                    schedule_ref=fixture.schedule_ref,
+                    candidate_refs=candidates,
+                    out=target,
+                )
+        finally:
+            sys.settrace(None)
+
+    try:
+        assert type(captured.value) is BaseExceptionGroup
+        assert "precommit" in repr(captured.value).lower()
+        assert not target.exists()
+        contender = os.open(run_root, prefix_index_module._DIRECTORY_FLAGS)
+        try:
+            real_flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            real_flock(contender, fcntl.LOCK_UN)
+        finally:
+            os.close(contender)
+    finally:
+        if outer_descriptor is not None:
+            try:
+                os.close(outer_descriptor)
+            except OSError:
+                pass
+
+
+def test_s02d_interrupt_before_verified_publication_return_rolls_back(
+    tmp_path: Path,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    function = prefix_index_module._seal_bound_prefix_index
+    return_line = _source_line(function, "return published")
+
+    def interrupt_before_return(
+        frame: object,
+        event: str,
+        _argument: object,
+    ) -> object:
+        if (
+            getattr(frame, "f_code") is function.__code__
+            and event == "line"
+            and getattr(frame, "f_lineno") == return_line
+        ):
+            sys.settrace(None)
+            raise KeyboardInterrupt("injected before verified publication return")
+        return interrupt_before_return
+
+    sys.settrace(interrupt_before_return)
+    try:
+        with pytest.raises(BaseException) as captured:
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=target,
+            )
+    finally:
+        sys.settrace(None)
+
+    assert type(captured.value) is BaseExceptionGroup
+    assert "precommit" in repr(captured.value).lower()
+    assert not target.exists()
+
+
+def test_s02d_interrupt_after_verified_result_is_committed_residual(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    function = prefix_index_module.seal_prefix_index
+    real_seal_bound = prefix_index_module._seal_bound_prefix_index
+    armed = False
+
+    def arm_after_verified(*args: object, **kwargs: object) -> object:
+        nonlocal armed
+        result = real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
+        armed = True
+        return result
+
+    def interrupt_after_verified(
+        frame: object,
+        event: str,
+        _argument: object,
+    ) -> object:
+        if armed and getattr(frame, "f_code") is function.__code__ and event == "line":
+            sys.settrace(None)
+            raise KeyboardInterrupt("injected after verified result")
+        return interrupt_after_verified
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(
+            prefix_index_module,
+            "_seal_bound_prefix_index",
+            arm_after_verified,
+        )
+        sys.settrace(interrupt_after_verified)
+        try:
+            with pytest.raises(BaseException) as captured:
+                seal_prefix_index(
+                    run_root=run_root,
+                    schedule_ref=fixture.schedule_ref,
+                    candidate_refs=candidates,
+                    out=target,
+                )
+        finally:
+            sys.settrace(None)
+
+    assert type(captured.value) is BaseExceptionGroup
+    assert "committed" in repr(captured.value).lower()
+    assert validate_record(json.loads(target.read_bytes()))
+
+
+def test_s02d_interrupt_before_cleanup_classification_is_committed_residual(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    function = prefix_index_module.seal_prefix_index
+    real_close = prefix_index_module.os.close
+    real_seal_bound = prefix_index_module._seal_bound_prefix_index
+    outer_descriptor: int | None = None
+    armed = False
+
+    def capture_outer(*args: object, **kwargs: object) -> object:
+        nonlocal outer_descriptor
+        outer_descriptor = kwargs["root_descriptor"]  # type: ignore[assignment]
+        return real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
+
+    def arm_after_close(descriptor: int) -> None:
+        nonlocal armed
+        real_close(descriptor)
+        if descriptor == outer_descriptor:
+            armed = True
+
+    def interrupt_before_classification(
+        frame: object,
+        event: str,
+        _argument: object,
+    ) -> object:
+        if armed and getattr(frame, "f_code") is function.__code__ and event == "line":
+            sys.settrace(None)
+            raise KeyboardInterrupt("injected before cleanup classification")
+        return interrupt_before_classification
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(prefix_index_module.os, "close", arm_after_close)
+        scoped.setattr(
+            prefix_index_module,
+            "_seal_bound_prefix_index",
+            capture_outer,
+        )
+        sys.settrace(interrupt_before_classification)
+        try:
+            with pytest.raises(BaseException) as captured:
+                seal_prefix_index(
+                    run_root=run_root,
+                    schedule_ref=fixture.schedule_ref,
+                    candidate_refs=candidates,
+                    out=target,
+                )
+        finally:
+            sys.settrace(None)
+
+    assert type(captured.value) is BaseExceptionGroup
     assert "committed" in repr(captured.value).lower()
     assert validate_record(json.loads(target.read_bytes()))
 
