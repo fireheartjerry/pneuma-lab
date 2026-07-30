@@ -233,6 +233,12 @@ def test_binary_gate_kernel_equal_weights_and_batch_are_bit_for_bit_equivalent()
     result = evaluate_binary_gate_batch(batch, AnalysisConfig(), critical_values=np.array([0.0]))
     assert bool(result.causal_pass[0]) is False
     assert result.content_estimate[0] == by_code["content_materiality"].observed
+    assert result.excess_estimate[0] == by_code["excess_materiality"].observed
+    assert result.content_sharp_p[0] == by_code["content_sharp"].observed
+    assert result.excess_sharp_p[0] == by_code["excess_sharp"].observed
+    assert result.differential_failure_gap[0] == by_code["differential_failure_gap"].observed
+    assert bool(result.all_benchmark_nonnegative[0]) is by_code["benchmark_nonnegative"].passed
+    assert bool(result.all_leave_one_nonnegative[0]) is by_code["leave_one_nonnegative"].passed
 
 
 def test_outcome_classifier_has_frozen_precedence_and_never_feasibility_no_go() -> None:
@@ -248,3 +254,7 @@ def test_outcome_classifier_has_frozen_precedence_and_never_feasibility_no_go() 
     assert classify_verdict(good, content=harmful, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"), secondary=secondary) is Verdict.HARMFUL_OR_MISDIRECTING
     unresolved = ContrastResult(0.01, 0.1, -0.1, 0.2, randomization)
     assert classify_verdict(good, content=unresolved, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"), secondary=secondary) is Verdict.UNRESOLVED_RESAMPLING
+    content_failure = [gate if gate.code != "content_sharp" else GateResult("content_sharp", False, 1.0, "<=", 0.05) for gate in good]
+    sham_secondary = SecondaryFamilyResult(("sham_packet", "continuation", "total"), (0.01, 0.8, 0.9), (0.03, 1.0, 1.0), bounds)
+    assert classify_verdict(content_failure, content=positive, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"), secondary=sham_secondary) is Verdict.SHAM_PACKET_ONLY
+    assert classify_verdict(content_failure, content=positive, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"), secondary=secondary) is Verdict.RESAMPLING_CONSISTENT

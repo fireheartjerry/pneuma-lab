@@ -1809,3 +1809,15 @@ The next event after the archived migration boundary is appended below.
 - **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
   tests/resampling_null/test_analysis.py -q` passed 15 tests; Ruff and
   `git diff --check` passed.
+
+### EJ-20260730-0183 — Task 7B count-level Fisher and resolution correction
+
+- **Correction:** Batch gates now compute registered sharp Fisher tails from
+  pattern-count dynamic states and compute exact NONE/RESAMPLE resolution from
+  count-level integer distributions. The covariance uses the scalar kernel's
+  ddof convention. Verdict fixtures cover all closed outcome labels other than
+  the intentionally unreachable feasibility label, including sham-only and
+  resampling-consistent paths.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_analysis.py -q` passed 15 tests; Ruff and
+  `git diff --check` passed.

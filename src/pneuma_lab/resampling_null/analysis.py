@@ -374,6 +374,81 @@ def _failure_gap(statistics: BinarySufficientStatistics) -> float:
     return max(abs(left - right) for left in rates for right in rates)
 
 
+def _count_sharp_tail(counts: np.ndarray, *, excess: bool, draws: int, seed: int) -> np.ndarray:
+    """Exact count-level Fisher tails; no task-row reconstruction is involved."""
+    result = np.empty(counts.shape[0], dtype=float)
+    for run in range(counts.shape[0]):
+        choices: list[tuple[Fraction, ...]] = []
+        observed = Fraction()
+        for benchmark_index, benchmark in enumerate(("SWE", "TAU")):
+            n = int(counts[run, benchmark_index].sum())
+            weight = Fraction(1, 2 * n)
+            for index, amount in enumerate(counts[run, benchmark_index]):
+                real, sham, none, resample = _PATTERNS[index]
+                if excess:
+                    values = (real, none, resample)
+                    options = tuple(weight * Fraction(3 * value - sum(values), 2) for value in values)
+                    observed += weight * Fraction(2 * real - none - resample, 2) * int(amount)
+                else:
+                    options = (weight * (real - sham), weight * (sham - real))
+                    observed += weight * (real - sham) * int(amount)
+                choices.extend([options] * int(amount))
+        support = 1
+        for options in choices:
+            support *= len(options)
+        distribution: Counter[Fraction] = Counter({Fraction(): 1})
+        for options in choices:
+            following: Counter[Fraction] = Counter()
+            for previous, mass in distribution.items():
+                for option in options:
+                    following[previous + option] += mass
+            distribution = following
+            if len(distribution) > _DYNAMIC_STATE_LIMIT:
+                # Same Philox/add-one rule and domain as the scalar primitive.
+                generator = _rng(seed, "excess" if excess else "content")
+                exceeds = 0
+                for _ in range(draws):
+                    statistic = sum((options[int(generator.integers(len(options)))] for options in choices), Fraction())
+                    exceeds += statistic >= observed
+                result[run] = (1 + exceeds) / (1 + draws)
+                break
+        else:
+            total = sum(distribution.values())
+            result[run] = sum(mass for value, mass in distribution.items() if value >= observed) / total
+    return result
+
+
+def _count_resolution(counts: np.ndarray) -> np.ndarray:
+    """Exact count-level NONE/RESAMPLE sign-flip resolution by integer DP."""
+    output = np.empty(counts.shape[0], dtype=float)
+    for run in range(counts.shape[0]):
+        roster = [int(counts[run, benchmark].sum()) for benchmark in range(2)]
+        discordant = [int(sum(counts[run, benchmark, index] for index, pattern in enumerate(_PATTERNS) if pattern[2] != pattern[3])) for benchmark in range(2)]
+        if roster[0] == roster[1]:
+            n, m = roster[0], sum(discordant)
+            masses = Counter({abs(Fraction(2 * k - m, 2 * n)): comb(m, k) for k in range(m + 1)})
+        else:
+            distribution: Counter[Fraction] = Counter({Fraction(): 1})
+            for benchmark, m in enumerate(discordant):
+                weight = Fraction(1, 2 * roster[benchmark])
+                for _ in range(m):
+                    following: Counter[Fraction] = Counter()
+                    for old, mass in distribution.items():
+                        following[old + weight] += mass
+                        following[old - weight] += mass
+                    distribution = following
+            masses = Counter()
+            for value, mass in distribution.items():
+                masses[abs(value)] += mass
+        total, cumulative = sum(masses.values()), 0
+        for value in sorted(masses):
+            cumulative += masses[value]
+            if cumulative * 20 >= total * 19:
+                output[run] = float(value)
+                break
+    return output
+
+
 def evaluate_binary_gate_kernel(
     statistics: BinarySufficientStatistics, config: AnalysisConfig, *, critical_value: float, seed: int = 0,
 ) -> tuple[GateResult, ...]:
@@ -447,16 +522,15 @@ def evaluate_binary_gate_batch(
     means_by_benchmark = np.einsum("nbi,ik->nbk", counts, contrast_matrix) / n[:, :, None]
     estimates = means_by_benchmark.mean(axis=1)
     centered_second = np.einsum("nbi,ik,il->nbkl", counts, contrast_matrix, contrast_matrix) / n[:, :, None, None]
-    covariance = (centered_second - np.einsum("nbk,nbl->nbkl", means_by_benchmark, means_by_benchmark)) / n[:, :, None, None]
+    numerator = centered_second - np.einsum("nbk,nbl->nbkl", means_by_benchmark, means_by_benchmark)
+    covariance = numerator / np.maximum(1, n - 1)[:, :, None, None]
     se = np.sqrt(np.maximum(0.0, covariance.sum(axis=1).diagonal(axis1=1, axis2=2) / 4))
-    primary_lowers = estimates - critical[:, None] * se
-    # Exact add-one sharp tails cannot be inferred from a normal approximation;
-    # this count kernel intentionally reports conservative p=1 unless supplied
-    # by the shared scalar randomization receipt.
-    content_p = np.ones(patterns.shape[0], dtype=np.float64)
-    excess_p = np.ones(patterns.shape[0], dtype=np.float64)
-    discordant = counts[:, :, 1::2].sum(axis=2)  # Z != N pattern parity in canonical bits.
-    r95 = np.where(n[:, 0] == n[:, 1], np.maximum(discordant[:, 0], discordant[:, 1]) / n[:, 0], 1.0)
+    se[np.any(n < 2, axis=1)] = np.inf
+    primary_lowers = np.full_like(estimates, -np.inf)
+    np.subtract(estimates, critical[:, None] * np.where(np.isfinite(se), se, 0.0), out=primary_lowers, where=np.isfinite(se))
+    content_p = _count_sharp_tail(counts, excess=False, draws=config.sharp_draws, seed=0)
+    excess_p = _count_sharp_tail(counts, excess=True, draws=config.sharp_draws, seed=0)
+    r95 = _count_resolution(counts)
     rates = failures / n[:, :, None]
     equal_rates = rates.mean(axis=1)
     gap = np.max(np.abs(equal_rates[:, :, None] - equal_rates[:, None, :]), axis=(1, 2))
