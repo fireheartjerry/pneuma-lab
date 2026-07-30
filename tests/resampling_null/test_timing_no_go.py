@@ -12,6 +12,7 @@ from jsonschema import Draft202012Validator
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 from pneuma_lab.resampling_null.errors import RecordValidationError
+from pneuma_lab.resampling_null import timing_no_go
 from pneuma_lab.resampling_null.timing_no_go import (
     TimingNoGoBindings,
     create_timing_no_go,
@@ -19,9 +20,6 @@ from pneuma_lab.resampling_null.timing_no_go import (
 )
 from pneuma_lab.resampling_null.types import ArtifactRef
 from pneuma_lab.schemas import load_schema
-
-
-HOST_IDENTITY = "1" * 64
 
 
 def _write_json(root: Path, relative_path: str, value: object) -> bytes:
@@ -60,7 +58,18 @@ def _mapping(ref: ArtifactRef) -> dict[str, object]:
     }
 
 
-def _fixture(tmp_path: Path, *, elapsed_lower_bound_seconds: int = 7200):
+def _fixture(
+    tmp_path: Path,
+    *,
+    elapsed_lower_bound_seconds: int = 7200,
+    host_identity_sha256: str | None = None,
+    p0_values: list[float] | None = None,
+):
+    host_identity = (
+        timing_no_go._current_host_identity_sha256()
+        if host_identity_sha256 is None
+        else host_identity_sha256
+    )
     topology_ref = _ref(
         tmp_path,
         "sources/power-screen-topology/topology.json",
@@ -79,6 +88,9 @@ def _fixture(tmp_path: Path, *, elapsed_lower_bound_seconds: int = 7200):
             "screen_datasets_per_cell": 200,
             "datasets_per_cell": 20000,
             "max_projected_wall_seconds": 43200,
+            "p0_values": [0.1, 0.4, 0.7] if p0_values is None else p0_values,
+            "trigger_rates": [0.6, 0.75, 0.9],
+            "latent_rhos": [0.0, 0.4, 0.8],
         },
         role="power_grid",
     )
@@ -106,7 +118,7 @@ def _fixture(tmp_path: Path, *, elapsed_lower_bound_seconds: int = 7200):
         role="power_authority",
         media_type="application/vnd.pneuma.power-authority+json",
     )
-    run_identity = hashlib.sha256(str(tmp_path.resolve()).encode("utf-8")).hexdigest()
+    run_identity = timing_no_go._run_root_identity(tmp_path.resolve())
     started_ns = 1_000_000_000
     observed_ns = started_ns + elapsed_lower_bound_seconds * 1_000_000_000
     evidence_ref = _ref(
@@ -117,7 +129,7 @@ def _fixture(tmp_path: Path, *, elapsed_lower_bound_seconds: int = 7200):
             "execution_owner": "task_10_canonical_timing_rerun",
             "machinery_owner": "task_8_timing_admission",
             "run_root_identity_sha256": run_identity,
-            "host_identity_sha256": HOST_IDENTITY,
+            "host_identity_sha256": host_identity,
             "clock": {
                 "source": "time.monotonic_ns",
                 "started_monotonic_ns": started_ns,
@@ -142,7 +154,7 @@ def _fixture(tmp_path: Path, *, elapsed_lower_bound_seconds: int = 7200):
         power_screen_topology_ref=topology_ref,
         termination_evidence_ref=evidence_ref,
         run_root_identity_sha256=run_identity,
-        host_identity_sha256=HOST_IDENTITY,
+        host_identity_sha256=host_identity,
     )
     return bindings
 
@@ -274,5 +286,62 @@ def test_verification_rejects_malformed_file_at_forbidden_path(
 ) -> None:
     path = create_timing_no_go(_fixture(tmp_path), run_root=tmp_path)
     (tmp_path / "power/screen.json").write_bytes(b"not-json\n")
+    with pytest.raises(RecordValidationError, match="forbidden descendant"):
+        verify_timing_no_go(path, run_root=tmp_path)
+
+
+def test_creation_rejects_parent_symlink_escape(tmp_path: Path) -> None:
+    bindings = _fixture(tmp_path)
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir()
+    (tmp_path / "timing-admission").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(
+        RecordValidationError, match="canonical directory|safely|forbidden descendant"
+    ):
+        create_timing_no_go(bindings, run_root=tmp_path)
+    assert not (outside / "task8-timing-no-go.json").exists()
+
+
+def test_projection_uses_unbounded_exact_integer_arithmetic(tmp_path: Path) -> None:
+    elapsed = 10**400
+    path = create_timing_no_go(
+        _fixture(tmp_path, elapsed_lower_bound_seconds=elapsed),
+        run_root=tmp_path,
+    )
+    record = verify_timing_no_go(path, run_root=tmp_path)
+    assert record["payload"]["projection"]["projected_wall_seconds_lower_bound"] == (
+        elapsed * 100
+    )
+
+
+def test_creation_derives_2916_cells_from_the_frozen_grid(tmp_path: Path) -> None:
+    with pytest.raises(RecordValidationError, match="2916|grid"):
+        create_timing_no_go(
+            _fixture(tmp_path, p0_values=[0.1, 0.4]),
+            run_root=tmp_path,
+        )
+
+
+def test_creation_rejects_consistently_relabelled_host(tmp_path: Path) -> None:
+    actual = timing_no_go._current_host_identity_sha256()
+    relabelled = "0" * 64 if actual != "0" * 64 else "1" * 64
+    with pytest.raises(RecordValidationError, match="current host"):
+        create_timing_no_go(
+            _fixture(tmp_path, host_identity_sha256=relabelled),
+            run_root=tmp_path,
+        )
+
+
+def test_run_identity_binds_filesystem_object_not_only_path(tmp_path: Path) -> None:
+    bindings = _fixture(tmp_path)
+    path_only = hashlib.sha256(str(tmp_path.resolve()).encode("utf-8")).hexdigest()
+    assert bindings.run_root_identity_sha256 != path_only
+
+
+def test_verification_rejects_non_json_descendant_namespace(tmp_path: Path) -> None:
+    path = create_timing_no_go(_fixture(tmp_path), run_root=tmp_path)
+    target = tmp_path / "analysis/result.bin"
+    target.parent.mkdir()
+    target.write_bytes(b"descendant")
     with pytest.raises(RecordValidationError, match="forbidden descendant"):
         verify_timing_no_go(path, run_root=tmp_path)

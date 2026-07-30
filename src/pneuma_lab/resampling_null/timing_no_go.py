@@ -7,9 +7,10 @@ an ArtifactRef, never emits a power stage, and cannot authorize descendants.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
+import fcntl
 import hashlib
-import math
 import os
 from pathlib import Path, PurePosixPath
 import stat
@@ -78,19 +79,6 @@ _CLAIM_FIELDS = (
     "task_8_scientifically_complete",
     "task_10_complete",
 )
-_DOWNSTREAM_RECORD_KINDS = {
-    "resampling_prefix_schedule",
-    "resampling_prefix_receipt",
-    "resampling_assignment_ledger",
-    "resampling_packet_index",
-    "resampling_task_block",
-    "resampling_blinded_projection",
-    "resampling_analysis_freeze",
-    "resampling_analysis",
-    "resampling_unblind_receipt",
-}
-
-
 @dataclass(frozen=True, slots=True)
 class TimingNoGoBindings:
     """Exact immutable inputs to one Task-8 timing no-go representation."""
@@ -138,7 +126,31 @@ def _root(run_root: Path) -> Path:
 
 
 def _run_root_identity(root: Path) -> str:
-    return hashlib.sha256(str(root).encode("utf-8")).hexdigest()
+    metadata = os.stat(root, follow_symlinks=False)
+    identity = {
+        "contract_id": "local-run-root-identity-v1",
+        "normalized_path": str(root),
+        "st_dev": metadata.st_dev,
+        "st_ino": metadata.st_ino,
+    }
+    return hashlib.sha256(canonical_json_bytes(identity, indent=None)).hexdigest()
+
+
+def _current_host_identity_sha256() -> str:
+    """Bind the record to the machine that can read its stable local identity."""
+
+    try:
+        machine_id = Path("/etc/machine-id").read_text(encoding="ascii").strip()
+    except OSError as exc:
+        raise RecordValidationError("current host identity is unavailable") from exc
+    if not machine_id:
+        raise RecordValidationError("current host identity is empty")
+    identity = {
+        "contract_id": "local-host-identity-v1",
+        "machine_id_sha256": hashlib.sha256(machine_id.encode("ascii")).hexdigest(),
+        "machine_architecture": os.uname().machine,
+    }
+    return hashlib.sha256(canonical_json_bytes(identity, indent=None)).hexdigest()
 
 
 def _read_confined(root: Path, relative_path: str) -> bytes:
@@ -236,9 +248,19 @@ def _validate_artifact_graph(
         "screen_datasets_per_cell": _SCREEN_DATASETS_PER_CELL,
         "datasets_per_cell": _PRODUCTION_DATASETS_PER_CELL,
         "max_projected_wall_seconds": _MAX_PROJECTED_WALL_SECONDS,
+        "p0_values": [0.1, 0.4, 0.7],
+        "trigger_rates": [0.6, 0.75, 0.9],
+        "latent_rhos": [0.0, 0.4, 0.8],
     }
     if any(grid.get(field) != expected for field, expected in expected_grid.items()):
         raise RecordValidationError("power grid differs from frozen timing constants")
+    nuisance_count = (
+        len(cast(list[object], grid["p0_values"]))
+        * len(cast(list[object], grid["trigger_rates"]))
+        * len(cast(list[object], grid["latent_rhos"]))
+    )
+    if 4 * nuisance_count * nuisance_count != _CELL_COUNT:
+        raise RecordValidationError("power grid does not derive the frozen 2916 cells")
 
     _, topology_value = _read_ref(
         root, bindings.power_screen_topology_ref, field="power topology"
@@ -312,6 +334,8 @@ def _validate_evidence(
     }
     if any(evidence.get(field) != value for field, value in expected.items()):
         raise RecordValidationError("termination evidence identity binding differs")
+    if bindings.host_identity_sha256 != _current_host_identity_sha256():
+        raise RecordValidationError("termination evidence does not bind the current host")
     clock = _mapping(evidence.get("clock"), field="monotonic clock evidence")
     if set(clock) != {
         "source",
@@ -356,49 +380,82 @@ def _validate_evidence(
     return clock, termination, cast(int, elapsed)
 
 
-def _forbidden_descendants(root: Path) -> tuple[str, ...]:
+def _forbidden_descendants(
+    root: Path, *, bindings: TimingNoGoBindings
+) -> tuple[str, ...]:
     forbidden: list[str] = []
-    timing_record = _RECORD_PATH.as_posix()
-    for path in root.rglob("*.json"):
-        relative = path.relative_to(root).as_posix()
-        if relative == timing_record:
-            continue
-        if (
-            relative == "power/screen.json"
-            or relative == "power/final.json"
-            or (
-                relative.startswith("power/shard-")
-                and relative.endswith(".json")
-            )
-            or relative.startswith("power-timing-verifications/")
-        ):
-            forbidden.append(relative)
-            continue
-        try:
-            raw = path.read_bytes()
-            value = load_json_bytes(raw, source=path)
-        except (OSError, RecordValidationError):
-            continue
-        if not isinstance(value, Mapping):
-            continue
-        kind = value.get("record_kind")
-        payload = value.get("payload")
-        if kind == "resampling_power_report":
-            stage = payload.get("stage") if isinstance(payload, Mapping) else None
-            if stage in {"screen", "shard", "selection", "validation", "final"}:
+    allowed_files = {
+        ".pneuma-power-screen.lock",
+        _RECORD_PATH.as_posix(),
+        *(ref.relative_path for ref in (
+            bindings.study_manifest_ref,
+            bindings.power_authority_ref,
+            bindings.power_grid_ref,
+            bindings.power_screen_topology_ref,
+            bindings.termination_evidence_ref,
+        )),
+    }
+    for directory, directory_names, file_names in os.walk(root, followlinks=False):
+        current = Path(directory)
+        for name in tuple(directory_names):
+            candidate = current / name
+            if candidate.is_symlink():
+                forbidden.append(candidate.relative_to(root).as_posix())
+                directory_names.remove(name)
+        for name in file_names:
+            path = current / name
+            relative = path.relative_to(root).as_posix()
+            if relative in allowed_files or relative.startswith("sources/"):
+                continue
+            if path.is_symlink():
                 forbidden.append(relative)
-        elif kind in _DOWNSTREAM_RECORD_KINDS:
+                continue
+            # Every file outside the immutable source namespace and the exact
+            # bound inputs is a descendant. Content parsing is diagnostic only;
+            # malformed bytes and non-JSON extensions cannot hide existence.
             forbidden.append(relative)
-    return tuple(sorted(forbidden))
+    return tuple(sorted(set(forbidden)))
 
 
-def _assert_no_forbidden_descendants(root: Path) -> None:
-    descendants = _forbidden_descendants(root)
+def _assert_no_forbidden_descendants(
+    root: Path, *, bindings: TimingNoGoBindings
+) -> None:
+    descendants = _forbidden_descendants(root, bindings=bindings)
     if descendants:
         raise RecordValidationError(
             "forbidden descendant exists after timing termination: "
             + ", ".join(descendants)
         )
+
+
+@contextmanager
+def _timing_publication_lock(root: Path):
+    """Share the production screen lock across absence check and publication."""
+
+    root_descriptor = os.open(root, _DIRECTORY_FLAGS)
+    descriptor: int | None = None
+    try:
+        try:
+            descriptor = os.open(
+                ".pneuma-power-screen.lock",
+                os.O_RDWR
+                | os.O_CREAT
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_CLOEXEC", 0),
+                0o600,
+                dir_fd=root_descriptor,
+            )
+        except OSError as exc:
+            raise RecordValidationError("timing publication lock is unsafe") from exc
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        if descriptor is not None:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+            finally:
+                os.close(descriptor)
+        os.close(root_descriptor)
 
 
 def _record(
@@ -408,9 +465,7 @@ def _record(
     termination: Mapping[str, object],
     elapsed: int,
 ) -> dict[str, object]:
-    projected = math.ceil(
-        elapsed * _PRODUCTION_DATASETS_PER_CELL / _SCREEN_DATASETS_PER_CELL
-    )
+    projected = elapsed * _MULTIPLIER
     if projected <= _MAX_PROJECTED_WALL_SECONDS:
         raise RecordValidationError("projected lower bound is not timing-infeasible")
     return {
@@ -465,31 +520,68 @@ def _validate_schema(record: Mapping[str, object]) -> None:
         raise RecordValidationError(f"timing no-go schema/claim validation failed: {message}")
 
 
-def _fsync_directory(path: Path) -> None:
-    descriptor = os.open(path, _DIRECTORY_FLAGS)
+def _exclusive_write(root: Path, payload: bytes) -> None:
+    root_descriptor = os.open(root, _DIRECTORY_FLAGS)
+    directory_descriptor: int | None = None
+    descriptor: int | None = None
+    created_directory = False
     try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def _exclusive_write(path: Path, payload: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor = os.open(path, _WRITE_FLAGS, 0o600)
-    try:
-        view = memoryview(payload)
-        while view:
-            written = os.write(descriptor, view)
-            if written <= 0:
-                raise OSError("short write")
-            view = view[written:]
-        os.fsync(descriptor)
-    except BaseException:
-        path.unlink(missing_ok=True)
+        try:
+            os.mkdir("timing-admission", mode=0o700, dir_fd=root_descriptor)
+            created_directory = True
+        except FileExistsError:
+            pass
+        directory_descriptor = os.open(
+            "timing-admission", _DIRECTORY_FLAGS, dir_fd=root_descriptor
+        )
+        if created_directory:
+            os.fsync(root_descriptor)
+        descriptor = os.open(
+            "task8-timing-no-go.json",
+            _WRITE_FLAGS,
+            0o600,
+            dir_fd=directory_descriptor,
+        )
+        opened_identity = os.fstat(descriptor)
+        try:
+            view = memoryview(payload)
+            while view:
+                written = os.write(descriptor, view)
+                if written <= 0:
+                    raise OSError("short write")
+                view = view[written:]
+            os.fsync(descriptor)
+        except BaseException:
+            try:
+                named = os.stat(
+                    "task8-timing-no-go.json",
+                    dir_fd=directory_descriptor,
+                    follow_symlinks=False,
+                )
+            except FileNotFoundError:
+                named = None
+            if (
+                named is not None
+                and (named.st_dev, named.st_ino)
+                == (opened_identity.st_dev, opened_identity.st_ino)
+            ):
+                os.unlink(
+                    "task8-timing-no-go.json", dir_fd=directory_descriptor
+                )
+            raise
+        os.fsync(directory_descriptor)
+    except FileExistsError:
         raise
+    except OSError as exc:
+        raise RecordValidationError(
+            "canonical directory or record cannot be published safely"
+        ) from exc
     finally:
-        os.close(descriptor)
-    _fsync_directory(path.parent)
+        if descriptor is not None:
+            os.close(descriptor)
+        if directory_descriptor is not None:
+            os.close(directory_descriptor)
+        os.close(root_descriptor)
 
 
 def create_timing_no_go(
@@ -500,15 +592,17 @@ def create_timing_no_go(
     if type(bindings) is not TimingNoGoBindings:
         raise TypeError("bindings must be exact TimingNoGoBindings")
     root = _root(run_root)
-    evidence = _validate_artifact_graph(bindings, root=root)
-    clock, termination, elapsed = _validate_evidence(evidence, bindings)
-    _assert_no_forbidden_descendants(root)
-    record = _record(
-        bindings, clock=clock, termination=termination, elapsed=elapsed
-    )
-    _validate_schema(record)
-    destination = root / _RECORD_PATH
-    _exclusive_write(destination, canonical_json_bytes(record, indent=None))
+    with _timing_publication_lock(root):
+        evidence = _validate_artifact_graph(bindings, root=root)
+        clock, termination, elapsed = _validate_evidence(evidence, bindings)
+        _assert_no_forbidden_descendants(root, bindings=bindings)
+        record = _record(
+            bindings, clock=clock, termination=termination, elapsed=elapsed
+        )
+        _validate_schema(record)
+        destination = root / _RECORD_PATH
+        _exclusive_write(root, canonical_json_bytes(record, indent=None))
+        _assert_no_forbidden_descendants(root, bindings=bindings)
     return destination
 
 
@@ -523,24 +617,27 @@ def verify_timing_no_go(path: Path, *, run_root: Path) -> dict[str, object]:
         raise RecordValidationError("timing no-go record is missing") from exc
     if actual != expected.resolve(strict=True):
         raise RecordValidationError("timing no-go record is not at its canonical path")
-    raw = _read_confined(root, _RECORD_PATH.as_posix())
-    value = load_json_bytes(raw, source=expected)
-    if not isinstance(value, Mapping):
-        raise RecordValidationError("timing no-go record must be an object")
-    record = dict(value)
-    if canonical_json_bytes(record, indent=None) != raw:
-        raise RecordValidationError("timing no-go record bytes are not canonical")
-    _validate_schema(record)
-    payload = _mapping(record.get("payload"), field="timing no-go payload")
-    bindings = _decode_bindings(payload.get("bindings"))
-    evidence = _validate_artifact_graph(bindings, root=root)
-    clock, termination, elapsed = _validate_evidence(evidence, bindings)
-    expected_record = _record(
-        bindings, clock=clock, termination=termination, elapsed=elapsed
-    )
-    if record != expected_record:
-        raise RecordValidationError("timing no-go record differs from bound evidence")
-    _assert_no_forbidden_descendants(root)
+    with _timing_publication_lock(root):
+        raw = _read_confined(root, _RECORD_PATH.as_posix())
+        value = load_json_bytes(raw, source=expected)
+        if not isinstance(value, Mapping):
+            raise RecordValidationError("timing no-go record must be an object")
+        record = dict(value)
+        if canonical_json_bytes(record, indent=None) != raw:
+            raise RecordValidationError("timing no-go record bytes are not canonical")
+        _validate_schema(record)
+        payload = _mapping(record.get("payload"), field="timing no-go payload")
+        bindings = _decode_bindings(payload.get("bindings"))
+        evidence = _validate_artifact_graph(bindings, root=root)
+        clock, termination, elapsed = _validate_evidence(evidence, bindings)
+        expected_record = _record(
+            bindings, clock=clock, termination=termination, elapsed=elapsed
+        )
+        if record != expected_record:
+            raise RecordValidationError(
+                "timing no-go record differs from bound evidence"
+            )
+        _assert_no_forbidden_descendants(root, bindings=bindings)
     return record
 
 
