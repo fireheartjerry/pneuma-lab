@@ -7,9 +7,17 @@ import pytest
 
 from pneuma_lab.resampling_null.branch_program_authority import (
     load_branch_program_registry,
+    reconcile_branch_program_refs,
+    resolve_branch_program_refs,
 )
 from pneuma_lab.resampling_null.artifacts import validate_record
 from pneuma_lab.resampling_null.errors import RecordValidationError
+from pneuma_lab.resampling_null.types import (
+    ArtifactRef,
+    BranchCaps,
+    OpaqueSlotIdentity,
+    OpaqueSlotWorkOrder,
+)
 from tests.resampling_null.provider_authority_fixture import ProviderAuthorityFixture
 
 
@@ -181,3 +189,81 @@ def test_study_seal_rejects_invalid_branch_program_authority_without_writes(
         fixture.seal()
 
     assert list(fixture.run_root.iterdir()) == []
+
+
+def _work_orders() -> tuple[OpaqueSlotWorkOrder, ...]:
+    snapshot = ArtifactRef(
+        "composite_snapshot",
+        "controller-artifacts/composite_snapshot/a.json",
+        "a" * 64,
+        1,
+        "application/json",
+    )
+    caps = BranchCaps(10, 2, 2, 100, True)
+    return tuple(
+        OpaqueSlotWorkOrder(
+            study_id="study-1",
+            task_id="task-1",
+            benchmark="swe",
+            slot=OpaqueSlotIdentity(
+                slot_id=f"slot-{ordinal}",
+                opaque_capability_id=str(ordinal + 5) * 64,
+                seed=ordinal,
+                execution_order=ordinal,
+                hardware_lane=0,
+            ),
+            snapshot_ref=snapshot,
+            private_guidance_ref=None,
+            prefix_visible_sha256="b" * 64,
+            packet_index_sha256="c" * 64,
+            analysis_freeze_sha256="d" * 64,
+            branch_caps=caps,
+        )
+        for ordinal in range(4)
+    )
+
+
+def test_branch_program_reconciliation_uses_later_schedule_order() -> None:
+    registry = load_branch_program_registry(_bytes(_registry()))
+    orders = _work_orders()
+
+    refs = reconcile_branch_program_refs(
+        registry=registry,
+        task_id="task-1",
+        scheduled_slots=tuple(order.slot for order in orders),
+        work_orders=orders,
+    )
+
+    assert [ref.sha256 for ref in refs] == [char * 64 for char in "1234"]
+
+
+def test_branch_program_reconciliation_rejects_reordered_work_orders() -> None:
+    registry = load_branch_program_registry(_bytes(_registry()))
+    orders = _work_orders()
+
+    with pytest.raises(RecordValidationError, match="schedule slot order"):
+        reconcile_branch_program_refs(
+            registry=registry,
+            task_id="task-1",
+            scheduled_slots=tuple(order.slot for order in orders),
+            work_orders=(orders[1], orders[0], orders[2], orders[3]),
+        )
+
+
+def test_branch_program_resolution_is_rooted_only_in_study_manifest(
+    tmp_path: Path,
+) -> None:
+    fixture = ProviderAuthorityFixture.build_study(tmp_path, failure_mode=None)
+    study_ref = fixture.seal()
+    orders = _work_orders()
+
+    refs = resolve_branch_program_refs(
+        run_root=fixture.run_root,
+        study_ref=study_ref,
+        task_id="task-1",
+        scheduled_slots=tuple(order.slot for order in orders),
+        work_orders=orders,
+    )
+
+    assert len(refs) == 4
+    assert all(ref.role == "synthetic_execution_program" for ref in refs)
