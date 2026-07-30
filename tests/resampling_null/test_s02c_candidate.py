@@ -654,9 +654,7 @@ def test_t5_s02cd_authority_acquisition_preserves_fstat_and_close_failures(
     with pytest.raises(BaseExceptionGroup) as captured:
         reader.__enter__()
 
-    assert [
-        str(error) for error in captured.value.exceptions
-    ] == [
+    assert [str(error) for error in captured.value.exceptions] == [
         "injected authority fstat failure",
         "injected authority acquisition close failure",
     ]
@@ -865,10 +863,15 @@ def test_t5_s02cd_shared_grade_ref_is_checked_per_program_occurrence(
             schedule_ref=fixture.schedule_ref,
             task_id="task-1",
         )
-    assert captured.value.subgroup(
-        lambda error: isinstance(error, ValueError)
-        and "grade evidence fields differ" in str(error)
-    ) is not None
+    assert (
+        captured.value.subgroup(
+            lambda error: (
+                isinstance(error, ValueError)
+                and "grade evidence fields differ" in str(error)
+            )
+        )
+        is not None
+    )
 
 
 @pytest.mark.parametrize(

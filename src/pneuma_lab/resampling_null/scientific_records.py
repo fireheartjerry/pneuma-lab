@@ -23,10 +23,12 @@ from .prefix_contracts import SCIENTIFIC_PARENT_KIND
 from .types import ArtifactRef
 
 
-_SCIENTIFIC_PATH_BY_ROLE: Mapping[str, str] = MappingProxyType({
-    "resampling_prefix_schedule": "prefix-schedule.json",
-    "study_manifest": "study-manifest.json",
-})
+_SCIENTIFIC_PATH_BY_ROLE: Mapping[str, str] = MappingProxyType(
+    {
+        "resampling_prefix_schedule": "prefix-schedule.json",
+        "study_manifest": "study-manifest.json",
+    }
+)
 
 if set(_SCIENTIFIC_PATH_BY_ROLE) != set(SCIENTIFIC_PARENT_KIND):
     raise RuntimeError("scientific role/path registry coverage drifted")
@@ -60,10 +62,9 @@ class ScientificRefReader:
         try:
             before = os.fstat(owned_descriptor)
             named = os.stat(self.run_root, follow_symlinks=False)
-            if (
-                not stat.S_ISDIR(before.st_mode)
-                or (before.st_dev, before.st_ino)
-                != (named.st_dev, named.st_ino)
+            if not stat.S_ISDIR(before.st_mode) or (before.st_dev, before.st_ino) != (
+                named.st_dev,
+                named.st_ino,
             ):
                 raise RecordValidationError(
                     "scientific run_root identity changed during binding"
@@ -129,9 +130,7 @@ class ScientificRefReader:
             )
             before = os.fstat(descriptor)
             if not stat.S_ISREG(before.st_mode):
-                raise RecordValidationError(
-                    "scientific parent must be a regular file"
-                )
+                raise RecordValidationError("scientific parent must be a regular file")
             digest = hashlib.sha256()
             chunks: list[bytes] = []
             size = 0
@@ -255,36 +254,26 @@ def _decode_scientific_parent(
         )
     expected_role = expected_roles[0]
     if ref.role != expected_role:
-        raise RecordValidationError(
-            f"{field} scientific role must be {expected_role}"
-        )
+        raise RecordValidationError(f"{field} scientific role must be {expected_role}")
     if ref.media_type != "application/json":
-        raise RecordValidationError(
-            f"{field} must reference application/json"
-        )
+        raise RecordValidationError(f"{field} must reference application/json")
     expected_path = _SCIENTIFIC_PATH_BY_ROLE[expected_role]
     if ref.relative_path != expected_path:
-        raise RecordValidationError(
-            f"{field} scientific path must be {expected_path}"
-        )
+        raise RecordValidationError(f"{field} scientific path must be {expected_path}")
     root = Path(run_root).resolve(strict=True)
     path = root / ref.relative_path
     decoded = load_json_bytes(raw, source=path)
     if not isinstance(decoded, Mapping):
-        raise RecordValidationError(
-            f"{field} must reference a JSON object"
-        )
+        raise RecordValidationError(f"{field} must reference a JSON object")
     validated = validate_record(cast(Mapping[str, object], decoded))
     if validated["record_kind"] != expected_kind:
         raise RecordValidationError(
-            f"{field} must reference {expected_kind}, "
-            f"got {validated['record_kind']}"
+            f"{field} must reference {expected_kind}, got {validated['record_kind']}"
         )
     payload = cast(Mapping[str, object], validated["payload"])
     if expected_stage is not None and payload.get("stage") != expected_stage:
         raise RecordValidationError(
-            f"{field} must reference {expected_kind} "
-            f"stage {expected_stage!r}"
+            f"{field} must reference {expected_kind} stage {expected_stage!r}"
         )
     return ScientificRecord(
         path=path,

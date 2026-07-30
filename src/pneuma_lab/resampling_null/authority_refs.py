@@ -25,9 +25,7 @@ ARTIFACT_REF_FIELDS = (
     "media_type",
 )
 _ARTIFACT_REF_FIELD_SET = frozenset(ARTIFACT_REF_FIELDS)
-_DIRECTORY_FLAGS = (
-    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
-)
+_DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 _READ_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 _HASH_CHUNK_BYTES = 1024 * 1024
 
@@ -112,9 +110,7 @@ def decode_artifact_ref(
     except (TypeError, ValueError) as exc:
         raise RecordValidationError(f"{field} is malformed: {exc}") from exc
     if expected_role is not None and ref.role != expected_role:
-        raise RecordValidationError(
-            f"{field} role must equal {expected_role!r}"
-        )
+        raise RecordValidationError(f"{field} role must equal {expected_role!r}")
     return ref
 
 
@@ -151,9 +147,7 @@ def load_json_bytes(payload: bytes, *, source: Path) -> object:
         result: dict[str, object] = {}
         for key, value in pairs:
             if key in result:
-                raise RecordValidationError(
-                    f"{source}: duplicate JSON key: {key!r}"
-                )
+                raise RecordValidationError(f"{source}: duplicate JSON key: {key!r}")
             result[key] = value
         return result
 
@@ -167,9 +161,7 @@ def load_json_bytes(payload: bytes, *, source: Path) -> object:
     except RecordValidationError:
         raise
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise RecordValidationError(
-            f"{source}: invalid UTF-8 JSON: {exc}"
-        ) from exc
+        raise RecordValidationError(f"{source}: invalid UTF-8 JSON: {exc}") from exc
 
 
 class AuthorityRefReader:
@@ -196,10 +188,9 @@ class AuthorityRefReader:
         try:
             bound = os.fstat(owned_descriptor)
             named = os.stat(self.run_root, follow_symlinks=False)
-            if (
-                not stat.S_ISDIR(bound.st_mode)
-                or (bound.st_dev, bound.st_ino)
-                != (named.st_dev, named.st_ino)
+            if not stat.S_ISDIR(bound.st_mode) or (bound.st_dev, bound.st_ino) != (
+                named.st_dev,
+                named.st_ino,
             ):
                 raise RecordValidationError(
                     "authority run_root identity changed during binding"
@@ -294,8 +285,7 @@ class AuthorityRefReader:
             before = os.fstat(file_descriptor)
             if not stat.S_ISREG(before.st_mode):
                 raise RecordValidationError(
-                    "artifact_ref must identify a regular file: "
-                    f"{ref.relative_path!r}"
+                    f"artifact_ref must identify a regular file: {ref.relative_path!r}"
                 )
             digest = hashlib.sha256()
             chunks: list[bytes] = []
@@ -318,14 +308,12 @@ class AuthorityRefReader:
                 or not stat.S_ISREG(named.st_mode)
             ):
                 raise RecordValidationError(
-                    "artifact_ref identity changed during read: "
-                    f"{ref.relative_path!r}"
+                    f"artifact_ref identity changed during read: {ref.relative_path!r}"
                 )
             physical_ref = self._physical_bindings.get(identity)
             if physical_ref is not None and physical_ref != ref:
                 raise RecordValidationError(
-                    "artifact_ref physical file alias: "
-                    f"{ref.relative_path!r}"
+                    f"artifact_ref physical file alias: {ref.relative_path!r}"
                 )
             payload = b"".join(chunks)
             result = BoundArtifactRead(
@@ -372,10 +360,7 @@ class AuthorityRefReader:
             )
         if result is None:
             raise AssertionError("authority read produced no result")
-        if (
-            result.sha256 != ref.sha256
-            or result.byte_count != ref.byte_count
-        ):
+        if result.sha256 != ref.sha256 or result.byte_count != ref.byte_count:
             raise RecordValidationError(
                 f"artifact_ref bytes mismatch: {ref.relative_path!r}"
             )
@@ -408,13 +393,9 @@ class AuthorityRefReader:
         expected_role: str,
     ) -> dict[str, object]:
         if ref.role != expected_role:
-            raise RecordValidationError(
-                f"{field} role must equal {expected_role!r}"
-            )
+            raise RecordValidationError(f"{field} role must equal {expected_role!r}")
         if ref.media_type != "application/json":
-            raise RecordValidationError(
-                f"{field} must reference application/json"
-            )
+            raise RecordValidationError(f"{field} must reference application/json")
         if ref not in self._decoded:
             payload = self.read_bytes(ref)
             value = load_json_bytes(
@@ -422,15 +403,11 @@ class AuthorityRefReader:
                 source=self.run_root / ref.relative_path,
             )
             if canonical and payload != canonical_json_bytes(value, indent=None):
-                raise RecordValidationError(
-                    f"{field} must be compact canonical JSON"
-                )
+                raise RecordValidationError(f"{field} must be compact canonical JSON")
             self._decoded[ref] = value
         value = self._decoded[ref]
         if not isinstance(value, Mapping):
-            raise RecordValidationError(
-                f"{field} must reference a JSON object"
-            )
+            raise RecordValidationError(f"{field} must reference a JSON object")
         return dict(value)
 
     def verify_closure(
@@ -442,9 +419,7 @@ class AuthorityRefReader:
         visited: set[ArtifactRef] | None = None,
     ) -> object:
         if expected_role is not None and ref.role != expected_role:
-            raise RecordValidationError(
-                f"{field} role must equal {expected_role!r}"
-            )
+            raise RecordValidationError(f"{field} role must equal {expected_role!r}")
         observed = visited if visited is not None else set()
         if ref in observed:
             return self._decoded.get(ref)
@@ -458,9 +433,7 @@ class AuthorityRefReader:
                 source=self.run_root / ref.relative_path,
             )
             if payload != canonical_json_bytes(value, indent=None):
-                raise RecordValidationError(
-                    f"{field} must be compact canonical JSON"
-                )
+                raise RecordValidationError(f"{field} must be compact canonical JSON")
             self._decoded[ref] = value
         value = self._decoded[ref]
         for index, nested_ref in enumerate(walk_artifact_refs(value)):
