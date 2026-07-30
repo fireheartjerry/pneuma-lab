@@ -1873,3 +1873,18 @@ The next event after the archived migration boundary is appended below.
   byte compilation, and `git diff --check` passed.
 - **Boundary/non-claim:** Still no simulator, screening, tier selection,
   provider action, spend, benchmark execution, P0 result, or promoted claim.
+
+### EJ-20260730-0187 — Task 8A ceremony-cryptography correction
+
+- **Correction:** Replaced shaped eligibility receipt hashes with the shared
+  typed commitment frame: the nonce reveal now recomputes the manifest's
+  `roster-local-nonce` commitment, the precommit repeats all three manifest
+  commitments and is canonically digested, the timestamp binds that digest and
+  frozen timestamp, and the roster seed is recomputed from the fixed drand
+  chain/round/randomness with the exact `roster-seed-v1` frame. Altered study,
+  nonce, commitment, precommit, beacon, or seed bytes fail before authority
+  sealing.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power_authority.py -q` passed 6 tests; Ruff and
+  byte compilation passed. No external ceremony, provider, spend, simulation,
+  or scientific result occurred.

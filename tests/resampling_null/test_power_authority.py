@@ -10,6 +10,7 @@ import pytest
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 from pneuma_lab.resampling_null.errors import RecordValidationError
 from pneuma_lab.resampling_null.artifacts import _scientific_documents, _validate_power_identities, write_record
+from pneuma_lab.resampling_null.assignment import BytesField, U64Field, commitment_sha256, kdf_frame
 from pneuma_lab.resampling_null.power import (
     RNG_CONTRACT_SHA256,
     grid_content_sha256,
@@ -40,6 +41,11 @@ def _write(root: Path, path: str, value: object) -> ArtifactRef:
 
 
 def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligibility_tier_mismatch: bool = False) -> ArtifactRef:
+    study_id = "p0-test"
+    nonce = b"n" * 32
+    roster_commitment = commitment_sha256("roster-local-nonce", study_id, BytesField(nonce))
+    schedule_commitment = "d" * 64
+    assignment_commitment = "e" * 64
     roster = _write(
         root,
         "inputs/roster.json",
@@ -101,6 +107,16 @@ def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligib
         },
     )
     topology = _write(root, "inputs/topology.json", {"topology": "local"})
+    precommit = {
+        "study_id": study_id,
+        "qualification_universe_sha256": "1" * 64,
+        "roster_local_nonce_commitment_sha256": roster_commitment,
+        "schedule_seed_commitment_sha256": schedule_commitment,
+        "assignment_master_key_commitment_sha256": assignment_commitment,
+    }
+    precommit_sha256 = hashlib.sha256(canonical_json_bytes(precommit, indent=None)).hexdigest()
+    beacon = {"chain_hash": "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce", "round": 7, "randomness_hex": ("b" * 64)}
+    roster_seed = hashlib.sha256(kdf_frame("roster-seed-v1", [BytesField(bytes.fromhex(precommit_sha256)), BytesField(nonce), BytesField(bytes.fromhex(beacon["chain_hash"])), U64Field(7), BytesField(bytes.fromhex(beacon["randomness_hex"]))])).hexdigest()
     eligibility_ref = (
         _write(
             root,
@@ -108,11 +124,13 @@ def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligib
             {
                 "record_kind": "resampling_eligibility_manifest_v1",
                 "schema_version": "1",
-                "study_id": "p0-test",
-                "precommit_sha256": "1" * 64,
-                "beacon_receipt_sha256": "2" * 64,
-                "roster_local_nonce_reveal_sha256": "3" * 64,
-                "roster_seed_sha256": "4" * 64,
+                "study_id": study_id,
+                "precommit": precommit,
+                "precommit_sha256": precommit_sha256,
+                "timestamp_receipt": {"precommit_sha256": precommit_sha256, "timestamp": "2026-07-30T00:00:00Z"},
+                "beacon_receipt": beacon,
+                "roster_local_nonce_hex": nonce.hex(),
+                "roster_seed_sha256": roster_seed,
                 "accepted_task_ids": ["swe-001"],
                 "rejected_task_ids": [],
                 "tier_membership": {"120": ["swe-001"], "160": [] if eligibility_tier_mismatch else ["swe-001"]},
@@ -127,7 +145,7 @@ def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligib
         {
             "record_kind": "resampling_study_manifest",
             "schema_version": "0.1.0",
-            "study_id": "p0-test",
+            "study_id": study_id,
             "frozen_created_at": "2026-07-30T00:00:00Z",
             "provenance": {"design_sha256": "a" * 64, "code_sha256": "b" * 64},
             "payload": {
@@ -146,9 +164,9 @@ def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligib
                 "pad_unit_set_ref": {"role": "pad_unit_set", "relative_path": roster.relative_path, "sha256": roster.sha256, "byte_count": roster.byte_count, "media_type": roster.media_type},
                 "source_revision_refs": [{"role": "source_revision", "relative_path": roster.relative_path, "sha256": roster.sha256, "byte_count": roster.byte_count, "media_type": roster.media_type}],
                 "commitment_scheme": "resampling-null-key-ceremony-v1",
-                "roster_local_nonce_commitment_sha256": "c" * 64,
-                "schedule_seed_commitment_sha256": "d" * 64,
-                "assignment_master_key_commitment_sha256": "e" * 64,
+                "roster_local_nonce_commitment_sha256": roster_commitment,
+                "schedule_seed_commitment_sha256": schedule_commitment,
+                "assignment_master_key_commitment_sha256": assignment_commitment,
                 "required_document_kinds_ref": {"role": "required_document_kinds", "relative_path": roster.relative_path, "sha256": roster.sha256, "byte_count": roster.byte_count, "media_type": roster.media_type},
             },
         },

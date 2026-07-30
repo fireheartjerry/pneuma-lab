@@ -15,6 +15,7 @@ from typing import Literal, cast
 from pneuma_lab.foundation.artifacts import canonical_json_bytes, write_atomic_bytes
 
 from .artifacts import _load_direct_scientific_parent, _read_ref, _ref_mapping, _artifact_ref_for_path, _prepare_destination
+from .assignment import BytesField, U64Field, commitment_sha256, kdf_frame
 from .authority_refs import closed_mapping, decode_artifact_ref
 from .errors import RecordValidationError
 from .json_io import load_json_bytes
@@ -148,6 +149,16 @@ def _manifest_study_id(ref: ArtifactRef, *, run_root: Path) -> str:
     return study_id
 
 
+def _manifest_frozen_created_at(ref: ArtifactRef, *, run_root: Path) -> str:
+    document = _load_direct_scientific_parent(
+        _ref_mapping(ref), run_root=run_root, field="manifest_ref", expected_kind="resampling_study_manifest"
+    )
+    value = document.value["frozen_created_at"]
+    if type(value) is not str or not value:
+        raise RecordValidationError("study manifest has invalid frozen_created_at")
+    return value
+
+
 def _manifest_ref(payload: Mapping[str, object], name: str) -> ArtifactRef:
     return decode_artifact_ref(payload.get(name), field=f"manifest {name}")
 
@@ -190,6 +201,8 @@ def _validate_confirmation_eligibility(
     roster: Mapping[str, object],
     *,
     study_id: str,
+    frozen_created_at: str,
+    manifest_payload: Mapping[str, object],
     run_root: Path,
 ) -> None:
     """Prove the manifest-pinned eligibility source derives this exact roster.
@@ -200,15 +213,49 @@ def _validate_confirmation_eligibility(
     path, raw = _read_ref(eligibility_ref, run_root=run_root)
     value = load_json_bytes(raw, source=path)
     fields = {
-        "record_kind", "schema_version", "study_id", "precommit_sha256",
-        "beacon_receipt_sha256", "roster_local_nonce_reveal_sha256", "roster_seed_sha256",
+        "record_kind", "schema_version", "study_id", "precommit", "precommit_sha256",
+        "timestamp_receipt", "beacon_receipt", "roster_local_nonce_hex", "roster_seed_sha256",
         "accepted_task_ids", "rejected_task_ids", "tier_membership", "group_labels", "reserves",
     }
     eligibility = closed_mapping(value, fields=fields, field="confirmation eligibility manifest")
     if eligibility["record_kind"] != "resampling_eligibility_manifest_v1" or eligibility["schema_version"] != "1" or eligibility["study_id"] != study_id:
         raise RecordValidationError("confirmation eligibility manifest has wrong identity or study_id")
-    for field in ("precommit_sha256", "beacon_receipt_sha256", "roster_local_nonce_reveal_sha256", "roster_seed_sha256"):
-        _strict_sha256(eligibility[field], field=f"confirmation eligibility {field}")
+    precommit = closed_mapping(eligibility["precommit"], fields={"study_id", "qualification_universe_sha256", "roster_local_nonce_commitment_sha256", "schedule_seed_commitment_sha256", "assignment_master_key_commitment_sha256"}, field="confirmation eligibility precommit")
+    if precommit["study_id"] != study_id:
+        raise RecordValidationError("confirmation eligibility precommit study_id differs")
+    for field in ("qualification_universe_sha256", "roster_local_nonce_commitment_sha256", "schedule_seed_commitment_sha256", "assignment_master_key_commitment_sha256"):
+        _strict_sha256(precommit[field], field=f"confirmation eligibility precommit {field}")
+    precommit_digest = hashlib.sha256(canonical_json_bytes(precommit, indent=None)).hexdigest()
+    if eligibility["precommit_sha256"] != precommit_digest:
+        raise RecordValidationError("confirmation eligibility precommit_sha256 does not bind precommit bytes")
+    timestamp = closed_mapping(eligibility["timestamp_receipt"], fields={"precommit_sha256", "timestamp"}, field="confirmation eligibility timestamp receipt")
+    if timestamp["precommit_sha256"] != precommit_digest or timestamp["timestamp"] != frozen_created_at:
+        raise RecordValidationError("confirmation eligibility timestamp receipt does not bind precommit")
+    beacon = closed_mapping(eligibility["beacon_receipt"], fields={"chain_hash", "round", "randomness_hex"}, field="confirmation eligibility beacon receipt")
+    if beacon["chain_hash"] != "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce" or type(beacon["round"]) is not int or beacon["round"] < 0 or type(beacon["randomness_hex"]) is not str:
+        raise RecordValidationError("confirmation eligibility beacon receipt has invalid frozen contract")
+    try:
+        nonce = bytes.fromhex(cast(str, eligibility["roster_local_nonce_hex"]))
+        randomness = bytes.fromhex(cast(str, beacon["randomness_hex"]))
+    except ValueError as exc:
+        raise RecordValidationError("confirmation eligibility nonce/beacon randomness must be hex") from exc
+    if len(nonce) != 32 or len(randomness) != 32:
+        raise RecordValidationError("confirmation eligibility nonce/beacon randomness must be 32 bytes")
+    for field in ("roster_local_nonce_commitment_sha256", "schedule_seed_commitment_sha256", "assignment_master_key_commitment_sha256"):
+        if precommit[field] != manifest_payload[field]:
+            raise RecordValidationError(f"confirmation eligibility precommit {field} differs from study manifest")
+    expected_nonce_commitment = commitment_sha256(
+        "roster-local-nonce", study_id, BytesField(nonce)
+    )
+    if expected_nonce_commitment != manifest_payload["roster_local_nonce_commitment_sha256"]:
+        raise RecordValidationError("confirmation eligibility nonce reveal does not match study manifest commitment")
+    expected_seed = hashlib.sha256(kdf_frame("roster-seed-v1", [
+        BytesField(bytes.fromhex(precommit_digest)), BytesField(nonce),
+        BytesField(bytes.fromhex(cast(str, beacon["chain_hash"]))),
+        U64Field(cast(int, beacon["round"])), BytesField(randomness),
+    ])).hexdigest()
+    if eligibility["roster_seed_sha256"] != expected_seed:
+        raise RecordValidationError("confirmation eligibility roster_seed_sha256 is not the derived ceremony seed")
     accepted = eligibility["accepted_task_ids"]
     rejected = eligibility["rejected_task_ids"]
     if not isinstance(accepted, list) or not isinstance(rejected, list) or any(type(value) is not str or not value for value in [*accepted, *rejected]) or accepted != sorted(set(accepted)) or rejected != sorted(set(rejected)) or set(accepted) & set(rejected):
@@ -303,6 +350,8 @@ def _authority_from_manifest(manifest_ref: ArtifactRef, *, run_root: Path, expec
         eligibility_ref,
         roster,
         study_id=_manifest_study_id(manifest_ref, run_root=run_root),
+        frozen_created_at=_manifest_frozen_created_at(manifest_ref, run_root=run_root),
+        manifest_payload=manifest,
         run_root=run_root,
     )
     return RosterBoundPowerAuthority("1", "roster_bound_selection", manifest_ref, eligibility_ref, roster_ref, membership)
