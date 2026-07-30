@@ -164,6 +164,7 @@
                         "cell_count",
                         "cell_ids_sha256",
                         "replay_receipts_sha256",
+                        "authority_ref_sha256",
                         "measured_wall_seconds"
                     ],
                     "properties": {
@@ -172,6 +173,7 @@
                         "cell_count": { "const": 2916 },
                         "cell_ids_sha256": { "$ref": "#/$defs/sha256" },
                         "replay_receipts_sha256": { "$ref": "#/$defs/sha256" },
+                        "authority_ref_sha256": { "$ref": "#/$defs/sha256" },
                         "measured_wall_seconds": { "type": "number", "exclusiveMinimum": 0 }
                     },
                     "additionalProperties": false

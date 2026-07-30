@@ -2461,3 +2461,36 @@ The next event after the archived migration boundary is appended below.
   shard, change the scientific grid, or claim P0 evidence.
 - **Boundary/non-claim:** No production shard, P0 final, validation, provider,
   spend, benchmark result, or scientific claim was produced by this repair.
+
+### EJ-20260730-0214 — Hostile-review repair: one-time timing verification
+
+- **Correction:** The first timing repair exposed a second defect: its full
+  replay validator was dead, and naïvely invoking it in every resumed shard
+  would multiply the bounded 2,916-cell probe by the shard count. The one full
+  replay now occurs inside `power screen` while an exclusive run-root screen
+  lock is held. The immutable screen record is published only after that probe
+  and structural verification; an `O_EXCL`, fsync'd verifier marker then binds
+  the exact screen ArtifactRef, authority ref, and timing-probe bytes.
+- **Consumer gate:** Every shard and every merge/final path performs cheap
+  exact frozen-layout/projection checks and requires the one-time marker to
+  bind the exact immutable screen. Missing, substituted, malformed, or
+  cross-authority markers fail before shard prewrite. This prevents an old
+  marker from authorizing a changed screen without rerunning the all-cell work.
+- **Threat model:** The power authority has no private signing/HMAC capability;
+  it is deterministic public authority. These receipts protect normal local
+  operator/concurrent-writer workflows and detect ref-bound substitution. They
+  cannot attest execution against an adversary who can rewrite the complete
+  local run root and forge both screen and marker bytes. No digest is claimed
+  to prove computation under that stronger threat; such a threat requires a
+  new reviewed signing/custody authority, not a hash patch.
+- **Focused evidence:** Tests reject a tampered screen (marker absent), a
+  projection/elapsed mismatch, and a forged marker; a second marker creation
+  fails `O_EXCL`. `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power.py tests/resampling_null/test_power_authority.py
+  tests/test_schema_loads.py -q` passed 232 tests, followed by a passing
+  project-status check and whitespace check.
+- **Next gate:** A fresh locked immutable canonical screen generation must
+  perform its one-time full probe. Its total-work projection, not a shard
+  count, decides whether any P0 shard may start.
+- **Boundary/non-claim:** No canonical screen rerun, production shard, P0
+  final, provider action, spend, or scientific result occurred.

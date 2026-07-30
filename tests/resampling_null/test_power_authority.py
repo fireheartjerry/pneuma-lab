@@ -45,6 +45,19 @@ def _write(root: Path, path: str, value: object) -> ArtifactRef:
     return _ref(root, path, path.rsplit("/", 1)[-1].removesuffix(".json"))
 
 
+def _fast_timing_probe() -> dict[str, object]:
+    """Non-timing tests use a contract-shaped probe; timing behavior is separate."""
+    from pneuma_lab.resampling_null.power import frozen_power_cells
+    ids = hashlib.sha256(canonical_json_bytes(
+        [cell.cell_id for cell in frozen_power_cells()], indent=None,
+    )).hexdigest()
+    return {
+        "contract_id": "p0-production-timing-probe-v1", "dataset_count": 200,
+        "cell_count": 2916, "cell_ids_sha256": ids,
+        "replay_receipts_sha256": "b" * 64, "measured_wall_seconds": 0.01,
+    }
+
+
 def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligibility_tier_mismatch: bool = False) -> ArtifactRef:
     study_id = "p0-test"
     nonce = b"n" * 32
@@ -263,6 +276,7 @@ def _staged_screen(tmp_path: Path, *, decision_authority: str = "synthetic_valid
                     "dataset_count": 200, "cell_count": 2916,
                     "cell_ids_sha256": "c" * 64,
                     "replay_receipts_sha256": "d" * 64,
+                    "authority_ref_sha256": authority_ref.sha256,
                     "measured_wall_seconds": 1.0,
                 },
             },
@@ -304,6 +318,8 @@ def test_tiny_synthetic_shards_cannot_enter_the_authority_merge(tmp_path: Path, 
     import pneuma_lab.resampling_null.power as power
     ticks = iter((0.0, 0.01, 1.0, 1.01))
     monkeypatch.setattr(power, "perf_counter", lambda: next(ticks))
+    monkeypatch.setattr(power, "_production_timing_probe", lambda **_: _fast_timing_probe())
+    monkeypatch.setattr(power, "_validate_screen_timing_admission", lambda *_, **__: None)
     first_screen = screen_power_grid(
         config, phase="gaussian_approximation", generation=0, shard_count=2,
         fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/first-screen.json",
@@ -337,11 +353,15 @@ def test_screen_rejects_a_slow_production_representative_probe(
         authority_ref, _ref(tmp_path, "inputs/grid.json", "power_grid"),
         _ref(tmp_path, "inputs/topology.json", "power_screen_topology"), run_root=tmp_path,
     )
+    import pneuma_lab.resampling_null.power as power
+    cell_ids_sha256 = hashlib.sha256(canonical_json_bytes(
+        [cell.cell_id for cell in power.frozen_power_cells()], indent=None,
+    )).hexdigest()
     monkeypatch.setattr(
         "pneuma_lab.resampling_null.power._production_timing_probe",
         lambda **_: {
             "contract_id": "p0-production-timing-probe-v1", "dataset_count": 200,
-            "cell_count": 2916, "cell_ids_sha256": "a" * 64,
+            "cell_count": 2916, "cell_ids_sha256": cell_ids_sha256,
             "replay_receipts_sha256": "b" * 64, "measured_wall_seconds": 500.0,
         },
     )
@@ -352,6 +372,154 @@ def test_screen_rejects_a_slow_production_representative_probe(
             fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/screen.json",
         )
     assert not (tmp_path / "power/screen.json").exists()
+
+
+def test_simulate_rejects_a_tampered_screen_timing_probe_before_prewrite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A screen timing hash is an admission capability, not decorative metadata."""
+    manifest_ref = _manifest(tmp_path, roster_kind="synthetic_fixture")
+    authority_ref = seal_synthetic_power_authority(
+        manifest_ref, run_root=tmp_path, out=tmp_path / "power/authority.json",
+    )
+    config = load_power_config(
+        authority_ref, _ref(tmp_path, "inputs/grid.json", "power_grid"),
+        _ref(tmp_path, "inputs/topology.json", "power_screen_topology"), run_root=tmp_path,
+    )
+    import pneuma_lab.resampling_null.power as power
+    cell_ids_sha256 = hashlib.sha256(canonical_json_bytes(
+        [cell.cell_id for cell in power.frozen_power_cells()], indent=None,
+    )).hexdigest()
+    monkeypatch.setattr(
+        "pneuma_lab.resampling_null.power._production_timing_probe",
+        lambda **_: {
+            "contract_id": "p0-production-timing-probe-v1", "dataset_count": 200,
+            "cell_count": 2916, "cell_ids_sha256": cell_ids_sha256,
+            "replay_receipts_sha256": "b" * 64, "measured_wall_seconds": 1.0,
+        },
+    )
+    screen = screen_power_grid(
+        config, phase="gaussian_approximation", generation=0, shard_count=1,
+        fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/screen.json",
+    )
+    path = tmp_path / screen.relative_path
+    record = __import__("json").loads(path.read_text(encoding="utf-8"))
+    record["payload"]["timing_probe"]["replay_receipts_sha256"] = "0" * 64
+    path.write_bytes(canonical_json_bytes(record, indent=None))
+    tampered = _ref(tmp_path, screen.relative_path, "power_report")
+    with pytest.raises(RecordValidationError, match="verification receipt is absent"):
+        simulate_power_shard(
+            tampered, config, shard_index=0, run_root=tmp_path,
+            out=tmp_path / "power/shard.json", max_datasets=1, max_cells=1,
+        )
+    assert not (tmp_path / "power/shard.json").exists()
+
+
+def test_simulate_rejects_tampered_screen_elapsed_before_prewrite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The projection must still match the measured total-work receipt."""
+    manifest_ref = _manifest(tmp_path, roster_kind="synthetic_fixture")
+    authority_ref = seal_synthetic_power_authority(
+        manifest_ref, run_root=tmp_path, out=tmp_path / "power/authority.json",
+    )
+    config = load_power_config(
+        authority_ref, _ref(tmp_path, "inputs/grid.json", "power_grid"),
+        _ref(tmp_path, "inputs/topology.json", "power_screen_topology"), run_root=tmp_path,
+    )
+    import pneuma_lab.resampling_null.power as power
+    ids = hashlib.sha256(canonical_json_bytes(
+        [cell.cell_id for cell in power.frozen_power_cells()], indent=None,
+    )).hexdigest()
+    monkeypatch.setattr(
+        power, "_production_timing_probe", lambda **_: {
+            "contract_id": "p0-production-timing-probe-v1", "dataset_count": 200,
+            "cell_count": 2916, "cell_ids_sha256": ids,
+            "replay_receipts_sha256": "b" * 64, "measured_wall_seconds": 1.0,
+        },
+    )
+    screen = screen_power_grid(
+        config, phase="gaussian_approximation", generation=0, shard_count=1,
+        fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/screen.json",
+    )
+    path = tmp_path / screen.relative_path
+    record = __import__("json").loads(path.read_text(encoding="utf-8"))
+    record["payload"]["timing_probe"]["measured_wall_seconds"] = 2.0
+    path.write_bytes(canonical_json_bytes(record, indent=None))
+
+    with pytest.raises(RecordValidationError, match="projection does not match"):
+        simulate_power_shard(
+            _ref(tmp_path, screen.relative_path, "power_report"), config, shard_index=0,
+            run_root=tmp_path, out=tmp_path / "power/shard.json", max_datasets=1,
+            max_cells=1,
+        )
+    assert not (tmp_path / "power/shard.json").exists()
+
+
+def test_simulate_rejects_a_forged_timing_verification_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Later shards require the locked verifier marker, not bare probe fields."""
+    manifest_ref = _manifest(tmp_path, roster_kind="synthetic_fixture")
+    authority_ref = seal_synthetic_power_authority(
+        manifest_ref, run_root=tmp_path, out=tmp_path / "power/authority.json",
+    )
+    config = load_power_config(
+        authority_ref, _ref(tmp_path, "inputs/grid.json", "power_grid"),
+        _ref(tmp_path, "inputs/topology.json", "power_screen_topology"), run_root=tmp_path,
+    )
+    import pneuma_lab.resampling_null.power as power
+    ids = hashlib.sha256(canonical_json_bytes(
+        [cell.cell_id for cell in power.frozen_power_cells()], indent=None,
+    )).hexdigest()
+    monkeypatch.setattr(power, "_production_timing_probe", lambda **_: {
+        "contract_id": "p0-production-timing-probe-v1", "dataset_count": 200,
+        "cell_count": 2916, "cell_ids_sha256": ids,
+        "replay_receipts_sha256": "b" * 64, "measured_wall_seconds": 1.0,
+    })
+    screen = screen_power_grid(
+        config, phase="gaussian_approximation", generation=0, shard_count=1,
+        fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/screen.json",
+    )
+    marker = power._timing_verification_path(screen, run_root=tmp_path)
+    receipt = __import__("json").loads(marker.read_text(encoding="utf-8"))
+    receipt["authority_ref"]["sha256"] = "0" * 64
+    marker.write_bytes(canonical_json_bytes(receipt, indent=None))
+
+    with pytest.raises(RecordValidationError, match="does not bind this immutable screen"):
+        simulate_power_shard(
+            screen, config, shard_index=0, run_root=tmp_path,
+            out=tmp_path / "power/shard.json", max_datasets=1, max_cells=1,
+        )
+    assert not (tmp_path / "power/shard.json").exists()
+
+
+def test_timing_verification_receipt_is_a_singleton(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A concurrent second verifier cannot replace the first locked marker."""
+    manifest_ref = _manifest(tmp_path, roster_kind="synthetic_fixture")
+    authority_ref = seal_synthetic_power_authority(
+        manifest_ref, run_root=tmp_path, out=tmp_path / "power/authority.json",
+    )
+    config = load_power_config(
+        authority_ref, _ref(tmp_path, "inputs/grid.json", "power_grid"),
+        _ref(tmp_path, "inputs/topology.json", "power_screen_topology"), run_root=tmp_path,
+    )
+    import pneuma_lab.resampling_null.power as power
+    ids = hashlib.sha256(canonical_json_bytes([cell.cell_id for cell in power.frozen_power_cells()], indent=None)).hexdigest()
+    monkeypatch.setattr(power, "_production_timing_probe", lambda **_: {
+        "contract_id": "p0-production-timing-probe-v1", "dataset_count": 200,
+        "cell_count": 2916, "cell_ids_sha256": ids,
+        "replay_receipts_sha256": "b" * 64, "measured_wall_seconds": 1.0,
+    })
+    screen = screen_power_grid(config, phase="gaussian_approximation", generation=0,
+                               shard_count=1, fallback_trigger_ref=None, run_root=tmp_path,
+                               out=tmp_path / "power/screen.json")
+    probe = __import__("json").loads((tmp_path / screen.relative_path).read_text())["payload"]["timing_probe"]
+
+    with pytest.raises(RecordValidationError, match="verification receipt already exists"):
+        power._write_timing_verification(screen, config, probe, run_root=tmp_path)
 
 
 def test_shard_records_replay_receipts_and_task7_gate_totals_not_static_binomials(
@@ -368,6 +536,8 @@ def test_shard_records_replay_receipts_and_task7_gate_totals_not_static_binomial
     import pneuma_lab.resampling_null.power as power
     ticks = iter((0.0, 0.01))
     monkeypatch.setattr(power, "perf_counter", lambda: next(ticks))
+    monkeypatch.setattr(power, "_production_timing_probe", lambda **_: _fast_timing_probe())
+    monkeypatch.setattr(power, "_validate_screen_timing_admission", lambda *_, **__: None)
     screen = screen_power_grid(
         config, phase="gaussian_approximation", generation=0, shard_count=1,
         fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/screen.json",

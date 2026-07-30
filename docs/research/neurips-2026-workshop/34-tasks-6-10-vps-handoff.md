@@ -199,6 +199,16 @@ permits only a later immutable generation after a genuine implementation or
 topology correction; shrinking the scientific grid, inventing benchmark data,
 or declaring more shards is not a remedy.
 
+**Timing-verification boundary (2026-07-30):** The all-cell timing replay is
+performed once during locked screen sealing, not once per shard. A fsync'd
+`O_EXCL` verifier marker binds the screen ArtifactRef, power authority, and
+probe bytes; every shard and merge requires it plus exact frozen
+layout/projection checks. This is integrity plumbing for the local trusted
+run-root/concurrent-writer model, not cryptographic execution attestation:
+power authority contains no private signing capability, so an attacker able to
+rewrite the entire local root can forge all public bytes. Treat that stronger
+threat as a hard boundary requiring new reviewed custody/signing authority.
+
 ## Task 9 — CLI and deterministic synthetic P0
 
 Implement the plan's exact command surface:

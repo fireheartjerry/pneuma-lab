@@ -6828,7 +6828,11 @@ and commits the deterministic all-cell replay-receipt hash. It must reproduce
 the committed numeric fixture digest, declare a positive `shard_count`, and
 project the complete 20,000-dataset grid at `<= 43,200` seconds from the total
 measured workload. A shard count partitions immutable receipts; it is never
-credit for unproven concurrent capacity. A failed screen permits vectorization/repartitioning and another
+credit for unproven concurrent capacity. The one-time all-cell timing replay is
+serialized with immutable screen publication; its verifier receipt binds the
+screen and authority and every shard/merge requires that receipt without
+repeating the probe. This is local-run-root integrity, not a claim of
+cryptographic execution attestation against a full filesystem writer. A failed screen permits vectorization/repartitioning and another
 sealed screen under the same authority and phase with `generation += 1`; the
 new generation may declare another count but never overwrites the failed
 generation or permits a smaller scientific grid. If the bound still fails,

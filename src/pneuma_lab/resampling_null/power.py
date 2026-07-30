@@ -7,10 +7,13 @@ turns manifest-owned bytes into typed authority/configuration values.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
+import fcntl
 import hashlib
 from math import erf, exp, lgamma, log, pi, sqrt
 from pathlib import Path
+import os
 from statistics import NormalDist
 from time import perf_counter
 from typing import Literal, cast
@@ -999,6 +1002,39 @@ def _write_power(out: Path, payload: dict[str, object], *, run_root: Path) -> Ar
                               "frozen_created_at": frozen_created_at, "provenance": provenance, "payload": payload}, run_root=run_root, role="power_report")
 
 
+def _timing_verification_path(screen_ref: ArtifactRef, *, run_root: Path) -> Path:
+    return Path(run_root) / "power-timing-verifications" / f"{screen_ref.sha256}.json"
+
+
+def _write_timing_verification(screen_ref: ArtifactRef, config: PowerConfig,
+                               timing_probe: Mapping[str, object], *, run_root: Path) -> None:
+    """Publish one O_EXCL verifier marker while the screen-generation lock is held."""
+    value = {
+        "contract_id": "p0-production-timing-verification-v1",
+        "screen_ref": _ref_mapping(screen_ref),
+        "authority_ref": _ref_mapping(config.authority_ref),
+        "timing_probe_sha256": hashlib.sha256(canonical_json_bytes(dict(timing_probe), indent=None)).hexdigest(),
+    }
+    raw = canonical_json_bytes(value, indent=None)
+    path = _timing_verification_path(screen_ref, run_root=run_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as exc:
+        raise RecordValidationError("screen timing verification receipt already exists") from exc
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except BaseException:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def _authority_attempt_refs(config: PowerConfig, *, run_root: Path) -> tuple[ArtifactRef, ...]:
     """Discover, validate, and canonically order the whole authority ledger.
 
@@ -1152,7 +1188,7 @@ def validate_production_timing_probe(
     digest: str, phase: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]],
     joint_group_labels: tuple[
         tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
-    ] | None, datasets_per_cell: int,
+    ] | None, datasets_per_cell: int, expected_replay_receipts_sha256: str | None = None,
 ) -> None:
     """Replay a sealed screen probe; elapsed time is evidence, not a secret input."""
     if receipt.get("contract_id") != "p0-production-timing-probe-v1":
@@ -1160,12 +1196,30 @@ def validate_production_timing_probe(
     expected_ids = hashlib.sha256(canonical_json_bytes([cell.cell_id for cell in cells], indent=None)).hexdigest()
     if receipt.get("dataset_count") != datasets_per_cell or receipt.get("cell_count") != len(cells) or receipt.get("cell_ids_sha256") != expected_ids:
         raise RecordValidationError("screen timing probe does not bind the frozen production layout")
-    if receipt.get("replay_receipts_sha256") != _production_timing_probe_commitment(
-        cells=cells, authority=authority, digest=digest, phase=phase,
-        roster_group_sizes=roster_group_sizes, joint_group_labels=joint_group_labels,
-        datasets_per_cell=datasets_per_cell,
-    ):
+    expected = expected_replay_receipts_sha256
+    if expected is None:
+        expected = _production_timing_probe_commitment(
+            cells=cells, authority=authority, digest=digest, phase=phase,
+            roster_group_sizes=roster_group_sizes, joint_group_labels=joint_group_labels,
+            datasets_per_cell=datasets_per_cell,
+        )
+    if receipt.get("replay_receipts_sha256") != expected:
         raise RecordValidationError("screen timing probe replay receipts differ from regenerated production work")
+
+
+@contextmanager
+def _power_screen_lock(run_root: Path):
+    """Serialize immutable timing admission and screen publication per run root."""
+    root = Path(run_root).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    path = root / ".pneuma-power-screen.lock"
+    descriptor = path.open("a+b")
+    try:
+        fcntl.flock(descriptor.fileno(), fcntl.LOCK_EX)
+        yield root
+    finally:
+        fcntl.flock(descriptor.fileno(), fcntl.LOCK_UN)
+        descriptor.close()
 
 
 def _current_failed_gaussian_validation(config: PowerConfig, *, run_root: Path) -> ArtifactRef:
@@ -1192,7 +1246,7 @@ def _current_failed_gaussian_validation(config: PowerConfig, *, run_root: Path) 
     return _artifact_ref_for_path(current.path, root, "power_report", "application/json")
 
 
-def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approximation", "full_multiplier_fallback"], generation: int, shard_count: int, fallback_trigger_ref: ArtifactRef | None, run_root: Path, out: Path) -> ArtifactRef:
+def _screen_power_grid_locked(config: PowerConfig, *, phase: Literal["gaussian_approximation", "full_multiplier_fallback"], generation: int, shard_count: int, fallback_trigger_ref: ArtifactRef | None, run_root: Path, out: Path) -> ArtifactRef:
     """Seal immutable topology/timing before any shard can execute."""
     if type(generation) is not int or generation < 0 or type(shard_count) is not int or shard_count <= 0:
         raise RecordValidationError("power screen generation and shard_count must be nonnegative/positive integers")
@@ -1216,6 +1270,16 @@ def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approxima
         cells=cells, authority=authority, digest=digest, phase=phase,
         roster_group_sizes=layout, joint_group_labels=labels,
         datasets_per_cell=grid.screen_datasets_per_cell,
+    )
+    # This is the one authoritative replay: the commitment was just produced
+    # by the all-cell production kernel under the screen-generation lock.
+    # Repeating it in every independently resumed shard adds cost, not trust.
+    timing_probe["authority_ref_sha256"] = config.authority_ref.sha256
+    validate_production_timing_probe(
+        timing_probe, cells=cells, authority=authority, digest=digest, phase=phase,
+        roster_group_sizes=layout, joint_group_labels=labels,
+        datasets_per_cell=grid.screen_datasets_per_cell,
+        expected_replay_receipts_sha256=cast(str, timing_probe["replay_receipts_sha256"]),
     )
     if phase == "full_multiplier_fallback":
         # Measure the actual registered expensive kernel before allowing a
@@ -1243,12 +1307,66 @@ def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approxima
                     "timing_probe": timing_probe})
     if fallback_trigger_ref is not None:
         payload["fallback_trigger_ref"] = _ref_mapping(fallback_trigger_ref)
-    return _write_power(out, payload, run_root=run_root)
+    screen_ref = _write_power(out, payload, run_root=run_root)
+    _write_timing_verification(screen_ref, config, timing_probe, run_root=run_root)
+    return screen_ref
+
+
+def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approximation", "full_multiplier_fallback"], generation: int, shard_count: int, fallback_trigger_ref: ArtifactRef | None, run_root: Path, out: Path) -> ArtifactRef:
+    """Atomically admit one immutable screen generation after its full probe."""
+    with _power_screen_lock(run_root) as root:
+        return _screen_power_grid_locked(
+            config, phase=phase, generation=generation, shard_count=shard_count,
+            fallback_trigger_ref=fallback_trigger_ref, run_root=root, out=out,
+        )
 
 
 def _report(ref: ArtifactRef, *, run_root: Path, stage: str) -> Mapping[str, object]:
     document = _load_direct_scientific_parent(_ref_mapping(ref), run_root=run_root, field="power report", expected_kind="resampling_power_report", expected_stage=stage)
     return cast(Mapping[str, object], document.value["payload"])
+
+
+def _validate_screen_timing_admission(screen_ref: ArtifactRef, screen: Mapping[str, object], config: PowerConfig,
+                                      *, run_root: Path) -> None:
+    """Check the locked, authority-bound timing receipt without redoing its work."""
+    grid = _load_power_grid(config.grid_ref, run_root=run_root)
+    cells = frozen_power_cells()
+    probe = screen.get("timing_probe")
+    if (screen.get("cell_count") != len(cells)
+            or screen.get("dataset_count") != grid.screen_datasets_per_cell
+            or not isinstance(probe, Mapping)):
+        raise RecordValidationError("screen timing admission does not use the frozen 2916-cell/200-dataset probe")
+    if probe.get("authority_ref_sha256") != config.authority_ref.sha256:
+        raise RecordValidationError("screen timing admission is not bound to this power authority")
+    _strict_sha256(probe.get("replay_receipts_sha256"), field="screen timing replay receipt")
+    elapsed = probe.get("measured_wall_seconds")
+    if type(elapsed) not in (int, float) or not np.isfinite(elapsed) or elapsed <= 0.0:
+        raise RecordValidationError("screen timing admission has invalid measured elapsed time")
+    projected = _projected_screen_wall_seconds(
+        elapsed_seconds=float(elapsed) / len(cells),
+        measured_datasets_per_cell=grid.screen_datasets_per_cell,
+        cell_count=len(cells), production_datasets_per_cell=grid.datasets_per_cell,
+        shard_count=cast(int, screen["shard_count"]),
+    )
+    if (screen.get("projected_wall_seconds") != projected
+            or projected > grid.max_projected_wall_seconds):
+        raise RecordValidationError("screen timing admission projection does not match its measured workload")
+    path = _timing_verification_path(screen_ref, run_root=run_root)
+    try:
+        raw = path.read_bytes()
+        value = load_json_bytes(raw, source="screen timing verification receipt")
+    except FileNotFoundError as exc:
+        raise RecordValidationError("screen timing verification receipt is absent") from exc
+    if canonical_json_bytes(value, indent=None) != raw or not isinstance(value, Mapping):
+        raise RecordValidationError("screen timing verification receipt is not canonical")
+    expected = {
+        "contract_id": "p0-production-timing-verification-v1",
+        "screen_ref": _ref_mapping(screen_ref),
+        "authority_ref": _ref_mapping(config.authority_ref),
+        "timing_probe_sha256": hashlib.sha256(canonical_json_bytes(dict(probe), indent=None)).hexdigest(),
+    }
+    if dict(value) != expected:
+        raise RecordValidationError("screen timing verification receipt does not bind this immutable screen")
 
 
 def _same_config(payload: Mapping[str, object], config: PowerConfig, *, run_root: Path) -> None:
@@ -1405,6 +1523,7 @@ def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_
     screen = _report(screen_ref, run_root=run_root, stage="screen")
     _assert_power_write_open(config, run_root=run_root, stage="shard", phase=cast(str, screen["phase"]), generation=cast(int, screen["generation"]), shard_index=shard_index)
     _same_config(screen, config, run_root=run_root)
+    _validate_screen_timing_admission(screen_ref, screen, config, run_root=run_root)
     count = cast(int, screen["shard_count"])
     if type(shard_index) is not int or not 0 <= shard_index < count:
         raise RecordValidationError("shard_index lies outside the frozen screen topology")
@@ -1444,6 +1563,8 @@ def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_
 
 def _complete_shards(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], config: PowerConfig, *, run_root: Path) -> tuple[Mapping[str, object], ...]:
     screen = _report(screen_ref, run_root=run_root, stage="screen")
+    _same_config(screen, config, run_root=run_root)
+    _validate_screen_timing_admission(screen_ref, screen, config, run_root=run_root)
     if len(shard_refs) != screen["shard_count"]:
         raise RecordValidationError("selection/validation requires every frozen shard")
     shards = tuple(_report(ref, run_root=run_root, stage="shard") for ref in shard_refs)
