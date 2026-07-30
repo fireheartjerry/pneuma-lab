@@ -4282,6 +4282,55 @@ of race safety. This amendment changes only local S02D concurrency authority;
 it authorizes no provider/model/network call, credential use, spend, branch,
 experiment, result, or claim promotion.
 
+### DL-144 S02D commit point and occurrence state-machine closure
+
+DL-144 corrects DL-143's impossible claim that one advisory lock can be proved
+held through *all* cleanup when the final lock-descriptor close may succeed and
+then report an error. The exact S02D transaction commit point occurs only after
+fresh graph traversal, create-exclusive publication, file and parent fsync,
+reopen semantic verification, every required namespace-mutating rollback, and
+all ordinary descriptor cleanup have succeeded while the exclusive root lock
+is still held. Lock release is the final non-namespace-mutating action.
+
+Before that commit point, every failure is handled while the held lock
+continuity is known. If continuity is unexpectedly lost and a nonblocking
+reacquisition cannot prove exclusive ownership, S02D performs no further
+namespace mutation, reports an explicit residual, and fails closed. After the
+commit point, an ambiguous or failing explicit unlock/final lock close reports
+a committed-publication cleanup residual or error and preserves the already
+verified target; it must never reopen the root, roll back, unlink, rename, or
+otherwise mutate the namespace. POSIX does not let user space distinguish every
+close-that-failed-before-release case from close-that-released-then-raised, so
+post-commit rollback would itself be unsafe. This remains a cooperative-local
+protocol and adds no arbitrary same-UID or kernel-interposition claim.
+
+Lock acquisition is one causal cleanup transaction. After `flock` succeeds,
+root `fstat` and every later pre-commit action are guarded; an injected root
+`fstat` failure closes/releases the lock descriptor once, preserves cleanup
+errors causally, leaves no target, and permits a subsequent nonblocking lock.
+The old after-close rollback-guard recovery test is replaced with post-commit
+target-preservation semantics.
+
+Selected and all-occurrence tool replay share one completed-tool transition
+function. Given exact failure, terminal flag, completion clock, deadline,
+token state, cumulative mutation, verifier eligibility, completed-tool count,
+and queued remainder, it applies exactly: tool failure; clean terminal with no
+remainder; after-tool wall timeout; token overshoot; first eligible mutation;
+fourth completed tool; otherwise continue. Both replays use the same pre-tool
+deadline/tool-cap classification. Occurrence replay accumulates mutation,
+derives its trigger, stops at the first terminal/trigger transition, exhausts
+clocks and observations exactly, and requires the derived trigger to equal
+`program.expected_trigger_reason`.
+
+Required REDs cover root-`fstat` cleanup and lock reacquisition, post-commit
+final-close failure preserving the verified publication, clean terminal with a
+queued remainder, execution beyond the first eligible mutation, a fifth tool
+after the fourth-tool trigger, and expected-trigger tampering. Existing
+DL-143 lock-contention and ownership-loss residual tests plus actor, seed,
+deadline, provider, and tool replay tests remain mandatory. This amendment
+authorizes no provider/model/network call, credential use, spend, branch
+execution, experiment, result, or claim promotion.
+
 The corrected prefix entry adds:
 
 ```python

@@ -1376,6 +1376,49 @@ The guarantee is exact only for cooperating local writers holding the root
 transaction lock. Normal replacement-before-operation detection remains
 mandatory.
 
+#### 5.3.7 DL-144 exact commit point and shared tool transition
+
+The S02D transaction remains pre-commit until graph traversal, create-exclusive
+publication, file/parent durability, reopen semantic verification, every
+required namespace-mutating rollback, and every ordinary descriptor cleanup
+has succeeded under one continuously held exclusive root lock. Releasing that
+lock is the final non-mutating action. A pre-commit loss of proven lock
+continuity forbids further unlink, rename, restoration, or publication unless
+exclusive ownership is nonblockingly reacquired; failure to reacquire returns
+an explicit residual and fails closed.
+
+Successful semantic verification plus ordinary cleanup is the commit point.
+After it, explicit unlock or final lock-descriptor close failure is a committed-
+publication cleanup error: retain the verified target and perform no rollback
+or other namespace mutation. `close` may release the advisory lock and still
+raise, so user space cannot safely infer that a subsequent rollback is
+protected. DL-143's former lock-through-all-cleanup wording is superseded by
+this exact phase boundary. The guarantee remains cooperative-local only.
+
+Root-descriptor acquisition is causally guarded from successful `flock`
+onward, including the immediately following `fstat`. Any pre-commit acquisition
+failure closes the descriptor once, aggregates cleanup failure without masking
+the primary, leaves no publication, and releases the cooperative lock for a
+later transaction.
+
+One shared pure completed-tool transition implements both selected and
+all-occurrence replay precedence:
+
+1. tool failure;
+2. clean terminal, rejecting any queued remainder;
+3. after-tool wall timeout;
+4. token overshoot;
+5. first cumulative eligible mutation;
+6. fourth completed tool;
+7. continue.
+
+The same shared pre-tool transition classifies deadline and tool-cap stops.
+Occurrence replay derives cumulative mutation and trigger, stops at the first
+terminal or trigger transition, rejects any later row/read/observation through
+exact exhaustion, and compares the derived trigger with the sealed program
+claim. This removes independent policy ladders without expanding S02D's
+scientific authority.
+
 ### 5.4 Assignment prefix view
 
 Post-prefix donor matching consumes a canonical `AssignmentPrefixView`, not the

@@ -194,6 +194,16 @@ class _ExecutionReplayResult:
 
 
 @dataclass(frozen=True, slots=True)
+class _CompletedToolTransition:
+    stopped: bool
+    terminal: bool
+    failure_kind: FailureKind
+    trigger_reason: TriggerReason
+    terminal_remainder: tuple[ToolCall, ...]
+    branch_pending_calls: tuple[ToolCall, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class _ProgramReplayAuthority:
     task_id: str
     prefix_seed: int
@@ -204,6 +214,102 @@ class _ProgramReplayAuthority:
     simulator_contract_caps: CallContractCaps | None
     subject_contract_ref: ArtifactRef
     simulator_contract_ref: ArtifactRef | None
+
+
+def _pretool_failure(
+    *,
+    before_ms: int,
+    deadline_ms: int,
+    completed_tools: int,
+    tool_cap: int,
+) -> FailureKind:
+    """Apply the shared pre-tool deadline then inclusive-cap precedence."""
+
+    if before_ms >= deadline_ms:
+        return FailureKind.TIMEOUT
+    if completed_tools >= tool_cap:
+        return FailureKind.TOOL_CAP
+    return FailureKind.NONE
+
+
+def _completed_tool_transition(
+    *,
+    failure_kind: FailureKind,
+    episode_terminal: bool,
+    completion_ms: int,
+    deadline_ms: int,
+    token_overshoot: bool,
+    cumulative_mutation: bool,
+    verifier_eligible: bool,
+    completed_tools: int,
+    queued_remainder: tuple[ToolCall, ...],
+) -> _CompletedToolTransition:
+    """Apply the one authoritative completed-tool state transition."""
+
+    if failure_kind is not FailureKind.NONE:
+        return _CompletedToolTransition(
+            True,
+            True,
+            failure_kind,
+            TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+            queued_remainder,
+            (),
+        )
+    if episode_terminal:
+        if queued_remainder:
+            raise ValueError("clean terminal tool has a queued remainder")
+        return _CompletedToolTransition(
+            True,
+            True,
+            FailureKind.NONE,
+            TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+            (),
+            (),
+        )
+    if completion_ms > deadline_ms:
+        return _CompletedToolTransition(
+            True,
+            True,
+            FailureKind.TIMEOUT,
+            TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+            queued_remainder,
+            (),
+        )
+    if token_overshoot:
+        return _CompletedToolTransition(
+            True,
+            True,
+            FailureKind.TOKEN_CAP,
+            TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+            queued_remainder,
+            (),
+        )
+    if cumulative_mutation and verifier_eligible:
+        return _CompletedToolTransition(
+            True,
+            False,
+            FailureKind.NONE,
+            TriggerReason.FIRST_ELIGIBLE_MUTATION,
+            (),
+            queued_remainder,
+        )
+    if completed_tools == 4:
+        return _CompletedToolTransition(
+            True,
+            False,
+            FailureKind.NONE,
+            TriggerReason.FOURTH_TOOL_CALL,
+            (),
+            queued_remainder,
+        )
+    return _CompletedToolTransition(
+        False,
+        False,
+        FailureKind.NONE,
+        TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+        (),
+        (),
+    )
 
 
 def _assert_program_actor_binding(
@@ -1036,14 +1142,14 @@ def _assert_exact_execution_replay(graph: _CandidateGraph) -> _ExecutionReplayRe
             for tool_index, call in enumerate(queue):
                 pending = queue[tool_index:]
                 before_tool = replay.consume(f"before_tool_{call.call_id}")
-                if before_tool >= deadline:
-                    failure = FailureKind.TIMEOUT
-                    remainder = pending
-                    terminal_state = True
-                    stopped = True
-                    break
-                if boundary_position >= authority.prefix_caps.tool_calls:
-                    failure = FailureKind.TOOL_CAP
+                pretool_failure = _pretool_failure(
+                    before_ms=before_tool,
+                    deadline_ms=deadline,
+                    completed_tools=boundary_position,
+                    tool_cap=authority.prefix_caps.tool_calls,
+                )
+                if pretool_failure is not FailureKind.NONE:
+                    failure = pretool_failure
                     remainder = pending
                     terminal_state = True
                     stopped = True
@@ -1075,42 +1181,30 @@ def _assert_exact_execution_replay(graph: _CandidateGraph) -> _ExecutionReplayRe
                 boundary_position += 1
                 observation_position += 1
                 cumulative_mutation = cumulative_mutation or boundary.mutation_committed
-                terminal_state = boundary.episode_terminal
                 after_remainder = queue[tool_index + 1 :]
-                if boundary.failure_kind is not FailureKind.NONE:
-                    failure = boundary.failure_kind
-                    remainder = after_remainder
-                    terminal_state = True
-                    stopped = True
-                    break
-                if boundary.episode_terminal:
-                    if after_remainder:
-                        raise ValueError("clean terminal tool has a remainder")
-                    stopped = True
-                    break
-                if completion_tool > deadline:
-                    failure = FailureKind.TIMEOUT
-                    remainder = after_remainder
-                    terminal_state = True
-                    stopped = True
-                    break
-                if derived_tokens["primary_subject"] > min(
-                    authority.prefix_caps.generated_tokens,
-                    authority.subject_contract_caps.aggregate_generated_tokens,
-                ):
-                    failure = FailureKind.TOKEN_CAP
-                    remainder = after_remainder
-                    terminal_state = True
-                    stopped = True
-                    break
-                if cumulative_mutation and boundary.verifier_eligible_after:
-                    trigger = TriggerReason.FIRST_ELIGIBLE_MUTATION
-                    branch = after_remainder
-                    stopped = True
-                    break
-                if boundary_position == 4:
-                    trigger = TriggerReason.FOURTH_TOOL_CALL
-                    branch = after_remainder
+                transition = _completed_tool_transition(
+                    failure_kind=boundary.failure_kind,
+                    episode_terminal=boundary.episode_terminal,
+                    completion_ms=completion_tool,
+                    deadline_ms=deadline,
+                    token_overshoot=(
+                        derived_tokens["primary_subject"]
+                        > min(
+                            authority.prefix_caps.generated_tokens,
+                            authority.subject_contract_caps.aggregate_generated_tokens,
+                        )
+                    ),
+                    cumulative_mutation=cumulative_mutation,
+                    verifier_eligible=boundary.verifier_eligible_after,
+                    completed_tools=boundary_position,
+                    queued_remainder=after_remainder,
+                )
+                if transition.stopped:
+                    failure = transition.failure_kind
+                    trigger = transition.trigger_reason
+                    remainder = transition.terminal_remainder
+                    branch = transition.branch_pending_calls
+                    terminal_state = transition.terminal
                     stopped = True
                     break
         if stopped and row_index != len(rows) - 1:
@@ -1435,6 +1529,8 @@ def _assert_program_occurrence_replay(
     derived_calls = {"primary_subject": 0, "user_simulator": 0}
     derived_turns = {"primary_subject": 0, "user_simulator": 0}
     completed_tools = 0
+    cumulative_mutation = False
+    trigger = TriggerReason.NO_INTERVENTION_OPPORTUNITY
     for row in program.provider_transcript:
         if stopped:
             raise ValueError("provider transcript continues after terminal outcome")
@@ -1538,17 +1634,16 @@ def _assert_program_occurrence_replay(
             continue
         if row.subject_role != "primary_subject":
             continue
-        for call in validated.typed_turn.tool_calls:
+        queue = validated.typed_turn.tool_calls
+        for tool_index, call in enumerate(queue):
             before_tool = replay.consume(f"before_tool_{call.call_id}")
-            token_overshoot = derived_tokens["primary_subject"] > min(
-                authority.prefix_caps.generated_tokens,
-                authority.subject_contract_caps.aggregate_generated_tokens,
+            pretool_failure = _pretool_failure(
+                before_ms=before_tool,
+                deadline_ms=deadline,
+                completed_tools=completed_tools,
+                tool_cap=authority.prefix_caps.tool_calls,
             )
-            if (
-                before_tool >= deadline
-                or token_overshoot
-                or completed_tools >= authority.prefix_caps.tool_calls
-            ):
+            if pretool_failure is not FailureKind.NONE:
                 stopped = True
                 break
             if observation_position >= len(program.tool_observations):
@@ -1561,16 +1656,35 @@ def _assert_program_occurrence_replay(
                 raise ValueError("tool before clock exceeds completion clock")
             observation_position += 1
             completed_tools += 1
-            if (
-                observation.failure_kind is not FailureKind.NONE
-                or observation.episode_terminal
-                or after_tool > deadline
-            ):
+            cumulative_mutation = cumulative_mutation or observation.mutation_committed
+            transition = _completed_tool_transition(
+                failure_kind=observation.failure_kind,
+                episode_terminal=observation.episode_terminal,
+                completion_ms=after_tool,
+                deadline_ms=deadline,
+                token_overshoot=(
+                    derived_tokens["primary_subject"]
+                    > min(
+                        authority.prefix_caps.generated_tokens,
+                        authority.subject_contract_caps.aggregate_generated_tokens,
+                    )
+                ),
+                cumulative_mutation=cumulative_mutation,
+                verifier_eligible=observation.verifier_eligible,
+                completed_tools=completed_tools,
+                queued_remainder=queue[tool_index + 1 :],
+            )
+            if transition.stopped:
+                trigger = transition.trigger_reason
                 stopped = True
                 break
     if observation_position != len(program.tool_observations):
         raise ValueError("tool observation program has unconsumed rows")
     replay.assert_exhausted()
+    if program.expected_trigger_reason is not trigger:
+        raise ValueError(
+            "program expected trigger differs from exact occurrence replay"
+        )
 
 
 def _verify_published(
@@ -2101,134 +2215,61 @@ def seal_prefix_index(
         raise NotADirectoryError(root)
     relative_path = _exact_output_relative_path(root=root, out=out)
     descriptor = os.open(root, _DIRECTORY_FLAGS)
+    result: _OwnedPrefixPublication | None = None
+    primary: BaseException | None = None
+    committed = False
     try:
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BaseException as lock_error:
-        try:
-            os.close(descriptor)
-        except BaseException as close_error:
-            raise BaseExceptionGroup(
-                "prefix-index root lock and cleanup both failed",
-                [lock_error, close_error],
-            ) from None
-        raise RecordValidationError(
+        primary = RecordValidationError(
             "prefix-index root transaction lock is unavailable"
-        ) from lock_error
-    root_metadata = os.fstat(descriptor)
-    root_identity = (root_metadata.st_dev, root_metadata.st_ino)
-    result: _OwnedPrefixPublication | None = None
-    primary: BaseException | None = None
-    try:
-        result = _seal_bound_prefix_index(
-            root=root,
-            root_descriptor=descriptor,
-            schedule_ref=schedule_ref,
-            candidate_refs=candidate_refs,
-            relative_path=relative_path,
         )
-    except BaseException as exc:
-        primary = exc
-    try:
-        rollback_descriptor = os.dup(descriptor)
-    except BaseException as duplicate_error:
-        errors = [
-            *(() if primary is None else (primary,)),
-            duplicate_error,
-        ]
-        if result is not None:
-            try:
-                _rollback_owned_publication(
-                    root_descriptor=descriptor,
-                    owned=result,
-                )
-            except BaseException as rollback_error:
-                errors.append(rollback_error)
+        primary.__cause__ = lock_error
+    else:
         try:
-            os.close(descriptor)
-        except BaseException as close_error:
-            errors.append(close_error)
-        if len(errors) == 1:
-            raise errors[0]
-        raise BaseExceptionGroup("prefix-index rollback guard creation failed", errors)
+            os.fstat(descriptor)
+        except BaseException as root_error:
+            primary = root_error
+    if primary is None:
+        try:
+            result = _seal_bound_prefix_index(
+                root=root,
+                root_descriptor=descriptor,
+                schedule_ref=schedule_ref,
+                candidate_refs=candidate_refs,
+                relative_path=relative_path,
+            )
+            committed = True
+        except BaseException as exc:
+            primary = exc
     cleanup: BaseException | None = None
     try:
         os.close(descriptor)
     except BaseException as exc:
         cleanup = exc
     if primary is not None:
-        errors = [primary]
         if cleanup is not None:
-            errors.append(cleanup)
-        try:
-            os.close(rollback_descriptor)
-        except BaseException as guard_close:
-            errors.append(guard_close)
-        if len(errors) > 1:
             raise BaseExceptionGroup(
-                "prefix-index transaction cleanup failed",
-                errors,
+                "prefix-index precommit transaction cleanup failed",
+                [primary, cleanup],
             )
         raise primary
-    if cleanup is not None:
-        errors = [cleanup]
-        if result is not None:
-            try:
-                _rollback_owned_publication(
-                    root_descriptor=rollback_descriptor,
-                    owned=result,
-                )
-            except BaseException as rollback:
-                errors.append(rollback)
-        try:
-            os.close(rollback_descriptor)
-        except BaseException as guard_close:
-            errors.append(guard_close)
-        if len(errors) > 1:
-            raise BaseExceptionGroup(
-                "final root close and publication cleanup failed",
-                errors,
-            )
-        raise cleanup
-    if result is None:
-        no_result_errors: list[BaseException] = [
-            AssertionError("prefix-index transaction produced no result")
+    if not committed or result is None:
+        errors: list[BaseException] = [
+            AssertionError("prefix-index transaction produced no committed result")
         ]
-        try:
-            os.close(rollback_descriptor)
-        except BaseException as guard_close:
-            no_result_errors.append(guard_close)
-        if len(no_result_errors) == 1:
-            raise no_result_errors[0]
+        if cleanup is not None:
+            errors.append(cleanup)
+        if len(errors) == 1:
+            raise errors[0]
         raise BaseExceptionGroup(
-            "prefix-index transaction cleanup failed",
-            no_result_errors,
-        )
-    try:
-        os.close(rollback_descriptor)
-    except BaseException as guard_close:
-        errors = [guard_close]
-        fallback: int | None = None
-        try:
-            fallback = os.open(root, _DIRECTORY_FLAGS)
-            rebound = os.fstat(fallback)
-            if (rebound.st_dev, rebound.st_ino) != root_identity:
-                raise RecordValidationError(
-                    "named run_root identity changed before rollback recovery"
-                )
-            _rollback_owned_publication(
-                root_descriptor=fallback,
-                owned=result,
-            )
-        except BaseException as rollback:
-            errors.append(rollback)
-        if fallback is not None:
-            try:
-                os.close(fallback)
-            except BaseException as fallback_close:
-                errors.append(fallback_close)
-        raise BaseExceptionGroup(
-            "rollback guard close failed after publication",
+            "prefix-index precommit transaction cleanup failed",
             errors,
+        )
+    if cleanup is not None:
+        raise BaseExceptionGroup(
+            "committed prefix-index publication cleanup residual",
+            [cleanup],
         )
     return result.ref
 

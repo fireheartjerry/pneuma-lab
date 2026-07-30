@@ -1683,6 +1683,147 @@ def test_s02d_nonselected_token_overshoot_stops_before_later_row(
         )
 
 
+def test_s02d_nonselected_rejects_clean_terminal_tool_with_remainder(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    graph.program = replace(
+        graph.program,
+        expected_trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+        tool_observations=(
+            replace(
+                graph.program.tool_observations[0],
+                episode_terminal=True,
+            ),
+        ),
+        clock_trace=graph.program.clock_trace[:5],
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+
+    with pytest.raises(ValueError, match="clean terminal.*remainder"):
+        prefix_index_module._assert_program_occurrence_replay(
+            program=graph.program,
+            responses=responses,
+            raw_events=raw_events,
+            payloads=graph.payloads,
+            authority=_program_occurrence_authority(graph),
+        )
+
+
+def test_s02d_nonselected_rejects_execution_past_first_eligible_mutation(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    graph.program = replace(
+        graph.program,
+        expected_trigger_reason=TriggerReason.FIRST_ELIGIBLE_MUTATION,
+        tool_observations=(
+            replace(
+                graph.program.tool_observations[0],
+                mutation_committed=True,
+                verifier_eligible=True,
+            ),
+            *graph.program.tool_observations[1:],
+        ),
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+
+    with pytest.raises(ValueError, match="unconsumed|first eligible|trigger"):
+        prefix_index_module._assert_program_occurrence_replay(
+            program=graph.program,
+            responses=responses,
+            raw_events=raw_events,
+            payloads=graph.payloads,
+            authority=_program_occurrence_authority(graph),
+        )
+
+
+def test_s02d_nonselected_rejects_fifth_tool_after_fourth_tool_trigger(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    row = graph.program.provider_transcript[0]
+    assert row.typed_turn is not None
+    assert row.response_ref is not None
+    fifth_call = replace(row.typed_turn.tool_calls[-1], call_id="call-5")
+    response = _response_bytes(
+        finish_reason=row.typed_turn.finish_reason,
+        text=row.typed_turn.text,
+        tool_calls=(*row.typed_turn.tool_calls, fifth_call),
+    )
+    last_clock = graph.program.clock_trace[-1].uint64_ms
+    graph.payloads[row.response_ref] = response
+    graph.program = replace(
+        graph.program,
+        provider_transcript=(
+            replace(
+                row,
+                typed_turn=replace(
+                    row.typed_turn,
+                    tool_calls=(*row.typed_turn.tool_calls, fifth_call),
+                    generated_tokens=len(response),
+                ),
+                reported_output_token_ids=tuple(response),
+                reported_generated_tokens=len(response),
+            ),
+        ),
+        tool_observations=(
+            *graph.program.tool_observations,
+            replace(
+                graph.program.tool_observations[-1],
+                call_id=fifth_call.call_id,
+            ),
+        ),
+        clock_trace=(
+            *graph.program.clock_trace,
+            SyntheticClockRead(
+                f"before_tool_{fifth_call.call_id}",
+                last_clock + 1,
+            ),
+            SyntheticClockRead(
+                f"after_tool_{fifth_call.call_id}",
+                last_clock + 2,
+            ),
+        ),
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+
+    with pytest.raises(ValueError, match="unconsumed|fourth|trigger"):
+        prefix_index_module._assert_program_occurrence_replay(
+            program=graph.program,
+            responses=responses,
+            raw_events=raw_events,
+            payloads=graph.payloads,
+            authority=_program_occurrence_authority(
+                graph,
+                prefix_caps=replace(
+                    graph.authority.prefix_caps,
+                    tool_calls=5,
+                ),
+            ),
+        )
+
+
+def test_s02d_nonselected_rejects_expected_trigger_tamper(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    graph.program = replace(
+        graph.program,
+        expected_trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+
+    with pytest.raises(ValueError, match="trigger"):
+        prefix_index_module._assert_program_occurrence_replay(
+            program=graph.program,
+            responses=responses,
+            raw_events=raw_events,
+            payloads=graph.payloads,
+            authority=_program_occurrence_authority(graph),
+        )
+
+
 def test_s02d_nonselected_rejects_unexplained_zero_tool_evidence(
     tmp_path: Path,
 ) -> None:
@@ -1990,9 +2131,6 @@ def test_s02d_publication_fault_removes_only_owned_target(
         "semantic_validation",
         "directory_close",
         "verification_close",
-        "rollback_guard_dup",
-        "after_close_guard_close",
-        "final_root_close",
     ],
 )
 def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
@@ -2006,15 +2144,12 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
     real_read = prefix_index_module.os.read
     real_fsync = prefix_index_module.os.fsync
     real_stat = prefix_index_module.os.stat
-    real_dup = prefix_index_module.os.dup
     real_close = prefix_index_module.os.close
     real_validate = prefix_index_module.validate_record
     real_seal_bound = prefix_index_module._seal_bound_prefix_index
     injected = False
     verification_read = False
     outer_root_descriptor: int | None = None
-    rollback_guard_descriptor: int | None = None
-    seal_bound_complete = False
 
     def descriptor_path(descriptor: int) -> Path | None:
         try:
@@ -2061,25 +2196,6 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
             raise OSError("injected verification stat failure")
         return real_stat(path, *args, **kwargs)
 
-    def failing_dup(descriptor: int) -> int:
-        nonlocal injected, rollback_guard_descriptor
-        if (
-            stage == "rollback_guard_dup"
-            and not injected
-            and target.exists()
-            and descriptor == outer_root_descriptor
-        ):
-            injected = True
-            raise OSError("injected rollback guard dup failure")
-        duplicated = real_dup(descriptor)
-        if (
-            seal_bound_complete
-            and descriptor == outer_root_descriptor
-            and target.exists()
-        ):
-            rollback_guard_descriptor = duplicated
-        return duplicated
-
     def failing_validate(record: object) -> object:
         nonlocal injected
         if stage == "semantic_validation" and not injected and verification_read:
@@ -2103,29 +2219,16 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
         nonlocal injected
         path = descriptor_path(descriptor)
         should_fail = (
-            (
-                stage == "directory_close"
-                and not injected
-                and target.exists()
-                and path == run_root
-                and descriptor != outer_root_descriptor
-            )
-            or (
-                stage == "verification_close"
-                and not injected
-                and verification_read
-                and path == target
-            )
-            or (
-                stage == "after_close_guard_close"
-                and not injected
-                and descriptor == rollback_guard_descriptor
-            )
-            or (
-                stage == "final_root_close"
-                and not injected
-                and descriptor == outer_root_descriptor
-            )
+            stage == "directory_close"
+            and not injected
+            and target.exists()
+            and path == run_root
+            and descriptor != outer_root_descriptor
+        ) or (
+            stage == "verification_close"
+            and not injected
+            and verification_read
+            and path == target
         )
         if should_fail:
             injected = True
@@ -2134,17 +2237,14 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
         real_close(descriptor)
 
     def capture_outer_root(*args: object, **kwargs: object) -> object:
-        nonlocal outer_root_descriptor, seal_bound_complete
+        nonlocal outer_root_descriptor
         outer_root_descriptor = kwargs["root_descriptor"]  # type: ignore[assignment]
-        result = real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
-        seal_bound_complete = True
-        return result
+        return real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
 
     with monkeypatch.context() as scoped:
         scoped.setattr(prefix_index_module.os, "open", failing_open)
         scoped.setattr(prefix_index_module.os, "read", failing_read)
         scoped.setattr(prefix_index_module.os, "stat", failing_stat)
-        scoped.setattr(prefix_index_module.os, "dup", failing_dup)
         scoped.setattr(prefix_index_module.os, "fsync", failing_fsync)
         scoped.setattr(prefix_index_module.os, "close", failing_close)
         scoped.setattr(prefix_index_module, "validate_record", failing_validate)
@@ -2170,6 +2270,98 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
         out=target,
     )
     assert target.is_file()
+
+
+def test_s02d_locked_root_fstat_failure_releases_transaction_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    real_fstat = prefix_index_module.os.fstat
+    leaked_descriptor: int | None = None
+    injected = False
+
+    def failing_fstat(descriptor: int) -> object:
+        nonlocal injected, leaked_descriptor
+        try:
+            descriptor_path = Path(f"/proc/self/fd/{descriptor}").resolve()
+        except OSError:
+            descriptor_path = None
+        if not injected and descriptor_path == run_root:
+            injected = True
+            leaked_descriptor = descriptor
+            raise OSError("injected locked-root fstat failure")
+        return real_fstat(descriptor)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(prefix_index_module.os, "fstat", failing_fstat)
+        with pytest.raises(OSError, match="locked-root fstat"):
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=target,
+            )
+
+    contender = os.open(run_root, prefix_index_module._DIRECTORY_FLAGS)
+    try:
+        fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(contender, fcntl.LOCK_UN)
+    finally:
+        os.close(contender)
+        if leaked_descriptor is not None:
+            try:
+                os.close(leaked_descriptor)
+            except OSError:
+                pass
+
+    assert injected
+    assert not target.exists()
+
+
+def test_s02d_postcommit_lock_close_failure_preserves_verified_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    real_close = prefix_index_module.os.close
+    real_seal_bound = prefix_index_module._seal_bound_prefix_index
+    outer_root_descriptor: int | None = None
+    injected = False
+
+    def capture_outer_root(*args: object, **kwargs: object) -> object:
+        nonlocal outer_root_descriptor
+        outer_root_descriptor = kwargs["root_descriptor"]  # type: ignore[assignment]
+        return real_seal_bound(*args, **kwargs)  # type: ignore[arg-type]
+
+    def failing_close(descriptor: int) -> None:
+        nonlocal injected
+        if not injected and descriptor == outer_root_descriptor and target.exists():
+            injected = True
+            real_close(descriptor)
+            raise OSError("injected postcommit lock close failure")
+        real_close(descriptor)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(prefix_index_module.os, "close", failing_close)
+        scoped.setattr(
+            prefix_index_module,
+            "_seal_bound_prefix_index",
+            capture_outer_root,
+        )
+        with pytest.raises(BaseException) as captured:
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=target,
+            )
+
+    assert injected
+    assert "committed" in repr(captured.value).lower()
+    assert validate_record(json.loads(target.read_bytes()))
 
 
 def test_s02d_rejects_when_cooperative_root_transaction_lock_is_held(
