@@ -685,6 +685,27 @@ def _build_provider_authority_fixture(
         },
         role="task_registry",
     )
+    branch_program_registry_ref = blob(
+        "sources/branch-program-registry.json",
+        {
+            "record_kind": "resampling_branch_program_registry_v1",
+            "schema_version": "0.1.0",
+            "tasks": [
+                {
+                    "task_id": task_id,
+                    "programs": [
+                        {
+                            "branch_ordinal": ordinal,
+                            "program_ref": ref_value(refs[f"{task_id}_program"]),
+                        }
+                        for ordinal in range(4)
+                    ],
+                }
+                for task_id in ("task-1", "task-foreign")
+            ],
+        },
+        role="branch_program_registry",
+    )
 
     def scientific(
         relative_path: str,
@@ -719,6 +740,9 @@ def _build_provider_authority_fixture(
             "roster_ceremony_policy_ref": None,
             "assignment_program_ref": arbitrary_ref,
             "provider_lane_plan_ref": ref_value(plan_ref),
+            "branch_program_registry_ref": ref_value(
+                branch_program_registry_ref
+            ),
             "storage_policy_contract_ref": arbitrary_ref,
             "power_grid_ref": arbitrary_ref,
             "power_screen_topology_ref": arbitrary_ref,

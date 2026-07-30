@@ -24,6 +24,7 @@ from .authority_refs import (
     load_json_bytes,
     walk_artifact_refs,
 )
+from .branch_program_authority import load_branch_program_registry
 from .controller import derive_call_seed
 from .controller_artifacts import (
     ControllerArtifactResolver,
@@ -2727,6 +2728,18 @@ def _decode_program_asset(
     return walk_artifact_refs(value)
 
 
+def _decode_branch_program_registry_asset(
+    _ref: ArtifactRef,
+    payload: bytes,
+    _value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    """Validate future branch authority without importing it into prefix replay."""
+
+    load_branch_program_registry(payload)
+    return ()
+
+
 def _decode_request_asset(
     _ref: ArtifactRef,
     payload: bytes,
@@ -2836,6 +2849,7 @@ AUTHORITY_ASSET_DECODER_BY_ROLE: Mapping[
             for role in _PROMOTED_AUTHORITY_ROLES
         },
         "synthetic_execution_program": _decode_program_asset,
+        "branch_program_registry": _decode_branch_program_registry_asset,
         "synthetic_request": _decode_request_asset,
         "synthetic_response": _decode_response_asset,
         "synthetic_provider_event": _decode_provider_event_asset,

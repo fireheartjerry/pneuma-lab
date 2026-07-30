@@ -72,6 +72,7 @@ AUTHORITY_ASSET_ROLE_MEDIA: Mapping[str, str] = MappingProxyType(
     {
         "task_registry": "application/json",
         "provider_lane_plan": "application/json",
+        "branch_program_registry": "application/json",
         "task_input": "application/json",
         "environment_contract": "application/json",
         "grader_contract": "application/json",

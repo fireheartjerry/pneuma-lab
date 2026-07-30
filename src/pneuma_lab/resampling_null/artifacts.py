@@ -1501,6 +1501,74 @@ def _plan_branch_program_closure(
     return planned
 
 
+def _validate_branch_program_authority(
+    registry_copy: _SourceCopy,
+    task_copy: _SourceCopy,
+    *,
+    all_copies: Sequence[_SourceCopy],
+    root: Path,
+) -> None:
+    """Validate exact task coverage and every program from staged sealed bytes."""
+
+    task_value = _load_json_bytes(task_copy.payload, source=task_copy.source)
+    if (
+        not isinstance(task_value, Mapping)
+        or set(task_value) != {"record_kind", "schema_version", "tasks"}
+        or task_value.get("record_kind") != "resampling_task_registry_v1"
+    ):
+        raise RecordValidationError(
+            "branch program authority requires a closed task registry"
+        )
+    task_registry = dict(task_value)
+    validate_task_registry(task_registry)
+    branch_registry = load_branch_program_registry(registry_copy.payload)
+    registry_task_ids = tuple(task.task_id for task in branch_registry.tasks)
+    task_rows = cast(list[object], task_registry.get("tasks"))
+    task_ids = tuple(
+        exact_text(
+            cast(Mapping[str, object], row).get("task_id"),
+            field="task registry task_id",
+        )
+        for row in task_rows
+    )
+    if registry_task_ids != tuple(sorted(task_ids)):
+        raise RecordValidationError(
+            "branch program registry task coverage differs from task registry"
+        )
+    with tempfile.TemporaryDirectory(
+        prefix=".pneuma-branch-authority-stage-",
+        dir=root.parent,
+    ) as staging_name:
+        staging_root = Path(staging_name)
+        for copy in all_copies:
+            staging_path = staging_root / copy.ref.relative_path
+            staging_path.parent.mkdir(parents=True, exist_ok=True)
+            write_atomic_bytes(staging_path, copy.payload)
+        with AuthorityRefReader(staging_root) as reader:
+            for task in branch_registry.tasks:
+                for entry in task.programs:
+                    reader.verify_closure(
+                        entry.program_ref,
+                        field=(
+                            f"branch program task {task.task_id!r} "
+                            f"ordinal {entry.branch_ordinal}"
+                        ),
+                        expected_role="synthetic_execution_program",
+                    )
+                    try:
+                        program = load_synthetic_prefix_program(
+                            reader.read_bytes(entry.program_ref)
+                        )
+                    except (TypeError, ValueError) as exc:
+                        raise RecordValidationError(
+                            "branch execution program is invalid"
+                        ) from exc
+                    if program.task_id != task.task_id:
+                        raise RecordValidationError(
+                            "branch execution program task binding mismatch"
+                        )
+
+
 def _ref_mapping(ref: ArtifactRef) -> dict[str, object]:
     return cast(dict[str, object], asdict(ref))
 
@@ -1813,6 +1881,13 @@ def seal_study_manifest(
             "study manifest destination conflicts with a source destination"
         )
 
+    task_copy = next(copy for copy in copies if copy.ref.role == "task_registry")
+    _validate_branch_program_authority(
+        registry_copy,
+        task_copy,
+        all_copies=all_copies,
+        root=root,
+    )
     provider_value = _load_json_bytes(
         provider_copy.payload,
         source=provider_copy.source,
@@ -1821,7 +1896,6 @@ def seal_study_manifest(
         isinstance(provider_value, Mapping)
         and provider_value.get("record_kind") == "provider_lane_plan_v2"
     ):
-        task_copy = next(copy for copy in copies if copy.ref.role == "task_registry")
         task_value = _load_json_bytes(task_copy.payload, source=task_copy.source)
         if (
             not isinstance(task_value, Mapping)
@@ -1874,44 +1948,6 @@ def seal_study_manifest(
                     manifest_revisions=tuple(copy.ref for copy in revision_copies),
                     schedule_authority=execution_authority,
                 )
-                branch_registry = load_branch_program_registry(registry_copy.payload)
-                registry_task_ids = tuple(
-                    task.task_id for task in branch_registry.tasks
-                )
-                task_rows = cast(list[object], task_registry.get("tasks"))
-                task_ids = tuple(
-                    exact_text(
-                        cast(Mapping[str, object], row).get("task_id"),
-                        field="task registry task_id",
-                    )
-                    for row in task_rows
-                )
-                if registry_task_ids != tuple(sorted(task_ids)):
-                    raise RecordValidationError(
-                        "branch program registry task coverage differs from task registry"
-                    )
-                for task in branch_registry.tasks:
-                    for entry in task.programs:
-                        reader.verify_closure(
-                            entry.program_ref,
-                            field=(
-                                f"branch program task {task.task_id!r} "
-                                f"ordinal {entry.branch_ordinal}"
-                            ),
-                            expected_role="synthetic_execution_program",
-                        )
-                        try:
-                            program = load_synthetic_prefix_program(
-                                reader.read_bytes(entry.program_ref)
-                            )
-                        except (TypeError, ValueError) as exc:
-                            raise RecordValidationError(
-                                "branch execution program is invalid"
-                            ) from exc
-                        if program.task_id != task.task_id:
-                            raise RecordValidationError(
-                                "branch execution program task binding mismatch"
-                            )
     from .publication import BoundPublication
 
     with BoundPublication(root) as publication:

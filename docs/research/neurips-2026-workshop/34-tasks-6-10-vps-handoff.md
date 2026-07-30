@@ -602,15 +602,25 @@ packet field, a bound model-call cap reported as `TOKEN_CAP`, and a genuinely
 measured `wall_clock_ms` — are documented in the module docstring and must not
 be silently changed.
 
-**The one remaining Task-9 gate is authority, not code.** A triggered task
-stops at `_branch_program_refs` because no study manifest names the per-slot
-branch execution programs an isolated worker would replay, exactly as
-`run_prefix` needs its prefix program. Do not synthesize those programs in the
-CLI, in a fixture materializer, or in a test that claims lineage: doing so
-scripts four slot trajectories outside frozen authority. The correct next step
-is to extend the study-manifest contract to name them under review, then
-execute only a genuinely admitted full P0 lineage.
+**Task 9 branch-program authority completion (2026-07-30):** The study
+manifest now requires one sealed `branch_program_registry_ref`. Its closed
+registry binds every frozen task to four post-trigger programs by pre-schedule
+ordinal `0..3`; manifest sealing copies and verifies the complete nested
+program closure before publishing the first scientific record. It deliberately
+does not name future `slot_id` or allocation capabilities, which exist only
+after the schedule seed is opened and assignment is sealed. At branch
+admission, registry ordinals reconcile to the exact later
+schedule/assignment-derived opaque work-order order.
+
+`synthetic branches` resolves programs only through manifest ancestry, checks
+task and frozen-trigger binding, admits the complete selected task roster
+before the first worker starts, and passes each resolved program to the
+isolated executor. Missing, extra, reordered, dangling, wrong-role,
+wrong-media, wrong-task, wrong-trigger, or caller-substituted authority fails
+closed. No CLI program-ref argument or runtime program synthesis exists.
 
 Canonical status for Task 9 is `implementation_complete; E2E_pending`. No
 compatible P0 final, real lineage, task block of record, unblind, analysis,
-provider or benchmark action, spend, or scientific claim exists.
+provider or benchmark action, spend, or scientific claim exists. The next gate
+is to execute one genuinely admitted full P0 lineage through this authority;
+passing the authority tests is not that execution.
