@@ -534,6 +534,14 @@ class ControllerArtifactResolver:
             raise RuntimeError("controller artifact resolver is closed")
         return self._root_descriptor, self._artifact_descriptor
 
+    @property
+    def bound_root_identity(self) -> tuple[int, int]:
+        """Return the active held root identity without reopening its path."""
+
+        root_descriptor, _artifact_descriptor = self._require_open()
+        metadata = os.fstat(root_descriptor)
+        return metadata.st_dev, metadata.st_ino
+
     def resolve(
         self,
         ref: ArtifactRef,

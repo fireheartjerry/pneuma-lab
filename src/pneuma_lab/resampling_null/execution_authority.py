@@ -20,7 +20,11 @@ from .provider_contracts import (
     ValidatedProviderPlan,
     validate_provider_lane_plan,
 )
-from .scientific_records import load_scientific_parent
+from .scientific_records import (
+    ScientificRefReader,
+    decode_scientific_parent,
+    load_scientific_parent,
+)
 from .task_schedule_codec import decode_task_schedule
 from .types import (
     ArtifactRef,
@@ -299,6 +303,7 @@ def _load_prefix_execution_authority_with_reader(
     schedule_ref: ArtifactRef,
     task_id: str,
     reader: AuthorityRefReader,
+    scientific_reader: ScientificRefReader | None = None,
 ) -> PrefixExecutionAuthority:
     """Reconstruct one selected task's execution policy from sealed ancestry."""
 
@@ -315,11 +320,21 @@ def _load_prefix_execution_authority_with_reader(
     if not task_id:
         raise ValueError("task_id must be non-empty")
     root = run_root.resolve(strict=True)
-    schedule = load_scientific_parent(
-        asdict(schedule_ref),
-        run_root=root,
-        field="schedule_ref",
-        expected_kind="resampling_prefix_schedule",
+    schedule = (
+        load_scientific_parent(
+            asdict(schedule_ref),
+            run_root=root,
+            field="schedule_ref",
+            expected_kind="resampling_prefix_schedule",
+        )
+        if scientific_reader is None
+        else decode_scientific_parent(
+            schedule_ref,
+            scientific_reader.read_bound(schedule_ref),
+            run_root=root,
+            field="schedule_ref",
+            expected_kind="resampling_prefix_schedule",
+        )
     )
     schedule_payload = cast(dict[str, object], schedule.value["payload"])
     manifest_ref = decode_artifact_ref(
@@ -327,11 +342,21 @@ def _load_prefix_execution_authority_with_reader(
         field="schedule manifest_ref",
         expected_role="study_manifest",
     )
-    manifest = load_scientific_parent(
-        asdict(manifest_ref),
-        run_root=root,
-        field="schedule manifest_ref",
-        expected_kind="resampling_study_manifest",
+    manifest = (
+        load_scientific_parent(
+            asdict(manifest_ref),
+            run_root=root,
+            field="schedule manifest_ref",
+            expected_kind="resampling_study_manifest",
+        )
+        if scientific_reader is None
+        else decode_scientific_parent(
+            manifest_ref,
+            scientific_reader.read_bound(manifest_ref),
+            run_root=root,
+            field="schedule manifest_ref",
+            expected_kind="resampling_study_manifest",
+        )
     )
     if (
         schedule.value["study_id"] != manifest.value["study_id"]

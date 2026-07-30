@@ -103,6 +103,15 @@ class ScientificRefReader:
                 ) from None
             raise
 
+    @property
+    def bound_root_identity(self) -> tuple[int, int]:
+        """Return the active held root identity without reopening its path."""
+
+        if self._root_descriptor is None:
+            raise RuntimeError("scientific reader is not active")
+        metadata = os.fstat(self._root_descriptor)
+        return metadata.st_dev, metadata.st_ino
+
     def read_bound(self, ref: ArtifactRef) -> BoundArtifactRead:
         cached = self._bound_reads.get(ref)
         if cached is not None:

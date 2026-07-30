@@ -229,6 +229,15 @@ class AuthorityRefReader:
                 ) from None
             raise
 
+    @property
+    def bound_root_identity(self) -> tuple[int, int]:
+        """Return the active held root identity without reopening its path."""
+
+        if self._root_descriptor is None:
+            raise RuntimeError("authority reader is not active")
+        metadata = os.fstat(self._root_descriptor)
+        return metadata.st_dev, metadata.st_ino
+
     def _require_root(self) -> int:
         if self._root_descriptor is None:
             raise RuntimeError("authority reader is not active")

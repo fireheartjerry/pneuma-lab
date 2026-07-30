@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import stat
-from typing import Mapping, cast
+from typing import Any, Mapping, cast
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 
@@ -59,10 +59,13 @@ from .prefix_contracts import (
     InitialRestoreQualificationReceipt,
     SnapshotRestoreReceipt,
     SyntheticPrefixProgram,
+    RawProviderObservation,
     load_initial_restore_qualification_receipt,
     load_prefix_candidate_receipt,
     load_snapshot_restore_receipt,
+    load_synthetic_request_payload,
     load_synthetic_prefix_program,
+    load_synthetic_tool_result_payload,
 )
 from .scientific_records import (
     ScientificRecord,
@@ -72,15 +75,17 @@ from .scientific_records import (
 from .synthetic_environment import _decode_snapshot_state
 from .synthetic_prefix_loop import (
     AUTHORITY_ASSET_DECODER_BY_ROLE,
+    SyntheticResponseParser,
     SyntheticGradeCodec,
     SyntheticVerifierCodec,
     _controller_nested_refs,
     _decode_raw_event,
+    _validate_provider_observation,
     _reconcile_reloaded_attestations,
     _reconcile_reloaded_authority_leaves,
     _reconcile_reloaded_execution_records,
 )
-from .types import ArtifactRef, FailureKind, TriggerReason
+from .types import ArtifactRef, FailureKind, ToolCall, TriggerReason
 
 
 _RESERVED_OUTPUT_ROOTS = frozenset(
@@ -129,6 +134,12 @@ class _FreshTraversal:
     @classmethod
     def empty(cls) -> _FreshTraversal:
         return cls({}, {}, {}, {}, {}, {}, set())
+
+
+@dataclass(frozen=True, slots=True)
+class _OwnedPrefixPublication:
+    ref: ArtifactRef
+    identity: tuple[int, int]
 
 
 def _exact_output_relative_path(*, root: Path, out: Path) -> str:
@@ -271,6 +282,7 @@ def _load_candidate_graph(
         schedule_ref=schedule_ref,
         task_id=expected_task_id,
         reader=authority_reader,
+        scientific_reader=scientific_reader,
     )
     prevalidated = authority_reader.semantically_validated_refs
 
@@ -554,11 +566,10 @@ def _assert_ancestry_and_restores(graph: _CandidateGraph) -> None:
         observed_simulator_turns=(
             None
             if authority.simulator_contract_caps is None
-            else sum(
-                1
-                for attempt in graph.provider_ledger.ledger.attempts
-                if attempt.subject_role == "user_simulator"
-                and attempt.status is ProviderAttemptStatus.COMPLETED
+            else _parsed_response_turn_count(
+                program=graph.program,
+                payloads=graph.payloads,
+                subject_role="user_simulator",
             )
         ),
     )
@@ -681,6 +692,23 @@ def _assert_ancestry_and_restores(graph: _CandidateGraph) -> None:
         raise ValueError("initial/live/grade/verifier restores are not isolated")
 
 
+def _parsed_response_turn_count(
+    *,
+    program: SyntheticPrefixProgram,
+    payloads: Mapping[ArtifactRef, bytes],
+    subject_role: str,
+) -> int:
+    """Count parser-valid turns even when transport/deadline status is adverse."""
+
+    return sum(
+        1
+        for row in program.provider_transcript
+        if row.subject_role == subject_role
+        and row.response_ref is not None
+        and SyntheticResponseParser().parse(payloads[row.response_ref])[1] is not None
+    )
+
+
 def _cost_closure(
     graph: _CandidateGraph,
 ) -> AttemptBoundZeroCostClosure | SyntheticZeroAttemptCostClosure:
@@ -727,6 +755,264 @@ def _assert_execution_semantics(graph: _CandidateGraph) -> None:
     program = graph.program
     ledger = graph.provider_ledger
     cost_closure = _cost_closure(graph)
+    clock = {read.label: read.uint64_ms for read in program.clock_trace}
+    prefix_epoch = clock.get("prefix_epoch")
+    if prefix_epoch is None:
+        raise ValueError("program clock trace lacks prefix_epoch")
+    derived_turns = {"primary_subject": 0, "user_simulator": 0}
+    derived_tokens = {"primary_subject": 0, "user_simulator": 0}
+    derived_calls = {"primary_subject": 0, "user_simulator": 0}
+    validated_rows: list[Any] = []
+    call_sequence: list[tuple[ToolCall, tuple[ToolCall, ...], int, int]] = []
+    primary_tokens = 0
+    provider_failure = FailureKind.NONE
+    provider_remainder: tuple[ToolCall, ...] = ()
+    status_failures = {
+        ProviderAttemptStatus.TIMEOUT_NO_RESPONSE: FailureKind.TIMEOUT,
+        ProviderAttemptStatus.TIMEOUT_LATE_RESPONSE: FailureKind.TIMEOUT,
+        ProviderAttemptStatus.REFUSAL: FailureKind.REFUSAL,
+        ProviderAttemptStatus.MALFORMED_RESPONSE: FailureKind.MALFORMED_ACTION,
+        ProviderAttemptStatus.PROVIDER_ERROR: FailureKind.MODEL,
+        ProviderAttemptStatus.INFRASTRUCTURE_ERROR: FailureKind.INFRASTRUCTURE,
+    }
+    transcript = program.provider_transcript
+    for row_index, (row, intent, attempt) in enumerate(
+        zip(
+            program.provider_transcript,
+            ledger.ledger.intents,
+            ledger.ledger.attempts,
+            strict=True,
+        )
+    ):
+        if provider_failure is not FailureKind.NONE:
+            raise ValueError("provider transcript continues after terminal outcome")
+        completion = clock.get(f"after_{row.subject_role}_{row.call_index}")
+        before = clock.get(f"before_{row.subject_role}_{row.call_index}")
+        if completion is None or before is None:
+            raise ValueError("provider row lacks exact dispatch/completion clock")
+        if (
+            intent.absolute_deadline_ms
+            != prefix_epoch + authority.prefix_caps.wall_clock_ms
+        ):
+            raise ValueError(
+                "dispatch deadline differs from prefix epoch plus wall cap"
+            )
+        raw_response = (
+            None if row.response_ref is None else graph.payloads[row.response_ref]
+        )
+        validated = _validate_provider_observation(
+            observation=RawProviderObservation(
+                subject_role=row.subject_role,
+                call_index=row.call_index,
+                seed=row.seed,
+                model_contract_sha256=row.model_contract_sha256,
+                response_bytes=raw_response,
+                typed_turn=row.typed_turn,
+                reported_output_token_ids=row.reported_output_token_ids,
+                reported_generated_tokens=row.reported_generated_tokens,
+                provider_event_bytes=graph.payloads[row.provider_event_ref],
+                completion_kind=row.completion_kind,
+            ),
+            expected_role=intent.subject_role,
+            expected_call_index=intent.call_index,
+            expected_seed=intent.seed,
+            expected_model_sha256=intent.model_contract_ref.sha256,
+            deadline_ms=intent.absolute_deadline_ms,
+            completion_ms=completion,
+        )
+        if attempt.status is not validated.status:
+            raise ValueError("attempt status differs from raw transport/parser truth")
+        validated_rows.append(validated)
+        role_caps = (
+            authority.subject_contract_caps
+            if row.subject_role == "primary_subject"
+            else authority.simulator_contract_caps
+        )
+        if role_caps is None:
+            raise ValueError("simulator dispatch lacks simulator authority")
+        lane_token_cap = (
+            authority.prefix_caps.generated_tokens
+            if row.subject_role == "primary_subject"
+            else authority.simulator_caps.aggregate_generated_tokens
+        )
+        lane_call_cap = (
+            authority.prefix_caps.model_calls
+            if row.subject_role == "primary_subject"
+            else authority.simulator_caps.aggregate_model_calls
+        )
+        lane_turn_cap = (
+            role_caps.aggregate_turns
+            if row.subject_role == "primary_subject"
+            else authority.simulator_caps.aggregate_turns
+        )
+        if (
+            before >= intent.absolute_deadline_ms
+            or role_caps.per_call_turns == 0
+            or derived_tokens[row.subject_role]
+            >= min(lane_token_cap, role_caps.aggregate_generated_tokens)
+            or derived_calls[row.subject_role]
+            >= min(lane_call_cap, role_caps.aggregate_model_calls)
+            or derived_turns[row.subject_role]
+            >= min(lane_turn_cap, role_caps.aggregate_turns)
+        ):
+            raise ValueError("provider dispatch occurred after an exhausted allowance")
+        derived_calls[row.subject_role] += 1
+        derived_tokens[row.subject_role] += validated.generated_tokens
+        if validated.typed_turn is not None:
+            derived_turns[row.subject_role] += 1
+        if attempt.elapsed_ms != max(0, completion - prefix_epoch):
+            raise ValueError(
+                "attempt elapsed differs from completion minus prefix epoch"
+            )
+        pending = (
+            () if validated.typed_turn is None else validated.typed_turn.tool_calls
+        )
+        provider_failure = status_failures.get(
+            validated.status,
+            FailureKind.NONE,
+        )
+        if (
+            provider_failure is FailureKind.NONE
+            and completion > intent.absolute_deadline_ms
+        ):
+            provider_failure = FailureKind.TIMEOUT
+        if provider_failure is FailureKind.NONE and (
+            validated.generated_tokens > role_caps.per_call_generated_tokens
+            or derived_tokens[row.subject_role]
+            > min(
+                lane_token_cap,
+                role_caps.aggregate_generated_tokens,
+            )
+        ):
+            provider_failure = FailureKind.TOKEN_CAP
+        if provider_failure is not FailureKind.NONE:
+            provider_remainder = pending
+            if row_index != len(transcript) - 1:
+                raise ValueError("provider transcript continues after terminal outcome")
+            continue
+        if validated.typed_turn is None:
+            raise ValueError("completed provider status lacks a typed turn")
+        if row.subject_role == "primary_subject":
+            primary_tokens += validated.generated_tokens
+            turn = validated.typed_turn
+            for call_index, call in enumerate(turn.tool_calls):
+                call_sequence.append(
+                    (
+                        call,
+                        turn.tool_calls[call_index + 1 :],
+                        primary_tokens,
+                        row_index,
+                    )
+                )
+    boundaries = graph.tool_ledger.boundaries
+    if len(boundaries) > len(call_sequence):
+        raise ValueError("tool boundary coverage exceeds parsed typed-turn queues")
+    derived_trigger = TriggerReason.NO_INTERVENTION_OPPORTUNITY
+    derived_failure = FailureKind.NONE
+    derived_branch: tuple[ToolCall, ...] = ()
+    derived_remainder: tuple[ToolCall, ...] = ()
+    cumulative_mutation = False
+    boundary_stopped = False
+    stopped_row_index: int | None = None
+    for index, boundary in enumerate(boundaries):
+        call, remainder, generated_at_boundary, origin_row_index = call_sequence[index]
+        if boundary.call_id != call.call_id:
+            raise ValueError("tool boundaries differ from exact parsed queue order")
+        before_tool = clock.get(f"before_tool_{call.call_id}")
+        completion = clock.get(f"after_tool_{call.call_id}")
+        if before_tool is None or completion is None:
+            raise ValueError("tool boundary lacks exact before/after clock")
+        if (
+            before_tool >= prefix_epoch + authority.prefix_caps.wall_clock_ms
+            or index >= authority.prefix_caps.tool_calls
+        ):
+            raise ValueError("tool boundary exists after pre-tool allowance failure")
+        if boundary.elapsed_ms != max(0, completion - prefix_epoch):
+            raise ValueError("tool elapsed differs from clock trace minus prefix epoch")
+        cumulative_mutation = cumulative_mutation or boundary.mutation_committed
+        if boundary.failure_kind is not FailureKind.NONE:
+            derived_failure = boundary.failure_kind
+            derived_remainder = remainder
+            boundary_stopped = True
+            stopped_row_index = origin_row_index
+            break
+        if boundary.episode_terminal:
+            if remainder:
+                raise ValueError("terminal tool boundary has an unexecuted remainder")
+            boundary_stopped = True
+            stopped_row_index = origin_row_index
+            break
+        if completion > prefix_epoch + authority.prefix_caps.wall_clock_ms:
+            derived_failure = FailureKind.TIMEOUT
+            derived_remainder = remainder
+            boundary_stopped = True
+            stopped_row_index = origin_row_index
+            break
+        if generated_at_boundary > min(
+            authority.prefix_caps.generated_tokens,
+            authority.subject_contract_caps.aggregate_generated_tokens,
+        ):
+            derived_failure = FailureKind.TOKEN_CAP
+            derived_remainder = remainder
+            boundary_stopped = True
+            stopped_row_index = origin_row_index
+            break
+        if cumulative_mutation and boundary.verifier_eligible_after:
+            derived_trigger = TriggerReason.FIRST_ELIGIBLE_MUTATION
+            derived_branch = remainder
+            boundary_stopped = True
+            stopped_row_index = origin_row_index
+            break
+        if index + 1 == 4:
+            derived_trigger = TriggerReason.FOURTH_TOOL_CALL
+            derived_branch = remainder
+            boundary_stopped = True
+            stopped_row_index = origin_row_index
+            break
+    if (
+        boundaries
+        and (
+            derived_trigger is not TriggerReason.NO_INTERVENTION_OPPORTUNITY
+            or derived_failure is not FailureKind.NONE
+            or boundaries[-1].episode_terminal
+        )
+        and len(boundaries) != index + 1
+    ):
+        raise ValueError("execution evidence continues after terminal precedence")
+    if boundary_stopped:
+        if stopped_row_index is None or stopped_row_index != len(transcript) - 1:
+            raise ValueError(
+                "provider transcript continues after tool terminal outcome"
+            )
+        if provider_failure is not FailureKind.NONE:
+            raise ValueError("tool outcome precedes a later provider failure")
+    elif len(boundaries) < len(call_sequence):
+        call, remainder, _, origin_row_index = call_sequence[len(boundaries)]
+        before_tool = clock.get(f"before_tool_{call.call_id}")
+        if before_tool is None:
+            raise ValueError("pending tool lacks exact pre-action clock")
+        pending = (call, *remainder)
+        if before_tool >= prefix_epoch + authority.prefix_caps.wall_clock_ms:
+            derived_failure = FailureKind.TIMEOUT
+            derived_remainder = pending
+        elif len(boundaries) >= authority.prefix_caps.tool_calls:
+            derived_failure = FailureKind.TOOL_CAP
+            derived_remainder = pending
+        else:
+            raise ValueError("parsed tool queue has unexplained missing boundary")
+        if origin_row_index != len(transcript) - 1:
+            raise ValueError("provider transcript continues after pre-tool failure")
+    elif provider_failure is not FailureKind.NONE:
+        derived_failure = provider_failure
+        derived_remainder = provider_remainder
+    if (
+        receipt.trigger_reason is not derived_trigger
+        or program.expected_trigger_reason is not derived_trigger
+        or receipt.terminal_failure_kind is not derived_failure
+        or receipt.branch_pending_calls != derived_branch
+        or receipt.terminal_unexecuted_remainder != derived_remainder
+    ):
+        raise ValueError("fresh replay outcome differs from frozen prefix receipt")
     _reconcile_reloaded_execution_records(
         authority=authority,
         program=program,
@@ -815,46 +1101,6 @@ def _assert_execution_semantics(graph: _CandidateGraph) -> None:
     maximum_elapsed = max((*attempt_elapsed, *boundary_elapsed), default=0)
     if receipt.counters.wall_clock_ms != maximum_elapsed:
         raise ValueError("wall-clock counter differs from execution chronology")
-
-    cumulative_mutation = False
-    derived_trigger = TriggerReason.NO_INTERVENTION_OPPORTUNITY
-    for index, boundary in enumerate(graph.tool_ledger.boundaries, start=1):
-        cumulative_mutation = cumulative_mutation or boundary.mutation_committed
-        if (
-            boundary.failure_kind is not FailureKind.NONE
-            or boundary.episode_terminal
-            or boundary.elapsed_ms > authority.prefix_caps.wall_clock_ms
-        ):
-            break
-        if cumulative_mutation and boundary.verifier_eligible_after:
-            derived_trigger = TriggerReason.FIRST_ELIGIBLE_MUTATION
-            break
-        if index == 4:
-            derived_trigger = TriggerReason.FOURTH_TOOL_CALL
-            break
-    if derived_trigger is not TriggerReason.NO_INTERVENTION_OPPORTUNITY and len(
-        graph.tool_ledger.boundaries
-    ) != next(
-        index
-        for index, boundary in enumerate(graph.tool_ledger.boundaries, start=1)
-        if (
-            (
-                derived_trigger is TriggerReason.FIRST_ELIGIBLE_MUTATION
-                and any(
-                    prior.mutation_committed
-                    for prior in graph.tool_ledger.boundaries[:index]
-                )
-                and boundary.verifier_eligible_after
-            )
-            or (derived_trigger is TriggerReason.FOURTH_TOOL_CALL and index == 4)
-        )
-    ):
-        raise ValueError("tool evidence continues after the earliest trigger")
-    if (
-        receipt.trigger_reason is not derived_trigger
-        or program.expected_trigger_reason is not derived_trigger
-    ):
-        raise ValueError("trigger differs from fresh chronological derivation")
 
 
 def _assert_raw_and_attestation_semantics(graph: _CandidateGraph) -> None:
@@ -954,11 +1200,64 @@ def _validate_candidate(graph: _CandidateGraph) -> None:
     _assert_raw_and_attestation_semantics(graph)
 
 
+def _assert_all_program_occurrences(traversal: _FreshTraversal) -> None:
+    """Reconcile every manifest-reachable program, including non-selected rows."""
+
+    programs = {
+        ref: cast(SyntheticPrefixProgram, value)
+        for ref, value in traversal.decoded.items()
+        if ref.role == "synthetic_execution_program"
+    }
+    for program in programs.values():
+        request_refs = {row.expected_request_ref for row in program.provider_transcript}
+        response_refs = {
+            row.response_ref
+            for row in program.provider_transcript
+            if row.response_ref is not None
+        }
+        event_refs = {row.provider_event_ref for row in program.provider_transcript}
+        tool_refs = {row.result_ref for row in program.tool_observations}
+        grade_ref = program.grade_result.evidence_ref
+        verifier_ref = program.verifier_result.evidence_ref
+        _reconcile_reloaded_authority_leaves(
+            program=program,
+            requests={
+                ref: load_synthetic_request_payload(traversal.payloads[ref])
+                for ref in request_refs
+            },
+            responses={
+                ref: SyntheticResponseParser().parse(traversal.payloads[ref])
+                for ref in response_refs
+            },
+            raw_events={
+                ref: _decode_raw_event(traversal.payloads[ref]) for ref in event_refs
+            },
+            tool_results={
+                ref: load_synthetic_tool_result_payload(traversal.payloads[ref])
+                for ref in tool_refs
+            },
+            grade_results={
+                grade_ref: SyntheticGradeCodec().decode(
+                    payload=traversal.payloads[grade_ref],
+                    program=program,
+                    expected_payload=traversal.payloads[grade_ref],
+                )
+            },
+            verifier_results={
+                verifier_ref: SyntheticVerifierCodec().decode(
+                    payload=traversal.payloads[verifier_ref],
+                    program=program,
+                    expected_payload=traversal.payloads[verifier_ref],
+                )
+            },
+        )
+
+
 def _verify_published(
     *,
     root_descriptor: int,
     relative_path: str,
-    expected: ArtifactRef,
+    expected: _OwnedPrefixPublication,
 ) -> None:
     parts = PurePosixPath(relative_path).parts
     descriptors: list[int] = []
@@ -982,8 +1281,9 @@ def _verify_published(
             not stat.S_ISREG(before.st_mode)
             or (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino)
             or (before.st_dev, before.st_ino) != (named.st_dev, named.st_ino)
-            or hashlib.sha256(payload).hexdigest() != expected.sha256
-            or len(payload) != expected.byte_count
+            or (before.st_dev, before.st_ino) != expected.identity
+            or hashlib.sha256(payload).hexdigest() != expected.ref.sha256
+            or len(payload) != expected.ref.byte_count
         ):
             raise RecordValidationError("published prefix index identity differs")
         validate_record(json.loads(payload))
@@ -1009,12 +1309,80 @@ def _verify_published(
         )
 
 
+def _publication_parent_descriptor(
+    root_descriptor: int,
+    relative_path: str,
+) -> tuple[list[int], int, str]:
+    parts = PurePosixPath(relative_path).parts
+    descriptors = [os.dup(root_descriptor)]
+    current = descriptors[0]
+    try:
+        for component in parts[:-1]:
+            current = os.open(component, _DIRECTORY_FLAGS, dir_fd=current)
+            descriptors.append(current)
+    except BaseException as primary:
+        cleanup: list[BaseException] = []
+        for descriptor in reversed(descriptors):
+            try:
+                os.close(descriptor)
+            except BaseException as exc:
+                cleanup.append(exc)
+        if cleanup:
+            raise BaseExceptionGroup(
+                "publication parent traversal and cleanup both failed",
+                [primary, *cleanup],
+            )
+        raise
+    return descriptors, current, parts[-1]
+
+
+def _rollback_owned_publication(
+    *,
+    root_descriptor: int,
+    owned: _OwnedPrefixPublication,
+) -> None:
+    descriptors, parent, name = _publication_parent_descriptor(
+        root_descriptor,
+        owned.ref.relative_path,
+    )
+    primary: BaseException | None = None
+    try:
+        try:
+            named = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            named = None
+        if named is not None:
+            if (named.st_dev, named.st_ino) != owned.identity:
+                raise RecordValidationError(
+                    "refusing to unlink a replaced prefix-index target"
+                )
+            os.unlink(name, dir_fd=parent)
+            os.fsync(parent)
+    except BaseException as exc:
+        primary = exc
+    cleanup: list[BaseException] = []
+    for descriptor in reversed(descriptors):
+        try:
+            os.close(descriptor)
+        except BaseException as exc:
+            cleanup.append(exc)
+    if primary is not None and cleanup:
+        raise BaseExceptionGroup(
+            "prefix-index rollback and cleanup both failed",
+            [primary, *cleanup],
+        )
+    if primary is not None:
+        raise primary
+    if cleanup:
+        raise BaseExceptionGroup("prefix-index rollback cleanup failed", cleanup)
+
+
 def _publish_once(
     *,
     root_descriptor: int,
     relative_path: str,
     payload: bytes,
-) -> ArtifactRef:
+) -> _OwnedPrefixPublication:
     parts = PurePosixPath(relative_path).parts
     descriptors: list[int] = []
     file_descriptor: int | None = None
@@ -1061,11 +1429,11 @@ def _publish_once(
     except BaseException as exc:
         primary = exc
     if file_descriptor is not None:
-        owned = file_descriptor
+        file_to_close = file_descriptor
         file_descriptor = None
         if target_created and created_identity is None:
             try:
-                created = os.fstat(owned)
+                created = os.fstat(file_to_close)
                 created_identity = (created.st_dev, created.st_ino)
             except BaseException as exc:
                 if primary is None:
@@ -1076,7 +1444,7 @@ def _publish_once(
                         [primary, exc],
                     )
         try:
-            os.close(owned)
+            os.close(file_to_close)
         except BaseException as exc:
             close_error = exc
     if primary is None and close_error is None:
@@ -1148,18 +1516,32 @@ def _publish_once(
             os.close(descriptor)
         except BaseException as exc:
             cleanup_errors.append(exc)
+    ref = ArtifactRef(
+        "resampling_prefix_receipt",
+        relative_path,
+        hashlib.sha256(payload).hexdigest(),
+        len(payload),
+        "application/json",
+    )
+    if created_identity is None:
+        raise AssertionError("successful publication lacks a bound identity")
+    owned = _OwnedPrefixPublication(ref, created_identity)
     if cleanup_errors:
+        try:
+            _rollback_owned_publication(
+                root_descriptor=root_descriptor,
+                owned=owned,
+            )
+        except BaseException as rollback:
+            raise BaseExceptionGroup(
+                "publication cleanup and rollback both failed",
+                [*cleanup_errors, rollback],
+            )
         raise BaseExceptionGroup(
             "prefix-index directory descriptor cleanup failed",
             cleanup_errors,
         )
-    return ArtifactRef(
-        role="resampling_prefix_receipt",
-        relative_path=relative_path,
-        sha256=hashlib.sha256(payload).hexdigest(),
-        byte_count=len(payload),
-        media_type="application/json",
-    )
+    return owned
 
 
 def _seal_bound_prefix_index(
@@ -1169,7 +1551,7 @@ def _seal_bound_prefix_index(
     schedule_ref: ArtifactRef,
     candidate_refs: tuple[ArtifactRef, ...],
     relative_path: str,
-) -> ArtifactRef:
+) -> _OwnedPrefixPublication:
     root_identity = os.fstat(root_descriptor)
     named_before = os.stat(root, follow_symlinks=False)
     if not stat.S_ISDIR(root_identity.st_mode) or (
@@ -1184,6 +1566,16 @@ def _seal_bound_prefix_index(
         ControllerArtifactResolver(root) as resolver,
         AuthorityRefReader(root) as authority_reader,
     ):
+        expected_root_identity = (root_identity.st_dev, root_identity.st_ino)
+        reader_identities = (
+            scientific_reader.bound_root_identity,
+            resolver.bound_root_identity,
+            authority_reader.bound_root_identity,
+        )
+        if any(identity != expected_root_identity for identity in reader_identities):
+            raise RecordValidationError(
+                "fresh reader root identity differs from held S02D root"
+            )
         schedule_bound = scientific_reader.read_bound(schedule_ref)
         schedule = decode_scientific_parent(
             schedule_ref,
@@ -1221,6 +1613,7 @@ def _seal_bound_prefix_index(
             )
             _validate_candidate(graph)
             receipts.append(graph.receipt)
+        _assert_all_program_occurrences(traversal)
         manifest_refs = {
             ref for ref in traversal.scientific_refs if ref.role == "study_manifest"
         }
@@ -1256,11 +1649,24 @@ def _seal_bound_prefix_index(
         relative_path=relative_path,
         payload=payload,
     )
-    _verify_published(
-        root_descriptor=root_descriptor,
-        relative_path=relative_path,
-        expected=published,
-    )
+    try:
+        _verify_published(
+            root_descriptor=root_descriptor,
+            relative_path=relative_path,
+            expected=published,
+        )
+    except BaseException as primary:
+        try:
+            _rollback_owned_publication(
+                root_descriptor=root_descriptor,
+                owned=published,
+            )
+        except BaseException as rollback:
+            raise BaseExceptionGroup(
+                "prefix-index verification and rollback both failed",
+                [primary, rollback],
+            )
+        raise
     return published
 
 
@@ -1286,7 +1692,7 @@ def seal_prefix_index(
         raise NotADirectoryError(root)
     relative_path = _exact_output_relative_path(root=root, out=out)
     descriptor = os.open(root, _DIRECTORY_FLAGS)
-    result: ArtifactRef | None = None
+    result: _OwnedPrefixPublication | None = None
     primary: BaseException | None = None
     try:
         result = _seal_bound_prefix_index(
@@ -1298,23 +1704,91 @@ def seal_prefix_index(
         )
     except BaseException as exc:
         primary = exc
+    try:
+        rollback_descriptor = os.dup(descriptor)
+    except BaseException as duplicate_error:
+        errors = [
+            *(() if primary is None else (primary,)),
+            duplicate_error,
+        ]
+        if result is not None:
+            try:
+                _rollback_owned_publication(
+                    root_descriptor=descriptor,
+                    owned=result,
+                )
+            except BaseException as rollback_error:
+                errors.append(rollback_error)
+        try:
+            os.close(descriptor)
+        except BaseException as close_error:
+            errors.append(close_error)
+        raise BaseExceptionGroup(
+            "prefix-index rollback guard creation failed",
+            errors,
+        )
     cleanup: BaseException | None = None
     try:
         os.close(descriptor)
     except BaseException as exc:
         cleanup = exc
-    if primary is not None and cleanup is not None:
-        raise BaseExceptionGroup(
-            "prefix-index transaction and root cleanup both failed",
-            [primary, cleanup],
-        )
     if primary is not None:
+        errors = [primary]
+        if cleanup is not None:
+            errors.append(cleanup)
+        try:
+            os.close(rollback_descriptor)
+        except BaseException as guard_close:
+            errors.append(guard_close)
+        if len(errors) > 1:
+            raise BaseExceptionGroup(
+                "prefix-index transaction cleanup failed",
+                errors,
+            )
         raise primary
     if cleanup is not None:
+        errors = [cleanup]
+        if result is not None:
+            try:
+                _rollback_owned_publication(
+                    root_descriptor=rollback_descriptor,
+                    owned=result,
+                )
+            except BaseException as rollback:
+                errors.append(rollback)
+        try:
+            os.close(rollback_descriptor)
+        except BaseException as guard_close:
+            errors.append(guard_close)
+        if len(errors) > 1:
+            raise BaseExceptionGroup(
+                "final root close and publication cleanup failed",
+                errors,
+            )
         raise cleanup
     if result is None:
+        os.close(rollback_descriptor)
         raise AssertionError("prefix-index transaction produced no result")
-    return result
+    try:
+        os.close(rollback_descriptor)
+    except BaseException as guard_close:
+        errors = [guard_close]
+        try:
+            _rollback_owned_publication(
+                root_descriptor=rollback_descriptor,
+                owned=result,
+            )
+        except BaseException as rollback:
+            errors.append(rollback)
+        try:
+            os.close(rollback_descriptor)
+        except BaseException as retry_close:
+            errors.append(retry_close)
+        raise BaseExceptionGroup(
+            "rollback guard close failed after publication",
+            errors,
+        )
+    return result.ref
 
 
 __all__ = ("seal_prefix_index",)
