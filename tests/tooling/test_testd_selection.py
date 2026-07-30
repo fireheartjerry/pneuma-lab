@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pneuma_lab.testd.manifest import TestManifest
+from pathlib import Path
+
+from pneuma_lab.testd.manifest import TestManifest, collect_micro_manifest
 from pneuma_lab.testd.selection import select
 
 
@@ -62,3 +64,10 @@ def test_clean_known_graph_can_return_noop_but_forensic_requires_opt_in() -> Non
     assert clean.node_ids == ()
     assert clean.widening_reason == "known_no_change"
     assert forensic.node_ids == MANIFEST.forensic_nodes
+
+
+def test_manifest_collection_is_limited_to_the_smoke_root() -> None:
+    manifest = collect_micro_manifest(Path(__file__).parents[2])
+
+    assert len(manifest.micro_nodes) == 7
+    assert all(node.startswith("tests/smoke/") for node in manifest.micro_nodes)
