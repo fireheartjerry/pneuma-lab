@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict, replace
+import fcntl
 import hashlib
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -36,6 +38,7 @@ from pneuma_lab.resampling_null.types import (
     CallSeedReceipt,
     FrozenVerifierReceipt,
     GradeReceipt,
+    SubjectTurn,
     TriggerReason,
 )
 from tests.resampling_null.provider_authority_fixture import (
@@ -218,6 +221,123 @@ def _nonempty_execution_graph(
         container_attestations=(),
     )
     opened.close()
+    return graph
+
+
+def _response_bytes(
+    *,
+    finish_reason: str,
+    text: str,
+    tool_calls: tuple[object, ...] = (),
+) -> bytes:
+    generated_tokens = 0
+    while True:
+        payload = canonical_json_bytes(
+            {
+                "finish_reason": finish_reason,
+                "generated_tokens": generated_tokens,
+                "text": text,
+                "tool_calls": [
+                    {
+                        "call_id": call.call_id,
+                        "canonical_arguments_json": call.canonical_arguments_json,
+                        "name": call.name,
+                    }
+                    for call in tool_calls
+                ],
+            },
+            indent=None,
+        )
+        if len(payload) == generated_tokens:
+            return payload
+        generated_tokens = len(payload)
+
+
+def _terminal_turn_graph(
+    tmp_path: Path,
+    *,
+    subject_role: str = "primary_subject",
+) -> prefix_index_module._CandidateGraph:
+    graph = _nonempty_execution_graph(tmp_path)
+    row = graph.program.provider_transcript[0]
+    assert row.response_ref is not None
+    response = _response_bytes(finish_reason="terminal", text="done")
+    turn = SubjectTurn("done", (), len(response), "terminal")
+    seed = prefix_index_module.derive_call_seed(
+        graph.authority.task_schedule.prefix_seed,
+        subject_role,
+        0,
+    )
+    model_ref = graph.authority.subject_contract_ref
+    if subject_role == "user_simulator":
+        model_ref = replace(model_ref, role="simulator_contract")
+        graph.authority = replace(
+            graph.authority,
+            simulator_caps=graph.authority.subject_contract_caps,
+            simulator_contract_caps=graph.authority.subject_contract_caps,
+            simulator_contract_ref=model_ref,
+        )
+    intent = replace(
+        graph.provider_ledger.ledger.intents[0],
+        subject_role=subject_role,
+        seed=seed,
+        model_contract_ref=model_ref,
+    )
+    attempt = replace(
+        graph.provider_ledger.ledger.attempts[0],
+        subject_role=subject_role,
+        seed=seed,
+        model_contract_ref=model_ref,
+        generated_tokens=len(response),
+    )
+    graph.provider_ledger = replace(
+        graph.provider_ledger,
+        ledger=replace(
+            graph.provider_ledger.ledger,
+            intents=(intent,),
+            attempts=(attempt,),
+        ),
+    )
+    graph.program = replace(
+        graph.program,
+        expected_trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+        provider_transcript=(
+            replace(
+                row,
+                subject_role=subject_role,
+                seed=seed,
+                model_contract_sha256=model_ref.sha256,
+                typed_turn=turn,
+                reported_output_token_ids=tuple(response),
+                reported_generated_tokens=len(response),
+            ),
+        ),
+        tool_observations=(),
+        clock_trace=(
+            graph.program.clock_trace[0],
+            replace(
+                graph.program.clock_trace[1],
+                label=f"before_{subject_role}_0",
+            ),
+            replace(
+                graph.program.clock_trace[2],
+                label=f"after_{subject_role}_0",
+            ),
+        ),
+    )
+    graph.payloads[row.response_ref] = response
+    graph.tool_ledger = replace(graph.tool_ledger, boundaries=())
+    graph.receipt = replace(
+        graph.receipt,
+        trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+        terminal_failure_kind=prefix_index_module.FailureKind.NONE,
+        branch_pending_calls=(),
+        terminal_unexecuted_remainder=(),
+    )
+    graph.snapshot = SimpleNamespace(  # type: ignore[assignment]
+        episode_terminal=True,
+        cumulative_mutation=False,
+    )
     return graph
 
 
@@ -470,6 +590,250 @@ def test_s02d_replays_terminal_precedence_before_mutation_trigger(
             graph.receipt.simulator_counters,
             wall_clock_ms=expected_wall,
         ),
+    )
+    graph.snapshot = SimpleNamespace(  # type: ignore[assignment]
+        episode_terminal=True,
+        cumulative_mutation=False,
+    )
+
+    prefix_index_module._assert_execution_semantics(graph)
+
+
+@pytest.mark.parametrize("subject_role", ["primary_subject", "user_simulator"])
+def test_s02d_accepts_clean_provider_terminal_turn(
+    tmp_path: Path,
+    subject_role: str,
+) -> None:
+    graph = _terminal_turn_graph(tmp_path, subject_role=subject_role)
+
+    prefix_index_module._assert_exact_execution_replay(graph)
+
+
+def test_s02d_accepts_initially_terminal_empty_execution(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    graph.initial_restore = SimpleNamespace(  # type: ignore[assignment]
+        episode_terminal=True,
+        failure_kind=prefix_index_module.FailureKind.NONE,
+    )
+    graph.snapshot = SimpleNamespace(  # type: ignore[assignment]
+        episode_terminal=True,
+        cumulative_mutation=False,
+    )
+    graph.program = replace(
+        graph.program,
+        provider_transcript=(),
+        tool_observations=(),
+        expected_trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+        clock_trace=graph.program.clock_trace[:1],
+    )
+    graph.provider_ledger = replace(
+        graph.provider_ledger,
+        ledger=replace(
+            graph.provider_ledger.ledger,
+            intents=(),
+            intent_refs=(),
+            attempts=(),
+        ),
+        attempt_refs=(),
+    )
+    graph.tool_ledger = replace(graph.tool_ledger, boundaries=())
+    graph.receipt = replace(
+        graph.receipt,
+        trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+        terminal_failure_kind=prefix_index_module.FailureKind.NONE,
+        branch_pending_calls=(),
+        terminal_unexecuted_remainder=(),
+    )
+
+    prefix_index_module._assert_exact_execution_replay(graph)
+
+
+@pytest.mark.parametrize("initial_state", ["terminal", "failure"])
+def test_s02d_rejects_dispatch_from_initially_terminal_or_failed_restore(
+    tmp_path: Path,
+    initial_state: str,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    graph.initial_restore = SimpleNamespace(  # type: ignore[assignment]
+        episode_terminal=initial_state == "terminal",
+        failure_kind=(
+            prefix_index_module.FailureKind.MODEL
+            if initial_state == "failure"
+            else prefix_index_module.FailureKind.NONE
+        ),
+    )
+
+    with pytest.raises(ValueError, match="initial.*terminal|failed restore"):
+        prefix_index_module._assert_exact_execution_replay(graph)
+
+
+def test_s02d_rejects_terminal_turn_with_tools(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    row = graph.program.provider_transcript[0]
+    assert row.response_ref is not None
+    assert row.typed_turn is not None
+    response = _response_bytes(
+        finish_reason="terminal",
+        text="not actually terminal",
+        tool_calls=row.typed_turn.tool_calls,
+    )
+    graph.payloads[row.response_ref] = response
+    graph.program = replace(
+        graph.program,
+        provider_transcript=(
+            replace(
+                row,
+                typed_turn=replace(
+                    row.typed_turn,
+                    text="not actually terminal",
+                    generated_tokens=len(response),
+                    finish_reason="terminal",
+                ),
+                reported_output_token_ids=tuple(response),
+                reported_generated_tokens=len(response),
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="terminal.*tools"):
+        prefix_index_module._assert_exact_execution_replay(graph)
+
+
+def test_s02d_rejects_row_after_clean_provider_terminal(
+    tmp_path: Path,
+) -> None:
+    graph = _terminal_turn_graph(tmp_path)
+    row = graph.program.provider_transcript[0]
+    first_intent = graph.provider_ledger.ledger.intents[0]
+    first_attempt = graph.provider_ledger.ledger.attempts[0]
+    second_seed = prefix_index_module.derive_call_seed(
+        graph.authority.task_schedule.prefix_seed,
+        "primary_subject",
+        1,
+    )
+    second_event_ref = ArtifactRef(
+        "synthetic_provider_event",
+        "sources/terminal-second-event.json",
+        "f" * 64,
+        1,
+        "application/json",
+    )
+    second_row = replace(
+        row,
+        call_index=1,
+        seed=second_seed,
+        provider_event_ref=second_event_ref,
+    )
+    graph.payloads[second_event_ref] = canonical_json_bytes(
+        {
+            "observed_at_ms": 5,
+            "record_kind": "synthetic_raw_provider_event_v1",
+            "schema_version": "1",
+            "transport_kind": "response",
+        },
+        indent=None,
+    )
+    graph.authority = replace(
+        graph.authority,
+        prefix_caps=replace(graph.authority.prefix_caps, model_calls=2),
+        subject_contract_caps=replace(
+            graph.authority.subject_contract_caps,
+            aggregate_model_calls=2,
+            aggregate_turns=2,
+        ),
+    )
+    graph.program = replace(
+        graph.program,
+        provider_transcript=(row, second_row),
+        clock_trace=(
+            *graph.program.clock_trace,
+            SyntheticClockRead("before_primary_subject_1", 4),
+            SyntheticClockRead("after_primary_subject_1", 5),
+        ),
+    )
+    object.__setattr__(
+        graph.provider_ledger.ledger,
+        "intents",
+        (
+            first_intent,
+            replace(first_intent, call_index=1, seed=second_seed),
+        ),
+    )
+    object.__setattr__(
+        graph.provider_ledger.ledger,
+        "attempts",
+        (
+            first_attempt,
+            replace(
+                first_attempt,
+                call_index=1,
+                seed=second_seed,
+                elapsed_ms=4,
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="terminal outcome"):
+        prefix_index_module._assert_exact_execution_replay(graph)
+
+
+@pytest.mark.parametrize("pretool_failure", ["tool_cap", "timeout"])
+def test_s02d_uses_pretool_clock_as_terminal_wall_time(
+    tmp_path: Path,
+    pretool_failure: str,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    row = graph.program.provider_transcript[0]
+    assert row.typed_turn is not None
+    graph.program = replace(
+        graph.program,
+        expected_trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+        clock_trace=graph.program.clock_trace[:4],
+        tool_observations=(),
+    )
+    graph.tool_ledger = replace(graph.tool_ledger, boundaries=())
+    failure = prefix_index_module.FailureKind.TOOL_CAP
+    if pretool_failure == "tool_cap":
+        graph.authority = replace(
+            graph.authority,
+            prefix_caps=replace(graph.authority.prefix_caps, tool_calls=0),
+        )
+    else:
+        failure = prefix_index_module.FailureKind.TIMEOUT
+        graph.authority = replace(
+            graph.authority,
+            prefix_caps=replace(graph.authority.prefix_caps, wall_clock_ms=3),
+        )
+        intent_ref = graph.provider_ledger.ledger.intent_refs[0]
+        intent = replace(
+            graph.provider_ledger.ledger.intents[0],
+            absolute_deadline_ms=4,
+        )
+        graph.provider_ledger = replace(
+            graph.provider_ledger,
+            ledger=replace(graph.provider_ledger.ledger, intents=(intent,)),
+        )
+        graph.intents[intent_ref] = intent
+    graph.receipt = replace(
+        graph.receipt,
+        prefix_caps=graph.authority.prefix_caps,
+        trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+        terminal_failure_kind=failure,
+        branch_pending_calls=(),
+        terminal_unexecuted_remainder=row.typed_turn.tool_calls,
+        counters=replace(graph.receipt.counters, tool_calls=0, wall_clock_ms=4),
+        simulator_counters=replace(
+            graph.receipt.simulator_counters,
+            wall_clock_ms=4,
+        ),
+    )
+    graph.snapshot = SimpleNamespace(  # type: ignore[assignment]
+        episode_terminal=True,
+        cumulative_mutation=False,
     )
 
     prefix_index_module._assert_execution_semantics(graph)
@@ -802,6 +1166,48 @@ def test_s02d_full_seal_routing_probe_invokes_nonempty_replay(
     assert replayed_nonempty
 
 
+def test_s02d_full_seal_supplies_lane_authority_for_every_program_occurrence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    real_reconcile = prefix_index_module._assert_all_program_occurrences
+    observed_programs = 0
+
+    def capture_lane_authority(
+        traversal: prefix_index_module._FreshTraversal,
+        *,
+        program_authorities: dict[ArtifactRef, object],
+    ) -> None:
+        nonlocal observed_programs
+        programs = {
+            ref
+            for ref, value in traversal.decoded.items()
+            if ref.role == "synthetic_execution_program"
+            and isinstance(value, prefix_index_module.SyntheticPrefixProgram)
+        }
+        assert set(program_authorities) == programs
+        observed_programs = len(programs)
+        real_reconcile(
+            traversal,
+            program_authorities=program_authorities,
+        )
+
+    monkeypatch.setattr(
+        prefix_index_module,
+        "_assert_all_program_occurrences",
+        capture_lane_authority,
+    )
+    seal_prefix_index(
+        run_root=run_root,
+        schedule_ref=fixture.schedule_ref,
+        candidate_refs=candidates,
+        out=run_root / "prefix-index.json",
+    )
+
+    assert observed_programs >= 2
+
+
 def test_s02d_reconciles_nonselected_reachable_program_leaves(
     tmp_path: Path,
 ) -> None:
@@ -839,9 +1245,17 @@ def test_s02d_reconciles_nonselected_reachable_program_leaves(
         decoded={selected_ref: selected, foreign_ref: foreign},
         scientific_refs=set(),
     )
+    authority_graph = _nonempty_execution_graph(tmp_path / "authority")
+    occurrence_authority = _program_occurrence_authority(authority_graph)
 
     with pytest.raises(ValueError, match="grade"):
-        prefix_index_module._assert_all_program_occurrences(traversal)
+        prefix_index_module._assert_all_program_occurrences(
+            traversal,
+            program_authorities={
+                selected_ref: (occurrence_authority,),
+                foreign_ref: (occurrence_authority,),
+            },
+        )
 
 
 @pytest.mark.parametrize(
@@ -890,7 +1304,155 @@ def test_s02d_replays_every_reachable_program_occurrence(
     )
 
     with pytest.raises(ValueError):
-        prefix_index_module._assert_all_program_occurrences(traversal)
+        prefix_index_module._assert_all_program_occurrences(
+            traversal,
+            program_authorities={
+                program_ref: (_program_occurrence_authority(graph),),
+            },
+        )
+
+
+def _program_occurrence_inputs(
+    graph: prefix_index_module._CandidateGraph,
+) -> tuple[dict[ArtifactRef, tuple[str, object]], dict[ArtifactRef, tuple[str, int]]]:
+    responses = {
+        row.response_ref: prefix_index_module.SyntheticResponseParser().parse(
+            graph.payloads[row.response_ref]
+        )
+        for row in graph.program.provider_transcript
+        if row.response_ref is not None
+    }
+    raw_events = {
+        row.provider_event_ref: prefix_index_module._decode_raw_event(
+            graph.payloads[row.provider_event_ref]
+        )
+        for row in graph.program.provider_transcript
+    }
+    return responses, raw_events
+
+
+def _program_occurrence_authority(
+    graph: prefix_index_module._CandidateGraph,
+    *,
+    prefix_caps: object | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        prefix_caps=graph.authority.prefix_caps if prefix_caps is None else prefix_caps,
+        simulator_caps=graph.authority.simulator_caps,
+        subject_contract_caps=graph.authority.subject_contract_caps,
+        simulator_contract_caps=graph.authority.simulator_contract_caps,
+        subject_contract_ref=graph.authority.subject_contract_ref,
+        simulator_contract_ref=graph.authority.simulator_contract_ref,
+    )
+
+
+def test_s02d_nonselected_rejects_on_time_timeout_late_claim(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    row = graph.program.provider_transcript[0]
+    graph.program = replace(
+        graph.program,
+        provider_transcript=(
+            replace(
+                row,
+                completion_kind=RawProviderCompletionKind.TIMEOUT_LATE_RESPONSE,
+            ),
+        ),
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+
+    with pytest.raises(ValueError, match="completion"):
+        prefix_index_module._assert_program_occurrence_replay(
+            program=graph.program,
+            responses=responses,
+            raw_events=raw_events,
+            payloads=graph.payloads,
+            authority=_program_occurrence_authority(graph),
+        )
+
+
+def test_s02d_nonselected_accepts_provider_error_with_parsed_response(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    row = graph.program.provider_transcript[0]
+    raw_event = json.loads(graph.payloads[row.provider_event_ref])
+    raw_event["transport_kind"] = "provider_error"
+    graph.payloads[row.provider_event_ref] = canonical_json_bytes(
+        raw_event,
+        indent=None,
+    )
+    graph.program = replace(
+        graph.program,
+        provider_transcript=(
+            replace(
+                row,
+                completion_kind=RawProviderCompletionKind.PROVIDER_ERROR,
+            ),
+        ),
+        expected_trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+        clock_trace=graph.program.clock_trace[:3],
+        tool_observations=(),
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+
+    prefix_index_module._assert_program_occurrence_replay(
+        program=graph.program,
+        responses=responses,
+        raw_events=raw_events,
+        payloads=graph.payloads,
+        authority=_program_occurrence_authority(graph),
+    )
+
+
+def test_s02d_nonselected_rejects_unexplained_zero_tool_evidence(
+    tmp_path: Path,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    graph.program = replace(
+        graph.program,
+        clock_trace=graph.program.clock_trace[:3],
+        tool_observations=(),
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+
+    with pytest.raises(ValueError, match="tool"):
+        prefix_index_module._assert_program_occurrence_replay(
+            program=graph.program,
+            responses=responses,
+            raw_events=raw_events,
+            payloads=graph.payloads,
+            authority=_program_occurrence_authority(graph),
+        )
+
+
+@pytest.mark.parametrize("pretool_failure", ["tool_cap", "timeout"])
+def test_s02d_nonselected_accepts_causal_pretool_failure(
+    tmp_path: Path,
+    pretool_failure: str,
+) -> None:
+    graph = _nonempty_execution_graph(tmp_path)
+    caps = graph.authority.prefix_caps
+    if pretool_failure == "tool_cap":
+        caps = replace(caps, tool_calls=0)
+    else:
+        caps = replace(caps, wall_clock_ms=3)
+    graph.program = replace(
+        graph.program,
+        expected_trigger_reason=TriggerReason.NO_INTERVENTION_OPPORTUNITY,
+        clock_trace=graph.program.clock_trace[:4],
+        tool_observations=(),
+    )
+    responses, raw_events = _program_occurrence_inputs(graph)
+
+    prefix_index_module._assert_program_occurrence_replay(
+        program=graph.program,
+        responses=responses,
+        raw_events=raw_events,
+        payloads=graph.payloads,
+        authority=_program_occurrence_authority(graph, prefix_caps=caps),
+    )
 
 
 @pytest.mark.parametrize("case", ["duplicate", "reverse"])
@@ -974,16 +1536,19 @@ def test_s02d_uses_one_scientific_reader_for_the_whole_transaction(
         counted_enter,
     )
     real_authority_load = (
-        prefix_index_module._load_prefix_execution_authority_with_reader
+        prefix_index_module._load_prefix_execution_authority_and_plan_with_reader
     )
+    authority_loads = 0
 
     def reader_bound_authority_load(*args: object, **kwargs: object) -> object:
+        nonlocal authority_loads
+        authority_loads += 1
         assert kwargs.get("scientific_reader") is not None
         return real_authority_load(*args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
         prefix_index_module,
-        "_load_prefix_execution_authority_with_reader",
+        "_load_prefix_execution_authority_and_plan_with_reader",
         reader_bound_authority_load,
     )
     seal_prefix_index(
@@ -994,6 +1559,7 @@ def test_s02d_uses_one_scientific_reader_for_the_whole_transaction(
     )
 
     assert entered == 1
+    assert authority_loads == 1
 
 
 @pytest.mark.parametrize(
@@ -1329,9 +1895,33 @@ def test_s02d_late_publication_failure_rolls_back_and_retry_succeeds(
     assert target.is_file()
 
 
-def test_s02d_atomic_rollback_never_unlinks_a_replacement(
+def test_s02d_rejects_when_cooperative_root_transaction_lock_is_held(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    target = run_root / "prefix-index.json"
+    competing_descriptor = os.open(
+        run_root,
+        prefix_index_module._DIRECTORY_FLAGS,
+    )
+    fcntl.flock(competing_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        with pytest.raises(BaseException, match="lock|lease"):
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=target,
+            )
+    finally:
+        fcntl.flock(competing_descriptor, fcntl.LOCK_UN)
+        os.close(competing_descriptor)
+
+    assert not target.exists()
+
+
+def test_s02d_reports_prequarantine_ownership_loss_and_preserves_replacement(
+    tmp_path: Path,
 ) -> None:
     run_root = tmp_path / "run"
     run_root.mkdir()
@@ -1346,45 +1936,17 @@ def test_s02d_atomic_rollback_never_unlinks_a_replacement(
         relative_path="prefix-index.json",
         payload=b"owned-payload",
     )
-    real_unlink = prefix_index_module.os.unlink
-    injected = False
-
-    def racing_unlink(
-        name: object,
-        *args: object,
-        **kwargs: object,
-    ) -> None:
-        nonlocal injected
-        if name == "prefix-index.json":
-            injected = True
-            directory = kwargs["dir_fd"]
-            prefix_index_module.os.rename(
-                "prefix-index.json",
-                "owned-survivor",
-                src_dir_fd=directory,
-                dst_dir_fd=directory,
-            )
-            replacement = prefix_index_module.os.open(
-                "prefix-index.json",
-                prefix_index_module.os.O_WRONLY
-                | prefix_index_module.os.O_CREAT
-                | prefix_index_module.os.O_EXCL,
-                0o600,
-                dir_fd=directory,
-            )
-            prefix_index_module.os.write(replacement, b"replacement")
-            prefix_index_module.os.close(replacement)
-        real_unlink(name, *args, **kwargs)
-
-    monkeypatch.setattr(prefix_index_module.os, "unlink", racing_unlink)
+    os.rename(target, survivor)
+    target.write_bytes(b"replacement")
     try:
-        prefix_index_module._rollback_owned_publication(
-            root_descriptor=root_descriptor,
-            owned=owned,
-        )
+        with pytest.raises(BaseException, match="rollback incomplete") as captured:
+            prefix_index_module._rollback_owned_publication(
+                root_descriptor=root_descriptor,
+                owned=owned,
+            )
     finally:
         prefix_index_module.os.close(root_descriptor)
 
-    assert not target.exists()
-    assert not survivor.exists()
-    assert not injected
+    assert "ownership lost" in repr(captured.value)
+    assert target.read_bytes() == b"replacement"
+    assert survivor.read_bytes() == b"owned-payload"

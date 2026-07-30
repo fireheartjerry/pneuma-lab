@@ -297,14 +297,14 @@ def _project_task_authority(
     )
 
 
-def _load_prefix_execution_authority_with_reader(
+def _load_prefix_execution_authority_and_plan_with_reader(
     *,
     run_root: Path,
     schedule_ref: ArtifactRef,
     task_id: str,
     reader: AuthorityRefReader,
     scientific_reader: ScientificRefReader | None = None,
-) -> PrefixExecutionAuthority:
+) -> tuple[PrefixExecutionAuthority, ValidatedProviderPlan]:
     """Reconstruct one selected task's execution policy from sealed ancestry."""
 
     if type(run_root) is not type(Path()):
@@ -397,6 +397,18 @@ def _load_prefix_execution_authority_with_reader(
             registry,
             task_id=task_id,
         )
+        for schedule_row in cast(list[object], schedule_payload["tasks"]):
+            if not isinstance(schedule_row, Mapping):
+                raise RecordValidationError("selected schedule task is not a mapping")
+            scheduled = decode_task_schedule(
+                schedule_row,
+                field="selected schedule task",
+            )
+            _validate_registry_binding(
+                schedule_row,
+                registry,
+                task_id=scheduled.task.task_id,
+            )
         tokenizer_ref = decode_artifact_ref(
             manifest_payload["tokenizer_ref"],
             field="manifest tokenizer_ref",
@@ -472,7 +484,7 @@ def _load_prefix_execution_authority_with_reader(
             raise RuntimeError("production validator proof role coverage drifted")
         for validated_ref in validated_refs:
             reader.mark_semantically_validated(validated_ref)
-    return _project_task_authority(
+    authority = _project_task_authority(
         schedule_ref=schedule_ref,
         manifest_ref=manifest_ref,
         provider_ref=provider_ref,
@@ -485,6 +497,47 @@ def _load_prefix_execution_authority_with_reader(
         ),
         tokenizer_ref=tokenizer_ref,
         source_revision_refs=revisions,
+    )
+    return authority, validated_plan
+
+
+def _load_prefix_execution_authority_with_reader(
+    *,
+    run_root: Path,
+    schedule_ref: ArtifactRef,
+    task_id: str,
+    reader: AuthorityRefReader,
+    scientific_reader: ScientificRefReader | None = None,
+) -> PrefixExecutionAuthority:
+    authority, _ = _load_prefix_execution_authority_and_plan_with_reader(
+        run_root=run_root,
+        schedule_ref=schedule_ref,
+        task_id=task_id,
+        reader=reader,
+        scientific_reader=scientific_reader,
+    )
+    return authority
+
+
+def _project_prefix_execution_authority_from_plan(
+    *,
+    anchor: PrefixExecutionAuthority,
+    schedule_payload: dict[str, object],
+    task_id: str,
+    validated_plan: ValidatedProviderPlan,
+) -> PrefixExecutionAuthority:
+    selected = _selected_schedule_task(schedule_payload, task_id=task_id)
+    task_schedule = decode_task_schedule(selected, field="selected schedule task")
+    return _project_task_authority(
+        schedule_ref=anchor.schedule_ref,
+        manifest_ref=anchor.manifest_ref,
+        provider_ref=anchor.provider_lane_plan_ref,
+        task_schedule=task_schedule,
+        validated_plan=validated_plan,
+        task_id=task_id,
+        schedule_authority=anchor.schedule_authority,
+        tokenizer_ref=anchor.tokenizer_ref,
+        source_revision_refs=anchor.source_revision_refs,
     )
 
 

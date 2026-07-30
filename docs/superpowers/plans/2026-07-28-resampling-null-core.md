@@ -4251,6 +4251,37 @@ traversal-plus-close failure. S02C remains local deterministic candidate
 construction only; this amendment authorizes no S02D publication, provider,
 model, network, credential, spend, branch, experiment, result, or claim.
 
+### DL-143 cooperative S02D publication namespace
+
+DL-143 narrows S02D publication and rollback claims to the same cooperative-
+local boundary as DL-142. `seal_prefix_index` holds one exclusive advisory lock
+on the bound run-root descriptor from before fresh traversal until publication,
+verification, rollback, and descriptor cleanup finish. Every in-scope S02D
+prefix-index writer and recovery path must acquire and honor that same root
+transaction lock; lock contention fails closed before graph traversal or
+publication. Normal replacement detected before the quarantine operation still
+produces an explicit ownership-loss residual and preserves the replacement.
+
+Rollback may atomically move the currently named source into a no-replace
+quarantine name while the cooperative lock is held, then verify its bound
+identity/content and remove or restore it. This is not a compare-and-unlink-by-
+inode primitive: POSIX supplies no syscall that conditionally unlinks a
+directory entry only if it still names an expected inode. An arbitrary same-UID
+or kernel-interposed mutator can race between any final identity check and
+`renameat2`, `unlink`, or restoration. Such mutation is outside this protocol's
+threat model, cannot be repaired by another stat/rename loop, and must not be
+described as adversarial filesystem safety. If cooperative execution observes
+missing or changed ownership, it returns an explicit rollback residual and
+fails closed rather than deleting an unowned name or claiming cleanup.
+
+Required REDs prove exclusive-lock contention, successful cooperative rollback,
+and replacement/lost ownership detected before quarantine with the replacement
+preserved and a residual reported. Tests that hook an unrelated logical-target
+`unlink` while production unlinks a quarantine name are forbidden as evidence
+of race safety. This amendment changes only local S02D concurrency authority;
+it authorizes no provider/model/network call, credential use, spend, branch,
+experiment, result, or claim promotion.
+
 The corrected prefix entry adds:
 
 ```python

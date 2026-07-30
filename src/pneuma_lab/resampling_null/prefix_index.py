@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import fcntl
 import hashlib
 import json
 import os
@@ -54,12 +55,12 @@ from .evidence import (
 )
 from .execution_authority import (
     PrefixExecutionAuthority,
-    _load_prefix_execution_authority_with_reader,
+    _load_prefix_execution_authority_and_plan_with_reader,
+    _project_prefix_execution_authority_from_plan,
 )
 from .prefix_contracts import (
     REF_LOAD_CLASS_BY_ROLE,
     InitialRestoreQualificationReceipt,
-    RawProviderCompletionKind,
     SnapshotRestoreReceipt,
     SyntheticPrefixProgram,
     RawProviderObservation,
@@ -95,7 +96,14 @@ from .synthetic_prefix_loop import (
     _reconcile_reloaded_authority_leaves,
     _reconcile_reloaded_execution_records,
 )
-from .types import ArtifactRef, FailureKind, ToolCall, TriggerReason
+from .types import (
+    ArtifactRef,
+    CallContractCaps,
+    FailureKind,
+    PrefixCaps,
+    ToolCall,
+    TriggerReason,
+)
 
 
 _RESERVED_OUTPUT_ROOTS = frozenset(
@@ -178,6 +186,21 @@ class _ClockTraceReplay:
     def assert_exhausted(self) -> None:
         if self.position != len(self.trace):
             raise ValueError("clock trace has unconsumed reads")
+
+
+@dataclass(frozen=True, slots=True)
+class _ExecutionReplayResult:
+    final_elapsed_ms: int
+
+
+@dataclass(frozen=True, slots=True)
+class _ProgramReplayAuthority:
+    prefix_caps: PrefixCaps
+    simulator_caps: CallContractCaps
+    subject_contract_caps: CallContractCaps
+    simulator_contract_caps: CallContractCaps | None
+    subject_contract_ref: ArtifactRef
+    simulator_contract_ref: ArtifactRef | None
 
 
 def _exact_output_relative_path(*, root: Path, out: Path) -> str:
@@ -267,6 +290,7 @@ def _load_candidate_graph(
     schedule: ScientificRecord,
     expected_task_id: str,
     candidate_ref: ArtifactRef,
+    authority: PrefixExecutionAuthority,
     scientific_reader: ScientificRefReader,
     resolver: ControllerArtifactResolver,
     authority_reader: AuthorityRefReader,
@@ -315,13 +339,6 @@ def _load_candidate_graph(
     pending.extend(reversed(traversal.nested[schedule_ref]))
     local_seen.add(candidate_ref)
 
-    authority = _load_prefix_execution_authority_with_reader(
-        run_root=root,
-        schedule_ref=schedule_ref,
-        task_id=expected_task_id,
-        reader=authority_reader,
-        scientific_reader=scientific_reader,
-    )
     prevalidated = authority_reader.semantically_validated_refs
 
     while pending:
@@ -819,7 +836,7 @@ def _provider_failure(status: ProviderAttemptStatus) -> FailureKind:
     }[status]
 
 
-def _assert_exact_execution_replay(graph: _CandidateGraph) -> None:
+def _assert_exact_execution_replay(graph: _CandidateGraph) -> _ExecutionReplayResult:
     """Replay the named meter and state machine without lookup-table collapse."""
 
     authority = graph.authority
@@ -840,13 +857,24 @@ def _assert_exact_execution_replay(graph: _CandidateGraph) -> None:
     failure = FailureKind.NONE
     branch: tuple[ToolCall, ...] = ()
     remainder: tuple[ToolCall, ...] = ()
-    clean_terminal = (
+    terminal_state = (
         False
         if graph.initial_restore is None
         else graph.initial_restore.episode_terminal
     )
+    initial_failure = (
+        FailureKind.NONE
+        if graph.initial_restore is None
+        else graph.initial_restore.failure_kind
+    )
+    if initial_failure is not FailureKind.NONE:
+        terminal_state = True
+    if rows := program.provider_transcript:
+        if terminal_state or initial_failure is not FailureKind.NONE:
+            raise ValueError("initial terminal or failed restore cannot dispatch")
+    else:
+        failure = initial_failure
     stopped = False
-    rows = program.provider_transcript
     for row_index, (row, intent, attempt) in enumerate(
         zip(rows, ledger.intents, ledger.attempts, strict=True)
     ):
@@ -941,9 +969,15 @@ def _assert_exact_execution_replay(graph: _CandidateGraph) -> None:
             failure = FailureKind.TOKEN_CAP
         if failure is not FailureKind.NONE:
             remainder = pending
+            terminal_state = True
             stopped = True
         elif validated.typed_turn is None:
             raise ValueError("completed provider row lacks a parsed turn")
+        elif validated.typed_turn.finish_reason == "terminal":
+            if pending:
+                raise ValueError("terminal provider turn cannot contain tools")
+            terminal_state = True
+            stopped = True
         elif row.subject_role == "primary_subject":
             queue = validated.typed_turn.tool_calls
             for tool_index, call in enumerate(queue):
@@ -952,11 +986,13 @@ def _assert_exact_execution_replay(graph: _CandidateGraph) -> None:
                 if before_tool >= deadline:
                     failure = FailureKind.TIMEOUT
                     remainder = pending
+                    terminal_state = True
                     stopped = True
                     break
                 if boundary_position >= authority.prefix_caps.tool_calls:
                     failure = FailureKind.TOOL_CAP
                     remainder = pending
+                    terminal_state = True
                     stopped = True
                     break
                 if boundary_position >= len(boundaries):
@@ -986,11 +1022,12 @@ def _assert_exact_execution_replay(graph: _CandidateGraph) -> None:
                 boundary_position += 1
                 observation_position += 1
                 cumulative_mutation = cumulative_mutation or boundary.mutation_committed
-                clean_terminal = boundary.episode_terminal
+                terminal_state = boundary.episode_terminal
                 after_remainder = queue[tool_index + 1 :]
                 if boundary.failure_kind is not FailureKind.NONE:
                     failure = boundary.failure_kind
                     remainder = after_remainder
+                    terminal_state = True
                     stopped = True
                     break
                 if boundary.episode_terminal:
@@ -1001,6 +1038,7 @@ def _assert_exact_execution_replay(graph: _CandidateGraph) -> None:
                 if completion_tool > deadline:
                     failure = FailureKind.TIMEOUT
                     remainder = after_remainder
+                    terminal_state = True
                     stopped = True
                     break
                 if derived_tokens["primary_subject"] > min(
@@ -1009,6 +1047,7 @@ def _assert_exact_execution_replay(graph: _CandidateGraph) -> None:
                 ):
                     failure = FailureKind.TOKEN_CAP
                     remainder = after_remainder
+                    terminal_state = True
                     stopped = True
                     break
                 if cumulative_mutation and boundary.verifier_eligible_after:
@@ -1036,10 +1075,14 @@ def _assert_exact_execution_replay(graph: _CandidateGraph) -> None:
         or receipt.terminal_unexecuted_remainder != remainder
     ):
         raise ValueError("fresh replay outcome differs from exact chronology")
-    if graph.snapshot.episode_terminal is not clean_terminal:
-        raise ValueError("clean terminal replay differs from final snapshot")
-    if clean_terminal and trigger is not TriggerReason.NO_INTERVENTION_OPPORTUNITY:
+    if graph.snapshot.episode_terminal is not terminal_state:
+        raise ValueError("terminal replay differs from final snapshot")
+    if terminal_state and trigger is not TriggerReason.NO_INTERVENTION_OPPORTUNITY:
         raise ValueError("clean terminal boundary cannot produce a branch trigger")
+    final_clock = replay.last_value
+    if final_clock is None:
+        raise AssertionError("exact replay consumed no prefix clock")
+    return _ExecutionReplayResult(max(0, final_clock - prefix_epoch))
 
 
 def _assert_execution_semantics(graph: _CandidateGraph) -> None:
@@ -1048,265 +1091,7 @@ def _assert_execution_semantics(graph: _CandidateGraph) -> None:
     program = graph.program
     ledger = graph.provider_ledger
     cost_closure = _cost_closure(graph)
-    _assert_exact_execution_replay(graph)
-    clock = {read.label: read.uint64_ms for read in program.clock_trace}
-    prefix_epoch = clock.get("prefix_epoch")
-    if prefix_epoch is None:
-        raise ValueError("program clock trace lacks prefix_epoch")
-    derived_turns = {"primary_subject": 0, "user_simulator": 0}
-    derived_tokens = {"primary_subject": 0, "user_simulator": 0}
-    derived_calls = {"primary_subject": 0, "user_simulator": 0}
-    validated_rows: list[Any] = []
-    call_sequence: list[tuple[ToolCall, tuple[ToolCall, ...], int, int]] = []
-    primary_tokens = 0
-    provider_failure = FailureKind.NONE
-    provider_remainder: tuple[ToolCall, ...] = ()
-    status_failures = {
-        ProviderAttemptStatus.TIMEOUT_NO_RESPONSE: FailureKind.TIMEOUT,
-        ProviderAttemptStatus.TIMEOUT_LATE_RESPONSE: FailureKind.TIMEOUT,
-        ProviderAttemptStatus.REFUSAL: FailureKind.REFUSAL,
-        ProviderAttemptStatus.MALFORMED_RESPONSE: FailureKind.MALFORMED_ACTION,
-        ProviderAttemptStatus.PROVIDER_ERROR: FailureKind.MODEL,
-        ProviderAttemptStatus.INFRASTRUCTURE_ERROR: FailureKind.INFRASTRUCTURE,
-    }
-    transcript = program.provider_transcript
-    for row_index, (row, intent, attempt) in enumerate(
-        zip(
-            program.provider_transcript,
-            ledger.ledger.intents,
-            ledger.ledger.attempts,
-            strict=True,
-        )
-    ):
-        if provider_failure is not FailureKind.NONE:
-            raise ValueError("provider transcript continues after terminal outcome")
-        completion = clock.get(f"after_{row.subject_role}_{row.call_index}")
-        before = clock.get(f"before_{row.subject_role}_{row.call_index}")
-        if completion is None or before is None:
-            raise ValueError("provider row lacks exact dispatch/completion clock")
-        if (
-            intent.absolute_deadline_ms
-            != prefix_epoch + authority.prefix_caps.wall_clock_ms
-        ):
-            raise ValueError(
-                "dispatch deadline differs from prefix epoch plus wall cap"
-            )
-        raw_response = (
-            None if row.response_ref is None else graph.payloads[row.response_ref]
-        )
-        validated = _validate_provider_observation(
-            observation=RawProviderObservation(
-                subject_role=row.subject_role,
-                call_index=row.call_index,
-                seed=row.seed,
-                model_contract_sha256=row.model_contract_sha256,
-                response_bytes=raw_response,
-                typed_turn=row.typed_turn,
-                reported_output_token_ids=row.reported_output_token_ids,
-                reported_generated_tokens=row.reported_generated_tokens,
-                provider_event_bytes=graph.payloads[row.provider_event_ref],
-                completion_kind=row.completion_kind,
-            ),
-            expected_role=intent.subject_role,
-            expected_call_index=intent.call_index,
-            expected_seed=intent.seed,
-            expected_model_sha256=intent.model_contract_ref.sha256,
-            deadline_ms=intent.absolute_deadline_ms,
-            completion_ms=completion,
-        )
-        if attempt.status is not validated.status:
-            raise ValueError("attempt status differs from raw transport/parser truth")
-        validated_rows.append(validated)
-        role_caps = (
-            authority.subject_contract_caps
-            if row.subject_role == "primary_subject"
-            else authority.simulator_contract_caps
-        )
-        if role_caps is None:
-            raise ValueError("simulator dispatch lacks simulator authority")
-        lane_token_cap = (
-            authority.prefix_caps.generated_tokens
-            if row.subject_role == "primary_subject"
-            else authority.simulator_caps.aggregate_generated_tokens
-        )
-        lane_call_cap = (
-            authority.prefix_caps.model_calls
-            if row.subject_role == "primary_subject"
-            else authority.simulator_caps.aggregate_model_calls
-        )
-        lane_turn_cap = (
-            role_caps.aggregate_turns
-            if row.subject_role == "primary_subject"
-            else authority.simulator_caps.aggregate_turns
-        )
-        if (
-            before >= intent.absolute_deadline_ms
-            or role_caps.per_call_turns == 0
-            or derived_tokens[row.subject_role]
-            >= min(lane_token_cap, role_caps.aggregate_generated_tokens)
-            or derived_calls[row.subject_role]
-            >= min(lane_call_cap, role_caps.aggregate_model_calls)
-            or derived_turns[row.subject_role]
-            >= min(lane_turn_cap, role_caps.aggregate_turns)
-        ):
-            raise ValueError("provider dispatch occurred after an exhausted allowance")
-        derived_calls[row.subject_role] += 1
-        derived_tokens[row.subject_role] += validated.generated_tokens
-        if validated.typed_turn is not None:
-            derived_turns[row.subject_role] += 1
-        if attempt.elapsed_ms != max(0, completion - prefix_epoch):
-            raise ValueError(
-                "attempt elapsed differs from completion minus prefix epoch"
-            )
-        pending = (
-            () if validated.typed_turn is None else validated.typed_turn.tool_calls
-        )
-        provider_failure = status_failures.get(
-            validated.status,
-            FailureKind.NONE,
-        )
-        if (
-            provider_failure is FailureKind.NONE
-            and completion > intent.absolute_deadline_ms
-        ):
-            provider_failure = FailureKind.TIMEOUT
-        if provider_failure is FailureKind.NONE and (
-            validated.generated_tokens > role_caps.per_call_generated_tokens
-            or derived_tokens[row.subject_role]
-            > min(
-                lane_token_cap,
-                role_caps.aggregate_generated_tokens,
-            )
-        ):
-            provider_failure = FailureKind.TOKEN_CAP
-        if provider_failure is not FailureKind.NONE:
-            provider_remainder = pending
-            if row_index != len(transcript) - 1:
-                raise ValueError("provider transcript continues after terminal outcome")
-            continue
-        if validated.typed_turn is None:
-            raise ValueError("completed provider status lacks a typed turn")
-        if row.subject_role == "primary_subject":
-            primary_tokens += validated.generated_tokens
-            turn = validated.typed_turn
-            for call_index, call in enumerate(turn.tool_calls):
-                call_sequence.append(
-                    (
-                        call,
-                        turn.tool_calls[call_index + 1 :],
-                        primary_tokens,
-                        row_index,
-                    )
-                )
-    boundaries = graph.tool_ledger.boundaries
-    if len(boundaries) > len(call_sequence):
-        raise ValueError("tool boundary coverage exceeds parsed typed-turn queues")
-    derived_trigger = TriggerReason.NO_INTERVENTION_OPPORTUNITY
-    derived_failure = FailureKind.NONE
-    derived_branch: tuple[ToolCall, ...] = ()
-    derived_remainder: tuple[ToolCall, ...] = ()
-    cumulative_mutation = False
-    boundary_stopped = False
-    stopped_row_index: int | None = None
-    for index, boundary in enumerate(boundaries):
-        call, remainder, generated_at_boundary, origin_row_index = call_sequence[index]
-        if boundary.call_id != call.call_id:
-            raise ValueError("tool boundaries differ from exact parsed queue order")
-        before_tool = clock.get(f"before_tool_{call.call_id}")
-        completion = clock.get(f"after_tool_{call.call_id}")
-        if before_tool is None or completion is None:
-            raise ValueError("tool boundary lacks exact before/after clock")
-        if (
-            before_tool >= prefix_epoch + authority.prefix_caps.wall_clock_ms
-            or index >= authority.prefix_caps.tool_calls
-        ):
-            raise ValueError("tool boundary exists after pre-tool allowance failure")
-        if boundary.elapsed_ms != max(0, completion - prefix_epoch):
-            raise ValueError("tool elapsed differs from clock trace minus prefix epoch")
-        cumulative_mutation = cumulative_mutation or boundary.mutation_committed
-        if boundary.failure_kind is not FailureKind.NONE:
-            derived_failure = boundary.failure_kind
-            derived_remainder = remainder
-            boundary_stopped = True
-            stopped_row_index = origin_row_index
-            break
-        if boundary.episode_terminal:
-            if remainder:
-                raise ValueError("terminal tool boundary has an unexecuted remainder")
-            boundary_stopped = True
-            stopped_row_index = origin_row_index
-            break
-        if completion > prefix_epoch + authority.prefix_caps.wall_clock_ms:
-            derived_failure = FailureKind.TIMEOUT
-            derived_remainder = remainder
-            boundary_stopped = True
-            stopped_row_index = origin_row_index
-            break
-        if generated_at_boundary > min(
-            authority.prefix_caps.generated_tokens,
-            authority.subject_contract_caps.aggregate_generated_tokens,
-        ):
-            derived_failure = FailureKind.TOKEN_CAP
-            derived_remainder = remainder
-            boundary_stopped = True
-            stopped_row_index = origin_row_index
-            break
-        if cumulative_mutation and boundary.verifier_eligible_after:
-            derived_trigger = TriggerReason.FIRST_ELIGIBLE_MUTATION
-            derived_branch = remainder
-            boundary_stopped = True
-            stopped_row_index = origin_row_index
-            break
-        if index + 1 == 4:
-            derived_trigger = TriggerReason.FOURTH_TOOL_CALL
-            derived_branch = remainder
-            boundary_stopped = True
-            stopped_row_index = origin_row_index
-            break
-    if (
-        boundaries
-        and (
-            derived_trigger is not TriggerReason.NO_INTERVENTION_OPPORTUNITY
-            or derived_failure is not FailureKind.NONE
-            or boundaries[-1].episode_terminal
-        )
-        and len(boundaries) != index + 1
-    ):
-        raise ValueError("execution evidence continues after terminal precedence")
-    if boundary_stopped:
-        if stopped_row_index is None or stopped_row_index != len(transcript) - 1:
-            raise ValueError(
-                "provider transcript continues after tool terminal outcome"
-            )
-        if provider_failure is not FailureKind.NONE:
-            raise ValueError("tool outcome precedes a later provider failure")
-    elif len(boundaries) < len(call_sequence):
-        call, remainder, _, origin_row_index = call_sequence[len(boundaries)]
-        before_tool = clock.get(f"before_tool_{call.call_id}")
-        if before_tool is None:
-            raise ValueError("pending tool lacks exact pre-action clock")
-        pending = (call, *remainder)
-        if before_tool >= prefix_epoch + authority.prefix_caps.wall_clock_ms:
-            derived_failure = FailureKind.TIMEOUT
-            derived_remainder = pending
-        elif len(boundaries) >= authority.prefix_caps.tool_calls:
-            derived_failure = FailureKind.TOOL_CAP
-            derived_remainder = pending
-        else:
-            raise ValueError("parsed tool queue has unexplained missing boundary")
-        if origin_row_index != len(transcript) - 1:
-            raise ValueError("provider transcript continues after pre-tool failure")
-    elif provider_failure is not FailureKind.NONE:
-        derived_failure = provider_failure
-        derived_remainder = provider_remainder
-    if (
-        receipt.trigger_reason is not derived_trigger
-        or program.expected_trigger_reason is not derived_trigger
-        or receipt.terminal_failure_kind is not derived_failure
-        or receipt.branch_pending_calls != derived_branch
-        or receipt.terminal_unexecuted_remainder != derived_remainder
-    ):
-        raise ValueError("fresh replay outcome differs from frozen prefix receipt")
+    replay_result = _assert_exact_execution_replay(graph)
     _reconcile_reloaded_execution_records(
         authority=authority,
         program=program,
@@ -1392,8 +1177,10 @@ def _assert_execution_semantics(graph: _CandidateGraph) -> None:
     )
     if observed_seeds != expected_seeds:
         raise ValueError("call-seed receipts differ from dispatch evidence")
-    maximum_elapsed = max((*attempt_elapsed, *boundary_elapsed), default=0)
-    if receipt.counters.wall_clock_ms != maximum_elapsed:
+    if (
+        receipt.counters.wall_clock_ms != replay_result.final_elapsed_ms
+        or receipt.simulator_counters.wall_clock_ms != replay_result.final_elapsed_ms
+    ):
         raise ValueError("wall-clock counter differs from execution chronology")
 
 
@@ -1494,7 +1281,14 @@ def _validate_candidate(graph: _CandidateGraph) -> None:
     _assert_raw_and_attestation_semantics(graph)
 
 
-def _assert_all_program_occurrences(traversal: _FreshTraversal) -> None:
+def _assert_all_program_occurrences(
+    traversal: _FreshTraversal,
+    *,
+    program_authorities: Mapping[
+        ArtifactRef,
+        tuple[_ProgramReplayAuthority, ...],
+    ],
+) -> None:
     """Reconcile every manifest-reachable program, including non-selected rows."""
 
     programs = {
@@ -1502,7 +1296,9 @@ def _assert_all_program_occurrences(traversal: _FreshTraversal) -> None:
         for ref, value in traversal.decoded.items()
         if ref.role == "synthetic_execution_program"
     }
-    for program in programs.values():
+    if set(program_authorities) != set(programs):
+        raise ValueError("program occurrence authority coverage differs")
+    for program_ref, program in programs.items():
         request_refs = {row.expected_request_ref for row in program.provider_transcript}
         response_refs = {
             row.response_ref
@@ -1549,11 +1345,17 @@ def _assert_all_program_occurrences(traversal: _FreshTraversal) -> None:
                 )
             },
         )
-        _assert_program_occurrence_replay(
-            program=program,
-            responses=responses,
-            raw_events=raw_events,
-        )
+        authorities = program_authorities[program_ref]
+        if not authorities:
+            raise ValueError("program occurrence has no provider-lane authority")
+        for authority in authorities:
+            _assert_program_occurrence_replay(
+                program=program,
+                responses=responses,
+                raw_events=raw_events,
+                payloads=traversal.payloads,
+                authority=authority,
+            )
 
 
 def _assert_program_occurrence_replay(
@@ -1561,80 +1363,139 @@ def _assert_program_occurrence_replay(
     program: SyntheticPrefixProgram,
     responses: Mapping[ArtifactRef, tuple[str, Any]],
     raw_events: Mapping[ArtifactRef, tuple[str, int]],
+    payloads: Mapping[ArtifactRef, bytes],
+    authority: _ProgramReplayAuthority,
 ) -> None:
-    """Reconcile raw occurrence evidence without importing selected authority caps."""
+    """Replay one occurrence under its validated manifest provider lane."""
 
     replay = _ClockTraceReplay(program.clock_trace)
-    replay.consume("prefix_epoch")
+    prefix_epoch = replay.consume("prefix_epoch")
+    deadline = prefix_epoch + authority.prefix_caps.wall_clock_ms
     observation_position = 0
     stopped = False
+    derived_tokens = {"primary_subject": 0, "user_simulator": 0}
+    derived_calls = {"primary_subject": 0, "user_simulator": 0}
+    derived_turns = {"primary_subject": 0, "user_simulator": 0}
+    completed_tools = 0
     for row in program.provider_transcript:
         if stopped:
-            raise ValueError(
-                "provider transcript continues after an unfinished tool queue"
-            )
+            raise ValueError("provider transcript continues after terminal outcome")
         before = replay.consume(f"before_{row.subject_role}_{row.call_index}")
         completion = replay.consume(f"after_{row.subject_role}_{row.call_index}")
         if before > completion:
             raise ValueError("provider before clock exceeds completion clock")
+        role_caps = (
+            authority.subject_contract_caps
+            if row.subject_role == "primary_subject"
+            else authority.simulator_contract_caps
+        )
+        model_ref = (
+            authority.subject_contract_ref
+            if row.subject_role == "primary_subject"
+            else authority.simulator_contract_ref
+        )
+        if role_caps is None or model_ref is None:
+            raise ValueError("program simulator row lacks lane authority")
+        lane_token_cap = (
+            authority.prefix_caps.generated_tokens
+            if row.subject_role == "primary_subject"
+            else authority.simulator_caps.aggregate_generated_tokens
+        )
+        lane_call_cap = (
+            authority.prefix_caps.model_calls
+            if row.subject_role == "primary_subject"
+            else authority.simulator_caps.aggregate_model_calls
+        )
+        if (
+            before >= deadline
+            or role_caps.per_call_turns == 0
+            or derived_tokens[row.subject_role]
+            >= min(lane_token_cap, role_caps.aggregate_generated_tokens)
+            or derived_calls[row.subject_role]
+            >= min(lane_call_cap, role_caps.aggregate_model_calls)
+            or derived_turns[row.subject_role] >= role_caps.aggregate_turns
+        ):
+            raise ValueError("program provider dispatch exceeds lane allowance")
+        validated = _validate_provider_observation(
+            observation=RawProviderObservation(
+                subject_role=row.subject_role,
+                call_index=row.call_index,
+                seed=row.seed,
+                model_contract_sha256=row.model_contract_sha256,
+                response_bytes=(
+                    None if row.response_ref is None else payloads[row.response_ref]
+                ),
+                typed_turn=row.typed_turn,
+                reported_output_token_ids=row.reported_output_token_ids,
+                reported_generated_tokens=row.reported_generated_tokens,
+                provider_event_bytes=payloads[row.provider_event_ref],
+                completion_kind=row.completion_kind,
+            ),
+            expected_role=row.subject_role,
+            expected_call_index=row.call_index,
+            expected_seed=row.seed,
+            expected_model_sha256=model_ref.sha256,
+            deadline_ms=deadline,
+            completion_ms=completion,
+        )
+        parser_kind = (
+            "not_applicable"
+            if row.response_ref is None
+            else responses[row.response_ref][0]
+        )
         transport, observed_at = raw_events[row.provider_event_ref]
-        if observed_at != completion:
-            raise ValueError("raw provider event time differs from exact clock trace")
-        if row.response_ref is None:
-            parser_kind = "not_applicable"
-        else:
-            parser_kind, _ = responses[row.response_ref]
-        allowed_completion = {
-            ("response", "turn"): frozenset(
-                {
-                    RawProviderCompletionKind.COMPLETED,
-                    RawProviderCompletionKind.TIMEOUT_LATE_RESPONSE,
-                }
-            ),
-            ("response", "refusal"): frozenset(
-                {
-                    RawProviderCompletionKind.REFUSAL,
-                    RawProviderCompletionKind.TIMEOUT_LATE_RESPONSE,
-                }
-            ),
-            ("response", "malformed"): frozenset(
-                {
-                    RawProviderCompletionKind.MALFORMED_RESPONSE,
-                    RawProviderCompletionKind.TIMEOUT_LATE_RESPONSE,
-                }
-            ),
-            ("provider_error", "not_applicable"): frozenset(
-                {RawProviderCompletionKind.PROVIDER_ERROR}
-            ),
-            ("infrastructure_error", "not_applicable"): frozenset(
-                {RawProviderCompletionKind.INFRASTRUCTURE_ERROR}
-            ),
-            ("timeout_no_response", "not_applicable"): frozenset(
-                {RawProviderCompletionKind.TIMEOUT_NO_RESPONSE}
-            ),
-        }.get((transport, parser_kind), frozenset())
-        if row.completion_kind not in allowed_completion:
-            raise ValueError(
-                "raw transport/parser evidence differs from provider completion"
-            )
-        if row.subject_role != "primary_subject" or row.typed_turn is None:
-            continue
-        for call in row.typed_turn.tool_calls:
-            if (
-                observation_position < len(program.tool_observations)
-                and program.tool_observations[observation_position].call_id
-                == call.call_id
-            ):
-                before_tool = replay.consume(f"before_tool_{call.call_id}")
-                after_tool = replay.consume(f"after_tool_{call.call_id}")
-                if before_tool > after_tool:
-                    raise ValueError("tool before clock exceeds completion clock")
-                observation_position += 1
-                continue
-            if replay.peek_label() == f"before_tool_{call.call_id}":
-                replay.consume(f"before_tool_{call.call_id}")
+        if (
+            parser_kind != validated.parser_kind
+            or transport != validated.transport_kind
+            or observed_at != validated.observed_at_ms
+        ):
+            raise ValueError("provider raw leaf replay differs")
+        derived_calls[row.subject_role] += 1
+        derived_tokens[row.subject_role] += validated.generated_tokens
+        if validated.typed_turn is not None:
+            derived_turns[row.subject_role] += 1
+        if _provider_failure(validated.status) is not FailureKind.NONE:
             stopped = True
-            break
+            continue
+        if validated.typed_turn is None:
+            raise ValueError("completed occurrence lacks parsed turn")
+        if validated.typed_turn.finish_reason == "terminal":
+            if validated.typed_turn.tool_calls:
+                raise ValueError("terminal provider turn cannot contain tools")
+            stopped = True
+            continue
+        if row.subject_role != "primary_subject":
+            continue
+        for call in validated.typed_turn.tool_calls:
+            before_tool = replay.consume(f"before_tool_{call.call_id}")
+            token_overshoot = derived_tokens["primary_subject"] > min(
+                authority.prefix_caps.generated_tokens,
+                authority.subject_contract_caps.aggregate_generated_tokens,
+            )
+            if (
+                before_tool >= deadline
+                or token_overshoot
+                or completed_tools >= authority.prefix_caps.tool_calls
+            ):
+                stopped = True
+                break
+            if observation_position >= len(program.tool_observations):
+                raise ValueError("queued tool lacks an exact observation")
+            observation = program.tool_observations[observation_position]
+            if observation.call_id != call.call_id:
+                raise ValueError("tool observation differs from exact queue")
+            after_tool = replay.consume(f"after_tool_{call.call_id}")
+            if before_tool > after_tool:
+                raise ValueError("tool before clock exceeds completion clock")
+            observation_position += 1
+            completed_tools += 1
+            if (
+                observation.failure_kind is not FailureKind.NONE
+                or observation.episode_terminal
+                or after_tool > deadline
+            ):
+                stopped = True
+                break
     if observation_position != len(program.tool_observations):
         raise ValueError("tool observation program has unconsumed rows")
     replay.assert_exhausted()
@@ -1735,22 +1596,44 @@ def _rollback_owned_publication(
     failures: list[str] = []
     residuals: list[Any] = []
     try:
-        failures, residuals = rollback_publication(
-            owned=[publication] if content_sealed else [],
-            temporaries=[] if content_sealed else [incomplete],
-            directories=[],
-            descriptor_for=descriptor_for,
-            owned_name_for=lambda index: (
-                f".pneuma-prefix-{os.getpid()}-{owned.identity[1]}-{index}.rollback"
-            ),
-            temporary_name_for=lambda index: (
-                f".pneuma-prefix-{os.getpid()}-{owned.identity[1]}-"
-                f"{index}.partial-rollback"
-            ),
-            directory_name_for=lambda index: f".unused-directory-{index}",
-            rename=rename_no_replace,
-            read_flags=_READ_FLAGS,
-        )
+        parent = descriptor_for(path_parts[:-1])
+        try:
+            named = os.stat(
+                path_parts[-1],
+                dir_fd=parent,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError:
+            failures = [
+                f"{owned.ref.relative_path}: ownership lost before quarantine; "
+                "named source is missing"
+            ]
+            residuals = [owned.ref.relative_path]
+        else:
+            if (named.st_dev, named.st_ino) != owned.identity:
+                failures = [
+                    f"{owned.ref.relative_path}: ownership lost before quarantine; "
+                    "named source identity changed"
+                ]
+                residuals = [owned.ref.relative_path]
+            else:
+                failures, residuals = rollback_publication(
+                    owned=[publication] if content_sealed else [],
+                    temporaries=[] if content_sealed else [incomplete],
+                    directories=[],
+                    descriptor_for=descriptor_for,
+                    owned_name_for=lambda index: (
+                        f".pneuma-prefix-{os.getpid()}-{owned.identity[1]}-"
+                        f"{index}.rollback"
+                    ),
+                    temporary_name_for=lambda index: (
+                        f".pneuma-prefix-{os.getpid()}-{owned.identity[1]}-"
+                        f"{index}.partial-rollback"
+                    ),
+                    directory_name_for=lambda index: f".unused-directory-{index}",
+                    rename=rename_no_replace,
+                    read_flags=_READ_FLAGS,
+                )
     except BaseException as exc:
         failures.append(f"{owned.ref.relative_path}: {type(exc).__name__}: {exc}")
     cleanup: list[BaseException] = []
@@ -1999,6 +1882,28 @@ def _seal_bound_prefix_index(
         task_ids = _schedule_task_ids(schedule)
         if len(candidate_refs) != len(task_ids):
             raise ValueError("candidate coverage differs from selected schedule roster")
+        anchor_authority, validated_plan = (
+            _load_prefix_execution_authority_and_plan_with_reader(
+                run_root=root,
+                schedule_ref=schedule_ref,
+                task_id=task_ids[0],
+                reader=authority_reader,
+                scientific_reader=scientific_reader,
+            )
+        )
+        schedule_payload = cast(dict[str, object], schedule.value["payload"])
+        authorities = {task_ids[0]: anchor_authority}
+        authorities.update(
+            {
+                task_id: _project_prefix_execution_authority_from_plan(
+                    anchor=anchor_authority,
+                    schedule_payload=schedule_payload,
+                    task_id=task_id,
+                    validated_plan=validated_plan,
+                )
+                for task_id in task_ids[1:]
+            }
+        )
         for task_id, candidate_ref in zip(task_ids, candidate_refs, strict=True):
             graph = _load_candidate_graph(
                 root=root,
@@ -2006,6 +1911,7 @@ def _seal_bound_prefix_index(
                 schedule=schedule,
                 expected_task_id=task_id,
                 candidate_ref=candidate_ref,
+                authority=authorities[task_id],
                 scientific_reader=scientific_reader,
                 resolver=resolver,
                 authority_reader=authority_reader,
@@ -2013,7 +1919,30 @@ def _seal_bound_prefix_index(
             )
             _validate_candidate(graph)
             receipts.append(graph.receipt)
-        _assert_all_program_occurrences(traversal)
+        occurrence_authorities: dict[
+            ArtifactRef,
+            list[_ProgramReplayAuthority],
+        ] = {}
+        for task_lane in validated_plan.task_lanes:
+            if task_lane.program_ref is None:
+                raise ValueError("validated task lane lacks execution program")
+            lane = validated_plan.lanes[task_lane.prefix_lane_ordinal]
+            occurrence_authorities.setdefault(task_lane.program_ref, []).append(
+                _ProgramReplayAuthority(
+                    prefix_caps=lane.prefix_caps,
+                    simulator_caps=lane.simulator_caps,
+                    subject_contract_caps=lane.subject_contract_caps,
+                    simulator_contract_caps=lane.simulator_contract_caps,
+                    subject_contract_ref=lane.subject_contract_ref,
+                    simulator_contract_ref=lane.simulator_contract_ref,
+                )
+            )
+        _assert_all_program_occurrences(
+            traversal,
+            program_authorities={
+                ref: tuple(values) for ref, values in occurrence_authorities.items()
+            },
+        )
         manifest_refs = {
             ref for ref in traversal.scientific_refs if ref.role == "study_manifest"
         }
@@ -2092,6 +2021,19 @@ def seal_prefix_index(
         raise NotADirectoryError(root)
     relative_path = _exact_output_relative_path(root=root, out=out)
     descriptor = os.open(root, _DIRECTORY_FLAGS)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BaseException as lock_error:
+        try:
+            os.close(descriptor)
+        except BaseException as close_error:
+            raise BaseExceptionGroup(
+                "prefix-index root lock and cleanup both failed",
+                [lock_error, close_error],
+            ) from None
+        raise RecordValidationError(
+            "prefix-index root transaction lock is unavailable"
+        ) from lock_error
     root_metadata = os.fstat(descriptor)
     root_identity = (root_metadata.st_dev, root_metadata.st_ino)
     result: _OwnedPrefixPublication | None = None

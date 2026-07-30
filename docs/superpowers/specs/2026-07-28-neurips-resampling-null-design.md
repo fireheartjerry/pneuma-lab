@@ -1355,6 +1355,27 @@ uncertain-close and causal primary-plus-cleanup aggregation. This strengthens
 only cooperative-local reconstruction and makes no hostile-filesystem or
 executed-code attestation claim.
 
+#### 5.3.6 DL-143 cooperative S02D publication concurrency
+
+S02D publication is cooperative-local. `seal_prefix_index` acquires an
+exclusive nonblocking advisory lock on its held run-root descriptor before
+fresh traversal and retains it through create-exclusive publication, reopen
+verification, any rollback, and all transaction cleanup. Every in-scope S02D
+prefix-index writer/recovery operation uses and honors that same lock.
+Contention rejects before traversal or mutation.
+
+Rollback under the lock uses a no-replace quarantine move to bind the named
+source before identity/content verification and removal. A missing or changed
+source detected before quarantine is ownership loss: preserve the unowned name,
+return an explicit rollback residual, and fail closed. This does not claim
+security against arbitrary same-UID or kernel-interposed namespace mutation.
+POSIX has no compare-and-unlink-by-inode operation; a hostile mutator can act
+between any user-space check and a later rename, unlink, or restore syscall.
+Repeated checks cannot close that syscall gap and would be security theater.
+The guarantee is exact only for cooperating local writers holding the root
+transaction lock. Normal replacement-before-operation detection remains
+mandatory.
+
 ### 5.4 Assignment prefix view
 
 Post-prefix donor matching consumes a canonical `AssignmentPrefixView`, not the
