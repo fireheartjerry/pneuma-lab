@@ -105,6 +105,16 @@ blocks fail-closed. Focused failure injection proves no receipt or analysis
 after a builder/second-write failure while taint remains permanent. This is not
 an unblind E2E receipt: no real completed lineage exists yet.
 
+**Implementation-complete checkpoint (2026-07-30):** Focused hostile review
+found and repaired one remaining freeze-integrity defect: verification had
+compared an unordered multiset of bytes, so two named analysis inputs could
+exchange contents without detection. The freeze schema now binds every source
+name to its exact immutable ArtifactRef, and verification checks each named
+source plus the config and projection schema independently. The scoped Task-6
+gate passes after the repair. Canonical status is
+`implementation_complete; E2E_pending`: no authority-backed P0 lineage reaches
+real unblind and paired analysis, so Task 6 is not scientifically complete.
+
 ## Task 7 — registered inference and verdicts
 
 Implement the frozen statistical API and hand-calculation fixtures:

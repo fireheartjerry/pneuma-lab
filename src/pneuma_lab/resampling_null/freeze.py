@@ -121,13 +121,22 @@ def freeze_analysis(
     snapshots = snapshot_sources(run_root, all_sources)
     record = {
         "record_kind": "resampling_analysis_freeze",
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "study_id": study_id,
         "frozen_created_at": frozen_created_at,
         "provenance": dict(provenance),
         "payload": {
             "source_refs": [
-                {"role": ref.role, "relative_path": ref.relative_path, "sha256": ref.sha256, "byte_count": ref.byte_count, "media_type": ref.media_type}
+                {
+                    "name": name,
+                    "ref": {
+                        "role": ref.role,
+                        "relative_path": ref.relative_path,
+                        "sha256": ref.sha256,
+                        "byte_count": ref.byte_count,
+                        "media_type": ref.media_type,
+                    },
+                }
                 for name, ref in sorted(snapshots.items())
                 if name not in {"config", "projection_schema"}
             ],
@@ -156,13 +165,37 @@ def verify_analysis_freeze(
     inputs = dict(source_paths)
     if {"config", "projection_schema"} & set(inputs):
         raise ValueError("source names collide with reserved freeze inputs")
-    inputs["config"] = config_path
-    inputs["projection_schema"] = projection_schema_path
-    refs = list(payload["source_refs"]) + [payload["config_ref"], payload["projection_schema_ref"]]
-    expected = sorted((Path(path).read_bytes() for path in inputs.values()), key=lambda value: hashlib.sha256(value).hexdigest())
-    observed = sorted((_resolve_inside(Path(ref["relative_path"]), run_root, require_exists=True)[0].read_bytes() for ref in refs if isinstance(ref, Mapping)), key=lambda value: hashlib.sha256(value).hexdigest())
-    if expected != observed:
-        raise RecordValidationError("analysis freeze copied input bytes differ")
+    bindings = payload["source_refs"]
+    if not isinstance(bindings, list):
+        raise RecordValidationError("analysis freeze named input bindings are malformed")
+    frozen_by_name: dict[str, Mapping[str, object]] = {}
+    for binding in bindings:
+        if (
+            not isinstance(binding, Mapping)
+            or type(binding.get("name")) is not str
+            or not isinstance(binding.get("ref"), Mapping)
+            or binding["name"] in frozen_by_name
+        ):
+            raise RecordValidationError("analysis freeze named input bindings are malformed")
+        frozen_by_name[binding["name"]] = binding["ref"]
+    if set(frozen_by_name) != set(inputs):
+        raise RecordValidationError("analysis freeze named input set differs")
+    for name, path in inputs.items():
+        ref = frozen_by_name[name]
+        frozen_bytes = _read_ref(ArtifactRef(**dict(ref)), run_root=run_root)
+        if Path(path).read_bytes() != frozen_bytes:
+            raise RecordValidationError(
+                f"analysis freeze named input {name!r} differs"
+            )
+    for label, path, ref in (
+        ("config", config_path, payload["config_ref"]),
+        ("projection schema", projection_schema_path, payload["projection_schema_ref"]),
+    ):
+        if not isinstance(ref, Mapping):
+            raise RecordValidationError(f"analysis freeze {label} ref is malformed")
+        frozen_bytes = _read_ref(ArtifactRef(**dict(ref)), run_root=run_root)
+        if Path(path).read_bytes() != frozen_bytes:
+            raise RecordValidationError(f"analysis freeze {label} differs")
 
 
 def verify_current_analysis_inputs(
@@ -189,7 +222,15 @@ def verify_frozen_analysis_inputs(freeze_ref: ArtifactRef, *, run_root: Path) ->
     )
     payload = freeze.value["payload"]
     assert isinstance(payload, Mapping)
-    refs = list(payload["source_refs"]) + [payload["config_ref"], payload["projection_schema_ref"]]
+    bindings = payload["source_refs"]
+    if not isinstance(bindings, list):
+        raise RecordValidationError("analysis freeze named input bindings are malformed")
+    refs: list[object] = []
+    for binding in bindings:
+        if not isinstance(binding, Mapping) or not isinstance(binding.get("ref"), Mapping):
+            raise RecordValidationError("analysis freeze named input bindings are malformed")
+        refs.append(binding["ref"])
+    refs.extend([payload["config_ref"], payload["projection_schema_ref"]])
     for index, value in enumerate(refs):
         if not isinstance(value, Mapping):
             raise RecordValidationError("frozen analysis input ref is malformed")

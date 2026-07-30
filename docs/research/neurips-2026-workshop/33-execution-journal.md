@@ -2561,3 +2561,84 @@ The next event after the archived migration boundary is appended below.
   stop promptly, preserve state, and proceed to the next implementation gate.
 - **Boundary/non-claim:** No provider/spend/benchmark action, scientific
   result, schedule, branch, unblind, analysis, or claim occurred.
+
+### EJ-20260730-0218 — Task 6 implementation-complete / E2E-pending gate
+
+- **Authority refresh:** Fast-forwarded the active branch from `d9cd83d` to
+  `730eefd` at the user's direction, then reread the updated `AGENTS.md` and
+  `CLAUDE.md`. The new explicit gate permits the exact state
+  `implementation_complete; E2E_pending` only after scoped code, focused tests,
+  and hostile review pass.
+- **Cheap-clerk receipts:** Two bounded read-only hostile-audit attempts used
+  `claude --dangerously-skip-permissions --print --model haiku --effort low`
+  with maximum budgets of USD 0.30 and USD 0.18. The first task requested a
+  Task-6 requirement/evidence matrix; it was manually interrupted after
+  yielding no result (`claude-haiku-4-5`, actual USD 0.195186). The second
+  requested at most 12 ranked Task-6 findings and exhausted its budget without
+  a usable result (`claude-haiku-4-5`, actual USD 0.1912334). Total observed
+  clerk cost: USD 0.3864194. Neither subprocess supplied authority or final
+  verification; direct review continued.
+- **Hostile-review defect and correction:** `verify_analysis_freeze` compared
+  current and frozen inputs as a digest-sorted multiset of bytes. Swapping the
+  contents of two named analysis inputs therefore preserved the multiset and
+  could pass. A red-first regression now demonstrates the attack. The freeze
+  schema and writer bind each source name to its immutable ArtifactRef;
+  verification compares every named source independently and separately checks
+  config and projection-schema bytes through their digest-valid refs.
+- **Focused evidence:** Before the correction, `timeout 60s .venv/bin/python
+  -m pytest tests/resampling_null/test_freeze.py
+  tests/resampling_null/test_blinding.py
+  tests/resampling_null/test_task6_state.py
+  tests/resampling_null/test_artifacts.py tests/test_schema_loads.py -q`
+  passed. The new regression then failed on the missing named binding and
+  passed after the correction; the same focused gate passed again.
+- **Status:** The canonical project manifest now records Task 6 as
+  `implementation_complete` with `E2E_pending` and blocker
+  `B-NEURIPS-TASK6-E2E`.
+- **Boundary/non-claim:** No authority-backed P0 lineage, real unblind, paired
+  analysis, provider/benchmark action, spend, scientific result, or claim was
+  produced. Passing software tests establishes implementation behavior only.
+
+### EJ-20260730-0219 — Task 6 final status and shared-surface verification
+
+- **Status correction:** The first canonical-status encoding used overall
+  system status `implemented` while retaining the honest E2E blocker. The
+  checker rejected that contradiction and the missing registry entry. The
+  system is now overall `partial`, with the orthogonal exact fields
+  `implementation_status = implementation_complete` and
+  `e2e_status = E2E_pending`; the current-state registry binds that status and
+  scope.
+- **Fresh verification:** The focused Task-6/schema command passed; the compact
+  Linux milestone command `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null -m milestone -q` passed; `timeout 60s
+  .venv/bin/python -m pytest tests/test_project_status.py -q` passed; and
+  `.venv/bin/python -m pneuma_lab.status --check` plus `git diff --check`
+  passed.
+- **Boundary/non-claim:** This closes Task 6 implementation only. E2E remains
+  blocked on a complete authority-backed P0 lineage reaching real unblind and
+  paired analysis; no empirical or scientific completion is claimed.
+
+### EJ-20260730-0220 — Codex clerk review and freeze-contract closure
+
+- **Cheap-clerk receipt:** Ran `codex --yolo exec --ephemeral` with
+  `gpt-5.6-sol` at low reasoning for the exact bounded task: inspect only the
+  uncommitted Task-6 diff and return at most five concrete implementation,
+  status, or E2E findings; no edits, tests, network, or authority decisions.
+  The subprocess used 33,662 tokens; the CLI reported no dollar cost or
+  enforceable cost bound.
+- **Untrusted proposal, directly verified:** The clerk correctly identified
+  that changing `source_refs` from ArtifactRef values to named bindings was a
+  breaking schema change still advertised as `0.1.0`, and that the first
+  regression mocked the loaded freeze rather than proving the production
+  writer matched the schema. It also correctly confirmed that the E2E caveat
+  remained explicit. Its warning that status prose must not outrun committed
+  evidence is handled by committing the coherent verified slice before final
+  handoff.
+- **Red/green correction:** Added a production-writer test that passes the
+  emitted record through `validate_record` and requires named bindings under
+  schema version `0.2.0`. It failed against the old writer version, then passed
+  after both producer and public schema were bumped to `0.2.0`. The full
+  focused Task-6/schema gate passed again.
+- **Boundary/non-claim:** The clerk was advisory only. No E2E lineage, real
+  unblind, paired analysis, scientific result, provider action, or spend was
+  produced.

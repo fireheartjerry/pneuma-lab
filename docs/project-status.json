@@ -2,7 +2,7 @@
     "$schema": "../schemas/project-status.schema.json",
     "manifest_kind": "pneuma_project_status",
     "manifest_schema_version": "0.1.0",
-    "as_of": "2026-07-21",
+    "as_of": "2026-07-30",
     "project": {
         "role": "standalone_research_evaluation_harness",
         "integration_mode": "standalone",
@@ -317,6 +317,30 @@
                 "tests/test_gauge_card.py"
             ],
             "blockers": []
+        },
+        {
+            "id": "neurips_resampling_null_task6",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
+                "schemas/resampling-analysis-freeze.schema.json",
+                "schemas/resampling-blinded-projection.schema.json",
+                "schemas/resampling-unblind-receipt.schema.json",
+                "src/pneuma_lab/resampling_null/freeze.py",
+                "src/pneuma_lab/resampling_null/projection_candidate.py",
+                "src/pneuma_lab/resampling_null/blinding.py",
+                "src/pneuma_lab/resampling_null/task6_state.py",
+                "tests/resampling_null/test_freeze.py",
+                "tests/resampling_null/test_blinding.py",
+                "tests/resampling_null/test_task6_state.py",
+                "tests/resampling_null/test_artifacts.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-TASK6-E2E"
+            ]
         }
     ],
     "nine_to_five": {
@@ -515,6 +539,7 @@
         "docs/project-status.json",
         "docs/research/00-program-overview.md",
         "docs/research/10-anti-fake-progress.md",
+        "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
         "docs/research/jspace-readiness.md",
         "docs/vision.md",
         "docs/gauge-card-standard.md",
@@ -595,6 +620,10 @@
         {
             "id": "B-RSI-DEPLOYMENT",
             "summary": "No closed evaluator-to-trainer-to-deployment loop exists."
+        },
+        {
+            "id": "B-NEURIPS-TASK6-E2E",
+            "summary": "Task 6 has no complete authority-backed P0 lineage reaching real unblind and paired analysis; its state is implementation_complete and E2E_pending."
         }
     ]
 }

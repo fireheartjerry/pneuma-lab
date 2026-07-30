@@ -5,7 +5,7 @@
     "description": "Immutable source, configuration, projection-schema, and sealed-packet boundary.",
     "type": "object",
     "x-pneuma-schema-kind": "resampling-study",
-    "x-pneuma-version": "0.1.0",
+    "x-pneuma-version": "0.2.0",
     "required": [
         "record_kind",
         "schema_version",
@@ -16,7 +16,7 @@
     ],
     "properties": {
         "record_kind": { "const": "resampling_analysis_freeze" },
-        "schema_version": { "const": "0.1.0" },
+        "schema_version": { "const": "0.2.0" },
         "study_id": { "$ref": "#/$defs/nonempty" },
         "frozen_created_at": { "$ref": "#/$defs/frozen_timestamp" },
         "provenance": { "$ref": "#/$defs/provenance" },
@@ -33,7 +33,7 @@
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/artifact_ref" }
+                    "items": { "$ref": "#/$defs/source_binding" }
                 },
                 "config_ref": { "$ref": "#/$defs/artifact_ref" },
                 "projection_schema_ref": { "$ref": "#/$defs/artifact_ref" },
@@ -71,6 +71,15 @@
                 "sha256": { "$ref": "#/$defs/sha256" },
                 "byte_count": { "type": "integer", "minimum": 0 },
                 "media_type": { "$ref": "#/$defs/nonempty" }
+            },
+            "additionalProperties": false
+        },
+        "source_binding": {
+            "type": "object",
+            "required": ["name", "ref"],
+            "properties": {
+                "name": { "$ref": "#/$defs/nonempty" },
+                "ref": { "$ref": "#/$defs/artifact_ref" }
             },
             "additionalProperties": false
         }

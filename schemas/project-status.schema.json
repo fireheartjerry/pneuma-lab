@@ -164,6 +164,12 @@
                         "none"
                     ]
                 },
+                "implementation_status": {
+                    "enum": ["implementation_complete", "implementation_pending"]
+                },
+                "e2e_status": {
+                    "enum": ["E2E_complete", "E2E_pending", "not_applicable"]
+                },
                 "evidence_refs": {
                     "$ref": "#/$defs/path_list"
                 },
