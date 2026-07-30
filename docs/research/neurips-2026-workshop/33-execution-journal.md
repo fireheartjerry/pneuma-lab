@@ -1916,3 +1916,26 @@ The next event after the archived migration boundary is appended below.
   passed 11 tests.
 - **Boundary/non-claim:** The synthetic screen is not a P0 result or tier
   selection and never mints roster-bound confirmation authority.
+
+### EJ-20260730-0190 — Task 8B staged synthetic authority closeout
+
+- **Implementation:** Finalization now globally discovers and validates every
+  append-only non-final report for its exact power-authority ArtifactRef,
+  canonicalizes the complete ledger, rejects a second final, and parents every
+  discovered attempt. A resumed Gaussian generation therefore cannot omit an
+  earlier immutable screen. The synthetic failure arm likewise rejects a
+  caller-selected partial ledger. Restored the schema-required derived final
+  kernel mirror. The 20,000-trial Clopper--Pearson calculations now use a
+  bounded continued-fraction incomplete-beta evaluation instead of overflowing
+  direct binomial-coefficient summation.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power_authority.py::test_synthetic_final_discovers_every_prior_authority_attempt
+  -q` exercised screen -> every shard -> selection -> validation -> final,
+  included a prior resumed generation, and called full scientific-graph
+  validation. The asserted output decision was `CONDITIONAL_ONLY` with a null
+  synthetic tier. `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power.py tests/resampling_null/test_power_authority.py
+  -q`, byte compilation, and `git diff --check` were also run.
+- **Boundary/non-claim:** This creates no canonical run artifact and performs
+  no provider call, confirmation action, spend, external benchmark execution,
+  P0 claim, or tier selection.

@@ -140,14 +140,17 @@ input-order invariance.
 
 ## Task 8 — frozen-grid P0 power and type-I authority
 
-**Task 8A checkpoint (2026-07-30):** The frozen P0 grid/RNG contract and the
+**Task 8B checkpoint (2026-07-30):** The frozen P0 grid/RNG contract and the
 synthetic closed power-authority blob are implemented. Roster-bound authority
 is intentionally unavailable: the repository has no reviewed verified external
 ceremony adapter, so arbitrary local beacon/timestamp JSON cannot mint
-confirmation authority. Staged report validation re-derives grid, topology,
-authority, and both grid/RNG digests. This is not a simulator, P0 result, or
-confirmation claim. Screen, shard, selection, validation, finalization, and
-CLI work remain unimplemented.
+confirmation authority. Synthetic staged screen, shard, selection, validation,
+and terminal finalization are now covered by a full local regression. The
+finalizer discovers the entire append-only authority ledger rather than trusting
+a selected report list; its terminal synthetic output is always null-tier
+`CONDITIONAL_ONLY`. The registered 20,000-trial Clopper--Pearson path uses a
+stable incomplete-beta tail calculation. This remains local synthetic machinery,
+not a P0 result, confirmation claim, provider call, or spend authorization.
 
 Implement the deterministic full-grid producer:
 

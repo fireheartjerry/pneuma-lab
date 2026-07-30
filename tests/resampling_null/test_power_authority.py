@@ -9,15 +9,23 @@ import pytest
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
 from pneuma_lab.resampling_null.errors import RecordValidationError
-from pneuma_lab.resampling_null.artifacts import _scientific_documents, _validate_power_identities, write_record
+from pneuma_lab.resampling_null.artifacts import (_scientific_documents,
+                                                   _validate_power_identities,
+                                                   validate_scientific_graph,
+                                                   write_record)
 from pneuma_lab.resampling_null.assignment import BytesField, U64Field, commitment_sha256, kdf_frame
 from pneuma_lab.resampling_null.power import (
     RNG_CONTRACT_SHA256,
+    finalize_synthetic_power_report,
     grid_content_sha256,
     load_power_authority,
     load_power_config,
+    screen_power_grid,
     seal_roster_bound_power_authority,
     seal_synthetic_power_authority,
+    select_validation_cells,
+    simulate_power_shard,
+    validate_gaussian_approximation,
 )
 from pneuma_lab.resampling_null.types import ArtifactRef
 
@@ -268,3 +276,48 @@ def test_staged_report_rejects_swapped_manifest_topology_ref(tmp_path: Path) -> 
 
     with pytest.raises(RecordValidationError, match="grid/topology refs must exactly equal"):
         _validate_power_identities([screen], run_root=tmp_path)
+
+
+def test_synthetic_final_discovers_every_prior_authority_attempt(tmp_path: Path) -> None:
+    """A resumed generation cannot omit an earlier immutable screen."""
+    manifest_ref = _manifest(tmp_path, roster_kind="synthetic_fixture")
+    authority_ref = seal_synthetic_power_authority(
+        manifest_ref, run_root=tmp_path, out=tmp_path / "power/authority.json"
+    )
+    config = load_power_config(
+        authority_ref,
+        _ref(tmp_path, "inputs/grid.json", "power_grid"),
+        _ref(tmp_path, "inputs/topology.json", "power_screen_topology"),
+        run_root=tmp_path,
+    )
+    first_screen = screen_power_grid(
+        config, phase="gaussian_approximation", generation=0, shard_count=2,
+        fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/first-screen.json",
+    )
+    screen = screen_power_grid(
+        config, phase="gaussian_approximation", generation=1, shard_count=2,
+        fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/screen.json",
+    )
+    shards = tuple(
+        simulate_power_shard(screen, config, shard_index=index, run_root=tmp_path,
+                             out=tmp_path / f"power/shard-{index}.json")
+        for index in range(2)
+    )
+    selection = select_validation_cells(
+        screen, shards, config, run_root=tmp_path, out=tmp_path / "power/selection.json"
+    )
+    validation = validate_gaussian_approximation(
+        screen, shards, selection, config, run_root=tmp_path,
+        out=tmp_path / "power/validation.json",
+    )
+
+    final_ref = finalize_synthetic_power_report(
+        screen, shards, selection, validation, config, run_root=tmp_path,
+        out=tmp_path / "power/final.json",
+    )
+    final = __import__("json").loads((tmp_path / final_ref.relative_path).read_text())
+    refs = final["payload"]["all_attempt_refs"]
+
+    assert first_screen.relative_path in {ref["relative_path"] for ref in refs}
+    assert final["payload"]["finalization"]["decision"] == "CONDITIONAL_ONLY"
+    validate_scientific_graph(tmp_path)

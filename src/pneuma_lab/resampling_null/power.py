@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 import hashlib
-from math import comb, erf, pi, sqrt
+from math import erf, exp, lgamma, log, pi, sqrt
 from pathlib import Path
 from statistics import NormalDist
 from typing import Literal, cast
@@ -18,7 +18,9 @@ import numpy as np
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes, write_atomic_bytes
 
-from .artifacts import _load_direct_scientific_parent, _read_ref, _ref_mapping, _artifact_ref_for_path, _prepare_destination, write_record
+from .artifacts import (_artifact_ref_for_path, _load_direct_scientific_parent,
+                        _prepare_destination, _read_ref, _ref_mapping, _scientific_documents,
+                        _validate_power_identities, write_record)
 from .assignment import BytesField, TextField, U64Field, commitment_sha256, kdf_frame
 from .authority_refs import closed_mapping, decode_artifact_ref
 from .errors import RecordValidationError
@@ -176,8 +178,61 @@ def gaussian_max_critical(correlation: float, alpha: float) -> float:
     return (low + high) / 2.0
 
 
+def _beta_continued_fraction(a: float, b: float, x: float) -> float:
+    """Lentz evaluation of the incomplete-beta continued fraction."""
+    tiny = 1e-300
+    qab, qap, qam = a + b, a + 1.0, a - 1.0
+    c = 1.0
+    d = 1.0 - qab * x / qap
+    d = tiny if abs(d) < tiny else d
+    d = 1.0 / d
+    result = d
+    for iteration in range(1, 201):
+        doubled = 2 * iteration
+        aa = iteration * (b - iteration) * x / ((qam + doubled) * (a + doubled))
+        d = 1.0 + aa * d
+        d = tiny if abs(d) < tiny else d
+        c = 1.0 + aa / c
+        c = tiny if abs(c) < tiny else c
+        d = 1.0 / d
+        result *= d * c
+        aa = -(a + iteration) * (qab + iteration) * x / ((a + doubled) * (qap + doubled))
+        d = 1.0 + aa * d
+        d = tiny if abs(d) < tiny else d
+        c = 1.0 + aa / c
+        c = tiny if abs(c) < tiny else c
+        d = 1.0 / d
+        delta = d * c
+        result *= delta
+        if abs(delta - 1.0) <= 3e-14:
+            return result
+    raise RecordValidationError("binomial-tail continued fraction did not converge")
+
+
+def _regularized_beta(x: float, a: float, b: float) -> float:
+    if not 0.0 <= x <= 1.0 or a <= 0.0 or b <= 0.0:
+        raise ValueError("regularized beta arguments are outside their domain")
+    if x == 0.0 or x == 1.0:
+        return x
+    front = exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * log(x) + b * log(1.0 - x))
+    if x < (a + 1.0) / (a + b + 2.0):
+        return front * _beta_continued_fraction(a, b, x) / a
+    return 1.0 - front * _beta_continued_fraction(b, a, 1.0 - x) / b
+
+
 def _binomial_cdf(successes: int, trials: int, probability: float) -> float:
-    return sum(float(comb(trials, index)) * probability ** index * (1.0 - probability) ** (trials - index) for index in range(successes + 1))
+    """Stable binomial CDF through the regularized-beta identity.
+
+    Direct ``comb`` summation over 20,000 trials overflows before the power
+    protocol reaches its first validation receipt.
+    """
+    if not 0 <= successes <= trials or not 0.0 <= probability <= 1.0:
+        raise ValueError("binomial CDF arguments are outside their domain")
+    if successes == trials or probability == 0.0:
+        return 1.0
+    if probability == 1.0:
+        return 0.0
+    return _regularized_beta(1.0 - probability, trials - successes, successes + 1)
 
 
 def clopper_pearson_lower(successes: int, trials: int, *, tail_probability: float) -> float:
@@ -682,6 +737,41 @@ def _write_power(out: Path, payload: dict[str, object], *, run_root: Path) -> Ar
                               "frozen_created_at": frozen_created_at, "provenance": provenance, "payload": payload}, run_root=run_root, role="power_report")
 
 
+def _authority_attempt_refs(config: PowerConfig, *, run_root: Path) -> tuple[ArtifactRef, ...]:
+    """Discover, validate, and canonically order the whole authority ledger.
+
+    Finalization is deliberately not allowed to accept a hand-picked subset:
+    retries and incomplete generations are evidence, not operator discretion.
+    """
+    root = Path(run_root)
+    authority_mapping = _ref_mapping(config.authority_ref)
+    reports = []
+    # Manifest-owned input blobs are intentionally not scientific records and
+    # may use their own ``resampling_*`` grammars.
+    excluded = tuple((root / "inputs").rglob("*.json"))
+    for document in _scientific_documents(root, excluded=excluded).values():
+        if document.value["record_kind"] != "resampling_power_report":
+            continue
+        payload = cast(Mapping[str, object], document.value["payload"])
+        if payload["authority_ref"] == authority_mapping:
+            reports.append(document)
+    if any(cast(Mapping[str, object], report.value["payload"])["stage"] == "final" for report in reports):
+        raise RecordValidationError("power authority already has a final report")
+    if not reports:
+        raise RecordValidationError("power finalization requires discovered authority attempts")
+    _validate_power_identities(reports, run_root=root)
+    stage_order = {"screen": 0, "shard": 1, "selection": 2, "validation": 3}
+    phase_order = {"gaussian_approximation": 0, "full_multiplier_fallback": 1}
+    reports.sort(key=lambda document: (
+        phase_order[cast(str, cast(Mapping[str, object], document.value["payload"])["phase"])],
+        cast(int, cast(Mapping[str, object], document.value["payload"])["generation"]),
+        stage_order[cast(str, cast(Mapping[str, object], document.value["payload"])["stage"])],
+        cast(int, cast(Mapping[str, object], document.value["payload"]).get("shard_index", -1)),
+        document.relative_path,
+    ))
+    return tuple(_artifact_ref_for_path(document.path, root, "power_report", "application/json") for document in reports)
+
+
 def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approximation", "full_multiplier_fallback"], generation: int, shard_count: int, fallback_trigger_ref: ArtifactRef | None, run_root: Path, out: Path) -> ArtifactRef:
     """Seal immutable topology/timing before any shard can execute."""
     if type(generation) is not int or generation < 0 or type(shard_count) is not int or shard_count <= 0:
@@ -799,9 +889,11 @@ def finalize_synthetic_power_report(screen_ref: ArtifactRef, shard_refs: tuple[A
     _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
     if validation["approximation_receipt"]["passed"] is not True:  # type: ignore[index]
         raise RecordValidationError("failed Gaussian validation must use the synthetic failed terminal arm")
-    attempts = (screen_ref, *shard_refs, selection_ref, validation_ref)
+    attempts = _authority_attempt_refs(config, run_root=run_root)
+    selected_attempts = (screen_ref, *shard_refs, selection_ref, validation_ref)
+    if not set(selected_attempts).issubset(set(attempts)):
+        raise RecordValidationError("selected final chain is not in the discovered authority ledger")
     payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-final-gaussian-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
-    payload.pop("kernel_id")
     payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in attempts],
                     "finalization": {"kind": "completed_chain", "selected_phase": "gaussian_approximation", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-gaussian-v1", "selected_shard_count": screen["shard_count"], "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "selected_selection_ref": _ref_mapping(selection_ref), "selected_validation_ref": _ref_mapping(validation_ref), "selected_tier": None, "decision": "CONDITIONAL_ONLY"}})
     return _write_power(out, payload, run_root=run_root)
@@ -815,8 +907,11 @@ def finalize_synthetic_validation_failed(
 ) -> ArtifactRef:
     """Closed nondecisive terminal arm; never a disguised feasibility decision."""
     authority = load_power_authority(config.authority_ref, run_root=run_root)
-    if authority.authority_kind != "synthetic_validation" or not all_attempt_refs or terminal_attempt_ref not in all_attempt_refs:
+    discovered_attempts = _authority_attempt_refs(config, run_root=run_root)
+    if authority.authority_kind != "synthetic_validation" or not discovered_attempts or terminal_attempt_ref not in discovered_attempts:
         raise RecordValidationError("synthetic terminal final requires its own complete attempted chain")
+    if tuple(all_attempt_refs) != discovered_attempts:
+        raise RecordValidationError("synthetic terminal final must parent the globally discovered authority ledger")
     terminal = _report(terminal_attempt_ref, run_root=run_root, stage=terminal_stage)
     if terminal_stage == "validation" and reason == "attempt_incomplete":
         raise RecordValidationError("a persisted validation cannot be labelled attempt_incomplete")
@@ -825,8 +920,7 @@ def finalize_synthetic_validation_failed(
     phase = cast(str, terminal["phase"])
     kernel = "power-final-gaussian-v1" if phase == "gaussian_approximation" else "power-final-full-multiplier-v1"
     payload = _record_base(config, phase=phase, generation=cast(int, terminal["generation"]), kernel_id=kernel, shard_count=cast(int, terminal["shard_count"]), run_root=run_root)
-    payload.pop("kernel_id")
-    payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in all_attempt_refs], "all_attempt_refs": [_ref_mapping(ref) for ref in all_attempt_refs],
+    payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in discovered_attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in discovered_attempts],
                     "finalization": {"kind": "synthetic_validation_failed", "terminal_attempt_ref": _ref_mapping(terminal_attempt_ref), "terminal_stage": terminal_stage, "terminal_phase": phase, "terminal_kernel_id": kernel, "terminal_shard_count": terminal["shard_count"], "reason": reason, "selected_tier": None, "decision": "CONDITIONAL_ONLY"}})
     return _write_power(out, payload, run_root=run_root)
 
