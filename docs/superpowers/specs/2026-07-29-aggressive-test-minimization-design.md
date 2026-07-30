@@ -1,8 +1,13 @@
 # Aggressive Test Minimization Design
 
-**Status:** proposed for implementation  
-**Date:** 2026-07-29  
+**Status:** approved for implementation
+**Date:** 2026-07-29
 **Scope:** repository default test policy and the `resampling_null` suite
+
+**Implementation plans:**
+
+- `docs/superpowers/plans/2026-07-29-aggressive-test-pruning.md`
+- `docs/superpowers/plans/2026-07-29-agent-test-supervisor.md`
 
 ## Objective
 
@@ -252,14 +257,16 @@ python scripts/test_fast.py
 python scripts/test_fast.py --smoke
 python scripts/test_fast.py --cold
 python -m pytest -q
-python -m pytest tests/ -m milestone -q
-python -m pytest tests/ -m forensic -q
+python -m pytest tests/resampling_null -m milestone -q
+python -m pytest tests/resampling_null -m forensic -q
 ```
 
 The first command runs the impacted hot slice. `--smoke` runs all micro-cases
 through sacrificial workers. `--cold` starts a disposable supervisor and runs
 the micro-gate. Pytest is the independent oracle. Milestone and forensic
-commands never run in the ordinary agent loop.
+commands use the compact resampling path directly so pytest never imports the
+historical repository-wide suite merely to deselect it. They never run in the
+ordinary agent loop.
 
 ## Acceptance Criteria
 
