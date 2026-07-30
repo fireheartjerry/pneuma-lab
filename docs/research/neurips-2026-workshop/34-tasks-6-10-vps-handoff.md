@@ -429,9 +429,10 @@ private link stays until commit/recovery. The intent binds the staged
 fails closed on malformed/substituted/same-byte replacement state. Builder and
 second-install fault injection prove neither public target remains on
 controlled failure while taint persists; a post-preflight creator is not
-overwritten. The intent HMAC is derived only from the in-memory validated
-unblind permit; a fresh bound handle rederives it after crash, while a bare
-lock cannot delete pending state. Predeclared keyed staging names make the
+overwritten. The intent HMAC is derived from a dedicated nonpersisted
+`pair_recovery` master-key subkey, never from the receipt-visible permit; a
+fresh bound handle rederives it after crash, while a bare lock cannot delete
+pending state. Predeclared keyed staging names make the
 pre-identity crash window recoverable; forged intent/hardlink attempts fail
 authentication without deleting their victim. The old public receipt-only
 `unblind_projection` route is removed. This is plumbing, not an

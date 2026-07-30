@@ -43,7 +43,7 @@ _FRAME_MAGIC = b"pneuma-resampling-null-frame-v1\x00"
 _MAX_U32 = 2**32 - 1
 _MAX_U64 = 2**64 - 1
 _SUBKEY_LABELS = frozenset(
-    {"donor", "allocation", "orientation", "capability", "unblind"}
+    {"donor", "allocation", "orientation", "capability", "unblind", "pair_recovery"}
 )
 _ALLOCATION_TABLE: tuple[tuple[Treatment, Treatment, Treatment, Treatment], ...] = (
     (Treatment.NO_PACKET, Treatment.NO_PACKET, Treatment.REAL, Treatment.SHAM),
@@ -745,6 +745,27 @@ def _derive_unblind_subkey_into(
             prk,
         )
         _expand_assignment_subkey_into(prk, "unblind", destination)
+    except BaseException:
+        _wipe_bytearray(destination)
+        raise
+    finally:
+        _wipe_bytearray(prk)
+
+
+def _derive_pair_recovery_subkey_into(
+    assignment_master_key: memoryview,
+    study_id: str,
+    manifest_ref: ArtifactRef,
+    schedule_ref: ArtifactRef,
+    destination: bytearray,
+) -> None:
+    """Derive the non-persisted Task-6 recovery authenticator."""
+    if type(destination) is not bytearray or len(destination) != 32:
+        raise ValueError("pair recovery destination must be one mutable 32-byte buffer")
+    prk = bytearray(32)
+    try:
+        _extract_assignment_prk_into(assignment_master_key, study_id, manifest_ref, schedule_ref, prk)
+        _expand_assignment_subkey_into(prk, "pair_recovery", destination)
     except BaseException:
         _wipe_bytearray(destination)
         raise

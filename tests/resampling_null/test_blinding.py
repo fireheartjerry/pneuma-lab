@@ -209,6 +209,7 @@ def test_paired_unblind_analysis_builder_failure_publishes_neither_record_but_ta
         permit, {"rows": [{"task_id": "t", "slots": [{"slot_id": "0"}]}]}, {},
     ))
     monkeypatch.setattr(blinding, "validate_scientific_graph", lambda *a: None)
+    monkeypatch.setattr(blinding, "_pair_transaction_key", lambda *a, **k: b"k" * 32)
     monkeypatch.setattr(blinding, "_require_manifest_ancestry", lambda *a, **k: None)
     monkeypatch.setattr(blinding, "_validate_ledger_ancestry", lambda *a, **k: {
         "payload": {"assignments": [{"task_id": "t", "slot_arms": {"0": "REAL"}}]},
@@ -221,7 +222,7 @@ def test_paired_unblind_analysis_builder_failure_publishes_neither_record_but_ta
 
     with pytest.raises(RecordValidationError, match="injected analysis failure"):
         blinding.unblind_and_publish_analysis(
-            object(), permit_hmac_sha256=permit, run_root=root,
+            object(), recovery_handle=object(), permit_hmac_sha256=permit, run_root=root,
             receipt_destination=root / "receipt.json", analysis_destination=root / "analysis.json",
             manifest_ref=ref, schedule_ref=ref, prefix_index_ref=ref, ledger_ref=ref,
             projection_ref=ref, freeze_ref=ref, expected_task_count=1,
@@ -254,6 +255,7 @@ def test_paired_unblind_second_publication_failure_rolls_back_receipt(
         permit, {"rows": [{"task_id": "t", "slots": [{"slot_id": "0"}]}]}, {},
     ))
     monkeypatch.setattr(blinding, "validate_scientific_graph", lambda *a: None)
+    monkeypatch.setattr(blinding, "_pair_transaction_key", lambda *a, **k: b"k" * 32)
     monkeypatch.setattr(blinding, "_validate_ledger_ancestry", lambda *a, **k: {
         "payload": {"assignments": [{"task_id": "t", "slot_arms": {"0": "REAL"}}]},
         "study_id": "s", "frozen_created_at": "2026-01-01T00:00:00Z",
@@ -281,7 +283,7 @@ def test_paired_unblind_second_publication_failure_rolls_back_receipt(
 
     with pytest.raises(OSError, match="injected publication failure"):
         blinding.unblind_and_publish_analysis(
-            object(), permit_hmac_sha256=permit, run_root=root,
+            object(), recovery_handle=object(), permit_hmac_sha256=permit, run_root=root,
             receipt_destination=root / "receipt.json", analysis_destination=root / "analysis.json",
             manifest_ref=ref, schedule_ref=ref, prefix_index_ref=ref, ledger_ref=ref,
             projection_ref=ref, freeze_ref=ref, expected_task_count=1,
@@ -391,23 +393,27 @@ def test_forged_or_hardlinked_preidentity_intent_never_deletes_victim(tmp_path) 
     import json
     import os
     from pneuma_lab.resampling_null.errors import RecordValidationError
-    from pneuma_lab.resampling_null.task6_state import begin_paired_publication, recover_paired_publication
+    import pneuma_lab.resampling_null.task6_state as state
 
     root = tmp_path / "run"
     root.mkdir()
     key = b"k" * 32
     receipt, analysis, victim = root / "receipt.json", root / "analysis.json", root / "victim.json"
     victim.write_bytes(b"victim")
-    begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")), auth_key=key)
+    state.begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")), auth_key=key)
     transaction = root / "operational/task6/paired-publication.json"
     intent = json.loads(transaction.read_text())
     staged = root / intent["entries"][0]["temporary_relative_path"]
     os.link(victim, staged)
     forged = json.loads(transaction.read_text())
     forged["entries"][1]["temporary_relative_path"] = "victim.json"
+    # A readable receipt permit is not the recovery capability and cannot
+    # authenticate a forged cleanup plan.
+    public_permit = b"p" * 32
+    forged["auth_hmac_sha256"] = state._transaction_mac(forged, public_permit)
     transaction.write_text(json.dumps(forged), encoding="utf-8")
     with pytest.raises(RecordValidationError, match="authentication"):
-        recover_paired_publication(root, auth_key=key)
+        state.recover_paired_publication(root, auth_key=key)
     assert victim.read_bytes() == b"victim"
     assert staged.exists()
 

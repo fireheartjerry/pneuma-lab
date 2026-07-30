@@ -18,7 +18,9 @@ from .artifacts import (
     validate_scientific_graph,
     write_record,
 )
-from .assignment import BytesField, TextField, _derive_unblind_subkey_into, _read_exact_master_into, commitment_sha256, kdf_frame
+from .assignment import (BytesField, TextField, _derive_pair_recovery_subkey_into,
+                         _derive_unblind_subkey_into, _read_exact_master_into,
+                         commitment_sha256, kdf_frame)
 from .errors import RecordValidationError
 from .projection_candidate import ProjectionCandidate, build_candidate
 from .secrets import UnblindSecretHandle, _require_handle_binding
@@ -263,19 +265,31 @@ def _ref_for_prepared_record(
     ), payload
 
 
-def _pair_transaction_key(permit_hmac_sha256: str) -> bytes:
-    """Derive a non-persisted transaction authenticator from the valid permit."""
+def _pair_transaction_key(
+    handle: UnblindSecretHandle, *, run_root: Path, manifest_ref: ArtifactRef,
+    schedule_ref: ArtifactRef,
+) -> bytes:
+    """Derive a capability-only recovery key; permits are deliberately public receipts."""
+    manifest = _load_direct_scientific_parent(
+        _mapping_ref(manifest_ref), run_root=run_root, field="manifest_ref",
+        expected_kind="resampling_study_manifest",
+    )
+    _require_handle_binding(handle, manifest_ref, schedule_ref, run_root=run_root, purpose="unblind")
+    master, pair_key = bytearray(32), bytearray(32)
     try:
-        permit = bytes.fromhex(permit_hmac_sha256)
-    except ValueError as exc:
-        raise RecordValidationError("unblind permit MAC is malformed") from exc
-    if len(permit) != 32:
-        raise RecordValidationError("unblind permit MAC is malformed")
-    return hmac.new(permit, b"task6-paired-publication-v1", hashlib.sha256).digest()
+        _read_exact_master_into(handle, master)
+        if commitment_sha256("assignment-master-key", str(manifest.value["study_id"]), BytesField(bytes(master))) != cast(Mapping[str, object], manifest.value["payload"])["assignment_master_key_commitment_sha256"]:
+            raise RecordValidationError("master commitment does not match manifest")
+        _derive_pair_recovery_subkey_into(memoryview(master), str(manifest.value["study_id"]), manifest_ref, schedule_ref, pair_key)
+        return bytes(pair_key)
+    finally:
+        master[:] = b"\x00" * len(master)
+        pair_key[:] = b"\x00" * len(pair_key)
 
 
 def unblind_and_publish_analysis(
-    handle: UnblindSecretHandle, *, permit_hmac_sha256: str, run_root: Path,
+    handle: UnblindSecretHandle, *, recovery_handle: UnblindSecretHandle,
+    permit_hmac_sha256: str, run_root: Path,
     receipt_destination: Path, analysis_destination: Path, manifest_ref: ArtifactRef,
     schedule_ref: ArtifactRef, prefix_index_ref: ArtifactRef, ledger_ref: ArtifactRef,
     projection_ref: ArtifactRef, freeze_ref: ArtifactRef, expected_task_count: int,
@@ -291,7 +305,10 @@ def unblind_and_publish_analysis(
     a partial pair.
     """
     with task6_controller_lock(run_root) as root:
-        transaction_key = _pair_transaction_key(permit_hmac_sha256)
+        transaction_key = _pair_transaction_key(
+            recovery_handle, run_root=root, manifest_ref=manifest_ref,
+            schedule_ref=schedule_ref,
+        )
         recover_paired_publication(root, auth_key=transaction_key)
         require_singleton_absent(root, "resampling_unblind_receipt")
         receipt_target, receipt_relative = _prepare_destination(receipt_destination, root)

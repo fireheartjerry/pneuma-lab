@@ -785,7 +785,9 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
                 expected_task_count=expected,
             )
             paired = unblind_and_publish_analysis(
-                store.claim_unblind(study_ref, schedule_ref, run_root=root), permit_hmac_sha256=permit,
+                store.claim_unblind(study_ref, schedule_ref, run_root=root),
+                recovery_handle=store.claim_unblind(study_ref, schedule_ref, run_root=root),
+                permit_hmac_sha256=permit,
                 run_root=root, receipt_destination=receipt_out, manifest_ref=study_ref,
                 schedule_ref=schedule_ref, prefix_index_ref=prefix_ref, ledger_ref=ledger_ref,
                 projection_ref=projection_ref, freeze_ref=freeze_ref, expected_task_count=expected,

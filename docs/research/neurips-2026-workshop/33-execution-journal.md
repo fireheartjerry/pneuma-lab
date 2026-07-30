@@ -2362,3 +2362,25 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** This recovery authorization is controller plumbing;
   no external data, key, arm mapping, P0, provider, spend, or scientific result
   was exposed or executed.
+
+### EJ-20260730-0210 — Hostile-review repair: recovery key separation
+
+- **Correction:** The prior transaction HMAC was derived from the permit MAC.
+  Because a completed receipt serializes that permit MAC, it was not a durable
+  recovery secret. Added the registered `pair_recovery` assignment-subkey
+  domain and a capability-only derivation from the master key, study, manifest,
+  and schedule. The recovery key exists only in a mutable buffer during a
+  fresh bound unblind-handle claim and is wiped before return; it is neither
+  serialized nor derivable from receipt bytes.
+- **Controller flow:** `analyze` now obtains a distinct fresh unblind handle
+  for recovery-key derivation, in addition to the permit and final
+  clear-boundary handles. A pending pair may therefore be authenticated and
+  recovered only by a controller that can reopen the owner-custodied master
+  key with the exact committed bindings.
+- **Focused evidence:** The forged-intent/hardlink regression now recomputes
+  its fake HMAC using a simulated readable receipt permit. Recovery with the
+  genuine pair key rejects it and leaves the victim intact. `timeout 60s
+  .venv/bin/python -m pytest tests/resampling_null/test_blinding.py
+  tests/resampling_null/test_cli.py -q` passed 39 tests.
+- **Boundary/non-claim:** No master key, recovery key, unblind mapping, P0,
+  provider action, spend, or scientific result was persisted or executed.
