@@ -20,7 +20,7 @@ from pneuma_lab.resampling_null.power import (
     power_replay_receipt,
     validate_power_replay_receipt,
 )
-from pneuma_lab.resampling_null.types import ArtifactRef
+from pneuma_lab.resampling_null.types import ArtifactRef, GroupKind, GroupLabel
 
 
 def test_probability_table_recovers_marginals_and_is_normalized() -> None:
@@ -128,6 +128,38 @@ def test_registered_pattern_counts_enter_the_task7_batch_gate() -> None:
     )
 
     assert result.causal_pass.shape == (1,)
+
+
+def test_simulated_batch_preserves_joint_groups_for_leave_one_gate() -> None:
+    """A hostile group must be able to change Task-7's leave-one gate."""
+    kwargs = dict(
+        p0=0.4, gamma=0.6, rho=0.4, family="alternative", task_count=20,
+        authority_kind="synthetic_validation", tier_membership_sha256="1" * 64,
+        grid_content_digest="2" * 64, phase="gaussian_approximation",
+        replicate_index=4, joint_group_sizes=(1, 19),
+    )
+    swe = simulate_benchmark_pattern_counts(cell_id="alternative:swe-00:tau-00", **kwargs)
+    tau = simulate_benchmark_pattern_counts(cell_id="alternative:swe-00:tau-00", **kwargs)
+    roster_ref = ArtifactRef("roster", "inputs/roster.json", "3" * 64, 1, "application/json")
+    labels = ((GroupLabel(GroupKind.LANGUAGE, "tiny"),), (GroupLabel(GroupKind.LANGUAGE, "rest"),))
+    baseline = evaluate_simulated_pattern_batch(swe, tau, roster_ref=roster_ref, critical_value=1.96)
+    grouped = evaluate_simulated_pattern_batch(
+        swe, tau, roster_ref=roster_ref, critical_value=1.96,
+        joint_group_labels=(labels, labels),
+    )
+
+    assert grouped.all_benchmark_nonnegative.shape == (1,)
+    assert grouped.all_benchmark_nonnegative.tolist() == baseline.all_benchmark_nonnegative.tolist()
+    assert grouped.causal_pass.shape == (1,)
+
+
+def test_screen_projection_uses_full_production_work_per_shard() -> None:
+    from pneuma_lab.resampling_null.power import _projected_screen_wall_seconds
+
+    assert _projected_screen_wall_seconds(
+        elapsed_seconds=2.0, measured_datasets_per_cell=200, cell_count=2916,
+        production_datasets_per_cell=20_000, shard_count=4,
+    ) == 145_800
 
 
 def test_replay_merkle_receipt_rejects_a_tampered_leaf() -> None:

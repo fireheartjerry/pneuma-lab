@@ -11,12 +11,10 @@ from pneuma_lab.foundation.artifacts import canonical_json_bytes
 from pneuma_lab.resampling_null.errors import RecordValidationError
 from pneuma_lab.resampling_null.artifacts import (_scientific_documents,
                                                    _validate_power_identities,
-                                                   validate_scientific_graph,
                                                    write_record)
 from pneuma_lab.resampling_null.assignment import BytesField, U64Field, commitment_sha256, kdf_frame
 from pneuma_lab.resampling_null.power import (
     RNG_CONTRACT_SHA256,
-    finalize_synthetic_power_report,
     grid_content_sha256,
     load_power_authority,
     load_power_config,
@@ -25,7 +23,6 @@ from pneuma_lab.resampling_null.power import (
     seal_synthetic_power_authority,
     select_validation_cells,
     simulate_power_shard,
-    validate_gaussian_approximation,
 )
 from pneuma_lab.resampling_null.types import ArtifactRef
 
@@ -285,7 +282,7 @@ def test_staged_report_rejects_swapped_manifest_topology_ref(tmp_path: Path) -> 
         _validate_power_identities([screen], run_root=tmp_path)
 
 
-def test_tiny_synthetic_shards_cannot_enter_the_authority_merge(tmp_path: Path) -> None:
+def test_tiny_synthetic_shards_cannot_enter_the_authority_merge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Bounded fixture work is evidence plumbing, never a shortcut to authority."""
     manifest_ref = _manifest(tmp_path, roster_kind="synthetic_fixture")
     authority_ref = seal_synthetic_power_authority(
@@ -297,6 +294,9 @@ def test_tiny_synthetic_shards_cannot_enter_the_authority_merge(tmp_path: Path) 
         _ref(tmp_path, "inputs/topology.json", "power_screen_topology"),
         run_root=tmp_path,
     )
+    import pneuma_lab.resampling_null.power as power
+    ticks = iter((0.0, 0.01, 1.0, 1.01))
+    monkeypatch.setattr(power, "perf_counter", lambda: next(ticks))
     first_screen = screen_power_grid(
         config, phase="gaussian_approximation", generation=0, shard_count=2,
         fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/first-screen.json",
@@ -319,7 +319,7 @@ def test_tiny_synthetic_shards_cannot_enter_the_authority_merge(tmp_path: Path) 
 
 
 def test_shard_records_replay_receipts_and_task7_gate_totals_not_static_binomials(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manifest_ref = _manifest(tmp_path, roster_kind="synthetic_fixture")
     authority_ref = seal_synthetic_power_authority(
@@ -329,6 +329,9 @@ def test_shard_records_replay_receipts_and_task7_gate_totals_not_static_binomial
         authority_ref, _ref(tmp_path, "inputs/grid.json", "power_grid"),
         _ref(tmp_path, "inputs/topology.json", "power_screen_topology"), run_root=tmp_path,
     )
+    import pneuma_lab.resampling_null.power as power
+    ticks = iter((0.0, 0.01))
+    monkeypatch.setattr(power, "perf_counter", lambda: next(ticks))
     screen = screen_power_grid(
         config, phase="gaussian_approximation", generation=0, shard_count=1,
         fallback_trigger_ref=None, run_root=tmp_path, out=tmp_path / "power/screen.json",

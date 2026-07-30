@@ -1994,3 +1994,21 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** No 2,000-outcome validation or full-grid fallback was
   executed here. Those calculations are intentionally expensive evidence work,
   not a unit-test fixture; no P0 result, provider action, spend, or claim exists.
+
+### EJ-20260730-0194 — Task 8B hostile contract repair
+
+- **Implementation:** The count simulator now preserves the manifest's joint
+  sensitivity-cell labels and expands each `(benchmark, group, pattern)` count
+  into `BinarySufficientStatisticsBatch`; Task-7 leave-one-group gates now see
+  real group tensors rather than an overall-only projection. Fallback screen
+  prewrite reloads the current maximal Gaussian validation and rejects any
+  non-failed, foreign-authority, grid, or topology-mismatched trigger before
+  timing or persistence. Screen timing is projected as measured work per cell
+  times full cells times production datasets divided by frozen shard count.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_power.py tests/resampling_null/test_power_authority.py -q`
+  passed 23 tests; the focused suite includes group-tensor routing and exact
+  production-work timing projection. `git diff --check` passed.
+- **Boundary/non-claim:** No P0 grid, Gaussian validation, multiplier fallback,
+  provider action, external benchmark, spend, tier selection, or scientific
+  claim was run or created.

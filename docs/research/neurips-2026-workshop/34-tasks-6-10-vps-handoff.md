@@ -198,6 +198,14 @@ Production uses the frozen full grid. `max_datasets`/`max_cells` are
 synthetic-fixture-only and deliberately produce incomplete shards that merge
 consumers reject.
 
+**Task 8B repair handoff (2026-07-30):** Keep the complete joint-group manifest
+through every simulated batch: overall-only tensors silently disable Task-7
+leave-one-group gates. A full-multiplier screen must first reload the current
+same-authority/grid/topology failed Gaussian validation; an arbitrary artifact
+ref or a passing Gaussian is not a fallback trigger. Timing admission is
+per-cell measured work projected to full production cells/datasets per shard;
+if it exceeds the frozen cap, stop rather than shrinking the estimate.
+
 ## Task 10 — isolated result of record and closure
 
 Complete the zero-spend core:

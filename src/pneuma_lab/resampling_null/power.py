@@ -28,7 +28,7 @@ from .authority_refs import closed_mapping, decode_artifact_ref
 from .errors import RecordValidationError
 from .json_io import load_json_bytes
 from .types import ArtifactRef
-from .types import AnalysisConfig, BinarySufficientStatisticsBatch, GateBatchResult
+from .types import AnalysisConfig, BinarySufficientStatisticsBatch, GateBatchResult, GroupKind, GroupLabel
 
 
 POWER_AUTHORITY_MEDIA_TYPE = "application/vnd.pneuma.power-authority+json"
@@ -245,14 +245,29 @@ def simulate_benchmark_pattern_counts(
 def evaluate_simulated_pattern_batch(
     swe: BenchmarkPatternCounts, tau: BenchmarkPatternCounts, *, roster_ref: ArtifactRef,
     critical_value: float,
+    joint_group_labels: tuple[
+        tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
+    ] | None = None,
 ) -> GateBatchResult:
     """Route synthetic sufficient statistics through the authoritative Task-7 gate."""
     if type(roster_ref) is not ArtifactRef:
         raise TypeError("simulated batch requires the manifest-derived roster ArtifactRef")
-    patterns = np.asarray([[swe.pattern_counts, tau.pattern_counts]], dtype=np.int64)
+    group_manifest: list[tuple[str, GroupLabel | None]] = [("SWE", None), ("TAU", None)]
+    rows: list[tuple[int, ...]] = [swe.pattern_counts, tau.pattern_counts]
+    if joint_group_labels is not None:
+        for benchmark, counts, labels_by_joint_cell in (
+            ("SWE", swe, joint_group_labels[0]), ("TAU", tau, joint_group_labels[1]),
+        ):
+            if len(labels_by_joint_cell) != len(counts.joint_group_pattern_counts):
+                raise RecordValidationError("joint group labels do not match simulated group cells")
+            labels = tuple(sorted({label for cell in labels_by_joint_cell for label in cell}, key=lambda label: (label.kind.value, label.value)))
+            for label in labels:
+                group_manifest.append((benchmark, label))
+                rows.append(tuple(sum(pattern[index] for pattern, cell in zip(counts.joint_group_pattern_counts, labels_by_joint_cell, strict=True) if label in cell) for index in range(16)))
+    patterns = np.asarray([rows], dtype=np.int64)
     batch = BinarySufficientStatisticsBatch(
         roster_ref=roster_ref,
-        group_manifest=(("SWE", None), ("TAU", None)),
+        group_manifest=tuple(group_manifest),
         pattern_counts=patterns,
         arm_failure_counts=np.zeros((1, 2, 4), dtype=np.int64),
         pipeline_invalid_counts=np.zeros(1, dtype=np.int64),
@@ -260,6 +275,33 @@ def evaluate_simulated_pattern_batch(
     return evaluate_binary_gate_batch(
         batch, AnalysisConfig(), critical_values=np.asarray([critical_value]),
     )
+
+
+def _batch_group_manifest_and_patterns(
+    rows: tuple[tuple[BenchmarkPatternCounts, BenchmarkPatternCounts], ...],
+    joint_group_labels: tuple[
+        tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
+    ] | None,
+) -> tuple[tuple[tuple[str, GroupLabel | None], ...], np.ndarray]:
+    """Preserve each roster label's count tensor for Task-7 leave-one gates."""
+    manifest: list[tuple[str, GroupLabel | None]] = [("SWE", None), ("TAU", None)]
+    labels_by_benchmark: tuple[tuple[GroupLabel, ...], tuple[GroupLabel, ...]] = ((), ())
+    if joint_group_labels is not None:
+        labels_by_benchmark = tuple(
+            tuple(sorted({label for cell in labels for label in cell}, key=lambda label: (label.kind.value, label.value)))
+            for labels in joint_group_labels
+        )  # type: ignore[assignment]
+        manifest.extend((benchmark, label) for benchmark, labels in zip(("SWE", "TAU"), labels_by_benchmark, strict=True) for label in labels)
+    tensor: list[list[tuple[int, ...]]] = []
+    for swe, tau in rows:
+        entries: list[tuple[int, ...]] = [swe.pattern_counts, tau.pattern_counts]
+        if joint_group_labels is not None:
+            for counts, labels_by_cell, labels in zip((swe, tau), joint_group_labels, labels_by_benchmark, strict=True):
+                if len(counts.joint_group_pattern_counts) != len(labels_by_cell):
+                    raise RecordValidationError("joint group labels do not match simulated group cells")
+                entries.extend(tuple(sum(pattern[index] for pattern, cell in zip(counts.joint_group_pattern_counts, labels_by_cell, strict=True) if label in cell) for index in range(16)) for label in labels)
+        tensor.append(entries)
+    return tuple(manifest), np.asarray(tensor, dtype=np.int64)
 
 
 def _raw_contrast_rows(counts: BenchmarkPatternCounts) -> np.ndarray:
@@ -1017,6 +1059,45 @@ def _assert_power_write_open(config: PowerConfig, *, run_root: Path, stage: str,
             raise RecordValidationError("power screen generation must be the next immutable generation")
 
 
+def _projected_screen_wall_seconds(*, elapsed_seconds: float, measured_datasets_per_cell: int,
+                                  cell_count: int, production_datasets_per_cell: int,
+                                  shard_count: int) -> int:
+    """Fail-closed per-shard projection from measured work to production work."""
+    if (not np.isfinite(elapsed_seconds) or elapsed_seconds <= 0.0
+            or any(type(value) is not int or value <= 0 for value in (
+                measured_datasets_per_cell, cell_count, production_datasets_per_cell, shard_count,
+            ))):
+        raise RecordValidationError("screen timing projection requires positive finite measured work")
+    return int(np.ceil(
+        elapsed_seconds / measured_datasets_per_cell * cell_count
+        * production_datasets_per_cell / shard_count
+    ))
+
+
+def _current_failed_gaussian_validation(config: PowerConfig, *, run_root: Path) -> ArtifactRef:
+    """Reload the sole current Gaussian terminal failure before fallback mutation."""
+    root = Path(run_root)
+    authority_mapping = _ref_mapping(config.authority_ref)
+    candidates = []
+    for document in _scientific_documents(root, excluded=tuple((root / "inputs").rglob("*.json"))).values():
+        if document.value.get("record_kind") != "resampling_power_report":
+            continue
+        payload = cast(Mapping[str, object], document.value["payload"])
+        if (payload.get("authority_ref") == authority_mapping
+                and payload.get("phase") == "gaussian_approximation"
+                and payload.get("stage") == "validation"):
+            candidates.append(document)
+    if not candidates:
+        raise RecordValidationError("fallback requires a persisted Gaussian validation")
+    current = max(candidates, key=lambda document: cast(int, cast(Mapping[str, object], document.value["payload"])["generation"]))
+    payload = cast(Mapping[str, object], current.value["payload"])
+    _same_config(payload, config, run_root=run_root)
+    approximation = cast(Mapping[str, object], payload.get("approximation_receipt"))
+    if approximation.get("passed") is not False:
+        raise RecordValidationError("fallback requires the current terminal failed Gaussian validation")
+    return _artifact_ref_for_path(current.path, root, "power_report", "application/json")
+
+
 def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approximation", "full_multiplier_fallback"], generation: int, shard_count: int, fallback_trigger_ref: ArtifactRef | None, run_root: Path, out: Path) -> ArtifactRef:
     """Seal immutable topology/timing before any shard can execute."""
     if type(generation) is not int or generation < 0 or type(shard_count) is not int or shard_count <= 0:
@@ -1024,6 +1105,10 @@ def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approxima
     _assert_power_write_open(config, run_root=run_root, stage="screen", phase=phase, generation=generation)
     if (phase == "gaussian_approximation") != (fallback_trigger_ref is None):
         raise RecordValidationError("Gaussian screens forbid and fallback screens require a failed validation trigger")
+    if fallback_trigger_ref is not None:
+        current_failed = _current_failed_gaussian_validation(config, run_root=run_root)
+        if fallback_trigger_ref != current_failed:
+            raise RecordValidationError("fallback trigger is not the current terminal failed Gaussian validation")
     grid = _load_power_grid(config.grid_ref, run_root=run_root)
     # Measure the registered 200-dataset screen kernel and extrapolate its
     # observed per-cell time to the full immutable grid.  `1` was a lie.
@@ -1032,7 +1117,8 @@ def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approxima
     _gate_totals_for_cell(frozen_power_cells()[0], authority=authority,
         digest=grid_content_sha256(config.grid_ref, run_root=run_root), phase=phase,
         roster_group_sizes=_roster_group_sizes(authority, run_root=run_root),
-        dataset_count=grid.screen_datasets_per_cell, draw_domain="screen")
+        dataset_count=grid.screen_datasets_per_cell, draw_domain="screen",
+        joint_group_labels=_roster_joint_group_labels(authority, run_root=run_root))
     if phase == "full_multiplier_fallback":
         # Measure the actual registered expensive kernel before allowing a
         # fallback screen.  A passing Gaussian never enters this branch.
@@ -1046,10 +1132,14 @@ def screen_power_grid(config: PowerConfig, *, phase: Literal["gaussian_approxima
             cell_id=frozen_power_cells()[0].cell_id, replicate_index=0,
             multiplier_draws=grid.multiplier_draws)
     elapsed = perf_counter() - started
-    # The receipt is a measured screen-kernel projection over the declared
-    # shard topology; it is never the previous fabricated constant `1`.
-    multiplier_work = len(frozen_power_cells()) * grid.datasets_per_cell if phase == "full_multiplier_fallback" else shard_count
-    projected = max(2, int(np.ceil(elapsed * multiplier_work)))
+    # A screen measures a fixed number of datasets for one cell.  Project that
+    # measured work across the full immutable grid, production datasets, and
+    # the frozen parallel shard topology.  Anything else is numerology.
+    projected = _projected_screen_wall_seconds(
+        elapsed_seconds=elapsed, measured_datasets_per_cell=grid.screen_datasets_per_cell,
+        cell_count=len(frozen_power_cells()), production_datasets_per_cell=grid.datasets_per_cell,
+        shard_count=shard_count,
+    )
     if projected > grid.max_projected_wall_seconds:
         raise RecordValidationError("screen projection exceeds frozen 12-hour wall-clock cap")
     kernel = "power-screen-gaussian-v1" if phase == "gaussian_approximation" else "power-screen-full-multiplier-v1"
@@ -1101,10 +1191,29 @@ def _roster_group_sizes(authority: PowerAuthority, *, run_root: Path) -> tuple[t
             tuple(cells["TAU"][key] for key in sorted(cells["TAU"])))
 
 
+def _roster_joint_group_labels(authority: PowerAuthority, *, run_root: Path) -> tuple[
+    tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
+]:
+    """Return the same canonical joint-cell order used for simulation sizes."""
+    roster = _load_roster(authority.roster_ref, run_root=run_root)
+    cells: dict[str, set[tuple[tuple[str, str], ...]]] = {"SWE": set(), "TAU": set()}
+    for value in cast(list[object], roster["tasks"]):
+        task = closed_mapping(value, fields={"task_id", "benchmark", "stratum", "lineage", "groups", "tiers"}, field="power roster task")
+        benchmark = cast(str, task["benchmark"])
+        if benchmark not in cells:
+            raise RecordValidationError("P0 roster must contain only SWE and TAU benchmarks")
+        key = tuple(sorted((cast(str, closed_mapping(group, fields={"kind", "value"}, field="power roster group")["kind"]), cast(str, closed_mapping(group, fields={"kind", "value"}, field="power roster group")["value"])) for group in cast(list[object], task["groups"])))
+        cells[benchmark].add(key)
+    def labels(benchmark: str) -> tuple[tuple[GroupLabel, ...], ...]:
+        return tuple(tuple(GroupLabel(GroupKind(kind), value) for kind, value in key) for key in sorted(cells[benchmark]))
+    return labels("SWE"), labels("TAU")
+
+
 def _gate_totals_for_cell(
     cell: PowerCell, *, authority: PowerAuthority, digest: str, phase: str,
     roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]], dataset_count: int,
     draw_domain: Literal["screen", "grid", "validation"] = "grid", critical_value: float = 1.96,
+    joint_group_labels: tuple[tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...]] | None = None,
 ) -> tuple[dict[str, int], dict[str, object]]:
     """Evaluate bounded real count tensors and retain only aggregate gate totals."""
     chunk_size = 128
@@ -1115,10 +1224,10 @@ def _gate_totals_for_cell(
         count = min(chunk_size, dataset_count - start)
         rows = replay_pattern_chunk(cell, authority=authority, grid_digest=digest, phase=phase,
                                     roster_group_sizes=roster_group_sizes, start=start, count=count, draw_domain=draw_domain)
-        patterns = np.asarray([[swe.pattern_counts, tau.pattern_counts] for swe, tau in rows], dtype=np.int64)
+        group_manifest, patterns = _batch_group_manifest_and_patterns(rows, joint_group_labels)
         gate = evaluate_binary_gate_batch(
             BinarySufficientStatisticsBatch(
-                roster_ref=authority.roster_ref, group_manifest=(("SWE", None), ("TAU", None)),
+                roster_ref=authority.roster_ref, group_manifest=group_manifest,
                 pattern_counts=patterns, arm_failure_counts=np.zeros((count, 2, 4), dtype=np.int64),
                 pipeline_invalid_counts=np.zeros(count, dtype=np.int64),
             ),
@@ -1198,10 +1307,12 @@ def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_
         raise RecordValidationError("only synthetic fixtures may use incomplete P0 shard execution")
     dataset_count = grid.datasets_per_cell if max_datasets is None else max_datasets
     roster_group_sizes = _roster_group_sizes(authority, run_root=run_root)
+    joint_group_labels = _roster_joint_group_labels(authority, run_root=run_root)
     results: list[dict[str, object]] = []
     for cell in cells[start:end if max_cells is None else min(end, start + max_cells)]:
         totals, receipt = _gate_totals_for_cell(cell, authority=authority, digest=digest, phase=phase,
-                                                roster_group_sizes=roster_group_sizes, dataset_count=dataset_count)
+                                                roster_group_sizes=roster_group_sizes, dataset_count=dataset_count,
+                                                joint_group_labels=joint_group_labels)
         # A P0 family is evaluated by the same Task-7 gate; there is no second
         # static-binomial simulator hiding behind a convenient field name.
         results.append({"cell_id": cell.cell_id, "family": cell.family,
@@ -1275,11 +1386,12 @@ def _tier_decision(*, authority: PowerAuthority, rows: list[Mapping[str, object]
 
 def _validation_family_totals(cell: PowerCell, *, authority: PowerAuthority, digest: str,
                               phase: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]],
-                              dataset_count: int, multiplier_draws: int) -> tuple[dict[str, int], dict[str, int]]:
+                              dataset_count: int, multiplier_draws: int,
+                              joint_group_labels: tuple[tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...]] | None = None) -> tuple[dict[str, int], dict[str, int]]:
     """Independently regenerate validation-domain outcomes for both engines."""
     gaussian, _ = _gate_totals_for_cell(cell, authority=authority, digest=digest, phase=phase,
                                         roster_group_sizes=roster_group_sizes, dataset_count=dataset_count,
-                                        draw_domain="validation")
+                                        draw_domain="validation", joint_group_labels=joint_group_labels)
     multiplier_pass = 0
     for replicate in range(dataset_count):
         swe, tau = replay_pattern_chunk(cell, authority=authority, grid_digest=digest, phase=phase,
@@ -1298,13 +1410,14 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
     screen = _report(screen_ref, run_root=run_root, stage="screen")
     _assert_power_write_open(config, run_root=run_root, stage="validation", phase="gaussian_approximation", generation=cast(int, screen["generation"]))
     selection = _report(selection_ref, run_root=run_root, stage="selection")
-    shards = _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
+    _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
     if selection["parent_refs"] != [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]]:
         raise RecordValidationError("validation selection does not bind the complete shard set")
     grid = _load_power_grid(config.grid_ref, run_root=run_root)
     authority = load_power_authority(config.authority_ref, run_root=run_root)
     digest = grid_content_sha256(config.grid_ref, run_root=run_root)
     layout = _roster_group_sizes(authority, run_root=run_root)
+    joint_group_labels = _roster_joint_group_labels(authority, run_root=run_root)
     by_cell = {cell.cell_id: cell for cell in frozen_power_cells()}
     raw_rows: list[dict[str, object]] = []
     for selected_id in cast(list[str], selection["selected_cells"]):
@@ -1313,7 +1426,7 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
             gaussian, multiplier = _validation_family_totals(
                 by_cell[cell_id], authority=authority, digest=digest, phase="gaussian_approximation",
                 roster_group_sizes=layout, dataset_count=grid.validation_datasets_per_cell,
-                multiplier_draws=grid.multiplier_draws,
+                multiplier_draws=grid.multiplier_draws, joint_group_labels=joint_group_labels,
             )
             raw_rows.append({"cell_id": cell_id, "family": family, "gaussian_gate_totals": gaussian,
                              "full_multiplier_gate_totals": multiplier})
@@ -1366,7 +1479,7 @@ def validate_full_multiplier_fallback(screen_ref: ArtifactRef, shard_refs: tuple
                              phase="full_multiplier_fallback", generation=cast(int, screen["generation"]))
     if screen["phase"] != "full_multiplier_fallback":
         raise RecordValidationError("full-grid validator requires a fallback screen")
-    shards = _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
+    _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
     trigger = cast(Mapping[str, object], screen["fallback_trigger_ref"])
     failed = _report(ArtifactRef(**dict(trigger)), run_root=run_root, stage="validation")
     if failed["phase"] != "gaussian_approximation" or failed["approximation_receipt"]["passed"] is not False:  # type: ignore[index]
