@@ -361,3 +361,18 @@ local-test storage lineage, and mutating its placeholder roster/storage refs
 invalidates its promoted-authority replay. Do not fabricate that closure. Next
 fixture slice: promote one dedicated fully valid synthetic lineage, then use it
 for a genuine command-level build/audit receipt.
+
+**Task 9 lineage-fixture admission audit (2026-07-30):** The requested
+test-only, completed-final lineage fixture cannot be constructed honestly from
+the current APIs without executing the real configured P0 workflow. The sole
+bounded escape hatch (`simulate_power_shard(..., max_datasets/max_cells)`) marks
+the shard incomplete; `_complete_shards` rejects it before selection,
+validation, finalization, and schedule admission. `load_power_config` also
+hard-rejects every grid value other than the committed 2,916-cell,
+20,000-dataset-per-cell / 2,000-validation / 99,999-multiplier contract. A
+handwritten completed final would evade replay receipts and violate the
+append-only authority ledger, so it is specifically not a test fixture. No
+valid full P0 final or descendant lineage exists. Next gate: either execute the
+authorized full synthetic P0 under its scientific runtime protocol, or add a
+separately governed miniature *non-authority* protocol whose records cannot be
+admitted by this P0/schedule chain; do not relabel the latter as P0 evidence.

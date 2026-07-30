@@ -2198,3 +2198,31 @@ The next event after the archived migration boundary is appended below.
   later Task-9 fixture slice, not something this command patch may forge.
 - **Boundary/non-claim:** No packet build/audit, P0, provider, benchmark,
   secret, spend, or claim was executed.
+
+### EJ-20260730-0204 — Task 9 completed-lineage fixture admission audit
+
+- **Action:** Audited whether a dedicated test-only sealed lineage could run
+  the real CLI schedule, prefix, assignment, packet-build, and packet-audit
+  transitions from a completed synthetic power final without executing P0.
+  The existing bounded producer was traced through its merge and schedule
+  consumers; no record bytes were fabricated or manually promoted.
+- **Result:** BLOCKED BY LIVE CONTRACT, intentionally. The only bounded API,
+  `simulate_power_shard(..., max_datasets/max_cells)`, persists
+  `execution_complete: false`; `_complete_shards` rejects that state before
+  selection, validation, both completed finalizers, and schedule admission.
+  `load_power_config` accepts only the manifest-pinned frozen 2,916-cell,
+  20,000-dataset-per-cell P0 grid (with 2,000 validation datasets and 99,999
+  multiplier draws). Thus there is no compatible small completed final to
+  derive via current APIs. Hand-authoring one would bypass replay receipts and
+  the discovered append-only authority ledger, which is fabricated authority,
+  not a fixture.
+- **Evidence:** Existing focused regression
+  `test_tiny_synthetic_shards_cannot_enter_the_authority_merge` exercises the
+  bounded producer and observes the exact merge rejection. Static contract
+  inspection identified the frozen-grid and completed-chain checks in
+  `power.py` and `assignment.py`. No long P0 evaluation was launched.
+- **Next gate:** Execute the already frozen full synthetic P0 only under its
+  separate scientific runtime protocol, then build the genuine descendant E2E;
+  alternatively design a separate miniature non-authority protocol that cannot
+  enter this P0 schedule chain. No P0 result, provider action, packet,
+  assignment, spend, or scientific claim was produced.
