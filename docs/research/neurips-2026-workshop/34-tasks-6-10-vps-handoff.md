@@ -562,3 +562,55 @@ impossible, record the state, and move to the next gate.  The remaining work is
 now implementation-limited, not CPU-process-limited: finish opaque packet
 capabilities and branch execution, then revisit a reviewed formal timing
 no-go representation.
+
+**Task 9 branch-authority completion (2026-07-30):** The two remaining
+descendants named by the previous checkpoint are implemented, so
+`synthetic branches` is available and no longer reports
+`synthetic branch executor is not installed`.
+
+`packet_capabilities.py` is the sealed opaque packet-capability layer. The
+trusted preparer resolves the clear assignment plus packet pair into four
+preregistered-order opaque grants; every worker-visible packet name is a pure
+function of `(task_id, allocation capability digest)`, so a REAL packet cannot
+reach the slot allocated SHAM undetected. `SealedSlotCapability` closes worker
+reads to a role allowlist that contains no scientific record kind, and
+`SlotArtifactLoader` reads through a descriptor-bound `O_NOFOLLOW` walk with
+mandatory digest verification. Read the module docstring before extending it:
+the registered property is **peer-slot and donor opacity, not self-arm
+opacity**. A packet-bearing worker reads its own packet text, because that text
+is the intervention; the REAL/SHAM contrast is protected by the token-parity
+machinery instead. Do not restate the stronger claim.
+
+`branch_records.py` and `branch_controller.py` hold the frozen task-block value
+contracts and the arm-blind transactions: opaque work-order preparation, the
+no-intervention identity path, attempt sealing in preregistered slot order,
+byte-identical rerun authorization for a validated pre-endpoint outage, failed
+second-attempt finalization, and both task-block sealers. These records
+deliberately live outside `types.py` to avoid colliding with the concurrent
+Task-7 edits; the controlling plan places them in `types.py`, and that file
+placement is an open reconciliation item.
+
+`synthetic_branch_loop.py` is the isolated executor. `run_opaque_slot` restores
+the frozen composite snapshot in a freshly spawned environment subprocess and
+proves snapshot identity, visible-context digest, and token-id projection
+before the subject may act; it drains the frozen pending prefix calls against
+the branch tool quota, records the post-pending pre-injection digests, and only
+then exposes the optional packet on the first post-trigger model call. It never
+grades. Its registered deviations — a closed `branch_final_snapshot_v1` record
+under the `composite_snapshot` role, a `branch-request-v1` grammar with a
+packet field, a bound model-call cap reported as `TOKEN_CAP`, and a genuinely
+measured `wall_clock_ms` — are documented in the module docstring and must not
+be silently changed.
+
+**The one remaining Task-9 gate is authority, not code.** A triggered task
+stops at `_branch_program_refs` because no study manifest names the per-slot
+branch execution programs an isolated worker would replay, exactly as
+`run_prefix` needs its prefix program. Do not synthesize those programs in the
+CLI, in a fixture materializer, or in a test that claims lineage: doing so
+scripts four slot trajectories outside frozen authority. The correct next step
+is to extend the study-manifest contract to name them under review, then
+execute only a genuinely admitted full P0 lineage.
+
+Canonical status for Task 9 is `implementation_complete; E2E_pending`. No
+compatible P0 final, real lineage, task block of record, unblind, analysis,
+provider or benchmark action, spend, or scientific claim exists.

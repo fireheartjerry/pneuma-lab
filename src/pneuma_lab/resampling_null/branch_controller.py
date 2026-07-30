@@ -86,6 +86,7 @@ class FrozenPrefixView:
     token_ids_sha256: str
     trigger_reason: TriggerReason
     prefix_success: int
+    y0_grade: GradeReceipt
 
 
 def _mapping(value: object, *, field: str) -> Mapping[str, object]:
@@ -175,6 +176,12 @@ def load_frozen_prefix_view(
         digest = row.get(name)
         if type(digest) is not str or len(digest) != 64:
             raise RecordValidationError(f"prefix {name} is malformed")
+    reward = grade.get("partial_reward")
+    if isinstance(reward, bool) or not isinstance(reward, (int, float)):
+        raise RecordValidationError("prefix y0_grade partial_reward is malformed")
+    failure = grade.get("infrastructure_failure")
+    if type(failure) is not bool:
+        raise RecordValidationError("prefix y0_grade infrastructure_failure is malformed")
     return FrozenPrefixView(
         task_id=task_id,
         snapshot_ref=snapshot_ref,
@@ -182,6 +189,14 @@ def load_frozen_prefix_view(
         token_ids_sha256=cast(str, row["token_ids_sha256"]),
         trigger_reason=trigger_reason,
         prefix_success=success,
+        y0_grade=GradeReceipt(
+            success=success,
+            partial_reward=float(reward),
+            infrastructure_failure=failure,
+            artifact_ref=decode_artifact_ref(
+                grade.get("artifact_ref"), field="prefix y0_grade artifact_ref"
+            ),
+        ),
     )
 
 
