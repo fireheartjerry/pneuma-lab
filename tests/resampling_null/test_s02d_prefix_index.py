@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -59,10 +60,27 @@ def _isolate_s02d_release_fail_stop() -> object:
     """Model a fresh process for each test while preserving in-test fail-stop."""
 
     prior = getattr(prefix_index_module, "_S02D_RELEASE_FAIL_STOP", None)
+    prior_reservation = getattr(
+        prefix_index_module,
+        "_S02D_PROCESS_RESERVATION",
+        None,
+    )
+    if prior_reservation is not None:
+        setattr(
+            prefix_index_module,
+            "_S02D_PROCESS_RESERVATION",
+            threading.Lock(),
+        )
     try:
         yield
     finally:
         setattr(prefix_index_module, "_S02D_RELEASE_FAIL_STOP", prior)
+        if prior_reservation is not None:
+            setattr(
+                prefix_index_module,
+                "_S02D_PROCESS_RESERVATION",
+                prior_reservation,
+            )
 
 
 def _completed_candidates(
@@ -2571,6 +2589,141 @@ def _root_lock_is_available(run_root: Path) -> bool:
         return True
     finally:
         os.close(descriptor)
+
+
+def test_s02d_process_reservation_rejects_overlap_before_root_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+    real_open = prefix_index_module.os.open
+    real_close = prefix_index_module.os.close
+    real_flock = prefix_index_module.fcntl.flock
+    first_open_entered = threading.Event()
+    allow_first_open = threading.Event()
+    counter_lock = threading.Lock()
+    blocked_caller_open_attempts = 0
+    owner_descriptor: int | None = None
+    outcomes: dict[str, BaseException | None] = {}
+
+    def coordinated_open(
+        path: object,
+        flags: int,
+        *args: object,
+        **kwargs: object,
+    ) -> int:
+        nonlocal blocked_caller_open_attempts, owner_descriptor
+        is_root_open = os.fspath(path) == os.fspath(run_root)
+        if is_root_open:
+            if threading.current_thread().name != "s02d-owner-a":
+                with counter_lock:
+                    blocked_caller_open_attempts += 1
+            else:
+                first_open_entered.set()
+                if not allow_first_open.wait(10):
+                    raise AssertionError("timed out releasing owner root open")
+        descriptor = real_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
+        if (
+            is_root_open
+            and threading.current_thread().name == "s02d-owner-a"
+            and owner_descriptor is None
+        ):
+            owner_descriptor = descriptor
+        return descriptor
+
+    def fail_owner_unlock(descriptor: int, operation: int) -> object:
+        result = real_flock(descriptor, operation)
+        if (
+            threading.current_thread().name == "s02d-owner-a"
+            and operation == fcntl.LOCK_UN
+        ):
+            raise KeyboardInterrupt("owner release remains ambiguous")
+        return result
+
+    def invoke(label: str, out: Path) -> None:
+        try:
+            seal_prefix_index(
+                run_root=run_root,
+                schedule_ref=fixture.schedule_ref,
+                candidate_refs=candidates,
+                out=out,
+            )
+        except BaseException as exc:
+            outcomes[label] = exc
+        else:
+            outcomes[label] = None
+
+    owner = threading.Thread(
+        target=invoke,
+        args=("owner", run_root / "owner-prefix-index.json"),
+        name="s02d-owner-a",
+    )
+    contender = threading.Thread(
+        target=invoke,
+        args=("contender", run_root / "contender-prefix-index.json"),
+        name="s02d-contender-b",
+    )
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(prefix_index_module.os, "open", coordinated_open)
+            scoped.setattr(prefix_index_module.fcntl, "flock", fail_owner_unlock)
+            owner.start()
+            assert first_open_entered.wait(10)
+            contender.start()
+            contender.join(10)
+            assert not contender.is_alive()
+            allow_first_open.set()
+            owner.join(10)
+            assert not owner.is_alive()
+
+            assert isinstance(outcomes["contender"], RecordValidationError)
+            assert "fail-stop" in str(outcomes["contender"])
+            assert isinstance(outcomes["owner"], BaseExceptionGroup)
+            assert blocked_caller_open_attempts == 0
+            assert prefix_index_module._S02D_PROCESS_RESERVATION.locked()
+            assert prefix_index_module._S02D_RELEASE_FAIL_STOP is not None
+            with pytest.raises(RecordValidationError, match="fail-stop"):
+                seal_prefix_index(
+                    run_root=run_root,
+                    schedule_ref=fixture.schedule_ref,
+                    candidate_refs=candidates,
+                    out=run_root / "later-prefix-index.json",
+                )
+            assert blocked_caller_open_attempts == 0
+    finally:
+        allow_first_open.set()
+        owner.join(10)
+        contender.join(10)
+        if owner_descriptor is not None:
+            try:
+                real_close(owner_descriptor)
+            except OSError:
+                pass
+
+
+def test_s02d_normal_transactions_release_process_reservation(
+    tmp_path: Path,
+) -> None:
+    run_root, fixture, candidates = _completed_candidates(tmp_path)
+
+    first = seal_prefix_index(
+        run_root=run_root,
+        schedule_ref=fixture.schedule_ref,
+        candidate_refs=candidates,
+        out=run_root / "first-prefix-index.json",
+    )
+    assert type(first) is ArtifactRef
+    reservation = prefix_index_module._S02D_PROCESS_RESERVATION
+    assert not reservation.locked()
+
+    second = seal_prefix_index(
+        run_root=run_root,
+        schedule_ref=fixture.schedule_ref,
+        candidate_refs=candidates,
+        out=run_root / "second-prefix-index.json",
+    )
+    assert type(second) is ArtifactRef
+    assert not reservation.locked()
 
 
 def test_s02d_interrupt_after_locked_fstat_is_precommit_and_releases_lock(

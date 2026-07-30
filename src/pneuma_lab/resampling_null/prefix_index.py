@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import stat
+import threading
 from typing import Any, Literal, Mapping, cast
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
@@ -175,6 +176,7 @@ class _SealTransactionState:
 
 
 _S02D_RELEASE_FAIL_STOP: _SealTransactionState | None = None
+_S02D_PROCESS_RESERVATION = threading.Lock()
 
 
 @dataclass(slots=True)
@@ -2241,6 +2243,7 @@ def _release_root_transaction(transaction: _SealTransactionState) -> None:
             raise
     transaction.release_phase = "closed"
     _S02D_RELEASE_FAIL_STOP = None
+    _S02D_PROCESS_RESERVATION.release()
 
 
 def _seal_transaction_outcome(
@@ -2283,11 +2286,6 @@ def seal_prefix_index(
 ) -> ArtifactRef:
     """Freshly reconstruct all selected candidates and seal the prefix index."""
 
-    if _S02D_RELEASE_FAIL_STOP is not None:
-        raise RecordValidationError(
-            "S02D final release fail-stop is armed; restart or operator cleanup "
-            "proof is required"
-        )
     if type(run_root) is not type(Path()):
         raise TypeError("run_root must be an exact platform Path")
     if type(candidate_refs) is not tuple:
@@ -2300,6 +2298,11 @@ def seal_prefix_index(
     if not root.is_dir():
         raise NotADirectoryError(root)
     relative_path = _exact_output_relative_path(root=root, out=out)
+    if not _S02D_PROCESS_RESERVATION.acquire(blocking=False):
+        raise RecordValidationError(
+            "S02D process reservation or final-release fail-stop is active; "
+            "restart or operator cleanup proof is required"
+        )
     descriptor = os.open(root, _DIRECTORY_FLAGS)
     transaction = _SealTransactionState(descriptor)
     result: _OwnedPrefixPublication | None = None
