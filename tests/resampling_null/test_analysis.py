@@ -17,10 +17,12 @@ from pneuma_lab.resampling_null.analysis import (
     rows_to_binary_sufficient_statistics,
     evaluate_binary_gate_kernel,
     evaluate_binary_gate_batch,
+    classify_verdict,
 )
 from pneuma_lab.resampling_null.types import (
     AnalysisConfig, AnalysisRow, ArtifactRef, BinarySufficientStatisticsBatch,
-    GroupKind, GroupLabel,
+    ContrastResult, GateResult, GroupKind, GroupLabel, RandomizationResult,
+    ResolutionResult, SecondaryFamilyResult, SimultaneousBounds, Verdict,
 )
 import numpy as np
 
@@ -231,3 +233,18 @@ def test_binary_gate_kernel_equal_weights_and_batch_are_bit_for_bit_equivalent()
     result = evaluate_binary_gate_batch(batch, AnalysisConfig(), critical_values=np.array([0.0]))
     assert bool(result.causal_pass[0]) is False
     assert result.content_estimate[0] == by_code["content_materiality"].observed
+
+
+def test_outcome_classifier_has_frozen_precedence_and_never_feasibility_no_go() -> None:
+    randomization = RandomizationResult(0.0, 1.0, "enumerated_exact", 1, None, None)
+    bounds = SimultaneousBounds("secondary_three", ("sham_packet", "continuation", "total"), (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (-1.0, -1.0, -1.0), (1.0, 1.0, 1.0), 1.0, "task_cluster_rademacher_max_t", 1, 0, 1)
+    secondary = SecondaryFamilyResult(("sham_packet", "continuation", "total"), (1.0, 1.0, 1.0), (1.0, 1.0, 1.0), bounds)
+    good = [GateResult(code, True, True, "is", True) for code in ("pipeline_valid", "differential_failure_gap", "content_sharp", "excess_sharp", "content_lower", "excess_lower", "content_materiality", "excess_materiality", "content_resolution", "excess_resolution", "benchmark_nonnegative", "leave_one_nonnegative")]
+    positive = ContrastResult(0.1, 0.1, 0.01, 0.2, randomization)
+    assert classify_verdict(good, content=positive, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0.0, 0, "equal_roster_exact_binomial"), secondary=secondary) is Verdict.CAUSAL_CONTENT
+    invalid = [GateResult("pipeline_valid", False, False, "is", True)]
+    assert classify_verdict(invalid, content=positive, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"), secondary=secondary) is Verdict.PIPELINE_INVALID
+    harmful = ContrastResult(-0.05, 0.1, -0.2, -0.01, randomization)
+    assert classify_verdict(good, content=harmful, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"), secondary=secondary) is Verdict.HARMFUL_OR_MISDIRECTING
+    unresolved = ContrastResult(0.01, 0.1, -0.1, 0.2, randomization)
+    assert classify_verdict(good, content=unresolved, excess=positive, sham_packet=positive, resolution=ResolutionResult(0, 0, 0, "equal_roster_exact_binomial"), secondary=secondary) is Verdict.UNRESOLVED_RESAMPLING

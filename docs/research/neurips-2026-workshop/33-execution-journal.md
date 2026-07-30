@@ -1784,3 +1784,17 @@ The next event after the archived migration boundary is appended below.
   outcome data, causal result, or claim promotion occurred. This is analysis
   machinery only; production use still requires the separately sealed study
   manifest, power, schedule, and unblinding chains.
+
+### EJ-20260730-0181 — Task 7B hostile-review admission correction
+
+- **Correction:** Analysis admission now requires manifest and completed-power
+  ArtifactRefs, derives roster authority from the manifest, and verifies the
+  closed selected-roster membership before computing a statistic. Secondary
+  multiplier p-values now use the same Philox draw stream as their family
+  bounds and receive proper ordered Holm adjustment; benchmark and leave-one
+  estimates are calculated rather than emitted as placeholders.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_analysis.py -q` passed 15 tests, including
+  classifier precedence. Ruff and `git diff --check` passed.
+- **Boundary/non-claim:** No spend, provider/model/network action, experiment,
+  external outcome, causal result, or claim promotion occurred.

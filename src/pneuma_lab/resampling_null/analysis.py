@@ -240,6 +240,24 @@ def multiplier_lower_bounds(rows: Sequence[AnalysisRow], *, contrast_names: tupl
     return SimultaneousBounds(family_name, contrast_names, estimates, standard_errors, lowers, uppers, critical, "task_cluster_rademacher_max_t", draws, seed, order)
 
 
+def _multiplier_z_draws(rows: Sequence[AnalysisRow], names: tuple[str, ...], standard_errors: tuple[float, ...], *, draws: int, seed: int) -> np.ndarray:
+    """One Philox stream shared by secondary max-t bounds and marginal p-values."""
+    canonical = tuple(sorted(rows, key=lambda row: (row.benchmark.encode(), row.task_id.encode())))
+    grouped = {benchmark: [row for row in canonical if row.benchmark == benchmark] for benchmark in ("SWE", "TAU")}
+    matrices = [np.array([[task_contrasts(row)[name] for name in names] for row in grouped[benchmark]], dtype=float) for benchmark in ("SWE", "TAU")]
+    generator = _rng(seed, "multiplier")
+    result = np.empty((draws, len(names)), dtype=float)
+    denominator = np.asarray(standard_errors)
+    for draw in range(draws):
+        total = np.zeros(len(names))
+        for matrix in matrices:
+            n = len(matrix)
+            signs = generator.integers(0, 2, size=n, dtype=np.int8) * 2 - 1
+            total += signs @ (matrix - matrix.mean(axis=0)) * sqrt(n / (n - 1)) / n
+        result[draw] = total / 4 / denominator
+    return result
+
+
 def resampling_resolution(rows: Sequence[AnalysisRow]) -> ResolutionResult:
     """Exact sign-flip resolution scale for NONE/RESAMPLE discordance."""
     weights = _weights(rows)
@@ -446,7 +464,10 @@ def classify_verdict(
             (excess.estimate <= -0.05 and isfinite(excess.simultaneous_upper) and excess.simultaneous_upper < 0)):
         return Verdict.HARMFUL_OR_MISDIRECTING
     causal_codes = {"pipeline_valid", "content_sharp", "excess_sharp", "content_lower", "excess_lower", "content_materiality", "excess_materiality", "content_resolution", "excess_resolution", "benchmark_nonnegative", "leave_one_nonnegative", "differential_failure_gap"}
-    if all(gate_map.get(code, GateResult(code, False, None, "", None)).passed for code in causal_codes):
+    if (all(gate_map.get(code, GateResult(code, False, None, "", None)).passed for code in causal_codes)
+            and content.estimate >= 0.05 and excess.estimate >= 0.05
+            and content.simultaneous_lower > 0 and excess.simultaneous_lower > 0
+            and content.estimate > resolution.r95 and excess.estimate > resolution.r95):
         return Verdict.CAUSAL_CONTENT
     sham_holm = secondary.holm_adjusted_p[0]
     content_registered_failure = any(not gate_map.get(code, GateResult(code, False, None, "", None)).passed for code in ("content_lower", "content_sharp", "content_materiality", "content_resolution", "benchmark_nonnegative", "leave_one_nonnegative"))
@@ -460,7 +481,7 @@ def classify_verdict(
     return Verdict.RESAMPLING_CONSISTENT
 
 
-def _verify_roster_rows(rows: Sequence[AnalysisRow], *, roster_ref: ArtifactRef, run_root: Path) -> None:
+def _verify_roster_rows(rows: Sequence[AnalysisRow], *, roster_ref: ArtifactRef, selected_task_ids: Sequence[str], run_root: Path) -> None:
     """Fail closed on referenced roster bytes, row coverage, and registered labels."""
     from .artifacts import _read_ref
     _, payload = _read_ref(roster_ref, run_root=run_root)
@@ -468,18 +489,29 @@ def _verify_roster_rows(rows: Sequence[AnalysisRow], *, roster_ref: ArtifactRef,
         roster = json.loads(payload)
     except json.JSONDecodeError as exc:
         raise ValueError("roster_ref must resolve to JSON") from exc
-    if not isinstance(roster, dict) or roster.get("record_kind") != "resampling_roster_v1" or not isinstance(roster.get("tasks"), list):
+    if (not isinstance(roster, dict) or set(roster) != {"record_kind", "schema_version", "roster_kind", "supported_tiers", "tasks"}
+            or roster.get("record_kind") != "resampling_roster_v1" or roster.get("schema_version") != "1"
+            or roster.get("roster_kind") not in {"synthetic_fixture", "eligible_confirmation"}
+            or roster.get("supported_tiers") not in ([120], [120, 160]) or not isinstance(roster.get("tasks"), list)):
         raise ValueError("roster_ref does not resolve to a registered roster")
     expected: dict[str, tuple[str, str, str, tuple[tuple[str, str], ...]]] = {}
     for task in roster["tasks"]:
-        if not isinstance(task, dict) or not all(key in task for key in ("task_id", "benchmark", "stratum", "lineage", "groups")):
+        if not isinstance(task, dict) or set(task) != {"task_id", "benchmark", "stratum", "lineage", "groups", "tiers"}:
             raise ValueError("roster task has incomplete membership")
         groups = task["groups"]
-        if not isinstance(groups, list):
+        if (not isinstance(groups, list) or len(groups) != 3 or
+                [group.get("kind") if isinstance(group, dict) else None for group in groups] != ["language", "domain", "issue_family"] or
+                any(not isinstance(group.get("value"), str) or not group["value"] for group in groups if isinstance(group, dict)) or
+                not isinstance(task["task_id"], str) or not task["task_id"] or task["task_id"] in expected or
+                not isinstance(task["tiers"], list) or not task["tiers"] or task["tiers"] != sorted(set(task["tiers"])) or
+                any(type(tier) is not int or tier not in roster["supported_tiers"] for tier in task["tiers"])):
             raise ValueError("roster task groups are invalid")
         expected[task["task_id"]] = (task["benchmark"], task["stratum"], task["lineage"], tuple((group["kind"], group["value"]) for group in groups))
+    selected = set(selected_task_ids)
+    if not selected or not selected <= set(expected):
+        raise ValueError("completed power selection is not roster membership")
     observed = {row.task_id: row for row in rows}
-    if len(observed) != len(rows) or set(observed) != set(expected):
+    if len(observed) != len(rows) or set(observed) != selected:
         raise ValueError("analysis rows must cover the manifest-bound roster exactly")
     for task_id, row in observed.items():
         benchmark, stratum, lineage, groups = expected[task_id]
@@ -488,9 +520,25 @@ def _verify_roster_rows(rows: Sequence[AnalysisRow], *, roster_ref: ArtifactRef,
             raise ValueError(f"analysis row {task_id!r} does not match roster membership")
 
 
-def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, seed: int, roster_ref: ArtifactRef, run_root: Path) -> AnalysisResult:
+def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, seed: int, manifest_ref: ArtifactRef, power_final_ref: ArtifactRef, run_root: Path) -> AnalysisResult:
     """Perform admission-bound registered inference; no claimed roster is accepted."""
-    _verify_roster_rows(rows, roster_ref=roster_ref, run_root=run_root)
+    from .assignment import require_schedulable_power_final
+    from .artifacts import _load_direct_scientific_parent
+    if type(manifest_ref) is not ArtifactRef or type(power_final_ref) is not ArtifactRef:
+        raise TypeError("analysis admission requires exact manifest and power ArtifactRefs")
+    selection = require_schedulable_power_final(manifest_ref, power_final_ref, run_root=run_root)
+    manifest = _load_direct_scientific_parent(
+        {"role": manifest_ref.role, "relative_path": manifest_ref.relative_path, "sha256": manifest_ref.sha256, "byte_count": manifest_ref.byte_count, "media_type": manifest_ref.media_type},
+        run_root=run_root, field="manifest_ref", expected_kind="resampling_study_manifest",
+    )
+    payload = manifest.value["payload"]
+    if not isinstance(payload, dict):
+        raise ValueError("manifest payload is invalid")
+    raw_roster_ref = payload.get("roster_ref")
+    if not isinstance(raw_roster_ref, dict):
+        raise ValueError("manifest lacks roster authority")
+    roster_ref = ArtifactRef(**raw_roster_ref)
+    _verify_roster_rows(rows, roster_ref=roster_ref, selected_task_ids=selection.selected_task_ids, run_root=run_root)
     statistics = rows_to_binary_sufficient_statistics(rows, roster_ref=roster_ref)
     primary = multiplier_lower_bounds(rows, contrast_names=("content", "excess"), family_name="co_primary", draws=config.multiplier_draws, seed=seed)
     gates = evaluate_binary_gate_kernel(statistics, config, critical_value=primary.critical_value)
@@ -498,15 +546,45 @@ def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, seed: int, r
     content_random = sharp_content_pvalue(rows, draws=config.sharp_draws, seed=seed)
     excess_random = sharp_excess_pvalue(rows, draws=config.sharp_draws, seed=seed)
     secondary_bounds = multiplier_lower_bounds(rows, contrast_names=("sham_packet", "continuation", "total"), family_name="secondary_three", draws=config.multiplier_draws, seed=seed)
-    # The frozen Holm family is one-sided multiplier evidence; unavailable finite SE is conservative.
-    raw = tuple(1.0 if not isfinite(se) or se <= 0 else 0.5 for se in secondary_bounds.standard_errors)
-    adjusted = tuple(min(1.0, value * 3) for value in raw)
+    # One Philox stream feeds both the three-family max-t bound and marginal add-one p-values.
+    if all(isfinite(se) and se > 0 for se in secondary_bounds.standard_errors):
+        z_draws = _multiplier_z_draws(rows, secondary_bounds.contrast_names, secondary_bounds.standard_errors, draws=config.multiplier_draws, seed=seed)
+        observed_z = np.asarray(secondary_bounds.estimates) / np.asarray(secondary_bounds.standard_errors)
+        raw = tuple(float((1 + np.count_nonzero(z_draws[:, index] >= observed_z[index])) / (1 + config.multiplier_draws)) for index in range(3))
+    else:
+        raw = (1.0, 1.0, 1.0)
+    order = np.argsort(raw)
+    holm_work = [0.0, 0.0, 0.0]
+    running = 0.0
+    for rank, index in enumerate(order):
+        running = max(running, min(1.0, raw[index] * (3 - rank)))
+        holm_work[int(index)] = running
+    adjusted = tuple(holm_work)
     secondary = SecondaryFamilyResult(("sham_packet", "continuation", "total"), raw, adjusted, secondary_bounds)
     content = ContrastResult(contrast_values["content"], primary.standard_errors[0], primary.lowers[0], primary.uppers[0], content_random)
     excess = ContrastResult(contrast_values["excess"], primary.standard_errors[1], primary.lowers[1], primary.uppers[1], excess_random)
     sham = ContrastResult(contrast_values["sham_packet"], secondary_bounds.standard_errors[0], secondary_bounds.lowers[0], secondary_bounds.uppers[0], None)
     resolution = resampling_resolution(rows)
-    benchmark_estimates = tuple(BenchmarkEstimate(benchmark, float(sum(task_contrasts(row)["content"] for row in rows if row.benchmark == benchmark) / sum(row.benchmark == benchmark for row in rows)), float(sum(task_contrasts(row)["excess"] for row in rows if row.benchmark == benchmark) / sum(row.benchmark == benchmark for row in rows))) for benchmark in ("SWE", "TAU"))
-    leave_one = tuple(LeaveOneEstimate(row.benchmark, group.kind, group.value, 0.0, 0.0) for row in rows for group in row.sensitivity_groups)
+    benchmark_estimates = tuple(
+        BenchmarkEstimate(
+            benchmark,
+            float(sum(task_contrasts(row)["content"] for row in rows if row.benchmark == benchmark) / sum(row.benchmark == benchmark for row in rows)),
+            float(sum(task_contrasts(row)["excess"] for row in rows if row.benchmark == benchmark) / sum(row.benchmark == benchmark for row in rows)),
+        )
+        for benchmark in ("SWE", "TAU")
+    )
+    registered_groups = sorted({group for row in rows for group in row.sensitivity_groups}, key=lambda group: (group.kind.value, group.value))
+    leave_one_items: list[LeaveOneEstimate] = []
+    for group in registered_groups:
+        for benchmark in ("SWE", "TAU"):
+            retained = [row for row in rows if row.benchmark == benchmark and group not in row.sensitivity_groups]
+            if not retained:
+                raise ValueError("registered leave-one group empties a benchmark")
+            leave_one_items.append(LeaveOneEstimate(
+                benchmark, group.kind, group.value,
+                float(sum(task_contrasts(row)["content"] for row in retained) / len(retained)),
+                float(sum(task_contrasts(row)["excess"] for row in retained) / len(retained)),
+            ))
+    leave_one = tuple(leave_one_items)
     verdict = classify_verdict(gates, content=content, excess=excess, sham_packet=sham, resolution=resolution, secondary=secondary)
     return AnalysisResult(content, excess, sham, contrast_values["continuation"], contrast_values["total"], contrast_values["null"], omnibus_sharp_pvalue(rows, draws=config.sharp_draws, seed=seed), primary, secondary, resolution, _failure_gap(statistics), benchmark_estimates, leave_one, gates, verdict, tuple(gate.code for gate in gates if not gate.passed))
