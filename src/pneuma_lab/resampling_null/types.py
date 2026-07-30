@@ -170,6 +170,99 @@ class GroupLabel:
 
 
 @dataclass(frozen=True, slots=True)
+class AnalysisRow:
+    """One completed four-arm task block, oriented after authorized unblinding."""
+
+    task_id: str
+    benchmark: str
+    stratum: str
+    lineage: str
+    sensitivity_groups: tuple[GroupLabel, ...]
+    triggered: bool
+    prefix: int
+    real: int
+    sham: int
+    none: int
+    resample: int
+    real_infrastructure_failure: bool
+    sham_infrastructure_failure: bool
+    none_infrastructure_failure: bool
+    resample_infrastructure_failure: bool
+    pipeline_valid: bool
+    invalid_codes: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        for name in ("task_id", "benchmark", "stratum", "lineage"):
+            _require_nonempty_string(getattr(self, name), name)
+        if not isinstance(self.sensitivity_groups, tuple) or not all(
+            isinstance(group, GroupLabel) for group in self.sensitivity_groups
+        ):
+            raise TypeError("sensitivity_groups must be a tuple of GroupLabel")
+        if type(self.triggered) is not bool or type(self.pipeline_valid) is not bool:
+            raise TypeError("triggered and pipeline_valid must be bool")
+        for name in ("prefix", "real", "sham", "none", "resample"):
+            value = getattr(self, name)
+            if type(value) is not int:
+                raise TypeError(f"{name} must be an exact int")
+            if value not in (0, 1):
+                raise ValueError(f"{name} must be 0 or 1")
+        for name in (
+            "real_infrastructure_failure", "sham_infrastructure_failure",
+            "none_infrastructure_failure", "resample_infrastructure_failure",
+        ):
+            if type(getattr(self, name)) is not bool:
+                raise TypeError(f"{name} must be bool")
+        if not isinstance(self.invalid_codes, tuple) or not all(
+            isinstance(code, str) and code for code in self.invalid_codes
+        ):
+            raise TypeError("invalid_codes must be a tuple of non-empty strings")
+
+
+@dataclass(frozen=True, slots=True)
+class RandomizationResult:
+    statistic: float
+    p_value: float
+    mode: Literal["enumerated_exact", "dynamic_program_exact", "add_one_monte_carlo"]
+    support_size: int | None
+    draws: int | None
+    monte_carlo_se: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class ContrastResult:
+    estimate: float
+    standard_error: float
+    simultaneous_lower: float
+    simultaneous_upper: float
+    randomization: RandomizationResult | None
+
+
+@dataclass(frozen=True, slots=True)
+class SimultaneousBounds:
+    family_name: Literal["co_primary", "secondary_three"]
+    contrast_names: tuple[str, ...]
+    estimates: tuple[float, ...]
+    standard_errors: tuple[float, ...]
+    lowers: tuple[float, ...]
+    uppers: tuple[float, ...]
+    critical_value: float
+    method: Literal["task_cluster_rademacher_max_t"]
+    draws: int
+    seed: int
+    quantile_order_1_based: int
+
+
+@dataclass(frozen=True, slots=True)
+class ResolutionResult:
+    q0: float
+    r95: float
+    discordant_task_count: int
+    mode: Literal[
+        "equal_roster_exact_binomial", "unequal_roster_exact_weighted_convolution"
+    ]
+
+
+@dataclass(frozen=True, slots=True)
 class TaskSpec:
     task_id: str
     benchmark: str

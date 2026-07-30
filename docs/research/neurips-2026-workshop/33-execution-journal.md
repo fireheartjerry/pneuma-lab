@@ -1724,3 +1724,20 @@ The next event after the archived migration boundary is appended below.
   only top-level keys and the scalar `record_kind` string while lexically
   skipping nested payloads; it does not invoke the ledger semantic loader.
   Escaped ledger aliases and hardlink aliases reject before permit.
+
+### EJ-20260730-0177 — Task 7A registered statistical primitives
+
+- **Action:** Added immutable analysis result records and pure Task-7A kernels:
+  registered six-contrast decomposition; exact enumerated and dynamic-program
+  sharp Fisher tails; 12-way sharp-global omnibus max-T; Philox
+  domain-separated add-one fallback; benchmark-stratified Rademacher max-t
+  bounds with frozen no-interpolation order; and exact equal/unequal-roster
+  `q0`/`r95` sign-flip calculations.
+- **Focused evidence:** The test-first import failure was observed, then
+  `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_analysis.py
+  -q` passed 9 tests. Ruff, byte compilation, and `git diff --check` passed.
+- **Boundary/non-claim:** This slice reads no artifacts, manifests, assignments,
+  or outcomes outside supplied rows; it does not implement analysis admission,
+  scientific seed derivation, binary kernels, gates, verdicts, experiments,
+  spend, or any causal claim. Task 7B must bind every production seed to the
+  manifest-owned inference RNG contract.

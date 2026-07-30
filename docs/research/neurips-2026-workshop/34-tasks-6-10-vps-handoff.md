@@ -103,6 +103,23 @@ Task 7 consumes finalized authority. It must not tune endpoints, select a
 benchmark roster, alter the subject, or use observed efficacy to change a
 decision region.
 
+### Task 7A handoff — statistical primitives (2026-07-30)
+
+The initial Task 7 slice adds frozen `AnalysisRow`, randomization, simultaneous
+bound, and resolution value records plus pure `analysis.py` primitives. It
+implements equal-benchmark task contrasts; exact enumerated/dynamic-program
+REAL/SHAM and REAL-versus-no-feedback Fisher tails; a 12-way sharp-global
+omnibus max-T tail; domain-separated Philox add-one Monte Carlo fallback;
+frozen-order task-cluster Rademacher bounds; and exact equal/unequal-roster
+`q0`/`r95`. Hand fixtures cover the arithmetic and modes.
+
+Task 7B must wire these primitives only after the Task-6 artifact/manifest
+authority is reloaded and verified. It owns roster ancestry, binary sufficient
+statistics/batch kernels, multiplicity/gates, `analyze`, and every verdict.
+The primitive `seed` parameters are deliberately test/kernel inputs; Task 7B
+must derive them from the manifest-owned inference RNG contract and expose no
+caller-selected scientific seed.
+
 ## Task 8 — frozen-grid P0 power and type-I authority
 
 Implement the deterministic full-grid producer:
