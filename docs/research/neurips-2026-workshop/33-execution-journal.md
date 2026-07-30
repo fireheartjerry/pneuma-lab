@@ -1833,3 +1833,22 @@ The next event after the archived migration boundary is appended below.
 - **Status:** This is a narrowly isolated repair. Task 7B remains incomplete:
   authority-chain integration, scalable batch execution, and full hostile
   fixture coverage are still open. No causal, experimental, or spend claim.
+
+### EJ-20260730-0185 — Task 8A frozen power authority contracts
+
+- **Implementation:** Added the closed P0 grid/RNG fixture and synthetic
+  roster fixture, plus manifest-derived synthetic and roster-bound power
+  authority blobs. The only public power configuration constructor now reloads
+  those authority, grid, and topology ArtifactRefs; it accepts no roster,
+  decision-arm, seed, or numeric-science override. Artifact validation now
+  re-derives every power report's authority mirrors before accepting its staged
+  chain.
+- **Focused evidence:** Test-first import failure was observed. `timeout 60s
+  .venv/bin/python -m pytest tests/resampling_null/test_power_authority.py
+  tests/resampling_null/test_artifacts.py tests/resampling_null/test_analysis.py
+  tests/test_schema_loads.py -q` passed 224 tests; byte compilation and
+  `git diff --check` passed.
+- **Boundary/non-claim:** This is contract and authority plumbing only. It does
+  not implement a simulator, screen, shard, selection, validation, finalizer,
+  CLI, provider action, spend, benchmark execution, P0 result, or tier choice.
+  Synthetic authority remains conditional-only and non-decisive by contract.
