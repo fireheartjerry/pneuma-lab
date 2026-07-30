@@ -73,7 +73,9 @@
 | Default cold oracle (smoke only) | `python -m pytest -q` |
 | Opt-in Qwen collection/run | `python -m pytest tests/test_foundation_qwen_smoke.py -m qwen_smoke -q` |
 | Foundation suite | Use the explicit PowerShell path set below (slow; suitable Linux execution environment) |
-| Compact paper milestone | Unavailable until aggressive pruning Task 4 marks and retains the suite |
+| Fast agent gate | `python scripts/test_fast.py` |
+| Compact paper milestone | `python -m pytest tests/resampling_null -m milestone -q` |
+| Forensic investigation | `python -m pytest tests/resampling_null -m forensic -q` |
 | Run schema tests only | `.venv/bin/python -m pytest tests/test_schema_loads.py -q` |
 | Check whitespace | `git diff --check` |
 | List tracked/untracked state | `git status --short` |
@@ -100,7 +102,10 @@ Collection of this exact path set is verified on the current Windows checkout;
 the actual foundation suite is slow and intended for a suitable Linux execution
 environment.
 
-The compact milestone command is unavailable until aggressive pruning Task 4 marks and retains the suite.
+`python -m pytest -q` is the independent seven-case cold correctness oracle,
+not the historical full suite. S02D remains a Linux milestone because its
+production locking transaction is POSIX-only. Native-Windows timing and oracle
+receipts remain pending external verification.
 
 ## How To Do X
 

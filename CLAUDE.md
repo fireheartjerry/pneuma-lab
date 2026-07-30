@@ -181,6 +181,11 @@ Useful commands:
 
 ```txt
 python -m pytest -q                                                    # default cold oracle: smoke only
+python scripts/test_fast.py                                             # disposable five-second smoke gate
+python scripts/test_fast.py --smoke
+python scripts/test_fast.py --cold
+python -m pytest tests/resampling_null -m milestone -q                 # explicit compact Linux milestone
+python -m pytest tests/resampling_null -m forensic -q                  # explicit forensic tier
 python -m pytest tests/test_foundation_qwen_smoke.py -m qwen_smoke -q # opt-in Qwen smoke
 pip install -e ".[dev]"
 python -m pneuma_lab.status --check
@@ -191,7 +196,9 @@ git diff --check
 Default pytest discovery is intentionally restricted to `tests/smoke`; bare
 marker commands cannot discover opt-in Qwen, foundation, or milestone tests.
 The explicit-path commands above retain the marker opt-outs and allow a final
-`-m` selector to opt in. The compact milestone command is unavailable until aggressive pruning Task 4 marks and retains the suite.
+`-m` selector to opt in. The compact milestone suite is Linux-only where it
+exercises the production POSIX lock transaction; native-Windows timing and
+oracle receipts remain pending external verification.
 
 The foundation files retain two legacy sibling imports. Use this collection-
 verified PowerShell path set (the actual suite is slow and intended for a

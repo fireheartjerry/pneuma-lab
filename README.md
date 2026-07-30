@@ -252,7 +252,9 @@ no-op. Full map: [`docs/io-contract.md`](docs/io-contract.md).
 ```bash
 pip install -e ".[dev]"             # jsonschema (runtime) + pytest
 python -m pneuma_lab.status --check  # canonical status + checkout coherence
-python -m pytest tests/ -q          # schema + psyche + replay + evidence + determinism
+python -m pytest -q                 # independent seven-case smoke oracle
+python scripts/test_fast.py          # bounded disposable smoke launcher
+python -m pytest tests/resampling_null -m milestone -q  # explicit Linux milestone
 python -m pneuma_lab.replay fixtures/sample_run.jsonl -o build/replay
 ```
 
