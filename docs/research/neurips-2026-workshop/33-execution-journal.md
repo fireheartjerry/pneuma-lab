@@ -2829,3 +2829,38 @@ The next event after the archived migration boundary is appended below.
   and `git diff --check` passed.
 - **Boundary/non-claim:** No P0 final, lineage, task block of record, unblind,
   analysis, provider or benchmark action, spend, or scientific claim.
+
+### EJ-20260730-0224 — Correction: one CLI test cannot complete on this host
+
+- **Correction to EJ-20260730-0223.** That entry reported the CLI module as
+  "passed 25 excluding its pre-existing slow Gaussian power-screen test". The
+  exclusion was accurate but the characterisation was too generous, and the
+  correction matters for Task 10's verification planning.
+- **Finding:** `test_cli_power_authority_then_screen_uses_closed_authority_media_type`
+  is not merely slow. It invokes `power screen` with `--phase
+  gaussian_approximation --generation 0 --shard-count 64` against the
+  manifest-bound grid and screen-topology refs — that is the canonical frozen
+  2,916-cell all-cell screen, the same workload EJ-20260730-0215 and
+  EJ-20260730-0217 already recorded as unable to finish within the registered
+  budget on this host. A dedicated single-test run was given 3,000 seconds and
+  was terminated by that ceiling at roughly 41 minutes of sustained ~355% CPU
+  with no assertion failure and no output. It did not pass; it did not fail; it
+  does not terminate in bounded time here.
+- **Attribution:** pre-existing and untouched by the Task-9 slice. `git diff
+  codex/neurips-2026-empirical..HEAD -- tests/resampling_null/test_cli.py`
+  shows the Task-9 change is confined to the two `synthetic branches` tests;
+  this test's body is byte-identical to its parent commit. The only shared
+  runtime files Task 9 touches on its path are `cli.py` (confined to the
+  `synthetic branches` dispatch and its imports) and `prefix_contracts.py`
+  (three added controller-role entries), neither of which can affect a power
+  screen.
+- **Consequence:** `tests/resampling_null/test_cli.py` has no bounded green
+  run of record on this host, and no Task-9 claim rests on one. The evidence
+  Task 9 does rest on is the 25 remaining CLI tests, the compact milestone
+  suite, and the focused branch/capability suites, all of which completed.
+- **Next gate for Task 10, not Task 9:** decide whether this test should be
+  marked as an opt-in tier like the other full-grid work, or reduced to a
+  bounded machinery fixture. Do not silently delete it, and do not report a
+  broad CLI-module pass until it terminates or is reclassified under review.
+- **Boundary/non-claim:** No P0 screen, final, lineage, provider or benchmark
+  action, spend, or scientific claim was produced by this observation.
