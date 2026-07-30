@@ -2153,3 +2153,28 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** No power simulation/final, prefix/provider action,
   assignment ledger, benchmark outcome, paid action, or scientific result was
   executed.
+
+### EJ-20260730-0202 — Task 9 packet command authority checkpoint
+
+- **Implementation:** Added `packets build` and `packets audit` as
+  root-confined, ref-only CLI transitions. Both reload the supplied sealed
+  study, assignment, and prefix records, prove assignment/prefix/schedule
+  ancestry reaches that exact manifest, and derive tokenizer/template/policy/pad
+  authority solely from the manifest. Build invokes the existing Task-5
+  normalizer, type-preserving rewrite, packet-pair constructor, and candidate
+  writer; audit derives the selected task roster from the supplied schedule and
+  invokes the existing independent sealed-index reconstruction. No command
+  accepts an arm, donor, packet text, key, capability, provider, or external
+  source argument. Output names remain normalized root-relative POSIX and
+  refuse overwrite.
+- **Focused evidence:** New parser, exact-parent routing, and real malformed
+  root-name/no-write tests were observed RED before the command existed. Then
+  `timeout 60s .venv/bin/python -m pytest tests/resampling_null/test_packets.py
+  tests/resampling_null/test_cli.py -q` passed 19 tests; `py_compile` and
+  `git diff --check` passed.
+- **Blocker/next gate:** This is controller wiring only. No admissible completed
+  P0 final exists, so no schedule/prefix/assignment/packet artifact was
+  materialized. A hostile review must inspect the full controller slice; only a
+  genuinely admitted synthetic final can authorize descendant execution.
+- **Boundary/non-claim:** No P0 work, provider action, benchmark execution,
+  secret handling, spend, packet delivery, causal result, or claim occurred.

@@ -221,6 +221,94 @@ def test_cli_parses_only_the_registered_schedule_prefix_and_assignment_surface()
     )
 
 
+def test_cli_packets_surface_accepts_only_sealed_root_references() -> None:
+    from pneuma_lab.resampling_null.cli import _parser
+
+    parser = _parser()
+    build = parser.parse_args([
+        "--run-root", "/tmp/root", "packets", "build", "--study", "study.json",
+        "--assignment", "assignment.json", "--prefix-index", "prefix.json",
+        "--out-candidate", "packet-candidate.json",
+    ])
+    audit = parser.parse_args([
+        "--run-root", "/tmp/root", "packets", "audit", "--study", "study.json",
+        "--candidate", "packet-candidate.json", "--schedule", "schedule.json",
+        "--assignment", "assignment.json", "--prefix-index", "prefix.json",
+        "--out-index", "packet-index.json",
+    ])
+    assert (build.command, build.packets_command) == ("packets", "build")
+    assert (audit.command, audit.packets_command) == ("packets", "audit")
+
+
+def test_cli_packets_rejects_noncanonical_root_names_before_writing(
+    tmp_path: Path, capsys,
+) -> None:
+    from pneuma_lab.resampling_null.cli import main
+
+    root = tmp_path / "root"
+    root.mkdir()
+    assert main([
+        "--run-root", str(root), "packets", "build", "--study", "../study.json",
+        "--assignment", "assignment.json", "--prefix-index", "prefix.json",
+        "--out-candidate", "packet-candidate.json",
+    ]) == 2
+    assert json.loads(capsys.readouterr().out)["status"] == "error"
+    assert not (root / "packet-candidate.json").exists()
+
+
+def test_cli_packets_build_and_audit_route_exact_manifest_parents(
+    tmp_path: Path, capsys, monkeypatch,
+) -> None:
+    """CLI derives packet authority only from the supplied sealed root refs."""
+    import pneuma_lab.resampling_null.cli as cli
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    root = tmp_path / "root"
+    root.mkdir()
+    for name in ("study.json", "assignment.json", "prefix.json", "schedule.json", "candidate.json"):
+        (root / name).write_text("{}", encoding="utf-8")
+    refs = {
+        name: ArtifactRef("test", name, "a" * 64, 2, "application/json")
+        for name in ("study.json", "assignment.json", "prefix.json", "schedule.json", "candidate.json")
+    }
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(cli, "_ref", lambda _root, name, _role: refs[name])
+    monkeypatch.setattr(
+        cli, "_packet_manifest_parents",
+        lambda study, assignment, prefix, *, root: (
+            seen.setdefault("parents", (study, assignment, prefix)),
+            (ArtifactRef("tokenizer", "tokenizer.json", "b" * 64, 1, "application/json"),
+             ArtifactRef("template", "template.json", "c" * 64, 1, "application/json"),
+             ArtifactRef("policy", "policy.json", "d" * 64, 1, "application/json"),
+             ArtifactRef("pad", "pad.json", "e" * 64, 1, "application/json")),
+        )[1],
+    )
+    candidate = ArtifactRef("packet_index_candidate", "packet-candidate.json", "f" * 64, 1, "application/json")
+    sealed = ArtifactRef("packet_index_sealed", "packet-index.json", "1" * 64, 1, "application/json")
+    monkeypatch.setattr(cli, "_build_packet_candidate", lambda **kwargs: (seen.setdefault("build", kwargs), candidate)[1])
+    monkeypatch.setattr(cli, "audit_and_seal_packet_index", lambda candidate_ref, **kwargs: (seen.setdefault("audit", (candidate_ref, kwargs)), sealed)[1])
+    monkeypatch.setattr(cli, "_schedule_task_ids", lambda schedule, study, *, root: ("t1",))
+
+    assert cli.main([
+        "--run-root", str(root), "packets", "build", "--study", "study.json",
+        "--assignment", "assignment.json", "--prefix-index", "prefix.json",
+        "--out-candidate", "packet-candidate.json",
+    ]) == 0
+    assert json.loads(capsys.readouterr().out)["output"] == "packet-candidate.json"
+    assert seen["parents"] == (refs["study.json"], refs["assignment.json"], refs["prefix.json"])
+    assert seen["build"]["assignment_ref"] == refs["assignment.json"]
+
+    assert cli.main([
+        "--run-root", str(root), "packets", "audit", "--study", "study.json",
+        "--candidate", "candidate.json", "--schedule", "schedule.json",
+        "--assignment", "assignment.json", "--prefix-index", "prefix.json",
+        "--out-index", "packet-index.json",
+    ]) == 0
+    assert json.loads(capsys.readouterr().out)["output"] == "packet-index.json"
+    assert seen["audit"][0] == refs["candidate.json"]
+    assert seen["audit"][1]["expected_task_ids"] == ("t1",)
+
+
 def test_cli_schedule_success_routes_only_bound_refs_and_external_seed(
     tmp_path: Path, capsys, monkeypatch,
 ) -> None:

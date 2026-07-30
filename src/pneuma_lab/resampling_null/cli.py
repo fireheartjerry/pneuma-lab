@@ -23,6 +23,11 @@ from .power import (finalize_synthetic_full_multiplier_report, finalize_syntheti
                     seal_synthetic_power_authority, screen_power_grid,
                     select_validation_cells, simulate_power_shard,
                     validate_gaussian_approximation, validate_full_multiplier_fallback)
+from .packets import (IdentifierAtom, NoInterventionPacketMarker,
+                      SyntheticPacketArtifactStore, audit_and_seal_packet_index,
+                      build_packet_pair, derive_packet_rewrite_artifacts,
+                      normalize_synthetic_packet_findings,
+                      write_packet_candidate)
 from .prefix_index import seal_prefix_index
 from .schedule import seal_prefix_schedule
 from .secrets import AssignmentSecretStore
@@ -191,6 +196,14 @@ def _parser() -> argparse.ArgumentParser:
     assignment_seal = assignment.add_parser("seal")
     assignment_seal.add_argument("--schedule", required=True); assignment_seal.add_argument("--prefix-index", required=True)
     assignment_seal.add_argument("--assignment-key-file", required=True); assignment_seal.add_argument("--out", required=True)
+    packets = top.add_parser("packets").add_subparsers(dest="packets_command", required=True)
+    packet_build = packets.add_parser("build")
+    packet_build.add_argument("--study", required=True); packet_build.add_argument("--assignment", required=True)
+    packet_build.add_argument("--prefix-index", required=True); packet_build.add_argument("--out-candidate", required=True)
+    packet_audit = packets.add_parser("audit")
+    packet_audit.add_argument("--study", required=True); packet_audit.add_argument("--candidate", required=True)
+    packet_audit.add_argument("--schedule", required=True); packet_audit.add_argument("--assignment", required=True)
+    packet_audit.add_argument("--prefix-index", required=True); packet_audit.add_argument("--out-index", required=True)
     artifacts = top.add_parser("artifacts").add_subparsers(dest="artifact_command", required=True)
     for name in ("seal", "verify"):
         p = artifacts.add_parser(name); p.add_argument("--required-kinds", required=True); p.add_argument("--out" if name == "seal" else "--receipt", required=True)
@@ -200,6 +213,116 @@ def _parser() -> argparse.ArgumentParser:
 
 def _config(args: argparse.Namespace, root: Path):
     return load_power_config(_ref(root, args.authority, "power_authority"), _ref(root, args.grid_ref, "power_grid"), _ref(root, args.screen_topology_ref, "power_screen_topology"), run_root=root)
+
+
+def _artifact_ref(value: object, *, field: str) -> ArtifactRef:
+    if not isinstance(value, dict):
+        raise RecordValidationError(f"{field} must be an ArtifactRef")
+    try:
+        return ArtifactRef(**value)
+    except (TypeError, ValueError) as exc:
+        raise RecordValidationError(f"{field} must be an ArtifactRef") from exc
+
+
+def _record_for_ref(ref: ArtifactRef, *, root: Path, kind: str) -> dict[str, object]:
+    path, _ = resolve_inside(Path(ref.relative_path), root, require_exists=True)
+    payload = path.read_bytes()
+    if len(payload) != ref.byte_count or hashlib.sha256(payload).hexdigest() != ref.sha256:
+        raise RecordValidationError("scientific parent bytes differ from its ref")
+    record = validate_record(load_json_bytes(payload, source=path))
+    if record.get("record_kind") != kind:
+        raise RecordValidationError(f"scientific parent must be {kind}")
+    return record
+
+
+def _same_ref(left: object, right: ArtifactRef, *, field: str) -> None:
+    if _artifact_ref(left, field=field) != right:
+        raise RecordValidationError(f"{field} differs from supplied authority")
+
+
+def _packet_manifest_parents(
+    study_ref: ArtifactRef, assignment_ref: ArtifactRef, prefix_ref: ArtifactRef, *, root: Path,
+) -> tuple[ArtifactRef, ArtifactRef, ArtifactRef, ArtifactRef]:
+    """Load the four packet authorities exclusively from the sealed manifest."""
+    study = _record_for_ref(study_ref, root=root, kind="resampling_study_manifest")
+    assignment = _record_for_ref(assignment_ref, root=root, kind="resampling_assignment_ledger")
+    prefix = _record_for_ref(prefix_ref, root=root, kind="resampling_prefix_receipt")
+    study_payload = study["payload"]
+    assignment_payload = assignment["payload"]
+    prefix_payload = prefix["payload"]
+    if not isinstance(study_payload, dict) or not isinstance(assignment_payload, dict) or not isinstance(prefix_payload, dict):
+        raise RecordValidationError("packet authority payload is malformed")
+    _same_ref(assignment_payload.get("manifest_ref"), study_ref, field="assignment manifest_ref")
+    _same_ref(assignment_payload.get("prefix_index_ref"), prefix_ref, field="assignment prefix_index_ref")
+    schedule_ref = _artifact_ref(assignment_payload.get("schedule_ref"), field="assignment schedule_ref")
+    schedule = _record_for_ref(schedule_ref, root=root, kind="resampling_prefix_schedule")
+    schedule_payload = schedule.get("payload")
+    if not isinstance(schedule_payload, dict):
+        raise RecordValidationError("packet schedule payload is malformed")
+    _same_ref(schedule_payload.get("manifest_ref"), study_ref, field="schedule manifest_ref")
+    _same_ref(prefix_payload.get("schedule_ref"), schedule_ref, field="prefix schedule_ref")
+    tokenizer = _artifact_ref(study_payload.get("tokenizer_ref"), field="manifest tokenizer_ref")
+    template = _artifact_ref(study_payload.get("packet_template_ref"), field="manifest packet_template_ref")
+    policy = _artifact_ref(study_payload.get("packet_policy_ref"), field="manifest packet_policy_ref")
+    pads = _artifact_ref(study_payload.get("pad_unit_set_ref"), field="manifest pad_unit_set_ref")
+    return tokenizer, template, policy, pads
+
+
+def _build_packet_candidate(
+    *, study_ref: ArtifactRef, assignment_ref: ArtifactRef, prefix_ref: ArtifactRef,
+    tokenizer_ref: ArtifactRef, packet_template_ref: ArtifactRef, packet_policy_ref: ArtifactRef,
+    pad_unit_set_ref: ArtifactRef, root: Path, out: Path,
+) -> ArtifactRef:
+    """Derive every candidate entry from frozen prefix and assignment receipts."""
+    del study_ref  # ancestry was checked by _packet_manifest_parents before this call.
+    prefix = _record_for_ref(prefix_ref, root=root, kind="resampling_prefix_receipt")
+    assignment = _record_for_ref(assignment_ref, root=root, kind="resampling_assignment_ledger")
+    prefix_rows = prefix["payload"].get("task_receipts") if isinstance(prefix["payload"], dict) else None
+    assignment_rows = assignment["payload"].get("assignments") if isinstance(assignment["payload"], dict) else None
+    if not isinstance(prefix_rows, list) or not isinstance(assignment_rows, list):
+        raise RecordValidationError("packet build parents are malformed")
+    assignments = {row.get("task_id"): row for row in assignment_rows if isinstance(row, dict)}
+    if len(assignments) != len(assignment_rows):
+        raise RecordValidationError("assignment task coverage is malformed")
+    prefix_by_task = {row.get("task_id"): row for row in prefix_rows if isinstance(row, dict)}
+    if len(prefix_by_task) != len(prefix_rows) or set(prefix_by_task) != set(assignments):
+        raise RecordValidationError("prefix and assignment task coverage differs")
+    entries = []
+    store = SyntheticPacketArtifactStore(root)
+    # The Task-5 APIs re-derive all artifact bytes during audit. This thin loop only
+    # chooses deterministic, non-semantic locations for the temporary derivatives.
+    from .packets import _load_normalized_findings
+    for task_id, prefix_row in prefix_by_task.items():
+        if type(task_id) is not str or not task_id:
+            raise RecordValidationError("packet task ID is malformed")
+        if prefix_row.get("trigger_reason") == "no_intervention_opportunity":
+            entries.append(NoInterventionPacketMarker(task_id, prefix_ref.sha256, "no_intervention_opportunity"))
+            continue
+        assignment_row = assignments[task_id]
+        donor_task_id = assignment_row.get("donor_task_id")
+        donor_row = prefix_by_task.get(donor_task_id)
+        if type(donor_task_id) is not str or not isinstance(donor_row, dict) or assignment_row.get("donor_match_kind") != "matched":
+            raise RecordValidationError("triggered packet lacks a sealed matched donor")
+        focal_verifier = _artifact_ref(prefix_row.get("verifier_receipt", {}).get("verifier_artifact_ref") if isinstance(prefix_row.get("verifier_receipt"), dict) else None, field="focal verifier ref")
+        donor_verifier = _artifact_ref(donor_row.get("verifier_receipt", {}).get("verifier_artifact_ref") if isinstance(donor_row.get("verifier_receipt"), dict) else None, field="donor verifier ref")
+        slug = hashlib.sha256(task_id.encode("utf-8")).hexdigest()
+        donor_slug = hashlib.sha256(donor_task_id.encode("utf-8")).hexdigest()
+        real = normalize_synthetic_packet_findings(focal_verifier, task_id=task_id, run_root=root, out=root / f"packet-work/{slug}/real.json")
+        donor = normalize_synthetic_packet_findings(donor_verifier, task_id=donor_task_id, run_root=root, out=root / f"packet-work/{slug}/donor-{donor_slug}.json")
+        focal_ids = sorted({atom for finding in _load_normalized_findings(real, expected_task_id=task_id, run_root=root) for atom in finding.atoms if isinstance(atom, IdentifierAtom)}, key=lambda atom: (atom.kind.value, atom.entity_id))
+        donor_ids = sorted({atom for finding in _load_normalized_findings(donor, expected_task_id=donor_task_id, run_root=root) for atom in finding.atoms if isinstance(atom, IdentifierAtom)}, key=lambda atom: (atom.kind.value, atom.entity_id))
+        by_kind: dict[object, list[IdentifierAtom]] = {}
+        for atom in focal_ids:
+            by_kind.setdefault(atom.kind, []).append(atom)
+        mapping: dict[IdentifierAtom, IdentifierAtom] = {}
+        for atom in donor_ids:
+            choices = by_kind.get(atom.kind, [])
+            if not choices:
+                raise RecordValidationError("packet donor identifiers lack focal-safe aliases")
+            mapping[atom] = choices.pop(0)
+        rewrites = derive_packet_rewrite_artifacts(mapping, focal_task_id=task_id, donor_task_id=donor_task_id, normalized_real_ref=real, normalized_donor_ref=donor, run_root=root, identifier_map_out=root / f"packet-work/{slug}/identifier-map.json", normalized_sham_out=root / f"packet-work/{slug}/sham.json")
+        entries.append(build_packet_pair(run_root=root, normalized_real_ref=real, normalized_donor_ref=donor, normalized_sham_ref=rewrites.normalized_sham_ref, artifact_store=store, real_relative_path=f"packet-work/{slug}/private-real.txt", sham_relative_path=f"packet-work/{slug}/private-sham.txt", task_id=task_id, donor_task_id=donor_task_id, prefix_index_sha256=prefix_ref.sha256, focal_verifier_ref=focal_verifier, donor_verifier_ref=donor_verifier, assignment_ref=assignment_ref, identifier_map_ref=rewrites.identifier_map_ref, tokenizer_ref=tokenizer_ref, packet_template_ref=packet_template_ref, packet_policy_ref=packet_policy_ref, pad_unit_set_ref=pad_unit_set_ref))
+    return write_packet_candidate(entries, assignment_ref=assignment_ref, prefix_index_ref=prefix_ref, tokenizer_ref=tokenizer_ref, packet_template_ref=packet_template_ref, packet_policy_ref=packet_policy_ref, pad_unit_set_ref=pad_unit_set_ref, run_root=root, out=out)
 
 
 def _require_resumable_selftest(root: Path, final_name: str) -> None:
@@ -331,6 +454,30 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
                                           run_root=root, out=out)
         finally:
             store.close()
+    if args.command == "packets":
+        study_ref = _ref(root, args.study, "study_manifest")
+        assignment_ref = _ref(root, args.assignment, "resampling_assignment_ledger")
+        prefix_ref = _ref(root, args.prefix_index, "resampling_prefix_receipt")
+        tokenizer_ref, template_ref, policy_ref, pads_ref = _packet_manifest_parents(
+            study_ref, assignment_ref, prefix_ref, root=root,
+        )
+        if args.packets_command == "build":
+            return _build_packet_candidate(
+                study_ref=study_ref, assignment_ref=assignment_ref, prefix_ref=prefix_ref,
+                tokenizer_ref=tokenizer_ref, packet_template_ref=template_ref,
+                packet_policy_ref=policy_ref, pad_unit_set_ref=pads_ref, root=root,
+                out=_out(root, args.out_candidate),
+            )
+        candidate_ref = _ref(root, args.candidate, "packet_index_candidate")
+        schedule_ref = _ref(root, args.schedule, "resampling_prefix_schedule")
+        task_ids = _schedule_task_ids(schedule_ref, study_ref, root=root)
+        return audit_and_seal_packet_index(
+            candidate_ref, expected_task_ids=task_ids, assignment_ref=assignment_ref,
+            schedule_ref=schedule_ref, prefix_index_ref=prefix_ref,
+            tokenizer_ref=tokenizer_ref, packet_template_ref=template_ref,
+            packet_policy_ref=policy_ref, pad_unit_set_ref=pads_ref, run_root=root,
+            out=_out(root, args.out_index),
+        )
     if args.command == "artifacts":
         required_path = Path(args.required_kinds).resolve(strict=True)
         required = load_json_bytes(required_path.read_bytes(), source=required_path)

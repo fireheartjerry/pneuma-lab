@@ -337,3 +337,18 @@ git diff --check
 On Windows, use `.venv\Scripts\python.exe` where applicable. Do not install
 missing optional dependencies merely to manufacture a broad-suite pass; record
 the environment blocker and run the narrow authoritative gate for the slice.
+
+## Task 9 packet CLI checkpoint (2026-07-30)
+
+`packets build` and `packets audit` now expose the existing Task-5
+construction/audit APIs without adding packet, donor, arm, key, provider, or
+external-source knobs. Both command paths prove their supplied root refs descend
+through the same study manifest; build additionally closes
+assignment/prefix/schedule ancestry before deriving manifest-owned packet
+authority. Build writes only the Task-5 candidate path; audit derives schedule
+task membership and is the only CLI route that can call the sealed-index audit.
+Focused packet+CLI tests, compile, and whitespace checks pass. This is unrun
+controller plumbing: no candidate/sealed packet index, packet content,
+provider/benchmark action, P0 result, spending, or claim exists. Next gate:
+hostile-review this command boundary, then produce a genuinely admitted
+synthetic final before any descendant execution is attempted.
