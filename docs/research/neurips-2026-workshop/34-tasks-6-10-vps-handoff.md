@@ -1,9 +1,12 @@
 # Tasks 6–10 VPS execution handoff
 
-**Status:** current execution handoff for the remaining zero-spend core  
-**Prepared:** 2026-07-30  
-**Branch:** `codex/neurips-2026-empirical`  
-**Controlling plan:** `docs/superpowers/plans/2026-07-28-resampling-null-core.md`  
+**Status:** current execution handoff for the remaining zero-spend core
+
+**Prepared:** 2026-07-30
+
+**Branch:** `codex/neurips-2026-empirical`
+
+**Controlling plan:** `docs/superpowers/plans/2026-07-28-resampling-null-core.md`
 **Scientific contract:** `docs/superpowers/specs/2026-07-28-neurips-resampling-null-design.md`
 
 This document is a routing summary, not a replacement for the controlling plan,
