@@ -8,6 +8,7 @@ import hashlib
 import json
 from math import isfinite
 from typing import Any
+import sys
 
 
 _LABELS = ("A", "B", "C", "D")
@@ -116,3 +117,16 @@ def build_candidate(
         canonical_bytes=canonical,
         sha256=hashlib.sha256(canonical).hexdigest(),
     )
+
+
+def _main() -> None:
+    """Narrow stdin/stdout protocol for an isolated capability-minimal worker."""
+    request = json.load(sys.stdin)
+    if not isinstance(request, Mapping) or set(request) != {"frozen_schedule", "closed_outcomes"}:
+        raise ValueError("candidate request has closed shape")
+    candidate = build_candidate(request["frozen_schedule"], request["closed_outcomes"])
+    sys.stdout.buffer.write(candidate.canonical_bytes)
+
+
+if __name__ == "__main__":
+    _main()

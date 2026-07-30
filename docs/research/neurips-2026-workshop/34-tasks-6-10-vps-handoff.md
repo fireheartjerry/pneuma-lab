@@ -64,7 +64,12 @@ context and raw ledger bytes before ledger decoding, then writes a durable,
 one-way outcome-taint marker before assignment rows are exposed. That marker
 rejects later freeze, task-block, and blinded-projection work; there is no
 production reset API. The focused adversarial gate covers durable taint and
-concurrent alternate-destination singleton rejection.
+concurrent alternate-destination singleton rejection. Review correction:
+`unblind_projection` now requires an exact `CurrentAnalysisInputs` value and
+calls the full external-byte/packet-parent `verify_analysis_freeze` comparison
+before any ledger read. A ledger-excluding graph pass runs before permit
+validation; the complete graph may parse the ledger only after the controlled
+permit routine accepts its handle/context/raw digest binding.
 
 Implement the exact Task-6 contract in the controlling plan:
 

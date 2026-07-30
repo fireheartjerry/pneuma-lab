@@ -1119,6 +1119,30 @@ def validate_scientific_graph(run_root: Path) -> None:
     )
 
 
+def validate_preunblind_graph(run_root: Path, ledger_ref: ArtifactRef) -> None:
+    """Validate all non-clear-ledger graph edges before permit validation.
+
+    The opaque ledger is excluded by its already-bound relative path: this
+    deliberately avoids opening or decoding it before the permit routine has
+    authenticated its public parents and handle.
+    """
+    root = _run_root(run_root)
+    ledger_path, _ = _resolve_inside(
+        Path(ledger_ref.relative_path), root, require_exists=False,
+    )
+    documents = _scientific_documents(root, excluded=(ledger_path,))
+    if not documents:
+        raise RecordValidationError("scientific graph is empty")
+    _validate_kind_identities(
+        documents,
+        required_document_kinds={
+            cast(str, document.value["record_kind"])
+            for document in documents.values()
+        },
+        run_root=root,
+    )
+
+
 def write_jsonl_artifact(
     path: Path,
     rows: Iterable[Mapping[str, object]],
@@ -4198,4 +4222,5 @@ __all__ = [
     "seal_artifact_root",
     "verify_artifact_root",
     "validate_scientific_graph",
+    "validate_preunblind_graph",
 ]

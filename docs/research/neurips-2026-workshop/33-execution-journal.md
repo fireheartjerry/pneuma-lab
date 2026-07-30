@@ -1673,3 +1673,28 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claims:** No provider/model/network action, secret disclosure,
   spend, training, branch execution, experiment, empirical result, causal
   claim, or claim promotion occurred.
+
+### EJ-20260730-0174 — Task 6 pre-ledger CurrentAnalysisInputs correction
+
+- **Correction to EJ-0173:** Checking immutable copied snapshots alone did not
+  prove the caller's current config/schema/source bytes or packet-index parent
+  still matched the freeze. `unblind_projection` now requires exact
+  `CurrentAnalysisInputs` and invokes `verify_analysis_freeze` before any
+  ledger byte read or decode.
+- **Ordering and bypass repair:** A new ledger-excluding scientific graph pass
+  validates the available graph without opening the ledger. Only then do the
+  current-input/packet-parent comparison and controlled handle/commitment/raw
+  digest permit routine run; only a valid permit authorizes the complete graph
+  pass that parses ledger structure. The unsafe private standalone framed-permit
+  helper was deleted, leaving no alternative permit derivation path.
+- **Capability boundary evidence:** The projection candidate has a closed
+  JSON stdin/stdout worker protocol. Its adversarial test uses `python -I`, an
+  empty environment, a fresh cwd, and supplies no run-root path. A separate
+  ledger-loader spy proves `pregraph -> current -> permit -> graph -> ledger`.
+- **Fresh bounded gate:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_artifacts.py tests/resampling_null/test_assignment.py
+  tests/resampling_null/test_freeze.py tests/resampling_null/test_blinding.py
+  tests/resampling_null/test_task6_state.py tests/test_schema_loads.py -q`
+  passed 220 tests in under three seconds; byte compilation and `git diff
+  --check` passed. No provider/model/network action, secret disclosure, spend,
+  execution, experiment, result, causal claim, or claim promotion occurred.

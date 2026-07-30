@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 import hashlib
 from pathlib import Path
 
@@ -11,6 +12,16 @@ from pneuma_lab.foundation.artifacts import write_atomic_bytes
 from .artifacts import _load_direct_scientific_parent, _read_ref, _resolve_inside, write_record
 from .errors import RecordValidationError
 from .types import ArtifactRef
+
+
+@dataclass(frozen=True, slots=True)
+class CurrentAnalysisInputs:
+    """Caller-owned bytes which must still equal the analysis freeze."""
+
+    source_paths: Mapping[str, Path]
+    config_path: Path
+    projection_schema_path: Path
+    packet_index_ref: ArtifactRef
 
 
 def snapshot_sources(
@@ -152,6 +163,22 @@ def verify_analysis_freeze(
     observed = sorted((_resolve_inside(Path(ref["relative_path"]), run_root, require_exists=True)[0].read_bytes() for ref in refs if isinstance(ref, Mapping)), key=lambda value: hashlib.sha256(value).hexdigest())
     if expected != observed:
         raise RecordValidationError("analysis freeze copied input bytes differ")
+
+
+def verify_current_analysis_inputs(
+    freeze_ref: ArtifactRef, *, run_root: Path, inputs: CurrentAnalysisInputs,
+) -> None:
+    """Require the exact caller-current inputs, not merely stored snapshots."""
+    if type(inputs) is not CurrentAnalysisInputs:
+        raise TypeError("unblind requires exact CurrentAnalysisInputs")
+    verify_analysis_freeze(
+        freeze_ref,
+        run_root=run_root,
+        source_paths=inputs.source_paths,
+        config_path=inputs.config_path,
+        projection_schema_path=inputs.projection_schema_path,
+        packet_index_ref=inputs.packet_index_ref,
+    )
 
 
 def verify_frozen_analysis_inputs(freeze_ref: ArtifactRef, *, run_root: Path) -> None:

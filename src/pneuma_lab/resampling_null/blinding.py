@@ -8,12 +8,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, cast
 
-from .artifacts import _load_direct_scientific_parent, _read_ref, validate_scientific_graph, write_record
+from .artifacts import (
+    _load_direct_scientific_parent,
+    _read_ref,
+    validate_preunblind_graph,
+    validate_scientific_graph,
+    write_record,
+)
 from .assignment import BytesField, TextField, _derive_unblind_subkey_into, _read_exact_master_into, commitment_sha256, kdf_frame
 from .errors import RecordValidationError
 from .projection_candidate import ProjectionCandidate, build_candidate
 from .secrets import UnblindSecretHandle, _require_handle_binding
-from .freeze import verify_frozen_analysis_inputs
+from .freeze import CurrentAnalysisInputs, verify_current_analysis_inputs, verify_frozen_analysis_inputs
 from .task6_state import mark_outcome_tainted, require_singleton_absent, task6_controller_lock
 from .types import ArtifactRef
 
@@ -97,26 +103,6 @@ def _seal_blinded_projection_locked(
     return write_record(destination, record, run_root=run_root, role="blinded_projection")
 
 
-def _framed_unblind_permit(
-    handle: UnblindSecretHandle, *, study_id: str, manifest_ref: ArtifactRef,
-    schedule_ref: ArtifactRef, prefix_index_ref: ArtifactRef, ledger_ref: ArtifactRef,
-    projection_ref: ArtifactRef, freeze_ref: ArtifactRef, expected_task_count: int,
-) -> str:
-    """Consume a fresh unblind handle and return its context-bound permit MAC."""
-    if type(handle) is not UnblindSecretHandle or type(expected_task_count) is not int or expected_task_count < 0:
-        raise ValueError("unblind permit requires fresh exact context")
-    master = bytearray(32)
-    key = bytearray(32)
-    try:
-        _read_exact_master_into(handle, master)
-        _derive_unblind_subkey_into(memoryview(master), study_id, manifest_ref, schedule_ref, key)
-        frame = kdf_frame("unblind-permit-v1", [TextField(study_id), BytesField(bytes.fromhex(manifest_ref.sha256)), BytesField(bytes.fromhex(schedule_ref.sha256)), BytesField(bytes.fromhex(prefix_index_ref.sha256)), BytesField(bytes.fromhex(ledger_ref.sha256)), BytesField(bytes.fromhex(projection_ref.sha256)), BytesField(bytes.fromhex(freeze_ref.sha256)), TextField(str(expected_task_count))])
-        return hmac.new(key, frame, hashlib.sha256).hexdigest()
-    finally:
-        master[:] = b"\x00" * len(master)
-        key[:] = b"\x00" * len(key)
-
-
 @dataclass(frozen=True, slots=True)
 class UnblindResult:
     receipt_ref: ArtifactRef
@@ -191,14 +177,29 @@ def unblind_projection(
     receipt_destination: Path, manifest_ref: ArtifactRef, schedule_ref: ArtifactRef,
     prefix_index_ref: ArtifactRef, ledger_ref: ArtifactRef, projection_ref: ArtifactRef,
     freeze_ref: ArtifactRef, expected_task_count: int,
+    current_analysis_inputs: CurrentAnalysisInputs,
 ) -> UnblindResult:
-    """Verify a permit before loading the clear ledger and publish first receipt."""
-    # This consumes the independently minted handle before any clear-ledger read.
-    actual, projection_payload, manifest = _validated_permit(handle, run_root=run_root, manifest_ref=manifest_ref, schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref, ledger_ref=ledger_ref, projection_ref=projection_ref, freeze_ref=freeze_ref, expected_task_count=expected_task_count)
-    if not hmac.compare_digest(actual, permit_hmac_sha256):
-        raise RecordValidationError("unblind permit MAC does not match")
+    """Authenticate current frozen inputs before any clear-ledger access."""
     with task6_controller_lock(run_root) as root:
         require_singleton_absent(root, "resampling_unblind_receipt")
+        # This intentionally excludes the opaque ledger: graph validation must
+        # precede every ledger open/decode, while the permit validates its raw
+        # digest and binding before the full graph is allowed to inspect it.
+        validate_preunblind_graph(root, ledger_ref)
+        verify_current_analysis_inputs(
+            freeze_ref, run_root=root, inputs=current_analysis_inputs,
+        )
+        actual, projection_payload, _manifest = _validated_permit(
+            handle, run_root=root, manifest_ref=manifest_ref,
+            schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
+            ledger_ref=ledger_ref, projection_ref=projection_ref,
+            freeze_ref=freeze_ref, expected_task_count=expected_task_count,
+        )
+        if not hmac.compare_digest(actual, permit_hmac_sha256):
+            raise RecordValidationError("unblind permit MAC does not match")
+        # Only a valid permit can authorize the graph pass which decodes ledger
+        # structure; its full ancestry is therefore never trusted beforehand.
+        validate_scientific_graph(root)
         # Taint is intentionally before the first ledger decode.  A crash or
         # later validation failure therefore cannot reset a context that began
         # to expose assignment/outcome information.
@@ -207,7 +208,6 @@ def unblind_projection(
             ledger_ref, run_root=root, manifest_ref=manifest_ref,
             schedule_ref=schedule_ref, prefix_index_ref=prefix_index_ref,
         )
-        validate_scientific_graph(root)
         arms = {row["task_id"]: dict(row["slot_arms"]) for row in cast(list[Mapping[str, object]], cast(Mapping[str, object], ledger_value["payload"])["assignments"])}
         clear_rows = []
         for row in cast(list[Mapping[str, object]], projection_payload["rows"]):
