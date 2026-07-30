@@ -6,70 +6,106 @@
 
 ## Objective
 
-Make the canonical developer and future pull-request test gate complete in less
-than 30 seconds on the WSL2/Linux environment used for AWS parity work.
+Create one identical canonical developer/PR gate for native Windows and Linux.
+It must complete within five seconds when run inside either operating system,
+with a warm-run target below one second. Thirty seconds is the absolute
+regression ceiling, not the target.
 
 The current shape is unacceptable: `tests/resampling_null/` contains 437 test
 functions across roughly 740 KiB, and the S02D file alone expands to 92 cases
 and takes about 53 seconds. There is no checked-in GitHub Actions workflow, so
-the immediate problem is the repository's default test policy and test volume.
+the immediate problem is the repository's default policy, collection surface,
+and test volume.
 
 ## Policy
 
-Tests are retained only when they can falsify a distinct paper-critical or
+Tests survive only when they can falsify a distinct paper-critical or
 public-contract claim. Historical implementation anxieties, reviewer-specific
-regressions, internal call-shape assertions, exhaustive fault-stage products,
-and multiple tests of the same invariant are not permanent assets.
+regressions, private call-shape assertions, exhaustive fault-stage products,
+and multiple tests of the same invariant are deleted.
 
-Deleting a test is preferable to trivializing it. The implementation must not
-replace meaningful tests with `assert True`, empty mocks, or assertions that
-merely restate fixture values.
+Deleting a test is preferable to trivializing it. Meaningful tests must never
+be replaced with `assert True`, empty mocks, assertions that merely restate
+fixture values, or other fake coverage.
 
-## Three Tiers
+## Canonical Micro-Gate
 
-### 1. Smoke — default and future PR gate
+Pytest markers alone are insufficient because pytest still discovers, imports,
+and parametrizes excluded files. The default gate therefore uses a dedicated
+`tests/smoke/` collection root containing at most eight test cases.
 
-The default command selects only the `smoke` marker and must:
+`python scripts/test_fast.py` is the canonical cross-platform command. The
+wrapper:
 
-- collect no more than 20 test cases;
-- complete within 30 seconds on a warm WSL2/Linux environment;
-- avoid foundation/Qwen imports and external data or network access;
-- cover status/schema coherence;
-- cover one authorization-denial path;
-- cover one deterministic assignment/packet vector;
-- cover one synthetic controller-to-prefix-index happy path; and
-- cover one artifact-tamper rejection.
+- invokes pytest only on `tests/smoke/`;
+- sets `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`;
+- sets `PYTHONDONTWRITEBYTECODE=1`;
+- disables pytest's cache provider and terminal verbosity;
+- uses a five-second subprocess deadline; and
+- propagates the child exit code without retries.
 
-The canonical CI wrapper enforces the 30-second wall-clock deadline. A timeout
-is a failure, not permission to silently drop a test during the run.
+`python -m pytest -q` is configured to select the same `tests/smoke/` root, but
+the wrapper is the timing authority for CI.
 
-### 2. Milestone — explicit pre-experiment gate
+The eight-case maximum covers:
 
-The milestone suite contains the smallest additional set needed before a
-placebo experiment, paper result, or release. It is never part of the default
-developer loop and must complete within five minutes.
+1. project-status and schema coherence;
+2. portable public-package import;
+3. one authorization-denial path;
+4. one deterministic assignment vector;
+5. one token-exact REAL/SHAM packet vector;
+6. one minimal synthetic controller path;
+7. one compact artifact-tamper rejection; and
+8. one registered statistical hand calculation once Task 7 exists.
 
-It covers one representative failure for each public resampling transaction,
-the registered statistical golden vectors, deterministic replay, and artifact
-reconstruction. It does not restore exhaustive operating-system fault matrices.
+Cases may combine related assertions when they consume the same fixture. Test
+count is a ceiling, not a quota.
 
-### 3. Forensic — opt-in only
+## Cross-Platform Boundary
 
-Any surviving expensive adversarial tests use a `forensic` marker and run only
-when a specific investigation or release review requires them. Forensic tests
-are not presumed valuable merely because they already exist.
+The default suite is identical on Windows and Linux: no OS-conditional skips,
+xfails, or alternate expectations.
+
+The current prefix-index module imports POSIX `fcntl` through the package's
+eager public import graph. Implementation must isolate that module behind a
+lazy platform-neutral package boundary so importing and testing the remaining
+public package works on Windows. The micro-gate does not execute S02D namespace
+locking. S02D's reduced integration coverage belongs to the Linux milestone
+suite until the production transaction itself becomes portable.
+
+This is honest scope separation, not a Windows pass produced by skipping a
+selected test.
+
+## Remaining Tiers
+
+### Milestone
+
+The explicit milestone suite contains the smallest additional set required
+before an experiment, paper result, or release. It must complete within 60
+seconds on Linux and is never part of the default loop.
+
+It retains one representative failure for each public resampling transaction,
+registered statistical golden vectors, deterministic replay, and one
+prefix-index publication/rollback integration. It does not restore exhaustive
+operating-system fault matrices.
+
+### Forensic
+
+Any surviving expensive adversarial test uses the `forensic` marker and runs
+only for a specific investigation. A forensic test is not presumed valuable
+because it already exists. No CI workflow runs this tier automatically.
 
 ## Aggressive Reduction Rules
 
-Reduce `tests/resampling_null/` by at least 75% by test-function count, from 437
-to at most 109. Reduce `test_s02d_prefix_index.py` from 61 test functions to at
-most 10.
+Reduce `tests/resampling_null/` by at least 85% by test-function count, from 437
+to at most 65. Reduce `test_s02d_prefix_index.py` from 61 functions to at most
+four. The default micro-gate contains at most eight cases.
 
 Delete or consolidate:
 
 - exact duplicates and near-duplicates;
 - permutations that exercise the same validation branch;
-- tests of private helper names, signatures, AST shape, or internal sequencing;
+- tests of private helpers, signatures, AST shape, or internal sequencing;
 - injected failure at every individual `open`, `fstat`, `fsync`, `close`,
   `flock`, rename, and cleanup stage;
 - numeric-file-descriptor reuse, bytecode-interruption, and asynchronous
@@ -79,58 +115,67 @@ Delete or consolidate:
 - large fixtures used only to vary one field; and
 - slow positive-path reconstruction repeated in many negative tests.
 
-Retain:
+Retain only:
 
 - one positive public-API path;
 - one representative negative path per distinct public invariant;
 - one deterministic golden vector where exact bytes or hashes are contractual;
 - spend/authorization fail-closed behavior;
-- REAL/SHAM causal-packet symmetry and intended-difference checks;
+- REAL/SHAM intended-equality and intended-difference checks;
 - registered statistical hand calculations; and
-- one end-to-end synthetic placebo artifact chain.
+- one end-to-end synthetic placebo artifact chain at the milestone tier.
 
-Shared fixture construction must happen at the widest safe scope. Negative
-cases must mutate a compact canonical fixture rather than rebuild a complete
-study independently.
+## Harness-Level Optimizations
 
-## Platform Boundary
+Use aggressive but portable optimizations:
 
-The new prefix-index implementation is POSIX-specific because it uses `fcntl`.
-The canonical smoke and milestone receipts therefore run in WSL2/Linux, matching
-the intended AWS environment. Native Windows collection is not a release gate.
-The WSL environment must be synchronized from `uv.lock` before timing.
+- explicit collection roots instead of global discovery plus markers;
+- one test module for the micro-gate to minimize import and collection work;
+- module/session-scoped immutable canonical fixtures;
+- copy-on-mutate shallow records instead of rebuilding study graphs;
+- cached compiled JSON Schema validators;
+- precomputed canonical bytes and digests for unchanged golden fixtures;
+- in-process pure checks instead of subprocesses in smoke cases;
+- deterministic fake clocks instead of waiting;
+- no coverage, tracing, plugin autoload, pytest cache, or bytecode writes;
+- no autouse fixtures outside the micro-suite; and
+- direct imports from narrow modules rather than package-wide eager imports.
 
-## Commands
+Do not use marshal/pickle caches, private CPython bytecode APIs, import-hook
+monkeypatching, or timing races. Those techniques would make portability and
+reproducibility worse. The goal is dark performance magic, not cursed state.
 
-The implementation will define these stable commands:
+## Stable Commands
 
 ```text
+python scripts/test_fast.py
 python -m pytest -q
-python -m pytest -m milestone -q
-python -m pytest -m forensic -q
+python -m pytest tests/ -m milestone -q
+python -m pytest tests/ -m forensic -q
 ```
 
-The first command is the sub-30-second smoke gate. Explicit marker expressions
-may be used for combined milestone/release checks, but no documentation may call
-the forensic suite the default or the "full" gate.
+The first two select the identical portable micro-suite. The other commands are
+explicit and never run in ordinary CI.
 
 ## Acceptance Criteria
 
-1. Default collection contains no more than 20 cases.
-2. Three consecutive warm WSL2/Linux default runs each finish in under 30
-   seconds.
-3. The resampling suite contains at most 109 test functions, with at most 10 in
+1. Default collection contains no more than eight cases.
+2. Three consecutive warm native-Windows runs and three consecutive warm Linux
+   runs each finish within five seconds; median warm runtime targets one second.
+3. A cold run inside either already-provisioned operating system finishes within
+   ten seconds.
+4. The resampling suite contains at most 65 test functions, with at most four in
    S02D.
-4. The smoke suite detects a deliberately introduced schema error, authorization
-   bypass, packet asymmetry, and artifact tamper in controlled verification.
-5. No external call, credential use, provider action, spend, or scientific
-   experiment occurs during any test tier.
-6. Project-status coherence and `git diff --check` remain separate cheap gates.
+5. The micro-gate detects controlled schema, authorization, packet-symmetry, and
+   artifact-tamper defects.
+6. The micro-gate has zero skips, xfails, external calls, credential use,
+   provider actions, spend, or scientific experiments.
+7. Project-status coherence and `git diff --check` remain separate cheap gates.
 
 ## Non-Goals
 
 - Preserving test count as a quality metric.
 - Maintaining executable coverage for every historical decision-log repair.
-- Supporting the POSIX transaction implementation under native Windows.
+- Pretending S02D's POSIX transaction is portable before production code is.
 - Adding cloud infrastructure or authorizing an AWS experiment.
 - Claiming that fewer tests make unfinished Tasks 6–10 experiment-ready.
