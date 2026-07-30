@@ -289,19 +289,22 @@ def test_pytest_config_keeps_opt_in_markers_out_of_default_collection() -> None:
     assert "tests/test_foundation_qwen_smoke.py: 1" in selected_result.stdout
 
 
-def test_documented_pytest_commands_name_opt_in_paths() -> None:
+def test_documented_pytest_commands_state_current_opt_in_contract() -> None:
     root = Path(__file__).resolve().parents[2]
     required_commands = (
         "python -m pytest -q",
         "python -m pytest tests/test_foundation_qwen_smoke.py -m qwen_smoke -q",
-        "python -m pytest tests/ -m foundation -q",
-        "python -m pytest tests/resampling_null -m milestone -q",
+        "python -m pytest $foundationTests -m foundation --import-mode=prepend -q",
     )
 
     for guide_name in ("AGENTS.md", "CLAUDE.md"):
         guide = (root / guide_name).read_text(encoding="utf-8")
         for command in required_commands:
             assert command in guide, f"{guide_name} must document: {command}"
+        assert "$env:PYTHONPATH" in guide
+        assert "The compact milestone command is unavailable until aggressive pruning Task 4 marks and retains the suite." in guide
+        assert "python -m pytest tests/ -m foundation -q" not in guide
+        assert "python -m pytest tests/resampling_null -m milestone -q" not in guide
 
 
 def test_missing_budget_directories_are_zero_and_pass(tmp_path: Path) -> None:

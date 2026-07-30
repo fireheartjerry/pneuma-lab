@@ -72,8 +72,8 @@
 | Check WSL2 foundation readiness | `.venv/bin/python -m pneuma_lab.foundation doctor` |
 | Default cold oracle (smoke only) | `python -m pytest -q` |
 | Opt-in Qwen collection/run | `python -m pytest tests/test_foundation_qwen_smoke.py -m qwen_smoke -q` |
-| Foundation suite (explicit, slow; suitable Linux environment) | `python -m pytest tests/ -m foundation -q` |
-| Compact paper milestone | `python -m pytest tests/resampling_null -m milestone -q` |
+| Foundation suite | Use the explicit PowerShell path set below (slow; suitable Linux execution environment) |
+| Compact paper milestone | Unavailable until aggressive pruning Task 4 marks and retains the suite |
 | Run schema tests only | `.venv/bin/python -m pytest tests/test_schema_loads.py -q` |
 | Check whitespace | `git diff --check` |
 | List tracked/untracked state | `git status --short` |
@@ -85,6 +85,22 @@ target, but remains fail-closed until slice 1 regenerates `uv.lock` and
 Default pytest discovery is intentionally restricted to `tests/smoke`. Bare
 marker commands cannot discover Qwen, foundation, or milestone tests; name an
 explicit test path as above.
+
+The foundation files retain two legacy sibling imports. In PowerShell, set the
+test directory on `PYTHONPATH`, enumerate only foundation files, then run the
+suite with prepend import mode:
+
+```powershell
+$env:PYTHONPATH = (Join-Path (Get-Location) 'tests')
+$foundationTests = Get-ChildItem -Path tests -Filter test_foundation_*.py -File | Select-Object -ExpandProperty FullName
+python -m pytest $foundationTests -m foundation --import-mode=prepend -q
+```
+
+Collection of this exact path set is verified on the current Windows checkout;
+the actual foundation suite is slow and intended for a suitable Linux execution
+environment.
+
+The compact milestone command is unavailable until aggressive pruning Task 4 marks and retains the suite.
 
 ## How To Do X
 

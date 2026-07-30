@@ -182,8 +182,6 @@ Useful commands:
 ```txt
 python -m pytest -q                                                    # default cold oracle: smoke only
 python -m pytest tests/test_foundation_qwen_smoke.py -m qwen_smoke -q # opt-in Qwen smoke
-python -m pytest tests/ -m foundation -q                              # explicit, slow foundation suite; suitable Linux environment
-python -m pytest tests/resampling_null -m milestone -q                # compact paper milestone
 pip install -e ".[dev]"
 python -m pneuma_lab.status --check
 python -m pytest tests/test_schema_loads.py -q
@@ -193,10 +191,20 @@ git diff --check
 Default pytest discovery is intentionally restricted to `tests/smoke`; bare
 marker commands cannot discover opt-in Qwen, foundation, or milestone tests.
 The explicit-path commands above retain the marker opt-outs and allow a final
-`-m` selector to opt in. The foundation program is filesystem-heavy and off the
-NeurIPS paper critical path; run its explicit suite only in a suitable Linux
-environment. On Windows the foundation shard-digest tests fail on a CRLF
-checkout and are xfailed (environment artifact, not a regression).
+`-m` selector to opt in. The compact milestone command is unavailable until aggressive pruning Task 4 marks and retains the suite.
+
+The foundation files retain two legacy sibling imports. Use this collection-
+verified PowerShell path set (the actual suite is slow and intended for a
+suitable Linux execution environment):
+
+```powershell
+$env:PYTHONPATH = (Join-Path (Get-Location) 'tests')
+$foundationTests = Get-ChildItem -Path tests -Filter test_foundation_*.py -File | Select-Object -ExpandProperty FullName
+python -m pytest $foundationTests -m foundation --import-mode=prepend -q
+```
+
+On Windows the foundation shard-digest tests fail on a CRLF checkout and are
+xfail environment artifacts, not regressions.
 
 ## Schema Rules
 
