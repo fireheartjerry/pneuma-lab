@@ -193,6 +193,11 @@ confirmation, or a causal claim.
 
 ## Definition of done
 
+**Current Task 7B status (2026-07-30): incomplete.** A narrow exact-`r95`
+probability-mass repair is committed separately; it does not close the required
+manifest/power admission integration, scalable batch-kernel, or hostile-fixture
+work. Do not promote it to a scientific result or Task-7 completion.
+
 Tasks 6–10 are complete only when:
 
 - every controlling-plan artifact and test exists;

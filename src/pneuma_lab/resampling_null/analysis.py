@@ -426,7 +426,9 @@ def _count_resolution(counts: np.ndarray) -> np.ndarray:
         discordant = [int(sum(counts[run, benchmark, index] for index, pattern in enumerate(_PATTERNS) if pattern[2] != pattern[3])) for benchmark in range(2)]
         if roster[0] == roster[1]:
             n, m = roster[0], sum(discordant)
-            masses = Counter({abs(Fraction(2 * k - m, 2 * n)): comb(m, k) for k in range(m + 1)})
+            masses: Counter[Fraction] = Counter()
+            for k in range(m + 1):
+                masses[abs(Fraction(2 * k - m, 2 * n))] += comb(m, k)
         else:
             distribution: Counter[Fraction] = Counter({Fraction(): 1})
             for benchmark, m in enumerate(discordant):

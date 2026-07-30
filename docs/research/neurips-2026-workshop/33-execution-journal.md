@@ -1821,3 +1821,15 @@ The next event after the archived migration boundary is appended below.
 - **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
   tests/resampling_null/test_analysis.py -q` passed 15 tests; Ruff and
   `git diff --check` passed.
+
+### EJ-20260730-0184 — Task 7B exact-resolution probability-mass repair
+
+- **Correction:** Equal-roster `r95` now accumulates binomial mass for equal
+  absolute sign-flip values instead of overwriting it. The 14-discordant-task
+  regression gives the exact 95th-percentile resolution `4/7`.
+- **Focused evidence:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_analysis.py -q` passed 16 tests; Ruff and
+  `git diff --check` passed.
+- **Status:** This is a narrowly isolated repair. Task 7B remains incomplete:
+  authority-chain integration, scalable batch execution, and full hostile
+  fixture coverage are still open. No causal, experimental, or spend claim.

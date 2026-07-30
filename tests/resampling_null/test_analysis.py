@@ -202,6 +202,17 @@ def test_resolution_exact_equal_and_unequal_rosters() -> None:
     assert unequal.mode == "unequal_roster_exact_weighted_convolution"
 
 
+def test_equal_roster_r95_aggregates_absolute_binomial_masses() -> None:
+    rows = [
+        _row(f"s{index}", real=0, sham=0, none=0, resample=1)
+        for index in range(7)
+    ] + [
+        _row(f"t{index}", benchmark="TAU", real=0, sham=0, none=0, resample=1)
+        for index in range(7)
+    ]
+    assert resampling_resolution(rows).r95 == 4 / 7
+
+
 def test_registered_primitives_reject_rosters_other_than_swe_and_tau() -> None:
     with pytest.raises(ValueError, match="SWE and TAU"):
         resampling_resolution([_row("a", real=0, sham=0, none=0, resample=0)])
