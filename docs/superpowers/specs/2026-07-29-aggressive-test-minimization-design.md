@@ -6,12 +6,14 @@
 
 ## Objective
 
-Create one identical canonical developer/PR gate for native Windows and Linux.
-Optimize primarily for the hot agent loop: repeated test runs in one checkout
-while Codex or Claude edits a small number of files. A no-change warm run targets
-100 milliseconds, while a cold run inside either operating system must complete
-within five seconds. Thirty seconds is the absolute regression ceiling, not the
-target.
+Create one canonical developer/PR gate for native Windows and Linux. Optimize
+primarily for the hot agent loop: repeated test runs in one checkout while
+Codex or Claude edits a small number of files.
+
+An impacted warm run targets 100 milliseconds median and 250 milliseconds p95.
+The complete micro-gate targets one second warm. A cold run inside either
+already provisioned operating system must complete within five seconds. Thirty
+seconds is the absolute regression ceiling, not the target.
 
 The current shape is unacceptable: `tests/resampling_null/` contains 437 test
 functions across roughly 740 KiB, and the S02D file alone expands to 92 cases
@@ -33,36 +35,10 @@ fixture values, or other fake coverage.
 ## Canonical Micro-Gate
 
 Pytest markers alone are insufficient because pytest still discovers, imports,
-and parametrizes excluded files. The default gate therefore uses a dedicated
-`tests/smoke/` collection root containing at most eight test cases.
+and parametrizes excluded files. The default pytest gate therefore uses one
+`tests/smoke/` module containing at most eight test cases.
 
-`python scripts/test_fast.py` is the canonical cross-platform command. It is a
-client for one checkout-scoped resident test daemon:
-
-- the first invocation starts the daemon and performs one cold run;
-- later invocations reuse the same initialized CPython process;
-- the daemon preloads only the micro-gate dependency graph;
-- the client enforces a five-second response deadline;
-- any protocol error, failed check, invalidation failure, or timeout kills the
-  daemon and returns failure without retrying; and
-- the daemon exits after one hour idle or when its checkout fingerprint changes.
-
-The daemon uses a localhost authenticated `multiprocessing.connection` channel,
-which is implemented on both Windows and Linux. Its random auth key and endpoint
-metadata live only under ignored `build/testd/`. The protocol accepts only
-`run`, `status`, and `stop`; it never evaluates caller-supplied Python.
-
-`python -m pytest -q` remains the cold, ordinary, independently understandable
-fallback over the same assertions in `tests/smoke/`. The daemon is the timing
-authority for the agent loop; cold CI may use either path but must periodically
-cross-check daemon results against pytest.
-
-The daemon snapshots working directory, environment, warning filters, random
-state, registered validators, and fixture digests before each run. The checks
-are pure and receive immutable inputs. Any unexplained state drift fails the
-run and kills the daemon instead of contaminating later verdicts.
-
-The eight-case maximum covers:
+The cases cover:
 
 1. project-status and schema coherence;
 2. portable public-package import;
@@ -76,10 +52,94 @@ The eight-case maximum covers:
 Cases may combine related assertions when they consume the same fixture. Test
 count is a ceiling, not a quota.
 
+## Hot Agent Architecture
+
+`python scripts/test_fast.py` is the canonical cross-platform agent command. It
+is a client for one checkout-scoped resident **supervisor**. The supervisor
+never repeatedly executes changed application tests in its own interpreter.
+It keeps only stable infrastructure warm:
+
+- the test manifest and exact node IDs;
+- the runtime/static dependency graph;
+- source, resource, environment, package, and lockfile fingerprints;
+- a checked-hash private pycache;
+- immutable mmap fixture indexes; and
+- pristine worker inventory.
+
+The first invocation starts the supervisor. Later invocations send the changed
+path set or request automatic dirty-tree detection. The supervisor selects exact
+impacted node IDs. If dependency certainty is incomplete, it widens to all
+eight micro-cases; it never returns an empty selection from uncertainty.
+
+The manifest indexes every retained micro and milestone test. Ordinary impacted
+runs may select directly affected milestone tests, but forensic tests require an
+explicit request. The sub-250-millisecond target applies to the common unit-test
+slice; the client reports separately when a legitimate integration selection
+exceeds that target.
+
+The supervisor uses `sys.monitoring` during oracle runs to record Python code
+executed by each test. The dependency graph also records imported modules,
+schemas, fixture files, prompt/templates, relevant environment keys, package
+versions, `pyproject.toml`, and `uv.lock`. Static import/resource analysis widens
+runtime observations for code paths not exercised by the last green run.
+
+### Linux worker
+
+Linux uses a forkserver-style parent that preloads only CPython, pytest core,
+the minimal runner, and immutable fixture metadata. It does not import
+application modules. After preload it runs `gc.collect()`, disables collection,
+and calls `gc.freeze()` before forking.
+
+Every request forks one sacrificial worker. The worker imports current
+application source, executes the selected node IDs, emits one bounded result,
+and exits. Changed source is therefore never hidden by the supervisor's
+`sys.modules`.
+
+### Windows worker magazine
+
+Windows maintains a small magazine of pristine spawned workers. Each worker
+preloads only stable runner infrastructure and waits without importing
+application modules. One request consumes one worker exactly once; after the
+result, that worker exits and the supervisor replenishes the magazine
+asynchronously.
+
+Any edit to stable runner infrastructure, configuration, dependency metadata,
+or the worker bootstrap invalidates the entire magazine before selection.
+This preserves fresh application imports without paying spawn latency on the
+critical path.
+
+### Supervisor protocol
+
+The supervisor uses an authenticated localhost `multiprocessing.connection`
+channel available on both Windows and Linux. A random auth key and endpoint
+metadata live only under ignored `build/testd/`. The protocol accepts only
+`run`, `smoke`, `status`, and `stop`; it never evaluates caller-supplied Python.
+
+The client enforces a five-second response deadline. A protocol error, worker
+crash, failed invalidation, timeout, or malformed result kills the supervisor
+and returns failure without retrying. The supervisor exits after one hour idle
+or when its checkout/interpreter fingerprint changes.
+
+## Correctness Oracle
+
+`python -m pytest -q` is the ordinary cold oracle over the same
+`tests/smoke/` assertions. It disables broad discovery and plugin autoload but
+does not use impacted selection or resident workers.
+
+Fast-path results are periodically compared with pytest over controlled passing
+and failing mutations. The fast selector is valid only when its selected tests
+are a superset of every micro-test that fails under the oracle. Prior failures
+always rerun. Structural changes to tests, schemas, configuration, package
+initializers, or the selector widen to the entire micro-gate.
+
+Workers report process identity, selected node IDs, dependency fingerprint, and
+application import fingerprint. A reused worker, stale import, missing
+dependency, or unexplained global state change is a failed run.
+
 ## Cross-Platform Boundary
 
-The default suite is identical on Windows and Linux: no OS-conditional skips,
-xfails, or alternate expectations.
+The default micro-suite is identical on Windows and Linux: no OS-conditional
+skips, xfails, or alternate expectations.
 
 The current prefix-index module imports POSIX `fcntl` through the package's
 eager public import graph. Implementation must isolate that module behind a
@@ -88,8 +148,8 @@ public package works on Windows. The micro-gate does not execute S02D namespace
 locking. S02D's reduced integration coverage belongs to the Linux milestone
 suite until the production transaction itself becomes portable.
 
-This is honest scope separation, not a Windows pass produced by skipping a
-selected test.
+This is scope separation, not a Windows pass produced by skipping a selected
+test.
 
 ## Remaining Tiers
 
@@ -140,91 +200,92 @@ Retain only:
 - registered statistical hand calculations; and
 - one end-to-end synthetic placebo artifact chain at the milestone tier.
 
-## Harness-Level Optimizations
+## Performance Optimizations
 
-Use aggressive portable optimizations:
+The structural fast path uses:
 
-- explicit collection roots instead of global discovery plus markers;
-- one test module for the micro-gate to minimize import and collection work;
+- exact node IDs instead of broad collection;
+- runtime dependency selection with conservative static widening;
+- one micro-test module;
 - module/session-scoped immutable canonical fixtures;
 - copy-on-mutate shallow records instead of rebuilding study graphs;
 - cached compiled JSON Schema validators;
-- precomputed canonical bytes and digests for unchanged golden fixtures;
-- in-process pure checks instead of subprocesses in smoke cases;
+- precomputed canonical bytes and digests;
 - deterministic fake clocks instead of waiting;
-- no coverage, tracing, plugin autoload, pytest cache, or bytecode writes;
-- no autouse fixtures outside the micro-suite; and
-- direct imports from narrow modules rather than package-wide eager imports.
+- no nested subprocesses inside smoke checks;
+- no coverage, tracing, third-party plugin autoload, or pytest cache;
+- direct narrow imports instead of eager package imports;
+- `--import-mode=importlib`;
+- a private `PYTHONPYCACHEPREFIX`;
+- checked-hash bytecode invalidation; and
+- one read-only mmap fixture slab with zero-copy `memoryview` slices.
 
-Use these benchmark-gated CPython-specific accelerators in the daemon:
+Stable runner infrastructure is deliberately warmed so CPython 3.12 adaptive
+bytecode and inline caches survive in the supervisor/forkserver or pristine
+Windows workers. Application code is imported only in sacrificial workers.
 
-- call `gc.collect()` once after preload, then `gc.freeze()` and disable cyclic
-  GC during each pure micro-run;
-- deliberately warm CPython 3.12 adaptive bytecode and inline caches before the
-  daemon reports ready, retaining specialization across agent runs;
-- intern repeated schema keys and bind hot callables/constants into local tuples;
-- store canonical fixture bytes in one read-only mmap slab and expose
-  `memoryview` slices without copying;
-- pre-seed shared SHA-256 prefix states and use `.copy()` for related records;
-- compile project modules into checked-hash code objects keyed by CPython magic,
-  cache tag, source SHA-256, dependency SHA-256, OS, architecture, and lockfile;
-- marshal those locally compiled code objects into one content-addressed mmap
-  pack with a compact offset table;
-- install a narrow `MetaPathFinder` that serves only exact-hash
-  `pneuma_lab`/micro-harness modules from that pack;
-- use `CodeType.replace()` only to specialize generated harness dispatch with
-  immutable check/fixture constants; and
-- prebind the resulting check vector and call it directly, bypassing pytest
-  collection, fixtures, hooks, reports, and plugin dispatch on hot runs.
+Pre-seeded SHA-256 prefix states may be cloned with `.copy()` for related
+canonical records. Repeated schema keys may be interned, and hot runner
+callables/constants may be prebound into local tuples.
 
-The bytecode pack is never trusted by filename. Before `marshal.loads`, the
-daemon verifies the pack digest, interpreter magic/cache tag, platform tuple,
-exact source/dependency hashes, and `uv.lock` hash. Any mismatch deletes or
-ignores the pack and recompiles from source. Production functions under test
-must not be patched or replaced; specialization is restricted to generated
-harness dispatch and immutable fixture access.
+### Experimental accelerator lane
 
-After every source edit, the client sends a compact stat fingerprint. Unchanged
-files remain O(1) metadata checks. Any size/mtime drift triggers SHA-256 of the
-affected dependency closure; semantic drift restarts the daemon before running.
-This gives aggressive incremental invalidation without returning a pass from
-stale production code.
+The following are permitted only after the supervisor/selection architecture is
+green and benchmarked. Each remains only if it improves representative p50 and
+p95 without changing oracle verdicts:
+
+- a content-addressed mmap pack of locally compiled marshalled code objects;
+- a narrow `MetaPathFinder` serving only exact-hash stable runner modules;
+- `CodeType.replace()` specialization of generated harness dispatch;
+- `-X no_debug_ranges` for disposable workers; and
+- a packed immutable fixture/resource table.
+
+No accelerator may patch or replace production functions under test. Before
+`marshal.loads`, the loader must verify pack digest, CPython magic/cache tag,
+platform tuple, exact source/dependency hashes, and `uv.lock`. Any mismatch
+ignores the pack and recompiles from source.
 
 ## Stable Commands
 
 ```text
 python scripts/test_fast.py
+python scripts/test_fast.py --smoke
 python scripts/test_fast.py --cold
 python -m pytest -q
 python -m pytest tests/ -m milestone -q
 python -m pytest tests/ -m forensic -q
 ```
 
-The first command uses the resident daemon. `--cold` starts a disposable daemon
-and is the optimized cold-path receipt. Pytest runs the same logical checks
-without the daemon or bytecode pack. Milestone and forensic commands are
-explicit and never run in the ordinary agent loop.
+The first command runs the impacted hot slice. `--smoke` runs all micro-cases
+through sacrificial workers. `--cold` starts a disposable supervisor and runs
+the micro-gate. Pytest is the independent oracle. Milestone and forensic
+commands never run in the ordinary agent loop.
 
 ## Acceptance Criteria
 
-1. Default collection contains no more than eight cases.
-2. Ten consecutive no-change warm runs on native Windows and ten on Linux have
-   median wall time at or below 100 milliseconds and p95 at or below 250
+1. Default oracle collection contains no more than eight cases.
+2. Ten consecutive no-change impacted runs on native Windows and ten on Linux
+   have median wall time at or below 100 milliseconds and p95 at or below 250
    milliseconds.
-3. A relevant one-file edit invalidates, reloads, and runs within two seconds.
-4. A cold optimized run inside either already-provisioned operating system
-   finishes within five seconds; cold pytest finishes within ten seconds.
-5. The resampling suite contains at most 65 test functions, with at most four in
+3. Ten complete warm micro-gates on each OS finish within one second.
+4. A relevant one-file edit invalidates, imports current source, and runs within
+   two seconds.
+5. A cold optimized run inside either already provisioned OS finishes within
+   five seconds; cold pytest finishes within ten seconds.
+6. The resampling suite contains at most 65 test functions, with at most four in
    S02D.
-6. The micro-gate detects controlled schema, authorization, packet-symmetry, and
+7. The micro-gate detects controlled schema, authorization, packet-symmetry, and
    artifact-tamper defects.
-7. The micro-gate has zero skips, xfails, external calls, credential use,
+8. The micro-gate has zero skips, xfails, external calls, credential use,
    provider actions, spend, or scientific experiments.
-8. Fifty alternating daemon/pytest runs over controlled passing and failing
-   mutations produce identical verdicts.
-9. A stale, corrupted, foreign-platform, or wrong-interpreter bytecode pack is
-   rejected before code-object loading.
-10. Project-status coherence and `git diff --check` remain separate cheap gates.
+9. Fifty alternating fast/oracle runs over controlled passing and failing
+   mutations produce identical verdicts, and impacted selection never excludes
+   an oracle failure.
+10. Every fast execution occurs in a previously unused worker that imports the
+    current application fingerprint.
+11. A stale, corrupted, foreign-platform, or wrong-interpreter bytecode pack is
+    rejected before code-object loading.
+12. Project-status coherence and `git diff --check` remain separate cheap gates.
 
 ## Non-Goals
 
