@@ -483,3 +483,17 @@ weaken the grid, alter the sealed topology, or synthesize a final. Next gate:
 repair/revalidate the production timing estimator, screen a new immutable
 generation, and only then consider a fresh full P0 run. Zero spend/provider/
 benchmark activity and no claim occurred.
+
+**Task 10 fresh all-cell rerun checkpoint (2026-07-30):** The repaired
+one-time all-cell timing admission is executing in the separate ignored root
+`build/research/neurips-2026-workshop/p0-canonical-timing-rerun`; it has not
+published a screen or downstream artifact.  At this checkpoint it has run for
+more than two hours across eight CPU threads.  That elapsed lower bound already
+cannot satisfy the registered 12-hour total-work projection, but it is **not**
+yet a sealed timing decision: only the command's eventual fail-closed outcome
+may be recorded as such.  The screen lock prevents concurrent rewrite; no
+shard, validation, final, schedule, branch, unblind, analysis, provider,
+spend, benchmark action, or claim is authorized.  Next gate: let the immutable
+probe finish/fail, record the exact receipt or error, then decide whether a
+separate reviewed no-go representation is required.  The missing Task-5 opaque
+branch executor remains an independent blocker for all Task-9 descendants.

@@ -2494,3 +2494,24 @@ The next event after the archived migration boundary is appended below.
   count, decides whether any P0 shard may start.
 - **Boundary/non-claim:** No canonical screen rerun, production shard, P0
   final, provider action, spend, or scientific result occurred.
+
+### EJ-20260730-0215 — Fresh canonical all-cell timing admission in flight
+
+- **Action:** Started a fresh, isolated canonical screen at
+  `build/research/neurips-2026-workshop/p0-canonical-timing-rerun` after the
+  one-time timing-verification repair.  It sealed the same synthetic study and
+  authority closure as the prior canonical attempt, then invoked the immutable
+  Gaussian generation-0 screen with the manifest-bound 2,916-cell grid, 200
+  screen draws per cell, and the admissible 64-shard receipt topology.
+- **Observed state at this checkpoint:** The all-cell probe remains actively
+  CPU-bound after more than two hours (eight threads); it has emitted neither
+  `power/screen.json` nor any shard/final/descendant artifact.  Under the
+  registered total-work formula, elapsed time already exceeds the largest
+  possible passing timing numerator.  This is a lower-bound observation, not a
+  sealed screen result: the probe must finish or fail through its own
+  fail-closed path before it can be recorded as a formal P0 timing decision.
+- **Gate/result:** No shard has begun and the root lock remains held.  Do not
+  treat an active process, elapsed time, or this journal event as a completed
+  screen, a power final, or a synthetic scientific result.
+- **Boundary/non-claim:** Zero spend, provider/benchmark action, validation,
+  finalization, schedule, branch, unblind, analysis, and scientific claim.
