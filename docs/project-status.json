@@ -496,6 +496,26 @@
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_step7a_image_recipes",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/41-image-recipe-preparation.md",
+                "schemas/cloud-image-manifest.schema.json",
+                "infra/docker/README.md",
+                "src/pneuma_lab/cloud/images.py",
+                "tests/cloud/test_images.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
+                "B-NEURIPS-IMAGE-BUILD-VERIFICATION",
+                "B-NEURIPS-STEP14-REVIEW",
+                "B-NEURIPS-EXPERIMENT-EXECUTION"
+            ]
         }
     ],
     "nine_to_five": {
@@ -807,6 +827,10 @@
         {
             "id": "B-NEURIPS-AWS-ACCOUNT-PLAN",
             "summary": "No authorized account-bound AWS plan, quota confirmation, or independently verified deployment receipt exists; Terraform is unavailable locally, so binary L1 validation is pending rather than passed."
+        },
+        {
+            "id": "B-NEURIPS-IMAGE-BUILD-VERIFICATION",
+            "summary": "No authorized deterministic image builds, image-digest comparison, or SBOM receipts exist; Step 7A fixture recipes do not satisfy Step 7B."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",

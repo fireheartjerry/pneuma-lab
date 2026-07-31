@@ -1,0 +1,3 @@
+# Fixture lock; real resolver output is a Step 7B receipt.
+packaging==24.2 \
+    --hash=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

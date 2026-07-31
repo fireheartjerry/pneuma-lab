@@ -3454,3 +3454,14 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** no AWS credential, account-bound plan, provider API call,
   quota action, resource creation, apply, reservation, spend, pilot, Step 4B,
   or experiment occurred.
+
+### EJ-20260731-step7a-image-recipes
+
+- **Scope:** static recipe/manifest implementation only. Three fixture-pinned
+  role recipes, dependency lock shapes, deterministic build instructions, and
+  image-manifest validation were added.
+- **Verification:** focused image-recipe tests, schema registry tests, Ruff,
+  status validation, and whitespace checks passed.
+- **Boundary:** all bases resolve to `registry.invalid`; no pull, image build,
+  SBOM, image digest, external receipt, provider action, spend, Step 5B/7B,
+  pilot, or experiment occurred.

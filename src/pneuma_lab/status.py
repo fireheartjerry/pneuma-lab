@@ -78,6 +78,7 @@ _CURRENT_SYSTEM_STATE = {
     "neurips_resampling_null_step4_design_freeze": ("partial", "offline_research"),
     "neurips_resampling_null_step5a_input_lock": ("partial", "offline_research"),
     "neurips_resampling_null_step6_aws_architecture": ("partial", "offline_research"),
+    "neurips_resampling_null_step7a_image_recipes": ("partial", "offline_research"),
 }
 
 _CURRENT_NEGATIVE_RESULTS = {

@@ -1,0 +1,21 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-image-manifest.schema.json",
+    "title": "Cloud Image Manifest",
+    "description": "Static image recipe bindings; declared bases are fixture-only until Step 5B/7B receipts exist.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "recipe_sha256", "images"],
+    "properties": {
+        "record_kind": {"const": "cloud_image_manifest"},
+        "schema_version": {"const": "0.1.0"},
+        "recipe_sha256": {"$ref": "#/$defs/digest"},
+        "images": {"type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": {"$ref": "#/$defs/image"}}
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "image": {"type": "object", "required": ["name", "dockerfile", "base_digest", "lock_sha256", "image_digest", "sbom_sha256"], "properties": {"name": {"enum": ["controller", "model-server", "benchmark-worker"]}, "dockerfile": {"type": "string", "pattern": "^infra/docker/(controller|model-server|benchmark-worker)/Dockerfile$"}, "base_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "lock_sha256": {"$ref": "#/$defs/digest"}, "image_digest": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"}, "sbom_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false}
+    }
+}

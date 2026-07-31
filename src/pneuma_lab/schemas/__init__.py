@@ -99,6 +99,7 @@ CLOUD_SCHEMA_FILES = (
     "cloud-input-lock.schema.json",
     "cloud-experiment-manifest.schema.json",
     "cloud-architecture-manifest.schema.json",
+    "cloud-image-manifest.schema.json",
 )
 
 ALL_SCHEMA_FILES = (

@@ -86,7 +86,8 @@ digests) and a `scorer_diagnostic`, with `overall.certified` /
 
 ## Cloud preparation manifests
 
-`cloud-input-lock.schema.json` and `cloud-experiment-manifest.schema.json`
+`cloud-input-lock.schema.json`, `cloud-experiment-manifest.schema.json`,
+`cloud-architecture-manifest.schema.json`, and `cloud-image-manifest.schema.json`
 are lab-original `x-pneuma-schema-kind: cloud-manifest` records. They are
 validated by `pneuma_lab.cloud.manifests`; they are not frames, bundles, or an
 authorization to retrieve inputs or run cloud infrastructure.

@@ -1,0 +1,3 @@
+# Fixture lock; real benchmark verifier dependencies require Step 7B receipts.
+packaging==24.2 \
+    --hash=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

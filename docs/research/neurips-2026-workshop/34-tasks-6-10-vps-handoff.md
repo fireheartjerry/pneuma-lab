@@ -450,6 +450,11 @@ written for all five task names, or because a cloud quota becomes available.
 
 ## After Task 10
 
+**Phase B Step 7A checkpoint (2026-07-31):** Static cloud image recipes and
+manifest validation are implementation complete only. They use invalid fixture
+bases intentionally; Step 7B real receipts/builds/SBOMs remain unstarted and
+separately authorized. No Task 6–10 state or scientific lineage changed.
+
 The next phase is separately gated real-experiment work:
 
 1. SWE-bench-Live and τ³ adapter/roster qualification;
