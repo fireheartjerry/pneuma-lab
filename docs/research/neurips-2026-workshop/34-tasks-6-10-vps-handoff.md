@@ -482,6 +482,11 @@ deployment/teardown or Task 6–10 scientific lineage changed.
 code only; G-ROSTER and all authority/external gates still block a pilot. No
 Task 6–10 scientific lineage changed.
 
+**Phase B readiness audit (2026-07-31):** Steps 4–13 preparation is
+implementation complete where scoped, but 5B/7B, G-ROSTER, Azure, account/cloud
+semantics, quota, authority, and launch-review gates remain open. No Task 6–10
+scientific lineage changed.
+
 The next phase is separately gated real-experiment work:
 
 1. SWE-bench-Live and τ³ adapter/roster qualification;

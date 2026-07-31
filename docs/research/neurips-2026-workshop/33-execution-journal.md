@@ -3516,3 +3516,14 @@ The next event after the archived migration boundary is appended below.
   validation, and whitespace checks passed.
 - **Boundary:** no pilot authorization, provider action, resource, execution,
   scientific result, or spend occurred.
+
+### EJ-20260731-phase-b-readiness-audit
+
+- **Scope:** read-only final audit of Steps 5B/7B authorization readiness and
+  Phase B state.
+- **Result:** no applicable positive hash-bound NeurIPS authorization, real
+  input receipt, real image/SBOM receipt, or account-bound cloud receipt exists.
+  Implementation preparation through Step 13 is complete; external/authority
+  gates remain open.
+- **Boundary:** no retrieval, build, provider action, cloud resource, paid
+  execution, pilot, Step 14, Step 4B, or scientific claim occurred.

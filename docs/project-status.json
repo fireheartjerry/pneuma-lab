@@ -644,6 +644,27 @@
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_phase_b_preparation",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/48-phase-b-readiness-audit.md",
+                "docs/research/neurips-2026-workshop/37-phase-b-4-13-implementation-plan.md",
+                "docs/research/neurips-2026-workshop/36-step4a-to-aws-credit-launch-roadmap.md"
+            ],
+            "blockers": [
+                "B-NEURIPS-G-ROSTER",
+                "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
+                "B-NEURIPS-IMAGE-BUILD-VERIFICATION",
+                "B-NEURIPS-AWS-ACCOUNT-PLAN",
+                "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
+                "B-NEURIPS-STEP14-REVIEW",
+                "B-NEURIPS-EXPERIMENT-EXECUTION"
+            ]
         }
     ],
     "nine_to_five": {
