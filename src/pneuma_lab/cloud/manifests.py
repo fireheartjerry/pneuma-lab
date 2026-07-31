@@ -27,6 +27,8 @@ _SCHEMA_BY_KIND = {
     "cloud_pilot_admission_receipt": "cloud-pilot-admission-receipt.schema.json",
     "cloud_image_build_receipt": "cloud-image-build-receipt.schema.json",
     "cloud_aws_account_verification": "cloud-aws-account-verification.schema.json",
+    "cloud_approver_key_registry": "cloud-approver-key-registry.schema.json",
+    "cloud_licence_audit": "cloud-licence-audit.schema.json",
 }
 
 

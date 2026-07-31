@@ -499,6 +499,21 @@ implementation complete where scoped, but 5B/7B, G-ROSTER, Azure, account/cloud
 semantics, quota, authority, and launch-review gates remain open. No Task 6–10
 scientific lineage changed.
 
+**Phase B authenticated-readiness checkpoint (2026-07-31):** Step 5B
+authorization is now authenticated rather than binding-digest bound (DL-164):
+Ed25519 over the complete canonical body, an enumerated trusted key registry,
+validity-window/revocation/expiry checks, and a ledger-row content binding, plus
+an independent requirement that the input lock classify as a real candidate
+rather than the Step 5A shape demonstration. G-ROSTER arithmetic is corrected
+(DL-165): unfixed reserves and the C160 Hamilton allocation fail closed instead
+of defaulting to zero, and a registered floor outranks the inequality. tau2 now
+has its own qualification path (DL-166) and the gate requires both families.
+Both tiers remain `FEASIBILITY_NO_GO` with **provisional** shortfalls; no
+verdict improved and no roster, quota, reserve, or floor was weakened. The
+committed authorization is still an unsigned candidate bound to a synthetic
+lock, no licence-audit record exists, and no external input has been retrieved
+from this lineage. No Task 6-10 scientific lineage changed.
+
 **Phase B Step 5B / G-ROSTER checkpoint (2026-07-31):** The Step 5B retrieval
 and hash-verification workflow is `implementation_complete` and fail-closed; its
 authorization is committed as an unsigned candidate bound to a *synthetic*

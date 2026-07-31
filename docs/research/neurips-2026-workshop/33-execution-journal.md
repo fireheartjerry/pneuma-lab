@@ -3710,3 +3710,76 @@ The next event after the archived migration boundary is appended below.
   spent, and no Step 4B, pilot, unblind, analysis, or scientific claim occurred.
   The committed authorization record is an unsigned candidate bound to a
   synthetic fixture lock and grants nothing.
+## 2026-07-31 — Authenticated Step 5B readiness
+
+- **Scope:** isolated worktree/branch (`codex/step5b-authenticated-readiness`).
+  Adds `schemas/cloud-approver-key-registry.schema.json`,
+  `schemas/cloud-licence-audit.schema.json`,
+  `src/pneuma_lab/cloud/{authorization_keys,input_lock,licence_audit,iac}.py`,
+  tau2 qualification fixtures, and focused tests; revises
+  `cloud-retrieval-authorization` to 0.2.0 and `cloud-qualification-audit` to
+  0.2.0.
+- **Checkout reconciliation (prior commit `7bc7ad9`).** Two lines of work had
+  descended from `d0b7fdd`: the pushed Step 5B/G-ROSTER commits and an unpushed
+  working tree that had reconciled the DL-161 single-L40S topology into code,
+  schemas, Terraform, and quota preflight. Both were genuine and both were
+  merged; the pre-merge tree is preserved on the local backup branch
+  `backup/dirty-worktree-20260731-130853` (`c3f9721`). **`3e2d825` had truncated
+  `34-tasks-6-10-vps-handoff.md` from 870 to 513 lines**, dropping the VPS start
+  commands, the Task 8/9/10 checkpoints, the execution-class policy, the Step
+  4A/4B definitions, and the canonical-run-stopped notice. All of it was
+  restored. DL-161 appeared on both sides describing the same decision at two
+  stages and was merged into one row citing both 49-* documents; no decision was
+  renumbered.
+- **Authentication (DL-164).** The DL-162 binding digest is replaced by Ed25519
+  over the complete canonical body, verified against a key enumerated in advance
+  in the committed registry, with validity-window, revocation, and expiry checks
+  and a ledger-row content binding. The registry names one real key generated in
+  the user's CloudShell by a separately authorized session; **this lineage did
+  not perform that key ceremony and cannot attest to private-key custody.**
+- **Arithmetic correction (DL-165).** `fixed_reserve` and the C160
+  `hamilton_allocation` now fail closed when no authority has fixed them,
+  instead of defaulting to 0 — the one substitution that can only make the gate
+  easier. A registered floor (`registered_minimum_units`) outranks the
+  inequality where the design states one directly.
+- **Family separation (DL-166).** SWE and tau2 qualify different units on
+  different evidence; the promotion gate now requires both and refuses a
+  single-family submission.
+- **Two independent hostile reviews were run and every finding repaired before
+  commit.** Review 1 (can an unauthorized byte move?) found that ISO-8601
+  timestamps were compared as **strings** while the schema permits fractional
+  seconds; because `.` sorts below `Z`, `…T00:00:00.001Z` compared as *earlier*
+  than `…T00:00:00Z`, so an authorization that had expired a millisecond
+  earlier verified as live. Timestamps are now parsed to instants. Review 1 also
+  found that the byte-ceiling controls — pre-fetch declared-size refusal and the
+  post-fetch backstop — had lost **all** test coverage when the retrieval tests
+  were rewritten for the authenticated signature; that coverage is restored.
+  Review 2 (does the record system overclaim?) found tau2 C160's registered
+  "at least 47 qualified airline tasks" was not modelled at all, understating
+  that split by twenty tasks against a quota-plus-pilots reading of 27.
+- **Verification:** `tests/cloud` and `tests/test_schema_loads.py` pass (455
+  cases) in the isolated worktree; `ruff` is clean on every new and revised
+  module and test; `python -m pneuma_lab.status --check` and `git diff --check`
+  pass. The Terraform environmental test now exercises the absent-binary branch
+  against an isolated empty search path and the present-binary branch against a
+  mock one, so it is deterministic whether or not terraform is installed; the
+  real `fmt -check` remains an honestly skipped environmental check.
+- **Residual limitations, stated because they are load-bearing.** A verifying
+  signature is not proof of a person: no hardware binding, threshold, or
+  transparency log exists, and revocation is only as fresh as the last commit.
+  The qualification gate remains a **consistency** check, not an authenticity
+  one — whoever writes both the audit record and its evidence files can satisfy
+  it. `real_candidate` classification speaks only to the *form* of an identity;
+  it does not establish that the identity exists or that any byte was fetched.
+  No licence-audit record exists, and CL-009/DL-128 proxy prose is explicitly
+  refused as qualification. The tau2 one-pilot-per-split shape is a modelling
+  assumption in the conservative direction.
+- **Boundary:** no external input or image retrieval, registry/provider/account
+  contact, container build, cloud mutation, Terraform plan or apply, quota
+  change, GPU use, credit spend, pilot, Step 4B, unblind, analysis, reviewer
+  campaign, Azure action, or scientific claim occurred from this lineage. The
+  `pneuma_lab.cloud` package imports no network, provider, or subprocess module,
+  so it cannot retrieve by construction. Separately authorized concurrent
+  sessions operating on the primary checkout did perform AWS bootstrap work;
+  that work is theirs, is recorded in their own documents, and is not part of
+  this branch.

@@ -1,22 +1,27 @@
 """Step 5B retrieval workflow: fail-closed authorization, offline plans, byte verification.
 
 Nothing here reaches a network by itself. Retrieval is performed only by a
-caller-injected fetcher, only under an `authorized` record that is hash-bound to
-the exact input lock, a ledger row, and a human authorization whose signature
-digest binds the record body. A `candidate` record is an authorization request,
-not authority: it yields plans and nothing else.
+caller-injected fetcher, only under an `authorized` record bound to the exact
+input lock and to a spend-ledger row. A `candidate` record is an authorization
+request, not authority: it yields plans and nothing else.
 
-Signature limit, stated plainly: `signature_sha256` is a *binding* digest, not a
-cryptographic authentication. It proves the approval names this exact record and
-cannot be lifted from another one; it does not prove who computed it. Real
-approver authentication needs a key ceremony this package deliberately does not
-implement, so a signed record is evidence of intent, never of identity.
+Authorization is now authenticated rather than merely bound. An `authorized`
+record must carry an Ed25519 signature over the complete canonical body, made
+by a key enumerated in advance in the trusted registry, inside that key's
+validity window, not revoked, not expired, and bound to a spend-ledger row whose
+exact line bytes still match. See `authorization_keys` for what that ceremony
+does and does not establish — in particular, a key is not a person.
+
+Two independent things must both hold before a byte moves. The authorization
+must authenticate, *and* the input lock must be a real candidate rather than the
+Step 5A shape demonstration: a perfectly signed approval over a lock full of
+placeholder identities would otherwise read as authority to retrieve nothing in
+particular. See `input_lock`.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -38,44 +43,61 @@ _SCOPE_BY_KIND = {
 }
 
 
-def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+_AUTHORIZED_FIELDS = ("ledger_row_id", "ledger_row_sha256", "human_authorization")
 
 
-def authorization_binding_digest(record: Mapping[str, Any]) -> str:
-    """Return the digest a human authorization must carry to bind this record.
+def authorization_body_digest(record: Mapping[str, Any]) -> str:
+    """Return the digest of the canonical body an approver signs."""
 
-    Computed over the record with the signature removed, plus the approver and
-    grant time, so a signature cannot be copied from a different record, scope
-    set, lock, or byte ceiling.
-    """
+    from .authorization_keys import authorization_body_digest as _digest
 
-    body = {key: value for key, value in record.items() if key != "human_authorization"}
-    approval = record.get("human_authorization") or {}
-    body["approver_id"] = approval.get("approver_id")
-    body["granted_timestamp"] = approval.get("granted_timestamp")
-    return hashlib.sha256(_canonical(body)).hexdigest()
+    return _digest(record)
 
 
 def validate_retrieval_authorization(record: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate the record and enforce the candidate/authorized invariants."""
+    """Validate the record and enforce the candidate/authorized invariants.
+
+    Shape only. A record can pass this and still be unauthenticated: signature
+    verification needs the trusted registry and an evaluation instant, which are
+    supplied at the gate rather than carried by the record.
+    """
 
     authorization = _validate(record, expected_kind="cloud_retrieval_authorization")
-    present = sum(authorization[field] is not None for field in ("ledger_row_id", "human_authorization"))
-    if present != (2 if authorization["status"] == "authorized" else 0):
-        raise CloudManifestError("an authorized record needs both a ledger row and a human signature; a candidate needs neither")
-    approval = authorization["human_authorization"]
-    if approval is not None and approval["signature_sha256"] != authorization_binding_digest(authorization):
-        raise CloudManifestError("human authorization signature is not bound to this exact record")
+    present = sum(authorization[field] is not None for field in _AUTHORIZED_FIELDS)
+    if authorization["status"] == "authorized":
+        if present != len(_AUTHORIZED_FIELDS):
+            raise CloudManifestError("an authorized record needs a ledger row, its content digest, and a signed human authorization")
+    elif present != 0:
+        raise CloudManifestError("a candidate must carry no ledger row, no ledger digest, and no signature")
     return authorization
 
 
-def require_authorized(record: Mapping[str, Any], lock: Mapping[str, Any]) -> dict[str, Any]:
-    """Return the authorization only when it is authorized for this exact lock."""
+def require_authorized(
+    record: Mapping[str, Any],
+    lock: Mapping[str, Any],
+    *,
+    key_registry: Mapping[str, Any],
+    at: str,
+    ledger_path: Path,
+) -> dict[str, Any]:
+    """Return the authorization only when it is authenticated for this exact lock.
+
+    Every one of these must hold, and none of them substitutes for another: the
+    record is `authorized`; its Ed25519 signature verifies against an enumerated,
+    unrevoked, in-window trusted key; the approval has not expired at `at`; the
+    referenced ledger row exists with its approved content; the lock digest
+    matches; and the lock is a real candidate rather than a shape demonstration.
+    """
+
+    from .authorization_keys import verify_ledger_binding, verify_signature
+    from .input_lock import require_real_candidate_lock
 
     authorization = validate_retrieval_authorization(record)
     if authorization["status"] != "authorized":
-        raise CloudManifestError("retrieval requires a fresh hash-bound authorization, not a candidate")
+        raise CloudManifestError("retrieval requires a fresh authenticated authorization, not a candidate")
+    verify_signature(authorization, key_registry, at=at)
+    verify_ledger_binding(authorization, ledger_path)
+    require_real_candidate_lock(lock)
     if authorization["input_lock_sha256"] != verify_input_lock(lock):
         raise CloudManifestError("authorization is not bound to this input-lock digest")
     return authorization
@@ -195,8 +217,21 @@ def verify_mirrored_file(path: Path, expected_sha256: str) -> str:
     return verify_local_bytes(path.read_bytes(), expected_sha256)
 
 
-def retrieve_and_verify(lock: Mapping[str, Any], record: Mapping[str, Any], fetcher: Fetcher, *, declared_sizes: Mapping[str, int] | None = None) -> tuple[dict[str, str], ...]:
+def retrieve_and_verify(
+    lock: Mapping[str, Any],
+    record: Mapping[str, Any],
+    fetcher: Fetcher,
+    *,
+    key_registry: Mapping[str, Any],
+    at: str,
+    ledger_path: Path,
+    declared_sizes: Mapping[str, int] | None = None,
+) -> tuple[dict[str, str], ...]:
     """Execute the plan through an injected fetcher under a real authorization.
+
+    The authentication context is a required keyword argument rather than an
+    optional one, so there is no call shape that retrieves bytes without a
+    trusted key registry, an evaluation instant, and a ledger to check.
 
     The byte ceiling is checked *before* each fetch against `declared_sizes`
     when the caller can supply them, so an over-budget step is refused rather
@@ -204,7 +239,7 @@ def retrieve_and_verify(lock: Mapping[str, Any], record: Mapping[str, Any], fetc
     backstop for a fetcher that returns more than it declared.
     """
 
-    authorization = require_authorized(record, lock)
+    authorization = require_authorized(record, lock, key_registry=key_registry, at=at, ledger_path=ledger_path)
     plan = build_audit_plan(lock, authorization)
     ceiling = authorization["byte_ceiling_bytes"]
     sizes = declared_sizes or {}

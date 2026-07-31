@@ -110,6 +110,8 @@ CLOUD_SCHEMA_FILES = (
     "cloud-pilot-admission-receipt.schema.json",
     "cloud-image-build-receipt.schema.json",
     "cloud-aws-account-verification.schema.json",
+    "cloud-approver-key-registry.schema.json",
+    "cloud-licence-audit.schema.json",
 )
 
 ALL_SCHEMA_FILES = (

@@ -140,18 +140,118 @@ Two consequences worth stating plainly:
   C160 needs at least 5 more C. Nothing licenses optimism here; it licenses
   running the audit rather than declaring the tier dead or alive.
 
-Modelling notes, both conservative in the direction that *understates* the
-requirement: the C160 fixture applies confirmation quota 12 per split without
-the Hamilton allocation, and `fixed_reserve` is 0 throughout because no manifest
-has fixed reserves. DL-128 says "12 per split plus the Hamilton allocation" and
-"plus reserves", so real requirements are at least these. The C160 C++ row
-(14 required against a 14 proxy) is marked not-blocking only under that
-Hamilton-free reading and is genuinely marginal.
+**Corrected modelling (DL-165).** An earlier draft of this document recorded
+`fixed_reserve` as 0 "because no manifest has fixed reserves" and applied the
+C160 quota without the Hamilton allocation, calling both conservative. They were
+not: reading an *unfixed* term as *zero* is the one substitution that can only
+ever make the gate easier, and it silently understated the requirement. Both
+terms now fail closed. A `required_lower_bound` that treats unfixed non-negative
+terms as 0 is still reported, since a shortfall against it holds a fortiori, but
+a split with any unfixed term can never reach a feasible verdict — only a
+sharper no-go. The C160 C++ row was previously marked not-blocking only under
+the Hamilton-free reading; that reading is withdrawn.
 
-`fixtures/cloud/qualification-audit-c120-proxy.json` and
-`qualification-audit-c160-proxy.json` record this evidence with real provenance
-digests bound to the design freeze and the evaluating module, and a test asserts
-the counts against the DL-128 row rather than against themselves.
+Where the design states a requirement outright rather than through the
+inequality, the stated floor governs. `registered_minimum_units` carries such a
+floor, and the requirement is the greater of the two. DL-128 registers one:
+tau2 C160 needs at least 47 qualified airline tasks, against a quota-plus-pilots
+reading of 27. Modelling only the inequality understated that split by twenty
+tasks, which independent hostile review caught.
+
+`fixtures/cloud/qualification-audit-c120-proxy.json`,
+`qualification-audit-c160-proxy.json`, and the tau2 pair
+`qualification-audit-tau2-c120-proxy.json` and
+`qualification-audit-tau2-c160-proxy.json` record this evidence with real
+provenance digests bound to the design freeze and the evaluating module, and
+tests assert the counts against the DL-128 row rather than against themselves.
+
+### Two families, two kinds of evidence (DL-166)
+
+SWE qualification and tau2 qualification are different claims about different
+units resting on different evidence, so one record covers exactly one
+`benchmark_family`. `swe` qualifies **root lineages** by base-commit licence
+evidence against a `base_commit_admissible` pool; `tau2` qualifies **individual
+tasks** against the `pinned_objective_pool` DL-128 froze — airline 50, telecom
+114, banking 88 DB, with the nine banking ACTION-only tasks excluded. A pool
+belongs to a family, and a record borrowing the other family's pool is refused
+as a category error rather than accepted as weak evidence.
+
+The promotion gate requires a satisfied audit for **both** registered families
+and refuses a single-family submission, so abundant SWE evidence can never
+stand in for absent tau2 evidence. The registered tiers remain exactly C120 and
+C160; no tau2-only tier exists and none may be introduced through this record.
+
+One modelling assumption, in the direction that *overstates* the requirement:
+DL-128 states telecom pilots as one per family, and the same one-pilot shape is
+carried across the airline and banking splits, which no authority states
+explicitly.
+
+### Authenticated authorization (DL-164)
+
+The DL-162 binding digest is superseded. An `authorized` record now carries an
+Ed25519 signature over the complete canonical body — every field of the record,
+plus the approval's own approver id, key id, grant time, and expiry, so none of
+them can be edited after signing. Verification requires a public key
+**enumerated in advance** in `fixtures/cloud/approver-key-registry.json`: an
+unenumerated key authorizes nothing however mathematically valid its signature,
+which is what moves trust from the signature to the registry. The key must be
+unrevoked and inside its validity window; the approval must not have expired;
+and the referenced `CL-0xx` spend-ledger row must exist with its exact line
+bytes still matching the bound digest, so an approved row cannot be quietly
+rewritten afterwards.
+
+Independently of authentication, the input lock must classify as a real
+candidate. A perfectly signed approval over a lock full of placeholder
+identities is refused, because it would otherwise read as authority to retrieve
+nothing in particular.
+
+What this still does not establish, stated plainly: a verifying signature is not
+proof of a person. A stolen or coerced key signs perfectly well; there is no
+hardware binding, no threshold or multi-party requirement, and no transparency
+log, so a single compromised key is a single point of failure. Nothing proves
+the approver understood what they signed. Revocation is only as timely as the
+committed registry. The registry currently names one real key generated in the
+user's CloudShell by a separately authorized session; **this lineage did not
+perform that ceremony and cannot attest to private-key custody.**
+
+### Real candidate locks versus the Step 5A demonstration
+
+`src/pneuma_lab/cloud/input_lock.py` classifies a lock as `real_candidate` or
+`synthetic_demonstration`, and the classification is **derived, never
+asserted** — there is no field to set, because such a field would be exactly as
+trustworthy as whoever wrote it. It rejects placeholder and reserved-namespace
+repositories, filler digests, mutable tags where an immutable commit or
+`linux/amd64@sha256:` digest is required, unnamed licences, and two artifacts
+sharing one receipt path. `build_candidate_input_lock` refuses to emit anything
+that does not classify as real, so the constructor cannot launder a placeholder
+into something authoritative.
+
+The committed `fixtures/cloud/input-lock-fixture.json` classifies as
+`synthetic_demonstration`, and a test pins that. What `real_candidate` means is
+narrow and worth stating: every required identity is present, immutable, and not
+obviously a placeholder. It does **not** mean the identity exists, resolves to
+anything, or that a single byte behind it was fetched or verified.
+
+### The base-commit licence audit is not yet evidence
+
+`src/pneuma_lab/cloud/licence_audit.py` provides the deterministic derivation
+command, an ordered roster carrying each lineage's base commit, explicit
+inclusion or exclusion reason, observed licence and licence-evidence digest, the
+pinned dataset and task-manifest identities, per-language counts recomputed from
+the roster rather than asserted beside it, and a qualification receipt bound to
+the deriving code and to every input byte. Order is part of the record: a
+reordered roster is a different roster and fails its receipt.
+
+It deliberately cannot manufacture the audit. `derive_audit` requires a
+caller-supplied observation per lineage and treats a missing one as a failure
+rather than an exclusion, because "we did not look" and "we looked and found
+nothing" are different findings and only the second is evidence. The command
+fails closed and writes nothing, which is the correct state until Step 5B runs.
+**CL-009/DL-128 proxy prose is explicitly refused as qualification**: it was
+derived from present-day metadata rather than base commits, and CL-027 records
+that no response artifact, URL, or digest was committed, so a reviewer cannot
+recompute it. No licence-audit record exists in this repository, and a test
+asserts that.
 
 ### What follows, and what does not
 
