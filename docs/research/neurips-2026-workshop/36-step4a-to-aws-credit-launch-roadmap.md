@@ -40,7 +40,7 @@ a fresh root and a new per-run authorization.
 
 ## Phase A — close bounded implementation work
 
-### 1. Complete Task 7 revalidation against Step 4A
+### [DONE] 1. Complete Task 7 revalidation against Step 4A
 
 Revalidate the registered Task 7 inference and verdict path against the
 completed Step 4A analysis artifact. Verify analysis ancestry, power-final
@@ -51,7 +51,7 @@ schema validity, and deterministic receipt identity.
 Task 7 remains honestly `implementation_complete; E2E_pending`. No Step 4B,
 provider, benchmark, cloud, paid-compute, or scientific promotion occurs.
 
-### 2. Reconcile the bounded Task 6/7 continuity milestone
+### [DONE] 2. Reconcile the bounded Task 6/7 continuity milestone
 
 Merge the Task 6 and Task 7 revalidation work, resolve append-only journal
 edits without rewriting history, and update the live handoff/status only where

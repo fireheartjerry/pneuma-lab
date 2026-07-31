@@ -3362,3 +3362,32 @@ The next event after the archived migration boundary is appended below.
   the completed miniature lineage only. It is not Task 6 closure. It does not
   remove `B-NEURIPS-TASK6-E2E`, does not promote Task 6 or Step 4A to scientific
   evidence, and establishes no P0 result. Step 4B remains pending.
+
+### EJ-20260731-task10-release-preparation
+
+- **Scope:** bounded Task-10 release-preparation implementation only. Added a
+  sealed-root release inspector, independent byte-closure rehash, external
+  content-addressed package manifest, and explicit terminal classifications.
+  The surface labels implementation verification and synthetic fixture failures
+  `not_a_scientific_result`; a future canonical GO or registered no-go remains
+  `requires_step4b_release_authorization`.
+- **Fixture verification:** copied (without modifying) the preserved bounded
+  Step 4A root to a temporary local directory, sealed that copy, and ran
+  `artifacts verify` plus the independent `artifacts inspect` path. The copied
+  root classified as `implementation_fixture` with terminal decision
+  `IMPLEMENTATION_VERIFICATION_ONLY`; it was not promoted or cited as a result.
+- **Focused commands/results:** `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_release.py
+  tests/resampling_null/test_cli.py::test_cli_artifact_inspection_uses_the_independent_release_reader
+  tests/resampling_null/test_cli.py::test_cli_artifact_package_requires_an_external_destination -q`
+  passed 7 checks. `timeout 60s .venv/bin/python -m pytest
+  tests/resampling_null/test_s02d_prefix_index.py -q` passed 4 checks after
+  correcting the stale test-only tokenizer authority shape. `timeout 60s
+  .venv/bin/python -m pytest tests/resampling_null -m milestone -q` passed all
+  93 checks. `git diff --check` and `.venv/bin/python -m pneuma_lab.status
+  --check` passed.
+- **Boundary:** no Step 4B, canonical P0 work, provider/benchmark action,
+  cloud/AWS use, paid compute, spend, or scientific/causal claim occurred.
+  Task 10 remains incomplete because `selftest --resume-after-power` still
+  rejects after preflight; this journal entry is a release-preparation slice,
+  not a Task-10 completion claim.

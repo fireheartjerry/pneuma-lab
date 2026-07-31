@@ -53,6 +53,7 @@ from .packets import (IdentifierAtom, NoInterventionPacketMarker,
 from .prefix_index import seal_prefix_index
 from .schedule import seal_prefix_schedule
 from .secrets import AssignmentSecretStore
+from .release import inspect_sealed_release, write_external_release_package
 from .selftest_fixture import seal_synthetic_selftest_study
 from .storage import claim_local_test_storage
 from .synthetic_branch_loop import grade_opaque_slot, run_opaque_slot
@@ -403,8 +404,10 @@ def _parser() -> argparse.ArgumentParser:
     analyze.add_argument("--config", required=True); analyze.add_argument("--projection-schema", required=True)
     analyze.add_argument("--assignment-key-file", required=True)
     artifacts = top.add_parser("artifacts").add_subparsers(dest="artifact_command", required=True)
-    for name in ("seal", "verify"):
+    for name in ("seal", "verify", "inspect", "package"):
         p = artifacts.add_parser(name); p.add_argument("--required-kinds", required=True); p.add_argument("--out" if name == "seal" else "--receipt", required=True)
+        if name == "package":
+            p.add_argument("--package-out", required=True)
     status = top.add_parser("status"); status.add_argument("--study")
     return parser
 
@@ -868,7 +871,7 @@ def _selftest(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
     raise RecordValidationError("selftest fixture bundle is not installed")
 
 
-def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
+def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | dict[str, object] | None:
     if args.command == "selftest":
         return _selftest(args, root)
     if args.command == "study":
@@ -1162,6 +1165,19 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
                 raise RecordValidationError("study manifest is not a JSON object")
             return seal_artifact_root(root, required, _out(root,args.out), study_id=manifest["study_id"], frozen_created_at=manifest["frozen_created_at"], provenance=manifest["provenance"])
         receipt, _ = resolve_inside(Path(_relative_name(args.receipt, field="receipt")), root, require_exists=True)
+        if args.artifact_command == "inspect":
+            return inspect_sealed_release(root, receipt, required_document_kinds=required)
+        if args.artifact_command == "package":
+            descriptor = inspect_sealed_release(root, receipt, required_document_kinds=required)
+            package_out = Path(args.package_out).resolve()
+            try:
+                package_out.relative_to(root)
+            except ValueError:
+                pass
+            else:
+                raise RecordValidationError("release package must remain outside the sealed run_root")
+            package_sha256 = write_external_release_package(descriptor, output=package_out)
+            return {**descriptor, "package_sha256": package_sha256}
         verify_artifact_root(receipt, root, required_document_kinds=required); return None
     documents = list(root.rglob("*.json")); _emit(status="ok", documents=len(documents)); return None
 
@@ -1179,7 +1195,10 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("--stop-after-study cannot defer an absent artifact root")
         root = run_root(Path(args.run_root))
         result = _dispatch(args, root)
-        if result is not None: _emit(result)
+        if isinstance(result, dict):
+            _emit(status="ok", release=result)
+        elif result is not None:
+            _emit(result)
         elif args.command != "status": _emit(status="validated")
         return 0
     except SystemExit as exc:

@@ -740,3 +740,41 @@ def test_cli_selftest_resume_requires_one_manifest_before_any_write(
     assert payload["status"] == "error"
     assert "exactly one study manifest" in payload["error"]
     assert list(tmp_path.iterdir()) == []
+
+
+def test_cli_artifact_inspection_uses_the_independent_release_reader(
+    tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pneuma_lab.resampling_null.cli as cli
+
+    receipt = tmp_path / "p0-core-receipt.json"
+    required = tmp_path / "required.json"
+    receipt.write_text("{}", encoding="utf-8")
+    required.write_text("[]", encoding="utf-8")
+    expected = {"classification": "implementation_fixture", "claim_boundary": "not_a_scientific_result"}
+    monkeypatch.setattr(cli, "inspect_sealed_release", lambda *args, **kwargs: expected)
+
+    assert cli.main([
+        "--run-root", str(tmp_path), "artifacts", "inspect",
+        "--receipt", "p0-core-receipt.json", "--required-kinds", str(required),
+    ]) == 0
+    assert json.loads(capsys.readouterr().out) == {"release": expected, "status": "ok"}
+
+
+def test_cli_artifact_package_requires_an_external_destination(
+    tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pneuma_lab.resampling_null.cli as cli
+
+    receipt = tmp_path / "p0-core-receipt.json"
+    required = tmp_path / "required.json"
+    receipt.write_text("{}", encoding="utf-8")
+    required.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(cli, "inspect_sealed_release", lambda *args, **kwargs: {"classification": "implementation_fixture"})
+
+    assert cli.main([
+        "--run-root", str(tmp_path), "artifacts", "package",
+        "--receipt", "p0-core-receipt.json", "--required-kinds", str(required),
+        "--package-out", str(tmp_path / "release.json"),
+    ]) == 2
+    assert "outside the sealed run_root" in json.loads(capsys.readouterr().out)["error"]

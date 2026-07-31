@@ -793,3 +793,23 @@ screen and 10 of 64 production shards. It is preserved exactly as-is as an
 incomplete non-result caused by an explicit scope correction — not a no-go and
 not a result. Do not delete, rewrite, finalize, analyze, or claim from it. See
 EJ-20260730-0229.
+
+### Task 10 release-preparation checkpoint — 2026-07-31
+
+The controller now has a bounded, independent release-inspection path for an
+already sealed artifact root. It first executes the primary graph/receipt
+verification, then separately rehashes every receipt-declared byte and the
+ordered closure digest. The resulting external package manifest classifies
+`implementation_verification`, synthetic fixture failure, registered canonical
+no-go, and canonical-lineage-candidate states without letting any of them
+silently become a scientific result. An implementation-verification fixture
+therefore emits the explicit boundary `not_a_scientific_result`; a future
+canonical GO or no-go remains bound to Step 4B release authorization.
+
+Focused Task-10 release tests and the compact 93-case milestone suite pass on
+the current Linux checkout. The latter also repaired a stale test-only promoted
+tokenizer fixture to its now-closed `synthetic_report_tokenizer_v1` contract.
+No canonical P0 screen/shard, provider, benchmark, cloud, paid-compute, or
+Step 4B action ran. **Task 10 is still not complete:** its staged
+`selftest --resume-after-power` result-of-record runner remains deliberately
+unimplemented, so the release surface has not yet earned the Phase-A exit gate.

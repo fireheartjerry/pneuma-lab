@@ -161,9 +161,9 @@ def _build_provider_authority_fixture(
     tokenizer_ref = blob(
         "sources/tokenizer.json",
         {
-            "record_kind": "synthetic_tokenizer_asset_v1",
+            "record_kind": "synthetic_report_tokenizer_v1",
             "schema_version": "1",
-            "tokenizer_id": "fixture-v1",
+            "algorithm": "unicode_whitespace_v1",
         },
         role="tokenizer",
     )
