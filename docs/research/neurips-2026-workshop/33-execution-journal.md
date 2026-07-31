@@ -3490,3 +3490,11 @@ The next event after the archived migration boundary is appended below.
   validation, and whitespace checks passed.
 - **Boundary:** no secret retrieval, cloud worker, image, provider action,
   execution, or spend occurred.
+
+### EJ-20260731-step11-emulation
+
+- **Scope:** T1 local fault-matrix and network-forbid guard.
+- **Verification:** focused emulation test, Ruff, status validation, and
+  whitespace checks passed.
+- **Boundary:** no botocore dependency, AWS request, provider resource,
+  execution, or spend occurred; T2/T3 remain pending.

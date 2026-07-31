@@ -470,6 +470,10 @@ are implementation complete only. They preserve peer-slot/donor capability
 scope and exclude Class-A material; no cloud worker, secret, journal, or Task
 6–10 scientific lineage changed.
 
+**Phase B Step 11 checkpoint (2026-07-31):** T1 local emulation gates and a
+no-network test guard are implementation complete. T2/T3 cloud semantics remain
+pending; no Task 6–10 state or scientific lineage changed.
+
 The next phase is separately gated real-experiment work:
 
 1. SWE-bench-Live and τ³ adapter/roster qualification;

@@ -585,6 +585,25 @@
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_step11_emulation",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/45-emulation-gates.md",
+                "src/pneuma_lab/cloud/fakes/control_plane.py",
+                "src/pneuma_lab/cloud/emulation.py",
+                "tests/cloud/conftest.py",
+                "tests/cloud/test_emulation.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
+                "B-NEURIPS-STEP14-REVIEW",
+                "B-NEURIPS-EXPERIMENT-EXECUTION"
+            ]
         }
     ],
     "nine_to_five": {
