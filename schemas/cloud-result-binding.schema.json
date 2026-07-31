@@ -1,0 +1,13 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-result-binding.schema.json",
+    "title": "Cloud Result Binding",
+    "description": "Hash binding for a cloud result fixture; does not establish scientific evidence.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "code_sha256", "image_sha256", "manifest_sha256", "lease_id"],
+    "properties": {"record_kind": {"const": "cloud_result_binding"}, "schema_version": {"const": "0.1.0"}, "code_sha256": {"$ref": "#/$defs/digest"}, "image_sha256": {"$ref": "#/$defs/digest"}, "manifest_sha256": {"$ref": "#/$defs/digest"}, "lease_id": {"type": "string", "minLength": 1}},
+    "additionalProperties": false,
+    "$defs": {"digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

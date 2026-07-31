@@ -3481,3 +3481,12 @@ The next event after the archived migration boundary is appended below.
   validation, and whitespace checks passed.
 - **Boundary:** no live price/balance receipt, alarm, provider, resource,
   reservation, authorization, execution, or spend occurred.
+
+### EJ-20260731-step10-security-controls
+
+- **Scope:** local binding, worker environment, Class-B reference, journal, and
+  wording-control implementation.
+- **Verification:** focused security tests, Ruff, schema registry tests, status
+  validation, and whitespace checks passed.
+- **Boundary:** no secret retrieval, cloud worker, image, provider action,
+  execution, or spend occurred.

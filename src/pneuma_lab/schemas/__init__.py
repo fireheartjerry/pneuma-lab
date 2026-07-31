@@ -103,6 +103,7 @@ CLOUD_SCHEMA_FILES = (
     "cloud-job-lease.schema.json",
     "cloud-spend-authorization.schema.json",
     "cloud-approval-receipt.schema.json",
+    "cloud-result-binding.schema.json",
 )
 
 ALL_SCHEMA_FILES = (

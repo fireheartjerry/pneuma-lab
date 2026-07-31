@@ -81,6 +81,7 @@ _CURRENT_SYSTEM_STATE = {
     "neurips_resampling_null_step7a_image_recipes": ("partial", "offline_research"),
     "neurips_resampling_null_step8_orchestration": ("partial", "offline_research"),
     "neurips_resampling_null_step9_spend_protection": ("partial", "offline_research"),
+    "neurips_resampling_null_step10_security_controls": ("partial", "offline_research"),
 }
 
 _CURRENT_NEGATIVE_RESULTS = {

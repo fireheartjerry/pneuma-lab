@@ -20,6 +20,7 @@ _SCHEMA_BY_KIND = {
     "cloud_job_lease": "cloud-job-lease.schema.json",
     "cloud_spend_authorization": "cloud-spend-authorization.schema.json",
     "cloud_approval_receipt": "cloud-approval-receipt.schema.json",
+    "cloud_result_binding": "cloud-result-binding.schema.json",
 }
 
 

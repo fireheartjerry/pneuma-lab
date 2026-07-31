@@ -52,6 +52,7 @@ stop condition. Pending credits cannot satisfy the inequality.
 | CL-017 | 2026-07-31T00:00:00Z | local | Step 7A static Docker recipe and image-manifest preparation | n/a | active Phase B implementation mandate | none | 0.00 | 0.00 | 0.00 | settled | Fixture-only static checks; registry.invalid bases prevent retrieval. No image pull, build, SBOM, registry action, provider resource, or economic cost occurred. |
 | CL-018 | 2026-07-31T00:00:00Z | local | Step 8 local lease, shard, and reconciliation state-machine implementation | n/a | active Phase B implementation mandate | none | 0.00 | 0.00 | 0.00 | settled | CPU-only local fakes. No DynamoDB, Batch, S3, provider call, resource, reservation, or economic cost occurred. |
 | CL-019 | 2026-07-31T00:00:00Z | local | Step 9 fixture spend, approval, projection, and watchdog implementation | n/a | active Phase B implementation mandate | none | 0.00 | 0.00 | 0.00 | settled | Local fixture arithmetic only. No live price/balance query, alarm, watcher, provider action, reservation, or economic cost occurred. |
+| CL-020 | 2026-07-31T00:00:00Z | local | Step 10 local result-binding, environment, secret-reference, and journal controls | n/a | active Phase B implementation mandate | none | 0.00 | 0.00 | 0.00 | settled | Local fixtures and source scans only. No secret retrieval, cloud worker, image, journal, provider action, or economic cost occurred. |
 
 ## Totals
 
