@@ -134,22 +134,39 @@ def test_cli_selftest_study_binds_frozen_p0_inputs_and_admits_power_config(
     assert load_power_config(authority, grid, topology, run_root=tmp_path)
 
 
-def test_cli_power_authority_then_screen_uses_closed_authority_media_type(
-    tmp_path: Path, capsys,
+def test_cli_power_screen_boundary_preserves_the_closed_authority_media_type(
+    tmp_path: Path, capsys, monkeypatch,
 ) -> None:
-    """The canonical CLI refs must replay the authority's closed media type."""
-    from pneuma_lab.resampling_null.cli import main
+    """The canonical CLI refs must replay the authority's closed media type.
 
-    assert main(["--run-root", str(tmp_path), "selftest", "--stop-after-study"]) == 0
+    This is a bounded machinery fixture on purpose.  The property under test is
+    the argv-to-`ArtifactRef` boundary, not screen numerics, and a canonical
+    full-grid screen must never run as a software or integration test.  The
+    admitted screen of record is produced only by governed scientific
+    execution under the frozen timing-admission gate.
+    """
+    from pneuma_lab.resampling_null import cli
+    from pneuma_lab.resampling_null.power import POWER_AUTHORITY_MEDIA_TYPE
+
+    assert cli.main(["--run-root", str(tmp_path), "selftest", "--stop-after-study"]) == 0
     capsys.readouterr()
     manifest = json.loads((tmp_path / "study-manifest.json").read_text(encoding="utf-8"))
     payload = manifest["payload"]
-    assert main([
+    assert cli.main([
         "--run-root", str(tmp_path), "power", "authority", "synthetic",
         "--study", "study-manifest.json", "--out", "power/authority.json",
     ]) == 0
     capsys.readouterr()
-    assert main([
+
+    observed: dict[str, object] = {}
+
+    def capture(config, **kwargs):
+        observed["config"] = config
+        observed["kwargs"] = kwargs
+        return cli._ref(Path(str(tmp_path)), "power/authority.json", "power_authority")
+
+    monkeypatch.setattr(cli, "screen_power_grid", capture)
+    assert cli.main([
         "--run-root", str(tmp_path), "power", "screen",
         "--authority", "power/authority.json",
         "--grid-ref", payload["power_grid_ref"]["relative_path"],
@@ -157,9 +174,18 @@ def test_cli_power_authority_then_screen_uses_closed_authority_media_type(
         "--phase", "gaussian_approximation", "--generation", "0", "--shard-count", "64",
         "--out", "power/screen.json",
     ]) == 0
-    result = json.loads(capsys.readouterr().out)
-    assert result["status"] == "ok"
-    assert json.loads((tmp_path / "power/screen.json").read_text(encoding="utf-8"))["payload"]["stage"] == "screen"
+    assert json.loads(capsys.readouterr().out)["status"] == "ok"
+    config = observed["config"]
+    assert config.authority_ref.media_type == POWER_AUTHORITY_MEDIA_TYPE
+    assert config.authority_ref.role == "power_authority"
+    assert config.grid_ref.media_type == "application/json"
+    assert config.grid_ref.relative_path == payload["power_grid_ref"]["relative_path"]
+    assert config.screen_topology_ref.relative_path == payload["power_screen_topology_ref"]["relative_path"]
+    assert observed["kwargs"]["phase"] == "gaussian_approximation"
+    assert observed["kwargs"]["generation"] == 0
+    assert observed["kwargs"]["shard_count"] == 64
+    assert observed["kwargs"]["fallback_trigger_ref"] is None
+    assert not (tmp_path / "power/screen.json").exists()
 
 
 def test_cli_selftest_uses_exact_frozen_roster_and_is_byte_deterministic(

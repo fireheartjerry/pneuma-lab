@@ -132,6 +132,29 @@ def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligib
         },
     )
     topology = _write(root, "inputs/topology.json", {"topology": "local"})
+    program = _write(root, "sources/branch-program.json", {"program": "local-fixture"})
+    program_ref = {
+        "role": "synthetic_execution_program", "relative_path": program.relative_path,
+        "sha256": program.sha256, "byte_count": program.byte_count, "media_type": "application/json",
+    }
+    branch_programs = _write(
+        root,
+        "sources/branch-program-registry.json",
+        {
+            "record_kind": "resampling_branch_program_registry_v1",
+            "schema_version": "0.1.0",
+            "tasks": [
+                {
+                    "task_id": task_id,
+                    "programs": [
+                        {"branch_ordinal": ordinal, "program_ref": program_ref}
+                        for ordinal in range(4)
+                    ],
+                }
+                for task_id in task_ids
+            ],
+        },
+    )
     precommit = {
         "study_id": study_id,
         "qualification_universe_sha256": "1" * 64,
@@ -180,6 +203,7 @@ def _manifest(root: Path, *, roster_kind: str, eligibility: bool = False, eligib
                 "roster_ceremony_policy_ref": None if eligibility_ref is None else {"role": "roster_ceremony_policy", "relative_path": eligibility_ref.relative_path, "sha256": eligibility_ref.sha256, "byte_count": eligibility_ref.byte_count, "media_type": eligibility_ref.media_type},
                 "assignment_program_ref": {"role": "assignment_program", "relative_path": roster.relative_path, "sha256": roster.sha256, "byte_count": roster.byte_count, "media_type": roster.media_type},
                 "provider_lane_plan_ref": {"role": "provider_lane_plan", "relative_path": roster.relative_path, "sha256": roster.sha256, "byte_count": roster.byte_count, "media_type": roster.media_type},
+                "branch_program_registry_ref": {"role": "branch_program_registry", "relative_path": branch_programs.relative_path, "sha256": branch_programs.sha256, "byte_count": branch_programs.byte_count, "media_type": branch_programs.media_type},
                 "storage_policy_contract_ref": {"role": "storage_policy_contract", "relative_path": roster.relative_path, "sha256": roster.sha256, "byte_count": roster.byte_count, "media_type": roster.media_type},
                 "power_grid_ref": {"role": "power_grid", "relative_path": grid.relative_path, "sha256": grid.sha256, "byte_count": grid.byte_count, "media_type": grid.media_type},
                 "power_screen_topology_ref": {"role": "power_screen_topology", "relative_path": topology.relative_path, "sha256": topology.sha256, "byte_count": topology.byte_count, "media_type": topology.media_type},
