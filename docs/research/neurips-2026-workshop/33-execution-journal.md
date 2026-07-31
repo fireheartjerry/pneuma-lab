@@ -3498,3 +3498,12 @@ The next event after the archived migration boundary is appended below.
   whitespace checks passed.
 - **Boundary:** no botocore dependency, AWS request, provider resource,
   execution, or spend occurred; T2/T3 remain pending.
+
+### EJ-20260731-step12-deployment-preflight
+
+- **Scope:** local quota preflight, environment configuration, and ownership
+  manifest teardown planning.
+- **Verification:** focused preflight tests, Ruff, status validation, and
+  whitespace checks passed.
+- **Boundary:** no deployment, resource query, teardown, provider action,
+  execution, or spend occurred.
