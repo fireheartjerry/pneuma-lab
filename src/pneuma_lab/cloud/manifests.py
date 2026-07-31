@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
 
 from pneuma_lab import schemas
 
@@ -17,6 +17,7 @@ _SCHEMA_BY_KIND = {
     "cloud_experiment_manifest": "cloud-experiment-manifest.schema.json",
     "cloud_architecture_manifest": "cloud-architecture-manifest.schema.json",
     "cloud_image_manifest": "cloud-image-manifest.schema.json",
+    "cloud_job_lease": "cloud-job-lease.schema.json",
 }
 
 

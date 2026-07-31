@@ -516,6 +516,28 @@
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_step8_orchestration",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/42-orchestration-safety.md",
+                "schemas/cloud-job-lease.schema.json",
+                "src/pneuma_lab/cloud/orchestration.py",
+                "src/pneuma_lab/cloud/shards.py",
+                "src/pneuma_lab/cloud/reconcile.py",
+                "tests/cloud/test_orchestration.py",
+                "tests/cloud/test_shards.py",
+                "tests/cloud/test_reconcile.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
+                "B-NEURIPS-STEP14-REVIEW",
+                "B-NEURIPS-EXPERIMENT-EXECUTION"
+            ]
         }
     ],
     "nine_to_five": {
@@ -831,6 +853,10 @@
         {
             "id": "B-NEURIPS-IMAGE-BUILD-VERIFICATION",
             "summary": "No authorized deterministic image builds, image-digest comparison, or SBOM receipts exist; Step 7A fixture recipes do not satisfy Step 7B."
+        },
+        {
+            "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
+            "summary": "No real DynamoDB, Batch, S3, or interruption semantics have been exercised; local lease and reconciliation fakes prove only local control-plane behavior."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",

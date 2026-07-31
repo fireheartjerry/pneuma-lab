@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-job-lease.schema.json",
+    "title": "Cloud Job Lease",
+    "description": "Local-fake lease record for idempotent cloud orchestration; never an AWS receipt.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "assignment_id", "owner", "expires_at", "state"],
+    "properties": {"record_kind": {"const": "cloud_job_lease"}, "schema_version": {"const": "0.1.0"}, "assignment_id": {"type": "string", "minLength": 1}, "owner": {"type": "string", "minLength": 1}, "expires_at": {"type": "integer", "minimum": 0}, "state": {"enum": ["active", "terminal", "expired", "invalid"]}},
+    "additionalProperties": false
+}

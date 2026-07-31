@@ -455,6 +455,11 @@ manifest validation are implementation complete only. They use invalid fixture
 bases intentionally; Step 7B real receipts/builds/SBOMs remain unstarted and
 separately authorized. No Task 6–10 state or scientific lineage changed.
 
+**Phase B Step 8 checkpoint (2026-07-31):** Local lease, deterministic-shard,
+and reconciliation contracts are implementation complete against fakes only.
+They do not prove AWS Batch/DynamoDB/S3 semantics or authorize execution; no
+Task 6–10 state or scientific lineage changed.
+
 The next phase is separately gated real-experiment work:
 
 1. SWE-bench-Live and τ³ adapter/roster qualification;

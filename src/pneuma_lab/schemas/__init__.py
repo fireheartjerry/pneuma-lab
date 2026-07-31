@@ -100,6 +100,7 @@ CLOUD_SCHEMA_FILES = (
     "cloud-experiment-manifest.schema.json",
     "cloud-architecture-manifest.schema.json",
     "cloud-image-manifest.schema.json",
+    "cloud-job-lease.schema.json",
 )
 
 ALL_SCHEMA_FILES = (

@@ -3465,3 +3465,11 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** all bases resolve to `registry.invalid`; no pull, image build,
   SBOM, image digest, external receipt, provider action, spend, Step 5B/7B,
   pilot, or experiment occurred.
+
+### EJ-20260731-step8-orchestration
+
+- **Scope:** local Step 8 lease, shard, and reconciliation implementation.
+- **Verification:** focused orchestration tests, mypy, schema registry tests,
+  status validation, and whitespace checks passed.
+- **Boundary:** no cloud scheduler, lease store, storage service, provider call,
+  resource, retry, resume, execution, or spend occurred.
