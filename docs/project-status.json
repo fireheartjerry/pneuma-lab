@@ -336,7 +336,8 @@
                 "tests/resampling_null/test_freeze.py",
                 "tests/resampling_null/test_blinding.py",
                 "tests/resampling_null/test_task6_state.py",
-                "tests/resampling_null/test_artifacts.py"
+                "tests/resampling_null/test_artifacts.py",
+                "scripts/research/task6_step4a_continuity.py"
             ],
             "blockers": [
                 "B-NEURIPS-TASK6-E2E"

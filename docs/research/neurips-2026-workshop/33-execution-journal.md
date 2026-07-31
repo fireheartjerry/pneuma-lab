@@ -3299,3 +3299,66 @@ The next event after the archived migration boundary is appended below.
   the completed miniature lineage only. It does not remove
   `B-NEURIPS-TASK7-E2E`, does not promote Task 7 or Step 4A to scientific
   evidence, and establishes no P0 result. Step 4B remains pending.
+
+### EJ-20260731-task6-step4a-revalidation
+
+- **Scope/authority:** Re-read the preserved Step 4A root
+  `build/research/neurips-2026-workshop/step4a-iv-20260730-210059` only. No
+  Task 6 lineage step and no Task 6 closure occurred: nothing froze, sealed,
+  permitted, unblinded, tainted, locked, or published. Step 4B was not run, and
+  no provider, cloud, paid, or canonical P0 action occurred. The Step 4A records
+  remain implementation verification only and inadmissible as scientific
+  evidence.
+- **Exact command:**
+  `timeout 180s .venv/bin/python scripts/research/task6_step4a_continuity.py`
+  from the repository root. Exit `0`, final line `PASS`. The script is a one-off
+  forensic receipt, not a delivery gate and not part of any test tier. It
+  captures a `(path, size, mtime_ns)` inventory of all 1,392 run-root files
+  before any live code runs and re-asserts it identical at the end.
+- **What it verified against the preserved Task 6 records:**
+  - `validate_scientific_graph` passes, and `validate_preunblind_graph` passes
+    with exactly one assignment ledger at `assignment/ledger.json` (no alias).
+  - `verify_frozen_analysis_inputs` accepts the freeze's own bytes
+    (`b30f59452aa6…`, 2,056 bytes) and fails closed on a mutated `sha256` and on
+    a mutated `byte_count`, so the pass is not vacuous.
+  - All three frozen inputs (source, config, projection schema) live under
+    `sources/analysis-freeze/` and are byte-identical to their refs; the freeze
+    binds `packets/index.json` as a `resampling_packet_index` at
+    `stage=sealed` with a matching `study_id`.
+  - Blinded-projection continuity is re-derived, not merely re-read: the pure
+    `projection_candidate.build_candidate` run over the 40 preserved schedule
+    slot IDs and the 40 preserved task blocks' slot outcomes reproduces the
+    recorded `projection_candidate_sha256` `597fd15ebcf0d85a…` exactly.
+  - Blindness holds: all 40 rows expose only `A`–`D` labelled slots with the
+    closed five-key outcome, and the raw projection bytes contain no
+    `opaque_arm_id`/`arm_id` and no clear arm token.
+  - Gated unblind: the receipt's `projection_ref`, `analysis_freeze_ref`, and
+    `assignment_ledger_ref` equal refs recomputed from those files' own bytes,
+    `expected_task_count=40` matches the projection, the analysis record binds
+    the receipt's own byte-derived ref (the paired-publication invariant), and
+    `operational/task6/paired-publication.json` is absent.
+  - Durable taint still fails closed under today's code:
+    `operational/task6/outcome-tainted.json` is present with payload
+    `{"state": "outcome_tainted_v1"}`, `require_preunblind_context` raises for
+    all three protected actions while passing for an unprotected one, and
+    `require_singleton_absent` raises for both run-wide singleton kinds.
+  - Chain coverage: `task-blocks/*.json` = `task_block_refs` = projection rows =
+    distinct schedule tasks = `analysis.row_count` = `expected_task_count` = 40;
+    projection row order equals frozen schedule order; every block binds
+    byte-identical freeze and schedule refs.
+- **Focused tests:** `.venv/bin/python -m pytest
+  tests/resampling_null/test_freeze.py tests/resampling_null/test_blinding.py
+  tests/resampling_null/test_task6_state.py
+  tests/resampling_null/test_publication.py -q` → 57 passed, exit `0`.
+- **Known limits (not papered over):** `prefix_success` is an outcome rather
+  than a schedule field, so the candidate rebuild takes it from the task blocks
+  and `build_candidate`'s prefix cross-check is block-internal, not
+  schedule-versus-block. The permit's `permit_hmac_sha256` cannot be recomputed
+  without the unblind secret and the permit path. The clear ledger-to-analysis
+  join is not re-derived — that join is the unblind step itself.
+  `verify_current_analysis_inputs` was not run because it requires the original
+  external source paths, which live outside the preserved root.
+- **Classification:** This revalidates the Task 6 implementation path against
+  the completed miniature lineage only. It is not Task 6 closure. It does not
+  remove `B-NEURIPS-TASK6-E2E`, does not promote Task 6 or Step 4A to scientific
+  evidence, and establishes no P0 result. Step 4B remains pending.

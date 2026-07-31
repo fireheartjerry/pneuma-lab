@@ -130,6 +130,28 @@ The durable Task-6 outcome-taint marker is present. This strengthens
 implementation verification only; it does not remove `B-NEURIPS-TASK6-E2E`
 or promote Step 4A records to P0/scientific evidence. Step 4B remains pending.
 
+**Task 6 continuity revalidation, deepened (2026-07-31):** The same preserved
+root was re-read again via
+`timeout 180s .venv/bin/python scripts/research/task6_step4a_continuity.py`
+(exit `0`, `PASS`; see EJ-20260731-task6-step4a-revalidation), with a
+before/after inventory of all 1,392 run-root files proving nothing was written.
+Beyond the earlier structural pass this adds: fail-closed negatives on
+`verify_frozen_analysis_inputs` (mutated digest and mutated byte count both
+raise); frozen-input namespace and byte identity plus a sealed packet-index
+binding; a genuine re-derivation of the blinded projection — the pure
+`build_candidate` over the 40 preserved schedule slot IDs and task-block slot
+outcomes reproduces the recorded `projection_candidate_sha256`
+`597fd15ebcf0d85a…`; a blindness check showing only `A`–`D` slots and no arm
+token in the projection bytes; receipt/analysis byte-ref binding with the
+paired-publication transaction marker absent; the durable taint gate still
+raising for all three protected actions (and passing for an unprotected one)
+with both singleton kinds present; and 40-way chain coverage across task blocks,
+projection rows, schedule tasks, and `analysis.row_count`. The permit HMAC and
+the clear ledger-to-analysis join remain unverifiable without executing the
+unblind. This is continuity verification, **not Task 6 closure**: it does not
+remove `B-NEURIPS-TASK6-E2E`, promote Step 4A to P0/scientific evidence, or
+complete Task 6, and Step 4B remains pending.
+
 ## Task 7 — registered inference and verdicts
 
 Implement the frozen statistical API and hand-calculation fixtures:
