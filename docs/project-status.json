@@ -538,6 +538,29 @@
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_step9_spend_protection",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/43-spend-protection.md",
+                "schemas/cloud-spend-authorization.schema.json",
+                "schemas/cloud-approval-receipt.schema.json",
+                "src/pneuma_lab/cloud/spend.py",
+                "src/pneuma_lab/cloud/watchdog.py",
+                "tests/cloud/test_spend.py",
+                "tests/cloud/test_watchdog.py",
+                "tests/cloud/test_projection.py",
+                "tests/cloud/test_approval.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
+                "B-NEURIPS-STEP14-REVIEW",
+                "B-NEURIPS-EXPERIMENT-EXECUTION"
+            ]
         }
     ],
     "nine_to_five": {

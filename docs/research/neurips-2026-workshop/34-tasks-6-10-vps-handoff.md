@@ -460,6 +460,11 @@ and reconciliation contracts are implementation complete against fakes only.
 They do not prove AWS Batch/DynamoDB/S3 semantics or authorize execution; no
 Task 6–10 state or scientific lineage changed.
 
+**Phase B Step 9 checkpoint (2026-07-31):** Local spend/approval/watchdog
+contracts are implementation complete against fixtures only. No real balance,
+price, provider, authorization, or execution was used; no Task 6–10 state or
+scientific lineage changed.
+
 The next phase is separately gated real-experiment work:
 
 1. SWE-bench-Live and τ³ adapter/roster qualification;

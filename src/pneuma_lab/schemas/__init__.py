@@ -101,6 +101,8 @@ CLOUD_SCHEMA_FILES = (
     "cloud-architecture-manifest.schema.json",
     "cloud-image-manifest.schema.json",
     "cloud-job-lease.schema.json",
+    "cloud-spend-authorization.schema.json",
+    "cloud-approval-receipt.schema.json",
 )
 
 ALL_SCHEMA_FILES = (

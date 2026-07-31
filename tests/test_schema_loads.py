@@ -20,7 +20,7 @@ EXPECTED_FOUNDATION_COUNT = 6
 # Measurement-system analysis of an elicited metric channel (gauge card).
 EXPECTED_GAUGE_COUNT = 1
 EXPECTED_RESAMPLING_COUNT = 14
-EXPECTED_CLOUD_COUNT = 5
+EXPECTED_CLOUD_COUNT = 7
 
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
@@ -210,6 +210,8 @@ def test_cloud_schema_bucket_registered() -> None:
         "cloud-architecture-manifest.schema.json",
         "cloud-image-manifest.schema.json",
         "cloud-job-lease.schema.json",
+        "cloud-spend-authorization.schema.json",
+        "cloud-approval-receipt.schema.json",
     )
     assert set(pls.CLOUD_SCHEMA_FILES).issubset(pls.ALL_SCHEMA_FILES)
 

@@ -18,6 +18,8 @@ _SCHEMA_BY_KIND = {
     "cloud_architecture_manifest": "cloud-architecture-manifest.schema.json",
     "cloud_image_manifest": "cloud-image-manifest.schema.json",
     "cloud_job_lease": "cloud-job-lease.schema.json",
+    "cloud_spend_authorization": "cloud-spend-authorization.schema.json",
+    "cloud_approval_receipt": "cloud-approval-receipt.schema.json",
 }
 
 

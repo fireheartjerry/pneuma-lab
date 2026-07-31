@@ -3473,3 +3473,11 @@ The next event after the archived migration boundary is appended below.
   status validation, and whitespace checks passed.
 - **Boundary:** no cloud scheduler, lease store, storage service, provider call,
   resource, retry, resume, execution, or spend occurred.
+
+### EJ-20260731-step9-spend-protection
+
+- **Scope:** local reservation, approval, projection, and watchdog contracts.
+- **Verification:** focused spend tests, Ruff, schema registry tests, status
+  validation, and whitespace checks passed.
+- **Boundary:** no live price/balance receipt, alarm, provider, resource,
+  reservation, authorization, execution, or spend occurred.

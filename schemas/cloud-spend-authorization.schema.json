@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-spend-authorization.schema.json",
+    "title": "Cloud Spend Authorization",
+    "description": "Hash-bound local authorization shape; cannot authorize a provider action by itself.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "provider", "manifest_sha256", "cost_ceiling_usd", "approval_id"],
+    "properties": {"record_kind": {"const": "cloud_spend_authorization"}, "schema_version": {"const": "0.1.0"}, "provider": {"enum": ["aws", "azure"]}, "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "cost_ceiling_usd": {"type": "number", "exclusiveMinimum": 0}, "approval_id": {"type": "string", "minLength": 1}},
+    "additionalProperties": false
+}
