@@ -3012,3 +3012,51 @@ The next event after the archived migration boundary is appended below.
   reconciliation. No screen, shard, validation, power final, schedule, branch,
   task block, unblind, analysis, provider or benchmark action, spend, or
   scientific claim was produced.
+
+### EJ-20260730-0228 — First admitted P0 screen and full-grid execution
+
+- **Run root:** `build/research/neurips-2026-workshop/p0-lineage-20260730`
+  (git-ignored). Study manifest
+  `67dad43634c59bdf97050bcb2433f34fca1bb8c4bde708665439205fa741e623`,
+  byte-identical to an independently materialized fixture root, which
+  re-proves the study seal's determinism.
+- **Authority:** `power/authority.json`
+  `09d7cb2a240abd7027fe5654b8a40ac6d719bb39ef4fe40784a3149c73c08c98`,
+  `synthetic_validation` kind. No roster-bound or confirmation authority was
+  minted.
+- **Screen admitted:** `power/screen-gen0.json`
+  `122cbcab3b12bd56547b9aca48092cc8b14b02a82b4433d423a41d3982ff8b88`,
+  phase `gaussian_approximation`, generation 0, shard count 64. The all-cell
+  timing probe executed the frozen 2,916 cells at 200 screen-domain datasets
+  each through the same Task-7 gate as production, committing
+  `replay_receipts_sha256`
+  `97090bd6c7862d7f6b230398e6891744979bc504075312308c25b4d17cc1ad9b`. Measured
+  probe work was 320.0036 seconds; the registered total-work projection is
+  32,001 seconds against the frozen 43,200-second cap, i.e. 74% of budget with
+  no parallelism discount applied. Wall time for the command was 5:20.84 at 99%
+  of one core.
+- **Significance:** this is the first admitted P0 screen of record in the
+  project. The prior 2026-07-30 attempts (EJ-20260730-0215, EJ-20260730-0217)
+  could not be admitted and were terminated without artifacts; the difference
+  is the implementation correction in EJ-20260730-0227, not any change to the
+  grid, topology, multiplier, cap, or projection formula.
+- **Grid execution:** the 64 frozen shards are executing through
+  `scripts/run_p0_shards.sh`, which is a bounded-concurrency wrapper around the
+  committed `power simulate` CLI route and adds no scientific input. Shards are
+  independent immutable attempt identities, so concurrency is an execution
+  convenience only; the cap was already charged against the complete sequential
+  workload before admission. First-wave shards took 642-665 seconds each at
+  five workers. Host load averaged 8.5-19 on 8 cores throughout, from unrelated
+  resident processes.
+- **First observed outcomes:** shard 0 reports `execution_complete: true` at
+  the frozen 20,000 datasets per cell, with `causal_pass_count: 0` on its
+  leading `alternative` cells. At the synthetic fixture roster of 20 SWE plus
+  20 TAU tasks, the registered causal gate does not fire even under the
+  registered alternative. That is a real P0 observation about the synthetic
+  configuration, not a defect, and it is exactly what the null-tier
+  `CONDITIONAL_ONLY` synthetic arm exists to represent. It is not a claim about
+  the real C120/C160 confirmation rosters.
+- **Boundary/non-claim:** no selection, validation, power final, schedule,
+  prefix, assignment, packet, task block, unblind, analysis, provider or
+  benchmark action, spend, or scientific claim exists at this entry. A screen
+  is an admission to execute, not a result.
