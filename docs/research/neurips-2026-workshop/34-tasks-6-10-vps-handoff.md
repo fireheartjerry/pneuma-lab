@@ -671,3 +671,42 @@ weakened to obtain admission.
 or power final of record, and therefore no P0 result. Passing the kernel
 equivalence gate is software evidence. The next gate is one genuinely admitted
 full P0 lineage under the unchanged frozen protocol.
+
+## Execution-class policy (2026-07-30)
+
+Canonical full-grid P0 work — an all-cell screen probe over the frozen 2,916
+cells, and any production shard at the frozen 20,000 datasets per cell — is an
+**explicitly authorized experiment-only workload**. It is scientific execution,
+not verification.
+
+- It must never appear in a bounded software or integration gate. The autouse
+  guard in `tests/resampling_null/conftest.py` fails any test that starts a
+  probe over 8 cells or a cell over 1,024 datasets.
+- It must never block implementation completion. A task may reach
+  `implementation_complete` on bounded machinery fixtures and a miniature
+  production-path lineage.
+- It requires a per-run authorization and its own journal entry.
+- During such a run, the registered decisive-lower-bound timing admission is
+  enforced: once the 12-hour projection is mathematically impossible, execution
+  stops immediately with a formal no-go. A full shard is never completed merely
+  to reconfirm an already decisive infeasibility.
+
+### Step 4A versus Step 4B
+
+- **Step 4A — miniature production-path lineage.** A fresh run root driven by
+  tiny, structurally equivalent fixtures through the same real authority,
+  scheduling, opaque-branch, task-block, analysis-freeze, blinded-projection,
+  gated-unblind, and registered-analysis machinery. Its outcome is
+  **implementation verification only**. It is not scientific evidence, not a P0
+  result, and its records are deliberately inadmissible to the P0 authority
+  chain.
+- **Step 4B — canonical authority-backed lineage.** Pending the actual
+  experimental phase.
+
+### Canonical run stopped 2026-07-30
+
+`build/research/neurips-2026-workshop/p0-lineage-20260730` holds an admitted
+screen and 10 of 64 production shards. It is preserved exactly as-is as an
+incomplete non-result caused by an explicit scope correction — not a no-go and
+not a result. Do not delete, rewrite, finalize, analyze, or claim from it. See
+EJ-20260730-0229.

@@ -3060,3 +3060,42 @@ The next event after the archived migration boundary is appended below.
   prefix, assignment, packet, task block, unblind, analysis, provider or
   benchmark action, spend, or scientific claim exists at this entry. A screen
   is an admission to execute, not a result.
+
+### EJ-20260730-0229 — Canonical P0 execution stopped by explicit scope correction
+
+- **Action:** The user directed that the canonical full-grid execution stop and
+  that canonical screens and production shards be reclassified as
+  experiment-only workloads. All shard processes and both drivers were killed
+  at 17:56 local. Shard artifacts are written atomically, so the interrupted
+  shards left nothing behind.
+- **Preserved state (not to be deleted, rewritten, finalized, analyzed, or
+  claimed):** `build/research/neurips-2026-workshop/p0-lineage-20260730`
+  holds the study manifest, the `synthetic_validation` power authority, the
+  admitted screen `power/screen-gen0.json`, and exactly 10 of 64 production
+  shards (`shard-gen0-00` through `shard-gen0-09`).
+- **Classification:** this is an **incomplete non-result caused by an explicit
+  scope correction**. It is not a no-go, not an infeasibility, and not a
+  result. The timing admission passed decisively (320.0036 s measured against
+  the 432 s decisive threshold; 32,001 s projected against the 43,200 s cap),
+  so nothing about this stop reflects on feasibility. `_complete_shards`
+  requires all 64 shards at the frozen 20,000 datasets, so no selection,
+  validation, or power final exists or may be constructed from these 10.
+- **Reclassification adopted:** canonical full-grid screens and canonical
+  production shards are **explicitly authorized experiment-only workloads**.
+  They must never appear in bounded software or integration gates, must never
+  block implementation completion, and require a per-run authorization. The
+  autouse guard added in commit `2d4fe8d` enforces the test-surface half of
+  this rule.
+- **Deviation:** `scripts/run_p0_shards.sh` was edited while bash was
+  executing it, which killed both drivers at about 17:33 and cost roughly 20
+  minutes. Execution was restarted detached from immutable copies under
+  `build/step4/`. No artifact was affected; only wall time was lost.
+- **Next:** Step 4A is a separate miniature production-path lineage in a fresh
+  run root, using tiny structurally equivalent fixtures through the same real
+  authority, scheduling, opaque-branch, task-block, freeze, projection,
+  unblind, and analysis machinery, labeled implementation verification only.
+  Step 4B, the canonical authority-backed lineage, stays pending for the
+  actual experimental phase.
+- **Boundary/non-claim:** no power final, schedule, lineage, task block,
+  unblind, analysis, provider or benchmark action, spend, or scientific claim
+  exists.
