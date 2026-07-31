@@ -1,0 +1,549 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.example/schemas/adversarial-review/campaign-result.schema.json",
+    "title": "Adversarial Review Campaign Result",
+    "description": "The complete canonical artifact emitted by one adversarial review campaign.",
+    "type": "object",
+    "x-pneuma-schema-kind": "adversarial_review_record",
+    "required": [
+        "campaign_id",
+        "stage",
+        "inputs_digest",
+        "reports",
+        "verifications",
+        "conflicts",
+        "synthesis",
+        "falsification",
+        "disposition"
+    ],
+    "properties": {
+        "campaign_id": {
+            "type": "string"
+        },
+        "stage": {
+            "type": "string"
+        },
+        "inputs_digest": {
+            "type": "string"
+        },
+        "reports": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/reviewer_report"
+            }
+        },
+        "verifications": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/verification_outcome"
+            }
+        },
+        "conflicts": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/conflict_finding"
+            }
+        },
+        "synthesis": {
+            "$ref": "#/$defs/editor_synthesis"
+        },
+        "falsification": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/falsification_item"
+            }
+        },
+        "disposition": {
+            "$ref": "#/$defs/sealed_disposition"
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "reviewer_report": {
+            "type": "object",
+            "required": [
+                "role_id",
+                "role_title",
+                "mandate_digest",
+                "findings",
+                "coverage_notes",
+                "declared_dependencies",
+                "receipt"
+            ],
+            "properties": {
+                "role_id": {
+                    "type": "string"
+                },
+                "role_title": {
+                    "type": "string"
+                },
+                "mandate_digest": {
+                    "type": "string"
+                },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/finding"
+                    }
+                },
+                "coverage_notes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "declared_dependencies": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "receipt": {
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/subprocess_receipt"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "finding": {
+            "type": "object",
+            "required": [
+                "finding_id",
+                "role_id",
+                "severity",
+                "title",
+                "statement",
+                "failure_mode",
+                "evidence",
+                "claim_ids",
+                "reproduction",
+                "what_would_refute",
+                "confidence"
+            ],
+            "properties": {
+                "finding_id": {
+                    "type": "string"
+                },
+                "role_id": {
+                    "type": "string"
+                },
+                "severity": {
+                    "enum": [
+                        "blocker",
+                        "major",
+                        "minor",
+                        "speculation"
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                },
+                "statement": {
+                    "type": "string"
+                },
+                "failure_mode": {
+                    "type": "string"
+                },
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/evidence_ref"
+                    }
+                },
+                "claim_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "reproduction": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "what_would_refute": {
+                    "type": "string"
+                },
+                "confidence": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "evidence_ref": {
+            "type": "object",
+            "required": [
+                "kind",
+                "locator",
+                "detail",
+                "start_line",
+                "end_line",
+                "expected_digest",
+                "quoted"
+            ],
+            "properties": {
+                "kind": {
+                    "enum": [
+                        "repo_line",
+                        "receipt",
+                        "artifact_digest",
+                        "external_source",
+                        "command",
+                        "manuscript_span"
+                    ]
+                },
+                "locator": {
+                    "type": "string"
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "start_line": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "minimum": 1
+                },
+                "end_line": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "minimum": 1
+                },
+                "expected_digest": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "quoted": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "subprocess_receipt": {
+            "type": "object",
+            "required": [
+                "role_id",
+                "engine",
+                "model",
+                "task",
+                "prompt_digest",
+                "response_digest",
+                "input_tokens",
+                "output_tokens",
+                "cost_usd_upper_bound",
+                "wall_clock_seconds",
+                "exit_status"
+            ],
+            "properties": {
+                "role_id": {
+                    "type": "string"
+                },
+                "engine": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "task": {
+                    "type": "string"
+                },
+                "prompt_digest": {
+                    "type": "string"
+                },
+                "response_digest": {
+                    "type": "string"
+                },
+                "input_tokens": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "output_tokens": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "cost_usd_upper_bound": {
+                    "type": "number"
+                },
+                "wall_clock_seconds": {
+                    "type": [
+                        "number",
+                        "null"
+                    ]
+                },
+                "exit_status": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "verification_outcome": {
+            "type": "object",
+            "required": [
+                "finding_digest",
+                "admissible",
+                "checked_refs",
+                "failures",
+                "downgraded_to"
+            ],
+            "properties": {
+                "finding_digest": {
+                    "type": "string"
+                },
+                "admissible": {
+                    "type": "boolean"
+                },
+                "checked_refs": {
+                    "type": "integer"
+                },
+                "failures": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "downgraded_to": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "conflict_finding": {
+            "type": "object",
+            "required": [
+                "kind",
+                "role_ids",
+                "detail",
+                "blocking"
+            ],
+            "properties": {
+                "kind": {
+                    "type": "string"
+                },
+                "role_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "blocking": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
+        },
+        "editor_synthesis": {
+            "type": "object",
+            "required": [
+                "strongest_rejection_argument",
+                "ordered_finding_digests",
+                "minority_findings",
+                "dissent_notes",
+                "claim_matrix"
+            ],
+            "properties": {
+                "strongest_rejection_argument": {
+                    "type": "string"
+                },
+                "ordered_finding_digests": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "minority_findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "dissent_notes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "claim_matrix": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/claim_row"
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "claim_row": {
+            "type": "object",
+            "required": [
+                "claim_id",
+                "claim_text",
+                "supporting_evidence",
+                "attacking_findings",
+                "unsupported"
+            ],
+            "properties": {
+                "claim_id": {
+                    "type": "string"
+                },
+                "claim_text": {
+                    "type": "string"
+                },
+                "supporting_evidence": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "attacking_findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "unsupported": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
+        },
+        "falsification_item": {
+            "type": "object",
+            "required": [
+                "finding_digest",
+                "role_id",
+                "severity",
+                "test_statement",
+                "required_evidence",
+                "owner",
+                "disposition",
+                "gate"
+            ],
+            "properties": {
+                "finding_digest": {
+                    "type": "string"
+                },
+                "role_id": {
+                    "type": "string"
+                },
+                "severity": {
+                    "enum": [
+                        "blocker",
+                        "major",
+                        "minor",
+                        "speculation"
+                    ]
+                },
+                "test_statement": {
+                    "type": "string"
+                },
+                "required_evidence": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "owner": {
+                    "type": "string"
+                },
+                "disposition": {
+                    "enum": [
+                        "blocking",
+                        "non_blocking_tracked",
+                        "refuted",
+                        "deferred_post_results"
+                    ]
+                },
+                "gate": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "sealed_disposition": {
+            "type": "object",
+            "required": [
+                "campaign_id",
+                "stage",
+                "verdict",
+                "inputs_digest",
+                "reports_digest",
+                "synthesis_digest",
+                "falsification_digest",
+                "blocking_finding_digests",
+                "overridden_finding_digests",
+                "non_authorization_notice",
+                "disposition_digest"
+            ],
+            "properties": {
+                "campaign_id": {
+                    "type": "string"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "verdict": {
+                    "enum": [
+                        "launch_blocked",
+                        "launch_blocked_by_conflict",
+                        "no_blocking_findings"
+                    ]
+                },
+                "inputs_digest": {
+                    "type": "string"
+                },
+                "reports_digest": {
+                    "type": "string"
+                },
+                "synthesis_digest": {
+                    "type": "string"
+                },
+                "falsification_digest": {
+                    "type": "string"
+                },
+                "blocking_finding_digests": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "overridden_finding_digests": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "non_authorization_notice": {
+                    "type": "string"
+                },
+                "disposition_digest": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}

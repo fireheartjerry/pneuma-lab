@@ -1,0 +1,68 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.example/schemas/adversarial-review/readiness-disposition.schema.json",
+    "title": "Adversarial Review Readiness Disposition",
+    "description": "The negative-framed, hash-bound outcome of an adversarial review campaign.",
+    "type": "object",
+    "x-pneuma-schema-kind": "adversarial_review_record",
+    "required": [
+        "campaign_id",
+        "stage",
+        "verdict",
+        "inputs_digest",
+        "reports_digest",
+        "synthesis_digest",
+        "falsification_digest",
+        "blocking_finding_digests",
+        "overridden_finding_digests",
+        "non_authorization_notice"
+    ],
+    "properties": {
+        "campaign_id": {
+            "type": "string"
+        },
+        "stage": {
+            "type": "string"
+        },
+        "verdict": {
+            "enum": [
+                "launch_blocked",
+                "launch_blocked_by_conflict",
+                "no_blocking_findings"
+            ]
+        },
+        "inputs_digest": {
+            "type": "string"
+        },
+        "reports_digest": {
+            "type": "string"
+        },
+        "synthesis_digest": {
+            "type": "string"
+        },
+        "falsification_digest": {
+            "type": "string"
+        },
+        "blocking_finding_digests": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "overridden_finding_digests": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "non_authorization_notice": {
+            "type": "string"
+        },
+        "disposition_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Lowercase hex SHA-256 binding every other field of the sealed disposition."
+        }
+    },
+    "additionalProperties": false
+}

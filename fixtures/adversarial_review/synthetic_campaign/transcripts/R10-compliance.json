@@ -1,0 +1,16 @@
+{
+  "cost_usd_upper_bound": 0.0,
+  "engine": "fixture",
+  "input_tokens": 1200,
+  "model": "synthetic-fixture-v1",
+  "output_tokens": 400,
+  "prompt_digest": "a140d039e0c2cfb45beb20b1fc44684361feef23d3436002bf6698108750528f",
+  "response": {
+    "coverage_notes": [
+      "Toy venue policy checked; no anonymity break found."
+    ],
+    "declared_dependencies": [],
+    "findings": [],
+    "role_id": "R10-compliance"
+  }
+}

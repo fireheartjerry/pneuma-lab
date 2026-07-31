@@ -1,0 +1,58 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.example/schemas/adversarial-review/falsification-item.schema.json",
+    "title": "Adversarial Review Falsification Item",
+    "description": "A finding converted into a concrete, ownable falsification test.",
+    "type": "object",
+    "x-pneuma-schema-kind": "adversarial_review_record",
+    "required": [
+        "finding_digest",
+        "role_id",
+        "severity",
+        "test_statement",
+        "required_evidence",
+        "owner",
+        "disposition",
+        "gate"
+    ],
+    "properties": {
+        "finding_digest": {
+            "type": "string"
+        },
+        "role_id": {
+            "type": "string"
+        },
+        "severity": {
+            "enum": [
+                "blocker",
+                "major",
+                "minor",
+                "speculation"
+            ]
+        },
+        "test_statement": {
+            "type": "string"
+        },
+        "required_evidence": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "owner": {
+            "type": "string"
+        },
+        "disposition": {
+            "enum": [
+                "blocking",
+                "non_blocking_tracked",
+                "refuted",
+                "deferred_post_results"
+            ]
+        },
+        "gate": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false
+}

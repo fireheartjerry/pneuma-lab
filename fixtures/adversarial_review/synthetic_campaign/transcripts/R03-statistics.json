@@ -1,0 +1,62 @@
+{
+  "cost_usd_upper_bound": 0.0,
+  "engine": "fixture",
+  "input_tokens": 1200,
+  "model": "synthetic-fixture-v1",
+  "output_tokens": 400,
+  "prompt_digest": "230628855e5413be9c715398e126d9b919b4837bad568b06243e6659319ae6a7",
+  "response": {
+    "coverage_notes": [
+      "No power section exists to review."
+    ],
+    "declared_dependencies": [],
+    "findings": [
+      {
+        "claim_ids": [
+          "C2"
+        ],
+        "confidence": "asserted",
+        "evidence": [
+          {
+            "detail": "design states no power calculation",
+            "end_line": 7,
+            "kind": "repo_line",
+            "locator": "design.md",
+            "quoted": "does not state a power calculation",
+            "start_line": 7
+          }
+        ],
+        "failure_mode": "A null result would be uninterpretable because the study cannot say what effect it could have detected.",
+        "finding_id": "F-ST-01",
+        "reproduction": [],
+        "severity": "major",
+        "statement": "The design states no power calculation of any kind.",
+        "title": "No power calculation",
+        "what_would_refute": "A registered power analysis with its simulation script."
+      },
+      {
+        "claim_ids": [
+          "C2"
+        ],
+        "confidence": "asserted",
+        "evidence": [
+          {
+            "detail": "a line range that does not exist",
+            "end_line": 9001,
+            "kind": "repo_line",
+            "locator": "design.md",
+            "start_line": 9000
+          }
+        ],
+        "failure_mode": "Every yield number would be biased.",
+        "finding_id": "F-ST-02",
+        "reproduction": [],
+        "severity": "blocker",
+        "statement": "The gauge calibration table is wrong.",
+        "title": "Invented citation, must be downgraded",
+        "what_would_refute": "A calibration receipt."
+      }
+    ],
+    "role_id": "R03-statistics"
+  }
+}

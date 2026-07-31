@@ -1,0 +1,55 @@
+{
+    "artifact_root": {
+        "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "record_count": 12,
+        "verified": true
+    },
+    "authority": "confirmation_execution_authorized",
+    "lineage": "canonical_confirmation",
+    "numbers": {
+        "content.estimate": 0.031,
+        "content.lower_bound": -0.004,
+        "content.p_value": 0.082,
+        "continuation.estimate": 0.088,
+        "continuation.lower_bound": 0.052,
+        "continuation.p_value": 0.001,
+        "excess.estimate": 0.047,
+        "excess.lower_bound": 0.006,
+        "excess.p_value": 0.031,
+        "resolution.delta_null": 0.003,
+        "resolution.delta_star": 0.05,
+        "resolution.q0": 0.118,
+        "resolution.r95": 0.042,
+        "sham_packet.estimate": 0.016,
+        "sham_packet.lower_bound": -0.012,
+        "sham_packet.p_value": 0.14,
+        "swe.content": 0.025,
+        "swe.excess": 0.041,
+        "swe.n": 160,
+        "tau.content": 0.037,
+        "tau.excess": 0.053,
+        "tau.n": 160,
+        "total.estimate": 0.135,
+        "total.lower_bound": 0.094,
+        "total.p_value": 0.001
+    },
+    "package_kind": "resampling_task10_sealed",
+    "receipts": {
+        "analysis_freeze": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "artifact_root": "1111111111111111111111111111111111111111111111111111111111111111",
+        "assignment_ledger": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "blinded_projection": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "packet_index": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "power_report": "2222222222222222222222222222222222222222222222222222222222222222",
+        "prefix_schedule": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "study_manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "unblind_receipt": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "sealed": true,
+    "synthetic_fixture_notice": "SYNTHETIC. Every number below is fabricated so the renderer has something to format. This package is not a scientific result and may never be cited as one.",
+    "unblind": {
+        "ceremony_completed": true,
+        "permit_digest": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "verdict": "UNRESOLVED_RESAMPLING"
+}

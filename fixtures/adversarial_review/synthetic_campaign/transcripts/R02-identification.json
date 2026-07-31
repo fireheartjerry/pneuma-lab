@@ -1,0 +1,42 @@
+{
+  "cost_usd_upper_bound": 0.0,
+  "engine": "fixture",
+  "input_tokens": 1200,
+  "model": "synthetic-fixture-v1",
+  "output_tokens": 400,
+  "prompt_digest": "8a20a1cd6e70ebb00bb4b583cdf8302052d453d7afcd5aed0981b70c52c9bdfe",
+  "response": {
+    "coverage_notes": [
+      "Read the toy design end to end."
+    ],
+    "declared_dependencies": [],
+    "findings": [
+      {
+        "claim_ids": [
+          "C1"
+        ],
+        "confidence": "asserted",
+        "evidence": [
+          {
+            "detail": "design states assignment is unspecified",
+            "end_line": 6,
+            "kind": "repo_line",
+            "locator": "design.md",
+            "quoted": "does not specify how batches are assigned",
+            "start_line": 6
+          }
+        ],
+        "failure_mode": "Any reported arm difference is confounded with whatever process actually placed batches into arms.",
+        "finding_id": "F-ID-01",
+        "reproduction": [
+          "sed -n '6p' design.md"
+        ],
+        "severity": "blocker",
+        "statement": "The design names two arms but never states how a batch is assigned to one, so no contrast between arms identifies a causal effect.",
+        "title": "No assignment mechanism is specified",
+        "what_would_refute": "A design revision that states a randomisation procedure and its seed source."
+      }
+    ],
+    "role_id": "R02-identification"
+  }
+}

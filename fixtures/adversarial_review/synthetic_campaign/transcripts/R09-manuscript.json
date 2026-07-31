@@ -1,0 +1,54 @@
+{
+  "cost_usd_upper_bound": 0.0,
+  "engine": "fixture",
+  "input_tokens": 1200,
+  "model": "synthetic-fixture-v1",
+  "output_tokens": 400,
+  "prompt_digest": "a37bd55ee372ba58c4e2e94914c85cbe1c1487f62fcce4e9467e76daee8ba127",
+  "response": {
+    "coverage_notes": [
+      "Read the toy manuscript."
+    ],
+    "declared_dependencies": [],
+    "findings": [
+      {
+        "claim_ids": [
+          "C2"
+        ],
+        "confidence": "asserted",
+        "evidence": [
+          {
+            "detail": "results are pending",
+            "end_line": 16,
+            "kind": "manuscript_span",
+            "locator": "manuscript.tex",
+            "quoted": "Results are pending",
+            "start_line": 15
+          }
+        ],
+        "failure_mode": "A reader takes C2 as measured when nothing measured it.",
+        "finding_id": "F-MS-01",
+        "reproduction": [],
+        "severity": "minor",
+        "statement": "The results section is a placeholder while the claims section already asserts a quantitative gain.",
+        "title": "Results section promises numbers it does not have",
+        "what_would_refute": "A results table produced by a named script."
+      },
+      {
+        "claim_ids": [
+          "C3"
+        ],
+        "confidence": "unverified",
+        "evidence": [],
+        "failure_mode": "Selection of favourable lines would inflate the effect.",
+        "finding_id": "F-MS-02",
+        "reproduction": [],
+        "severity": "speculation",
+        "statement": "No evidence supports this; recorded as speculation so the concern is not lost.",
+        "title": "The authors probably cherry-picked the widget lines",
+        "what_would_refute": "A registered line-selection record."
+      }
+    ],
+    "role_id": "R09-manuscript"
+  }
+}
