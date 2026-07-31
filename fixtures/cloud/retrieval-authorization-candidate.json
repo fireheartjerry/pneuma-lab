@@ -1,0 +1,24 @@
+{
+    "record_kind": "cloud_retrieval_authorization",
+    "schema_version": "0.1.0",
+    "frozen_timestamp": "2026-07-31T00:00:00Z",
+    "provenance": {
+        "design_sha256": "fbe68d5cdfa242678d132abedc143d41f75ce9aa03dc9864e9bd8600264a0f9a",
+        "code_sha256": "b9e76381fa29c681562d8969ade39637afe130dd00061d6ef6f59612f7f8fa69"
+    },
+    "status": "candidate",
+    "input_lock_sha256": "d7413fe11eb6ca6f5fb794d5abdc78f092492f2fb5f3cedc257ab1adf61f87c8",
+    "scopes": [
+        "model",
+        "tokenizer",
+        "benchmark",
+        "container_base",
+        "verifier",
+        "license",
+        "contamination"
+    ],
+    "byte_ceiling_bytes": 504658657280,
+    "mirror_root": "mirror/step5b",
+    "ledger_row_id": null,
+    "human_authorization": null
+}

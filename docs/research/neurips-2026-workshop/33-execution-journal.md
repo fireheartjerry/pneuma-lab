@@ -3572,3 +3572,71 @@ The next event after the archived migration boundary is appended below.
   or claim occurred. Azure remains verified spendable 0.00 until official
   evidence is recorded, and any Azure training/other experiment requires a
   separate design and authority lineage.
+
+## 2026-07-31 — Step 5B workflow and the G-ROSTER evaluation
+
+- **Scope:** isolated worktree/branch (`codex/step5b-groster`). Adds
+  `schemas/cloud-retrieval-authorization.schema.json`,
+  `schemas/cloud-qualification-audit.schema.json`,
+  `src/pneuma_lab/cloud/retrieval.py`, `src/pneuma_lab/cloud/qualification.py`,
+  `fixtures/cloud/`, `tests/cloud/test_retrieval.py`,
+  `tests/cloud/test_qualification.py`, and
+  `docs/research/neurips-2026-workshop/51-step5b-retrieval-and-qualification.md`.
+- **Evaluation (DL-163):** both tiers are `FEASIBILITY_NO_GO`. Against the
+  current-metadata proxy, C120 requires 11 C and 16 C++ root lineages versus 9
+  and 14, and C160 requires 14 C versus 9.
+- **Correction made under hostile review — recorded because it changes the
+  conclusion.** The first draft of this work claimed the inequality was
+  *unsatisfiable by any audit outcome*, reasoning that qualification only
+  filters the proxy pool. Independent hostile review showed the premise is
+  unsound: the DL-128 proxy filters present-day repository metadata, while the
+  registered eligibility criterion is base-commit licence evidence. A repository
+  archived or unlicensed today may still be admissible at its pinned base
+  commit, so the proxy is not an upper bound on eligibility. The draft had also
+  hard-coded that premise as a validation error, which would have made the one
+  finding capable of overturning the verdict impossible to record. Both are
+  fixed: records now declare `proxy_basis`, monotonicity is enforced only for
+  `base_commit_admissible`, and the shortfalls are reported
+  `provisional_unsatisfiable`. The strong claim is withdrawn.
+- **Other hostile-review repairs:** the human signature is now a binding digest
+  over the record (it was unverified free-text hex); the roster gate now
+  requires resolvable evidence bytes and the bound input-lock digest (a
+  hand-written JSON file previously reached `CONDITIONALLY_FEASIBLE`); verifier
+  sources are now a retrieval scope (they were silently omitted); mirror paths
+  are kind-scoped and collision-checked; the receipt plan binds the lock; and
+  the byte ceiling is checked before each declared fetch.
+- **Consequence for sequencing:** Step 5B and G-ROSTER are genuinely coupled.
+  The base-commit admissibility enumeration that settles the roster question is
+  Step 5B's licence audit, so the roster cannot be closed from a desk.
+- **Read-only corroboration (CL-027):** public sources corroborate 743 tasks /
+  381 repository strings for SWE-bench-Live MultiLang and the τ² domain counts
+  (airline 50, telecom 114, banking 97). The per-language lineage breakdown is
+  **not publicly published**, so the 9 C / 14 C++ proxy remains internal CL-009
+  evidence; no response artifact was committed for that check, so it is
+  unrecomputable by a reviewer and independent re-derivation stays pending.
+- **Second hostile review and further repairs.** A second independent review
+  found the roster gate still reachable from a hand-written record, `FEASIBLE`
+  accepting the weak `current_repository_metadata` basis it argues cannot bound
+  eligibility, and `build_audit_plan` silently skipping the benchmark
+  `dataset_revision` and `task_manifest_sha256` — the very bytes the roster
+  counts derive from. Fixed: `FEASIBLE` now requires
+  `base_commit_admissible`; the gate recomputes the lock digest from a supplied
+  lock instead of trusting a caller string; the dataset revision and task
+  manifest are planned and verified; and `require_complete_scopes` refuses an
+  authorization that would leave a pinned input unretrieved. The gate's residual
+  limit — it is a consistency check, not an authenticity check, satisfiable by
+  whoever writes both the record and the evidence files — is now stated in the
+  docstring, in doc 51, and pinned by a test named for what it actually proves.
+- **Verification:** `tests/cloud` and `tests/test_schema_loads.py` pass on this
+  branch except `test_iac_plan.py::test_terraform_binary_check_is_explicitly_skipped_when_absent`,
+  which `pytest.fail`s whenever a terraform binary is on PATH; that test is
+  unmodified here and its outcome is environmental. `ruff check` is clean on the
+  new modules and tests; the default smoke gate and
+  `python -m pneuma_lab.status --check` pass. Two independent hostile reviews
+  were run and every BLOCKING and MAJOR finding was repaired before commit.
+- **Boundary:** no external input was retrieved, no registry/provider/account
+  was contacted, no image or dataset byte was pulled, no meaningful storage was
+  consumed, no manifest was promoted, no roster was weakened, no credit was
+  spent, and no Step 4B, pilot, unblind, analysis, or scientific claim occurred.
+  The committed authorization record is an unsigned candidate bound to a
+  synthetic fixture lock and grants nothing.

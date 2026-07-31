@@ -14,9 +14,9 @@ record, and a pushed commit. They establish no scientific result.
 
 | item | implementation | external verification | authority freeze | launch review | execution |
 | --- | --- | --- | --- | --- | --- |
-| Step 5B real inputs | pending | pending: no retrieved receipts | pending | pending | pending |
+| Step 5B real inputs | implementation_complete (workflow + unsigned shape-demo candidate) | pending: no retrieved receipts | pending: candidate unsigned and bound to a fixture lock | pending | pending |
 | Step 7B real builds | pending | pending: no image/SBOM/repeat-build receipts | pending | pending | pending |
-| G-ROSTER | n/a | pending qualification audit | pending amendment or satisfied inequality | pending | pending |
+| G-ROSTER | evaluator implementation_complete | pending: both tiers FEASIBILITY_NO_GO; C/C++ shortfalls provisional only (DL-162) | pending base-commit audit or reviewed amendment | pending | pending |
 | AWS architecture | former 48-vCPU static shape superseded; 8-vCPU reconciliation pending | pending Terraform/L3/account and quota-class semantics | pending | pending | pending |
 | Azure parity/other studies | boundary only; user reports $10k incoming | official balance/terms remain unverified | separate authority required | pending | pending |
 | pilot | protocol complete | pending admission evidence | pending hash-bound human/spend authorization | pending | pending |

@@ -17,3 +17,16 @@ dataset, tokenizer, container layer, license, or contamination record.
 Consequently this completes the Step 5A implementation contract, not Step 5B:
 no real input is locked, `G-ROSTER` remains open, no experiment manifest is
 promoted, and no provider or paid action is authorized.
+
+## Step 5B
+
+The authorized retrieval and hash-verification workflow that would satisfy the
+"Lock external inputs" exit gate is implemented in
+`src/pneuma_lab/cloud/retrieval.py` and documented in
+`51-step5b-retrieval-and-qualification.md`. It is unexecuted: the committed
+authorization record is an unsigned candidate, so `require_authorized` refuses
+and no byte has been retrieved. The committed candidate is bound to the synthetic fixture lock, so it
+demonstrates the document shape rather than requesting a real retrieval. That
+document also records the G-ROSTER evaluation (DL-163): both tiers are
+`FEASIBILITY_NO_GO`, and the C/C++ shortfalls are provisional pending the
+base-commit admissibility enumeration.

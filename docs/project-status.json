@@ -975,11 +975,11 @@
         },
         {
             "id": "B-NEURIPS-G-ROSTER",
-            "summary": "Both C120 and C160 remain FEASIBILITY_NO_GO until the full base-commit, image, isolation, and three-pair qualification audit satisfies the registered eligibility inequality for every split, or a reviewed protocol amendment is registered."
+            "summary": "Both C120 and C160 remain FEASIBILITY_NO_GO (DL-163): no qualification audit has run, and proxy metadata is never qualification. Against the current-metadata proxy, C120 requires 11 C and 16 C++ root lineages versus 9 and 14, and C160 requires 14 C versus 9; these are recorded provisional_unsatisfiable, NOT a determination that a tier is dead, because eligibility is judged at the pinned base commits rather than on present-day repository metadata. Settling it requires the Step 5B base-commit admissibility enumeration or a reviewed protocol amendment, and the per-language proxy counts remain internal CL-009 evidence pending independent re-derivation."
         },
         {
             "id": "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
-            "summary": "No real model, tokenizer, benchmark, verifier, license, contamination, or OCI receipt has been retrieved and independently hash-verified; Step 5A fixtures do not satisfy Step 5B."
+            "summary": "No real model, tokenizer, benchmark, verifier, license, contamination, or OCI receipt has been retrieved and independently hash-verified. The Step 5B fail-closed retrieval and hash-verification workflow is implemented and its authorization record is committed as an unsigned candidate, so retrieval refuses; Step 5A fixtures do not satisfy Step 5B."
         },
         {
             "id": "B-NEURIPS-AWS-ACCOUNT-PLAN",

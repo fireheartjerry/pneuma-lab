@@ -1,0 +1,127 @@
+{
+    "record_kind": "cloud_qualification_audit",
+    "schema_version": "0.1.0",
+    "frozen_timestamp": "2026-07-31T00:00:00Z",
+    "provenance": {
+        "design_sha256": "fbe68d5cdfa242678d132abedc143d41f75ce9aa03dc9864e9bd8600264a0f9a",
+        "code_sha256": "6973785301a5ed1a6118bb53869156582b75b0c9ca95ca74b7a03bb9fe8f78df"
+    },
+    "tier": "C120",
+    "evidence_class": "proxy_metadata",
+    "proxy_basis": "current_repository_metadata",
+    "input_lock_sha256": null,
+    "splits": [
+        {
+            "split": "C",
+            "proxy_lineages": 9,
+            "eligible_lineages": 0,
+            "confirmation_quota": 9,
+            "pilot_lineages": 1,
+            "fixed_reserve": 0,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "C++",
+            "proxy_lineages": 14,
+            "eligible_lineages": 0,
+            "confirmation_quota": 14,
+            "pilot_lineages": 1,
+            "fixed_reserve": 0,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "C#",
+            "proxy_lineages": 26,
+            "eligible_lineages": 0,
+            "confirmation_quota": 16,
+            "pilot_lineages": 1,
+            "fixed_reserve": 0,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "Go",
+            "proxy_lineages": 77,
+            "eligible_lineages": 0,
+            "confirmation_quota": 17,
+            "pilot_lineages": 1,
+            "fixed_reserve": 0,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "Java",
+            "proxy_lineages": 44,
+            "eligible_lineages": 0,
+            "confirmation_quota": 16,
+            "pilot_lineages": 1,
+            "fixed_reserve": 0,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "JavaScript",
+            "proxy_lineages": 35,
+            "eligible_lineages": 0,
+            "confirmation_quota": 16,
+            "pilot_lineages": 1,
+            "fixed_reserve": 0,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "Rust",
+            "proxy_lineages": 28,
+            "eligible_lineages": 0,
+            "confirmation_quota": 16,
+            "pilot_lineages": 1,
+            "fixed_reserve": 0,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "TypeScript",
+            "proxy_lineages": 45,
+            "eligible_lineages": 0,
+            "confirmation_quota": 16,
+            "pilot_lineages": 1,
+            "fixed_reserve": 0,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        }
+    ]
+}

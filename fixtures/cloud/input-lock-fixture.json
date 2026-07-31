@@ -1,0 +1,71 @@
+{
+    "record_kind": "cloud_input_lock",
+    "schema_version": "0.1.0",
+    "frozen_timestamp": "2026-07-31T00:00:00Z",
+    "provenance": {
+        "design_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "code_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "model_pins": [
+        {
+            "repository": "org/model",
+            "revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "license": "Apache-2.0",
+            "snapshot_receipt": {
+                "relative_path": "receipts/source.json",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+        }
+    ],
+    "tokenizer_pin": {
+        "repository": "org/tokenizer",
+        "revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "license": "Apache-2.0",
+        "snapshot_receipt": {
+            "relative_path": "receipts/source.json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+    },
+    "benchmark_pins": [
+        {
+            "repository": "org/benchmark",
+            "revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "license": "Apache-2.0",
+            "snapshot_receipt": {
+                "relative_path": "receipts/source.json",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "dataset_revision": "cccccccccccccccccccccccccccccccccccccccc",
+            "task_manifest_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+    ],
+    "container_bases": [
+        {
+            "repository": "registry.example/base",
+            "digest": "linux/amd64@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+    ],
+    "verifier_sources": [
+        {
+            "repository": "org/verifier",
+            "revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "license": "Apache-2.0",
+            "snapshot_receipt": {
+                "relative_path": "receipts/source.json",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+        }
+    ],
+    "contamination_receipts": [
+        {
+            "relative_path": "receipts/source.json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+    ],
+    "license_receipts": [
+        {
+            "relative_path": "receipts/source.json",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+    ]
+}
