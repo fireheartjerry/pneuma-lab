@@ -415,6 +415,25 @@
             "blockers": [
                 "B-NEURIPS-TASK9-E2E"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_task10",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/33-execution-journal.md",
+                "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
+                "docs/research/neurips-2026-workshop/36-step4a-to-aws-credit-launch-roadmap.md",
+                "src/pneuma_lab/resampling_null/release.py",
+                "src/pneuma_lab/resampling_null/cli.py",
+                "tests/resampling_null/test_release.py",
+                "tests/resampling_null/test_cli.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-TASK10-E2E"
+            ]
         }
     ],
     "nine_to_five": {
@@ -710,6 +729,10 @@
         {
             "id": "B-NEURIPS-TASK9-E2E",
             "summary": "Task 9 has no complete authority-backed P0 lineage reaching real branch execution and a task block of record; its state is implementation_complete and E2E_pending."
+        },
+        {
+            "id": "B-NEURIPS-TASK10-E2E",
+            "summary": "Task 10 has no complete authority-backed P0 lineage, isolated result of record, or independently verified canonical release decision; its state is implementation_complete and E2E_pending."
         }
     ]
 }
