@@ -29,8 +29,13 @@ def _rev(seed: str) -> str:
     return hashlib.sha1(seed.encode()).hexdigest()  # noqa: S324 - a git object id, not a security digest
 
 
+def _payload(name: str) -> bytes:
+    return name.encode()
+
+
 def _receipt(name: str) -> dict:
-    return {"relative_path": f"receipts/{name}.json", "sha256": _sha(name)}
+    payload = _payload(name)
+    return {"relative_path": f"receipts/{name}.json", "sha256": _sha(name), "size_bytes": len(payload)}
 
 
 def _real_parts() -> dict:
@@ -63,10 +68,12 @@ def _real_parts() -> dict:
             "snapshot_receipt": _receipt("benchmark"),
             "dataset_revision": _rev("dataset"),
             "task_manifest_sha256": _sha("task-manifest"),
+            "task_manifest_size_bytes": len(_payload("task-manifest")),
         }],
         "container_bases": [{
             "repository": "docker.io/vllm/vllm-openai",
             "digest": f"linux/amd64@sha256:{_sha('image')}",
+            "manifest_size_bytes": len(_payload("image")),
         }],
         "verifier_sources": [{
             "repository": "sierra-research/tau2-bench",
@@ -80,7 +87,7 @@ def _real_parts() -> dict:
 
 
 def _committed_fixture() -> dict:
-    return json.loads((FIXTURES / "input-lock-fixture.json").read_text())
+    return json.loads((FIXTURES / "input-lock-fixture.json").read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------

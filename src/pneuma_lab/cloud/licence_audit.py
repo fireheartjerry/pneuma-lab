@@ -39,6 +39,7 @@ from typing import Any
 
 from .errors import CloudManifestError
 from .manifests import _validate
+from .provenance import canonical_text_digest
 
 
 ADMITTING_REASON = "permissive_licence_at_base_commit"
@@ -203,7 +204,8 @@ def derive_audit(
     if not roster:
         raise CloudManifestError("a licence audit needs a candidate roster; an empty derivation is not an audit")
     if code_sha256 is None:
-        code_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        # Canonical content digest, so a CRLF checkout derives the same receipt.
+        code_sha256 = canonical_text_digest(Path(__file__))
 
     lineages: list[dict[str, Any]] = []
     for candidate in roster:

@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -44,6 +44,26 @@ from .manifests import _validate
 
 
 LEDGER_RELATIVE_PATH = "docs/research/neurips-2026-workshop/32-cloud-spend-ledger.md"
+
+# A zero-argument callable returning the current instant. The execution gate
+# resolves time through one of these rather than accepting a timestamp from its
+# caller, because a caller-supplied instant is a replay control: an expired
+# authorization verifies again the moment someone passes an earlier in-window
+# value. Overriding the clock is a **test seam**, never an execution option.
+Clock = Callable[[], "datetime"]
+
+
+def trusted_now() -> datetime:
+    """Return the current UTC instant from the system clock.
+
+    This is the only clock the execution path uses. It is trusted in the narrow
+    sense that it is not caller-supplied; it is still only as good as host time,
+    and a host whose clock is wrong will make wrong validity decisions. Binding
+    validity to an external time authority or to a countersigned execution
+    receipt would close that gap and is not implemented here.
+    """
+
+    return datetime.now(timezone.utc)
 
 
 def instant(value: str) -> datetime:
@@ -118,16 +138,15 @@ def validate_key_registry(record: Mapping[str, Any]) -> dict[str, Any]:
     return registry
 
 
-def resolve_trusted_key(registry: Mapping[str, Any], key_id: str, *, at: str) -> dict[str, Any]:
+def resolve_trusted_key(registry: Mapping[str, Any], key_id: str, *, now: datetime) -> dict[str, Any]:
     """Return the trusted key, or fail closed on unknown, revoked, or out-of-window.
 
-    `at` is the instant the authorization is being evaluated for, supplied by
-    the caller rather than read from the clock, so the decision is reproducible
-    and a test cannot depend on the day it runs.
+    `now` is an already-resolved instant. Callers on the execution path obtain
+    it from `trusted_now`; only tests substitute one.
     """
 
     validated = validate_key_registry(registry)
-    moment = instant(at)
+    moment = now
     for key in validated["keys"]:
         if key["key_id"] != key_id:
             continue
@@ -135,12 +154,12 @@ def resolve_trusted_key(registry: Mapping[str, Any], key_id: str, *, at: str) ->
             reason = key["revocation_reason"] or "no reason recorded"
             raise CloudManifestError(f"approver key {key_id!r} was revoked at {key['revoked_timestamp']} ({reason})")
         if not (instant(key["not_before"]) <= moment <= instant(key["not_after"])):
-            raise CloudManifestError(f"approver key {key_id!r} is outside its validity window at {at}")
+            raise CloudManifestError(f"approver key {key_id!r} is outside its validity window at {moment.isoformat()}")
         return key
     raise CloudManifestError(f"approver key {key_id!r} is not in the trusted registry; an unenumerated key authorizes nothing")
 
 
-def verify_signature(record: Mapping[str, Any], registry: Mapping[str, Any], *, at: str) -> dict[str, Any]:
+def verify_signature(record: Mapping[str, Any], registry: Mapping[str, Any], *, now: datetime) -> dict[str, Any]:
     """Verify the Ed25519 approval on an authorization record.
 
     Returns the resolved trusted key. Raises on any failure; there is no
@@ -152,8 +171,8 @@ def verify_signature(record: Mapping[str, Any], registry: Mapping[str, Any], *, 
     if approval is None:
         raise CloudManifestError("record carries no human authorization to verify")
 
-    key = resolve_trusted_key(registry, approval["key_id"], at=at)
-    moment = instant(at)
+    key = resolve_trusted_key(registry, approval["key_id"], now=now)
+    moment = now
     granted = instant(approval["granted_timestamp"])
     expires = instant(approval["expires_timestamp"])
     if approval["approver_id"] != key["approver_id"]:
@@ -165,7 +184,7 @@ def verify_signature(record: Mapping[str, Any], registry: Mapping[str, Any], *, 
     if moment > expires:
         raise CloudManifestError(f"authorization expired at {approval['expires_timestamp']}")
     if moment < granted:
-        raise CloudManifestError(f"authorization is not yet valid at {at}")
+        raise CloudManifestError(f"authorization is not yet valid at {moment.isoformat()}")
 
     body = canonical_bytes(signed_body(record))
     observed = hashlib.sha256(body).hexdigest()

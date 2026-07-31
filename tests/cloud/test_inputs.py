@@ -14,13 +14,13 @@ _REV = "b" * 40
 
 
 def input_lock() -> dict:
-    receipt = {"relative_path": "receipts/source.json", "sha256": _HEX}
+    receipt = {"relative_path": "receipts/source.json", "sha256": _HEX, "size_bytes": 1024}
     pin = {"repository": "org/model", "revision": _REV, "license": "Apache-2.0", "snapshot_receipt": receipt}
-    benchmark = {**pin, "repository": "org/benchmark", "dataset_revision": "c" * 40, "task_manifest_sha256": "d" * 64}
+    benchmark = {**pin, "repository": "org/benchmark", "dataset_revision": "c" * 40, "task_manifest_sha256": "d" * 64, "task_manifest_size_bytes": 1024}
     return {
-        "record_kind": "cloud_input_lock", "schema_version": "0.1.0", "frozen_timestamp": "2026-07-31T00:00:00Z",
+        "record_kind": "cloud_input_lock", "schema_version": "0.2.0", "frozen_timestamp": "2026-07-31T00:00:00Z",
         "provenance": {"design_sha256": _HEX, "code_sha256": _HEX}, "model_pins": [pin], "tokenizer_pin": {**pin, "repository": "org/tokenizer"},
-        "benchmark_pins": [benchmark], "container_bases": [{"repository": "registry.example/base", "digest": "linux/amd64@sha256:" + _HEX}],
+        "benchmark_pins": [benchmark], "container_bases": [{"repository": "registry.example/base", "digest": "linux/amd64@sha256:" + _HEX, "manifest_size_bytes": 1024}],
         "verifier_sources": [{**pin, "repository": "org/verifier"}], "contamination_receipts": [receipt], "license_receipts": [receipt],
     }
 

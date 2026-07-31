@@ -3783,3 +3783,57 @@ The next event after the archived migration boundary is appended below.
   sessions operating on the primary checkout did perform AWS bootstrap work;
   that work is theirs, is recorded in their own documents, and is not part of
   this branch.
+### EJ-20260731-step5b-execution-safety-repair
+
+- **Trigger:** pre-promotion review of the authenticated Step 5B slice reported
+  three launch-blocking authority issues and three portability failures. All six
+  were reproduced and are closed here; none was disputed.
+- **Caller-controlled authorization time (P1).** The execution gate accepted an
+  `at` string from its caller, which made expiry advisory: replaying an expired
+  authorization needed nothing more than passing an earlier in-window instant.
+  `require_authorized` and `retrieve_and_verify` no longer take an evaluation
+  instant at all; validity resolves through `trusted_now`. An injected clock
+  remains available as a **test seam** and a test asserts the parameter is
+  absent from both signatures. Honest limit: `trusted_now` is trusted only in
+  the sense that it is not caller-supplied — it is still host time, and binding
+  validity to an external time authority or a countersigned execution receipt
+  would close that gap and is not implemented.
+- **Ceiling enforced after spending (P1).** `declared_sizes` was optional and
+  fetcher-supplied, so an arbitrarily oversized object could transfer in full
+  before the post-fetch check rejected it. Sizes are now **authenticated**:
+  `cloud-input-lock` 0.2.0 pins `size_bytes` per receipt plus
+  `task_manifest_size_bytes` and `manifest_size_bytes`, and the lock digest sits
+  inside the signed authorization body, so a size is approved rather than
+  declared. The whole plan is checked against the ceiling before the first byte
+  moves, and the fetch boundary now yields chunks so each one is counted as it
+  arrives. A flooding fetcher is cut off within one chunk of its authenticated
+  size, which a test pins.
+- **Receipts named unwritten files (P1).** `mirror_path` was returned but never
+  written or reopened. Bytes now stream to a staged file, are fsynced and
+  atomically installed at the mirror path, then **reopened and rehashed
+  independently** — not reusing the streaming digest — before a receipt is
+  emitted. Receipts carry `installed_path` and `size_bytes`; an occupied
+  destination is refused rather than overwritten; a failed transfer publishes
+  nothing, which a test verifies by asserting the mirror is empty.
+- **Portability.** Provenance digests bound raw checkout bytes, so a CRLF
+  checkout invalidated every committed hash on Windows. `cloud/provenance.py`
+  canonicalizes text (UTF-8, LF, BOM-stripped) before hashing, matching the
+  content Git stores for a normalised text blob; the refresh script, the licence
+  audit's self-binding, and the provenance tests all use it. Every repository
+  document read in tests now specifies `encoding="utf-8"` rather than the
+  platform default. The Terraform mock stub is created as `terraform.bat` on
+  Windows, since an extensionless file is correctly not an executable there.
+- **Verification:** `tests/cloud` and `tests/test_schema_loads.py` pass (466
+  cases), and **the entire suite was re-run against a simulated CRLF checkout of
+  the design freeze, decision log, spend ledger, and both bound modules, and
+  passed unchanged**. The Terraform tests pass both with a real binary on PATH
+  and with `PATH` emptied. Ruff is clean on every new and revised module and
+  test; the default smoke gate, `python -m pneuma_lab.status --check`, and
+  `git diff --check` pass.
+- **Boundary:** no external retrieval, registry/provider/account contact, image
+  or dataset pull, container build, cloud mutation, Terraform plan or apply,
+  quota change, credit spend, pilot, Step 4B, unblind, analysis, manifest
+  promotion, or scientific claim occurred. The committed authorization is still
+  an unsigned candidate bound to the synthetic fixture lock, so the repaired
+  retrieval path remains unreachable. C120 and C160 remain
+  `FEASIBILITY_NO_GO` and nothing was weakened.

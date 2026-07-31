@@ -379,7 +379,7 @@ def test_preidentity_crash_window_recovers_only_the_keyed_private_temp(monkeypat
     monkeypatch.setattr(state, "_write_transaction", lambda *_a, **_k: (_ for _ in ()).throw(OSError("injected journal crash")))
     with pytest.raises(OSError, match="injected journal crash"):
         state.prepare_paired_publication_entry(root, 0, b"receipt", auth_key=key)
-    intent = json.loads((root / "operational/task6/paired-publication.json").read_text())
+    intent = json.loads((root / "operational/task6/paired-publication.json").read_text(encoding="utf-8"))
     staged = root / intent["entries"][0]["temporary_relative_path"]
     assert staged.is_file()
     monkeypatch.setattr(state, "_write_transaction", original)
@@ -402,10 +402,10 @@ def test_forged_or_hardlinked_preidentity_intent_never_deletes_victim(tmp_path) 
     victim.write_bytes(b"victim")
     state.begin_paired_publication(root, ((receipt, b"receipt"), (analysis, b"analysis")), auth_key=key)
     transaction = root / "operational/task6/paired-publication.json"
-    intent = json.loads(transaction.read_text())
+    intent = json.loads(transaction.read_text(encoding="utf-8"))
     staged = root / intent["entries"][0]["temporary_relative_path"]
     os.link(victim, staged)
-    forged = json.loads(transaction.read_text())
+    forged = json.loads(transaction.read_text(encoding="utf-8"))
     forged["entries"][1]["temporary_relative_path"] = "victim.json"
     # A readable receipt permit is not the recovery capability and cannot
     # authenticate a forged cleanup plan.

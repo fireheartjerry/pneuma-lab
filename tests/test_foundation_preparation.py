@@ -866,7 +866,7 @@ def test_prepare_stage_uses_verified_streams_and_recovers_partial_outputs(
     (conversion_root / "orphan.tmp").write_bytes(b"partial")
 
     repaired = preparation.prepare_stage(request)
-    report = json.loads((conversion_root / "conversion_report.json").read_text())
+    report = json.loads((conversion_root / "conversion_report.json").read_text(encoding="utf-8"))
     assert repaired.shard_path.read_bytes() == result.shard_path.read_bytes()
     assert report["count_reconciliation"]["reconciled"] is True
 

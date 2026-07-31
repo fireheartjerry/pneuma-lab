@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from pneuma_lab.cloud.errors import CloudManifestError
+from pneuma_lab.cloud.provenance import canonical_text_digest
 from pneuma_lab.cloud.inputs import verify_input_lock
 from pneuma_lab.cloud.qualification import (
     FEASIBLE,
@@ -29,7 +30,7 @@ _HEX = "a" * 64
 
 
 def _lock() -> dict:
-    return json.loads((FIXTURES / "input-lock-fixture.json").read_text())
+    return json.loads((FIXTURES / "input-lock-fixture.json").read_text(encoding="utf-8"))
 
 
 def _lock_digest() -> str:
@@ -38,7 +39,7 @@ def _lock_digest() -> str:
 
 def audit(tier: str, family: str = "swe") -> dict:
     stem = f"qualification-audit-{tier}-proxy" if family == "swe" else f"qualification-audit-tau2-{tier}-proxy"
-    return json.loads((FIXTURES / f"{stem}.json").read_text())
+    return json.loads((FIXTURES / f"{stem}.json").read_text(encoding="utf-8"))
 
 
 def _mirror(tmp_path: Path) -> tuple[Path, dict]:
@@ -84,8 +85,8 @@ def _both_families(receipt: dict, tier: str = "c120") -> list[dict]:
 
 
 def test_committed_proxy_fixtures_bind_their_design_and_code() -> None:
-    design = hashlib.sha256((REPO_ROOT / "docs/research/neurips-2026-workshop/38-experiment-design-freeze.md").read_bytes()).hexdigest()
-    code = hashlib.sha256((REPO_ROOT / "src/pneuma_lab/cloud/qualification.py").read_bytes()).hexdigest()
+    design = canonical_text_digest(REPO_ROOT / "docs/research/neurips-2026-workshop/38-experiment-design-freeze.md")
+    code = canonical_text_digest(REPO_ROOT / "src/pneuma_lab/cloud/qualification.py")
     for tier in ("c120", "c160"):
         provenance = validate_qualification_audit(audit(tier))["provenance"]
         assert provenance == {"design_sha256": design, "code_sha256": code}
@@ -94,7 +95,7 @@ def test_committed_proxy_fixtures_bind_their_design_and_code() -> None:
 def test_fixture_counts_are_transcribed_from_the_decision_log() -> None:
     """Guard against a silent transcription error in the roster evidence."""
 
-    row = next(line for line in DECISION_LOG.read_text().splitlines() if line.startswith("| DL-128 "))
+    row = next(line for line in DECISION_LOG.read_text(encoding="utf-8").splitlines() if line.startswith("| DL-128 "))
     assert "C120 keeps fixed confirmation quotas `9/14/16/17/16/16/16/16`" in row
     assert re.search(r"split C 9, C\+\+ 14, C# 26, Go 77, Java 44, JavaScript 35, Rust 28, TypeScript 45", row)
     assert "at least 11 C and 16 C++ lineages" in row
@@ -115,7 +116,7 @@ def test_fixture_counts_are_transcribed_from_the_decision_log() -> None:
 
 
 def test_tau2_fixture_counts_are_transcribed_from_the_decision_log() -> None:
-    row = next(line for line in DECISION_LOG.read_text().splitlines() if line.startswith("| DL-128 "))
+    row = next(line for line in DECISION_LOG.read_text(encoding="utf-8").splitlines() if line.startswith("| DL-128 "))
     assert "airline 50 DB+COMMUNICATE" in row
     assert "telecom base 114" in row
     assert "banking 88 DB plus 9 ACTION-only" in row
@@ -173,7 +174,7 @@ def test_a_registered_floor_outranks_the_inequality() -> None:
     at 27 and silently understated the registered requirement by twenty tasks.
     """
 
-    row = next(line for line in DECISION_LOG.read_text().splitlines() if line.startswith("| DL-128 "))
+    row = next(line for line in DECISION_LOG.read_text(encoding="utf-8").splitlines() if line.startswith("| DL-128 "))
     assert "C160 requires at least 47 qualified airline tasks" in row
 
     airline = {s["split"]: s for s in audit("c160", "tau2")["splits"]}["airline"]

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from pneuma_lab.cloud.errors import CloudManifestError
+from pneuma_lab.cloud.provenance import canonical_text_digest
 from pneuma_lab.cloud.inputs import verify_input_lock
 from pneuma_lab.cloud.retrieval import (
     build_audit_plan,
@@ -28,14 +29,14 @@ FIXTURES = REPO_ROOT / "fixtures" / "cloud"
 
 
 def candidate() -> dict:
-    return json.loads((FIXTURES / "retrieval-authorization-candidate.json").read_text())
+    return json.loads((FIXTURES / "retrieval-authorization-candidate.json").read_text(encoding="utf-8"))
 
 
 def test_committed_candidate_is_valid_and_authorizes_nothing() -> None:
     record = validate_retrieval_authorization(candidate())
     assert record["provenance"] == {
-        "design_sha256": hashlib.sha256((REPO_ROOT / "docs/research/neurips-2026-workshop/38-experiment-design-freeze.md").read_bytes()).hexdigest(),
-        "code_sha256": hashlib.sha256((REPO_ROOT / "src/pneuma_lab/cloud/retrieval.py").read_bytes()).hexdigest(),
+        "design_sha256": canonical_text_digest(REPO_ROOT / "docs/research/neurips-2026-workshop/38-experiment-design-freeze.md"),
+        "code_sha256": canonical_text_digest(REPO_ROOT / "src/pneuma_lab/cloud/retrieval.py"),
     }
     assert record["status"] == "candidate"
     assert record["ledger_row_id"] is None and record["human_authorization"] is None
@@ -44,7 +45,6 @@ def test_committed_candidate_is_valid_and_authorizes_nothing() -> None:
             record,
             input_lock(),
             key_registry={},
-            at="2026-07-31T00:00:00Z",
             ledger_path=REPO_ROOT / "docs/research/neurips-2026-workshop/32-cloud-spend-ledger.md",
         )
 
@@ -52,7 +52,7 @@ def test_committed_candidate_is_valid_and_authorizes_nothing() -> None:
 def test_committed_candidate_is_bound_to_the_fixture_lock_not_a_real_one() -> None:
     """The candidate demonstrates shape; its lock is explicitly synthetic."""
 
-    fixture_lock = json.loads((FIXTURES / "input-lock-fixture.json").read_text())
+    fixture_lock = json.loads((FIXTURES / "input-lock-fixture.json").read_text(encoding="utf-8"))
     assert candidate()["input_lock_sha256"] == verify_input_lock(fixture_lock)
     assert fixture_lock["model_pins"][0]["repository"] == "org/model"
 
@@ -77,6 +77,9 @@ def test_plan_covers_every_retrievable_scope_including_the_verifier() -> None:
     plan = build_audit_plan(input_lock(), candidate())
     assert [step["kind"] for step in plan] == ["model", "tokenizer", "benchmark", "benchmark_dataset", "verifier", "container"]
     assert all(step["expected_sha256"] in {_HEX, "d" * 64} for step in plan)
+    # Every step carries an authenticated size, so the ceiling can be enforced
+    # before and during transfer rather than after it.
+    assert all(step["expected_size_bytes"] == 1024 for step in plan)
     assert plan[-1]["reference"] == "linux/amd64@sha256:" + _HEX
     assert all(step["mirror_path"].startswith("mirror/step5b/") for step in plan)
 
@@ -124,9 +127,10 @@ def test_receipt_plan_covers_license_and_contamination_and_binds_the_lock() -> N
         build_receipt_verification_plan(input_lock(), unbound)
 
 
-def test_retrieval_refuses_without_fresh_authorization() -> None:
-    def fetcher(step: dict) -> bytes:
+def test_retrieval_refuses_without_fresh_authorization(tmp_path: Path) -> None:
+    def fetcher(step):
         raise AssertionError("fetcher must not run without authorization")
+        yield b""  # pragma: no cover - generator marker
 
     with pytest.raises(CloudManifestError):
         retrieve_and_verify(
@@ -134,9 +138,11 @@ def test_retrieval_refuses_without_fresh_authorization() -> None:
             candidate(),
             fetcher,
             key_registry={},
-            at="2026-07-31T00:00:00Z",
             ledger_path=REPO_ROOT / "docs/research/neurips-2026-workshop/32-cloud-spend-ledger.md",
+            mirror_root=tmp_path / "mirror",
         )
+    # Nothing was created for an unauthorized attempt.
+    assert not (tmp_path / "mirror").exists() or not any((tmp_path / "mirror").rglob("*"))
 
 
 def test_local_byte_verification_fails_closed(tmp_path: Path) -> None:

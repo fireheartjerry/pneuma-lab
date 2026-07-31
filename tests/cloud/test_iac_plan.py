@@ -67,13 +67,23 @@ def test_empty_search_path_searches_nowhere(tmp_path: Path) -> None:
 
 
 def test_present_terraform_is_reported_available_on_a_mock_path(tmp_path: Path) -> None:
-    """The present-binary branch, exercised without needing a real terraform."""
+    """The present-binary branch, exercised without needing a real terraform.
+
+    The stub must be named the way the host resolves executables. On Windows an
+    extensionless file is correctly *not* an executable, so `shutil.which` will
+    not find it and a Unix-shaped stub would fail here for a reason that has
+    nothing to do with the code under test.
+    """
 
     mock_bin = tmp_path / "mock-bin"
     mock_bin.mkdir()
-    stub = mock_bin / "terraform"
-    stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    if os.name == "nt":
+        stub = mock_bin / "terraform.bat"
+        stub.write_text("@echo off\r\nexit /b 0\r\n", encoding="utf-8")
+    else:
+        stub = mock_bin / "terraform"
+        stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     assert resolve_terraform(str(mock_bin)) == str(stub)
     status = terraform_status(str(mock_bin))

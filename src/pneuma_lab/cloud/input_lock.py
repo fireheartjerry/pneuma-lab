@@ -214,7 +214,7 @@ def build_candidate_input_lock(
 
     record = {
         "record_kind": "cloud_input_lock",
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "frozen_timestamp": frozen_timestamp,
         "provenance": dict(provenance),
         "model_pins": [dict(pin) for pin in model_pins],

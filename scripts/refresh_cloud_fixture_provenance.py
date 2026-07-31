@@ -20,7 +20,6 @@ CI or pre-commit caller should use.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -44,7 +43,12 @@ BOUND_LOCK = ("retrieval-authorization-candidate.json",)
 
 
 def _digest(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    """Digest by canonical content, so a CRLF checkout agrees with an LF one."""
+
+    sys.path.insert(0, str(REPO_ROOT / "src"))
+    from pneuma_lab.cloud.provenance import canonical_text_digest
+
+    return canonical_text_digest(path)
 
 
 def refresh(*, check: bool) -> int:

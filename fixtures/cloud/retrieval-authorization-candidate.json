@@ -4,10 +4,10 @@
     "frozen_timestamp": "2026-07-31T00:00:00Z",
     "provenance": {
         "design_sha256": "328b4dc2c736b6ebe405f585ff20e6f7e0ebedb58c989193c1120624a8a761d4",
-        "code_sha256": "f8918d5357e2c159ce63c7944d984bd97c61d4f970ef915078c41b0d475ef954"
+        "code_sha256": "903a84b9b489d08a1c9b1cd135bd04076a87cedd5aa4521c115b5b1a513c7fad"
     },
     "status": "candidate",
-    "input_lock_sha256": "d7413fe11eb6ca6f5fb794d5abdc78f092492f2fb5f3cedc257ab1adf61f87c8",
+    "input_lock_sha256": "bfe5848f3858e7648938428616e5ac81ef7c0ea9e6a2b597a1506e8f1597d2c3",
     "scopes": [
         "model",
         "tokenizer",

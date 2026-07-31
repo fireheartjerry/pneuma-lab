@@ -36,14 +36,14 @@ def test_migration_preserves_exact_bytes_and_builds_small_live_index(
         shard_size=2,
     )
 
-    manifest = json.loads(manifest_path.read_text())
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     reconstructed = b"".join(
         (archive / segment["path"]).read_bytes()
         for segment in manifest["segments"]
     )
     assert reconstructed == original
-    assert "- payload:" not in journal.read_text()
-    assert "EJ-20260728-0005" in journal.read_text()
+    assert "- payload:" not in journal.read_text(encoding="utf-8")
+    assert "EJ-20260728-0005" in journal.read_text(encoding="utf-8")
     assert verify_journal(journal, manifest_path)["last_event_id"] == (
         "EJ-20260728-0005"
     )
@@ -78,7 +78,7 @@ def test_verifier_rejects_archived_byte_tampering(tmp_path: Path) -> None:
         cutoff_event_id="EJ-20260728-0003",
         shard_size=2,
     )
-    manifest = json.loads(manifest_path.read_text())
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     first_event_shard = archive / manifest["segments"][1]["path"]
     tampered = bytearray(first_event_shard.read_bytes())
     tampered[-2] ^= 1
@@ -111,7 +111,7 @@ def test_migration_never_spans_date_boundaries_in_a_shard(
         shard_size=50,
     )
 
-    manifest = json.loads(manifest_path.read_text())
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     event_paths = [segment["path"] for segment in manifest["segments"][1:]]
     assert event_paths == [
         "events-20260728-0001-0002.md",
@@ -148,7 +148,7 @@ def test_migration_appends_only_a_contiguous_live_prefix(tmp_path: Path) -> None
     )
 
     verified = verify_journal(journal, manifest_path)
-    manifest = json.loads(manifest_path.read_text())
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert verified == {
         "status": "ok",
         "archived_sha256": manifest["archived_original_sha256"],
@@ -159,5 +159,5 @@ def test_migration_appends_only_a_contiguous_live_prefix(tmp_path: Path) -> None
     assert manifest["segments"][-1]["path"] == (
         "events-20260728-0004-0005.md"
     )
-    assert "### EJ-20260728-0004 " not in journal.read_text()
-    assert "### EJ-20260728-0006 " in journal.read_text()
+    assert "### EJ-20260728-0004 " not in journal.read_text(encoding="utf-8")
+    assert "### EJ-20260728-0006 " in journal.read_text(encoding="utf-8")

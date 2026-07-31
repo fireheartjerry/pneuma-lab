@@ -229,7 +229,7 @@ def _trusted_validate(repo: Path, first: dict, second: dict) -> dict:
 def _load_run_receipts(repo: Path) -> tuple[dict, dict]:
     directory = _baseline_dir(repo)
     return tuple(
-        json.loads((directory / f"baseline-receipt-run-{index}.json").read_text())
+        json.loads((directory / f"baseline-receipt-run-{index}.json").read_text(encoding="utf-8"))
         for index in (1, 2)
     )
 
@@ -726,7 +726,7 @@ def test_diagnostic_launcher_writes_non_authoritative_pair_receipt(tmp_path: Pat
     with _worktree_runtime(repo):
         pair = run_diagnostic_baseline_pair(repo, _baseline_dir(repo))
     pair = json.loads(
-        (_baseline_dir(repo) / "baseline-pair-receipt.json").read_text()
+        (_baseline_dir(repo) / "baseline-pair-receipt.json").read_text(encoding="utf-8")
     )
     assert pair["kind"] == "local_g0_audit_record"
     assert pair["authority"] == "none"
