@@ -84,6 +84,7 @@ _CURRENT_SYSTEM_STATE = {
     "neurips_resampling_null_step10_security_controls": ("partial", "offline_research"),
     "neurips_resampling_null_step11_emulation": ("partial", "offline_research"),
     "neurips_resampling_null_step12_deployment_preflight": ("partial", "offline_research"),
+    "neurips_resampling_null_step13_pilot_protocol": ("partial", "offline_research"),
 }
 
 _CURRENT_NEGATIVE_RESULTS = {

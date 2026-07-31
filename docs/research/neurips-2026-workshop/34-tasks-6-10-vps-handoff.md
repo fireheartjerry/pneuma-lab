@@ -478,6 +478,10 @@ pending; no Task 6–10 state or scientific lineage changed.
 ownership-manifest teardown preparation are implementation complete. No
 deployment/teardown or Task 6–10 scientific lineage changed.
 
+**Phase B Step 13 checkpoint (2026-07-31):** The pilot protocol is frozen in
+code only; G-ROSTER and all authority/external gates still block a pilot. No
+Task 6–10 scientific lineage changed.
+
 The next phase is separately gated real-experiment work:
 
 1. SWE-bench-Live and τ³ adapter/roster qualification;

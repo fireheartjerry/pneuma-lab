@@ -21,6 +21,7 @@ _SCHEMA_BY_KIND = {
     "cloud_spend_authorization": "cloud-spend-authorization.schema.json",
     "cloud_approval_receipt": "cloud-approval-receipt.schema.json",
     "cloud_result_binding": "cloud-result-binding.schema.json",
+    "cloud_pilot_protocol": "cloud-pilot-protocol.schema.json",
 }
 
 

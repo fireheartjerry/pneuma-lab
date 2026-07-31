@@ -104,6 +104,7 @@ CLOUD_SCHEMA_FILES = (
     "cloud-spend-authorization.schema.json",
     "cloud-approval-receipt.schema.json",
     "cloud-result-binding.schema.json",
+    "cloud-pilot-protocol.schema.json",
 )
 
 ALL_SCHEMA_FILES = (

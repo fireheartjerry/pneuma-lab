@@ -3507,3 +3507,12 @@ The next event after the archived migration boundary is appended below.
   whitespace checks passed.
 - **Boundary:** no deployment, resource query, teardown, provider action,
   execution, or spend occurred.
+
+### EJ-20260731-step13-pilot-protocol
+
+- **Scope:** protocol-only pilot ceiling, rung, and non-efficacy selection
+  implementation.
+- **Verification:** focused pilot tests, Ruff, schema registry tests, status
+  validation, and whitespace checks passed.
+- **Boundary:** no pilot authorization, provider action, resource, execution,
+  scientific result, or spend occurred.

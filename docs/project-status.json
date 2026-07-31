@@ -624,6 +624,26 @@
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_step13_pilot_protocol",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/47-pilot-protocol.md",
+                "schemas/cloud-pilot-protocol.schema.json",
+                "src/pneuma_lab/cloud/pilot.py",
+                "tests/cloud/test_pilot.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-G-ROSTER",
+                "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
+                "B-NEURIPS-IMAGE-BUILD-VERIFICATION",
+                "B-NEURIPS-STEP14-REVIEW",
+                "B-NEURIPS-EXPERIMENT-EXECUTION"
+            ]
         }
     ],
     "nine_to_five": {

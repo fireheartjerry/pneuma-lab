@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-pilot-protocol.schema.json",
+    "title": "Cloud Pilot Protocol",
+    "description": "Frozen admission protocol only; it does not authorize or record a pilot execution.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "max_cost_usd", "max_runtime_minutes", "max_retries", "max_samples", "rungs", "bound_hashes"],
+    "properties": {"record_kind": {"const": "cloud_pilot_protocol"}, "schema_version": {"const": "0.1.0"}, "max_cost_usd": {"type": "number", "exclusiveMinimum": 0}, "max_runtime_minutes": {"type": "integer", "minimum": 1}, "max_retries": {"type": "integer", "minimum": 0}, "max_samples": {"type": "integer", "minimum": 1}, "rungs": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "bound_hashes": {"type": "object", "minProperties": 5, "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}},
+    "additionalProperties": false
+}
