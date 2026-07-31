@@ -293,6 +293,31 @@ python -m pneuma_lab.adversarial_review run \
 
 Exit codes: `0` = `no_blocking_findings`, `1` = blocked, `2` = fail-closed.
 
+### The Step 14 spec is prepared, not run
+
+```sh
+python scripts/build_placebo_review_spec.py
+```
+
+This pins the exact bytes the reviewers would read — thirteen declared inputs
+at the current commit, fifteen declared claims from
+`paper/placebo/claims.json`, and the three registered external sources — into
+`build/adversarial_review/step14/campaign-spec.json`. Generating the spec is
+the only way a later campaign can prove it reviewed the artifact it claims to
+have reviewed.
+
+Running it today fails closed at the replay source, because no sealed reviewer
+transcript exists:
+
+```
+FAIL CLOSED: InputContractError: no sealed transcript for role R01-novelty
+```
+
+That is the correct state before Step 14. Note also that `receipt_index` is
+empty, so a reviewer citing a receipt will fail grounding — there are no sealed
+evidence receipts yet, and the system says so rather than accepting the
+citation.
+
 ---
 
 ## 12. Human override policy

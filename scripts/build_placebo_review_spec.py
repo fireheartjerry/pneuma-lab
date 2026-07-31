@@ -1,0 +1,172 @@
+"""Generate the Step 14 campaign spec for the PLACEBO adversarial review.
+
+This PREPARES the campaign. It does not run it. Generating the spec pins the
+exact bytes the reviewers would read, which is the only way a later campaign
+can prove it reviewed the artifact it claims to have reviewed.
+
+Running the campaign from this spec requires sealed reviewer transcripts under
+``build/adversarial_review/step14/transcripts/``. Until those exist, the
+campaign fails closed at the replay source, which is the intended state before
+Step 14.
+
+    python scripts/build_placebo_review_spec.py
+    # later, at Step 14, with transcripts present:
+    python -m pneuma_lab.adversarial_review run \
+        --spec build/adversarial_review/step14/campaign-spec.json \
+        --out build/adversarial_review/step14/out
+"""
+
+from __future__ import annotations
+
+import json
+import platform
+import subprocess
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from pneuma_lab.adversarial_review.canonical import (  # noqa: E402
+    canonical_json,
+    digest_file,
+    digest_value,
+)
+
+OUT = REPO_ROOT / "build" / "adversarial_review" / "step14"
+
+#: slot -> repository-relative path. Every path must exist; a missing one is a
+#: hard error here rather than a surprise inside a campaign.
+INPUTS: tuple[tuple[str, str, str], ...] = (
+    (
+        "design",
+        "docs/superpowers/specs/2026-07-28-neurips-resampling-null-design.md",
+        "the binding study design",
+    ),
+    (
+        "plan",
+        "docs/research/neurips-2026-workshop/37-phase-b-4-13-implementation-plan.md",
+        "Phase B implementation plan",
+    ),
+    (
+        "manifest",
+        "docs/research/neurips-2026-workshop/38-experiment-design-freeze.md",
+        "registered design freeze",
+    ),
+    (
+        "input_lock",
+        "docs/research/neurips-2026-workshop/39-external-input-lock.md",
+        "external input-lock contract",
+    ),
+    (
+        "artifact_root",
+        "docs/research/neurips-2026-workshop/40-aws-architecture.md",
+        "AWS architecture contract standing in for the artifact-root contract "
+        "until a real root exists",
+    ),
+    (
+        "spend_ledger",
+        "docs/research/neurips-2026-workshop/32-cloud-spend-ledger.md",
+        "cloud spend ledger",
+    ),
+    (
+        "power_report",
+        "docs/research/placebo-paper/02-design-brief.md",
+        "condensed power and roster brief; replace with the real power report "
+        "receipt once one exists",
+    ),
+    ("manuscript", "paper/placebo_protocol.tex", "the pre-results manuscript"),
+    ("bibliography", "paper/placebo/refs-placebo.bib", "new references"),
+    ("citation_queue", "paper/placebo/citation-queue.json", "citation verification state"),
+    ("venue_policy", "paper/README.md", "recorded venue facts and page limit"),
+    ("environment", "pyproject.toml", "declared dependency set"),
+    ("repo_commit", "docs/project-status.json", "current-state manifest"),
+)
+
+
+def _git(*args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+def main() -> int:
+    commit = _git("rev-parse", "HEAD")
+    dirty = bool(_git("status", "--porcelain"))
+
+    objects = []
+    missing = []
+    for slot, relative, description in INPUTS:
+        path = REPO_ROOT / relative
+        if not path.is_file():
+            missing.append(relative)
+            continue
+        objects.append(
+            {
+                "slot": slot,
+                "path": relative,
+                "declared_digest": digest_file(str(path)),
+                "description": description,
+            }
+        )
+    if missing:
+        print("missing declared inputs:", *missing, sep="\n  ", file=sys.stderr)
+        return 2
+
+    claims_payload = json.loads(
+        (REPO_ROOT / "paper" / "placebo" / "claims.json").read_text(encoding="utf-8")
+    )
+    claims = [
+        {
+            "claim_id": claim["claim_id"],
+            "text": claim["text"],
+            "kind": claim["kind"],
+            "supporting_evidence": (
+                [f"receipt:{claim['receipt']}"] if claim.get("receipt") else []
+            ),
+        }
+        for claim in claims_payload["claims"]
+    ]
+
+    spec = {
+        "campaign_id": "placebo-step14-pre-launch",
+        "stage": "stage_1_pre_launch",
+        "root": "../../..",
+        "environment": {
+            "repo_commit": commit,
+            "repo_dirty": dirty,
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+            "dependency_digest": digest_file(str(REPO_ROOT / "pyproject.toml")),
+        },
+        "objects": objects,
+        "receipt_index": {},
+        "external_sources": [
+            "arXiv:2607.03702",
+            "arXiv:2606.09071",
+            "arXiv:2606.21409",
+        ],
+        "claims": claims,
+        "source": {"mode": "replay", "transcript_dir": "transcripts"},
+        "notes": (
+            "PREPARED, NOT RUN. Step 14 runs this after Phase B Steps 4-13 and "
+            "before Step 4B or GPU execution. The receipt_index is empty because "
+            "no sealed evidence receipts exist yet; a reviewer citing a receipt "
+            "will therefore fail grounding, which is correct at this stage. "
+            "Several slots point at contract documents standing in for artifacts "
+            "that do not exist; each is described in its own entry."
+        ),
+    }
+
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "campaign-spec.json").write_text(canonical_json(spec), encoding="utf-8")
+    print(f"wrote {OUT / 'campaign-spec.json'}")
+    print(f"commit {commit} dirty={dirty}")
+    print(f"spec digest {digest_value(spec)}")
+    print(f"declared inputs: {len(objects)}; claims: {len(claims)}")
+    print("transcripts absent -- the campaign will fail closed until Step 14")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
