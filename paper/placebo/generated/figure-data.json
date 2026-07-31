@@ -1,0 +1,17 @@
+{
+    "artifact_root_digest": null,
+    "notes": "Figure 1 plots the two co-primary estimates against the measured resolution floor r95 and the practical screen delta_star. An estimate below either line is not reportable as an effect.",
+    "series": {
+        "content.estimate": null,
+        "content.lower_bound": null,
+        "continuation.estimate": null,
+        "excess.estimate": null,
+        "excess.lower_bound": null,
+        "resolution.delta_star": null,
+        "resolution.q0": null,
+        "resolution.r95": null,
+        "sham_packet.estimate": null
+    },
+    "source": "unfilled_scaffold",
+    "verdict": null
+}

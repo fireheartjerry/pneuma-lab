@@ -1,0 +1,105 @@
+{
+    "description": "Declared claims of the PLACEBO manuscript. Each maps to the receipt in a sealed evidence package that would support it. A claim with no receipt is not made in the paper. This file is the input to the generated claim-evidence matrix and to the adversarial-review campaign spec.",
+    "manuscript": "paper/placebo_protocol.tex",
+    "claims": [
+        {
+            "claim_id": "P1",
+            "kind": "claim_of_record",
+            "text": "On one frozen open-weight subject across two objective tool-agent settings, correct verifier feedback produced a task-level success gain clearing both the mismatched-report sham and the pooled two-replicate no-feedback condition.",
+            "receipt": "analysis_freeze",
+            "gated_by": [
+                "both Fisher p <= 0.05",
+                "both simultaneous lower bounds > 0",
+                "both estimates >= delta_star",
+                "both estimates > r95",
+                "non-negative per environment",
+                "leave-one-group-out >= -0.05",
+                "differential failure <= 0.02"
+            ]
+        },
+        {
+            "claim_id": "P2",
+            "kind": "claim_of_record",
+            "text": "The paired no-feedback branches established an admissible post-trigger resolution scale against which the co-primary estimates were judged.",
+            "receipt": "analysis_freeze"
+        },
+        {
+            "claim_id": "C1",
+            "kind": "contribution",
+            "text": "A four-arm snapshot-paired protocol separating correct task-specific feedback from a mismatched report and from pooled no-feedback continuation, at a tool boundary inside a long-horizon trajectory.",
+            "receipt": "study_manifest"
+        },
+        {
+            "claim_id": "C2",
+            "kind": "contribution",
+            "text": "A resampling-null resolution test that turns post-trigger continuation variation into an observed control distribution rather than an assumed zero.",
+            "receipt": "analysis_freeze"
+        },
+        {
+            "claim_id": "C3",
+            "kind": "contribution",
+            "text": "Cross-setting application to repository repair and stateful tool/API work with objective endpoint graders.",
+            "receipt": "study_manifest"
+        },
+        {
+            "claim_id": "C4",
+            "kind": "contribution",
+            "text": "A lineage-aware, arm-blind artifact and inference contract reusable by agent benchmark authors.",
+            "receipt": "artifact_root"
+        },
+        {
+            "claim_id": "C5",
+            "kind": "contribution",
+            "text": "Preregistered verdicts, including negative and unresolved verdicts, fixed before execution.",
+            "receipt": "analysis_freeze"
+        },
+        {
+            "claim_id": "M1",
+            "kind": "quantitative",
+            "text": "REAL and SHAM packets have exactly equal subject-token length under the frozen tokenizer.",
+            "receipt": "packet_index"
+        },
+        {
+            "claim_id": "M2",
+            "kind": "quantitative",
+            "text": "A blinded packet classifier could not separate REAL from SHAM above the registered detectability bound.",
+            "receipt": "packet_index"
+        },
+        {
+            "claim_id": "M3",
+            "kind": "quantitative",
+            "text": "The arm allocation was drawn before any continuation existed and is reconstructible from the sealed allocation receipts.",
+            "receipt": "assignment_ledger"
+        },
+        {
+            "claim_id": "M4",
+            "kind": "quantitative",
+            "text": "The registered power requirement was met at the selected roster tier before the schedule seed was revealed.",
+            "receipt": "power_report"
+        },
+        {
+            "claim_id": "M5",
+            "kind": "quantitative",
+            "text": "The analyst held no arm labels before the hash-gated single-use unblind ceremony.",
+            "receipt": "unblind_receipt"
+        },
+        {
+            "claim_id": "N1",
+            "kind": "non_claim",
+            "text": "This is not a claim that placebo-controlled feedback evaluation is novel; placebo, shape-matched, and compute-matched controls are prior art.",
+            "receipt": ""
+        },
+        {
+            "claim_id": "N2",
+            "kind": "non_claim",
+            "text": "This is not a claim that verification helps every model or scaffold, nor an identification of a human expert verifier's effect.",
+            "receipt": ""
+        },
+        {
+            "claim_id": "N3",
+            "kind": "non_claim",
+            "text": "This is not a claim that sham feedback is semantically inert, nor an identification of packet form alone.",
+            "receipt": ""
+        }
+    ]
+}

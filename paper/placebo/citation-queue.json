@@ -1,0 +1,44 @@
+{
+    "description": "Citation verification queue for paper/placebo_protocol.tex. Every entry must reach state 'verified' before the paper preflight will pass. An entry in state 'unresolved' is a blocking defect, not a formatting nit: the manuscript makes a prior-art comparison it cannot currently substantiate.",
+    "checked_on": "2026-07-31",
+    "method": "arXiv export API id_list lookup; titles, author lists, and dates transcribed from the returned Atom feed.",
+    "entries": [
+        {
+            "key": "arl_pivotal_retry_2026",
+            "state": "verified",
+            "identifier": "arXiv:2607.03702",
+            "title": "Agent Reinforcement Learning via Pivotal-Aware Self-Feedback Retry",
+            "cited_for": "prefix-anchored retry as a method rather than a control",
+            "note": "Authors and date resolved from the arXiv export API."
+        },
+        {
+            "key": "reflect_error_attribution_2026",
+            "state": "verified",
+            "identifier": "arXiv:2606.09071",
+            "title": "REFLECT: Intervention-Supported Error Attribution for Silent Failures in LLM Agent Traces",
+            "cited_for": "resampling from a bare prefix as an untargeted retry baseline",
+            "note": "Authors and date resolved from the arXiv export API."
+        },
+        {
+            "key": "unreliable_feedback_2026",
+            "state": "verified",
+            "identifier": "arXiv:2606.21409",
+            "title": "Don't Blindly Trust It: How Unreliable Feedback Breaks Tool-Using LLM Agents",
+            "cited_for": "harm from unreliable tool feedback, adjacent to the sham-packet question",
+            "note": "Authors and date resolved from the arXiv export API."
+        },
+        {
+            "key": "try_again_dont_look_back_2026",
+            "state": "unresolved",
+            "identifier": null,
+            "title": "Try Again, Don't Look Back",
+            "cited_for": "closest prior art for the retry-versus-feedback contrast; the manuscript is required to state an explicit delta against it",
+            "note": "Named as a July 2026 paper in the branch directive. Two targeted searches on 2026-07-31 (title-exact, and topical against arxiv.org) returned no matching record, and no local receipt in this repository references it. It is recorded unresolved rather than cited from memory: fabricating a bibliographic record for the paper the work is most directly compared against would be the single worst citation error available. BLOCKING until a primary source is supplied.",
+            "searches_performed": [
+                "\"Try Again, Don't Look Back\" agent verifier feedback paper arXiv 2026",
+                "arxiv July 2026 \"don't look back\" retry resampling baseline LLM agent feedback ablation (allowed_domains: arxiv.org)"
+            ],
+            "resolution_required_before": "submission"
+        }
+    ]
+}
