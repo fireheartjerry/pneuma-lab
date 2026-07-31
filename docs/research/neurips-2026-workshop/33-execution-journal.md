@@ -3441,3 +3441,16 @@ The next event after the archived migration boundary is appended below.
   contiguity failure remains outside this slice.
 - **Boundary:** no real input receipt, lookup, pull, mirror, provider action,
   cloud resource, spend, Step 5B, Step 4B, pilot, or experiment occurred.
+
+### EJ-20260731-step6-aws-architecture
+
+- **Scope:** static Step 6 implementation. Added the architecture manifest,
+  tier-agnostic Batch/IAM Terraform declarations, and local policy-boundary
+  checks.
+- **Verification:** focused architecture/IaC fixture tests and Ruff passed.
+  Terraform is absent, so its binary-dependent test recorded an explicit skip;
+  it is not an L1 pass. The inherited journal contiguity failure remains
+  outside this slice.
+- **Boundary:** no AWS credential, account-bound plan, provider API call,
+  quota action, resource creation, apply, reservation, spend, pilot, Step 4B,
+  or experiment occurred.

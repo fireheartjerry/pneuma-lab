@@ -15,6 +15,7 @@ from .errors import CloudManifestError
 _SCHEMA_BY_KIND = {
     "cloud_input_lock": "cloud-input-lock.schema.json",
     "cloud_experiment_manifest": "cloud-experiment-manifest.schema.json",
+    "cloud_architecture_manifest": "cloud-architecture-manifest.schema.json",
 }
 
 

@@ -475,6 +475,27 @@
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_step6_aws_architecture",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/40-aws-architecture.md",
+                "schemas/cloud-architecture-manifest.schema.json",
+                "src/pneuma_lab/cloud/architecture.py",
+                "infra/terraform/main.tf",
+                "infra/terraform/iam.tf",
+                "tests/cloud/test_architecture.py",
+                "tests/cloud/test_iac_plan.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-AWS-ACCOUNT-PLAN",
+                "B-NEURIPS-STEP14-REVIEW",
+                "B-NEURIPS-EXPERIMENT-EXECUTION"
+            ]
         }
     ],
     "nine_to_five": {
@@ -782,6 +803,10 @@
         {
             "id": "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
             "summary": "No real model, tokenizer, benchmark, verifier, license, contamination, or OCI receipt has been retrieved and independently hash-verified; Step 5A fixtures do not satisfy Step 5B."
+        },
+        {
+            "id": "B-NEURIPS-AWS-ACCOUNT-PLAN",
+            "summary": "No authorized account-bound AWS plan, quota confirmation, or independently verified deployment receipt exists; Terraform is unavailable locally, so binary L1 validation is pending rather than passed."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
