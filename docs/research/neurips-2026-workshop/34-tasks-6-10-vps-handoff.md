@@ -810,6 +810,12 @@ Focused Task-10 release tests and the compact 93-case milestone suite pass on
 the current Linux checkout. The latter also repaired a stale test-only promoted
 tokenizer fixture to its now-closed `synthetic_report_tokenizer_v1` contract.
 No canonical P0 screen/shard, provider, benchmark, cloud, paid-compute, or
-Step 4B action ran. **Task 10 is still not complete:** its staged
-`selftest --resume-after-power` result-of-record runner remains deliberately
-unimplemented, so the release surface has not yet earned the Phase-A exit gate.
+Step 4B action ran. **Task 10 is now `implementation_complete; E2E_pending`:**
+the staged `selftest --resume-after-power` runner requires and preflights all
+external secrets and frozen analysis inputs before its first write, then invokes
+the complete bounded-fixture descendant sequence. It may defer the final root
+seal for independent verification. The release inspector can consume a future
+sealed canonical lineage, but neither surface creates or promotes one. A
+temporary miniature fallback validation hit the 60-second process ceiling and
+published no final artifact; that is an honest bounded-fixture non-result, not
+a Step 4B execution or a scientific conclusion.

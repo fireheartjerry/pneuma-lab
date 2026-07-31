@@ -742,6 +742,60 @@ def test_cli_selftest_resume_requires_one_manifest_before_any_write(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_cli_selftest_resume_preflights_every_external_input_before_writes(
+    tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pneuma_lab.resampling_null.cli as cli
+
+    monkeypatch.setattr(cli, "_require_resumable_selftest", lambda *args, **kwargs: None)
+    calls: list[object] = []
+    monkeypatch.setattr(cli, "_run_selftest_command", lambda *args, **kwargs: calls.append(args))
+    assert cli.main([
+        "--run-root", str(tmp_path), "selftest", "--resume-after-power", "power/final.json",
+    ]) == 2
+    assert "requires external schedule seed" in json.loads(capsys.readouterr().out)["error"]
+    assert calls == []
+
+
+def test_cli_selftest_resume_dispatches_the_complete_descendant_sequence(
+    tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pneuma_lab.resampling_null.cli as cli
+    from pneuma_lab.resampling_null.types import ArtifactRef
+
+    external = tmp_path.parent / "resume-external"
+    external.mkdir(exist_ok=True)
+    seed = external / "seed"
+    key = external / "key"
+    config = external / "config.json"
+    schema = external / "schema.json"
+    source = external / "source.json"
+    seed.write_text("7\n", encoding="ascii")
+    key.write_bytes(b"k" * 32)
+    config.write_text("{}", encoding="utf-8")
+    schema.write_text("{}", encoding="utf-8")
+    source.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(cli, "_require_resumable_selftest", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "_record_for_ref", lambda *args, **kwargs: {"payload": {"required_document_kinds_ref": {"relative_path": "required.json"}}})
+    (tmp_path / "required.json").write_text("[]", encoding="utf-8")
+    commands: list[list[str]] = []
+    ref = ArtifactRef("resampling_analysis", "analysis/analysis.json", "a" * 64, 1, "application/json")
+    monkeypatch.setattr(cli, "_run_selftest_command", lambda _root, argv: (commands.append(argv), ref)[1])
+
+    assert cli.main([
+        "--run-root", str(tmp_path), "selftest", "--resume-after-power", "power/final.json",
+        "--defer-artifact-root", "--schedule-seed-file", str(seed), "--assignment-key-file", str(key),
+        "--analysis-source-root", str(external), "--analysis-source", "source.json",
+        "--analysis-config", str(config), "--projection-schema", str(schema),
+    ]) == 0
+    assert json.loads(capsys.readouterr().out)["output"] == "analysis/analysis.json"
+    assert [command[:2] for command in commands] == [
+        ["schedule", "seal"], ["synthetic", "prefixes"], ["assignment", "seal"],
+        ["packets", "build"], ["packets", "audit"], ["analysis", "freeze"],
+        ["synthetic", "branches"], ["project", "seal"], ["analyze", "--study"],
+    ]
+
+
 def test_cli_artifact_inspection_uses_the_independent_release_reader(
     tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

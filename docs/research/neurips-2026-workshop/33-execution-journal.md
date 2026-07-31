@@ -3388,6 +3388,26 @@ The next event after the archived migration boundary is appended below.
   --check` passed.
 - **Boundary:** no Step 4B, canonical P0 work, provider/benchmark action,
   cloud/AWS use, paid compute, spend, or scientific/causal claim occurred.
-  Task 10 remains incomplete because `selftest --resume-after-power` still
-  rejects after preflight; this journal entry is a release-preparation slice,
-  not a Task-10 completion claim.
+  This journal entry is a release-preparation slice, not a Task-10 scientific
+  completion claim.
+
+### EJ-20260731-task10-bounded-resume-runner
+
+- **Implementation:** `selftest --resume-after-power` now composes the existing
+  sealed controller commands for schedule, prefix index, assignment, packet
+  build/audit, freeze, isolated branches, projection, paired unblind/analysis,
+  and optional artifact-root seal/verify. It requires external schedule seed,
+  32-byte assignment key, analysis source root/source names, config, and schema;
+  every external input resolves before the first schedule write.
+- **Focused proof:** the preflight-refusal and complete nine-command descendant
+  sequence tests passed, together with all release tests (8 passed). A fresh
+  temporary `implementation_verification` study successfully sealed authority,
+  Gaussian screen/shards/selection/validation, fallback screen, and fallback
+  shards. Its fallback validation was terminated by the mandatory 60-second
+  process ceiling before publishing an artifact, so no completed final or
+  descendant was produced from that temporary root.
+- **Disposition:** Task 10 is `implementation_complete; E2E_pending`. The
+  release machinery can independently inspect/package a future sealed canonical
+  lineage and classify a registered no-go, but no Step 4B lineage, canonical P0
+  result, provider/benchmark action, cloud/AWS use, paid compute, spend, or
+  scientific claim occurred.

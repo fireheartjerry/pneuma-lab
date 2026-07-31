@@ -26,7 +26,8 @@ reconcile them before execution.
   proves implementation-path continuity only.
 - Step 4B canonical authority-backed P0 lineage: deferred, unrun as a complete
   lineage, and experiment-only.
-- Task 10: not complete.
+- Task 10 implementation/release preparation: complete;
+  `implementation_complete; E2E_pending`.
 - AWS funding: $10,000 verified EC2-eligible credit plus a separate $100
   credit.
 - AWS G/VT quotas: requested 48-vCPU On-Demand and Spot increases remain
@@ -61,7 +62,7 @@ the evidence justifies it.
 `B-NEURIPS-TASK6-E2E` and `B-NEURIPS-TASK7-E2E` remain open pending Step 4B.
 This is not the scientific E2E promotion step.
 
-### 3. Complete Task 10 implementation and release preparation
+### [DONE] 3. Complete Task 10 implementation and release preparation
 
 Finish the Task 10 result-of-record machinery, independent verification path,
 artifact packaging, failure classification, and release preparation using

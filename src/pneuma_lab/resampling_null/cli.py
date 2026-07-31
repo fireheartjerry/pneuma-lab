@@ -337,6 +337,10 @@ def _parser() -> argparse.ArgumentParser:
     selftest.add_argument("--profile", choices=("canonical", "implementation-verification"), default="canonical")
     selftest.add_argument("--schedule-seed-file")
     selftest.add_argument("--assignment-key-file")
+    selftest.add_argument("--analysis-source-root")
+    selftest.add_argument("--analysis-source", action="append")
+    selftest.add_argument("--analysis-config")
+    selftest.add_argument("--projection-schema")
     study = top.add_parser("study").add_subparsers(dest="study_command", required=True)
     seal = study.add_parser("seal", aliases=["create"])
     for name in ("study", "tasks", "roster", "assignment_program", "provider_lane_plan", "branch_program_registry", "storage_policy_contract", "power_grid", "power_screen_topology", "tokenizer", "packet_template", "packet_policy", "pad_unit_set", "required_kinds"):
@@ -838,6 +842,72 @@ def _require_resumable_selftest(root: Path, final_name: str) -> None:
         )
 
 
+def _run_selftest_command(root: Path, argv: list[str]) -> ArtifactRef | dict[str, object] | None:
+    """Dispatch one internal, already-preflighted controller command quietly."""
+    parsed = _parser().parse_args(["--run-root", str(root), *argv])
+    return _dispatch(parsed, root)
+
+
+def _resume_selftest(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
+    """Build all non-power descendants from one completed bounded final."""
+    if not all((args.schedule_seed_file, args.assignment_key_file,
+                args.analysis_source_root, args.analysis_source,
+                args.analysis_config, args.projection_schema)):
+        raise RecordValidationError(
+            "resume requires external schedule seed, assignment key, and analysis inputs"
+        )
+    # Resolve every external dependency before the schedule is allowed to write.
+    seed = _external_file(args.schedule_seed_file, root=root, field="schedule seed file")
+    key = _external_file(args.assignment_key_file, root=root, field="assignment key file")
+    if len(key.read_bytes()) != 32:
+        raise RecordValidationError("assignment master key must be exactly 32 bytes")
+    source_root = _external_sources(args.analysis_source_root, args.analysis_source, root=root)
+    config = _external_file(args.analysis_config, root=root, field="analysis config")
+    schema = _external_file(args.projection_schema, root=root, field="projection schema")
+    # Keep the caller's normalized source names; their external byte identity is
+    # checked independently by both freeze and analyze.
+    source_flags = [flag for name in sorted(source_root) for flag in ("--source", name)]
+    shared_analysis = [
+        "--source-root", str(Path(args.analysis_source_root).resolve()), *source_flags,
+        "--config", str(config), "--projection-schema", str(schema),
+    ]
+    commands = [
+        ["schedule", "seal", "--study", "study-manifest.json", "--power-final", args.resume_after_power,
+         "--schedule-seed-file", str(seed), "--out", "prefix-schedule.json"],
+        ["synthetic", "prefixes", "--study", "study-manifest.json", "--schedule", "prefix-schedule.json", "--out", "prefix/prefix-index.json"],
+        ["assignment", "seal", "--schedule", "prefix-schedule.json", "--prefix-index", "prefix/prefix-index.json",
+         "--assignment-key-file", str(key), "--out", "assignment/ledger.json"],
+        ["packets", "build", "--study", "study-manifest.json", "--assignment", "assignment/ledger.json",
+         "--prefix-index", "prefix/prefix-index.json", "--out-candidate", "packets/candidate.json"],
+        ["packets", "audit", "--study", "study-manifest.json", "--candidate", "packets/candidate.json",
+         "--schedule", "prefix-schedule.json", "--assignment", "assignment/ledger.json",
+         "--prefix-index", "prefix/prefix-index.json", "--out-index", "packets/index.json"],
+        ["analysis", "freeze", *shared_analysis, "--packet-index", "packets/index.json", "--out", "analysis/freeze.json"],
+        ["synthetic", "branches", "--study", "study-manifest.json", "--schedule", "prefix-schedule.json",
+         "--assignment", "assignment/ledger.json", "--prefix-index", "prefix/prefix-index.json",
+         "--packet-index", "packets/index.json", "--analysis-freeze", "analysis/freeze.json", "--out-prefix", "task-blocks"],
+        ["project", "seal", "--schedule", "prefix-schedule.json", "--analysis-freeze", "analysis/freeze.json",
+         "--task-block-prefix", "task-blocks", "--out", "analysis/projection.json"],
+        ["analyze", "--study", "study-manifest.json", "--projection", "analysis/projection.json",
+         "--assignment", "assignment/ledger.json", "--analysis-freeze", "analysis/freeze.json",
+         *shared_analysis, "--packet-index", "packets/index.json", "--assignment-key-file", str(key),
+         "--unblind-receipt", "analysis/unblind-receipt.json", "--out", "analysis/analysis.json"],
+    ]
+    result: ArtifactRef | dict[str, object] | None = None
+    for command in commands:
+        result = _run_selftest_command(root, command)
+    if args.defer_artifact_root:
+        return result if isinstance(result, ArtifactRef) else None
+    required = _record_for_ref(_ref(root, "study-manifest.json", "study_manifest"), root=root,
+                           kind="resampling_study_manifest")["payload"]["required_document_kinds_ref"]
+    if not isinstance(required, dict) or not isinstance(required.get("relative_path"), str):
+        raise RecordValidationError("study manifest required-kinds ref is malformed")
+    required_path, _ = resolve_inside(Path(required["relative_path"]), root, require_exists=True)
+    sealed = _run_selftest_command(root, ["artifacts", "seal", "--required-kinds", str(required_path), "--out", "p0-core-receipt.json"])
+    _run_selftest_command(root, ["artifacts", "verify", "--required-kinds", str(required_path), "--receipt", "p0-core-receipt.json"])
+    return sealed if isinstance(sealed, ArtifactRef) else None
+
+
 def _selftest(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
     if args.stop_after_study:
         if (root / "study-manifest.json").exists() or any(
@@ -865,9 +935,7 @@ def _selftest(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
         )
     if args.resume_after_power:
         _require_resumable_selftest(root, args.resume_after_power)
-        raise RecordValidationError(
-            "selftest descendants are not implemented in this CLI checkpoint"
-        )
+        return _resume_selftest(args, root)
     raise RecordValidationError("selftest fixture bundle is not installed")
 
 
