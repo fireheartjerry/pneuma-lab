@@ -3241,3 +3241,61 @@ The next event after the archived migration boundary is appended below.
 - **Result:** Exit `0`, output `PASS`. This receipt is read-only and remains
   implementation verification only; no Step 4B or scientific execution was
   performed.
+
+### EJ-20260731-task7-step4a-revalidation
+
+- **Scope/authority:** Re-read the preserved Step 4A root
+  `build/research/neurips-2026-workshop/step4a-iv-20260730-210059` only. No
+  lineage runner, unblind, projection, provider, cloud, paid, or canonical P0
+  action occurred, and Step 4B was not run. The Step 4A records remain
+  implementation verification only and inadmissible as scientific evidence.
+- **Exact command:**
+  `timeout 120s .venv/bin/python scripts/research/task7_step4a_continuity.py`
+  from the repository root. Exit `0`, final line `PASS`. The script is a
+  one-off forensic receipt, not a delivery gate and not part of any test tier.
+- **What it verified against the completed registered analysis:**
+  - `validate_scientific_graph` still binds the whole preserved record DAG.
+  - `require_schedulable_power_final` still admits the preserved power final
+    (`schedule_authority=implementation_verification`, `selected_tier=None`,
+    40 selected task ids).
+  - The frozen analysis-config bytes hash-match their `config_ref`, parse into
+    the exact registered `AnalysisConfig` (alpha `0.05`, delta* `0.05`,
+    sharp draws `999999`, multiplier draws `99999`), and carry no seed.
+  - Manifest-owned inference randomness is continuous: the seed the current
+    `manifest_inference_seed` derives from the preserved manifest ref,
+    `0xc915d2f169f54fd1` = `14489719310441074641`, is exactly the seed recorded
+    in the preserved primary and secondary simultaneous bounds; mutating the
+    manifest digest or the study id diverges the seed.
+  - Roster ancestry: the manifest `roster_ref` bytes hash-match and cover every
+    selected task (40 of 40, `synthetic_fixture`).
+  - Live vocabulary parity: running the unmodified `analyze` statistical core on
+    three synthetic hand-fixture rows in memory reproduces the preserved
+    record's 12 gate codes in identical order and the identical 16-key result
+    payload shape. The three admission I/O seams
+    (`require_schedulable_power_final`, `_load_direct_scientific_parent`,
+    `_verify_roster_rows`) were shimmed in-process exactly as
+    `tests/resampling_null/test_analysis.py` shims them; the probe wrote no
+    artifact and never touched the Step 4A root.
+  - Outcome totality: `reasons` is exactly the unmet gates in gate order; all
+    12 recorded gates' `passed` values recompute from their own
+    observed/comparator/threshold; and rebuilding the recorded contrasts,
+    resolution, and secondary family and re-running the live `classify_verdict`
+    returns the preserved `UNRESOLVED_RESAMPLING` across all 19,683
+    reconstructions of the nine JSON-null (non-finite) uncertainty fields.
+  - `row_count` 40 equals the projection record's `expected_task_count`, its row
+    count, and the selected-task count; projection bytes hash-match.
+- **Focused tests:** `.venv/bin/python -m pytest
+  tests/resampling_null/test_analysis.py -q` → 30 passed, exit `0`.
+  `.venv/bin/python -m pneuma_lab.status --check` → PASS.
+- **Known limits (not papered over):** nothing here re-derives the Step 4A
+  estimates, p-values, bounds, or resolution values from task-block data — the
+  clear analysis rows exist only transiently during unblind, so numeric
+  reproduction is impossible without re-running the lineage. Gate arithmetic is
+  checked for internal consistency against its own recorded observed/threshold,
+  and the non-finite reconstruction proves the recorded verdict is forced by the
+  record, not that the record's numbers are correct. The Step 4A draws are the
+  implementation-verification-capped 999, not the frozen production draws.
+- **Classification:** This revalidates the Task 7 implementation path against
+  the completed miniature lineage only. It does not remove
+  `B-NEURIPS-TASK7-E2E`, does not promote Task 7 or Step 4A to scientific
+  evidence, and establishes no P0 result. Step 4B remains pending.

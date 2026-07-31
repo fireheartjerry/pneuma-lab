@@ -203,6 +203,27 @@ list. Focused hostile fixtures cover asymmetric benchmark effects,
 differential branch failure, no-feedback label imbalance, caller-selected RNG,
 and invalid uncertainty.
 
+**Task 7 revalidation against Step 4A (2026-07-31):** The preserved miniature
+production-path root
+`build/research/neurips-2026-workshop/step4a-iv-20260730-210059` was re-read
+without executing either lineage path, via
+`timeout 120s .venv/bin/python scripts/research/task7_step4a_continuity.py`
+(exit `0`, `PASS`; see EJ-20260731-task7-step4a-revalidation). The preserved
+power final is still schedulable under `require_schedulable_power_final`; the
+frozen analysis config still parses into the exact registered constants with no
+seed; the current `manifest_inference_seed` derivation reproduces the seed
+`14489719310441074641` actually recorded in the preserved primary and secondary
+bounds; roster ancestry covers all 40 selected tasks; the unmodified `analyze`
+core reproduces the record's 12 gate codes in order and its 16-key result
+payload shape; `reasons` is exactly the unmet gates in gate order; every gate's
+`passed` recomputes; and live `classify_verdict` returns the preserved
+`UNRESOLVED_RESAMPLING` for all 19,683 reconstructions of the JSON-null
+non-finite uncertainty fields. Nothing re-derives the Step 4A numbers — the
+clear rows exist only transiently during unblind — and the Step 4A draws are the
+implementation-verification-capped 999. This strengthens implementation
+verification only; it does not remove `B-NEURIPS-TASK7-E2E`, promote Step 4A
+records to P0/scientific evidence, or complete Task 7. Step 4B remains pending.
+
 The design registers no mean-equivalence decision gate: `q0/r95` is the
 NONE/RESAMPLE instability/resolution procedure. Utility and cap-binding remain
 mandatory reported secondary outcomes, not causal-verdict gates. No completed
