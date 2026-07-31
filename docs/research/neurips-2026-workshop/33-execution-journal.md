@@ -3214,3 +3214,30 @@ The next event after the archived migration boundary is appended below.
   the completed miniature lineage only. It does not remove
   `B-NEURIPS-TASK6-E2E`, promote Step 4A to scientific evidence, or establish
   a P0 result; Step 4B remains pending.
+
+### EJ-20260731-task6-step5-revalidation-command-receipt
+
+- **Receipt correction:** The preceding entry's bounded-check line was a
+  compact notation, not a literal shell transcript. The exact command was:
+
+  ```bash
+  timeout 60s .venv/bin/python - <<'PY'
+  import hashlib
+  from pathlib import Path
+  from pneuma_lab.resampling_null.artifacts import load_record, validate_scientific_graph
+  from pneuma_lab.resampling_null.freeze import verify_frozen_analysis_inputs
+  from pneuma_lab.resampling_null.types import ArtifactRef
+  root = Path('build/research/neurips-2026-workshop/step4a-iv-20260730-210059')
+  paths = ['study-manifest.json','prefix-schedule.json','prefix/prefix-index.json','assignment/ledger.json','packets/index.json','analysis/freeze.json','analysis/projection.json','analysis/unblind-receipt.json','analysis/analysis.json']
+  records = {rel: load_record(root / rel) for rel in paths}
+  validate_scientific_graph(root)
+  p = root / 'analysis/freeze.json'; b = p.read_bytes()
+  ref = ArtifactRef(role='analysis_freeze', relative_path='analysis/freeze.json', sha256=hashlib.sha256(b).hexdigest(), byte_count=len(b), media_type='application/json')
+  verify_frozen_analysis_inputs(ref, run_root=root)
+  assert (root / 'operational/task6/outcome-tainted.json').exists()
+  print('PASS')
+  PY
+  ```
+- **Result:** Exit `0`, output `PASS`. This receipt is read-only and remains
+  implementation verification only; no Step 4B or scientific execution was
+  performed.
