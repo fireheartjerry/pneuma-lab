@@ -8,11 +8,23 @@ data "aws_iam_policy_document" "controller" {
     effect    = "Allow"
     actions   = ["dynamodb:GetItem"]
     resources = [var.lease_table_arn]
-    condition { test = "ForAllValues:StringEquals" variable = "dynamodb:LeadingKeys" values = [var.lease_key] }
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "dynamodb:LeadingKeys"
+      values   = [var.lease_key]
+    }
   }
 }
 
 data "aws_iam_policy_document" "watcher" {
-  statement { effect = "Allow" actions = ["dynamodb:UpdateItem"] resources = [var.lease_table_arn] }
-  statement { effect = "Allow" actions = ["ec2:TerminateInstances"] resources = ["*"] }
+  statement {
+    effect    = "Allow"
+    actions   = ["dynamodb:UpdateItem"]
+    resources = [var.lease_table_arn]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["ec2:TerminateInstances"]
+    resources = ["*"]
+  }
 }

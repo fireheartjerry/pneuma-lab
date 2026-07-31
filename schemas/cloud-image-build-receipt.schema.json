@@ -1,0 +1,30 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-image-build-receipt.schema.json",
+    "title": "Cloud Image Double-Build Receipt",
+    "description": "Step 7B evidence for two builds and an SBOM; validation does not authorize a build or promote an image.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "role", "recipe_sha256", "dockerfile_sha256", "base_digest", "lock_sha256", "builder_sha256", "build_image_digests", "sbom_sha256", "reproducible"],
+    "properties": {
+        "record_kind": {"const": "cloud_image_build_receipt"},
+        "schema_version": {"const": "0.1.0"},
+        "role": {"enum": ["controller", "model-server", "benchmark-worker"]},
+        "recipe_sha256": {"$ref": "#/$defs/digest"},
+        "dockerfile_sha256": {"$ref": "#/$defs/digest"},
+        "base_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "lock_sha256": {"$ref": "#/$defs/digest"},
+        "builder_sha256": {"$ref": "#/$defs/digest"},
+        "build_image_digests": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+        },
+        "sbom_sha256": {"$ref": "#/$defs/digest"},
+        "reproducible": {"type": "boolean"}
+    },
+    "additionalProperties": false,
+    "$defs": {"digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

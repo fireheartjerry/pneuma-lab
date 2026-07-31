@@ -5,7 +5,12 @@ from pathlib import Path
 import pytest
 
 from pneuma_lab.cloud.errors import CloudManifestError
-from pneuma_lab.cloud.images import inspect_dockerfile, validate_image_manifest
+from pneuma_lab.cloud.images import (
+    inspect_dockerfile,
+    validate_image_build_receipt,
+    validate_image_build_set,
+    validate_image_manifest,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,11 +28,37 @@ def test_every_recipe_is_digest_pinned_and_has_no_unpinned_install() -> None:
 
 def test_fixture_manifest_is_bound_but_cannot_claim_build_evidence() -> None:
     assert validate_image_manifest(image_manifest())["recipe_sha256"] == HEX
-    forged = image_manifest(); forged["images"][0]["image_digest"] = "sha256:" + HEX
-    with pytest.raises(CloudManifestError): validate_image_manifest(forged)
+    forged = image_manifest()
+    forged["images"][0]["image_digest"] = "sha256:" + HEX
+    with pytest.raises(CloudManifestError):
+        validate_image_manifest(forged)
 
 
 def test_build_recipe_names_determinism_controls() -> None:
     recipe = (ROOT / "infra/docker/README.md").read_text(encoding="utf-8")
     for control in ("SOURCE_DATE_EPOCH", "PYTHONHASHSEED", "UTC", "digest comparison"):
         assert control in recipe
+
+
+def build_receipt(role: str, letter: str = "a") -> dict:
+    return {
+        "record_kind": "cloud_image_build_receipt",
+        "schema_version": "0.1.0",
+        "role": role,
+        "recipe_sha256": HEX,
+        "dockerfile_sha256": letter * 64,
+        "base_digest": "sha256:" + letter * 64,
+        "lock_sha256": letter * 64,
+        "builder_sha256": "d" * 64,
+        "build_image_digests": ["sha256:" + "e" * 64] * 2,
+        "sbom_sha256": "f" * 64,
+        "reproducible": True,
+    }
+
+
+def test_step7b_requires_two_equal_builds_and_all_roles() -> None:
+    records = [build_receipt(role, letter) for role, letter in (("controller", "a"), ("model-server", "b"), ("benchmark-worker", "c"))]
+    assert len(validate_image_build_set(records)) == 3
+    records[0]["build_image_digests"][1] = "sha256:" + "0" * 64
+    with pytest.raises(CloudManifestError, match="reproducible"):
+        validate_image_build_receipt(records[0])

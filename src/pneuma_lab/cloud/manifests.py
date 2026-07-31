@@ -24,6 +24,9 @@ _SCHEMA_BY_KIND = {
     "cloud_pilot_protocol": "cloud-pilot-protocol.schema.json",
     "cloud_retrieval_authorization": "cloud-retrieval-authorization.schema.json",
     "cloud_qualification_audit": "cloud-qualification-audit.schema.json",
+    "cloud_pilot_admission_receipt": "cloud-pilot-admission-receipt.schema.json",
+    "cloud_image_build_receipt": "cloud-image-build-receipt.schema.json",
+    "cloud_aws_account_verification": "cloud-aws-account-verification.schema.json",
 }
 
 
@@ -47,3 +50,9 @@ def validate_experiment_manifest(record: Mapping[str, Any]) -> dict[str, Any]:
     """Validate an unpromoted experiment manifest bound to an input-lock digest."""
 
     return _validate(record, expected_kind="cloud_experiment_manifest")
+
+
+def validate_pilot_admission_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate a recorded one-GPU admission measurement without promoting it."""
+
+    return _validate(record, expected_kind="cloud_pilot_admission_receipt")

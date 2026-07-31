@@ -1,7 +1,12 @@
 """Fail-closed local contracts for unexecuted cloud experiment preparation."""
 
-from .inputs import build_retrieval_plan, verify_input_lock
-from .manifests import validate_experiment_manifest, validate_input_lock
+from .aws_account import build_account_verification
+from .inputs import build_retrieval_plan, verify_input_lock, verify_input_receipts
+from .manifests import (
+    validate_experiment_manifest,
+    validate_input_lock,
+    validate_pilot_admission_receipt,
+)
 from .qualification import (
     evaluate_roster_gate,
     require_roster_gate_satisfied,
@@ -22,6 +27,7 @@ from .retrieval import (
 
 __all__ = [
     "authorization_binding_digest",
+    "build_account_verification",
     "build_audit_plan",
     "build_receipt_verification_plan",
     "build_retrieval_plan",
@@ -33,9 +39,11 @@ __all__ = [
     "retrieve_and_verify",
     "validate_experiment_manifest",
     "validate_input_lock",
+    "validate_pilot_admission_receipt",
     "validate_qualification_audit",
     "validate_retrieval_authorization",
     "verify_input_lock",
+    "verify_input_receipts",
     "verify_local_bytes",
     "verify_mirrored_file",
 ]

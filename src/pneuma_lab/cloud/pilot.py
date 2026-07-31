@@ -7,13 +7,15 @@ from collections.abc import Mapping
 from .errors import CloudManifestError
 
 
-RUNG_NAMES = ("l40s-tp1-32768", "l40s-tp1-65536", "l40s-tp2-65536", "h100-tp1-131072")
+# Both candidates use the approved g6e.2xlarge's sole L40S.  The admission
+# cannot grow into TP2 or substitute an H100; Azure remains separately governed.
+RUNG_NAMES = ("l40s-tp1-32768", "l40s-tp1-65536")
 SELECTION_GATES = frozenset({"oom", "tool_call", "output_parity", "p10_throughput"})
 
 
 def validate_protocol(protocol: Mapping[str, object]) -> None:
     if tuple(protocol.get("rungs", ())) != RUNG_NAMES:
-        raise CloudManifestError("protocol must freeze the exact four-rung ladder")
+        raise CloudManifestError("protocol must freeze the exact approved one-GPU rung set")
 
 
 def select_rung(protocol: Mapping[str, object], measurements: Mapping[str, Mapping[str, bool]]) -> str:

@@ -15,4 +15,4 @@ def test_protocol_rejects_expansion_and_efficacy_selection() -> None:
 
 def test_largest_passing_registered_rung_is_selected() -> None:
     gates = {"oom": True, "tool_call": True, "output_parity": True, "p10_throughput": True}
-    assert select_rung(protocol(), {RUNG_NAMES[0]: gates, RUNG_NAMES[2]: gates}) == RUNG_NAMES[2]
+    assert select_rung(protocol(), {RUNG_NAMES[0]: gates, RUNG_NAMES[1]: gates}) == RUNG_NAMES[1]

@@ -34,6 +34,32 @@ def validate_image_manifest(record: Mapping[str, Any]) -> dict[str, Any]:
     return manifest
 
 
+def validate_image_build_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate Step 7B double-build evidence without performing a build."""
+
+    from .manifests import _validate
+
+    receipt = _validate(record, expected_kind="cloud_image_build_receipt")
+    digests = receipt["build_image_digests"]
+    observed_reproducible = digests[0] == digests[1]
+    if receipt["reproducible"] != observed_reproducible:
+        raise CloudManifestError("reproducible must equal the two-digest comparison")
+    return receipt
+
+
+def validate_image_build_set(records: Sequence[Mapping[str, Any]]) -> tuple[dict[str, Any], ...]:
+    """Require a complete, single-recipe, reproducible three-role build set."""
+
+    receipts = tuple(validate_image_build_receipt(record) for record in records)
+    if {record["role"] for record in receipts} != {"controller", "model-server", "benchmark-worker"}:
+        raise CloudManifestError("Step 7B requires exactly one receipt for each image role")
+    if len(receipts) != 3 or len({record["recipe_sha256"] for record in receipts}) != 1:
+        raise CloudManifestError("Step 7B build receipts must bind one recipe exactly once per role")
+    if not all(record["reproducible"] for record in receipts):
+        raise CloudManifestError("Step 7B remains blocked by a non-reproducible image")
+    return receipts
+
+
 def inspect_dockerfile(path: Path) -> None:
     """Enforce immutable base syntax and no unpinned pip install."""
 

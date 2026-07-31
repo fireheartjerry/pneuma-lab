@@ -9,10 +9,14 @@ as immutable revisions, receipt references, and `linux/amd64@sha256:` digests.
 Mutable branches, tags, malformed digests, missing licenses, and promotion of a
 fixture manifest fail closed.
 
-`pneuma_lab.cloud.inputs.build_retrieval_plan` derives its targets entirely
-from these immutable values and performs no network lookup. The accompanying
-tests use synthetic receipts only. They do not retrieve or validate a model,
-dataset, tokenizer, container layer, license, or contamination record.
+`pneuma_lab.cloud.inputs.build_retrieval_plan` derives model, tokenizer,
+benchmark, dataset, verifier, and container targets entirely from immutable
+values and performs no network lookup. `verify_input_receipts` then resolves
+every referenced receipt beneath one root and checks its actual bytes against
+the declared digest, rejecting escapes, symlinks, conflicts, and drift. The
+accompanying tests still use synthetic receipts only. They do not retrieve or
+validate a real model, dataset, tokenizer, container layer, license, or
+contamination record.
 
 Consequently this completes the Step 5A implementation contract, not Step 5B:
 no real input is locked, `G-ROSTER` remains open, no experiment manifest is

@@ -38,8 +38,9 @@ append-only forensic trail.
   Canonical Step 4B remains pending for the separately authorized experiment.
 - No real benchmark, model-provider, unblind/analysis, or scientific result of
   record exists. AWS has $10,000 verified EC2-eligible credit plus a separate
-  $100 credit; requested 48-vCPU G/VT On-Demand and Spot quotas remain pending
-  and unapplied.
+  $100 credit. The primary topology is one 8-vCPU `g6e.2xlarge` with one L40S;
+  only its matching G/VT quota may satisfy the AWS admission gate. Azure remains
+  separately authorized and separately governed.
 
 The public methodology name is **the PLACEBO Protocol** and the registered
 experiment is **the PLACEBO Trial** (DL-160,

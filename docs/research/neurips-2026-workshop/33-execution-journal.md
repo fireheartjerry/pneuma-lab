@@ -3573,6 +3573,76 @@ The next event after the archived migration boundary is appended below.
   evidence is recorded, and any Azure training/other experiment requires a
   separate design and authority lineage.
 
+### EJ-20260731-aws-single-l40s-reconciliation
+
+- **Scope:** DL-161 static AWS-topology reconciliation. The cloud architecture
+  validator, quota preflight, pilot protocol, schemas, Terraform configuration,
+  fixtures, status, and handoff now bind exactly one 8-vCPU `g6e.2xlarge` with
+  one L40S and 44 GiB usable device memory. The Terraform admission definition
+  reserves one GPU, eight vCPUs, and 60,000 MiB host memory.
+- **Verification:** focused cloud and schema-registry tests passed (with the
+  explicit Terraform-on-PATH test skipped by design), Ruff for
+  `src/pneuma_lab/cloud`, status validation, whitespace check, and Terraform
+  L1 `fmt -check`, backend-free `init`, and `validate` passed.
+  The provider was initialized only to validate configuration; no credentials,
+  account plan, provider read, resource change, or `apply` occurred.
+- **Research correction:** current upstream material describes the Qwen3.6
+  FP8 variant at roughly 42 GiB and single-GPU validation on H100/H200 rather
+  than L40S. Community reports are mixed and include tool-call and thinking
+  failure modes. These are admission risks, not a substitute for a receipt.
+- **Boundary:** no Step 5B retrieval, G-ROSTER qualification, Step 7B image
+  build, AWS account/quota request, Docker pull/build, one-GPU measurement,
+  pilot, Step 14 campaign, experiment, Azure action, or spend occurred.
+
+### EJ-20260731-phase-b-external-evidence-preflight
+
+- **Implementation:** Step 5B retrieval planning now includes tokenizer,
+  dataset, and verifier sources and byte-verifies every referenced receipt.
+  Step 7B has a complete three-role, two-build, SBOM, and reproducibility
+  receipt contract. AWS account evidence has an offline validator binding STS
+  identity, both applied G/VT quotas, account-visible `g6e.2xlarge` zones, and
+  Terraform config/plan digests. Step 14 generation now requires all five real
+  Phase B evidence receipts and writes nothing while any are absent.
+- **Tooling/evidence:** AWS CLI 2.35.19 was installed user-locally after the
+  installer signature matched AWS's documented fingerprint; GPG reported that
+  signing key expired, which remains a trust-chain caveat. Terraform 1.15.8 was
+  checksum-verified and installed user-locally. Terraform L1 init/validate and
+  all focused cloud/schema tests passed. The first STS read failed with
+  `NoCredentials`; no account data was obtained.
+- **Resource gate:** the sole writable disk has about 153 GiB free versus the
+  historical 321–470 GiB retrieval estimate. Pending request 50 names exact
+  A1–A3 scopes and hashes, but authorizes nothing.
+- **Boundary:** no input or image retrieval, container build, AWS mutation,
+  Terraform plan/apply, quota change, GPU use, reviewer campaign, experiment,
+  Azure action, or spend occurred.
+
+### EJ-20260731-aws-authenticated-console-audit
+
+- **Scope:** fresh read-only inspection of the authenticated AWS console in
+  `us-east-1`; no account, quota, or resource mutation was attempted.
+- **Identity:** the console account name and 12-digit account identifier matched
+  the expected Jerry Mathos AI account. The identifier is retained in the
+  private console evidence and is not copied into this public-facing journal.
+- **Quota evidence:** Service Quotas reported applied account-level values of
+  8 vCPUs for `Running On-Demand G and VT instances` and 16 vCPUs for
+  `All G and VT Spot Instance Requests`. Both satisfy the exact 8-vCPU
+  `g6e.2xlarge` topology gate.
+- **Offering evidence:** the EC2 instance-type detail page reported
+  `g6e.2xlarge` in `us-east-1a`, `us-east-1b`, `us-east-1c`, and
+  `us-east-1d`, with 8 vCPUs, one NVIDIA L40S, and 44.7 GiB GPU memory.
+- **Residual gate:** this read-only console evidence does not supply CLI
+  credentials, a principal ARN receipt, Terraform variables, or an
+  account-bound Terraform plan hash. A same-session CloudShell `sts` read
+  subsequently confirmed the root-principal ARN. The account exposes a
+  default VPC with subnets in the available zones and its default security
+  group, but `dynamodb list-tables` and `s3api list-buckets` both returned
+  empty sets. The required lease table and artifact bucket do not exist, so a
+  real plan cannot be prepared without a separately authorized infrastructure
+  creation decision.
+- **Boundary:** no quota request, launch, Terraform plan/apply, provider
+  mutation, resource creation, GPU use, experiment, Azure action, or spend
+  occurred.
+
 ## 2026-07-31 — Step 5B workflow and the G-ROSTER evaluation
 
 - **Scope:** isolated worktree/branch (`codex/step5b-groster`). Adds
