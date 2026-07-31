@@ -363,6 +363,26 @@
             ]
         },
         {
+            "id": "neurips_resampling_null_task8",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
+                "docs/research/neurips-2026-workshop/35-task8-timing-no-go-temporary-handoff.md",
+                "schemas/resampling-timing-no-go.schema.json",
+                "src/pneuma_lab/resampling_null/power.py",
+                "src/pneuma_lab/resampling_null/timing_no_go.py",
+                "tests/resampling_null/test_power.py",
+                "tests/resampling_null/test_timing_no_go.py",
+                "tests/resampling_null/test_kernel_equivalence.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-TASK8-E2E"
+            ]
+        },
+        {
             "id": "neurips_resampling_null_task9",
             "status": "partial",
             "scope": "offline_research",
@@ -673,6 +693,10 @@
         {
             "id": "B-NEURIPS-TASK7-E2E",
             "summary": "Task 7 has no complete authority-backed P0 lineage reaching real unblind and registered analysis; its state is implementation_complete and E2E_pending."
+        },
+        {
+            "id": "B-NEURIPS-TASK8-E2E",
+            "summary": "Task 8 has no P0 result of record: the terminated 2026-07-30 all-cell timing probe emitted no machine-verifiable monotonic-clock termination evidence, so no real resampling_timing_no_go record exists, and no admitted screen, shard, validation, or power final has been produced; its state is implementation_complete and E2E_pending."
         },
         {
             "id": "B-NEURIPS-TASK9-E2E",

@@ -2953,3 +2953,62 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** No compatible P0 final, real lineage, task block of
   record, unblind, analysis, provider or benchmark action, spend, or scientific
   claim was produced.
+
+### EJ-20260730-0227 — Task 8 reconciliation and the P0 timing-admission repair
+
+- **Scope:** Reconciled the Task-8 temporary branch handoff into the shared
+  canonical surfaces and repaired the implementation defect that made the
+  frozen P0 grid inadmissible on this host. No scientific constant, RNG
+  contract, grid, topology, cap, multiplier, or projection formula changed.
+- **Status recorded:** `docs/project-status.json` now carries
+  `neurips_resampling_null_task8` as `implementation_complete` /
+  `E2E_pending` with `B-NEURIPS-TASK8-E2E`, and
+  `src/pneuma_lab/status.py` admits the new canonical system id. Task 8 had
+  registered no system entry before this entry; the Task-8 owner's claim was
+  deliberately not invented during the 2026-07-30 merge (EJ-20260730-0225).
+- **Preserved non-result:** EJ-20260730-0215, EJ-20260730-0217, and the
+  terminated all-cell rerun remain non-result terminations. No
+  `resampling_timing_no_go` record was created: the historical run emitted no
+  machine-verifiable monotonic-clock termination evidence, and fabricating the
+  readings is forbidden. The ignored rerun root still holds only a study
+  manifest, screen lock, and power authority.
+- **Measured defect:** A fresh instrumented all-cell measurement on this host
+  projected about 2,740 seconds of total registered screen work against the
+  432-second admissible threshold (100x multiplier, 43,200-second cap). The
+  cost was concentrated in three places that are pure functions of frozen
+  inputs recomputed per replicate: the 96-node Gauss-Hermite rule and the
+  latent-Gaussian 16-pattern table (about 72% of the simulator), the
+  `Fraction`-based sharp-tail dynamic program (about 82% of the Task-7 batch
+  gate), and per-draw `np.random.Philox` allocation at 18.7 microseconds each
+  against 1.5 microseconds to reseed.
+- **Correction (commit `87a013b`):** memoized the pattern table and quadrature
+  rule; carried the randomization support as integer numerators over the
+  common denominator `lcm(4*n_SWE, 4*n_TAU)`; regrouped the tail convolution
+  only when a lattice bound proves no sequential prefix can reach
+  `_DYNAMIC_STATE_LIMIT`, cached on its sufficient statistic; cached `r95` on
+  `(roster, discordant)`; reseeded one per-thread Philox behind a documented
+  single-use internal entry point while `philox_generator` stays the public
+  non-aliasing constructor; cached field-independent text admission and
+  replaced the per-character digest scan with a regex.
+- **Equivalence evidence:** A detached worktree at the pre-change commit
+  `75bb096` and the corrected tree produced byte-identical per-cell
+  `(gate_totals, replay_receipt)` digests for 20 grid-spread cells across the
+  `screen`, `grid`, and `validation` draw domains. A 120-tensor differential
+  check against a re-derived `Fraction` oracle, including unequal rosters,
+  found no mismatch. `tests/resampling_null/test_kernel_equivalence.py` pins
+  the tails, resolution, Philox stream, shared-slot aliasing, cached text
+  admission, and digest admission permanently.
+- **Fresh measurement after repair:** all-cell screen work about 275 seconds
+  (simulator about 153 s, Task-7 gate about 121 s) on the same host, whose
+  load average was 8.5 on 8 cores from unrelated resident processes. The
+  admissible threshold is 432 seconds.
+- **Verification:** `tests/resampling_null -m milestone` passed 92;
+  `test_analysis.py` and `test_power.py` passed 48; the branch/packet/
+  controller/export gate passed 35; `scripts/test_fast.py` passed 7;
+  `tests/smoke` passed 7; `pneuma_lab.status --check`, resampling-null
+  `compileall`, Ruff over the four touched files, and `git diff --check` all
+  passed. Every command stayed under the 60-second ceiling.
+- **Boundary/non-claim:** This is an implementation correction plus a status
+  reconciliation. No screen, shard, validation, power final, schedule, branch,
+  task block, unblind, analysis, provider or benchmark action, spend, or
+  scientific claim was produced.

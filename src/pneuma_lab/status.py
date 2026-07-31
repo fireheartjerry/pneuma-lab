@@ -72,6 +72,7 @@ _CURRENT_SYSTEM_STATE = {
     "pneuma_gauge_msa": ("implemented", "offline_research"),
     "neurips_resampling_null_task6": ("partial", "offline_research"),
     "neurips_resampling_null_task7": ("partial", "offline_research"),
+    "neurips_resampling_null_task8": ("partial", "offline_research"),
     "neurips_resampling_null_task9": ("partial", "offline_research"),
 }
 

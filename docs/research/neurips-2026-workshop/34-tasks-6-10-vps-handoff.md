@@ -624,3 +624,50 @@ compatible P0 final, real lineage, task block of record, unblind, analysis,
 provider or benchmark action, spend, or scientific claim exists. The next gate
 is to execute one genuinely admitted full P0 lineage through this authority;
 passing the authority tests is not that execution.
+
+## Task 8 reconciliation (2026-07-30)
+
+Task 8's canonical state is `implementation_complete; E2E_pending`, recorded in
+`docs/project-status.json` as `neurips_resampling_null_task8` with
+`B-NEURIPS-TASK8-E2E`. The temporary branch handoff
+`35-task8-timing-no-go-temporary-handoff.md` is now reconciled into these
+shared surfaces; read it for the timing-contract implementation detail.
+
+**Provenance, not ownership.** The 2026-07-30 all-cell probe remains a
+**Task-10** canonical-execution event that exercised **Task-8**
+timing-admission machinery. Task 8 owns the machinery. It does not own that
+execution, and the terminated probe is not Task-8 scientific completion.
+
+**No timing no-go record exists, by design.** `timing_no_go.py` and
+`schemas/resampling-timing-no-go.schema.json` can represent a measured
+`timing_infeasible_lower_bound`, but the terminated rerun emitted no
+machine-verifiable monotonic-clock termination evidence binding start and
+observation readings, host identity, physical run-root identity, and explicit
+termination authorization. Journal prose is forensic context, not that
+authority. Creating a record from reconstructed readings would synthesize
+missing evidence and is forbidden.
+
+**The blocker was implementation-limited and has been repaired.** The
+all-cell screen probe measured about 2,740 seconds of total registered work on
+this host against the frozen 432-second admissible threshold implied by the
+100x screen-to-production multiplier and the 43,200-second cap. Commit
+`87a013b` is the genuine implementation correction the timing-admission
+contract contemplates: memoized frozen quadrature and pattern tables, an
+integer-numerator randomization support, a lattice-bounded regrouped
+convolution cached on its sufficient statistic, a reseeded per-thread Philox,
+and cached text/digest admission. The scientific identity is unchanged —
+20 grid-spread cells across all three draw domains reproduce byte-identical
+`_gate_totals_for_cell` receipts against the pre-change worktree, and
+`tests/resampling_null/test_kernel_equivalence.py` re-derives the tails,
+resolution, and Philox stream from the original formulations. Measured
+all-cell work is now about 275 seconds on the same contended host.
+
+The frozen grid, the 100x multiplier, the 12-hour cap, the shard topology, and
+`_projected_screen_wall_seconds` — which still charges total work with no
+parallelism discount — are untouched. Nothing about the scientific protocol was
+weakened to obtain admission.
+
+**What is still not done.** Task 8 has no admitted screen, shard, validation,
+or power final of record, and therefore no P0 result. Passing the kernel
+equivalence gate is software evidence. The next gate is one genuinely admitted
+full P0 lineage under the unchanged frozen protocol.
