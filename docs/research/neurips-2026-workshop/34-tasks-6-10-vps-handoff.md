@@ -719,15 +719,14 @@ required. This is an implementation-verification failure, not scientific
 evidence and not a P0 result.
 
 Follow-up bounded runs repaired the execution-only namespace, verifier-feature,
-Linux projection, and analysis-freeze continuity seams. The latest fresh root
-`build/research/neurips-2026-workshop/step4a-iv-20260730-203436` completed
-authority, power final, schedule, prefix index, assignment, packets, analysis
-freeze, isolated branches, and blinded projection. Gated unblind then failed
-closed at registered analysis because the miniature no-trigger fixture had zero
-outcome variance and the registered multiplier critical value was infinite.
-Step 4A therefore still **did not reach registered analysis**. No scientific or
-P0 claim is made; broad hostile review remains deferred to the pre-experiment
-launch review.
+Linux projection, analysis-freeze, and degenerate-miniature analysis seams. The
+fresh root `build/research/neurips-2026-workshop/step4a-iv-20260730-210059`
+completed authority, power final, schedule, prefix index, assignment, packets,
+analysis freeze, isolated branches, blinded projection, gated unblind, and
+registered analysis. Step 4A reached registered analysis as
+**implementation verification only**. Its records remain inadmissible as
+scientific evidence or P0 results; broad hostile review remains deferred to the
+pre-experiment launch review.
 
 ### Canonical run stopped 2026-07-30
 

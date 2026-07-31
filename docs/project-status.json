@@ -401,6 +401,7 @@
                 "src/pneuma_lab/resampling_null/blinding.py",
                 "src/pneuma_lab/resampling_null/evidence.py",
                 "src/pneuma_lab/resampling_null/types.py",
+                "src/pneuma_lab/resampling_null/analysis.py",
                 "schemas/resampling-prefix-receipt.schema.json",
                 "src/pneuma_lab/resampling_null/cli.py",
                 "scripts/run_iv_lineage.sh",

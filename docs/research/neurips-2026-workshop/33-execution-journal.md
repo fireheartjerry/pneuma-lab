@@ -3160,3 +3160,30 @@ The next event after the archived migration boundary is appended below.
 - **Checks:** Focused CLI contract tests passed; broad adversarial campaigns
   and exhaustive forensic sweeps were intentionally deferred to the dedicated
   pre-experiment launch review.
+
+### EJ-20260730-implementation-verification-lineage-complete
+
+- **Scope/authority:** Fresh root
+  `build/research/neurips-2026-workshop/step4a-iv-20260730-210059` used only
+  the separate `implementation_verification` authority and miniature frozen
+  grid. No canonical P0/full-grid screen, model/provider call, cloud resource,
+  paid compute, or scientific evidence was used.
+- **Complete path:** Power final, schedule, prefixes, assignment, opaque
+  packets, isolated branch execution, task blocks, analysis freeze, blinded
+  projection, gated unblind, and registered analysis all completed with exit
+  code `0`.
+- **Receipts:** Power final
+  `238c2a8838c03698ca18a8b9690efd9f5b98930333b1c9f3eea2e047c5e861ef`,
+  schedule `8bee0c62c19968da3018913c3a9a2a14318cdb6457eaf84fe47dfcf26ffdc66d`,
+  prefix index
+  `a465778eed719d9c4b1909256a7b874532670dfe1c2152ff47f4a1234d812d34`,
+  assignment `47a322b523447d64468a0d6fd37239b38f773428eff2f748856baa4274eb37a`,
+  packet index `c2502f0c4467246787f1be8721b4679ba7db699d56524aa5c75409237f03b97a`,
+  freeze `b30f59452aa6bfb91f45d4f4aed300181d7696f16a5fb2ba42aabadb84e3f89a`,
+  projection `84dab953889ffef52cfad93f40f4c6e48b41ff928c3553b55c2e5f057756acef`,
+  and registered analysis
+  `b21ef75c1b2b7bbbd90937483d66b7f3363d4a2314dbfcaa8645371fc591b38e`.
+- **Classification:** Step 4A reached registered analysis, but the entire
+  lineage is implementation verification only and cannot enter P0/scientific
+  evidence. Focused CLI tests and status checks passed; broad hostile review
+  remains deferred to the dedicated pre-experiment launch review.

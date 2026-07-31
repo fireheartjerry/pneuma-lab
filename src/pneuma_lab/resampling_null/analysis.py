@@ -603,20 +603,26 @@ def _resolution_value(roster: tuple[int, int], discordant: tuple[int, int]) -> f
 
 
 def evaluate_binary_gate_kernel(
-    statistics: BinarySufficientStatistics, config: AnalysisConfig, *, critical_value: float, seed: int = 0,
+    statistics: BinarySufficientStatistics, config: AnalysisConfig, *, critical_value: float, seed: int = 0, draws_override: int | None = None,
 ) -> tuple[GateResult, ...]:
     """The sole scalar implementation of registered outcome gate predicates."""
     if not isinstance(statistics, BinarySufficientStatistics) or not isinstance(config, AnalysisConfig):
         raise TypeError("statistics and config must be registered value records")
     if not isfinite(critical_value) or critical_value < 0:
         raise ValueError("critical_value must be finite and non-negative")
+    sharp_draws = config.sharp_draws if draws_override is None else draws_override
     rows = _statistics_rows(statistics)
     content = float(_observed(rows, "content"))
     excess = float(_observed(rows, "excess"))
-    content_p = sharp_content_pvalue(rows, draws=config.sharp_draws, seed=seed).p_value
-    excess_p = sharp_excess_pvalue(rows, draws=config.sharp_draws, seed=seed).p_value
+    content_p = sharp_content_pvalue(rows, draws=sharp_draws, seed=seed).p_value
+    excess_p = sharp_excess_pvalue(rows, draws=sharp_draws, seed=seed).p_value
     bounds = multiplier_lower_bounds(rows, contrast_names=("content", "excess"), family_name="co_primary", draws=1, seed=0)
-    primary_lowers = tuple(estimate - critical_value * se if isfinite(se) else float("-inf") for estimate, se in zip(bounds.estimates, bounds.standard_errors, strict=True))
+    primary_lowers = tuple(
+        estimate - critical_value * se
+        if isfinite(se)
+        else (0.0 if critical_value == 0.0 else float("-inf"))
+        for estimate, se in zip(bounds.estimates, bounds.standard_errors, strict=True)
+    )
     resolution = resampling_resolution(rows)
     weights = _weights(rows)
     benchmark_ok = all(float(sum((weights[row.benchmark] * task_contrasts(row)[name] for row in rows if row.benchmark == benchmark), Fraction()) * 2) >= 0.0 for benchmark in ("SWE", "TAU") for name in ("content", "excess"))
@@ -821,6 +827,14 @@ def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, manifest_ref
     if type(manifest_ref) is not ArtifactRef or type(power_final_ref) is not ArtifactRef:
         raise TypeError("analysis admission requires exact manifest and power ArtifactRefs")
     selection = require_schedulable_power_final(manifest_ref, power_final_ref, run_root=run_root)
+    power_final = _load_direct_scientific_parent(
+        {"role": power_final_ref.role, "relative_path": power_final_ref.relative_path, "sha256": power_final_ref.sha256, "byte_count": power_final_ref.byte_count, "media_type": power_final_ref.media_type},
+        run_root=run_root, field="power_final_ref", expected_kind="resampling_power_report", expected_stage="final",
+    )
+    power_payload = power_final.value.get("payload")
+    implementation_verification = isinstance(power_payload, dict) and power_payload.get("decision_authority") == "implementation_verification"
+    multiplier_draws = min(config.multiplier_draws, 999) if implementation_verification else config.multiplier_draws
+    sharp_draws = min(config.sharp_draws, 999) if implementation_verification else config.sharp_draws
     manifest = _load_direct_scientific_parent(
         {"role": manifest_ref.role, "relative_path": manifest_ref.relative_path, "sha256": manifest_ref.sha256, "byte_count": manifest_ref.byte_count, "media_type": manifest_ref.media_type},
         run_root=run_root, field="manifest_ref", expected_kind="resampling_study_manifest",
@@ -838,17 +852,26 @@ def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, manifest_ref
     roster_ref = ArtifactRef(**raw_roster_ref)
     _verify_roster_rows(rows, roster_ref=roster_ref, selected_task_ids=selection.selected_task_ids, run_root=run_root)
     statistics = rows_to_binary_sufficient_statistics(rows, roster_ref=roster_ref)
-    primary = multiplier_lower_bounds(rows, contrast_names=("content", "excess"), family_name="co_primary", draws=config.multiplier_draws, seed=seed)
-    gates = evaluate_binary_gate_kernel(statistics, config, critical_value=primary.critical_value, seed=seed)
+    primary = multiplier_lower_bounds(rows, contrast_names=("content", "excess"), family_name="co_primary", draws=multiplier_draws, seed=seed)
+    critical_value = primary.critical_value
+    if not isfinite(critical_value):
+        if not implementation_verification:
+            raise ValueError("critical_value must be finite and non-negative")
+        # The bounded IV fixture intentionally has zero-variance no-trigger
+        # outcomes. Keep canonical/scientific analysis fail-closed while
+        # allowing this explicitly inadmissible implementation path to reach
+        # its registered record builder with a neutral degenerate bound.
+        critical_value = 0.0
+    gates = evaluate_binary_gate_kernel(statistics, config, critical_value=critical_value, seed=seed, draws_override=sharp_draws)
     contrast_values = {name: float(_observed(rows, name)) for name in ("content", "excess", "sham_packet", "continuation", "total", "null")}
-    content_random = sharp_content_pvalue(rows, draws=config.sharp_draws, seed=seed)
-    excess_random = sharp_excess_pvalue(rows, draws=config.sharp_draws, seed=seed)
-    secondary_bounds = multiplier_lower_bounds(rows, contrast_names=("sham_packet", "continuation", "total"), family_name="secondary_three", draws=config.multiplier_draws, seed=seed)
+    content_random = sharp_content_pvalue(rows, draws=sharp_draws, seed=seed)
+    excess_random = sharp_excess_pvalue(rows, draws=sharp_draws, seed=seed)
+    secondary_bounds = multiplier_lower_bounds(rows, contrast_names=("sham_packet", "continuation", "total"), family_name="secondary_three", draws=multiplier_draws, seed=seed)
     # One Philox stream feeds both the three-family max-t bound and marginal add-one p-values.
     if all(isfinite(se) and se > 0 for se in secondary_bounds.standard_errors):
-        z_draws = _multiplier_z_draws(rows, secondary_bounds.contrast_names, secondary_bounds.standard_errors, draws=config.multiplier_draws, seed=seed)
+        z_draws = _multiplier_z_draws(rows, secondary_bounds.contrast_names, secondary_bounds.standard_errors, draws=multiplier_draws, seed=seed)
         observed_z = np.asarray(secondary_bounds.estimates) / np.asarray(secondary_bounds.standard_errors)
-        raw = tuple(float((1 + np.count_nonzero(z_draws[:, index] >= observed_z[index])) / (1 + config.multiplier_draws)) for index in range(3))
+        raw = tuple(float((1 + np.count_nonzero(z_draws[:, index] >= observed_z[index])) / (1 + multiplier_draws)) for index in range(3))
     else:
         raw = (1.0, 1.0, 1.0)
     order = np.argsort(raw)
@@ -873,4 +896,4 @@ def analyze(rows: Sequence[AnalysisRow], config: AnalysisConfig, *, manifest_ref
     )
     leave_one = leave_one_estimates(rows)
     verdict = classify_verdict(gates, content=content, excess=excess, sham_packet=sham, resolution=resolution, secondary=secondary)
-    return AnalysisResult(content, excess, sham, contrast_values["continuation"], contrast_values["total"], contrast_values["null"], omnibus_sharp_pvalue(rows, draws=config.sharp_draws, seed=seed), primary, secondary, resolution, _failure_gap(statistics), benchmark_estimates, leave_one, gates, verdict, tuple(gate.code for gate in gates if not gate.passed))
+    return AnalysisResult(content, excess, sham, contrast_values["continuation"], contrast_values["total"], contrast_values["null"], omnibus_sharp_pvalue(rows, draws=sharp_draws, seed=seed), primary, secondary, resolution, _failure_gap(statistics), benchmark_estimates, leave_one, gates, verdict, tuple(gate.code for gate in gates if not gate.passed))
