@@ -1,0 +1,255 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.example/schemas/adversarial-review/reviewer-report.schema.json",
+    "title": "Adversarial Reviewer Report",
+    "description": "The canonical output of one adversarial reviewer role.",
+    "type": "object",
+    "x-pneuma-schema-kind": "adversarial_review_record",
+    "required": [
+        "role_id",
+        "role_title",
+        "mandate_digest",
+        "findings",
+        "coverage_notes",
+        "declared_dependencies",
+        "receipt"
+    ],
+    "properties": {
+        "role_id": {
+            "$ref": "#/$defs/nonempty"
+        },
+        "role_title": {
+            "$ref": "#/$defs/nonempty"
+        },
+        "mandate_digest": {
+            "$ref": "#/$defs/sha256"
+        },
+        "findings": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/finding"
+            }
+        },
+        "coverage_notes": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "declared_dependencies": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "receipt": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/subprocess_receipt"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "nonempty": {
+            "type": "string",
+            "minLength": 1
+        },
+        "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+        },
+        "finding": {
+            "type": "object",
+            "required": [
+                "finding_id",
+                "role_id",
+                "severity",
+                "title",
+                "statement",
+                "failure_mode",
+                "evidence",
+                "claim_ids",
+                "reproduction",
+                "what_would_refute",
+                "confidence"
+            ],
+            "properties": {
+                "finding_id": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "role_id": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "severity": {
+                    "enum": [
+                        "blocker",
+                        "major",
+                        "minor",
+                        "speculation"
+                    ]
+                },
+                "title": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "statement": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "failure_mode": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/evidence_ref"
+                    }
+                },
+                "claim_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "reproduction": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "what_would_refute": {
+                    "type": "string"
+                },
+                "confidence": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "evidence_ref": {
+            "type": "object",
+            "required": [
+                "kind",
+                "locator",
+                "detail",
+                "start_line",
+                "end_line",
+                "expected_digest",
+                "quoted"
+            ],
+            "properties": {
+                "kind": {
+                    "enum": [
+                        "repo_line",
+                        "receipt",
+                        "artifact_digest",
+                        "external_source",
+                        "command",
+                        "manuscript_span"
+                    ]
+                },
+                "locator": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "detail": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "start_line": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "minimum": 1
+                },
+                "end_line": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "minimum": 1
+                },
+                "expected_digest": {
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/sha256"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "quoted": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "subprocess_receipt": {
+            "type": "object",
+            "required": [
+                "role_id",
+                "engine",
+                "model",
+                "task",
+                "prompt_digest",
+                "response_digest",
+                "input_tokens",
+                "output_tokens",
+                "cost_usd_upper_bound",
+                "wall_clock_seconds",
+                "exit_status"
+            ],
+            "properties": {
+                "role_id": {
+                    "type": "string"
+                },
+                "engine": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "task": {
+                    "type": "string"
+                },
+                "prompt_digest": {
+                    "type": "string"
+                },
+                "response_digest": {
+                    "type": "string"
+                },
+                "input_tokens": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "output_tokens": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "cost_usd_upper_bound": {
+                    "type": "number"
+                },
+                "wall_clock_seconds": {
+                    "type": [
+                        "number",
+                        "null"
+                    ]
+                },
+                "exit_status": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}

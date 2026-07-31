@@ -1,0 +1,81 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.example/schemas/adversarial-review/editor-synthesis.schema.json",
+    "title": "Adversarial Review Editor Synthesis",
+    "description": "The editor's strongest rejection case, dissent, and evidence-to-claim matrix.",
+    "type": "object",
+    "x-pneuma-schema-kind": "adversarial_review_record",
+    "required": [
+        "strongest_rejection_argument",
+        "ordered_finding_digests",
+        "minority_findings",
+        "dissent_notes",
+        "claim_matrix"
+    ],
+    "properties": {
+        "strongest_rejection_argument": {
+            "type": "string"
+        },
+        "ordered_finding_digests": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "minority_findings": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "dissent_notes": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "claim_matrix": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/claim_row"
+            }
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "claim_row": {
+            "type": "object",
+            "required": [
+                "claim_id",
+                "claim_text",
+                "supporting_evidence",
+                "attacking_findings",
+                "unsupported"
+            ],
+            "properties": {
+                "claim_id": {
+                    "type": "string"
+                },
+                "claim_text": {
+                    "type": "string"
+                },
+                "supporting_evidence": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "attacking_findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "unsupported": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}

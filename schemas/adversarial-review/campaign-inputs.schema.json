@@ -1,0 +1,124 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.example/schemas/adversarial-review/campaign-inputs.schema.json",
+    "title": "Adversarial Review Campaign Inputs",
+    "description": "The resolved digest-bound input bundle for one campaign stage.",
+    "type": "object",
+    "x-pneuma-schema-kind": "adversarial_review_record",
+    "required": [
+        "campaign_id",
+        "stage",
+        "environment",
+        "objects",
+        "receipt_index",
+        "external_sources"
+    ],
+    "properties": {
+        "campaign_id": {
+            "type": "string"
+        },
+        "stage": {
+            "type": "string"
+        },
+        "environment": {
+            "$ref": "#/$defs/environment_pin"
+        },
+        "objects": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/input_object"
+            }
+        },
+        "receipt_index": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            }
+        },
+        "external_sources": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+        },
+        "environment_pin": {
+            "type": "object",
+            "required": [
+                "repo_commit",
+                "repo_dirty",
+                "python_version",
+                "platform",
+                "dependency_digest"
+            ],
+            "properties": {
+                "repo_commit": {
+                    "type": "string"
+                },
+                "repo_dirty": {
+                    "type": "boolean"
+                },
+                "python_version": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "dependency_digest": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "input_object": {
+            "type": "object",
+            "required": [
+                "slot",
+                "path",
+                "declared_digest",
+                "description",
+                "optional"
+            ],
+            "properties": {
+                "slot": {
+                    "enum": [
+                        "repo_commit",
+                        "design",
+                        "plan",
+                        "manifest",
+                        "input_lock",
+                        "artifact_root",
+                        "power_report",
+                        "spend_ledger",
+                        "manuscript",
+                        "bibliography",
+                        "citation_queue",
+                        "venue_policy",
+                        "environment",
+                        "reviewer_reports",
+                        "editor_synthesis"
+                    ]
+                },
+                "path": {
+                    "type": "string"
+                },
+                "declared_digest": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "optional": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}

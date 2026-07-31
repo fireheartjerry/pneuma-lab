@@ -1,0 +1,142 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.example/schemas/adversarial-review/finding.schema.json",
+    "title": "Adversarial Review Finding",
+    "description": "One reviewer finding with its evidence references.",
+    "type": "object",
+    "x-pneuma-schema-kind": "adversarial_review_record",
+    "required": [
+        "finding_id",
+        "role_id",
+        "severity",
+        "title",
+        "statement",
+        "failure_mode",
+        "evidence",
+        "claim_ids",
+        "reproduction",
+        "what_would_refute",
+        "confidence"
+    ],
+    "properties": {
+        "finding_id": {
+            "$ref": "#/$defs/nonempty"
+        },
+        "role_id": {
+            "$ref": "#/$defs/nonempty"
+        },
+        "severity": {
+            "enum": [
+                "blocker",
+                "major",
+                "minor",
+                "speculation"
+            ]
+        },
+        "title": {
+            "$ref": "#/$defs/nonempty"
+        },
+        "statement": {
+            "$ref": "#/$defs/nonempty"
+        },
+        "failure_mode": {
+            "$ref": "#/$defs/nonempty"
+        },
+        "evidence": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/evidence_ref"
+            }
+        },
+        "claim_ids": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "reproduction": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "what_would_refute": {
+            "type": "string"
+        },
+        "confidence": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "nonempty": {
+            "type": "string",
+            "minLength": 1
+        },
+        "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+        },
+        "evidence_ref": {
+            "type": "object",
+            "required": [
+                "kind",
+                "locator",
+                "detail",
+                "start_line",
+                "end_line",
+                "expected_digest",
+                "quoted"
+            ],
+            "properties": {
+                "kind": {
+                    "enum": [
+                        "repo_line",
+                        "receipt",
+                        "artifact_digest",
+                        "external_source",
+                        "command",
+                        "manuscript_span"
+                    ]
+                },
+                "locator": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "detail": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "start_line": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "minimum": 1
+                },
+                "end_line": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "minimum": 1
+                },
+                "expected_digest": {
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/sha256"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "quoted": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}
