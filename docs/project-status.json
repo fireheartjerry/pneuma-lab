@@ -9,6 +9,14 @@
         "phenomenal_consciousness_claim": "not_claimed",
         "operational_nervous_system": false
     },
+    "public_naming": {
+        "protocol": "The PLACEBO Protocol",
+        "trial": "The PLACEBO Trial",
+        "expansion": "Preregistered, Label-blind, Arm-controlled, Causal Evaluation of Behavioral Outcomes",
+        "internal_identifiers_unchanged": true,
+        "terminology_doc": "docs/research/placebo-paper/01-terminology.md",
+        "decision": "DL-160"
+    },
     "evidence": {
         "executable_contract": "consciousness-evidence-frame/0.2.0",
         "evaluation_scope": "internal_harness",

@@ -41,6 +41,17 @@ append-only forensic trail.
   $100 credit; requested 48-vCPU G/VT On-Demand and Spot quotas remain pending
   and unapplied.
 
+The public methodology name is **the PLACEBO Protocol** and the registered
+experiment is **the PLACEBO Trial** (DL-160,
+`docs/research/placebo-paper/01-terminology.md`). Internal `resampling_null`
+identifiers, schemas, record kinds, receipts, and artifact identities are
+unchanged. Paper materials are `paper/placebo_protocol.tex` and
+`src/pneuma_lab/placebo_paper/` (fail-closed: only a verified sealed Task 10
+package may supply a number). The pre-launch hostile review is
+`src/pneuma_lab/adversarial_review/` and runs at Step 14, before Step 4B or any
+GPU execution. Never claim placebo-controlled feedback evaluation is itself
+novel.
+
 Use exact status language: `implementation_complete`, `E2E_pending`, and
 scientifically complete are different states. Tests validate plumbing; they do
 not manufacture evidence.

@@ -1,7 +1,16 @@
 # PLACEBO rebrand — reconciliation patch for shared surfaces
 
-**Status:** prepared, NOT applied. Do not apply while Phase B implementation is
-in flight on `codex/neurips-2026-empirical`.
+**Status:** APPLIED on 2026-07-31 under DL-160, after Phase B reached its
+readiness audit (DL-159, EJ-20260731-phase-b-readiness-audit). Retained as the
+record of what was changed and, in the final section, what was deliberately
+left alone.
+
+One deviation from the plan below: `docs/project-status.json` is validated by
+`schemas/project-status.schema.json`, which sets `additionalProperties: false`,
+so adding `public_naming` required an additive optional block in that schema.
+The block constrains `internal_identifiers_unchanged` to `const: true` — a
+rebrand that renamed identifiers would not be a rebrand, and the schema now
+refuses to record one.
 
 This branch (`codex/placebo-paper-review`) confined every edit to new
 paper-facing and review-facing files. The shared scientific-authority surfaces

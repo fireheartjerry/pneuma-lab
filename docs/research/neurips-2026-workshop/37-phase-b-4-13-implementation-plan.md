@@ -1137,6 +1137,32 @@ experiment.
 
 ---
 
+### Downstream contract — what Task 10 must emit for the paper
+
+Task 10 release preparation must produce a sealed package that
+`pneuma_lab.placebo_paper.admit` accepts, or the manuscript cannot render a
+single number. The contract is enforced in
+`src/pneuma_lab/placebo_paper/package.py`:
+
+- `package_kind` = `resampling_task10_sealed`;
+- `lineage` = `canonical_confirmation` — Step 4A, Step 4B, the incomplete P0
+  root, synthetic fixtures, and pilots are refused **by name**;
+- `sealed` true, and `artifact_root.verified` true with a 64-hex digest;
+- `unblind.ceremony_completed` true;
+- `authority` = `confirmation_execution_authorized`;
+- all nine receipts present: `study_manifest`, `prefix_schedule`,
+  `assignment_ledger`, `packet_index`, `blinded_projection`, `analysis_freeze`,
+  `unblind_receipt`, `artifact_root`, `power_report`;
+- `verdict` from the preregistered taxonomy;
+- an emitted `numbers` object whose keys cover `render.PRIMARY_ROWS`,
+  `render.RESOLUTION_ROWS`, and `render.ENVIRONMENT_ROWS`.
+
+There is no manual-entry path: the renderer reads emitted keys only, so a key
+Task 10 does not emit renders as a visibly unfilled cell. See
+`docs/research/placebo-paper/00-result-to-paper-pipeline.md`.
+
+---
+
 ## 7. Sequential order with blocking gates
 
 ```txt

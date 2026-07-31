@@ -3527,3 +3527,31 @@ The next event after the archived migration boundary is appended below.
   gates remain open.
 - **Boundary:** no retrieval, build, provider action, cloud resource, paid
   execution, pilot, Step 14, Step 4B, or scientific claim occurred.
+
+### EJ-20260731-placebo-paper-and-adversarial-review
+
+- **Scope:** paper-track and review-track implementation on an isolated
+  worktree/branch (`codex/placebo-paper-review`), merged as `e701d7d`.
+  Adds `src/pneuma_lab/adversarial_review/` (twelve-role hostile rejection
+  review, fail-closed input contract, evidence grounding, conflict detection,
+  dissent-preserving synthesis, falsification chair, hash-bound disposition),
+  `src/pneuma_lab/placebo_paper/` (fail-closed result-to-paper pipeline),
+  `paper/placebo_protocol.tex` (pre-results double-blind manuscript), and
+  `schemas/adversarial-review/`.
+- **Rebrand:** public naming applied to shared surfaces under DL-160. No
+  package, schema `$id`, record kind, receipt field, artifact identity, or
+  historical decision row was renamed. `schemas/project-status.schema.json`
+  gained one additive optional `public_naming` block.
+- **Verification:** 84 focused tests across `tests/adversarial_review` and
+  `tests/placebo_paper` passed; default smoke gate passed; schema-load tests
+  passed; `python -m pneuma_lab.status --check` PASS.
+- **Known state:** the paper preflight BLOCKS, which is correct — no arm has
+  run, no evidence package exists, and the closest-prior-art citation
+  ("Try Again, Don't Look Back") is recorded `unresolved` in
+  `paper/placebo/citation-queue.json` rather than cited from memory. No LaTeX
+  toolchain is installed, so the manuscript is uncompiled and all PDF-level
+  checks report `pending`, never `pass`. The Step 14 campaign spec is prepared
+  and fails closed for want of sealed transcripts.
+- **Boundary:** no hostile campaign was run, no cloud or paid resource was
+  used, no experiment input was retrieved, the preserved incomplete P0 root was
+  not touched, and no Step 4B, unblind, analysis, or scientific claim occurred.

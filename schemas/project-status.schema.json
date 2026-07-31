@@ -40,6 +40,44 @@
         "project": {
             "$ref": "#/$defs/project"
         },
+        "public_naming": {
+            "type": "object",
+            "description": "Paper-facing brand names for the submission-primary study. A presentation layer only: it never renames a package, schema $id, record kind, receipt field, or artifact identity. See DL-160.",
+            "additionalProperties": false,
+            "required": [
+                "protocol",
+                "trial",
+                "internal_identifiers_unchanged",
+                "terminology_doc"
+            ],
+            "properties": {
+                "protocol": {
+                    "type": "string",
+                    "description": "Public name of the methodology."
+                },
+                "trial": {
+                    "type": "string",
+                    "description": "Public name of the registered experiment."
+                },
+                "expansion": {
+                    "type": "string",
+                    "description": "What the acronym stands for."
+                },
+                "internal_identifiers_unchanged": {
+                    "type": "boolean",
+                    "const": true,
+                    "description": "Asserts that no internal identifier was renamed by the rebrand. Only true is valid: a rebrand that renamed identifiers would not be a rebrand."
+                },
+                "terminology_doc": {
+                    "type": "string",
+                    "description": "Repository-relative path to the controlling terminology document."
+                },
+                "decision": {
+                    "type": "string",
+                    "description": "Decision-log id authorizing the naming."
+                }
+            }
+        },
         "evidence": {
             "$ref": "#/$defs/evidence"
         },
@@ -146,7 +184,13 @@
         },
         "status_record": {
             "type": "object",
-            "required": ["id", "status", "scope", "evidence_refs", "blockers"],
+            "required": [
+                "id",
+                "status",
+                "scope",
+                "evidence_refs",
+                "blockers"
+            ],
             "properties": {
                 "id": {
                     "type": "string",
@@ -165,10 +209,17 @@
                     ]
                 },
                 "implementation_status": {
-                    "enum": ["implementation_complete", "implementation_pending"]
+                    "enum": [
+                        "implementation_complete",
+                        "implementation_pending"
+                    ]
                 },
                 "e2e_status": {
-                    "enum": ["E2E_complete", "E2E_pending", "not_applicable"]
+                    "enum": [
+                        "E2E_complete",
+                        "E2E_pending",
+                        "not_applicable"
+                    ]
                 },
                 "evidence_refs": {
                     "$ref": "#/$defs/path_list"
@@ -181,7 +232,11 @@
         },
         "implementation_record": {
             "type": "object",
-            "required": ["status", "evidence_refs", "blockers"],
+            "required": [
+                "status",
+                "evidence_refs",
+                "blockers"
+            ],
             "properties": {
                 "status": {
                     "$ref": "#/$defs/status"
@@ -197,7 +252,10 @@
         },
         "gated_evidence_record": {
             "type": "object",
-            "required": ["status", "blockers"],
+            "required": [
+                "status",
+                "blockers"
+            ],
             "properties": {
                 "status": {
                     "$ref": "#/$defs/status"
@@ -294,10 +352,18 @@
                 "archive_ref"
             ],
             "properties": {
-                "archived": { "const": true },
-                "authoritative": { "const": false },
-                "delivery_gate": { "const": false },
-                "learned_subject_import_allowed": { "const": false },
+                "archived": {
+                    "const": true
+                },
+                "authoritative": {
+                    "const": false
+                },
+                "delivery_gate": {
+                    "const": false
+                },
+                "learned_subject_import_allowed": {
+                    "const": false
+                },
                 "archive_ref": {
                     "const": "docs/archive/consciousness-level-methodology.md"
                 }
@@ -366,7 +432,11 @@
         },
         "negative_result": {
             "type": "object",
-            "required": ["id", "verdict", "evidence_refs"],
+            "required": [
+                "id",
+                "verdict",
+                "evidence_refs"
+            ],
             "properties": {
                 "id": {
                     "type": "string",
@@ -415,7 +485,12 @@
         },
         "integration_edge": {
             "type": "object",
-            "required": ["id", "status", "evidence_refs", "blockers"],
+            "required": [
+                "id",
+                "status",
+                "evidence_refs",
+                "blockers"
+            ],
             "properties": {
                 "id": {
                     "type": "string",
@@ -583,16 +658,25 @@
                 "authorization_ref"
             ],
             "properties": {
-                "tooling_status": { "const": "implemented" },
+                "tooling_status": {
+                    "const": "implemented"
+                },
                 "training_status": {
                     "const": "local_8m_completed_doubling_gate_stopped_ladder"
                 },
-                "runtime_status": { "const": "not_promoted" },
+                "runtime_status": {
+                    "const": "not_promoted"
+                },
                 "research_model": {
                     "type": "object",
-                    "required": ["model_id", "revision"],
+                    "required": [
+                        "model_id",
+                        "revision"
+                    ],
                     "properties": {
-                        "model_id": { "const": "Qwen/Qwen3.5-2B" },
+                        "model_id": {
+                            "const": "Qwen/Qwen3.5-2B"
+                        },
                         "revision": {
                             "const": "15852e8c16360a2fea060d615a32b45270f8a8fc"
                         }
@@ -601,18 +685,29 @@
                 },
                 "promotion_model": {
                     "type": "object",
-                    "required": ["model_id", "revision"],
+                    "required": [
+                        "model_id",
+                        "revision"
+                    ],
                     "properties": {
-                        "model_id": { "const": "Qwen/Qwen3.5-4B" },
+                        "model_id": {
+                            "const": "Qwen/Qwen3.5-4B"
+                        },
                         "revision": {
                             "const": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
                         }
                     },
                     "additionalProperties": false
                 },
-                "compatibility_reference_download_allowed": { "const": false },
-                "default_paid_compute_usd": { "const": 0 },
-                "cloud_lifetime_cap_usd": { "const": 45 },
+                "compatibility_reference_download_allowed": {
+                    "const": false
+                },
+                "default_paid_compute_usd": {
+                    "const": 0
+                },
+                "cloud_lifetime_cap_usd": {
+                    "const": 45
+                },
                 "authorization_ref": {
                     "const": "docs/data/training-authorizations/pneuma-foundation-v0.pending.json"
                 }
@@ -690,7 +785,10 @@
                     "const": true
                 },
                 "record_status": {
-                    "enum": ["absent", "present"]
+                    "enum": [
+                        "absent",
+                        "present"
+                    ]
                 }
             },
             "additionalProperties": false
@@ -738,7 +836,10 @@
         },
         "blocker": {
             "type": "object",
-            "required": ["id", "summary"],
+            "required": [
+                "id",
+                "summary"
+            ],
             "properties": {
                 "id": {
                     "type": "string",

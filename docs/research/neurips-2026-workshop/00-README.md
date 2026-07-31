@@ -1,8 +1,16 @@
 # NeurIPS 2026 Resampling Null
 
 The active NeurIPS workshop work is the Resampling Null synthetic core and its
-pre-experiment launch preparation. Start with the current-state manifest, then
-the live handoff and binding design:
+pre-experiment launch preparation.
+
+The public-facing name for this methodology is **the PLACEBO Protocol**, and
+for the registered experiment **the PLACEBO Trial**
+(`docs/research/placebo-paper/01-terminology.md`). Internal identifiers — the
+`resampling_null` package, `resampling-*` schemas and record kinds, receipts,
+and artifact identities — are unchanged and remain authoritative.
+
+Start with the current-state manifest, then the live handoff and binding
+design:
 
 1. `docs/project-status.json`
 2. `34-tasks-6-10-vps-handoff.md`

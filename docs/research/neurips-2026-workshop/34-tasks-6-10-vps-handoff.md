@@ -9,9 +9,21 @@
 **Controlling plan:** `docs/superpowers/plans/2026-07-28-resampling-null-core.md`
 **Scientific contract:** `docs/superpowers/specs/2026-07-28-neurips-resampling-null-design.md`
 
+**Paper-facing name:** the PLACEBO Protocol / the PLACEBO Trial (DL-160).
+Internal `resampling_null` identifiers are unchanged.
+
 This document is a routing summary, not a replacement for the controlling plan,
 design, decision log, or execution journal. Read those authorities completely
 before changing scientific behavior.
+
+Paper-facing artifacts for this lineage live alongside the core:
+`paper/placebo_protocol.tex`, `src/pneuma_lab/placebo_paper/`, and
+`src/pneuma_lab/adversarial_review/`. Task 10 release preparation must produce
+a package that `pneuma_lab.placebo_paper.admit` accepts; the exact field
+contract is in `docs/research/placebo-paper/00-result-to-paper-pipeline.md` §1.
+Step 4A, Step 4B, the incomplete P0 root, synthetic fixtures, and pilots are
+refused by name, so a release that produces numbers the paper cannot use will
+fail at admission rather than in review.
 
 ## Current boundary
 

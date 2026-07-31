@@ -201,8 +201,22 @@ Run independent leakage, statistical, security, cost, authority, and
 reproducibility audits. Resolve every launch-blocking finding and produce a
 signed launch-readiness report.
 
+This is campaign 1 (`stage_1_pre_launch`) of the adversarial rejection-review
+system, whose sole objective is to construct the strongest evidence-based case
+for rejecting the work. Procedure, input contract, blocking rules, reviewer
+prompts, replay process, and the human-override policy are in
+`docs/research/placebo-review/00-operating-procedure.md`. Prepare the spec with
+`python scripts/build_placebo_review_spec.py`, which pins the exact bytes the
+reviewers read at the current commit.
+
+It runs **after** Phase B Steps 4–13 and **before** Step 4B or any GPU
+execution. Campaign 2 (`stage_2_pre_submission`) runs after results exist and
+before submission.
+
 **Exit gate:** implementation is launch-ready, but actual Step 4B and GPU
-launch authorizations remain pending.
+launch authorizations remain pending. A `no_blocking_findings` disposition is
+**not** launch authority — the disposition says so in its own artifact. Launch
+authority remains in the decision log and the spend gate.
 
 ## Phase C — run Step 4B as an explicitly authorized experiment
 
