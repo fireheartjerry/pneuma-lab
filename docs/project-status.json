@@ -434,6 +434,25 @@
             "blockers": [
                 "B-NEURIPS-TASK10-E2E"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_step4_design_freeze",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/38-experiment-design-freeze.md",
+                "docs/research/neurips-2026-workshop/15-decision-log.md",
+                "docs/research/neurips-2026-workshop/32-cloud-spend-ledger.md",
+                "docs/research/neurips-2026-workshop/33-execution-journal.md",
+                "docs/superpowers/specs/2026-07-28-neurips-resampling-null-design.md"
+            ],
+            "blockers": [
+                "B-NEURIPS-G-ROSTER",
+                "B-NEURIPS-STEP14-REVIEW",
+                "B-NEURIPS-EXPERIMENT-EXECUTION"
+            ]
         }
     ],
     "nine_to_five": {
@@ -733,6 +752,18 @@
         {
             "id": "B-NEURIPS-TASK10-E2E",
             "summary": "Task 10 has no complete authority-backed P0 lineage, isolated result of record, or independently verified canonical release decision; its state is implementation_complete and E2E_pending."
+        },
+        {
+            "id": "B-NEURIPS-G-ROSTER",
+            "summary": "Both C120 and C160 remain FEASIBILITY_NO_GO until the full base-commit, image, isolation, and three-pair qualification audit satisfies the registered eligibility inequality for every split, or a reviewed protocol amendment is registered."
+        },
+        {
+            "id": "B-NEURIPS-STEP14-REVIEW",
+            "summary": "The required pre-experiment hostile launch review has not occurred."
+        },
+        {
+            "id": "B-NEURIPS-EXPERIMENT-EXECUTION",
+            "summary": "No authorized real experiment, pilot, provider action, or Step 4B lineage has been executed."
         }
     ]
 }

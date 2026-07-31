@@ -3411,3 +3411,22 @@ The next event after the archived migration boundary is appended below.
   lineage and classify a registered no-go, but no Step 4B lineage, canonical P0
   result, provider/benchmark action, cloud/AWS use, paid compute, spend, or
   scientific claim occurred.
+
+### EJ-20260731-step4-design-freeze
+
+- **Scope:** Phase B Step 4 documentation and authority records only.
+  `38-experiment-design-freeze.md` ratifies the existing design by reference,
+  registers `G-ROSTER`, and records the four-rung topology ladder plus its
+  gate-only selection rule. DL-149 resolves the Azure wording for an AWS-only
+  pilot without authorizing an Azure slice.
+- **Verification:** the clean Phase-A precondition and project-status schema
+  check passed; whitespace check passed after repair. The journal checker was
+  run and correctly exposed its inherited `EJ-20260729-0170` to
+  `EJ-20260730-0171` contiguity defect, so it is recorded as a failed forensic
+  check rather than a passing Step-4 receipt. The status record reports
+  `implementation_complete; E2E_pending` and retains roster, launch-review,
+  and execution blockers.
+- **Boundary:** no external input was retrieved; no provider, benchmark,
+  model, cloud, quota, provisioning, paid-compute, Step 4B, pilot, or scientific
+  execution occurred. The feasibility gate remains a real blocker, not a prose
+  caveat.
