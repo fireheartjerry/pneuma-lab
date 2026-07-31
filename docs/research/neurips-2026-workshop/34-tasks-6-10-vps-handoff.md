@@ -115,6 +115,21 @@ gate passes after the repair. Canonical status is
 `implementation_complete; E2E_pending`: no authority-backed P0 lineage reaches
 real unblind and paired analysis, so Task 6 is not scientifically complete.
 
+**Task 6 Step 5 revalidation against Step 4A (2026-07-31):** The preserved
+miniature production-path root
+`build/research/neurips-2026-workshop/step4a-iv-20260730-210059` was re-read
+without executing either lineage path. `validate_scientific_graph` passed;
+`verify_frozen_analysis_inputs` passed against the immutable freeze; and the
+sealed analysis-freeze, blinded-projection, unblind-receipt, and registered
+analysis records were present with the journaled identities
+`b30f59452aa6bfb91f45d4f4aed300181d7696f16a5fb2ba42aabadb84e3f89a`,
+`84dab953889ffef52cfad93f40f4c6e48b41ff928c3553b55c2e5f057756acef`,
+`c1142f4d4e19a7ccdbc098e8f4f22df1ac4f49af3ef58ba7e7ed291e5d94108a`, and
+`b21ef75c1b2b7bbbd90937483d66b7f3363d4a2314dbfcaa8645371fc591b38e`.
+The durable Task-6 outcome-taint marker is present. This strengthens
+implementation verification only; it does not remove `B-NEURIPS-TASK6-E2E`
+or promote Step 4A records to P0/scientific evidence. Step 4B remains pending.
+
 ## Task 7 — registered inference and verdicts
 
 Implement the frozen statistical API and hand-calculation fixtures:

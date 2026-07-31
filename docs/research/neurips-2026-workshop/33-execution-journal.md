@@ -3187,3 +3187,30 @@ The next event after the archived migration boundary is appended below.
   lineage is implementation verification only and cannot enter P0/scientific
   evidence. Focused CLI tests and status checks passed; broad hostile review
   remains deferred to the dedicated pre-experiment launch review.
+
+### EJ-20260731-task6-step5-revalidation
+
+- **Scope/authority:** Re-read the preserved Step 4A root
+  `build/research/neurips-2026-workshop/step4a-iv-20260730-210059` only. No
+  lineage runner was invoked, no Step 4B action occurred, and no provider,
+  cloud, paid, or canonical P0 work was performed.
+- **Exact bounded check:**
+  `timeout 60s .venv/bin/python - <<'PY' ... validate_scientific_graph(root); verify_frozen_analysis_inputs(ref, run_root=root) ... PY`
+  exited `0`. It loaded and hash-checked the study, schedule, prefix index,
+  assignment, packet index, analysis freeze, blinded projection, unblind
+  receipt, and registered analysis records. `validate_scientific_graph` and
+  `verify_frozen_analysis_inputs` both passed.
+- **Receipt identity:** Freeze
+  `b30f59452aa6bfb91f45d4f4aed300181d7696f16a5fb2ba42aabadb84e3f89a`,
+  projection
+  `84dab953889ffef52cfad93f40f4c6e48b41ff928c3553b55c2e5f057756acef`,
+  unblind receipt
+  `c1142f4d4e19a7ccdbc098e8f4f22df1ac4f49af3ef58ba7e7ed291e5d94108a`, and
+  analysis
+  `b21ef75c1b2b7bbbd90937483d66b7f3363d4a2314dbfcaa8645371fc591b38e` matched
+  the preserved records. The durable
+  `operational/task6/outcome-tainted.json` marker is present.
+- **Classification:** This revalidates the Task 6 implementation path against
+  the completed miniature lineage only. It does not remove
+  `B-NEURIPS-TASK6-E2E`, promote Step 4A to scientific evidence, or establish
+  a P0 result; Step 4B remains pending.

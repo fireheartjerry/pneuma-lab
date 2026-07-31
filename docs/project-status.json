@@ -2,7 +2,7 @@
     "$schema": "../schemas/project-status.schema.json",
     "manifest_kind": "pneuma_project_status",
     "manifest_schema_version": "0.1.0",
-    "as_of": "2026-07-30",
+    "as_of": "2026-07-31",
     "project": {
         "role": "standalone_research_evaluation_harness",
         "integration_mode": "standalone",
