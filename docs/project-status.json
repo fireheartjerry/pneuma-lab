@@ -453,6 +453,28 @@
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
+        },
+        {
+            "id": "neurips_resampling_null_step5a_input_lock",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/39-external-input-lock.md",
+                "schemas/cloud-input-lock.schema.json",
+                "schemas/cloud-experiment-manifest.schema.json",
+                "src/pneuma_lab/cloud/inputs.py",
+                "src/pneuma_lab/cloud/manifests.py",
+                "tests/cloud/test_inputs.py",
+                "tests/cloud/test_manifests.py"
+            ],
+            "blockers": [
+                "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
+                "B-NEURIPS-G-ROSTER",
+                "B-NEURIPS-STEP14-REVIEW",
+                "B-NEURIPS-EXPERIMENT-EXECUTION"
+            ]
         }
     ],
     "nine_to_five": {
@@ -756,6 +778,10 @@
         {
             "id": "B-NEURIPS-G-ROSTER",
             "summary": "Both C120 and C160 remain FEASIBILITY_NO_GO until the full base-commit, image, isolation, and three-pair qualification audit satisfies the registered eligibility inequality for every split, or a reviewed protocol amendment is registered."
+        },
+        {
+            "id": "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
+            "summary": "No real model, tokenizer, benchmark, verifier, license, contamination, or OCI receipt has been retrieved and independently hash-verified; Step 5A fixtures do not satisfy Step 5B."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",

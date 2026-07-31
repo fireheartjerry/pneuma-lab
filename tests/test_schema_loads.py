@@ -20,6 +20,7 @@ EXPECTED_FOUNDATION_COUNT = 6
 # Measurement-system analysis of an elicited metric channel (gauge card).
 EXPECTED_GAUGE_COUNT = 1
 EXPECTED_RESAMPLING_COUNT = 14
+EXPECTED_CLOUD_COUNT = 2
 
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
@@ -42,6 +43,7 @@ def test_expected_counts() -> None:
     assert len(pls.FOUNDATION_SCHEMA_FILES) == EXPECTED_FOUNDATION_COUNT
     assert len(pls.GAUGE_SCHEMA_FILES) == EXPECTED_GAUGE_COUNT
     assert len(pls.RESAMPLING_SCHEMA_FILES) == EXPECTED_RESAMPLING_COUNT
+    assert len(pls.CLOUD_SCHEMA_FILES) == EXPECTED_CLOUD_COUNT
     assert (
         len(pls.ALL_SCHEMA_FILES)
         == EXPECTED_INPUT_COUNT
@@ -55,6 +57,7 @@ def test_expected_counts() -> None:
         + EXPECTED_FOUNDATION_COUNT
         + EXPECTED_GAUGE_COUNT
         + EXPECTED_RESAMPLING_COUNT
+        + EXPECTED_CLOUD_COUNT
     )
 
 
@@ -198,6 +201,14 @@ def test_t3_s02_operational_storage_stays_outside_scientific_schema_registry() -
     assert all(
         "matching-proof" not in filename for filename in pls.RESAMPLING_SCHEMA_FILES
     )
+
+
+def test_cloud_schema_bucket_registered() -> None:
+    assert pls.CLOUD_SCHEMA_FILES == (
+        "cloud-input-lock.schema.json",
+        "cloud-experiment-manifest.schema.json",
+    )
+    assert set(pls.CLOUD_SCHEMA_FILES).issubset(pls.ALL_SCHEMA_FILES)
 
 
 def test_envelope_schema_shape() -> None:

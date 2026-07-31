@@ -3430,3 +3430,14 @@ The next event after the archived migration boundary is appended below.
   model, cloud, quota, provisioning, paid-compute, Step 4B, pilot, or scientific
   execution occurred. The feasibility gate remains a real blocker, not a prose
   caveat.
+
+### EJ-20260731-step5a-input-lock
+
+- **Scope:** local Step 5A contract implementation. Added the two registered
+  cloud-manifest schemas, strict validators, and an offline retrieval-plan
+  derivation over synthetic immutable receipts.
+- **Verification:** focused cloud manifest/input tests, schema registry tests,
+  Ruff, status validation, and whitespace check passed. The inherited journal
+  contiguity failure remains outside this slice.
+- **Boundary:** no real input receipt, lookup, pull, mirror, provider action,
+  cloud resource, spend, Step 5B, Step 4B, pilot, or experiment occurred.

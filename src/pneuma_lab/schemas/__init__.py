@@ -95,6 +95,11 @@ RESAMPLING_SCHEMA_FILES = (
     "resampling-artifact-root.schema.json",
 )
 
+CLOUD_SCHEMA_FILES = (
+    "cloud-input-lock.schema.json",
+    "cloud-experiment-manifest.schema.json",
+)
+
 ALL_SCHEMA_FILES = (
     INPUT_SCHEMA_FILES
     + OUTPUT_SCHEMA_FILES
@@ -107,6 +112,7 @@ ALL_SCHEMA_FILES = (
     + FOUNDATION_SCHEMA_FILES
     + GAUGE_SCHEMA_FILES
     + RESAMPLING_SCHEMA_FILES
+    + CLOUD_SCHEMA_FILES
 )
 
 
@@ -139,6 +145,7 @@ __all__ = [
     "FOUNDATION_SCHEMA_FILES",
     "GAUGE_SCHEMA_FILES",
     "RESAMPLING_SCHEMA_FILES",
+    "CLOUD_SCHEMA_FILES",
     "ALL_SCHEMA_FILES",
     "schema_path",
     "load_schema",

@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-experiment-manifest.schema.json",
+    "title": "Cloud Experiment Manifest",
+    "description": "Unpromoted experiment manifest bound to one immutable input-lock digest.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "frozen_timestamp", "provenance", "input_lock_sha256", "tier", "promotion_state"],
+    "properties": {"record_kind": {"const": "cloud_experiment_manifest"}, "schema_version": {"const": "0.1.0"}, "frozen_timestamp": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"}, "provenance": {"type": "object", "required": ["design_sha256", "code_sha256"], "properties": {"design_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "code_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false}, "input_lock_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "tier": {"type": "string", "minLength": 1}, "promotion_state": {"const": "unpromoted"}},
+    "additionalProperties": false
+}

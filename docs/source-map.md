@@ -87,3 +87,5 @@ Full generated map: `../migration/copied-from-9to5/human_nature-AGENTS.md`.
     counterfactual predictions) absent from the production dataclasses.
 - 9to5 stores interior state as a plain dict on `TaskState.meta`; Pneuma Lab
     formalizes each slice as a versioned, validatable frame.
+- **Cloud preparation manifests** are new to the lab: fixture-validatable,
+    immutable input and unpromoted experiment records with no 9to5 grounding.

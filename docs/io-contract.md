@@ -84,6 +84,13 @@ digests) and a `scorer_diagnostic`, with `overall.certified` /
 `promotion_blocked_by`, when produced by the certified promotable path
 `python -m pneuma_lab.nervous_system.certified_campaign`.
 
+## Cloud preparation manifests
+
+`cloud-input-lock.schema.json` and `cloud-experiment-manifest.schema.json`
+are lab-original `x-pneuma-schema-kind: cloud-manifest` records. They are
+validated by `pneuma_lab.cloud.manifests`; they are not frames, bundles, or an
+authorization to retrieve inputs or run cloud infrastructure.
+
 `thought-stream.schema.json` (`x-pneuma-schema-kind: expressive_view`) is a
 derived, non-authoritative rendering of the output frames above (produced by
 `src/pneuma_lab/voice/`) — read-only, never a source of truth. See
