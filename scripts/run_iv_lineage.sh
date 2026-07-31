@@ -21,6 +21,16 @@ PROJECTION_SCHEMA=${PROJECTION_SCHEMA:?set PROJECTION_SCHEMA to the external pro
 
 cli() { .venv/bin/python -m pneuma_lab.resampling_null --run-root "$ROOT" "$@"; }
 
+# The CLI deliberately requires every scientific output parent to exist before
+# it will reserve an output.  Materialize only the bounded lineage namespaces;
+# never create or discover a canonical P0 path here.
+mkdir -p "$ROOT/power" "$ROOT/prefix" "$ROOT/assignment" "$ROOT/packets" \
+    "$ROOT/analysis" "$ROOT/task-blocks"
+
+echo "== implementation-verification authority"
+cli power authority implementation-verification --study study-manifest.json \
+    --out power/authority.json
+
 GRID=$(cd "$ROOT" && ls sources/power-grid/*.json)
 TOPOLOGY=$(cd "$ROOT" && ls sources/power-screen-topology/*.json)
 power() { cli power "$@" --authority power/authority.json --grid-ref "$GRID" --screen-topology-ref "$TOPOLOGY"; }

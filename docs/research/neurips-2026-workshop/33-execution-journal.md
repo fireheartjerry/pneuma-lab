@@ -3099,3 +3099,33 @@ The next event after the archived migration boundary is appended below.
 - **Boundary/non-claim:** no power final, schedule, lineage, task block,
   unblind, analysis, provider or benchmark action, spend, or scientific claim
   exists.
+
+### EJ-20260730-0230 — Step 4A bounded implementation-verification attempt
+
+- **Scope/authority:** Ran `scripts/run_iv_lineage.sh` only with a fresh
+  implementation-verification root and the separate miniature grid. No
+  canonical full-grid screen, canonical shard, model/provider call, cloud
+  resource, paid compute, or P0 record was invoked.
+- **Execution:** The launcher was repaired for Linux output-parent creation and
+  explicit implementation-verification authority sealing. Fixture continuity
+  repairs bound implementation descriptors to the actual reviewed source,
+  made the synthetic lane explicitly simulator-free with zero simulator caps,
+  supplied reconstructible synthetic grade/verifier evidence, and admitted the
+  manifest-owned source roles to fresh candidate replay. Focused CLI checks
+  passed (`27` cases).
+- **Receipts:** Fresh root
+  `build/research/neurips-2026-workshop/step4a-iv-20260730-194008` produced
+  implementation-verification authority
+  `ce5771c1e9107668b9749f30ea22e9d15a897602d9cb207da2fe853667fcdb41`, power
+  final `a90e4edfeaa8bd30b6e86204c36b4c15f5493397ba0ab6cf60e67fa1ce8a377d`,
+  and schedule `614254eb39b3e9e3b74a4a2453d3165b28679fcdf076f774d4c4d8815016b567`.
+- **Terminal outcome:** Prefix candidate fresh-graph replay failed closed on
+  the upstream `power_contract` role outside the copied prefix authority
+  namespace. No prefix index or downstream artifact was emitted. Step 4A did
+  **not** reach registered analysis. This is implementation verification only,
+  not scientific evidence, not a P0 result, and not a claim of failure in the
+  scientific protocol.
+- **Next:** Repair the narrow power-contract namespace boundary, then rerun
+  from another fresh implementation-verification root. Defer broad hostile
+  campaigns and exhaustive forensic sweeps to the dedicated pre-experiment
+  launch review.

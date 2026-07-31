@@ -254,7 +254,7 @@ class AuthorityRefReader:
         if (
             path.is_absolute()
             or not parts
-            or parts[0] != "sources"
+            or parts[0] not in {"sources", "power"}
             or any(part in ("", ".", "..") for part in parts)
             or path.as_posix() != relative_path
         ):

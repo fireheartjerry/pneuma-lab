@@ -342,12 +342,12 @@ def seal_synthetic_selftest_study(
     )
     synthetic_grade_ref = authority_asset(
         "branch-grade.json",
-        {"record_kind": "synthetic_grade_result_v1", "schema_version": "1"},
+        {"success": 0, "partial_reward": 0.0, "infrastructure_failure": False},
         role="synthetic_grade_result",
     )
     synthetic_verifier_ref = authority_asset(
         "branch-verifier.json",
-        {"record_kind": "synthetic_verifier_result_v1", "schema_version": "1"},
+        {"finding_count": 0},
         role="synthetic_verifier_result",
     )
     clock_ref = authority_asset(
@@ -393,7 +393,10 @@ def seal_synthetic_selftest_study(
         },
         "per_call_caps": {"generated_tokens": 12, "turns": 1},
         "build_id": "fixture-build",
-        "source_revision_refs": [revision_ref],
+        # Every synthetic loop implementation descriptor must bind the exact
+        # reviewed module it executes.  The small generic revision asset above
+        # remains the normalizer/provenance leaf, not an implementation body.
+        "source_revision_refs": [loop_source_ref],
     }
     subject_ref = authority_asset(
         "subject.json",
@@ -455,7 +458,7 @@ def seal_synthetic_selftest_study(
             "schema_version": "1",
             "task_id": "task-1",
             "benchmark": "swe",
-            "requires_user_simulator": True,
+            "requires_user_simulator": False,
             "canonical_task_payload": {
                 "instruction": "fixture",
                 "nested_ref": revision_deep_ref,
@@ -468,7 +471,7 @@ def seal_synthetic_selftest_study(
         "task_id": "task-1",
         "benchmark": "swe",
         "build_id": "fixture-build",
-        "source_revision_refs": [revision_ref],
+        "source_revision_refs": [loop_source_ref],
     }
     environment_ref = authority_asset(
         "environment.json",
@@ -570,7 +573,7 @@ def seal_synthetic_selftest_study(
                 "schema_version": "1",
                 "task_id": task_id,
                 "benchmark": fixture_task["benchmark"],
-                "requires_user_simulator": True,
+                "requires_user_simulator": False,
                 "canonical_task_payload": {
                     "instruction": "fixture", "nested_ref": revision_deep_ref,
                 },
@@ -654,14 +657,17 @@ def seal_synthetic_selftest_study(
                         "pending_prefix_calls_count_against_tool_cap": True,
                     },
                     "simulator_caps": {
-                        "aggregate_generated_tokens": 40,
-                        "aggregate_model_calls": 4,
-                        "aggregate_turns": 4,
-                        "per_call_generated_tokens": 12,
-                        "per_call_turns": 1,
+                        "aggregate_generated_tokens": 0,
+                        "aggregate_model_calls": 0,
+                        "aggregate_turns": 0,
+                        "per_call_generated_tokens": 0,
+                        "per_call_turns": 0,
                     },
                     "subject_contract_ref": subject_ref,
-                    "simulator_contract_ref": simulator_ref,
+                    # The miniature branch programs contain no simulator
+                    # transcript; make that absence explicit in the lane
+                    # authority rather than manufacturing simulator usage.
+                    "simulator_contract_ref": None,
                     "tool_parser_contract_ref": parser_ref,
                     "meter_contract_ref": meter_ref,
                 }

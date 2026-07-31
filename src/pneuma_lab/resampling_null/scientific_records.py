@@ -25,8 +25,9 @@ from .types import ArtifactRef
 
 _SCIENTIFIC_PATH_BY_ROLE: Mapping[str, str] = MappingProxyType(
     {
-        "resampling_prefix_schedule": "prefix-schedule.json",
-        "study_manifest": "study-manifest.json",
+            "resampling_prefix_schedule": "prefix-schedule.json",
+            "study_manifest": "study-manifest.json",
+            "power_report": "__variable_power_report__",
     }
 )
 
@@ -119,7 +120,10 @@ class ScientificRefReader:
         expected_path = _SCIENTIFIC_PATH_BY_ROLE.get(ref.role)
         if expected_path is None:
             raise RecordValidationError("scientific role is not registered")
-        if expected_path != ref.relative_path:
+        if expected_path == "__variable_power_report__":
+            if not ref.relative_path.startswith("power/"):
+                raise RecordValidationError("power report must remain under power/")
+        elif expected_path != ref.relative_path:
             raise RecordValidationError("scientific path is not registered")
         if ref.media_type != "application/json":
             raise RecordValidationError(
@@ -267,7 +271,10 @@ def _decode_scientific_parent(
     if ref.media_type != "application/json":
         raise RecordValidationError(f"{field} must reference application/json")
     expected_path = _SCIENTIFIC_PATH_BY_ROLE[expected_role]
-    if ref.relative_path != expected_path:
+    if expected_path == "__variable_power_report__":
+        if not ref.relative_path.startswith("power/"):
+            raise RecordValidationError(f"{field} power report must remain under power/")
+    elif ref.relative_path != expected_path:
         raise RecordValidationError(f"{field} scientific path must be {expected_path}")
     root = Path(run_root).resolve(strict=True)
     path = root / ref.relative_path

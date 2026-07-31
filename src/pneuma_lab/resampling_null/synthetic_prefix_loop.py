@@ -2720,6 +2720,30 @@ def _decode_source_revision(
     return ()
 
 
+def _decode_manifest_source_asset(
+    _ref: ArtifactRef,
+    payload: bytes,
+    value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    """Load a manifest-owned JSON source reached during fresh graph replay."""
+
+    if value is None:
+        raise ValueError("manifest source must be canonical JSON")
+    return walk_artifact_refs(value)
+
+
+def _decode_power_authority_asset(
+    _ref: ArtifactRef,
+    payload: bytes,
+    _value: object | None,
+    _prevalidated_refs: frozenset[ArtifactRef],
+) -> tuple[ArtifactRef, ...]:
+    if not payload:
+        raise ValueError("power authority must not be empty")
+    return ()
+
+
 def _decode_program_asset(
     _ref: ArtifactRef,
     payload: bytes,
@@ -2858,8 +2882,23 @@ AUTHORITY_ASSET_DECODER_BY_ROLE: Mapping[
         "synthetic_tool_result": _decode_tool_result_asset,
         "synthetic_grade_result": _decode_grade_result_asset,
         "synthetic_verifier_result": _decode_verifier_result_asset,
-        "source_revision": _decode_source_revision,
-    }
+            "source_revision": _decode_source_revision,
+            "power_authority": _decode_power_authority_asset,
+            **{
+                role: _decode_manifest_source_asset
+                for role in (
+                    "assignment_program",
+                    "packet_policy",
+                    "packet_template",
+                    "pad_unit_set",
+                    "power_grid",
+                    "power_screen_topology",
+                    "required_document_kinds",
+                    "roster",
+                    "storage_policy_contract",
+                )
+            },
+        }
 )
 
 if set(AUTHORITY_ASSET_DECODER_BY_ROLE) != set(AUTHORITY_ASSET_ROLE_MEDIA):
@@ -3403,7 +3442,11 @@ def _fresh_reload_candidate_graph(
                     field=ref.role,
                     expected_kind=expected,
                 )
-                nested = walk_artifact_refs(record.value)
+                # Schedule sealing already validates the complete power
+                # ancestry.  Prefix replay binds the sealed final, but does
+                # not reopen the power subsystem's separate contract
+                # namespace during candidate graph reload.
+                nested = () if ref.role == "power_report" else walk_artifact_refs(record.value)
             previous_physical = physical_bindings.get(physical)
             if previous_physical is not None and previous_physical != ref:
                 raise ValueError(

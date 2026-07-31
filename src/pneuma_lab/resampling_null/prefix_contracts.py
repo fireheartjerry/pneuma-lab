@@ -71,6 +71,17 @@ CONTROLLER_ROLE_MEDIA: Mapping[str, str] = MappingProxyType(
 AUTHORITY_ASSET_ROLE_MEDIA: Mapping[str, str] = MappingProxyType(
     {
         "task_registry": "application/json",
+        # Manifest-owned source closure reached during fresh candidate reload.
+        # These are authority inputs, not new execution surfaces.
+        "assignment_program": "application/json",
+        "packet_policy": "application/json",
+        "packet_template": "application/json",
+        "pad_unit_set": "application/json",
+        "power_grid": "application/json",
+        "power_screen_topology": "application/json",
+        "required_document_kinds": "application/json",
+        "roster": "application/json",
+        "storage_policy_contract": "application/json",
         "provider_lane_plan": "application/json",
         "branch_program_registry": "application/json",
         "task_input": "application/json",
@@ -97,6 +108,7 @@ AUTHORITY_ASSET_ROLE_MEDIA: Mapping[str, str] = MappingProxyType(
         "isolation_qualification": "application/json",
         "source_revision": "application/octet-stream",
         "deep_authority_asset": "application/json",
+        "power_authority": "application/vnd.pneuma.power-authority+json",
     }
 )
 
@@ -120,6 +132,7 @@ SCIENTIFIC_PARENT_KIND: Mapping[str, str] = MappingProxyType(
     {
         "resampling_prefix_schedule": "resampling_prefix_schedule",
         "study_manifest": "resampling_study_manifest",
+        "power_report": "resampling_power_report",
     }
 )
 

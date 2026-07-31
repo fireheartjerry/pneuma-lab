@@ -703,6 +703,21 @@ not verification.
 - **Step 4B — canonical authority-backed lineage.** Pending the actual
   experimental phase.
 
+### Step 4A execution checkpoint — 2026-07-30
+
+The bounded implementation-verification run was attempted from the fresh root
+`build/research/neurips-2026-workshop/step4a-iv-20260730-194008` using only the
+`implementation_verification` authority and miniature grid. Authority sealing,
+power finalization, and schedule sealing completed. The real prefix route then
+failed closed during fresh candidate-graph replay on an upstream
+`power_contract` reference outside the copied prefix authority namespace.
+No prefix index, assignment, packet, task block, analysis freeze, projection,
+unblind, registered analysis, provider/model call, cloud resource, spend, or
+P0-admissible record was produced. Step 4A therefore **did not reach registered
+analysis**; it remains `E2E_pending` with implementation continuity repair still
+required. This is an implementation-verification failure, not scientific
+evidence and not a P0 result.
+
 ### Canonical run stopped 2026-07-30
 
 `build/research/neurips-2026-workshop/p0-lineage-20260730` holds an admitted

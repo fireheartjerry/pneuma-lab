@@ -398,6 +398,7 @@
                 "src/pneuma_lab/resampling_null/branch_controller.py",
                 "src/pneuma_lab/resampling_null/synthetic_branch_loop.py",
                 "src/pneuma_lab/resampling_null/cli.py",
+                "scripts/run_iv_lineage.sh",
                 "tests/resampling_null/test_packet_capabilities.py",
                 "tests/resampling_null/test_branch_controller.py",
                 "tests/resampling_null/test_branch_program_authority.py",
