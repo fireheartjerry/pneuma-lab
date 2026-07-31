@@ -3555,3 +3555,20 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** no hostile campaign was run, no cloud or paid resource was
   used, no experiment input was retrieved, the preserved incomplete P0 root was
   not touched, and no Step 4B, unblind, analysis, or scientific claim occurred.
+
+### EJ-20260731-single-l40s-topology-amendment
+
+- **Input:** user supplied an AWS Support notice reporting partial approval of
+  8 G/VT vCPUs in us-east-1 and directed a smaller experiment topology. The
+  notice does not identify whether the applied quota is On-Demand, Spot, or
+  both. The user also reports USD 10,000 of Azure credits incoming; no official
+  balance or eligibility receipt was supplied.
+- **Decision:** DL-161 prospectively selects one `g6e.2xlarge`/L40S with
+  sequential arm/replica execution. The scientific contract is unchanged; the
+  old 48-vCPU requirement is treated as concurrency architecture, not sample
+  size. Existing Terraform remains unreconciled.
+- **Boundary:** documentation only. No account query, provider action, resource,
+  retrieval, build, spend, smoke, pilot, training, Step 4B, experiment, result,
+  or claim occurred. Azure remains verified spendable 0.00 until official
+  evidence is recorded, and any Azure training/other experiment requires a
+  separate design and authority lineage.

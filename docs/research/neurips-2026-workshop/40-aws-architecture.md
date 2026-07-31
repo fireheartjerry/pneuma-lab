@@ -2,6 +2,12 @@
 
 **Status:** Step 6 static implementation complete; external verification pending
 
+> **Superseded execution shape (2026-07-31):** DL-161 and
+> `49-single-l40s-topology-amendment.md` prospectively select one
+> `g6e.2xlarge`, 8 vCPUs, and one L40S with sequential execution. The static
+> Terraform described below still encodes the former `g6e.12xlarge` shape and
+> must be reconciled and reverified before Step 14. It is not launch-ready.
+
 This is a tier-agnostic, static transcription of the AWS primary-path contract:
 `us-east-1`; disabled managed EC2 Batch controller shape with one
 `g6e.12xlarge`, `minvCpus=0`, `maxvCpus=48`, and `BEST_FIT`; AMI, root snapshot,

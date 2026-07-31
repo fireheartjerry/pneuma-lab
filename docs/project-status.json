@@ -983,7 +983,7 @@
         },
         {
             "id": "B-NEURIPS-AWS-ACCOUNT-PLAN",
-            "summary": "No authorized account-bound AWS plan, quota confirmation, or independently verified deployment receipt exists; Terraform is unavailable locally, so binary L1 validation is pending rather than passed."
+            "summary": "AWS reported a partial 8-vCPU G/VT approval, but its On-Demand/Spot account application remains independently unverified. DL-161 prospectively selects an 8-vCPU g6e.2xlarge single-L40S path; Terraform and manifests still encode the superseded 48-vCPU shape, and no authorized account-bound plan or deployment receipt exists."
         },
         {
             "id": "B-NEURIPS-IMAGE-BUILD-VERIFICATION",

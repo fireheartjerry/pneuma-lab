@@ -2,7 +2,13 @@
 
 **Status:** registered implementation freeze; not an execution authorization
 **Date:** 2026-07-31
-**Authority records:** DL-148 and DL-149
+**Authority records:** DL-148, DL-149, and prospective amendment DL-161
+
+> **2026-07-31 prospective topology amendment:**
+> `49-single-l40s-topology-amendment.md` supersedes the AWS four-GPU execution
+> shape with one `g6e.2xlarge`/L40S and sequential arm/replica execution. The
+> scientific design below remains frozen. Implementation reconciliation,
+> one-GPU fit/throughput admission, and Step 14 review remain blocking.
 
 ## Frozen object
 
@@ -58,6 +64,10 @@ benchmark outcomes, or any other outcome signal for selection.
   authorization, quota, or account-bound plan, so no Azure action is licensed
   by this decision. DL-149 is the controlling adjudication of that otherwise
   conflicting clause; all other design gates remain unchanged.
+- The user reports USD 10,000 of Azure credits incoming. This is acknowledged
+  as a pending planning resource, not a verified spendable balance. Once
+  verified, it may support separately designed training or other experiments;
+  it does not modify or authorize this inference protocol.
 
 ## State and non-claims
 

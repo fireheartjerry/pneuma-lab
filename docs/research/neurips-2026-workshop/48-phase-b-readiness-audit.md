@@ -17,8 +17,8 @@ record, and a pushed commit. They establish no scientific result.
 | Step 5B real inputs | pending | pending: no retrieved receipts | pending | pending | pending |
 | Step 7B real builds | pending | pending: no image/SBOM/repeat-build receipts | pending | pending | pending |
 | G-ROSTER | n/a | pending qualification audit | pending amendment or satisfied inequality | pending | pending |
-| AWS architecture | complete static/local | pending Terraform/L3/account semantics | pending | pending | pending |
-| Azure parity slice | boundary only | pending | pending | pending | pending |
+| AWS architecture | former 48-vCPU static shape superseded; 8-vCPU reconciliation pending | pending Terraform/L3/account and quota-class semantics | pending | pending | pending |
+| Azure parity/other studies | boundary only; user reports $10k incoming | official balance/terms remain unverified | separate authority required | pending | pending |
 | pilot | protocol complete | pending admission evidence | pending hash-bound human/spend authorization | pending | pending |
 
 The authorization audit found no NeurIPS-specific, positive, hash-bound
@@ -29,3 +29,10 @@ cloud provisioning, paid action, Step 14, Step 4B, or pilot was performed.
 
 This closes the requested implementation-preparation track, **not Phase B as a
 fully externally verified or launch-ready phase**.
+
+## Prospective topology change
+
+DL-161 selects an 8-vCPU `g6e.2xlarge` single-L40S AWS path with sequential
+execution. This removes 48 vCPUs as the intended topology requirement, but it
+does not itself establish quota class, model fit, throughput, cost, or launch
+readiness. The Terraform and related manifests still require reconciliation.
