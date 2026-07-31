@@ -29,28 +29,34 @@
 - Read `docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md`
   before changing Tasks 6-10. It is the live implementation handoff; the
   execution journal remains the forensic record.
-- Tasks 1-5 are the accepted synthetic foundation. Tasks 6-9 have substantial
-  implementation, but there is no complete authority-backed P0 lineage,
-  unblind/analysis E2E, benchmark/provider result, or scientific result of
-  record. Task 10 is not complete.
+- Tasks 1-5 are the accepted synthetic foundation. Tasks 6-9 are
+  `implementation_complete; E2E_pending`; Task 8 is reconciled to the same
+  state. Step 4A (the bounded implementation-verification lineage) remains
+  unfinished beyond its miniature power final and sealed schedule. There is no
+  complete authority-backed P0 lineage, benchmark/provider result, or
+  scientific result of record. Task 10 is not complete.
 - Task 6's freeze/projection/unblind and authenticated paired-publication
   plumbing is strong. It may be reported as `implementation_complete;
   E2E_pending` only after its scoped code, focused tests, and hostile review
   pass; it cannot be reported scientifically complete without real lineage.
-- Task 7B remains incomplete. Task 8 has no admissible P0 final: the corrected
-  all-cell timing admission made the frozen 12-hour configuration infeasible,
-  and the impossible rerun was terminated without a result. Do not resume or
-  weaken that frozen run. Task 9 now has opaque work-order contracts but still
-  needs sealed packet capabilities and the isolated branch executor.
-- The dependency chain is: finish opaque branch execution and its authority,
-  establish a reviewed Task-8 timing no-go or new admissible authority, produce
-  the full Task-9 lineage, then close Tasks 6/7 E2E and Task 10. A narrowly
-  scoped implementation task may finish earlier with an explicit `E2E_pending`
-  label.
+- The canonical P0 screen and its first ten shards are preserved as an
+  incomplete, experiment-only non-result. Do not resume, rewrite, finalize, or
+  claim from them without a new explicit experimental authorization. Canonical
+  full-grid/shard work never belongs in a software or integration gate.
+- The immediate dependency chain is: complete bounded Step 4A through analysis
+  -> revalidate Tasks 6/7 as implementation-path continuity -> finish Task 10
+  implementation/release preparation. Canonical Step 4B and any real
+  benchmark/model experiment remain separately authorized scientific work.
 - Update the handoff/status documentation after each major implementation
   milestone or coherent commit group, not after every command. Record
   scientific executions and deviations in the append-only execution journal.
   Never let progress prose outrun committed evidence.
+- **Implementation cadence:** defer broad hostile/adversarial campaigns and
+  expensive forensic sweeps until the pre-experiment launch review. During
+  implementation, run only focused, high-signal regressions needed to prevent
+  data loss, authority bypass, leakage, or false scientific artifacts. This is
+  a speed policy, not permission to weaken fail-closed contracts or skip the
+  final hostile review.
 
 ## Standing Hostile-Review and Release Standard
 

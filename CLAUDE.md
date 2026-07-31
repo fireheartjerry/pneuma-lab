@@ -20,21 +20,22 @@ editing Tasks 6-10 and use
 `docs/research/neurips-2026-workshop/33-execution-journal.md` for the
 append-only forensic trail.
 
-- Tasks 1-5 are the accepted synthetic foundation. Tasks 6-9 contain
-  substantial implementation; Task 10 and the full authority-backed P0
+- Tasks 1-5 are the accepted synthetic foundation. Tasks 6-9 (including Task
+  8) are `implementation_complete; E2E_pending`. Step 4A, the bounded
+  implementation-verification lineage, has reached a miniature power final and
+  sealed schedule but has not reached analysis. Task 10 and the canonical P0
   lineage are not complete.
 - Task 6 has strong freeze, blinded-projection, gated-unblind, durable-taint,
   and authenticated paired-publication plumbing. It can reach
   `implementation_complete; E2E_pending` independently, but cannot close E2E
   until real lineage reaches unblind and analysis.
-- Task 7B remains incomplete. Task 8 has no admissible P0 final because the
-  corrected all-cell timing admission cannot satisfy the frozen 12-hour cap.
-  The impossible rerun was terminated without a result; do not resume, weaken,
-  or relabel it as a completed no-go.
-- Task 9 has opaque work-order contracts but still needs sealed packet
-  capabilities and the isolated branch executor. The practical dependency is
-  branch authority/execution -> reviewed timing disposition -> full lineage ->
-  Tasks 6/7 E2E -> Task 10 closure.
+- The canonical P0 screen and ten completed shards are an explicitly
+  experiment-only incomplete non-result. Do not resume, mutate, finalize, or
+  claim from them without explicit experimental authorization. Never put full
+  grid/shard work in a software or integration test.
+- The immediate dependency is bounded Step 4A -> implementation-path continuity
+  revalidation for Tasks 6/7 -> Task 10 implementation/release preparation.
+  Canonical Step 4B remains pending for the separately authorized experiment.
 - No real benchmark, model-provider, unblind/analysis, or scientific result of
   record exists. AWS has $10,000 verified EC2-eligible credit plus a separate
   $100 credit; requested 48-vCPU G/VT On-Demand and Spot quotas remain pending
@@ -199,9 +200,11 @@ pneuma_lab.demo`): passive Level-3 replay of `fixtures/sample_run.jsonl` +
 - Avoid adding heavy dependencies without a concrete phase that needs them.
 - Do not touch secrets, `.git`, caches, virtualenvs, or private datasets unless
   explicitly authorized.
-- Apply the standing hostile-review standard from `AGENTS.md`: assume the
-  strongest reviewer is maximally motivated to reject the work, then eliminate
-  concrete leakage, causal, receipt, and reproducibility failures.
+- During implementation, prioritize momentum: use focused high-signal tests and
+  only repair concrete data-loss, authority, leakage, or false-artifact risks.
+  Defer broad hostile/adversarial campaigns and expensive forensic sweeps to the
+  dedicated pre-experiment launch review. This does not permit bypassing
+  fail-closed contracts or ignoring a concrete high-severity flaw.
 - Update the live handoff/status docs after each major implementation
   milestone or coherent commit group, not after every command. Journal
   scientific runs and deviations at the granularity required for replay.
