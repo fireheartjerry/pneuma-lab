@@ -220,7 +220,7 @@ def _decode_lane(
         manifest_revisions=manifest_revisions,
         reader=reader,
     )
-    if schedule_authority == "synthetic_validation" and not meter.zero_cost:
+    if schedule_authority in {"synthetic_validation", "implementation_verification"} and not meter.zero_cost:
         raise RecordValidationError(
             f"{field} requires zero-cost synthetic meter closure"
         )

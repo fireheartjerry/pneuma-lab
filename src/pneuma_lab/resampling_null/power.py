@@ -105,11 +105,17 @@ class BenchmarkPatternCounts:
     expected_excess: float
 
 
-def frozen_power_cells() -> tuple[PowerCell, ...]:
-    """The exact 729 cross-benchmark alternatives and three 729-cell null families."""
-    values = (0.1, 0.4, 0.7)
-    triggers = (0.6, 0.75, 0.9)
-    rhos = (0.0, 0.4, 0.8)
+def frozen_power_cells(grid: "PowerGridSpec | None" = None) -> tuple[PowerCell, ...]:
+    """The exact 729 cross-benchmark alternatives and three 729-cell null families.
+
+    A grid argument is accepted only so the separately governed
+    implementation-verification contract can enumerate its own smaller frozen
+    nuisance product through this identical construction.  Omitting it yields
+    the canonical P0 grid.
+    """
+    values = (0.1, 0.4, 0.7) if grid is None else grid.p0_values
+    triggers = (0.6, 0.75, 0.9) if grid is None else grid.trigger_rates
+    rhos = (0.0, 0.4, 0.8) if grid is None else grid.latent_rhos
     nuisances = tuple(Nuisance(p0, trigger, rho) for p0 in values for trigger in triggers for rho in rhos)
     cells: list[PowerCell] = []
     for family in ("alternative", "null_both", "null_content", "null_excess"):
@@ -642,7 +648,9 @@ def _philox_counter_and_key(
     draw_kind: str, draw_index: int,
 ) -> tuple[int, int]:
     """Derive the registered public Philox counter and key integers."""
-    if authority_kind not in {"synthetic_validation", "roster_bound_selection"}:
+    if authority_kind not in {
+        "synthetic_validation", "roster_bound_selection", "implementation_verification",
+    }:
         raise RecordValidationError("unregistered power authority kind")
     if draw_domain not in _RNG_CONTRACT["draw_domains"] or draw_kind not in _RNG_CONTRACT["draw_kinds"]:
         raise RecordValidationError("unregistered Philox draw domain or kind")
@@ -668,6 +676,23 @@ class SyntheticPowerAuthority:
 
 
 @dataclass(frozen=True, slots=True)
+class ImplementationVerificationPowerAuthority:
+    """Separately governed authority for the miniature production-path lineage.
+
+    It is deliberately a distinct kind, not a flag on the synthetic arm: its
+    grid contract, Philox key frame, finalizer, and final decision are all
+    disjoint from P0, so no record it produces can be admitted as P0 evidence
+    and no P0 record can be produced under it.
+    """
+
+    schema_version: Literal["1"]
+    authority_kind: Literal["implementation_verification"]
+    manifest_ref: ArtifactRef
+    roster_ref: ArtifactRef
+    tier_membership_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
 class RosterBoundPowerAuthority:
     schema_version: Literal["1"]
     authority_kind: Literal["roster_bound_selection"]
@@ -677,7 +702,7 @@ class RosterBoundPowerAuthority:
     tier_membership_sha256: str
 
 
-PowerAuthority = SyntheticPowerAuthority | RosterBoundPowerAuthority
+PowerAuthority = SyntheticPowerAuthority | RosterBoundPowerAuthority | ImplementationVerificationPowerAuthority
 
 
 @dataclass(frozen=True, slots=True)
@@ -699,9 +724,9 @@ class PowerRngContract:
 class PowerGridSpec:
     schema_version: Literal["1"]
     benchmark_tiers: tuple[Literal[120], Literal[160]]
-    p0_values: tuple[float, float, float]
-    trigger_rates: tuple[float, float, float]
-    latent_rhos: tuple[float, float, float]
+    p0_values: tuple[float, ...]
+    trigger_rates: tuple[float, ...]
+    latent_rhos: tuple[float, ...]
     datasets_per_cell: int
     screen_datasets_per_cell: int
     max_projected_wall_seconds: int
@@ -727,6 +752,7 @@ class PowerConfig:
     grid_ref: ArtifactRef
     screen_topology_ref: ArtifactRef
     rng_contract_sha256: str
+    authority_kind: str = "synthetic_validation"
 
 
 _LOWERCASE_SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
@@ -948,9 +974,13 @@ def _authority_from_manifest(manifest_ref: ArtifactRef, *, run_root: Path, expec
     roster = _load_roster(roster_ref, run_root=run_root)
     eligibility = manifest.get("eligibility_manifest_ref")
     membership = _tier_membership_sha256(roster)
-    if expected_kind == "synthetic_validation":
+    if expected_kind in {"synthetic_validation", "implementation_verification"}:
         if roster["roster_kind"] != "synthetic_fixture" or eligibility is not None:
             raise RecordValidationError("synthetic authority requires synthetic_fixture and null eligibility_manifest_ref")
+        if expected_kind == "implementation_verification":
+            return ImplementationVerificationPowerAuthority(
+                "1", "implementation_verification", manifest_ref, roster_ref, membership,
+            )
         return SyntheticPowerAuthority("1", "synthetic_validation", manifest_ref, roster_ref, membership)
     if roster["roster_kind"] != "eligible_confirmation":
         raise RecordValidationError("roster-bound authority requires eligible_confirmation roster")
@@ -990,6 +1020,13 @@ def seal_synthetic_power_authority(manifest_ref: ArtifactRef, *, run_root: Path,
     return _seal(_authority_from_manifest(manifest_ref, run_root=run_root, expected_kind="synthetic_validation"), run_root=run_root, out=out)
 
 
+def seal_implementation_verification_power_authority(manifest_ref: ArtifactRef, *, run_root: Path, out: Path) -> ArtifactRef:
+    """Seal the miniature implementation-verification arm; never P0 authority."""
+    if type(manifest_ref) is not ArtifactRef:
+        raise TypeError("manifest_ref must be an exact ArtifactRef")
+    return _seal(_authority_from_manifest(manifest_ref, run_root=run_root, expected_kind="implementation_verification"), run_root=run_root, out=out)
+
+
 def seal_roster_bound_power_authority(manifest_ref: ArtifactRef, *, run_root: Path, out: Path) -> ArtifactRef:
     """Seal the sole confirmation arm; no eligibility/roster override exists."""
     if type(manifest_ref) is not ArtifactRef:
@@ -1010,7 +1047,9 @@ def load_power_authority(authority_ref: ArtifactRef, *, run_root: Path) -> Power
     kind = value.get("authority_kind")
     fields = _AUTHORITY_COMMON_FIELDS | ({"eligibility_manifest_ref"} if kind == "roster_bound_selection" else set())
     decoded = closed_mapping(value, fields=fields, field="power authority")
-    if decoded["schema_version"] != "1" or kind not in {"synthetic_validation", "roster_bound_selection"}:
+    if decoded["schema_version"] != "1" or kind not in {
+        "synthetic_validation", "roster_bound_selection", "implementation_verification",
+    }:
         raise RecordValidationError("power authority has unsupported identity")
     manifest_ref = decode_artifact_ref(decoded["manifest_ref"], field="power authority manifest_ref")
     expected = _authority_from_manifest(manifest_ref, run_root=run_root, expected_kind=cast(str, kind))
@@ -1019,8 +1058,37 @@ def load_power_authority(authority_ref: ArtifactRef, *, run_root: Path) -> Power
     return expected
 
 
-def _load_power_grid(grid_ref: ArtifactRef, *, run_root: Path) -> PowerGridSpec:
-    """Decode the exact manifest fixture; all numeric science stays closed."""
+_CANONICAL_GRID_CONTRACT: dict[str, object] = {
+    "p0_values": [0.1, 0.4, 0.7], "trigger_rates": [0.6, 0.75, 0.9], "latent_rhos": [0.0, 0.4, 0.8],
+    "datasets_per_cell": 20000, "screen_datasets_per_cell": 200, "validation_datasets_per_cell": 2000,
+}
+# The implementation-verification contract is a separately governed miniature
+# product over the SAME registered nuisance values.  It exists to exercise the
+# production code path end to end; it is never P0 evidence, and the authority
+# binding below makes its records inadmissible to a P0 authority and vice
+# versa.
+_MINIATURE_GRID_CONTRACT: dict[str, object] = {
+    "p0_values": [0.1], "trigger_rates": [0.6, 0.9], "latent_rhos": [0.0, 0.8],
+    "datasets_per_cell": 20, "screen_datasets_per_cell": 2, "validation_datasets_per_cell": 5,
+}
+_GRID_CONTRACT_BY_AUTHORITY: dict[str, dict[str, object]] = {
+    "synthetic_validation": _CANONICAL_GRID_CONTRACT,
+    "roster_bound_selection": _CANONICAL_GRID_CONTRACT,
+    "implementation_verification": _MINIATURE_GRID_CONTRACT,
+}
+
+
+def _load_power_grid(grid_ref: ArtifactRef, *, run_root: Path,
+                     authority_kind: str = "synthetic_validation") -> PowerGridSpec:
+    """Decode the exact manifest fixture; all numeric science stays closed.
+
+    The grid contract is selected by authority kind, so a P0 authority can
+    never load the miniature implementation-verification grid and the
+    implementation-verification authority can never load the canonical P0 grid.
+    """
+    contract = _GRID_CONTRACT_BY_AUTHORITY.get(authority_kind)
+    if contract is None:
+        raise RecordValidationError("unregistered power authority kind for grid admission")
     path, raw = _read_ref(grid_ref, run_root=run_root)
     value = load_json_bytes(raw, source=path)
     expected_fields = {
@@ -1034,24 +1102,46 @@ def _load_power_grid(grid_ref: ArtifactRef, *, run_root: Path) -> PowerGridSpec:
     grid = closed_mapping(value, fields=expected_fields, field="power grid")
     if grid["schema_version"] != "1":
         raise RecordValidationError("power grid has unsupported schema_version")
-    if grid["benchmark_tiers"] != [120, 160] or grid["p0_values"] != [0.1, 0.4, 0.7] or grid["trigger_rates"] != [0.6, 0.75, 0.9] or grid["latent_rhos"] != [0.0, 0.4, 0.8]:
+    if grid["benchmark_tiers"] != [120, 160] or any(
+        grid[field] != contract[field] for field in ("p0_values", "trigger_rates", "latent_rhos")
+    ):
         raise RecordValidationError("power grid does not contain the frozen P0 nuisance grid")
-    for field, expected in (("datasets_per_cell", 20000), ("screen_datasets_per_cell", 200), ("max_projected_wall_seconds", 43200), ("validation_cell_count", 5), ("validation_datasets_per_cell", 2000), ("multiplier_draws", 99999), ("target_effect", 0.15), ("target_power", 0.8), ("familywise_alpha", 0.05), ("gauss_hermite_order", 96), ("gauss_legendre_order", 128), ("probability_tolerance", 1e-10), ("gaussian_root_tolerance", 1e-10), ("gaussian_root_max_iterations", 200), ("clopper_pearson_tolerance", 1e-12), ("clopper_pearson_max_iterations", 200)):
+    for field, expected in (
+        ("datasets_per_cell", contract["datasets_per_cell"]),
+        ("screen_datasets_per_cell", contract["screen_datasets_per_cell"]),
+        ("validation_datasets_per_cell", contract["validation_datasets_per_cell"]),
+        ("max_projected_wall_seconds", 43200), ("validation_cell_count", 5),
+        ("multiplier_draws", 99999), ("target_effect", 0.15), ("target_power", 0.8),
+        ("familywise_alpha", 0.05), ("gauss_hermite_order", 96), ("gauss_legendre_order", 128),
+        ("probability_tolerance", 1e-10), ("gaussian_root_tolerance", 1e-10),
+        ("gaussian_root_max_iterations", 200), ("clopper_pearson_tolerance", 1e-12),
+        ("clopper_pearson_max_iterations", 200),
+    ):
         if grid[field] != expected:
             raise RecordValidationError(f"power grid {field} differs from the frozen P0 contract")
     rng = closed_mapping(grid["rng"], fields=_RNG_FIELDS, field="power grid rng")
     if rng != _RNG_CONTRACT:
         raise RecordValidationError("power grid RNG contract differs from the frozen P0 contract")
-    return PowerGridSpec("1", (120, 160), (0.1, 0.4, 0.7), (0.6, 0.75, 0.9), (0.0, 0.4, 0.8), 20000, 200, 43200, 5, 2000, 99999, 0.15, 0.8, 0.05, 96, 128, 1e-10, 1e-10, 200, 1e-12, 200, PowerRngContract(**cast(dict[str, object], rng)))
+    return PowerGridSpec(
+        "1", (120, 160),
+        tuple(cast(list[float], contract["p0_values"])),
+        tuple(cast(list[float], contract["trigger_rates"])),
+        tuple(cast(list[float], contract["latent_rhos"])),
+        cast(int, contract["datasets_per_cell"]), cast(int, contract["screen_datasets_per_cell"]),
+        43200, 5, cast(int, contract["validation_datasets_per_cell"]), 99999,
+        0.15, 0.8, 0.05, 96, 128, 1e-10, 1e-10, 200, 1e-12, 200,
+        PowerRngContract(**cast(dict[str, object], rng)),
+    )
 
 
-def grid_content_sha256(grid_ref: ArtifactRef, *, run_root: Path) -> str:
+def grid_content_sha256(grid_ref: ArtifactRef, *, run_root: Path,
+                        authority_kind: str = "synthetic_validation") -> str:
     """Return the scientific grid digest only after complete closed parsing."""
     path, raw = _read_ref(grid_ref, run_root=run_root)
     value = load_json_bytes(raw, source=path)
     if canonical_json_bytes(value, indent=None) != raw:
         raise RecordValidationError("power grid bytes must be compact canonical JSON")
-    _load_power_grid(grid_ref, run_root=run_root)
+    _load_power_grid(grid_ref, run_root=run_root, authority_kind=authority_kind)
     return hashlib.sha256(raw).hexdigest()
 
 
@@ -1061,9 +1151,10 @@ def load_power_config(authority_ref: ArtifactRef, grid_ref: ArtifactRef, screen_
     manifest = _manifest(authority.manifest_ref, run_root=run_root)
     if grid_ref != _manifest_ref(manifest, "power_grid_ref") or screen_topology_ref != _manifest_ref(manifest, "power_screen_topology_ref"):
         raise RecordValidationError("power grid/topology refs must exactly equal manifest-bound refs")
-    grid_content_sha256(grid_ref, run_root=run_root)
+    grid_content_sha256(grid_ref, run_root=run_root, authority_kind=authority.authority_kind)
     _read_ref(screen_topology_ref, run_root=run_root)
-    return PowerConfig(authority_ref, grid_ref, screen_topology_ref, RNG_CONTRACT_SHA256)
+    return PowerConfig(authority_ref, grid_ref, screen_topology_ref, RNG_CONTRACT_SHA256,
+                       authority.authority_kind)
 
 
 def _power_contract_refs(config: PowerConfig, *, run_root: Path) -> tuple[ArtifactRef, ArtifactRef]:
@@ -1094,7 +1185,7 @@ def _record_base(config: PowerConfig, *, phase: str, generation: int, kernel_id:
             "phase": phase, "generation": generation, "roster_ref": _ref_mapping(authority.roster_ref),
             "tier_membership_sha256": authority.tier_membership_sha256, "grid_ref": _ref_mapping(config.grid_ref),
             "screen_topology_ref": _ref_mapping(config.screen_topology_ref), "rng_contract_sha256": config.rng_contract_sha256,
-            "grid_content_sha256": grid_content_sha256(config.grid_ref, run_root=run_root), "kernel_id": kernel_id,
+            "grid_content_sha256": grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind), "kernel_id": kernel_id,
             "shard_count": shard_count, "config_ref": _ref_mapping(config_ref), "numeric_fixture_ref": _ref_mapping(numeric_ref),
             "numeric_contract": _numeric_contract(), "_study_id": manifest_document.value["study_id"],
             "_frozen_created_at": manifest_document.value["frozen_created_at"], "_provenance": manifest_document.value["provenance"]}
@@ -1163,7 +1254,7 @@ def _authority_attempt_refs(config: PowerConfig, *, run_root: Path) -> tuple[Art
         raise RecordValidationError("power authority already has a final report")
     if not reports:
         raise RecordValidationError("power finalization requires discovered authority attempts")
-    _validate_power_identities(reports, run_root=root)
+    _validate_power_identities(reports, run_root=root, require_final=False)
     stage_order = {"screen": 0, "shard": 1, "selection": 2, "validation": 3}
     phase_order = {"gaussian_approximation": 0, "full_multiplier_fallback": 1}
     reports.sort(key=lambda document: (
@@ -1363,10 +1454,10 @@ def _screen_power_grid_locked(config: PowerConfig, *, phase: Literal["gaussian_a
         current_failed = _current_failed_gaussian_validation(config, run_root=run_root)
         if fallback_trigger_ref != current_failed:
             raise RecordValidationError("fallback trigger is not the current terminal failed Gaussian validation")
-    grid = _load_power_grid(config.grid_ref, run_root=run_root)
+    grid = _load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
     authority = load_power_authority(config.authority_ref, run_root=run_root)
-    cells = frozen_power_cells()
-    digest = grid_content_sha256(config.grid_ref, run_root=run_root)
+    cells = frozen_power_cells(grid)
+    digest = grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
     layout = _roster_group_sizes(authority, run_root=run_root)
     labels = _roster_joint_group_labels(authority, run_root=run_root)
     # The timing receipt replays every production cell through the same Task-7
@@ -1435,8 +1526,8 @@ def _report(ref: ArtifactRef, *, run_root: Path, stage: str) -> Mapping[str, obj
 def _validate_screen_timing_admission(screen_ref: ArtifactRef, screen: Mapping[str, object], config: PowerConfig,
                                       *, run_root: Path) -> None:
     """Check the locked, authority-bound timing receipt without redoing its work."""
-    grid = _load_power_grid(config.grid_ref, run_root=run_root)
-    cells = frozen_power_cells()
+    grid = _load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
+    cells = frozen_power_cells(grid)
     probe = screen.get("timing_probe")
     if (screen.get("cell_count") != len(cells)
             or screen.get("dataset_count") != grid.screen_datasets_per_cell
@@ -1594,14 +1685,14 @@ def validate_power_execution_receipt(result: Mapping[str, object], *, authority:
                                      grid_digest: str, roster_group_sizes: tuple[tuple[int, ...], tuple[int, ...]],
                                      joint_group_labels: tuple[
                                          tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
-                                     ] | None = None) -> None:
+                                     ] | None = None, grid: PowerGridSpec | None = None) -> None:
     """Replay every committed chunk and bind it to the persisted aggregate.
 
     This is intentionally expensive: a receipt that cannot be recomputed is a
     label, not evidence.
     """
     cell_id = result.get("cell_id")
-    cell = next((candidate for candidate in frozen_power_cells() if candidate.cell_id == cell_id), None)
+    cell = next((candidate for candidate in frozen_power_cells(grid) if candidate.cell_id == cell_id), None)
     if cell is None or result.get("family") != cell.family:
         raise RecordValidationError("power shard result does not name a frozen cell family")
     receipt = cast(Mapping[str, object], result.get("replay_receipt"))
@@ -1633,14 +1724,14 @@ def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_
     count = cast(int, screen["shard_count"])
     if type(shard_index) is not int or not 0 <= shard_index < count:
         raise RecordValidationError("shard_index lies outside the frozen screen topology")
-    cells = frozen_power_cells()
+    cells = frozen_power_cells(_load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind))
     # Contiguous ranges satisfy the artifact's ordered merged representation;
     # changing count therefore requires a new immutable screen generation.
     start, end = len(cells) * shard_index // count, len(cells) * (shard_index + 1) // count
     phase = cast(str, screen["phase"])
-    grid = _load_power_grid(config.grid_ref, run_root=run_root)
+    grid = _load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
     authority = load_power_authority(config.authority_ref, run_root=run_root)
-    digest = grid_content_sha256(config.grid_ref, run_root=run_root)
+    digest = grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
     if max_datasets is not None and (type(max_datasets) is not int or not 0 < max_datasets <= grid.datasets_per_cell):
         raise RecordValidationError("max_datasets must be a positive bounded integer")
     if max_cells is not None and (type(max_cells) is not int or not 0 < max_cells <= end - start):
@@ -1678,7 +1769,7 @@ def _complete_shards(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...
         raise RecordValidationError("shards must be complete ordered zero-based topology")
     if any(shard["parent_refs"] != [_ref_mapping(screen_ref)] for shard in shards):
         raise RecordValidationError("shard parent does not match selected screen")
-    grid = _load_power_grid(config.grid_ref, run_root=run_root)
+    grid = _load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
     if any(shard["execution_complete"] is not True or shard["dataset_count"] != grid.datasets_per_cell for shard in shards):
         raise RecordValidationError("incomplete synthetic shard receipts cannot enter an authority merge")
     return shards
@@ -1717,6 +1808,8 @@ def _write_validation_evidence(out: Path, value: Mapping[str, object], *, run_ro
 
 
 def _tier_decision(*, authority: PowerAuthority, rows: list[Mapping[str, object]]) -> str:
+    if authority.authority_kind == "implementation_verification":
+        return "IMPLEMENTATION_VERIFICATION_ONLY"
     if authority.authority_kind == "synthetic_validation":
         return "CONDITIONAL_ONLY"
     # Both roster tiers consume the same full grid today; keep the decision
@@ -1757,12 +1850,12 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
     _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
     if selection["parent_refs"] != [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]]:
         raise RecordValidationError("validation selection does not bind the complete shard set")
-    grid = _load_power_grid(config.grid_ref, run_root=run_root)
+    grid = _load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
     authority = load_power_authority(config.authority_ref, run_root=run_root)
-    digest = grid_content_sha256(config.grid_ref, run_root=run_root)
+    digest = grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
     layout = _roster_group_sizes(authority, run_root=run_root)
     joint_group_labels = _roster_joint_group_labels(authority, run_root=run_root)
-    by_cell = {cell.cell_id: cell for cell in frozen_power_cells()}
+    by_cell = {cell.cell_id: cell for cell in frozen_power_cells(grid)}
     raw_rows: list[dict[str, object]] = []
     for selected_id in cast(list[str], selection["selected_cells"]):
         for family in ("alternative", "null_both", "null_content", "null_excess"):
@@ -1795,11 +1888,42 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
     return _write_power(out, payload, run_root=run_root)
 
 
+def finalize_implementation_verification_power_report(
+    screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], selection_ref: ArtifactRef,
+    validation_ref: ArtifactRef, config: PowerConfig, *, run_root: Path, out: Path,
+) -> ArtifactRef:
+    """Miniature completed arm: null tier and IMPLEMENTATION_VERIFICATION_ONLY.
+
+    This closes the miniature production-path chain so the downstream schedule,
+    assignment, packet, branch, freeze, projection, unblind, and analysis
+    machinery can be exercised for real.  Its decision is a closed constant
+    that no P0 consumer treats as a tier, a go, or a conditional result.
+    """
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    if authority.authority_kind != "implementation_verification":
+        raise RecordValidationError("implementation-verification finalizer requires its own authority")
+    return _finalize_completed_chain(
+        screen_ref, shard_refs, selection_ref, validation_ref, config,
+        decision="IMPLEMENTATION_VERIFICATION_ONLY", run_root=run_root, out=out,
+    )
+
+
 def finalize_synthetic_power_report(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], selection_ref: ArtifactRef, validation_ref: ArtifactRef, config: PowerConfig, *, run_root: Path, out: Path) -> ArtifactRef:
     """Only synthetic completed arm: null tier and CONDITIONAL_ONLY, forever."""
     authority = load_power_authority(config.authority_ref, run_root=run_root)
     if authority.authority_kind != "synthetic_validation":
         raise RecordValidationError("synthetic finalizer cannot select a confirmation tier")
+    return _finalize_completed_chain(
+        screen_ref, shard_refs, selection_ref, validation_ref, config,
+        decision="CONDITIONAL_ONLY", run_root=run_root, out=out,
+    )
+
+
+def _finalize_completed_chain(
+    screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], selection_ref: ArtifactRef,
+    validation_ref: ArtifactRef, config: PowerConfig, *, decision: str, run_root: Path, out: Path,
+) -> ArtifactRef:
+    """Shared completed-chain sealing; the caller owns the authority check."""
     screen = _report(screen_ref, run_root=run_root, stage="screen")
     validation = _report(validation_ref, run_root=run_root, stage="validation")
     _complete_shards(screen_ref, shard_refs, config, run_root=run_root)
@@ -1811,7 +1935,7 @@ def finalize_synthetic_power_report(screen_ref: ArtifactRef, shard_refs: tuple[A
         raise RecordValidationError("selected final chain is not in the discovered authority ledger")
     payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-final-gaussian-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
     payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in attempts],
-                    "finalization": {"kind": "completed_chain", "selected_phase": "gaussian_approximation", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-gaussian-v1", "selected_shard_count": screen["shard_count"], "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "selected_selection_ref": _ref_mapping(selection_ref), "selected_validation_ref": _ref_mapping(validation_ref), "selected_tier": None, "decision": "CONDITIONAL_ONLY"}})
+                    "finalization": {"kind": "completed_chain", "selected_phase": "gaussian_approximation", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-gaussian-v1", "selected_shard_count": screen["shard_count"], "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "selected_selection_ref": _ref_mapping(selection_ref), "selected_validation_ref": _ref_mapping(validation_ref), "selected_tier": None, "decision": decision}})
     return _write_power(out, payload, run_root=run_root)
 
 
@@ -1828,10 +1952,10 @@ def validate_full_multiplier_fallback(screen_ref: ArtifactRef, shard_refs: tuple
     failed = _report(ArtifactRef(**dict(trigger)), run_root=run_root, stage="validation")
     if failed["phase"] != "gaussian_approximation" or failed["approximation_receipt"]["passed"] is not False:  # type: ignore[index]
         raise RecordValidationError("fallback requires the terminal failed Gaussian validation")
-    grid, authority = _load_power_grid(config.grid_ref, run_root=run_root), load_power_authority(config.authority_ref, run_root=run_root)
-    digest, layout = grid_content_sha256(config.grid_ref, run_root=run_root), _roster_group_sizes(authority, run_root=run_root)
+    grid, authority = _load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind), load_power_authority(config.authority_ref, run_root=run_root)
+    digest, layout = grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind), _roster_group_sizes(authority, run_root=run_root)
     raw_rows: list[dict[str, object]] = []
-    for cell in frozen_power_cells():
+    for cell in frozen_power_cells(grid):
         # The fallback producer regenerates every dataset in its own phase and
         # evaluates the full multiplier; it never relabels Gaussian shard totals.
         passed = 0
@@ -1852,8 +1976,22 @@ def validate_full_multiplier_fallback(screen_ref: ArtifactRef, shard_refs: tuple
     raw_ref = _write_validation_evidence(out, {"contract_id": "p0-full-multiplier-raw-counts-v1", "multiplier_draws": grid.multiplier_draws, "rows": raw_rows}, run_root=run_root, role="power_full_multiplier_raw_counts")
     numeric_ref = _write_validation_evidence(out, {"contract_id": "p0-full-multiplier-decision-v1", "decision": decision, "complete_cell_ids": [row["cell_id"] for row in raw_rows]}, run_root=run_root, role="power_full_multiplier_numeric_receipt")
     payload = _record_base(config, phase="full_multiplier_fallback", generation=cast(int, screen["generation"]), kernel_id="power-full-grid-validation-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
-    payload.update({"stage": "validation", "parent_refs": [_ref_mapping(ArtifactRef(**dict(trigger))), _ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]], "fallback_trigger_ref": dict(trigger), "complete_cell_ids": [row["cell_id"] for row in raw_rows], "expected_cell_count": len(frozen_power_cells()), "observed_cell_count": len(raw_rows), "raw_counts_ref": _ref_mapping(raw_ref), "numeric_receipt_ref": _ref_mapping(numeric_ref), "selected_tier": None if decision == "CONDITIONAL_ONLY" or decision == "FEASIBILITY_NO_GO" else int(decision[1:]), "decision": "CONDITIONAL_ONLY" if decision == "CONDITIONAL_ONLY" else ("NO_GO" if decision == "FEASIBILITY_NO_GO" else "GO")})
+    payload.update({"stage": "validation", "parent_refs": [_ref_mapping(ArtifactRef(**dict(trigger))), _ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]], "fallback_trigger_ref": dict(trigger), "complete_cell_ids": [row["cell_id"] for row in raw_rows], "expected_cell_count": len(frozen_power_cells(grid)), "observed_cell_count": len(raw_rows), "raw_counts_ref": _ref_mapping(raw_ref), "numeric_receipt_ref": _ref_mapping(numeric_ref), "selected_tier": None if decision in {"CONDITIONAL_ONLY", "IMPLEMENTATION_VERIFICATION_ONLY", "FEASIBILITY_NO_GO"} else int(decision[1:]), "decision": decision if decision in {"CONDITIONAL_ONLY", "IMPLEMENTATION_VERIFICATION_ONLY"} else ("NO_GO" if decision == "FEASIBILITY_NO_GO" else "GO")})
     return _write_power(out, payload, run_root=run_root)
+
+
+def finalize_implementation_verification_full_multiplier_report(
+    screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], validation_ref: ArtifactRef,
+    config: PowerConfig, *, run_root: Path, out: Path,
+) -> ArtifactRef:
+    """Close the miniature fallback chain under its own separate authority."""
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    if authority.authority_kind != "implementation_verification":
+        raise RecordValidationError("implementation-verification fallback finalizer requires its own authority")
+    return _finalize_full_multiplier_chain(
+        screen_ref, shard_refs, validation_ref, config,
+        decision="IMPLEMENTATION_VERIFICATION_ONLY", run_root=run_root, out=out,
+    )
 
 
 def finalize_synthetic_full_multiplier_report(screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], validation_ref: ArtifactRef, config: PowerConfig, *, run_root: Path, out: Path) -> ArtifactRef:
@@ -1861,6 +1999,17 @@ def finalize_synthetic_full_multiplier_report(screen_ref: ArtifactRef, shard_ref
     authority = load_power_authority(config.authority_ref, run_root=run_root)
     if authority.authority_kind != "synthetic_validation":
         raise RecordValidationError("synthetic fallback finalizer cannot select a confirmation tier")
+    return _finalize_full_multiplier_chain(
+        screen_ref, shard_refs, validation_ref, config,
+        decision="CONDITIONAL_ONLY", run_root=run_root, out=out,
+    )
+
+
+def _finalize_full_multiplier_chain(
+    screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], validation_ref: ArtifactRef,
+    config: PowerConfig, *, decision: str, run_root: Path, out: Path,
+) -> ArtifactRef:
+    """Shared fallback completed-chain sealing; the caller owns the authority check."""
     screen, validation = _report(screen_ref, run_root=run_root, stage="screen"), _report(validation_ref, run_root=run_root, stage="validation")
     if screen["phase"] != "full_multiplier_fallback" or validation["phase"] != "full_multiplier_fallback":
         raise RecordValidationError("fallback finalizer requires fallback-only records")
@@ -1868,7 +2017,7 @@ def finalize_synthetic_full_multiplier_report(screen_ref: ArtifactRef, shard_ref
     attempts = _authority_attempt_refs(config, run_root=run_root)
     trigger = cast(Mapping[str, object], screen["fallback_trigger_ref"])
     payload = _record_base(config, phase="full_multiplier_fallback", generation=cast(int, screen["generation"]), kernel_id="power-final-full-multiplier-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
-    payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in attempts], "finalization": {"kind": "completed_chain", "selected_phase": "full_multiplier_fallback", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-full-multiplier-v1", "selected_shard_count": screen["shard_count"], "fallback_trigger_ref": dict(trigger), "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "full_grid_validation_ref": _ref_mapping(validation_ref), "selected_tier": None, "decision": "CONDITIONAL_ONLY"}})
+    payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in attempts], "finalization": {"kind": "completed_chain", "selected_phase": "full_multiplier_fallback", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-full-multiplier-v1", "selected_shard_count": screen["shard_count"], "fallback_trigger_ref": dict(trigger), "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "full_grid_validation_ref": _ref_mapping(validation_ref), "selected_tier": None, "decision": decision}})
     return _write_power(out, payload, run_root=run_root)
 
 
@@ -1894,7 +2043,7 @@ def finalize_synthetic_validation_failed(
     kernel = "power-final-gaussian-v1" if phase == "gaussian_approximation" else "power-final-full-multiplier-v1"
     payload = _record_base(config, phase=phase, generation=cast(int, terminal["generation"]), kernel_id=kernel, shard_count=cast(int, terminal["shard_count"]), run_root=run_root)
     payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in discovered_attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in discovered_attempts],
-                    "finalization": {"kind": "synthetic_validation_failed", "terminal_attempt_ref": _ref_mapping(terminal_attempt_ref), "terminal_stage": terminal_stage, "terminal_phase": phase, "terminal_kernel_id": kernel, "terminal_shard_count": terminal["shard_count"], "reason": reason, "selected_tier": None, "decision": "CONDITIONAL_ONLY"}})
+                    "finalization": {"kind": "synthetic_validation_failed", "terminal_attempt_ref": _ref_mapping(terminal_attempt_ref), "terminal_stage": terminal_stage, "terminal_phase": phase, "terminal_kernel_id": kernel, "terminal_shard_count": terminal["shard_count"], "reason": reason, "selected_tier": None, "decision": decision}})
     return _write_power(out, payload, run_root=run_root)
 
 

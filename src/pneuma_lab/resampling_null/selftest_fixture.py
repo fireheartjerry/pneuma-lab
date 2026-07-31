@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import sys
+import unicodedata
 from collections.abc import Mapping
 
 from pneuma_lab.foundation.artifacts import canonical_json_bytes
@@ -11,6 +13,8 @@ from pneuma_lab.resampling_null.artifacts import (
     SCHEMA_BY_KIND,
     seal_study_manifest,
 )
+from pneuma_lab.resampling_null.assignment import BytesField, U64Field, commitment_sha256
+from pneuma_lab.resampling_null.errors import RecordValidationError
 from pneuma_lab.resampling_null.types import ArtifactRef
 
 SHA_A = "a" * 64
@@ -60,8 +64,27 @@ def _fixture_record(
     }
 
 
-def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
-    """Materialize fixed offline fixture inputs and seal only the study stage."""
+def seal_synthetic_selftest_study(
+    run_root: Path, *, profile: str = "canonical",
+    schedule_seed: int | None = None, assignment_master_key: bytes | None = None,
+) -> ArtifactRef:
+    """Materialize fixed offline fixture inputs and seal only the study stage.
+
+    ``profile`` selects which frozen power-grid contract the manifest binds.
+    ``implementation_verification`` binds the separately governed miniature
+    grid, whose records can never be admitted under a P0 power authority.
+    """
+    if profile not in {"canonical", "implementation_verification"}:
+        raise RecordValidationError("unregistered selftest study profile")
+    # A ceremony commits to the operator-custodied seed and master key before
+    # any scientific record exists; the fixture keeps that ordering rather than
+    # leaving unopenable placeholder commitments behind.
+    schedule_commitment = SHA_A if schedule_seed is None else commitment_sha256(
+        "schedule-seed", "study-1", U64Field(schedule_seed),
+    )
+    assignment_commitment = SHA_A if assignment_master_key is None else commitment_sha256(
+        "assignment-master-key", "study-1", BytesField(assignment_master_key),
+    )
     tmp_path = Path(run_root).resolve(strict=True)
     failure_mode: str | None = None
     external = tmp_path / "sources" / "selftest-fixture"
@@ -154,7 +177,6 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
     for name in (
         "roster",
         "assignment",
-        "storage-policy",
         "power-grid",
         "power-topology",
         "template",
@@ -162,7 +184,31 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         "pads",
     ):
         sources[name] = write_json(external / f"{name}.json", {"name": name})
-    sources["power-grid"] = fixture_root / "p0-power-grid.json"
+    sources["storage-policy"] = write_json(
+        external / "storage-policy.json",
+        {
+            "record_kind": "storage_policy_contract_v1",
+            "schema_version": "1",
+            "mode": "local_test",
+            "test_only": True,
+            "storage_resource_id": None,
+            "measurement_evidence_ref": None,
+            "evidence_verifier_public_key_ed25519_hex": None,
+            "registry_attestation_public_key_ed25519_hex": None,
+            "max_measurement_age_seconds": None,
+            "lease_kind": "local_test_process_lock_v1",
+            "encryption_at_rest": False,
+            "encryption_algorithm": None,
+            "kms_key_version": None,
+            "acl_enforced": False,
+            "acl_policy_sha256": None,
+            "measurement_sha256": None,
+        },
+    )
+    sources["power-grid"] = fixture_root / (
+        "p0-power-grid.json" if profile == "canonical"
+        else "p0-power-grid-implementation-verification.json"
+    )
     sources["power-topology"] = fixture_root / "p0-power-screen-topology.json"
     sources["required"] = write_json(
         external / "required.json",
@@ -185,6 +231,18 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         sources["revision"],
         subtree="revisions",
         role="source_revision",
+    )
+    # The prefix loop verifies that every registered implementation descriptor
+    # names a manifest source revision whose copied bytes equal this checkout's
+    # real module source, so the fixture publishes those exact files.
+    source_root = Path(__file__).resolve().parents[3]
+    sources["loop-source"] = source_root / "src/pneuma_lab/resampling_null/synthetic_prefix_loop.py"
+    sources["environment-source"] = source_root / "src/pneuma_lab/resampling_null/synthetic_environment.py"
+    loop_source_ref = planned_fixed_ref(
+        sources["loop-source"], subtree="revisions", role="source_revision",
+    )
+    environment_source_ref = planned_fixed_ref(
+        sources["environment-source"], subtree="revisions", role="source_revision",
     )
     sources["roster"] = roster_source
     sources["assignment"] = write_json(
@@ -226,8 +284,19 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
             },
             "assignment_runtime_contract": {
                 "implementation": "CPython",
-                "python_version": "3.12.0",
-                "unicodedata_unidata_version": "15.0.0",
+                # The canonical profile pins a frozen runtime so a fixture
+                # never leaks host identity into a study manifest.  The
+                # implementation-verification profile deliberately binds the
+                # executing runtime instead: its whole purpose is to prove the
+                # production path runs here, and the schedule seal enforces an
+                # exact runtime match.
+                "python_version": (
+                    "3.12.0" if profile == "canonical"
+                    else f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+                ),
+                "unicodedata_unidata_version": (
+                    "15.0.0" if profile == "canonical" else unicodedata.unidata_version
+                ),
             },
             "backend_receipt_ref": (
                 revision_ref
@@ -313,8 +382,8 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         "tokenizer_ref": tokenizer_ref,
         "prompt_template_ref": prompt_ref,
         "tool_schema_ref": tool_schema_ref,
-        "request_grammar": "fixture-request-v1",
-        "response_grammar": "fixture-response-v1",
+        "request_grammar": "synthetic-request-v1",
+        "response_grammar": "synthetic-response-v1",
         "seeded_call_grammar": "call-seed-v1",
         "stateless_client_attestation": "fixture-stateless-v1",
         "aggregate_caps": {
@@ -330,9 +399,9 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         "subject.json",
         {
             **common_call,
-            "record_kind": "prefix_subject_contract_v1",
+            "record_kind": "prefix_subject_contract_v1", "build_id": "synthetic-subject-v1",
             "model_id": "fixture-subject",
-            "nominal_type": "FixtureSubject",
+            "nominal_type": "pneuma_lab.resampling_null.synthetic_prefix_loop.SyntheticProviderActor",
         },
         role="subject_contract",
     )
@@ -340,32 +409,30 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         "simulator.json",
         {
             **common_call,
-            "record_kind": "prefix_simulator_contract_v1",
+            "record_kind": "prefix_simulator_contract_v1", "build_id": "synthetic-simulator-v1",
             "model_id": "fixture-simulator",
-            "nominal_type": "FixtureSimulator",
+            "nominal_type": "pneuma_lab.resampling_null.synthetic_prefix_loop.SyntheticProviderActor",
         },
         role="simulator_contract",
     )
     parser_ref = authority_asset(
         "parser.json",
         {
-            "record_kind": "prefix_tool_parser_contract_v1",
+            "record_kind": "prefix_tool_parser_contract_v1", "build_id": "synthetic-response-parser-v1",
             "schema_version": "1",
-            "nominal_type": "FixtureParser",
-            "build_id": "fixture-build",
-            "response_grammar": "fixture-response-v1",
+            "nominal_type": "pneuma_lab.resampling_null.synthetic_prefix_loop.SyntheticResponseParser",
+            "response_grammar": "synthetic-response-v1",
             "tool_schema_ref": tool_schema_ref,
-            "source_revision_refs": [revision_ref],
+            "source_revision_refs": [loop_source_ref],
         },
         role="tool_parser_contract",
     )
     meter_ref = authority_asset(
         "meter.json",
         {
-            "record_kind": "prefix_meter_contract_v1",
+            "record_kind": "prefix_meter_contract_v1", "build_id": "synthetic-meter-v1",
             "schema_version": "1",
-            "nominal_type": "FixtureMeter",
-            "build_id": "fixture-build",
+            "nominal_type": "pneuma_lab.resampling_null.synthetic_prefix_loop.SyntheticTraceMeter",
             "clock_source_ref": clock_ref,
             "watchdog_source_ref": watchdog_ref,
             "cost_units": {
@@ -374,10 +441,10 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
                 "model_calls": "calls",
                 "wall_clock": "milliseconds",
             },
-            "provider_event_grammar": "fixture-provider-event-v1",
-            "settlement_grammar": "fixture-settlement-v1",
+            "provider_event_grammar": "synthetic-provider-event-v1",
+            "settlement_grammar": "synthetic-provider-settlement-v1",
             "zero_cost_synthetic_closure": failure_mode != "synthetic_meter",
-            "source_revision_refs": [revision_ref],
+            "source_revision_refs": [loop_source_ref],
         },
         role="meter_contract",
     )
@@ -407,14 +474,14 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         "environment.json",
         {
             **common_task,
-            "record_kind": "prefix_environment_contract_v1",
+            "record_kind": "prefix_environment_contract_v1", "build_id": "synthetic-environment-v1", "source_revision_refs": [environment_source_ref],
             "benchmark": "tau" if failure_mode == "binding" else "swe",
-            "nominal_factory_type": "FixtureEnvironmentFactory",
-            "snapshot_grammar": "fixture-snapshot-v1",
-            "restore_grammar": "fixture-restore-v1",
-            "raw_evidence_grammar": "fixture-environment-evidence-v1",
-            "runtime_id": "cpython-fixture",
-            "container_digest": "sha256:" + SHA_A,
+            "nominal_factory_type": "pneuma_lab.resampling_null.synthetic_environment.SyntheticEnvironmentFactory",
+            "snapshot_grammar": "synthetic-environment-snapshot-v1",
+            "restore_grammar": "synthetic-environment-snapshot-v1",
+            "raw_evidence_grammar": "synthetic-environment-evidence-v1",
+            "runtime_id": "cpython-3.12-local",
+            "container_digest": "sha256:" + "0" * 64,
         },
         role="environment_contract",
     )
@@ -422,11 +489,11 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         "grader.json",
         {
             **common_task,
-            "record_kind": "prefix_grader_contract_v1",
-            "nominal_type": "FixtureGrader",
-            "raw_evidence_grammar": "fixture-grade-evidence-v1",
-            "runtime_id": "cpython-fixture",
-            "container_digest": "sha256:" + SHA_A,
+            "record_kind": "prefix_grader_contract_v1", "build_id": "synthetic-grader-v1", "source_revision_refs": [loop_source_ref],
+            "nominal_type": "pneuma_lab.resampling_null.synthetic_prefix_loop.SyntheticGradeCodec",
+            "raw_evidence_grammar": "synthetic-grade-v1",
+            "runtime_id": "cpython-3.12-local",
+            "container_digest": "sha256:" + "0" * 64,
         },
         role="grader_contract",
     )
@@ -434,11 +501,11 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         "verifier.json",
         {
             **common_task,
-            "record_kind": "prefix_verifier_contract_v1",
-            "nominal_type": "FixtureVerifier",
-            "raw_evidence_grammar": "fixture-verifier-evidence-v1",
-            "runtime_id": "cpython-fixture",
-            "container_digest": "sha256:" + SHA_A,
+            "record_kind": "prefix_verifier_contract_v1", "build_id": "synthetic-verifier-v1", "source_revision_refs": [loop_source_ref],
+            "nominal_type": "pneuma_lab.resampling_null.synthetic_prefix_loop.SyntheticVerifierCodec",
+            "raw_evidence_grammar": "synthetic-verifier-v1",
+            "runtime_id": "cpython-3.12-local",
+            "container_digest": "sha256:" + "0" * 64,
         },
         role="verifier_contract",
     )
@@ -464,22 +531,8 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
             "task_id": task_id,
             "benchmark": fixture_task["benchmark"],
             "build_id": "fixture-build",
-            "source_revision_refs": [revision_ref],
+            "source_revision_refs": [loop_source_ref],
         }
-        fixture_input_ref = authority_asset(
-            f"task-input-{task_id}.json",
-            {
-                "record_kind": "prefix_task_input_v1",
-                "schema_version": "1",
-                "task_id": task_id,
-                "benchmark": fixture_task["benchmark"],
-                "requires_user_simulator": True,
-                "canonical_task_payload": {
-                    "instruction": "fixture", "nested_ref": revision_deep_ref,
-                },
-            },
-            role="task_input",
-        )
         branch_program_ref = authority_asset(
             f"branch-program-{task_id}.json",
             {
@@ -510,6 +563,21 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
             },
             role="synthetic_execution_program",
         )
+        fixture_input_ref = authority_asset(
+            f"task-input-{task_id}.json",
+            {
+                "record_kind": "prefix_task_input_v1",
+                "schema_version": "1",
+                "task_id": task_id,
+                "benchmark": fixture_task["benchmark"],
+                "requires_user_simulator": True,
+                "canonical_task_payload": {
+                    "instruction": "fixture", "nested_ref": revision_deep_ref,
+                },
+                "synthetic_execution_program_ref": branch_program_ref,
+            },
+            role="task_input",
+        )
         branch_registry_tasks.append(
             {
                 "task_id": task_id,
@@ -524,26 +592,26 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
         )
         fixture_environment_ref = authority_asset(
             f"environment-{task_id}.json",
-            {**task_common, "record_kind": "prefix_environment_contract_v1",
-             "nominal_factory_type": "FixtureEnvironmentFactory",
-             "snapshot_grammar": "fixture-snapshot-v1",
-             "restore_grammar": "fixture-restore-v1",
-             "raw_evidence_grammar": "fixture-environment-evidence-v1",
-             "runtime_id": "cpython-fixture", "container_digest": "sha256:" + SHA_A},
+            {**task_common, "record_kind": "prefix_environment_contract_v1", "build_id": "synthetic-environment-v1", "source_revision_refs": [environment_source_ref],
+             "nominal_factory_type": "pneuma_lab.resampling_null.synthetic_environment.SyntheticEnvironmentFactory",
+             "snapshot_grammar": "synthetic-environment-snapshot-v1",
+             "restore_grammar": "synthetic-environment-snapshot-v1",
+             "raw_evidence_grammar": "synthetic-environment-evidence-v1",
+             "runtime_id": "cpython-3.12-local", "container_digest": "sha256:" + "0" * 64},
             role="environment_contract",
         )
         fixture_grader_ref = authority_asset(
             f"grader-{task_id}.json",
-            {**task_common, "record_kind": "prefix_grader_contract_v1",
-             "nominal_type": "FixtureGrader", "raw_evidence_grammar": "fixture-grade-evidence-v1",
-             "runtime_id": "cpython-fixture", "container_digest": "sha256:" + SHA_A},
+            {**task_common, "record_kind": "prefix_grader_contract_v1", "build_id": "synthetic-grader-v1", "source_revision_refs": [loop_source_ref],
+             "nominal_type": "pneuma_lab.resampling_null.synthetic_prefix_loop.SyntheticGradeCodec", "raw_evidence_grammar": "synthetic-grade-v1",
+             "runtime_id": "cpython-3.12-local", "container_digest": "sha256:" + "0" * 64},
             role="grader_contract",
         )
         fixture_verifier_ref = authority_asset(
             f"verifier-{task_id}.json",
-            {**task_common, "record_kind": "prefix_verifier_contract_v1",
-             "nominal_type": "FixtureVerifier", "raw_evidence_grammar": "fixture-verifier-evidence-v1",
-             "runtime_id": "cpython-fixture", "container_digest": "sha256:" + SHA_A},
+            {**task_common, "record_kind": "prefix_verifier_contract_v1", "build_id": "synthetic-verifier-v1", "source_revision_refs": [loop_source_ref],
+             "nominal_type": "pneuma_lab.resampling_null.synthetic_prefix_loop.SyntheticVerifierCodec", "raw_evidence_grammar": "synthetic-verifier-v1",
+             "runtime_id": "cpython-3.12-local", "container_digest": "sha256:" + "0" * 64},
             role="verifier_contract",
         )
         fixture_isolation_ref = authority_asset(
@@ -616,8 +684,8 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
             {
                 "commitment_scheme": "resampling-null-key-ceremony-v1",
                 "roster_local_nonce_commitment_sha256": SHA_A,
-                "schedule_seed_commitment_sha256": SHA_A,
-                "assignment_master_key_commitment_sha256": SHA_A,
+                "schedule_seed_commitment_sha256": schedule_commitment,
+                "assignment_master_key_commitment_sha256": assignment_commitment,
             },
         ),
     )
@@ -636,7 +704,10 @@ def seal_synthetic_selftest_study(run_root: Path) -> ArtifactRef:
             sources["template"],
             sources["policy"],
             sources["pads"],
-            [sources["revision"]],
+            sorted(
+                (sources["revision"], sources["loop-source"], sources["environment-source"]),
+                key=lambda path: path.name,
+            ),
             sources["required"],
             eligibility_manifest_source=(
                 sources["eligibility"]

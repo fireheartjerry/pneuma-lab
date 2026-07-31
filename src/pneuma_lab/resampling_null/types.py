@@ -497,6 +497,7 @@ class ScheduleSelection:
     schedule_authority: Literal[
         "synthetic_validation",
         "roster_bound_selection",
+        "implementation_verification",
     ]
     selected_tier: Literal[120, 160] | None
     selected_task_ids: tuple[str, ...]
@@ -505,9 +506,10 @@ class ScheduleSelection:
         if self.schedule_authority not in (
             "synthetic_validation",
             "roster_bound_selection",
+            "implementation_verification",
         ):
             raise ValueError("schedule_authority is not recognized")
-        if self.schedule_authority == "synthetic_validation":
+        if self.schedule_authority in ("synthetic_validation", "implementation_verification"):
             if self.selected_tier is not None:
                 raise ValueError("synthetic selection must not select a tier")
         elif self.selected_tier not in (120, 160):

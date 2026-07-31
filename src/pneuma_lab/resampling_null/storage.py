@@ -811,6 +811,13 @@ def _publish_local_test_scientific(
     candidate = Path(out)
     if not candidate.is_absolute():
         candidate = root / candidate
+    # Create the destination subtree only after a lexical containment check;
+    # the strict resolve below still fails closed on any symlink escape.
+    try:
+        candidate.parent.relative_to(root)
+    except ValueError as exc:
+        raise RecordValidationError("scientific destination escapes run_root") from exc
+    candidate.parent.mkdir(parents=True, exist_ok=True)
     parent = candidate.parent.resolve(strict=True)
     try:
         parent.relative_to(root)

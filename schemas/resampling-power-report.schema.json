@@ -15,52 +15,106 @@
         "payload"
     ],
     "properties": {
-        "record_kind": { "const": "resampling_power_report" },
-        "schema_version": { "const": "0.1.0" },
-        "study_id": { "$ref": "#/$defs/nonempty" },
-        "frozen_created_at": { "$ref": "#/$defs/frozen_timestamp" },
-        "provenance": { "$ref": "#/$defs/provenance" },
+        "record_kind": {
+            "const": "resampling_power_report"
+        },
+        "schema_version": {
+            "const": "0.1.0"
+        },
+        "study_id": {
+            "$ref": "#/$defs/nonempty"
+        },
+        "frozen_created_at": {
+            "$ref": "#/$defs/frozen_timestamp"
+        },
+        "provenance": {
+            "$ref": "#/$defs/provenance"
+        },
         "payload": {
             "oneOf": [
-                { "$ref": "#/$defs/screen_payload" },
-                { "$ref": "#/$defs/shard_payload" },
-                { "$ref": "#/$defs/selection_payload" },
-                { "$ref": "#/$defs/gaussian_validation_payload" },
-                { "$ref": "#/$defs/full_multiplier_validation_payload" },
-                { "$ref": "#/$defs/final_payload" }
+                {
+                    "$ref": "#/$defs/screen_payload"
+                },
+                {
+                    "$ref": "#/$defs/shard_payload"
+                },
+                {
+                    "$ref": "#/$defs/selection_payload"
+                },
+                {
+                    "$ref": "#/$defs/gaussian_validation_payload"
+                },
+                {
+                    "$ref": "#/$defs/full_multiplier_validation_payload"
+                },
+                {
+                    "$ref": "#/$defs/final_payload"
+                }
             ]
         }
     },
     "additionalProperties": false,
     "$defs": {
-        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "nonempty": { "type": "string", "minLength": 1 },
-        "probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+        },
+        "nonempty": {
+            "type": "string",
+            "minLength": 1
+        },
+        "probability": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+        },
         "frozen_timestamp": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
         },
         "provenance": {
             "type": "object",
-            "required": ["design_sha256", "code_sha256"],
+            "required": [
+                "design_sha256",
+                "code_sha256"
+            ],
             "properties": {
-                "design_sha256": { "$ref": "#/$defs/sha256" },
-                "code_sha256": { "$ref": "#/$defs/sha256" }
+                "design_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "code_sha256": {
+                    "$ref": "#/$defs/sha256"
+                }
             },
             "additionalProperties": false
         },
         "artifact_ref": {
             "type": "object",
-            "required": ["role", "relative_path", "sha256", "byte_count", "media_type"],
+            "required": [
+                "role",
+                "relative_path",
+                "sha256",
+                "byte_count",
+                "media_type"
+            ],
             "properties": {
-                "role": { "$ref": "#/$defs/nonempty" },
+                "role": {
+                    "$ref": "#/$defs/nonempty"
+                },
                 "relative_path": {
                     "type": "string",
                     "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"
                 },
-                "sha256": { "$ref": "#/$defs/sha256" },
-                "byte_count": { "type": "integer", "minimum": 0 },
-                "media_type": { "$ref": "#/$defs/nonempty" }
+                "sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "byte_count": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "media_type": {
+                    "$ref": "#/$defs/nonempty"
+                }
             },
             "additionalProperties": false
         },
@@ -77,14 +131,30 @@
                 "clopper_pearson_max_iterations"
             ],
             "properties": {
-                "numpy_version": { "$ref": "#/$defs/nonempty" },
-                "gauss_hermite_order": { "const": 96 },
-                "gauss_legendre_order": { "const": 128 },
-                "probability_tolerance": { "const": 1e-10 },
-                "gaussian_root_tolerance": { "const": 1e-10 },
-                "gaussian_root_max_iterations": { "const": 200 },
-                "clopper_pearson_tolerance": { "const": 1e-12 },
-                "clopper_pearson_max_iterations": { "const": 200 }
+                "numpy_version": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "gauss_hermite_order": {
+                    "const": 96
+                },
+                "gauss_legendre_order": {
+                    "const": 128
+                },
+                "probability_tolerance": {
+                    "const": 1e-10
+                },
+                "gaussian_root_tolerance": {
+                    "const": 1e-10
+                },
+                "gaussian_root_max_iterations": {
+                    "const": 200
+                },
+                "clopper_pearson_tolerance": {
+                    "const": 1e-12
+                },
+                "clopper_pearson_max_iterations": {
+                    "const": 200
+                }
             },
             "additionalProperties": false
         },
@@ -114,21 +184,47 @@
                 "timing_probe"
             ],
             "properties": {
-                "stage": { "const": "screen" },
-                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
+                "stage": {
+                    "const": "screen"
+                },
+                "authority_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "decision_authority": {
-                    "enum": ["synthetic_validation", "roster_bound_selection"]
+                    "enum": [
+                        "synthetic_validation",
+                        "roster_bound_selection",
+                        "implementation_verification"
+                    ]
                 },
                 "phase": {
-                    "enum": ["gaussian_approximation", "full_multiplier_fallback"]
+                    "enum": [
+                        "gaussian_approximation",
+                        "full_multiplier_fallback"
+                    ]
                 },
-                "generation": { "type": "integer", "minimum": 0 },
-                "roster_ref": { "$ref": "#/$defs/artifact_ref" },
-                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_ref": { "$ref": "#/$defs/artifact_ref" },
-                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
-                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
+                "generation": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "roster_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "tier_membership_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "screen_topology_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "rng_contract_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_content_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
                 "kernel_id": {
                     "enum": [
                         "power-screen-gaussian-v1",
@@ -138,23 +234,43 @@
                 "shard_count": {
                     "type": "integer",
                     "minimum": 1,
-                    "not": { "type": "boolean" }
+                    "not": {
+                        "type": "boolean"
+                    }
                 },
                 "parent_refs": {
                     "type": "array",
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/artifact_ref" }
+                    "items": {
+                        "$ref": "#/$defs/artifact_ref"
+                    }
                 },
-                "config_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
-                "fallback_trigger_ref": { "$ref": "#/$defs/artifact_ref" },
-                "projected_wall_seconds": { "type": "integer", "minimum": 0 },
-                "cell_count": { "type": "integer", "minimum": 1 },
+                "config_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_fixture_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_contract": {
+                    "$ref": "#/$defs/numeric_contract"
+                },
+                "fallback_trigger_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "projected_wall_seconds": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "cell_count": {
+                    "type": "integer",
+                    "minimum": 1
+                },
                 "dataset_count": {
                     "type": "integer",
                     "minimum": 1,
-                    "not": { "type": "boolean" }
+                    "not": {
+                        "type": "boolean"
+                    }
                 },
                 "timing_probe": {
                     "type": "object",
@@ -168,13 +284,30 @@
                         "measured_wall_seconds"
                     ],
                     "properties": {
-                        "contract_id": { "const": "p0-production-timing-probe-v1" },
-                        "dataset_count": { "const": 200 },
-                        "cell_count": { "const": 2916 },
-                        "cell_ids_sha256": { "$ref": "#/$defs/sha256" },
-                        "replay_receipts_sha256": { "$ref": "#/$defs/sha256" },
-                        "authority_ref_sha256": { "$ref": "#/$defs/sha256" },
-                        "measured_wall_seconds": { "type": "number", "exclusiveMinimum": 0 }
+                        "contract_id": {
+                            "const": "p0-production-timing-probe-v1"
+                        },
+                        "dataset_count": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "cell_count": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "cell_ids_sha256": {
+                            "$ref": "#/$defs/sha256"
+                        },
+                        "replay_receipts_sha256": {
+                            "$ref": "#/$defs/sha256"
+                        },
+                        "authority_ref_sha256": {
+                            "$ref": "#/$defs/sha256"
+                        },
+                        "measured_wall_seconds": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                        }
                     },
                     "additionalProperties": false
                 }
@@ -183,25 +316,41 @@
                 {
                     "if": {
                         "properties": {
-                            "phase": { "const": "gaussian_approximation" }
+                            "decision_authority": {
+                                "const": "implementation_verification"
+                            }
                         },
-                        "required": ["phase"]
+                        "required": [
+                            "decision_authority"
+                        ]
                     },
                     "then": {
                         "properties": {
-                            "kernel_id": {
-                                "const": "power-screen-gaussian-v1"
+                            "timing_probe": {
+                                "properties": {
+                                    "cell_count": {
+                                        "const": 64
+                                    },
+                                    "dataset_count": {
+                                        "const": 2
+                                    }
+                                }
                             }
-                        },
-                        "not": { "required": ["fallback_trigger_ref"] }
+                        }
                     },
                     "else": {
                         "properties": {
-                            "kernel_id": {
-                                "const": "power-screen-full-multiplier-v1"
+                            "timing_probe": {
+                                "properties": {
+                                    "cell_count": {
+                                        "const": 2916
+                                    },
+                                    "dataset_count": {
+                                        "const": 200
+                                    }
+                                }
                             }
-                        },
-                        "required": ["fallback_trigger_ref"]
+                        }
                     }
                 }
             ],
@@ -233,21 +382,47 @@
                 "execution_complete"
             ],
             "properties": {
-                "stage": { "const": "shard" },
-                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
+                "stage": {
+                    "const": "shard"
+                },
+                "authority_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "decision_authority": {
-                    "enum": ["synthetic_validation", "roster_bound_selection"]
+                    "enum": [
+                        "synthetic_validation",
+                        "roster_bound_selection",
+                        "implementation_verification"
+                    ]
                 },
                 "phase": {
-                    "enum": ["gaussian_approximation", "full_multiplier_fallback"]
+                    "enum": [
+                        "gaussian_approximation",
+                        "full_multiplier_fallback"
+                    ]
                 },
-                "generation": { "type": "integer", "minimum": 0 },
-                "roster_ref": { "$ref": "#/$defs/artifact_ref" },
-                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_ref": { "$ref": "#/$defs/artifact_ref" },
-                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
-                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
+                "generation": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "roster_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "tier_membership_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "screen_topology_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "rng_contract_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_content_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
                 "kernel_id": {
                     "enum": [
                         "power-grid-gaussian-v1",
@@ -258,22 +433,40 @@
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/artifact_ref" }
+                    "items": {
+                        "$ref": "#/$defs/artifact_ref"
+                    }
                 },
-                "config_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
-                "shard_index": { "type": "integer", "minimum": 0 },
-                "shard_count": { "type": "integer", "minimum": 1 },
+                "config_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_fixture_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_contract": {
+                    "$ref": "#/$defs/numeric_contract"
+                },
+                "shard_index": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "shard_count": {
+                    "type": "integer",
+                    "minimum": 1
+                },
                 "cell_results": {
                     "type": "array",
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/cell_result" }
+                    "items": {
+                        "$ref": "#/$defs/cell_result"
+                    }
                 },
                 "dataset_count": {
                     "type": "integer",
                     "minimum": 1,
-                    "not": { "type": "boolean" }
+                    "not": {
+                        "type": "boolean"
+                    }
                 },
                 "execution_complete": {
                     "type": "boolean"
@@ -283,9 +476,13 @@
                 {
                     "if": {
                         "properties": {
-                            "phase": { "const": "gaussian_approximation" }
+                            "phase": {
+                                "const": "gaussian_approximation"
+                            }
                         },
-                        "required": ["phase"]
+                        "required": [
+                            "phase"
+                        ]
                     },
                     "then": {
                         "properties": {
@@ -314,65 +511,192 @@
                 "replay_receipt"
             ],
             "properties": {
-                "cell_id": { "$ref": "#/$defs/nonempty" },
-                "family": { "enum": ["alternative", "null_both", "null_content", "null_excess"] },
-                "gate_totals": { "$ref": "#/$defs/gate_totals" },
-                "replay_receipt": { "$ref": "#/$defs/replay_receipt" }
+                "cell_id": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "family": {
+                    "enum": [
+                        "alternative",
+                        "null_both",
+                        "null_content",
+                        "null_excess"
+                    ]
+                },
+                "gate_totals": {
+                    "$ref": "#/$defs/gate_totals"
+                },
+                "replay_receipt": {
+                    "$ref": "#/$defs/replay_receipt"
+                }
             },
             "additionalProperties": false
         },
         "gate_totals": {
             "type": "object",
-            "required": ["dataset_count", "causal_pass_count"],
+            "required": [
+                "dataset_count",
+                "causal_pass_count"
+            ],
             "properties": {
-                "dataset_count": { "type": "integer", "minimum": 1, "not": { "type": "boolean" } },
-                "causal_pass_count": { "type": "integer", "minimum": 0, "not": { "type": "boolean" } }
+                "dataset_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": {
+                        "type": "boolean"
+                    }
+                },
+                "causal_pass_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "not": {
+                        "type": "boolean"
+                    }
+                }
             },
             "additionalProperties": false
         },
         "replay_receipt": {
             "type": "object",
             "required": [
-                "contract_id", "cell_id", "authority_kind", "tier_membership_sha256",
-                "grid_content_sha256", "phase", "dataset_count", "group_layout_sha256", "joint_group_labels",
-                "draw_domain", "critical_value", "chunk_size", "chunk_count", "chunks", "full_merkle_root_sha256",
+                "contract_id",
+                "cell_id",
+                "authority_kind",
+                "tier_membership_sha256",
+                "grid_content_sha256",
+                "phase",
+                "dataset_count",
+                "group_layout_sha256",
+                "joint_group_labels",
+                "draw_domain",
+                "critical_value",
+                "chunk_size",
+                "chunk_count",
+                "chunks",
+                "full_merkle_root_sha256",
                 "aggregate_gate_totals"
             ],
             "properties": {
-                "contract_id": { "const": "p0-count-replay-merkle-v2" },
-                "cell_id": { "$ref": "#/$defs/nonempty" },
-                "authority_kind": { "enum": ["synthetic_validation", "roster_bound_selection"] },
-                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
-                "phase": { "enum": ["gaussian_approximation", "full_multiplier_fallback"] },
-                "draw_domain": { "enum": ["screen", "grid", "validation"] },
-                "critical_value": { "type": "number", "minimum": 0 },
-                "dataset_count": { "type": "integer", "minimum": 1 },
-                "group_layout_sha256": { "$ref": "#/$defs/sha256" },
+                "contract_id": {
+                    "const": "p0-count-replay-merkle-v2"
+                },
+                "cell_id": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "authority_kind": {
+                    "enum": [
+                        "synthetic_validation",
+                        "roster_bound_selection",
+                        "implementation_verification"
+                    ]
+                },
+                "tier_membership_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_content_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "phase": {
+                    "enum": [
+                        "gaussian_approximation",
+                        "full_multiplier_fallback"
+                    ]
+                },
+                "draw_domain": {
+                    "enum": [
+                        "screen",
+                        "grid",
+                        "validation"
+                    ]
+                },
+                "critical_value": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "dataset_count": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "group_layout_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
                 "joint_group_labels": {
-                    "type": "array", "minItems": 2, "maxItems": 2,
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
                     "items": {
-                        "type": "array", "minItems": 1,
+                        "type": "array",
+                        "minItems": 1,
                         "items": {
                             "type": "array",
                             "items": {
-                                "type": "object", "required": ["kind", "value"],
+                                "type": "object",
+                                "required": [
+                                    "kind",
+                                    "value"
+                                ],
                                 "properties": {
-                                    "kind": { "enum": ["language", "domain", "issue_family"] },
-                                    "value": { "$ref": "#/$defs/nonempty" }
+                                    "kind": {
+                                        "enum": [
+                                            "language",
+                                            "domain",
+                                            "issue_family"
+                                        ]
+                                    },
+                                    "value": {
+                                        "$ref": "#/$defs/nonempty"
+                                    }
                                 },
                                 "additionalProperties": false
                             }
                         }
                     }
                 },
-                "full_merkle_root_sha256": { "$ref": "#/$defs/sha256" },
-                "chunk_size": { "type": "integer", "minimum": 1, "maximum": 256 },
-                "chunk_count": { "type": "integer", "minimum": 1 },
-                "chunks": { "type": "array", "minItems": 1, "items": {
-                    "type": "object", "required": ["start", "dataset_count", "causal_pass_count", "merkle_root_sha256"],
-                    "properties": {"start": {"type": "integer", "minimum": 0}, "dataset_count": {"type": "integer", "minimum": 1}, "causal_pass_count": {"type": "integer", "minimum": 0}, "merkle_root_sha256": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false}},
-                "aggregate_gate_totals": { "$ref": "#/$defs/gate_totals" }
+                "full_merkle_root_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "chunk_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 256
+                },
+                "chunk_count": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "chunks": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "start",
+                            "dataset_count",
+                            "causal_pass_count",
+                            "merkle_root_sha256"
+                        ],
+                        "properties": {
+                            "start": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "dataset_count": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "causal_pass_count": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "merkle_root_sha256": {
+                                "$ref": "#/$defs/sha256"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "aggregate_gate_totals": {
+                    "$ref": "#/$defs/gate_totals"
+                }
             },
             "additionalProperties": false
         },
@@ -401,43 +725,86 @@
                 "selection_count"
             ],
             "properties": {
-                "stage": { "const": "selection" },
-                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
-                "decision_authority": {
-                    "enum": ["synthetic_validation", "roster_bound_selection"]
+                "stage": {
+                    "const": "selection"
                 },
-                "phase": { "const": "gaussian_approximation" },
-                "generation": { "type": "integer", "minimum": 0 },
-                "roster_ref": { "$ref": "#/$defs/artifact_ref" },
-                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_ref": { "$ref": "#/$defs/artifact_ref" },
-                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
-                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
+                "authority_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "decision_authority": {
+                    "enum": [
+                        "synthetic_validation",
+                        "roster_bound_selection",
+                        "implementation_verification"
+                    ]
+                },
+                "phase": {
+                    "const": "gaussian_approximation"
+                },
+                "generation": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "roster_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "tier_membership_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "screen_topology_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "rng_contract_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_content_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
                 "kernel_id": {
                     "const": "power-worst-five-selection-v1"
                 },
                 "shard_count": {
                     "type": "integer",
                     "minimum": 1,
-                    "not": { "type": "boolean" }
+                    "not": {
+                        "type": "boolean"
+                    }
                 },
                 "parent_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/artifact_ref" }
+                    "items": {
+                        "$ref": "#/$defs/artifact_ref"
+                    }
                 },
-                "config_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
+                "config_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_fixture_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_contract": {
+                    "$ref": "#/$defs/numeric_contract"
+                },
                 "selected_cells": {
                     "type": "array",
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/nonempty" }
+                    "items": {
+                        "$ref": "#/$defs/nonempty"
+                    }
                 },
-                "candidate_count": { "type": "integer", "minimum": 0 },
-                "selection_count": { "type": "integer", "minimum": 0 }
+                "candidate_count": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "selection_count": {
+                    "type": "integer",
+                    "minimum": 0
+                }
             },
             "additionalProperties": false
         },
@@ -449,9 +816,15 @@
                 "null_false_positive_upper"
             ],
             "properties": {
-                "cell_id": { "$ref": "#/$defs/nonempty" },
-                "alternative_power_lower": { "$ref": "#/$defs/probability" },
-                "null_false_positive_upper": { "$ref": "#/$defs/probability" }
+                "cell_id": {
+                    "$ref": "#/$defs/nonempty"
+                },
+                "alternative_power_lower": {
+                    "$ref": "#/$defs/probability"
+                },
+                "null_false_positive_upper": {
+                    "$ref": "#/$defs/probability"
+                }
             },
             "additionalProperties": false
         },
@@ -470,13 +843,29 @@
                     "minimum": 0
                 },
                 "gaussian_tier_decision": {
-                    "enum": ["C120", "C160", "FEASIBILITY_NO_GO", "CONDITIONAL_ONLY"]
+                    "enum": [
+                        "C120",
+                        "C160",
+                        "FEASIBILITY_NO_GO",
+                        "CONDITIONAL_ONLY",
+                        "IMPLEMENTATION_VERIFICATION_ONLY"
+                    ]
                 },
                 "full_multiplier_tier_decision": {
-                    "enum": ["C120", "C160", "FEASIBILITY_NO_GO", "CONDITIONAL_ONLY"]
+                    "enum": [
+                        "C120",
+                        "C160",
+                        "FEASIBILITY_NO_GO",
+                        "CONDITIONAL_ONLY",
+                        "IMPLEMENTATION_VERIFICATION_ONLY"
+                    ]
                 },
-                "tier_decision_unchanged": { "type": "boolean" },
-                "passed": { "type": "boolean" }
+                "tier_decision_unchanged": {
+                    "type": "boolean"
+                },
+                "passed": {
+                    "type": "boolean"
+                }
             },
             "additionalProperties": false
         },
@@ -508,52 +897,95 @@
                 "approximation_receipt"
             ],
             "properties": {
-                "stage": { "const": "validation" },
-                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
-                "decision_authority": {
-                    "enum": ["synthetic_validation", "roster_bound_selection"]
+                "stage": {
+                    "const": "validation"
                 },
-                "phase": { "const": "gaussian_approximation" },
-                "generation": { "type": "integer", "minimum": 0 },
-                "roster_ref": { "$ref": "#/$defs/artifact_ref" },
-                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_ref": { "$ref": "#/$defs/artifact_ref" },
-                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
-                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
+                "authority_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "decision_authority": {
+                    "enum": [
+                        "synthetic_validation",
+                        "roster_bound_selection",
+                        "implementation_verification"
+                    ]
+                },
+                "phase": {
+                    "const": "gaussian_approximation"
+                },
+                "generation": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "roster_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "tier_membership_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "screen_topology_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "rng_contract_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_content_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
                 "kernel_id": {
                     "const": "power-gaussian-vs-multiplier-validation-v1"
                 },
                 "shard_count": {
                     "type": "integer",
                     "minimum": 1,
-                    "not": { "type": "boolean" }
+                    "not": {
+                        "type": "boolean"
+                    }
                 },
                 "parent_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/artifact_ref" }
+                    "items": {
+                        "$ref": "#/$defs/artifact_ref"
+                    }
                 },
-                "config_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
+                "config_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_fixture_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_contract": {
+                    "$ref": "#/$defs/numeric_contract"
+                },
                 "selected_cells": {
                     "type": "array",
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/nonempty" }
+                    "items": {
+                        "$ref": "#/$defs/nonempty"
+                    }
                 },
                 "interval_receipts": {
                     "type": "array",
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/interval_receipt" }
+                    "items": {
+                        "$ref": "#/$defs/interval_receipt"
+                    }
                 },
                 "validation_dataset_count": {
                     "type": "integer",
                     "minimum": 1
                 },
-                "raw_counts_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_receipt_ref": { "$ref": "#/$defs/artifact_ref" },
+                "raw_counts_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_receipt_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "approximation_receipt": {
                     "$ref": "#/$defs/approximation_receipt"
                 }
@@ -590,55 +1022,116 @@
                 "decision"
             ],
             "properties": {
-                "stage": { "const": "validation" },
-                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
-                "decision_authority": {
-                    "enum": ["synthetic_validation", "roster_bound_selection"]
+                "stage": {
+                    "const": "validation"
                 },
-                "phase": { "const": "full_multiplier_fallback" },
-                "generation": { "type": "integer", "minimum": 0 },
-                "roster_ref": { "$ref": "#/$defs/artifact_ref" },
-                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_ref": { "$ref": "#/$defs/artifact_ref" },
-                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
-                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
+                "authority_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "decision_authority": {
+                    "enum": [
+                        "synthetic_validation",
+                        "roster_bound_selection",
+                        "implementation_verification"
+                    ]
+                },
+                "phase": {
+                    "const": "full_multiplier_fallback"
+                },
+                "generation": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "roster_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "tier_membership_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "screen_topology_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "rng_contract_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_content_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
                 "kernel_id": {
                     "const": "power-full-grid-validation-v1"
                 },
                 "shard_count": {
                     "type": "integer",
                     "minimum": 1,
-                    "not": { "type": "boolean" }
+                    "not": {
+                        "type": "boolean"
+                    }
                 },
                 "parent_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/artifact_ref" }
+                    "items": {
+                        "$ref": "#/$defs/artifact_ref"
+                    }
                 },
-                "config_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
-                "fallback_trigger_ref": { "$ref": "#/$defs/artifact_ref" },
+                "config_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_fixture_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_contract": {
+                    "$ref": "#/$defs/numeric_contract"
+                },
+                "fallback_trigger_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "complete_cell_ids": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/nonempty" }
+                    "items": {
+                        "$ref": "#/$defs/nonempty"
+                    }
                 },
-                "expected_cell_count": { "type": "integer", "minimum": 1 },
-                "observed_cell_count": { "type": "integer", "minimum": 1 },
-                "raw_counts_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_receipt_ref": { "$ref": "#/$defs/artifact_ref" },
+                "expected_cell_count": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "observed_cell_count": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "raw_counts_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_receipt_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "selected_tier": {
                     "oneOf": [
-                        { "type": "null" },
-                        { "enum": [120, 160] }
+                        {
+                            "type": "null"
+                        },
+                        {
+                            "enum": [
+                                120,
+                                160
+                            ]
+                        }
                     ]
                 },
                 "decision": {
-                    "enum": ["GO", "NO_GO", "CONDITIONAL_ONLY"]
+                    "enum": [
+                        "GO",
+                        "NO_GO",
+                        "CONDITIONAL_ONLY",
+                        "IMPLEMENTATION_VERIFICATION_ONLY"
+                    ]
                 }
             },
             "additionalProperties": false
@@ -659,34 +1152,62 @@
                 "decision"
             ],
             "properties": {
-                "kind": { "const": "completed_chain" },
-                "selected_phase": { "const": "gaussian_approximation" },
-                "selected_generation": { "type": "integer", "minimum": 0 },
+                "kind": {
+                    "const": "completed_chain"
+                },
+                "selected_phase": {
+                    "const": "gaussian_approximation"
+                },
+                "selected_generation": {
+                    "type": "integer",
+                    "minimum": 0
+                },
                 "selected_kernel_id": {
                     "const": "power-final-gaussian-v1"
                 },
                 "selected_shard_count": {
                     "type": "integer",
                     "minimum": 1,
-                    "not": { "type": "boolean" }
+                    "not": {
+                        "type": "boolean"
+                    }
                 },
-                "selected_screen_ref": { "$ref": "#/$defs/artifact_ref" },
+                "selected_screen_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "selected_shard_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/artifact_ref" }
+                    "items": {
+                        "$ref": "#/$defs/artifact_ref"
+                    }
                 },
-                "selected_selection_ref": { "$ref": "#/$defs/artifact_ref" },
-                "selected_validation_ref": { "$ref": "#/$defs/artifact_ref" },
+                "selected_selection_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "selected_validation_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "selected_tier": {
                     "oneOf": [
-                        { "type": "null" },
-                        { "enum": [120, 160] }
+                        {
+                            "type": "null"
+                        },
+                        {
+                            "enum": [
+                                120,
+                                160
+                            ]
+                        }
                     ]
                 },
                 "decision": {
-                    "enum": ["GO", "CONDITIONAL_ONLY"]
+                    "enum": [
+                        "GO",
+                        "CONDITIONAL_ONLY",
+                        "IMPLEMENTATION_VERIFICATION_ONLY"
+                    ]
                 }
             },
             "additionalProperties": false
@@ -707,34 +1228,62 @@
                 "decision"
             ],
             "properties": {
-                "kind": { "const": "completed_chain" },
-                "selected_phase": { "const": "full_multiplier_fallback" },
-                "selected_generation": { "type": "integer", "minimum": 0 },
+                "kind": {
+                    "const": "completed_chain"
+                },
+                "selected_phase": {
+                    "const": "full_multiplier_fallback"
+                },
+                "selected_generation": {
+                    "type": "integer",
+                    "minimum": 0
+                },
                 "selected_kernel_id": {
                     "const": "power-final-full-multiplier-v1"
                 },
                 "selected_shard_count": {
                     "type": "integer",
                     "minimum": 1,
-                    "not": { "type": "boolean" }
+                    "not": {
+                        "type": "boolean"
+                    }
                 },
-                "fallback_trigger_ref": { "$ref": "#/$defs/artifact_ref" },
-                "selected_screen_ref": { "$ref": "#/$defs/artifact_ref" },
+                "fallback_trigger_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "selected_screen_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "selected_shard_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/artifact_ref" }
+                    "items": {
+                        "$ref": "#/$defs/artifact_ref"
+                    }
                 },
-                "full_grid_validation_ref": { "$ref": "#/$defs/artifact_ref" },
+                "full_grid_validation_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "selected_tier": {
                     "oneOf": [
-                        { "type": "null" },
-                        { "enum": [120, 160] }
+                        {
+                            "type": "null"
+                        },
+                        {
+                            "enum": [
+                                120,
+                                160
+                            ]
+                        }
                     ]
                 },
                 "decision": {
-                    "enum": ["GO", "CONDITIONAL_ONLY"]
+                    "enum": [
+                        "GO",
+                        "CONDITIONAL_ONLY",
+                        "IMPLEMENTATION_VERIFICATION_ONLY"
+                    ]
                 }
             },
             "additionalProperties": false
@@ -753,10 +1302,19 @@
                 "decision"
             ],
             "properties": {
-                "kind": { "const": "feasibility_no_go" },
-                "terminal_attempt_ref": { "$ref": "#/$defs/artifact_ref" },
+                "kind": {
+                    "const": "feasibility_no_go"
+                },
+                "terminal_attempt_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "terminal_stage": {
-                    "enum": ["screen", "shard", "selection", "validation"]
+                    "enum": [
+                        "screen",
+                        "shard",
+                        "selection",
+                        "validation"
+                    ]
                 },
                 "terminal_phase": {
                     "enum": [
@@ -773,7 +1331,9 @@
                 "terminal_shard_count": {
                     "type": "integer",
                     "minimum": 1,
-                    "not": { "type": "boolean" }
+                    "not": {
+                        "type": "boolean"
+                    }
                 },
                 "reason": {
                     "enum": [
@@ -785,8 +1345,12 @@
                         "power_or_type_i_gate_failed"
                     ]
                 },
-                "selected_tier": { "type": "null" },
-                "decision": { "const": "NO_GO" }
+                "selected_tier": {
+                    "type": "null"
+                },
+                "decision": {
+                    "const": "NO_GO"
+                }
             },
             "additionalProperties": false
         },
@@ -804,10 +1368,19 @@
                 "decision"
             ],
             "properties": {
-                "kind": { "const": "synthetic_validation_failed" },
-                "terminal_attempt_ref": { "$ref": "#/$defs/artifact_ref" },
+                "kind": {
+                    "const": "synthetic_validation_failed"
+                },
+                "terminal_attempt_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "terminal_stage": {
-                    "enum": ["screen", "shard", "selection", "validation"]
+                    "enum": [
+                        "screen",
+                        "shard",
+                        "selection",
+                        "validation"
+                    ]
                 },
                 "terminal_phase": {
                     "enum": [
@@ -824,7 +1397,9 @@
                 "terminal_shard_count": {
                     "type": "integer",
                     "minimum": 1,
-                    "not": { "type": "boolean" }
+                    "not": {
+                        "type": "boolean"
+                    }
                 },
                 "reason": {
                     "enum": [
@@ -836,8 +1411,12 @@
                         "synthetic_validation_gate_failed"
                     ]
                 },
-                "selected_tier": { "type": "null" },
-                "decision": { "const": "CONDITIONAL_ONLY" }
+                "selected_tier": {
+                    "type": "null"
+                },
+                "decision": {
+                    "const": "CONDITIONAL_ONLY"
+                }
             },
             "additionalProperties": false
         },
@@ -860,46 +1439,105 @@
                 "numeric_fixture_ref",
                 "numeric_contract",
                 "all_attempt_refs",
-                "finalization"
+                "finalization",
+                "kernel_id",
+                "shard_count"
             ],
             "properties": {
-                "stage": { "const": "final" },
-                "authority_ref": { "$ref": "#/$defs/artifact_ref" },
+                "stage": {
+                    "const": "final"
+                },
+                "authority_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
                 "decision_authority": {
-                    "enum": ["synthetic_validation", "roster_bound_selection"]
+                    "enum": [
+                        "synthetic_validation",
+                        "roster_bound_selection",
+                        "implementation_verification"
+                    ]
                 },
                 "phase": {
-                    "enum": ["gaussian_approximation", "full_multiplier_fallback"]
+                    "enum": [
+                        "gaussian_approximation",
+                        "full_multiplier_fallback"
+                    ]
                 },
-                "generation": { "type": "integer", "minimum": 0 },
-                "roster_ref": { "$ref": "#/$defs/artifact_ref" },
-                "tier_membership_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_ref": { "$ref": "#/$defs/artifact_ref" },
-                "screen_topology_ref": { "$ref": "#/$defs/artifact_ref" },
-                "rng_contract_sha256": { "$ref": "#/$defs/sha256" },
-                "grid_content_sha256": { "$ref": "#/$defs/sha256" },
+                "generation": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "roster_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "tier_membership_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "screen_topology_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "rng_contract_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
+                "grid_content_sha256": {
+                    "$ref": "#/$defs/sha256"
+                },
                 "parent_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/artifact_ref" }
+                    "items": {
+                        "$ref": "#/$defs/artifact_ref"
+                    }
                 },
-                "config_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_fixture_ref": { "$ref": "#/$defs/artifact_ref" },
-                "numeric_contract": { "$ref": "#/$defs/numeric_contract" },
+                "config_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_fixture_ref": {
+                    "$ref": "#/$defs/artifact_ref"
+                },
+                "numeric_contract": {
+                    "$ref": "#/$defs/numeric_contract"
+                },
                 "all_attempt_refs": {
                     "type": "array",
                     "minItems": 1,
                     "uniqueItems": true,
-                    "items": { "$ref": "#/$defs/artifact_ref" }
+                    "items": {
+                        "$ref": "#/$defs/artifact_ref"
+                    }
                 },
                 "finalization": {
                     "oneOf": [
-                        { "$ref": "#/$defs/gaussian_completed_chain" },
-                        { "$ref": "#/$defs/full_multiplier_completed_chain" },
-                        { "$ref": "#/$defs/feasibility_no_go" },
-                        { "$ref": "#/$defs/synthetic_validation_failed" }
+                        {
+                            "$ref": "#/$defs/gaussian_completed_chain"
+                        },
+                        {
+                            "$ref": "#/$defs/full_multiplier_completed_chain"
+                        },
+                        {
+                            "$ref": "#/$defs/feasibility_no_go"
+                        },
+                        {
+                            "$ref": "#/$defs/synthetic_validation_failed"
+                        }
                     ]
+                },
+                "kernel_id": {
+                    "enum": [
+                        "power-final-gaussian-v1",
+                        "power-final-full-multiplier-v1"
+                    ]
+                },
+                "shard_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "not": {
+                        "type": "boolean"
+                    }
                 }
             },
             "additionalProperties": false

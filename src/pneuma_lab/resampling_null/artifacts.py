@@ -3380,6 +3380,9 @@ def _power_grid_cell_ids(
     *,
     run_root: Path,
 ) -> list[str]:
+    authority_kind = payload.get("decision_authority")
+    if not isinstance(authority_kind, str):
+        raise RecordValidationError("power decision_authority must be exact text")
     grid_value = payload["grid_ref"]
     if not isinstance(grid_value, Mapping):
         raise RecordValidationError("power grid_ref must be an ArtifactRef")
@@ -3392,8 +3395,13 @@ def _power_grid_cell_ids(
         # The simulator derives that manifest exclusively from the closed grid
         # values; this preserves existing fixture bytes while keeping the
         # report topology deterministic.
-        from .power import frozen_power_cells
-        cell_ids = [cell.cell_id for cell in frozen_power_cells()]
+        from .power import _load_power_grid, frozen_power_cells
+        cell_ids = [
+            cell.cell_id
+            for cell in frozen_power_cells(_load_power_grid(
+                grid_ref, run_root=run_root, authority_kind=authority_kind,
+            ))
+        ]
     if not cell_ids or len(cell_ids) != len(set(cell_ids)):
         raise RecordValidationError(
             "power grid_ref must expose unique ordered cell IDs"
@@ -3701,11 +3709,68 @@ def _validate_power_attempt_topology(
                         )
 
 
+_POWER_PHASE_ORDER = {"gaussian_approximation": 0, "full_multiplier_fallback": 1}
+
+
+def _power_attempt_order(document: "_ScientificDocument") -> tuple[int, int]:
+    payload = _power_payload(document)
+    return (
+        _POWER_PHASE_ORDER[cast(str, payload["phase"])],
+        cast(int, payload["generation"]),
+    )
+
+
+def _is_terminal_power_validation(document: "_ScientificDocument") -> bool:
+    payload = _power_payload(document)
+    if payload["stage"] != "validation":
+        return False
+    if payload["phase"] == "full_multiplier_fallback":
+        return True
+    approximation = cast(Mapping[str, object], payload["approximation_receipt"])
+    return approximation["passed"] is True
+
+
+def _validate_power_transitions(nonfinal: Sequence["_ScientificDocument"]) -> None:
+    """Only a failed Gaussian validation may be followed by a later attempt."""
+    for validation in nonfinal:
+        validation_payload = _power_payload(validation)
+        if validation_payload["stage"] != "validation":
+            continue
+        validation_order = _power_attempt_order(validation)
+        later_documents = [
+            document for document in nonfinal
+            if _power_attempt_order(document) > validation_order
+        ]
+        if not later_documents:
+            continue
+        if validation_payload["phase"] == "gaussian_approximation" and not _is_terminal_power_validation(validation):
+            if any(
+                _power_payload(document)["phase"] != "full_multiplier_fallback"
+                for document in later_documents
+            ):
+                raise RecordValidationError(
+                    "a failed Gaussian approximation validation may "
+                    "transition only to full-multiplier fallback"
+                )
+            continue
+        raise RecordValidationError(
+            "a persisted terminal power validation cannot be superseded "
+            "by a later phase or generation"
+        )
+
+
 def _validate_power_identities(
     documents: Sequence[_ScientificDocument],
     *,
     run_root: Path,
+    require_final: bool = True,
 ) -> None:
+    """Validate a power namespace.
+
+    ``require_final`` is False only for the pre-final attempt ledger a
+    finalizer discovers: at that moment exactly zero finals exist by
+    construction, and demanding one would make finalization unreachable.
+    """
     # The authority blob is a referenced, closed contract rather than a
     # scientific record kind.  Validate it before trusting any report mirrors.
     # Importing here avoids a module-import cycle with the generic artifact IO.
@@ -3732,15 +3797,19 @@ def _validate_power_identities(
             authority_ref, grid_ref, topology_ref, run_root=run_root
         ).rng_contract_sha256:
             raise RecordValidationError("power rng_contract_sha256 differs from frozen grid contract")
-        if payload["grid_content_sha256"] != grid_content_sha256(grid_ref, run_root=run_root):
+        if payload["grid_content_sha256"] != grid_content_sha256(
+            grid_ref, run_root=run_root, authority_kind=authority.authority_kind,
+        ):
             raise RecordValidationError("power grid_content_sha256 differs from closed grid bytes")
         if payload["stage"] == "shard":
+            from .power import _load_power_grid
             layout = _roster_group_sizes(authority, run_root=run_root)
             joint_group_labels = _roster_joint_group_labels(authority, run_root=run_root)
+            grid = _load_power_grid(grid_ref, run_root=run_root, authority_kind=authority.authority_kind)
             for result in cast(list[Mapping[str, object]], payload["cell_results"]):
                 validate_power_execution_receipt(result, authority=authority,
                     grid_digest=cast(str, payload["grid_content_sha256"]), roster_group_sizes=layout,
-                    joint_group_labels=joint_group_labels)
+                    joint_group_labels=joint_group_labels, grid=grid)
     _validate_power_attempt_topology(documents, run_root=run_root)
     by_authority: dict[str, list[_ScientificDocument]] = {}
     for document in documents:
@@ -3774,10 +3843,13 @@ def _validate_power_identities(
                 )
             identities.add(identity)
             nonfinal.append(document)
-        if len(finals) != 1:
+        if len(finals) > 1 or (require_final and len(finals) != 1):
             raise RecordValidationError(
                 f"power authority {authority!r} requires exactly one final"
             )
+        if not finals:
+            _validate_power_transitions(nonfinal)
+            continue
         final_payload = _power_payload(finals[0])
         attempted_paths = {document.relative_path for document in nonfinal}
         all_attempt_paths = {
@@ -3802,53 +3874,9 @@ def _validate_power_identities(
             "full_multiplier_fallback": 1,
         }
 
-        def attempt_order(document: _ScientificDocument) -> tuple[int, int]:
-            payload = _power_payload(document)
-            return (
-                phase_order[cast(str, payload["phase"])],
-                cast(int, payload["generation"]),
-            )
-
-        def is_terminal_validation(document: _ScientificDocument) -> bool:
-            payload = _power_payload(document)
-            if payload["stage"] != "validation":
-                return False
-            if payload["phase"] == "full_multiplier_fallback":
-                return True
-            approximation = cast(
-                Mapping[str, object],
-                payload["approximation_receipt"],
-            )
-            return approximation["passed"] is True
-
-        for validation in nonfinal:
-            validation_payload = _power_payload(validation)
-            if validation_payload["stage"] != "validation":
-                continue
-            validation_order = attempt_order(validation)
-            later_documents = [
-                document
-                for document in nonfinal
-                if attempt_order(document) > validation_order
-            ]
-            if not later_documents:
-                continue
-            if validation_payload[
-                "phase"
-            ] == "gaussian_approximation" and not is_terminal_validation(validation):
-                if any(
-                    _power_payload(document)["phase"] != "full_multiplier_fallback"
-                    for document in later_documents
-                ):
-                    raise RecordValidationError(
-                        "a failed Gaussian approximation validation may "
-                        "transition only to full-multiplier fallback"
-                    )
-                continue
-            raise RecordValidationError(
-                "a persisted terminal power validation cannot be superseded "
-                "by a later phase or generation"
-            )
+        attempt_order = _power_attempt_order
+        is_terminal_validation = _is_terminal_power_validation
+        _validate_power_transitions(nonfinal)
 
         if finalization["kind"] == "completed_chain":
             phase = finalization["selected_phase"]
@@ -3896,6 +3924,12 @@ def _validate_power_identities(
                     raise RecordValidationError(
                         "roster-bound completed power chain requires a selected "
                         "passing C120/C160 tier and GO decision"
+                    )
+            elif authority == "implementation_verification":
+                if selected_tier is not None or decision != "IMPLEMENTATION_VERIFICATION_ONLY":
+                    raise RecordValidationError(
+                        "implementation-verification completed power chain must be "
+                        "IMPLEMENTATION_VERIFICATION_ONLY without tier-selection authority"
                     )
             elif selected_tier is not None or decision != "CONDITIONAL_ONLY":
                 raise RecordValidationError(

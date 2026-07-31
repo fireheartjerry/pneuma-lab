@@ -261,7 +261,7 @@ def seal_prefix_schedule(
             )
         expected_assignment_mode = (
             "synthetic_derangement"
-            if selection.schedule_authority == "synthetic_validation"
+            if selection.schedule_authority in {"synthetic_validation", "implementation_verification"}
             else "confirmation_lineage_matching"
         )
         if assignment_program["assignment_mode"] != expected_assignment_mode:

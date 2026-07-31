@@ -1310,8 +1310,10 @@ def _open_prefix_loop(
     """Execute S02C-c while retaining the qualified environments for S02C-d."""
 
     descriptors = _validate_descriptor_registry(authority)
-    if authority.schedule_authority != "synthetic_validation":
-        raise ValueError("prefix loop requires synthetic_validation authority")
+    if authority.schedule_authority not in {"synthetic_validation", "implementation_verification"}:
+        raise ValueError(
+            "prefix loop requires a synthetic or implementation-verification authority"
+        )
     root = Path(run_root)
     task_bytes: bytes
     program_bytes: bytes

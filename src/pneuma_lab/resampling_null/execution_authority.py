@@ -82,8 +82,10 @@ class PrefixExecutionAuthority:
         ):
             if type(getattr(self, name)) is not ArtifactRef:
                 raise TypeError(f"{name} must be an exact ArtifactRef")
-        if self.schedule_authority != "synthetic_validation":
-            raise ValueError("schedule_authority must equal 'synthetic_validation'")
+        if self.schedule_authority not in {"synthetic_validation", "implementation_verification"}:
+            raise ValueError(
+                "schedule_authority must be synthetic_validation or implementation_verification"
+            )
         if (
             type(self.source_revision_refs) is not tuple
             or not self.source_revision_refs
@@ -446,9 +448,9 @@ def _load_prefix_execution_authority_and_plan_with_reader(
             expected_role="provider_lane_plan",
         )
         schedule_authority = cast(str, schedule_payload["schedule_authority"])
-        if schedule_authority != "synthetic_validation":
+        if schedule_authority not in {"synthetic_validation", "implementation_verification"}:
             raise RecordValidationError(
-                "prefix execution requires schedule_authority 'synthetic_validation'"
+                "prefix execution requires a synthetic or implementation-verification schedule authority"
             )
         validated_plan = validate_provider_lane_plan(
             provider_plan,

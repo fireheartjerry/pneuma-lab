@@ -344,7 +344,7 @@ def require_schedulable_power_final(
         for tier in tiers:
             key = (benchmark, cast(int, tier))
             tier_counts[key] = tier_counts.get(key, 0) + 1
-        if authority == "synthetic_validation" or selected_tier in tiers:
+        if authority in {"synthetic_validation", "implementation_verification"} or selected_tier in tiers:
             selected_task_ids.append(task_id)
 
     eligibility_ref = manifest_payload.get("eligibility_manifest_ref")
@@ -357,6 +357,19 @@ def require_schedulable_power_final(
         ):
             raise RecordValidationError(
                 "synthetic completed chain does not match manifest roster authority"
+            )
+    elif authority == "implementation_verification":
+        # The miniature production-path arm.  It selects the whole synthetic
+        # fixture roster and can never carry a tier or a GO; its lineage is
+        # implementation verification, never scientific evidence.
+        if (
+            roster["roster_kind"] != "synthetic_fixture"
+            or eligibility_ref is not None
+            or selected_tier is not None
+            or finalization.get("decision") != "IMPLEMENTATION_VERIFICATION_ONLY"
+        ):
+            raise RecordValidationError(
+                "implementation-verification completed chain does not match manifest roster authority"
             )
     elif authority == "roster_bound_selection":
         if (

@@ -36,8 +36,11 @@ from .branch_controller import (
 from .errors import RecordValidationError
 from .execution_authority import load_prefix_execution_authority
 from .json_io import load_json_bytes, resolve_inside, run_root
-from .power import (finalize_synthetic_full_multiplier_report, finalize_synthetic_power_report, finalize_synthetic_validation_failed,
-                    load_power_config, seal_roster_bound_power_authority,
+from .power import (finalize_implementation_verification_full_multiplier_report,
+                    finalize_implementation_verification_power_report,
+                    finalize_synthetic_full_multiplier_report, finalize_synthetic_power_report, finalize_synthetic_validation_failed,
+                    load_power_config, seal_implementation_verification_power_authority,
+                    seal_roster_bound_power_authority,
                     seal_synthetic_power_authority, screen_power_grid,
                     select_validation_cells, simulate_power_shard,
                     validate_gaussian_approximation, validate_full_multiplier_fallback,
@@ -326,6 +329,9 @@ def _parser() -> argparse.ArgumentParser:
     selftest_stage = selftest.add_mutually_exclusive_group()
     selftest_stage.add_argument("--stop-after-study", action="store_true")
     selftest_stage.add_argument("--resume-after-power")
+    selftest.add_argument("--profile", choices=("canonical", "implementation-verification"), default="canonical")
+    selftest.add_argument("--schedule-seed-file")
+    selftest.add_argument("--assignment-key-file")
     study = top.add_parser("study").add_subparsers(dest="study_command", required=True)
     seal = study.add_parser("seal", aliases=["create"])
     for name in ("study", "tasks", "roster", "assignment_program", "provider_lane_plan", "branch_program_registry", "storage_policy_contract", "power_grid", "power_screen_topology", "tokenizer", "packet_template", "packet_policy", "pad_unit_set", "required_kinds"):
@@ -338,7 +344,7 @@ def _parser() -> argparse.ArgumentParser:
     check.add_argument("--study", required=True)
     power = top.add_parser("power").add_subparsers(dest="power_command", required=True)
     authority = power.add_parser("authority").add_subparsers(dest="authority_kind", required=True)
-    for kind in ("synthetic", "roster-bound"):
+    for kind in ("synthetic", "roster-bound", "implementation-verification"):
         p = authority.add_parser(kind); p.add_argument("--study", required=True); p.add_argument("--out", required=True)
     for name in ("screen", "simulate", "select-validation", "validate", "validate-fallback", "finalize"):
         p = power.add_parser(name)
@@ -353,7 +359,7 @@ def _parser() -> argparse.ArgumentParser:
             p.add_argument("--shard-prefix", required=True)
             if name == "validate": p.add_argument("--selection", required=True)
         else:
-            p.add_argument("--selected-screen"); p.add_argument("--selected-shard-prefix"); p.add_argument("--selected-selection"); p.add_argument("--selected-validation"); p.add_argument("--fallback-validation"); p.add_argument("--completed-gaussian", action="store_true"); p.add_argument("--completed-full-multiplier", action="store_true"); p.add_argument("--synthetic-validation-failed", action="store_true"); p.add_argument("--terminal-attempt"); p.add_argument("--terminal-stage", choices=("screen", "shard", "selection", "validation")); p.add_argument("--reason", choices=("gaussian_screen_exhausted", "full_multiplier_screen_exhausted", "numeric_fixture_failed", "runtime_bound_exceeded", "attempt_incomplete", "synthetic_validation_gate_failed"))
+            p.add_argument("--selected-screen"); p.add_argument("--selected-shard-prefix"); p.add_argument("--selected-selection"); p.add_argument("--selected-validation"); p.add_argument("--fallback-validation"); p.add_argument("--completed-gaussian", action="store_true"); p.add_argument("--completed-implementation-verification", action="store_true"); p.add_argument("--completed-implementation-verification-fallback", action="store_true"); p.add_argument("--completed-full-multiplier", action="store_true"); p.add_argument("--synthetic-validation-failed", action="store_true"); p.add_argument("--terminal-attempt"); p.add_argument("--terminal-stage", choices=("screen", "shard", "selection", "validation")); p.add_argument("--reason", choices=("gaussian_screen_exhausted", "full_multiplier_screen_exhausted", "numeric_fixture_failed", "runtime_bound_exceeded", "attempt_incomplete", "synthetic_validation_gate_failed"))
     schedule = top.add_parser("schedule").add_subparsers(dest="schedule_command", required=True)
     schedule_seal = schedule.add_parser("seal")
     schedule_seal.add_argument("--study", required=True); schedule_seal.add_argument("--power-final", required=True)
@@ -838,7 +844,18 @@ def _selftest(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
             raise RecordValidationError(
                 "study-only selftest requires an empty scientific root"
             )
-        return seal_synthetic_selftest_study(root)
+        seed = None
+        if args.schedule_seed_file:
+            seed = _schedule_seed(_external_file(args.schedule_seed_file, root=root, field="schedule seed file"))
+        key = None
+        if args.assignment_key_file:
+            key = _external_file(args.assignment_key_file, root=root, field="assignment key file").read_bytes()
+            if len(key) != 32:
+                raise RecordValidationError("assignment master key must be exactly 32 bytes")
+        return seal_synthetic_selftest_study(
+            root, profile=args.profile.replace("-", "_"),
+            schedule_seed=seed, assignment_master_key=key,
+        )
     if args.resume_after_power:
         _require_resumable_selftest(root, args.resume_after_power)
         raise RecordValidationError(
@@ -859,7 +876,11 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
     if args.command == "power":
         if args.power_command == "authority":
             manifest = _ref(root, args.study, "study_manifest")
-            fn = seal_synthetic_power_authority if args.authority_kind == "synthetic" else seal_roster_bound_power_authority
+            fn = {
+                "synthetic": seal_synthetic_power_authority,
+                "roster-bound": seal_roster_bound_power_authority,
+                "implementation-verification": seal_implementation_verification_power_authority,
+            }[args.authority_kind]
             return fn(manifest, run_root=root, out=_out(root, args.out))
         config = _config(args, root)
         if args.power_command == "screen":
@@ -869,12 +890,20 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
         if args.power_command == "select-validation": return select_validation_cells(_ref(root, args.screen, "power_report"), _shards(root, args.shard_prefix), config, run_root=root, out=_out(root, args.out))
         if args.power_command == "validate": return validate_gaussian_approximation(_ref(root, args.screen, "power_report"), _shards(root, args.shard_prefix), _ref(root, args.selection, "power_report"), config, run_root=root, out=_out(root, args.out))
         if args.power_command == "validate-fallback": return validate_full_multiplier_fallback(_ref(root, args.screen, "power_report"), _shards(root, args.shard_prefix), config, run_root=root, out=_out(root, args.out))
-        selected = sum(bool(x) for x in (args.completed_gaussian, args.completed_full_multiplier, args.synthetic_validation_failed))
+        selected = sum(bool(x) for x in (args.completed_gaussian, args.completed_implementation_verification, args.completed_implementation_verification_fallback, args.completed_full_multiplier, args.synthetic_validation_failed))
         if selected != 1: raise RecordValidationError("finalize requires exactly one closed finalization arm")
         if args.completed_gaussian:
             if not all((args.selected_screen, args.selected_shard_prefix, args.selected_selection, args.selected_validation)):
                 raise RecordValidationError("Gaussian final requires all selected screen, shard, selection, and validation refs")
             return finalize_synthetic_power_report(_ref(root,args.selected_screen,"power_report"), _shards(root,args.selected_shard_prefix), _ref(root,args.selected_selection,"power_report"), _ref(root,args.selected_validation,"power_report"), config, run_root=root,out=_out(root,args.out))
+        if args.completed_implementation_verification:
+            if not all((args.selected_screen, args.selected_shard_prefix, args.selected_selection, args.selected_validation)):
+                raise RecordValidationError("implementation-verification final requires all selected screen, shard, selection, and validation refs")
+            return finalize_implementation_verification_power_report(_ref(root,args.selected_screen,"power_report"), _shards(root,args.selected_shard_prefix), _ref(root,args.selected_selection,"power_report"), _ref(root,args.selected_validation,"power_report"), config, run_root=root,out=_out(root,args.out))
+        if args.completed_implementation_verification_fallback:
+            if not all((args.selected_screen, args.selected_shard_prefix, args.fallback_validation)):
+                raise RecordValidationError("implementation-verification fallback final requires selected screen, shard, and fallback validation refs")
+            return finalize_implementation_verification_full_multiplier_report(_ref(root,args.selected_screen,"power_report"), _shards(root,args.selected_shard_prefix), _ref(root,args.fallback_validation,"power_report"), config, run_root=root,out=_out(root,args.out))
         if args.completed_full_multiplier:
             if not all((args.selected_screen, args.selected_shard_prefix, args.fallback_validation)):
                 raise RecordValidationError("full-multiplier final requires selected screen, shard, and fallback validation refs")
