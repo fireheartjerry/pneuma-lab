@@ -174,7 +174,7 @@ def _prefix_task_view(
         run_root=run_root,
     )
     verifier_ref = _artifact_ref(
-        verifier.get("verifier_artifact_ref"),
+        verifier.get("verifier_features_ref"),
         field=f"prefix verifier {task_id}",
     )
     features = _load_object_ref(
@@ -602,7 +602,10 @@ def seal_branch_assignment(
                 "assignment requires absence of ledger and later records: "
                 + ", ".join(sorted(later))
             )
-        if schedule_payload.get("schedule_authority") != "synthetic_validation":
+        if schedule_payload.get("schedule_authority") not in {
+            "synthetic_validation",
+            "implementation_verification",
+        }:
             raise RecordValidationError(
                 "confirmation assignment backend is unavailable"
             )
@@ -676,7 +679,8 @@ def seal_branch_assignment(
             run_root=root,
         )
         if (
-            selection.schedule_authority != "synthetic_validation"
+            selection.schedule_authority
+            not in {"synthetic_validation", "implementation_verification"}
             or schedule_payload.get("selected_tier") is not None
         ):
             raise RecordValidationError(

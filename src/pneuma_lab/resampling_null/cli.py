@@ -206,7 +206,11 @@ def _candidate_subprocess(frozen_schedule: list[dict[str, object]], closed_outco
             env={"PATH": "/usr/bin:/bin", "PYTHONUTF8": "1"}, check=False,
         )
     if completed.returncode != 0:
-        raise RecordValidationError("isolated projection candidate builder failed")
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise RecordValidationError(
+            "isolated projection candidate builder failed"
+            + (f": {detail[:1200]}" if detail else "")
+        )
     try:
         rows = json.loads(completed.stdout)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -1034,7 +1038,23 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | None:
             task_id = payload.get("task_id")
             if not isinstance(task_id, str) or task_id in outcomes:
                 raise RecordValidationError("task blocks have duplicate task coverage")
-            outcomes[task_id] = payload.get("slot_outcomes")
+            slot_outcomes = payload.get("slot_outcomes")
+            if not isinstance(slot_outcomes, list) or len(slot_outcomes) != 4:
+                raise RecordValidationError("task block slot outcomes are malformed")
+            blinded_outcomes: list[dict[str, object]] = []
+            for outcome in slot_outcomes:
+                if not isinstance(outcome, dict):
+                    raise RecordValidationError("task block slot outcome is malformed")
+                blinded_outcomes.append(
+                    {
+                        "success": outcome.get("success"),
+                        "prefix_success": outcome.get("prefix_success"),
+                        "partial_reward": outcome.get("partial_reward"),
+                        "infrastructure_failure": outcome.get("infrastructure_failure"),
+                        "counters": outcome.get("counters"),
+                    }
+                )
+            outcomes[task_id] = blinded_outcomes
             refs_by_task[task_id] = ref
             for row in frozen:
                 if row["task_id"] == task_id:

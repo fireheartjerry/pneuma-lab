@@ -164,14 +164,18 @@ def seal_synthetic_selftest_study(
         "tokenizer": write_json(
             external / "tokenizer.json",
             {
-                "record_kind": "synthetic_tokenizer_asset_v1",
+                "record_kind": "synthetic_report_tokenizer_v1",
                 "schema_version": "1",
-                "tokenizer_id": "fixture-v1",
+                "algorithm": "unicode_whitespace_v1",
             },
         ),
         "revision": write_json(
             external / "revision.json",
-            {"revision": "fixture-v1"},
+            {
+                "record_kind": "synthetic_assignment_normalizer_v1",
+                "schema_version": "1",
+                "algorithm": "closed_fixture_components_v1",
+            },
         ),
     }
     for name in (
@@ -527,7 +531,7 @@ def seal_synthetic_selftest_study(
     )
     task_lanes = []
     branch_registry_tasks = []
-    for fixture_task in tasks:
+    for task_index, fixture_task in enumerate(tasks):
         task_id = fixture_task["task_id"]
         task_common = {
             "schema_version": "1",
@@ -536,6 +540,16 @@ def seal_synthetic_selftest_study(
             "build_id": "fixture-build",
             "source_revision_refs": [loop_source_ref],
         }
+        task_success = task_index % 2
+        task_grade_ref = authority_asset(
+            f"branch-grade-{task_id}.json",
+            {
+                "success": task_success,
+                "partial_reward": float(task_success),
+                "infrastructure_failure": False,
+            },
+            role="synthetic_grade_result",
+        )
         branch_program_ref = authority_asset(
             f"branch-program-{task_id}.json",
             {
@@ -547,9 +561,9 @@ def seal_synthetic_selftest_study(
                 "provider_transcript": [],
                 "tool_observations": [],
                 "grade_result": {
-                    "evidence_ref": synthetic_grade_ref,
-                    "success": 0,
-                    "partial_reward": 0.0,
+                    "evidence_ref": task_grade_ref,
+                    "success": task_success,
+                    "partial_reward": float(task_success),
                     "infrastructure_failure": False,
                 },
                 "verifier_result": {

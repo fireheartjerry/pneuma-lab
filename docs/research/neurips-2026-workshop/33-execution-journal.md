@@ -3129,3 +3129,34 @@ The next event after the archived migration boundary is appended below.
   from another fresh implementation-verification root. Defer broad hostile
   campaigns and exhaustive forensic sweeps to the dedicated pre-experiment
   launch review.
+
+### EJ-20260730-implementation-verification-lineage-follow-up
+
+- **Scope/authority:** Used only fresh `implementation_verification` roots and
+  the miniature frozen fixture grid. No canonical P0/full-grid screen, model
+  or provider call, cloud resource, paid compute, or admissible scientific
+  record was used.
+- **Focused repairs:** Added the controller-owned verifier source/report/
+  feature chain while preserving raw verifier execution provenance; declared
+  its receipt/schema edge; repaired Linux-safe isolated projection shaping and
+  trusted reconstruction; corrected analysis-freeze tuple unpacking; and
+  supplied a distinct external analysis fixture. These were execution/contract
+  continuity repairs only.
+- **Latest receipts:** Fresh root
+  `build/research/neurips-2026-workshop/step4a-iv-20260730-203436` produced
+  power final `f6073ab0a88625eb0dbe936be31f6cd9b5e87b27e98f71d5fbdad6a1cd8938e2`,
+  schedule `79a09dfb8121f7b820d62ad7a1ad56eeca753fa569f529d9f933f7c6fe092c31`,
+  prefix index `337e997ae6002a1ea5067157e11b9eba275f0473814f76e7961bba4b83409205`,
+  assignment `5c9e64520c2ca8df2ad840df9cfe6be603d083cd4e263503a7fbb37c9683c275`,
+  packet index `619107c1651702b599e4be6456250b4b0f7d68fac0d4ba110daf91d6bef36819`,
+  freeze `8e3fa835a107a5c4a8753270f85e642f5d89995212a9f2dec4cdc29759cf258a`,
+  and projection `2f10c83e119db898bc9e103eb246a6ad6da539930a3001029678d3d48f4ba735`.
+- **Terminal outcome:** Isolated branch execution and blinded projection
+  completed. Gated unblind reached the registered analysis builder, which
+  failed closed on the finite-critical-value precondition because the
+  no-trigger miniature fixture has zero outcome variance. Step 4A **did not
+  reach registered analysis**. This is implementation verification only and
+  produces no scientific evidence or P0 result.
+- **Checks:** Focused CLI contract tests passed; broad adversarial campaigns
+  and exhaustive forensic sweeps were intentionally deferred to the dedicated
+  pre-experiment launch review.

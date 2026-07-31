@@ -585,9 +585,13 @@ def _load_candidate_graph(
                 field=ref.role,
                 expected_kind=expected,
             )
-            traversal.scientific_refs.add(ref)
+            if ref.role != "power_report":
+                traversal.scientific_refs.add(ref)
             payload = bound.payload
-            nested = walk_artifact_refs(record.value)
+            # The schedule seal already validated the power final's complete
+            # upstream ancestry. Prefix-index replay binds that final but does
+            # not reopen the separate power-contract namespace.
+            nested = () if ref.role == "power_report" else walk_artifact_refs(record.value)
         traversal.payloads[ref] = payload
         traversal.nested[ref] = nested
         _record_physical(

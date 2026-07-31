@@ -567,6 +567,7 @@ class FrozenVerifierReceipt:
     schedule_sha256: str
     snapshot_ref: ArtifactRef
     verifier_artifact_ref: ArtifactRef
+    verifier_features_ref: ArtifactRef
     finding_count: int
 
     def __post_init__(self) -> None:
@@ -576,6 +577,8 @@ class FrozenVerifierReceipt:
             raise TypeError("snapshot_ref must be ArtifactRef")
         if not isinstance(self.verifier_artifact_ref, ArtifactRef):
             raise TypeError("verifier_artifact_ref must be ArtifactRef")
+        if not isinstance(self.verifier_features_ref, ArtifactRef):
+            raise TypeError("verifier_features_ref must be ArtifactRef")
         _require_exact_nonnegative_int(self.finding_count, "finding_count")
 
 

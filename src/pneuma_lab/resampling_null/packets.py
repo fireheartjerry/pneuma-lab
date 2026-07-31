@@ -1769,13 +1769,13 @@ def audit_and_seal_packet_index(
             raise PacketInvalid("triggered packet donor is outside sealed prefix")
         focal_verifier = _artifact_ref(
             cast(dict[str, object], prefix_row["verifier_receipt"])[
-                "verifier_artifact_ref"
+                "verifier_features_ref"
             ],
             field="focal verifier ref",
         )
         donor_verifier = _artifact_ref(
             cast(dict[str, object], donor_prefix["verifier_receipt"])[
-                "verifier_artifact_ref"
+                "verifier_features_ref"
             ],
             field="donor verifier ref",
         )

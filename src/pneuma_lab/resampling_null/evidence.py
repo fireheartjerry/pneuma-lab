@@ -1682,6 +1682,11 @@ class FrozenPrefixReceipt:
             "verifier_receipt.verifier_artifact_ref",
             role="verifier_evidence",
         )
+        _controller_ref(
+            self.verifier_receipt.verifier_features_ref,
+            "verifier_receipt.verifier_features_ref",
+            role="verifier_feature",
+        )
         if (
             self.verifier_receipt.task_id != self.task_id
             or self.verifier_receipt.schedule_sha256 != self.schedule_sha256

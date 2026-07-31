@@ -84,7 +84,22 @@ def _seal_blinded_projection_locked(
         payload = cast(Mapping[str, object], block.value["payload"])
         slots = cast(list[Mapping[str, object]], entry["slots"])
         frozen.append({"task_id": task_id, "prefix_success": payload["prefix_success"], "slot_ids": [slot["slot_id"] for slot in slots]})
-        outcomes[task_id] = cast(list[Mapping[str, object]], payload["slot_outcomes"])
+        raw_outcomes = payload["slot_outcomes"]
+        if not isinstance(raw_outcomes, list) or len(raw_outcomes) != 4:
+            raise RecordValidationError("task block slot outcomes are malformed")
+        outcomes[task_id] = [
+            {
+                "success": outcome.get("success"),
+                "prefix_success": outcome.get("prefix_success"),
+                "partial_reward": outcome.get("partial_reward"),
+                "infrastructure_failure": outcome.get("infrastructure_failure"),
+                "counters": outcome.get("counters"),
+            }
+            for outcome in raw_outcomes
+            if isinstance(outcome, Mapping)
+        ]
+        if len(outcomes[task_id]) != 4:
+            raise RecordValidationError("task block slot outcomes are malformed")
     rebuilt_candidate = build_candidate(frozen, outcomes)
     if (
         type(candidate) is not ProjectionCandidate

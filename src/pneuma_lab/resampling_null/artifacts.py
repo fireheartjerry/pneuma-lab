@@ -238,6 +238,11 @@ def _decode_prefix_receipt_record(
                     verifier["verifier_artifact_ref"],
                     "verifier_evidence",
                 ),
+                verifier_features_ref=ref(
+                    "verifier_receipt.verifier_features_ref",
+                    verifier["verifier_features_ref"],
+                    "verifier_feature",
+                ),
                 finding_count=cast(int, verifier["finding_count"]),
             ),
             verifier_execution_receipt_ref=ref(
@@ -3110,10 +3115,17 @@ def _validate_scientific_ancestry(
                 schedule_entry["slots"],
             )
             schedule_slot_ids = [cast(str, slot["slot_id"]) for slot in schedule_slots]
-            outcomes = cast(
-                list[Mapping[str, object]],
-                task_payload["slot_outcomes"],
-            )
+            raw_outcomes = cast(list[Mapping[str, object]], task_payload["slot_outcomes"])
+            outcomes = [
+                {
+                    "success": outcome.get("success"),
+                    "prefix_success": outcome.get("prefix_success"),
+                    "partial_reward": outcome.get("partial_reward"),
+                    "infrastructure_failure": outcome.get("infrastructure_failure"),
+                    "counters": outcome.get("counters"),
+                }
+                for outcome in raw_outcomes
+            ]
 
             reconstructed = build_candidate(
                 [{
@@ -3155,7 +3167,19 @@ def _validate_scientific_ancestry(
                 for task_id in schedule_task_ids
             ],
             {
-                task_id: cast(list[Mapping[str, object]], _power_payload(task_by_id[task_id])["slot_outcomes"])
+                task_id: [
+                    {
+                        "success": outcome.get("success"),
+                        "prefix_success": outcome.get("prefix_success"),
+                        "partial_reward": outcome.get("partial_reward"),
+                        "infrastructure_failure": outcome.get("infrastructure_failure"),
+                        "counters": outcome.get("counters"),
+                    }
+                    for outcome in cast(
+                        list[Mapping[str, object]],
+                        _power_payload(task_by_id[task_id])["slot_outcomes"],
+                    )
+                ]
                 for task_id in schedule_task_ids
             },
         )

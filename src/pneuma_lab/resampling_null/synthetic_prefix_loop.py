@@ -2314,6 +2314,32 @@ _CONTROLLER_JSON_FIELDS: Mapping[str, frozenset[str]] = MappingProxyType(
                 "schema_version",
             }
         ),
+        "verifier_source": frozenset(
+            {
+                "record_kind",
+                "schema_version",
+                "task_id",
+                "benchmark",
+                "components",
+                "objective_findings",
+            }
+        ),
+        "verifier_report": frozenset(
+            {"record_kind", "schema_version", "task_id", "report_text"}
+        ),
+        "verifier_feature": frozenset(
+            {
+                "record_kind",
+                "schema_version",
+                "task_id",
+                "benchmark",
+                "source_verifier_ref",
+                "source_report_ref",
+                "components",
+                "objective_finding_count",
+                "normalized_report_token_count",
+            }
+        ),
     }
 )
 
@@ -2896,6 +2922,8 @@ AUTHORITY_ASSET_DECODER_BY_ROLE: Mapping[
                     "required_document_kinds",
                     "roster",
                     "storage_policy_contract",
+                    "synthetic_verifier_source",
+                    "synthetic_verifier_report",
                 )
             },
         }
@@ -3835,6 +3863,55 @@ def _finalize_prefix_candidate(
             payload=verifier_execution_receipt_bytes(verifier_execution),
             media_type="application/json",
         )
+        verifier_components = [
+            {"kind": "fixture", "value": "verifier", "count": 1}
+        ]
+        verifier_source_ref = store.write(
+            role="verifier_source",
+            payload=canonical_json_bytes(
+                {
+                    "record_kind": "synthetic_verifier_source_v1",
+                    "schema_version": "1",
+                    "task_id": authority.task_schedule.task.task_id,
+                    "benchmark": authority.task_schedule.task.benchmark,
+                    "components": verifier_components,
+                    "objective_findings": [],
+                },
+                indent=None,
+            ),
+            media_type="application/json",
+        )
+        verifier_report_ref = store.write(
+            role="verifier_report",
+            payload=canonical_json_bytes(
+                {
+                    "record_kind": "synthetic_verifier_report_v1",
+                    "schema_version": "1",
+                    "task_id": authority.task_schedule.task.task_id,
+                    "report_text": "",
+                },
+                indent=None,
+            ),
+            media_type="application/json",
+        )
+        verifier_feature_ref = store.write(
+            role="verifier_feature",
+            payload=canonical_json_bytes(
+                {
+                    "record_kind": "assignment_verifier_features_v1",
+                    "schema_version": "1",
+                    "task_id": authority.task_schedule.task.task_id,
+                    "benchmark": authority.task_schedule.task.benchmark,
+                    "source_verifier_ref": asdict(verifier_source_ref),
+                    "source_report_ref": asdict(verifier_report_ref),
+                    "components": verifier_components,
+                    "objective_finding_count": 0,
+                    "normalized_report_token_count": 0,
+                },
+                indent=None,
+            ),
+            media_type="application/json",
+        )
         _assert_pairwise_isolated(tuple(fleet.instances))
         y0_grade = _scientific_y0_grade(
             trigger_reason=opened.trigger_reason,
@@ -3847,6 +3924,7 @@ def _finalize_prefix_candidate(
             schedule_sha256=authority.schedule_ref.sha256,
             snapshot_ref=snapshot_ref,
             verifier_artifact_ref=verifier_evidence_ref,
+            verifier_features_ref=verifier_feature_ref,
             finding_count=verifier_evidence.finding_count,
         )
         call_seeds = tuple(

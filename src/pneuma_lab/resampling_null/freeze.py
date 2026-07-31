@@ -182,7 +182,7 @@ def verify_analysis_freeze(
         raise RecordValidationError("analysis freeze named input set differs")
     for name, path in inputs.items():
         ref = frozen_by_name[name]
-        frozen_bytes = _read_ref(ArtifactRef(**dict(ref)), run_root=run_root)
+        _, frozen_bytes = _read_ref(ArtifactRef(**dict(ref)), run_root=run_root)
         if Path(path).read_bytes() != frozen_bytes:
             raise RecordValidationError(
                 f"analysis freeze named input {name!r} differs"
@@ -193,7 +193,7 @@ def verify_analysis_freeze(
     ):
         if not isinstance(ref, Mapping):
             raise RecordValidationError(f"analysis freeze {label} ref is malformed")
-        frozen_bytes = _read_ref(ArtifactRef(**dict(ref)), run_root=run_root)
+        _, frozen_bytes = _read_ref(ArtifactRef(**dict(ref)), run_root=run_root)
         if Path(path).read_bytes() != frozen_bytes:
             raise RecordValidationError(f"analysis freeze {label} differs")
 

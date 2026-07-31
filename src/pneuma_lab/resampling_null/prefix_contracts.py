@@ -65,6 +65,9 @@ CONTROLLER_ROLE_MEDIA: Mapping[str, str] = MappingProxyType(
         "branch_work_order": "application/json",
         "branch_attempt": "application/json",
         "branch_adverse_event": "application/json",
+        "verifier_source": "application/json",
+        "verifier_report": "application/json",
+        "verifier_feature": "application/json",
     }
 )
 
@@ -103,6 +106,8 @@ AUTHORITY_ASSET_ROLE_MEDIA: Mapping[str, str] = MappingProxyType(
         "synthetic_tool_result": "application/json",
         "synthetic_grade_result": "application/json",
         "synthetic_verifier_result": "application/json",
+        "synthetic_verifier_source": "application/json",
+        "synthetic_verifier_report": "application/json",
         "clock_source": "application/json",
         "watchdog_source": "application/json",
         "isolation_qualification": "application/json",
@@ -1159,6 +1164,22 @@ def load_promoted_authority_asset(
                 nested_refs=(nested,),
             )
         raise ValueError("synthetic deep authority variant is invalid")
+    if role == "tokenizer" and isinstance(value, Mapping):
+        report_tokenizer = _closed(
+            value,
+            ("record_kind", "schema_version", "algorithm"),
+            "synthetic report tokenizer",
+        )
+        if (
+            report_tokenizer["record_kind"] == "synthetic_report_tokenizer_v1"
+            and report_tokenizer["schema_version"] == "1"
+            and report_tokenizer["algorithm"] == "unicode_whitespace_v1"
+        ):
+            return PromotedAuthorityAsset(
+                role=role,
+                record_kind="synthetic_report_tokenizer_v1",
+                value="unicode_whitespace_v1",
+            )
     specification = _PROMOTED_AUTHORITY_KIND_AND_FIELD.get(role)
     if specification is None:
         raise ValueError("role is not a promoted synthetic authority role")

@@ -194,6 +194,17 @@
                 }
             ]
         },
+        "verifier_feature_ref": {
+            "allOf": [
+                { "$ref": "#/$defs/artifact_ref" },
+                {
+                    "properties": {
+                        "role": { "const": "verifier_feature" },
+                        "media_type": { "const": "application/json" }
+                    }
+                }
+            ]
+        },
         "grade_restore_receipt_ref": {
             "allOf": [
                 { "$ref": "#/$defs/artifact_ref" },
@@ -306,6 +317,7 @@
                 "schedule_sha256",
                 "snapshot_ref",
                 "verifier_artifact_ref",
+                "verifier_features_ref",
                 "finding_count"
             ],
             "properties": {
@@ -314,6 +326,9 @@
                 "snapshot_ref": { "$ref": "#/$defs/composite_snapshot_ref" },
                 "verifier_artifact_ref": {
                     "$ref": "#/$defs/verifier_evidence_ref"
+                },
+                "verifier_features_ref": {
+                    "$ref": "#/$defs/verifier_feature_ref"
                 },
                 "finding_count": { "type": "integer", "minimum": 0 }
             },
