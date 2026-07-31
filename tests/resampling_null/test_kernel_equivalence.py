@@ -24,6 +24,7 @@ from pneuma_lab.resampling_null.analysis import (
 from pneuma_lab.resampling_null.assignment import _TEXT_CACHE_MAX_LENGTH, _text_payload
 from pneuma_lab.resampling_null.errors import RecordValidationError
 from pneuma_lab.resampling_null.power import (
+    _gauss_hermite_nodes_weights,
     _philox_draw,
     _strict_sha256,
     bernoulli_pattern_probabilities,
@@ -182,6 +183,17 @@ def test_strict_sha256_rejects_non_lowercase_hex(value: object) -> None:
 
 def test_strict_sha256_accepts_the_registered_form() -> None:
     assert _strict_sha256(_DIGEST, field="digest") == _DIGEST
+
+
+def test_cached_quadrature_cannot_be_made_writable() -> None:
+    """A caller must not be able to perturb the cached frozen quadrature rule."""
+    nodes, weights = _gauss_hermite_nodes_weights(96)
+    for array in (nodes, weights):
+        assert not array.flags.writeable
+        with pytest.raises(ValueError):
+            array.setflags(write=True)
+    again, _ = _gauss_hermite_nodes_weights(96)
+    assert np.array_equal(again, nodes)
 
 
 def test_pattern_probability_memoization_is_value_stable() -> None:

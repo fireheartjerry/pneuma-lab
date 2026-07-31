@@ -135,12 +135,23 @@ def _phi(value: float) -> float:
 
 
 @lru_cache(maxsize=None)
-def _gauss_hermite_nodes_weights(order: int) -> tuple[np.ndarray, np.ndarray]:
+def _gauss_hermite_base_rule(order: int) -> tuple[np.ndarray, np.ndarray]:
     """Cache the frozen quadrature rule; its eigen-solve is input-independent."""
     nodes, weights = np.polynomial.hermite.hermgauss(order)
     nodes.setflags(write=False)
     weights.setflags(write=False)
     return nodes, weights
+
+
+def _gauss_hermite_nodes_weights(order: int) -> tuple[np.ndarray, np.ndarray]:
+    """Hand out read-only views over the cached rule.
+
+    A caller cannot re-enable writes on a view whose base is read-only, so the
+    cached quadrature cannot be perturbed into producing a different pattern
+    table than a freshly solved rule would.
+    """
+    nodes, weights = _gauss_hermite_base_rule(order)
+    return nodes.view(), weights.view()
 
 
 def bernoulli_pattern_probabilities(
