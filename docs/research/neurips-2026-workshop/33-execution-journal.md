@@ -4173,3 +4173,16 @@ The next event after the archived migration boundary is appended below.
 - Focused signing/admission tests, Ruff, status coherence, digest parity, and
   whitespace checks passed. No private key was accessed; no signature, payload,
   provider action, reservation, or spend occurred.
+
+### Cross-platform payload handoff bundle
+
+- `git archive` over immutable commit `e7b910e` produced a 4,933,610-byte ZIP
+  with 1,166 relative POSIX entries. A second independent archive reproduction
+  was byte-identical.
+- Native Windows and WSL2 Ubuntu independently computed SHA-256
+  `03e1ff2d5d2236867a3cab4eceb54492fc85028d0075368256cef51afdfe7550`.
+  This closes local checkout/CRLF portability for the handoff bytes; it does not
+  substitute for the required AWS-side digest check.
+- Evidence is sealed in
+  `evidence/step5b-payload-handoff-bundle-20260801.json`. No signature, payload,
+  provider mutation, reservation, or spend occurred.

@@ -994,3 +994,9 @@ The deterministic signing ceremony is implemented at
 pricing, or lifecycle bindings and references pending immutable ledger rows
 CL-045/CL-046. Invoking it with the registered private key remains the explicit
 authorization boundary.
+
+The committed runtime at `e7b910e` also reproduces as a 4,933,610-byte Git
+archive with SHA-256 `03e1ff2d5d2236867a3cab4eceb54492fc85028d0075368256cef51afdfe7550`.
+Native Windows and WSL2 Linux independently produced the same digest; all 1,166
+entries are relative POSIX paths. AWS-side digest verification remains required
+before signing or execution.
