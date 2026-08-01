@@ -4422,3 +4422,20 @@ The next event after the archived migration boundary is appended below.
 - The public key is now enumerated as active registry key
   `pneuma-kms-20260801-r1`. No private signing key left KMS; the bootstrap IAM
   access key was handled only inside the VPS and was never printed.
+
+### EJ-20260801-step7b-builder-network
+
+- **Scope:** one zero-cost, KMS-authorized prerequisite network action for the
+  Step 7B image builder. The exact signed action `step7b-builder-network-001`
+  created security group `sg-0c3acb5ff13aebea2` in the default VPC.
+- **Verification:** an independent fresh provider read confirms zero ingress and
+  exactly three egress rules: TCP/UDP 53 to `172.31.0.2/32` and TCP 443 to the
+  public internet. No builder instance exists.
+- **Correction:** the original read-only observation used `IpPermissions` for
+  both ingress and egress and therefore incorrectly reported the predecessor
+  group as egress-empty. A fresh `IpPermissionsEgress` query showed it was
+  already correct. The signed authority is immutable; this append-only receipt
+  preserves the mistake and retains the newly created exact group for the
+  successor builder rather than silently reusing an unbound predecessor.
+- **Boundary:** no image pull/build/SBOM, model download, GPU use, benchmark,
+  experiment, or billable compute occurred.
