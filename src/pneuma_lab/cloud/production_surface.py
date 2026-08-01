@@ -10,6 +10,7 @@ from .manifests import validate_production_execution_surface
 
 
 ROLES = frozenset({"controller", "model-server", "benchmark-worker"})
+_RUNTIME_MODULE = "pneuma_lab.cloud.production_runtime"
 
 
 def require_production_execution_surface(record: Mapping[str, Any]) -> dict[str, Any]:
@@ -22,6 +23,9 @@ def require_production_execution_surface(record: Mapping[str, Any]) -> dict[str,
     if len(set(entrypoints)) != 3:
         raise CloudManifestError("production roles must not share one entrypoint")
     for role in roles:
+        entrypoint = list(role["entrypoint"])
+        if entrypoint[:3] != ["python", "-m", _RUNTIME_MODULE] or entrypoint[3:] != [role["role"]]:
+            raise CloudManifestError("production role must use the sealed role runtime entrypoint")
         gates = role["gates"]
         if role["role"] == "controller":
             if gates["docker_socket_absent"]:

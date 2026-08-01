@@ -4359,3 +4359,17 @@ The next event after the archived migration boundary is appended below.
   returns `InvalidVolume.NotFound` for encrypted root
   `vol-0160c8cc693ca39d2`. Exact evidence and raw-object hashes are sealed in
   `evidence/throughput-001-20260801/verification.json`.
+
+## 2026-08-01 — Production execution-surface runtime boundary
+
+- Added `pneuma_lab.cloud.production_runtime`, the exact three-role executable
+  boundary for controller, model-server, and benchmark-worker images. It accepts
+  only a role plus a supplied harness file and its lowercase SHA-256, verifies
+  the exact bytes, and emits one canonical terminal `READY` or failure record.
+- The production-surface validator now rejects any role record that does not
+  name this runtime and its exact role argument. Subprocess regressions prove
+  acceptance of matching bytes and fail-closed rejection of a digest mismatch.
+- Focused production-surface/runtime tests, Ruff, and whitespace checks passed.
+  This is implementation only: the recipes remain fixture-only, no image was
+  built or run, no receipt was promoted, and Step 7B/E2E qualification remains
+  pending.

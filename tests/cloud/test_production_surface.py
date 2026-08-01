@@ -15,7 +15,7 @@ def surface() -> dict:
         roles.append({
             "role": role,
             "image_digest": "sha256:" + str(index + 1) * 64,
-            "entrypoint": ["python", "-m", f"pneuma_lab.cloud.{role}"],
+            "entrypoint": ["python", "-m", "pneuma_lab.cloud.production_runtime", role],
             "source_sha256": chr(97 + index) * 64,
             "e2e_receipt_sha256": chr(100 + index) * 64,
             "gates": {
