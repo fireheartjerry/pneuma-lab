@@ -1000,3 +1000,12 @@ archive with SHA-256 `03e1ff2d5d2236867a3cab4eceb54492fc85028d0075368256cef51afd
 Native Windows and WSL2 Linux independently produced the same digest; all 1,166
 entries are relative POSIX paths. AWS-side digest verification remains required
 before signing or execution.
+
+Payload action 001 was subsequently signed and run in AWS. Its first attempt
+stopped before payload transfer on the legacy global S3 endpoint. Its sole retry
+used the regional endpoint, installed and reread 31 objects / 22,384,787 bytes,
+then stopped on Docker's observed `production.cloudfront.docker.com` redirect,
+which was not in the signed allowlist. Successor action 002 adds only that host,
+binds executor surface `fbaf47939878dd9144e9163d6c0d95142f90a75e6b7ada983f3489ec61b80ade`,
+and has ready-plan digest `53dc77c9942cad311e13d92ab3de26a337ac9df97ebdf7487b8537afa022e088`.
+It remains subject to a fresh CL-047/CL-048 signature before continuation.

@@ -44,10 +44,12 @@ ADMISSION_LEDGER_ROW = "CL-046"
 def build_signed_records(
     *, private: Ed25519PrivateKey, plan: dict[str, Any], ledger_path: Path,
     projected_cost_usd: float, granted_timestamp: str, expires_timestamp: str,
+    envelope_ledger_row: str = ENVELOPE_LEDGER_ROW,
+    admission_ledger_row: str = ADMISSION_LEDGER_ROW,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     plan_sha256 = payload_retrieval_plan_digest(plan)
-    envelope_row = ledger_row(ledger_path, ENVELOPE_LEDGER_ROW)
-    admission_row = ledger_row(ledger_path, ADMISSION_LEDGER_ROW)
+    envelope_row = ledger_row(ledger_path, envelope_ledger_row)
+    admission_row = ledger_row(ledger_path, admission_ledger_row)
     envelope = _sign(private, {
         "record_kind": "cloud_preparation_envelope",
         "schema_version": "0.1.0",
@@ -57,7 +59,7 @@ def build_signed_records(
         "allowed_action_classes": ["input_retrieval"],
         "total_cost_ceiling_usd": plan["cost_ceiling_usd"],
         "expires_timestamp": expires_timestamp,
-        "ledger_row_id": ENVELOPE_LEDGER_ROW,
+        "ledger_row_id": envelope_ledger_row,
         "ledger_row_sha256": hashlib.sha256(envelope_row.encode("utf-8")).hexdigest(),
         "human_authorization": _approval(granted_timestamp, expires_timestamp),
     })
@@ -79,7 +81,7 @@ def build_signed_records(
         "spend_history_sha256": canonical_ledger_digest(ledger_path),
         "teardown_protected": True,
         "expires_timestamp": expires_timestamp,
-        "ledger_row_id": ADMISSION_LEDGER_ROW,
+        "ledger_row_id": admission_ledger_row,
         "ledger_row_sha256": hashlib.sha256(admission_row.encode("utf-8")).hexdigest(),
         "human_authorization": _approval(granted_timestamp, expires_timestamp),
     })
@@ -97,6 +99,8 @@ def main() -> int:
     parser.add_argument("--private-key", type=Path, required=True)
     parser.add_argument("--expires", required=True)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--envelope-ledger-row", default=ENVELOPE_LEDGER_ROW)
+    parser.add_argument("--admission-ledger-row", default=ADMISSION_LEDGER_ROW)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -119,6 +123,8 @@ def main() -> int:
         private=_private_key(args.private_key), plan=plan, ledger_path=args.ledger,
         projected_cost_usd=float(pricing["projected_cost_usd"]),
         granted_timestamp=granted, expires_timestamp=args.expires,
+        envelope_ledger_row=args.envelope_ledger_row,
+        admission_ledger_row=args.admission_ledger_row,
     )
     require_preparation_admission(
         envelope, admission, key_registry=registry, ledger_path=args.ledger,

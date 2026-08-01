@@ -4050,6 +4050,25 @@ The next event after the archived migration boundary is appended below.
   `candidate`, not `ready_for_signature`. No signature, authority, network,
   provider mutation, reservation, or spend occurred.
 
+## 2026-08-01 — Step 5B payload action 001 stopped fail-closed
+
+- Exact plan `9334ffeb...4606a` was signed in authenticated AWS account
+  `892077329800`; signing-package SHA-256 is `1b97f4b1...22a1d`.
+- Attempt 1 stopped before payload transfer because Botocore selected legacy
+  `s3.amazonaws.com`; the signed regional endpoint boundary rejected it.
+  The sole authorized retry set AWS's regional-endpoint control.
+- Attempt 2 safely installed and reread 31 content-addressed objects totaling
+  22,384,787 bytes, then stopped when Docker redirected to the observed but
+  unlisted `production.cloudfront.docker.com`. No host-boundary bypass occurred.
+- AWS independently regenerated the Git ZIP as `d3ba28...a228`, differing from
+  Windows `03e1ff...e7550` because `git archive --format=zip` carries
+  platform-specific container metadata. The LF-normalized executor-source
+  digest matched exactly on both systems and remains the portable authority.
+- Successor action 002 adds only that observed CDN, retains the same destination,
+  lifecycle, USD 5 ceiling, and one retry, and binds executor surface
+  `fbaf4793...0ade`; plan digest is `53dc77c9...e088`. Existing objects will be
+  HEAD/GET verified rather than overwritten.
+
 ## 2026-08-01 — Step 5B live S3 price qualification
 
 - **Official source:** AWS Price List AmazonS3 `us-east-1` offer version

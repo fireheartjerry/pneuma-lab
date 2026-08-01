@@ -21,6 +21,7 @@ ALLOWED_HOSTS = (
     "raw.githubusercontent.com",
     "registry-1.docker.io",
     "pneuma-phase-b-892077329800.s3.us-east-1.amazonaws.com",
+    "production.cloudfront.docker.com",
     "production.cloudflare.docker.com",
     "sts.us-east-1.amazonaws.com",
 )
@@ -66,6 +67,7 @@ def build_payload_retrieval_plan(
     manifest_record: Mapping[str, Any], *, executor_sources_sha256: str,
     lifecycle_terraform_plan_sha256: str, pricing_receipt_sha256: str | None = None,
     lifecycle_live_receipt_sha256: str | None = None,
+    action_id: str = "step5b-payload-mirror-001",
 ) -> dict[str, Any]:
     manifest = validate_payload_manifest_semantics(manifest_record)
     manifest_sha256 = payload_manifest_digest(manifest)
@@ -76,7 +78,7 @@ def build_payload_retrieval_plan(
         "record_kind": "cloud_payload_retrieval_plan",
         "schema_version": "0.1.0",
         "status": status,
-        "action_id": "step5b-payload-mirror-001",
+        "action_id": action_id,
         "frozen_timestamp": manifest["frozen_timestamp"],
         "provider": "aws",
         "account_id": "892077329800",
