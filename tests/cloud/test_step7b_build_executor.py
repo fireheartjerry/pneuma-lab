@@ -53,3 +53,11 @@ def test_executor_rejects_plan_digest_drift(tmp_path) -> None:
     plan["recipe_sha256"] = "e" * 64
     with pytest.raises(ValueError, match="plan_sha256"):
         require_plan(plan, tmp_path)
+
+
+def test_executor_rejects_non_builder_action_identity(tmp_path) -> None:
+    plan = _plan(tmp_path)
+    plan["action_id"] = "step7b-build-001"
+    plan["plan_sha256"] = plan_digest(plan)
+    with pytest.raises(ValueError, match="numbered Step 7B"):
+        require_plan(plan, tmp_path)

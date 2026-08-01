@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -45,8 +46,9 @@ def image_id(tag: str) -> str:
 
 
 def require_plan(plan: dict[str, Any], root: Path) -> None:
-    if plan.get("action_id") != "step7b-aws-builder-001":
-        raise ValueError("executor only accepts the exact Step 7B AWS successor action")
+    action_id = plan.get("action_id")
+    if not isinstance(action_id, str) or re.fullmatch(r"step7b-aws-builder-[0-9]{3}", action_id) is None:
+        raise ValueError("executor only accepts one numbered Step 7B AWS builder action")
     if plan.get("max_retries") != 0 or plan.get("action_class") != "image_build":
         raise ValueError("Step 7B successor must remain a zero-retry image build")
     if plan_digest(plan) != plan.get("plan_sha256"):
