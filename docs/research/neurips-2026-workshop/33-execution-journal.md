@@ -4400,3 +4400,13 @@ The next event after the archived migration boundary is appended below.
   assumed by root accounts`). No role signature was emitted; a zero-byte probe
   output failed offline verification and was not promoted. A new exact action
   is required to provision a scoped non-root bootstrap identity.
+
+### VPS signer identity attempt 003 failed closed
+
+- Signed package SHA-256 `ea954732...86fbd` authorized action 003.
+- AWS created only user `pneuma-vps-signer-bootstrap` at
+  `2026-08-01T20:43:28Z`. Inline-policy submission then failed with
+  `MalformedPolicyDocument`; the zero-retry action stopped.
+- Provider reads prove the user has no inline policies and no access keys, and
+  the signer role retains its prior root-only trust. Successor action 004 binds
+  committed policy JSON files instead of shell-escaped policy text.
