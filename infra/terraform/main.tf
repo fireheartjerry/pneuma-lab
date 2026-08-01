@@ -151,6 +151,23 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts" {
       sse_algorithm = "AES256"
     }
   }
+
+  rule {
+    id     = "expire-step5b-payloads"
+    status = "Enabled"
+    filter {
+      prefix = "${var.artifact_prefix}/step5b/payloads/"
+    }
+    expiration {
+      days = var.step5b_payload_expiration_days
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {

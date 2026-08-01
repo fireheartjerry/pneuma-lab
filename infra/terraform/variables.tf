@@ -45,6 +45,16 @@ variable "artifact_expiration_days" {
   default = 365
 }
 
+variable "step5b_payload_expiration_days" {
+  type        = number
+  default     = 35
+  description = "Maximum retention for content-addressed Step 5B payload mirrors."
+  validation {
+    condition     = var.step5b_payload_expiration_days >= 1 && var.step5b_payload_expiration_days <= 35
+    error_message = "Step 5B payload retention must be between 1 and 35 days."
+  }
+}
+
 variable "root_volume_gib" {
   type    = number
   default = 3072

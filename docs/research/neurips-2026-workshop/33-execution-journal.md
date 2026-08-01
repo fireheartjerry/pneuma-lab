@@ -4067,3 +4067,18 @@ The next event after the archived migration boundary is appended below.
   `e2a2869d75b6596804075f208fc48227979b6e1f2a55f1ee2aacd02368267542`.
   `ready_for_signature` is a mechanical state, not authority. No signature,
   provider mutation, reservation, payload retrieval, or spend occurred.
+
+### Receipt-PUT and lifecycle correction
+
+- Hostile executor review found CL-039 omitted the final receipt PUT from each
+  allowed action attempt and assumed a 35-day bound while the live general
+  `runs/` lifecycle is 365 days. Neither defect is acceptable in signed bytes.
+- Corrected pricing receipt SHA-256 is
+  `a0eaa16b4d431ffbba6ae160d65d910927830afbbb1b52dc3b82bea2009e4a5c`,
+  with 5,544 PUT-class requests; rounded worst-case cost remains USD 3.78.
+  Corrected ready-plan digest is
+  `b06f2a9e629960e1844b227fd7188c06b3be1461da9c08db833063b5fbc467c8`.
+- Terraform now declares an overlapping, narrower
+  `runs/step5b/payloads/` lifecycle: current <=35 days, noncurrent <=30, and
+  incomplete multipart <=7. This is implementation only; until an exact
+  account-bound plan/apply proves the rule live, payload execution fails closed.

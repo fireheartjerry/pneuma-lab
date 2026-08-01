@@ -970,7 +970,9 @@ It targets the existing encrypted/versioned S3 bucket under a content-addressed
 `runs/` prefix, limits retention to 35 days and retries to one, and carries a
 USD 5.00 ceiling. That historical candidate remains unsigned and unready. A
 successor binds the current AWS pricing receipt from official offer version
-`20260728131000`; its ready-for-signature plan digest is
-`e2a2869d75b6596804075f208fc48227979b6e1f2a55f1ee2aacd02368267542`;
+`20260728131000`. Hostile review then added the omitted final receipt PUT and
+the exact 35-day Step 5B lifecycle rule. The corrected ready-plan digest is
+`b06f2a9e629960e1844b227fd7188c06b3be1461da9c08db833063b5fbc467c8`;
 worst-case S3 storage/requests recompute to USD 3.78. It is still unsigned and
-authorizes nothing, and no payload executor has yet passed hostile review.
+authorizes nothing. The lifecycle Terraform change is unapplied, so execution
+fails closed; no payload executor has yet passed hostile review.

@@ -21,7 +21,7 @@ def _manifest() -> dict:
 def test_official_offer_recomputes_worst_case_below_ceiling() -> None:
     receipt = build_payload_pricing_receipt(OFFER.read_bytes(), _manifest())
     assert receipt["rates_usd"]["standard_gb_month"] == "0.0230000000"
-    assert receipt["request_ceilings"] == {"tier1_put": 5542, "tier1_list": 3410, "tier2_get": 13640}
+    assert receipt["request_ceilings"] == {"tier1_put": 5544, "tier1_list": 3410, "tier2_get": 13640}
     assert receipt["projected_cost_usd"] == "3.78"
     assert receipt["within_ceiling"] is True
 

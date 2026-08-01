@@ -45,7 +45,8 @@ def build_payload_pricing_receipt(offer_bytes: bytes, manifest_record: Mapping[s
     }
     retrievable = [item for item in manifest["objects"] if item["retrieval_required"]]
     put_once = sum(math.ceil(item["size_bytes"] / PART_SIZE) + 2 if item["size_bytes"] > PART_SIZE else 1 for item in retrievable)
-    requests = {"tier1_put": put_once * 2, "tier1_list": len(retrievable) * 2, "tier2_get": len(retrievable) * 8}
+    # Two complete action attempts plus one final receipt PUT per attempt.
+    requests = {"tier1_put": (put_once + 1) * 2, "tier1_list": len(retrievable) * 2, "tier2_get": len(retrievable) * 8}
     days = {"current": 35, "noncurrent_retry": 30, "abandoned_multipart": 7}
     gb = Decimal(manifest["retrieval_byte_ceiling_bytes"]) / Decimal(1_000_000_000)
     storage = gb * Decimal(sum(days.values())) / Decimal(30) * Decimal(rates["standard_gb_month"])

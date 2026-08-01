@@ -30,6 +30,12 @@ def test_static_iac_contract_is_pinned_and_tier_agnostic() -> None:
     assert 'type = "VCPU", value = "8"' in main
     assert 'type = "MEMORY", value = "60000"' in main
     assert "C120" not in main and "C160" not in main
+    assert 'id     = "expire-step5b-payloads"' in main
+    assert 'prefix = "${var.artifact_prefix}/step5b/payloads/"' in main
+    assert "days = var.step5b_payload_expiration_days" in main
+    variables = (ROOT / "variables.tf").read_text(encoding="utf-8")
+    assert 'variable "step5b_payload_expiration_days"' in variables
+    assert "default     = 35" in variables
     assert (ROOT / ".terraform.lock.hcl").is_file()
     iam = (ROOT / "iam.tf").read_text(encoding="utf-8")
     assert 'actions   = ["dynamodb:GetItem"]' in iam
