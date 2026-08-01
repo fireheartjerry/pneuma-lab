@@ -962,3 +962,11 @@ One gitlink is lineage-only; the other 1,705 objects have an exact authenticated
 payload retrieval, verify Git/LFS/OCI identities while streaming, compute final
 SHA-256 receipts, then seal the real input lock; Git SHA-1 metadata must not be
 laundered into a verified-byte claim.
+
+The bounded payload-action candidate is now
+`fixtures/cloud/payload-retrieval-plan-candidate.json`, canonical digest
+`18f8edebbcb9e394259b1d7e0afc4d92cc01c05f933f871ead4fcf094330511a`.
+It targets the existing encrypted/versioned S3 bucket under a content-addressed
+`runs/` prefix, limits retention to 35 days and retries to one, and carries a
+USD 5.00 ceiling. It remains unsigned and unready: the required current AWS
+pricing receipt is null, and no payload executor has yet passed hostile review.

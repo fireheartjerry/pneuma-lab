@@ -4033,3 +4033,19 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** the manifest authorizes nothing and is not a final input lock.
   No payload byte, network request, provider action, GPU job, experiment, or
   spend occurred.
+
+## 2026-08-01 — Step 5B payload-action candidate
+
+- **Candidate:** deterministic plan digest
+  `18f8edebbcb9e394259b1d7e0afc4d92cc01c05f933f871ead4fcf094330511a`
+  binds manifest `1f738eff8667f0b863cdd8259c7bfa071ec3a37b2d9963e999f11e7dda1087e4`,
+  1,705 objects, 67,483,211,374 bytes, AWS account `892077329800`, and
+  `us-east-1`.
+- **Controls:** exact content-addressed prefix under the encrypted, versioned,
+  lifecycle-governed artifact bucket; 35-day retention maximum; one action
+  retry; USD 5.00 hard ceiling; exact upstream/S3 hosts; and explicit bans on
+  compute provisioning, GPU use, model loading, container/experiment execution,
+  and result promotion.
+- **Fail-closed state:** `pricing_receipt_sha256` is null, therefore status is
+  `candidate`, not `ready_for_signature`. No signature, authority, network,
+  provider mutation, reservation, or spend occurred.
