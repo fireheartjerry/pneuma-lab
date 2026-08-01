@@ -22,6 +22,7 @@ _SCHEMA_BY_KIND = {
     "cloud_approval_receipt": "cloud-approval-receipt.schema.json",
     "cloud_result_binding": "cloud-result-binding.schema.json",
     "cloud_pilot_protocol": "cloud-pilot-protocol.schema.json",
+    "cloud_interruption_qualification_receipt": "cloud-interruption-qualification-receipt.schema.json",
     "cloud_retrieval_authorization": "cloud-retrieval-authorization.schema.json",
     "cloud_qualification_audit": "cloud-qualification-audit.schema.json",
     "cloud_pilot_admission_receipt": "cloud-pilot-admission-receipt.schema.json",
@@ -80,6 +81,12 @@ def validate_payload_mirror_receipt(record: Mapping[str, Any]) -> dict[str, Any]
 
 def validate_step5b_lifecycle_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
     return _validate(record, expected_kind="cloud_step5b_lifecycle_receipt")
+
+
+def validate_interruption_qualification_receipt(
+    record: Mapping[str, Any],
+) -> dict[str, Any]:
+    return _validate(record, expected_kind="cloud_interruption_qualification_receipt")
 
 
 def validate_experiment_manifest(record: Mapping[str, Any]) -> dict[str, Any]:

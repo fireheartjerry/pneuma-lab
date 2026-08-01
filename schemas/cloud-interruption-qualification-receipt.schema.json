@@ -1,0 +1,75 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-interruption-qualification-receipt.schema.json",
+    "title": "Cloud Interruption Qualification Receipt",
+    "description": "AWS lease-expiry kill and exact completed-boundary restoration evidence; never a scientific result.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "plan_sha256", "input_lock_sha256", "provider", "region", "account_id", "drill_id", "controller_identity_arn", "watcher_identity_arn", "lease", "boundary", "resources", "residual_resource_ids", "gates"],
+    "properties": {
+        "record_kind": {"const": "cloud_interruption_qualification_receipt"},
+        "schema_version": {"const": "0.1.0"},
+        "plan_sha256": {"$ref": "#/$defs/digest"},
+        "input_lock_sha256": {"$ref": "#/$defs/digest"},
+        "provider": {"const": "aws"},
+        "region": {"type": "string", "minLength": 1},
+        "account_id": {"type": "string", "pattern": "^[0-9]{12}$"},
+        "drill_id": {"type": "string", "minLength": 1},
+        "controller_identity_arn": {"type": "string", "pattern": "^arn:aws:iam::[0-9]{12}:role/.+"},
+        "watcher_identity_arn": {"type": "string", "pattern": "^arn:aws:iam::[0-9]{12}:role/.+"},
+        "lease": {
+            "type": "object",
+            "required": ["key", "issued_timestamp", "expires_timestamp", "watcher_observed_timestamp", "controller_renewal_count"],
+            "properties": {
+                "key": {"type": "string", "minLength": 1},
+                "issued_timestamp": {"type": "string", "format": "date-time"},
+                "expires_timestamp": {"type": "string", "format": "date-time"},
+                "watcher_observed_timestamp": {"type": "string", "format": "date-time"},
+                "controller_renewal_count": {"const": 0}
+            },
+            "additionalProperties": false
+        },
+        "boundary": {
+            "type": "object",
+            "required": ["sequence", "pre_interrupt_sha256", "restored_sha256", "all_arm_visible_bytes_match"],
+            "properties": {
+                "sequence": {"type": "integer", "minimum": 1},
+                "pre_interrupt_sha256": {"$ref": "#/$defs/digest"},
+                "restored_sha256": {"$ref": "#/$defs/digest"},
+                "all_arm_visible_bytes_match": {"type": "boolean"}
+            },
+            "additionalProperties": false
+        },
+        "resources": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["resource_id", "resource_type", "state_before", "state_after"],
+                "properties": {
+                    "resource_id": {"type": "string", "minLength": 1},
+                    "resource_type": {"enum": ["compute", "pool", "disk", "endpoint_ip", "sibling_container"]},
+                    "state_before": {"type": "string", "minLength": 1},
+                    "state_after": {"const": "absent"}
+                },
+                "additionalProperties": false
+            }
+        },
+        "residual_resource_ids": {"type": "array", "maxItems": 0},
+        "gates": {
+            "type": "object",
+            "required": ["independent_watcher", "lease_expired", "controller_could_not_renew", "boundary_exact", "all_tagged_resources_absent"],
+            "properties": {
+                "independent_watcher": {"type": "boolean"},
+                "lease_expired": {"type": "boolean"},
+                "controller_could_not_renew": {"type": "boolean"},
+                "boundary_exact": {"type": "boolean"},
+                "all_tagged_resources_absent": {"type": "boolean"}
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {"digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}
