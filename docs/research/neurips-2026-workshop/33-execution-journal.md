@@ -4439,3 +4439,18 @@ The next event after the archived migration boundary is appended below.
   successor builder rather than silently reusing an unbound predecessor.
 - **Boundary:** no image pull/build/SBOM, model download, GPU use, benchmark,
   experiment, or billable compute occurred.
+
+### EJ-20260801-step7b-aws-builder-005-failure
+
+- **Scope:** the first and only execution of KMS-authorized action
+  `step7b-aws-builder-005`, a CPU-only pre-experiment image-build action.
+- **Outcome:** bootstrap failed before source retrieval when Amazon Linux 2023
+  reported that its installed `curl-minimal` conflicts with `dnf install curl`.
+  The status and full bootstrap log were published to the sealed output prefix.
+- **Teardown:** the stopped instance `i-07e32d42c932b901a` was terminated. AWS
+  then returned `InvalidVolume.NotFound` for delete-on-termination encrypted root
+  `vol-026f4a5117f32d93f`.
+- **Boundary:** no image build, SBOM, model download, GPU use, benchmark,
+  pilot, experiment, or scientific result occurred. This action has zero retries
+  and is not reusable; a corrected successor needs independent hashes and KMS
+  authority.

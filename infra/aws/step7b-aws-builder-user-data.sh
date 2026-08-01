@@ -24,7 +24,7 @@ fail() {
 }
 
 trap 'fail bootstrap_error' ERR
-dnf install -y docker tar gzip curl
+dnf install -y docker tar gzip
 systemctl enable --now docker
 aws --version
 aws sts get-caller-identity --output json > /opt/pneuma-step7b/output/instance-identity.json
