@@ -158,7 +158,7 @@ def test_everyCallIsLoggedAsAJsonlRow(tmp_path) -> None:
     backend.generate("p", seed=1)  # cache hit, still a call the arm made
 
     rows = [
-        json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()
+        json.loads(line) for line in (tmp_path / "calls.jsonl").read_text(encoding="utf-8").splitlines()
     ]
     assert len(rows) == 2
     assert [row["cached"] for row in rows] == [False, True]

@@ -8,6 +8,7 @@ artifact_prefix      = "runs"
 root_volume_gib      = 3072
 monthly_budget_usd   = 1000
 budget_alert_email   = "REPLACE_WITH_CONFIRMED_EMAIL"
+controller_image     = "000000000000.dkr.ecr.us-east-1.amazonaws.com/REPLACE@sha256:0000000000000000000000000000000000000000000000000000000000000000"
 
 common_tags = {
   Owner       = "REPLACE"

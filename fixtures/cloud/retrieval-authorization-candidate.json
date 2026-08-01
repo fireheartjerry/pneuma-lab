@@ -1,13 +1,13 @@
 {
     "record_kind": "cloud_retrieval_authorization",
-    "schema_version": "0.1.0",
+    "schema_version": "0.2.0",
     "frozen_timestamp": "2026-07-31T00:00:00Z",
     "provenance": {
-        "design_sha256": "fbe68d5cdfa242678d132abedc143d41f75ce9aa03dc9864e9bd8600264a0f9a",
-        "code_sha256": "b9e76381fa29c681562d8969ade39637afe130dd00061d6ef6f59612f7f8fa69"
+        "design_sha256": "328b4dc2c736b6ebe405f585ff20e6f7e0ebedb58c989193c1120624a8a761d4",
+        "code_sha256": "6c5eeb754c04a213b54ccb9e1c52c1ddbef6b08f180bd12fc4a062a19febe2f2"
     },
     "status": "candidate",
-    "input_lock_sha256": "d7413fe11eb6ca6f5fb794d5abdc78f092492f2fb5f3cedc257ab1adf61f87c8",
+    "input_lock_sha256": "bfe5848f3858e7648938428616e5ac81ef7c0ea9e6a2b597a1506e8f1597d2c3",
     "scopes": [
         "model",
         "tokenizer",
@@ -20,5 +20,6 @@
     "byte_ceiling_bytes": 504658657280,
     "mirror_root": "mirror/step5b",
     "ledger_row_id": null,
+    "ledger_row_sha256": null,
     "human_authorization": null
 }

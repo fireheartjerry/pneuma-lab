@@ -2,14 +2,14 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://pneuma-lab.local/schemas/cloud-retrieval-authorization.schema.json",
     "title": "Cloud Retrieval Authorization",
-    "description": "Hash-bound Step 5B retrieval authorization or unsigned candidate; a candidate authorizes nothing.",
+    "description": "Ed25519-authenticated Step 5B retrieval authorization, or an unsigned candidate; a candidate authorizes nothing. An authorized record names a key in the trusted registry, carries a signature over the complete canonical body, states its own expiry, and binds both the input lock and the exact spend-ledger row that records it.",
     "type": "object",
     "x-pneuma-schema-kind": "cloud-manifest",
-    "x-pneuma-version": "0.1.0",
-    "required": ["record_kind", "schema_version", "frozen_timestamp", "provenance", "status", "input_lock_sha256", "scopes", "byte_ceiling_bytes", "mirror_root", "ledger_row_id", "human_authorization"],
+    "x-pneuma-version": "0.2.0",
+    "required": ["record_kind", "schema_version", "frozen_timestamp", "provenance", "status", "input_lock_sha256", "scopes", "byte_ceiling_bytes", "mirror_root", "ledger_row_id", "ledger_row_sha256", "human_authorization"],
     "properties": {
         "record_kind": {"const": "cloud_retrieval_authorization"},
-        "schema_version": {"const": "0.1.0"},
+        "schema_version": {"const": "0.2.0"},
         "frozen_timestamp": {"$ref": "#/$defs/timestamp"},
         "provenance": {"type": "object", "required": ["design_sha256", "code_sha256"], "properties": {"design_sha256": {"$ref": "#/$defs/sha256"}, "code_sha256": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false},
         "status": {"enum": ["candidate", "authorized"]},
@@ -18,7 +18,25 @@
         "byte_ceiling_bytes": {"type": "integer", "exclusiveMinimum": 0},
         "mirror_root": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$"},
         "ledger_row_id": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^CL-\\d{3}$"}]},
-        "human_authorization": {"oneOf": [{"type": "null"}, {"type": "object", "required": ["approver_id", "granted_timestamp", "signature_sha256"], "properties": {"approver_id": {"type": "string", "minLength": 1}, "granted_timestamp": {"$ref": "#/$defs/timestamp"}, "signature_sha256": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false}]}
+        "ledger_row_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}], "description": "Digest of the exact ledger row line. Binds the authorization to the row's content, so an existing row cannot be silently rewritten after approval."},
+        "human_authorization": {
+            "oneOf": [
+                {"type": "null"},
+                {
+                    "type": "object",
+                    "required": ["approver_id", "key_id", "granted_timestamp", "expires_timestamp", "body_sha256", "signature_ed25519"],
+                    "properties": {
+                        "approver_id": {"type": "string", "minLength": 1},
+                        "key_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,62}$", "description": "Must name a key present and active in the trusted approver key registry."},
+                        "granted_timestamp": {"$ref": "#/$defs/timestamp"},
+                        "expires_timestamp": {"$ref": "#/$defs/timestamp"},
+                        "body_sha256": {"$ref": "#/$defs/sha256", "description": "Digest of the canonical signed body, recorded for audit. It is recomputed and compared, never trusted."},
+                        "signature_ed25519": {"type": "string", "pattern": "^[0-9a-f]{128}$", "description": "Ed25519 signature over the canonical signed body bytes, not over the digest."}
+                    },
+                    "additionalProperties": false
+                }
+            ]
+        }
     },
     "additionalProperties": false,
     "$defs": {

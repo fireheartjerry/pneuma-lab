@@ -27,7 +27,7 @@ variable "bootstrap_sha256" {
 variable "create_batch_resources" {
   type        = bool
   default     = false
-  description = "Create the Batch compute environment and queue only after Step 14 admission."
+  description = "Create Batch resources only after Step 14 admission."
 }
 
 variable "artifact_bucket_name" {
@@ -62,6 +62,15 @@ variable "monthly_budget_usd" {
 variable "budget_alert_email" {
   type        = string
   description = "Email that must confirm AWS Budget notifications."
+}
+
+variable "controller_image" {
+  type        = string
+  description = "Immutable ECR image reference accepted by the Step 7B receipt."
+  validation {
+    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.controller_image))
+    error_message = "controller_image must be an immutable sha256 digest reference."
+  }
 }
 
 variable "common_tags" {

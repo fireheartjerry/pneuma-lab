@@ -35,8 +35,7 @@ from pneuma_lab.adversarial_review.canonical import (  # noqa: E402
 
 OUT = REPO_ROOT / "build" / "adversarial_review" / "step14"
 
-#: slot -> repository-relative path. Every path must exist; a missing one is a
-#: hard error here rather than a surprise inside a campaign.
+#: Contract inputs that exist before external evidence is collected.
 INPUTS: tuple[tuple[str, str, str], ...] = (
     (
         "design",
@@ -52,17 +51,6 @@ INPUTS: tuple[tuple[str, str, str], ...] = (
         "manifest",
         "docs/research/neurips-2026-workshop/38-experiment-design-freeze.md",
         "registered design freeze",
-    ),
-    (
-        "input_lock",
-        "docs/research/neurips-2026-workshop/39-external-input-lock.md",
-        "external input-lock contract",
-    ),
-    (
-        "artifact_root",
-        "docs/research/neurips-2026-workshop/40-aws-architecture.md",
-        "AWS architecture contract standing in for the artifact-root contract "
-        "until a real root exists",
     ),
     (
         "spend_ledger",
@@ -83,6 +71,41 @@ INPUTS: tuple[tuple[str, str, str], ...] = (
     ("repo_commit", "docs/project-status.json", "current-state manifest"),
 )
 
+#: Step 14 may review only real, validated evidence. Contract prose is never a
+#: stand-in for one of these receipts.
+REQUIRED_RECEIPTS: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "step5b-input-lock",
+        "input_lock",
+        "build/research/neurips-2026-workshop/phase-b-evidence/cloud-input-lock.json",
+        "Step 5B independently hash-verified external-input lock",
+    ),
+    (
+        "g-roster-qualification",
+        "artifact_root",
+        "build/research/neurips-2026-workshop/phase-b-evidence/g-roster-qualification.json",
+        "G-ROSTER base-commit, image, isolation, and three-pair qualification",
+    ),
+    (
+        "step7b-image-build-set",
+        "artifact_root",
+        "build/research/neurips-2026-workshop/phase-b-evidence/image-build-set.json",
+        "Step 7B complete double-build and SBOM receipt set",
+    ),
+    (
+        "aws-account-verification",
+        "artifact_root",
+        "build/research/neurips-2026-workshop/phase-b-evidence/aws-account-verification.json",
+        "AWS identity, both G/VT quotas, offering, and Terraform-plan receipt",
+    ),
+    (
+        "one-gpu-admission",
+        "artifact_root",
+        "build/research/neurips-2026-workshop/phase-b-evidence/one-gpu-admission.json",
+        "hash-bound one-L40S OOM, tool-call, parity, and throughput receipt",
+    ),
+)
+
 
 def _git(*args: str) -> str:
     return subprocess.run(
@@ -95,8 +118,13 @@ def main() -> int:
     dirty = bool(_git("status", "--porcelain"))
 
     objects = []
+    receipt_index: dict[str, str] = {}
     missing = []
-    for slot, relative, description in INPUTS:
+    declared = list(INPUTS) + [
+        (slot, relative, description)
+        for _, slot, relative, description in REQUIRED_RECEIPTS
+    ]
+    for slot, relative, description in declared:
         path = REPO_ROOT / relative
         if not path.is_file():
             missing.append(relative)
@@ -109,6 +137,10 @@ def main() -> int:
                 "description": description,
             }
         )
+    for receipt_id, _, relative, _ in REQUIRED_RECEIPTS:
+        path = REPO_ROOT / relative
+        if path.is_file():
+            receipt_index[receipt_id] = digest_file(str(path))
     if missing:
         print("missing declared inputs:", *missing, sep="\n  ", file=sys.stderr)
         return 2
@@ -140,7 +172,7 @@ def main() -> int:
             "dependency_digest": digest_file(str(REPO_ROOT / "pyproject.toml")),
         },
         "objects": objects,
-        "receipt_index": {},
+        "receipt_index": receipt_index,
         "external_sources": [
             "arXiv:2607.03702",
             "arXiv:2606.09071",
@@ -149,12 +181,9 @@ def main() -> int:
         "claims": claims,
         "source": {"mode": "replay", "transcript_dir": "transcripts"},
         "notes": (
-            "PREPARED, NOT RUN. Step 14 runs this after Phase B Steps 4-13 and "
-            "before Step 4B or GPU execution. The receipt_index is empty because "
-            "no sealed evidence receipts exist yet; a reviewer citing a receipt "
-            "will therefore fail grounding, which is correct at this stage. "
-            "Several slots point at contract documents standing in for artifacts "
-            "that do not exist; each is described in its own entry."
+            "PREPARED, NOT RUN. Every Phase B evidence receipt existed and was "
+            "digest-bound when this spec was generated. Step 14 remains a review "
+            "gate rather than launch or spend authority."
         ),
     }
 

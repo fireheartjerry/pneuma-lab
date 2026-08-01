@@ -1,0 +1,18 @@
+{
+    "record_kind": "cloud_approver_key_registry",
+    "schema_version": "0.1.0",
+    "frozen_timestamp": "2026-07-31T00:00:00Z",
+    "keys": [
+        {
+            "key_id": "pneuma-b1-20260731",
+            "approver_id": "jerry-mathos-ai",
+            "algorithm": "ed25519",
+            "public_key_hex": "28cfb37ddaa876dbf4ffeae36481e5b78796513d76d20500babbd63115852870",
+            "not_before": "2026-07-31T00:00:00Z",
+            "not_after": "2027-07-31T00:00:00Z",
+            "status": "active",
+            "revoked_timestamp": null,
+            "revocation_reason": null
+        }
+    ]
+}

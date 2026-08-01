@@ -240,7 +240,7 @@ def test_authority_rejects_wrong_roster_arm_and_tampered_grid_contract(tmp_path:
 
     authority_ref = seal_synthetic_power_authority(synthetic_manifest, run_root=tmp_path, out=tmp_path / "authority.json")
     grid_path = tmp_path / "inputs/grid.json"
-    grid = __import__("json").loads(grid_path.read_text())
+    grid = __import__("json").loads(grid_path.read_text(encoding="utf-8"))
     grid["rng"]["root_u64"] = 1
     grid_path.write_bytes(canonical_json_bytes(grid, indent=None))
     with pytest.raises(RecordValidationError, match="must exactly equal manifest-bound refs"):
@@ -257,7 +257,7 @@ def test_roster_bound_authority_fails_closed_without_reviewed_ceremony_adapter(t
 def test_roster_bound_authority_rejects_arbitrary_beacon_and_timestamp_bytes(tmp_path: Path) -> None:
     manifest_ref = _manifest(tmp_path, roster_kind="eligible_confirmation", eligibility=True)
     path = tmp_path / "inputs/eligibility.json"
-    eligibility = __import__("json").loads(path.read_text())
+    eligibility = __import__("json").loads(path.read_text(encoding="utf-8"))
     eligibility["timestamp_receipt"] = {"precommit_sha256": "0" * 64, "timestamp": "forged"}
     eligibility["beacon_receipt"] = {"chain_hash": "0" * 64, "round": 0, "randomness_hex": "0" * 64}
     path.write_bytes(canonical_json_bytes(eligibility, indent=None))
@@ -540,7 +540,7 @@ def test_timing_verification_receipt_is_a_singleton(
     screen = screen_power_grid(config, phase="gaussian_approximation", generation=0,
                                shard_count=1, fallback_trigger_ref=None, run_root=tmp_path,
                                out=tmp_path / "power/screen.json")
-    probe = __import__("json").loads((tmp_path / screen.relative_path).read_text())["payload"]["timing_probe"]
+    probe = __import__("json").loads((tmp_path / screen.relative_path).read_text(encoding="utf-8"))["payload"]["timing_probe"]
 
     with pytest.raises(RecordValidationError, match="verification receipt already exists"):
         power._write_timing_verification(screen, config, probe, run_root=tmp_path)
@@ -570,7 +570,7 @@ def test_shard_records_replay_receipts_and_task7_gate_totals_not_static_binomial
         screen, config, shard_index=0, run_root=tmp_path, out=tmp_path / "power/shard.json",
         max_datasets=2, max_cells=1,
     )
-    payload = __import__("json").loads((tmp_path / shard.relative_path).read_text())["payload"]
+    payload = __import__("json").loads((tmp_path / shard.relative_path).read_text(encoding="utf-8"))["payload"]
     cell = payload["cell_results"][0]
 
     assert "replay_receipt" in cell

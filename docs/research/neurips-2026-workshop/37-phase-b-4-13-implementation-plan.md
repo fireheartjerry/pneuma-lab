@@ -13,6 +13,13 @@ conflict with this plan, stop and reconcile them in the decision log before
 execution. It is a plan, not an authority: it freezes nothing, authorizes
 nothing, and promotes nothing.
 
+**Supersession note (DL-161).** All four-L40S/48-vCPU, TP2, H100-substitution,
+and co-located-simulator wording below is historical planning text. The live
+AWS primary contract is the approved single-L40S `g6e.2xlarge` (8-vCPU) shape;
+the two TP1 context rungs and their one-GPU admission are controlling. Azure
+remains separately governed. This note changes no scientific input, roster,
+endpoint, or authorization.
+
 ## Boundary of this document
 
 - It is **not** Step 4. No hypothesis, arm, endpoint, stopping rule, benchmark
@@ -238,18 +245,15 @@ at §4.3:
 
 > "The topology and context cap are deliberately not frozen before the memory
 > pilot. … The predeclared ladder is:
-> 1. L40S tensor parallelism 1 at 32,768 tokens;
-> 2. L40S tensor parallelism 1 at 65,536 tokens;
-> 3. two L40S GPUs with tensor parallelism 2 at 65,536 tokens; then
-> 4. H100 94 GB tensor parallelism 1 at the largest validated cap not exceeding
->    131,072 tokens.
+> 1. the sole L40S on `g6e.2xlarge` with tensor parallelism 1 at 32,768 tokens;
+> 2. the sole L40S on `g6e.2xlarge` with tensor parallelism 1 at 65,536 tokens.
 >
 > The largest candidate that passes OOM, tool-call, output-parity, and p10
 > throughput gates is frozen before confirmation. A topology change is a subject
 > change because it can change kernels and numerics."
 
 **This resolves the Step-4 exit-gate contradiction.** The frozen object is not a
-single topology; it is *the four-rung ladder plus the deterministic selection
+single topology; it is *the two-rung one-GPU ladder plus the deterministic selection
 rule* "largest candidate passing the four gates". The roadmap's requirement that
 "no model choice remains ambiguous" is therefore satisfiable and must be stated
 that way: the subject, roster, and candidate ladder are unambiguous; only the
@@ -257,7 +261,7 @@ rung is pilot-determined, by a rule fixed in advance.
 
 Two constraints Step 4 must record explicitly, and Step 13 must enforce:
 
-- **The pilot selects only among the four frozen rungs.** It may not invent,
+- **The pilot selects only among the two frozen rungs.** It may not invent,
   substitute, or interpolate a new subject configuration.
 - **Selection uses only OOM, tool-call, output-parity, and p10 throughput
   gates** — never observed efficacy. This mirrors §9.5's rule that tier
@@ -325,9 +329,9 @@ manifest promotion path must refuse while `G-ROSTER` is unmet.
    decision.
 6. **Serving topology and context cap** — resolved by §5.2 as a frozen ladder
    plus a deterministic rule, not as an open choice.
-7. **Simulator compute is conditional.** The `g6e.12xlarge` schedule reserves
-   one L40S for the 9B simulator during τ³ work, leaving at most three one-GPU
-   primary replicas; a separate `g6.xlarge` L4 is the predeclared substitute.
+7. **Simulator compute is separate.** The AWS primary controller may not host a
+   simulator; any simulator subject remains separately governed and cannot be
+   pooled into the one-L40S AWS topology.
 8. **Stale model rows in the decision log.** DL-01, DL-79, and DL-82 still name
    Qwen2.5-Coder-7B / `qwen2.5-coder:7b`. They belong to the retired
    placebo/gauge lineage and are not marked superseded by DL-122.
@@ -540,14 +544,13 @@ for `C160`, then **$14,900** / **$16,200** after the respective eligible
 expansion.
 
 Quota (CL-013, **pending**): `us-east-1` On-Demand and Spot G/VT support cases
-`178540521600334` and `178540523000045`, amended in writing to 48 vCPUs with a
-one-instance maximum. **Applied quotas remain 0.** A requested quota is not an
+`178540521600334` and `178540523000045`, require 8 vCPUs for the approved
+one-instance topology. **Applied quotas remain 0.** A requested quota is not an
 applied quota, and credits do not bypass quotas or spend gates.
 
-Planning rates: `g6e.12xlarge` `$10.49264`/hour On-Demand; S3 Standard
-`$0.023`/GB-month; gp3 `$0.08`/GiB-month. The historical Spot observation of
-`$4.467`/hour is **non-authoritative** (no retained AZ, UTC response, product
-description, or digest).
+No current account/AZ-specific rate is a receipt for `g6e.2xlarge`; re-query
+and bind it during the separately authorized account-plan step. S3 Standard
+and gp3 planning numbers remain historical planning inputs, not spend authority.
 
 ---
 
@@ -597,7 +600,7 @@ repair of `00-README.md`. A `systems[]` record and a `CL-0xx` zero-cost ledger
 row.
 
 **Work.** Ratify by reference the already-frozen design (§5.1). Register the
-frozen object as **subject + roster + four-rung candidate ladder + deterministic
+frozen object as **subject + roster + two-rung one-GPU candidate ladder + deterministic
 selection rule** (§5.2), explicitly forbidding pilot invention of a new
 configuration and explicitly forbidding efficacy-based rung selection. Resolve
 the nine conflicts in §5.4. Register the Azure decision required by §5.5.
@@ -714,11 +717,10 @@ inputs; `authority_freeze_pending`, `launch_review_pending`, and
 `us-east-1`; a Batch managed EC2 compute environment with `minvCpus = 0`, a
 custom GPU AMI pinned by AMI ID plus root-snapshot ID plus a bootstrap SHA-256,
 one-instance maximum, one whole-instance job per node, and an On-Demand
-environment pinning `instanceTypes=[g6e.12xlarge]`, `maxVCpus=48`,
+environment pinning `instanceTypes=[g6e.2xlarge]`, `maxVCpus=8`,
 `allocationStrategy=BEST_FIT`, with exactly one runnable controller job
-requesting 48 vCPUs, all four GPUs, and allocatable memory; four TP1 subject
-replicas for SWE or three plus one simulator replica for τ³ (invalid unless the
-Tier-1 gate passes); host Docker exposed only to the privileged controller with
+requesting 8 vCPUs, one GPU, and allocatable memory; only the two TP1 subject
+rungs are admissible and simulator co-location is prohibited; host Docker exposed only to the privileged controller with
 instance-store devices enumerated, formatted, and mounted as Docker's data root;
 benchmark containers with neither the Docker socket nor cloud credentials and
 with IMDS blocked at the network namespace; a minimal per-run controller role
@@ -1085,7 +1087,7 @@ claims a pilot has passed.** Protocol implementation and later authorized pilot
 execution are strictly separate; the latter is roadmap Step 22, in Phase D.
 
 **Bind before any pilot outcome exists:** maximum cost, maximum runtime, maximum
-retries, maximum sample count, the **four-rung candidate topology ladder** from
+retries, maximum sample count, the **two-rung one-GPU candidate topology ladder** from
 §5.2, and the **deterministic selection rule** ("largest candidate that passes
 OOM, tool-call, output-parity, and p10 throughput gates"). Bind the human
 approval receipt to the exact code, image, manifest, model, benchmark roster,

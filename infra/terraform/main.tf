@@ -269,6 +269,25 @@ resource "aws_batch_job_queue" "worker" {
   }
 }
 
+# Whole-node admission job. The image may be populated only from the immutable
+# Step 7B image receipt; registering it does not enable or submit work.
+resource "aws_batch_job_definition" "one_gpu_admission" {
+  count                 = var.create_batch_resources ? 1 : 0
+  name                  = "${var.name_prefix}-one-gpu-admission"
+  type                  = "container"
+  platform_capabilities = ["EC2"]
+
+  container_properties = jsonencode({
+    image      = var.controller_image
+    privileged = true
+    resourceRequirements = [
+      { type = "GPU", value = "1" },
+      { type = "VCPU", value = "8" },
+      { type = "MEMORY", value = "60000" },
+    ]
+  })
+}
+
 resource "aws_budgets_budget" "monthly" {
   name         = "${var.name_prefix}-monthly"
   budget_type  = "COST"

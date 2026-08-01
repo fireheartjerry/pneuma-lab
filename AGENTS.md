@@ -19,10 +19,11 @@
 6. **Claims last** -- learned-subject delivery does not import the legacy scorer
     or establish phenomenal consciousness.
 7. **NeurIPS execution is active but gated** -- the Resampling Null synthetic
-    core is the current implementation track. AWS has $10,000 verified
-    EC2-eligible credit plus a separate $100 credit, but both requested 48-vCPU
-    G/VT On-Demand and Spot quota increases remain unapplied pending AWS
-    approval. Credits never bypass protocol, authority, quota, or spend gates.
+    core is the current implementation track. The AWS primary topology is the
+    approved 8-vCPU `g6e.2xlarge` with one L40S. AWS has $10,000 verified
+    EC2-eligible credit plus a separate $100 credit, but quota/account evidence
+    remains an admission gate. Credits never bypass protocol, authority, quota,
+    or spend gates.
 
 ## Current NeurIPS Execution State
 

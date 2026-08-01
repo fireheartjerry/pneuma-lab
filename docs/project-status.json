@@ -492,6 +492,7 @@
             "e2e_status": "E2E_pending",
             "evidence_refs": [
                 "docs/research/neurips-2026-workshop/40-aws-architecture.md",
+                "docs/research/neurips-2026-workshop/49-single-l40s-topology-reconciliation.md",
                 "schemas/cloud-architecture-manifest.schema.json",
                 "src/pneuma_lab/cloud/architecture.py",
                 "infra/terraform/main.tf",
@@ -645,6 +646,7 @@
             "e2e_status": "E2E_pending",
             "evidence_refs": [
                 "docs/research/neurips-2026-workshop/47-pilot-protocol.md",
+                "docs/research/neurips-2026-workshop/49-single-l40s-topology-reconciliation.md",
                 "schemas/cloud-pilot-protocol.schema.json",
                 "src/pneuma_lab/cloud/pilot.py",
                 "tests/cloud/test_pilot.py"
@@ -876,6 +878,7 @@
         "docs/research/00-program-overview.md",
         "docs/research/10-anti-fake-progress.md",
         "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
+        "docs/research/neurips-2026-workshop/49-single-l40s-topology-reconciliation.md",
         "docs/research/jspace-readiness.md",
         "docs/vision.md",
         "docs/gauge-card-standard.md",
@@ -979,19 +982,19 @@
         },
         {
             "id": "B-NEURIPS-G-ROSTER",
-            "summary": "Both C120 and C160 remain FEASIBILITY_NO_GO (DL-163): no qualification audit has run, and proxy metadata is never qualification. Against the current-metadata proxy, C120 requires 11 C and 16 C++ root lineages versus 9 and 14, and C160 requires 14 C versus 9; these are recorded provisional_unsatisfiable, NOT a determination that a tier is dead, because eligibility is judged at the pinned base commits rather than on present-day repository metadata. Settling it requires the Step 5B base-commit admissibility enumeration or a reviewed protocol amendment, and the per-language proxy counts remain internal CL-009 evidence pending independent re-derivation."
+            "summary": "Both C120 and C160 remain FEASIBILITY_NO_GO and their shortfalls remain provisional pending a genuine base_commit_admissible audit. Requirement arithmetic is corrected (DL-165): unfixed reserves and the C160 Hamilton allocation fail closed rather than defaulting to zero, and a registered floor outranks the inequality, since tau2 C160 requires at least 47 qualified airline tasks. tau2 has a separate qualification path (DL-166) and the promotion gate requires a satisfied audit for both registered families."
         },
         {
             "id": "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
-            "summary": "No real model, tokenizer, benchmark, verifier, license, contamination, or OCI receipt has been retrieved and independently hash-verified. The Step 5B fail-closed retrieval and hash-verification workflow is implemented and its authorization record is committed as an unsigned candidate, so retrieval refuses; Step 5A fixtures do not satisfy Step 5B."
+            "summary": "Step 5B authorization is authenticated (Ed25519 over the complete canonical body, an enumerated trusted key registry, validity-window/revocation/expiry checks, and a spend-ledger row content binding), and retrieval may additionally proceed only against an input lock that classifies as a real candidate rather than the Step 5A shape demonstration. Retrieval resolves authorization validity from a trusted clock rather than a caller-supplied instant, enforces an authenticated per-artifact size from the input lock before and during transfer, and durably publishes then independently rehashes each artifact before emitting a receipt. The committed authorization remains an unsigned candidate bound to the synthetic fixture lock, so retrieval refuses and that path is unreachable. No real model, tokenizer, benchmark, verifier, license, contamination, or OCI receipt has been retrieved and independently hash-verified, and the host also lacks sufficient disk for the projected full retrieval. The base-commit licence audit has reproducible tooling but no record; CL-009/DL-128 proxy prose is refused as qualification because it was derived from present-day metadata and CL-027 records it as unrecomputable."
         },
         {
             "id": "B-NEURIPS-AWS-ACCOUNT-PLAN",
-            "summary": "AWS reported a partial 8-vCPU G/VT approval, but its On-Demand/Spot account application remains independently unverified. DL-161 prospectively selects an 8-vCPU g6e.2xlarge single-L40S path; Terraform and manifests still encode the superseded 48-vCPU shape, and no authorized account-bound plan or deployment receipt exists."
+            "summary": "A fresh authenticated us-east-1 console and CloudShell audit confirmed the expected root principal, an applied On-Demand G/VT quota of 8 vCPUs, an applied Spot G/VT quota of 16 vCPUs, and g6e.2xlarge offerings in us-east-1a through us-east-1d. Under DL-161 the Terraform configuration and manifests now encode the 8-vCPU single-L40S g6e.2xlarge shape rather than the superseded 48-vCPU shape. The account has only default-network substrate; it has no DynamoDB table and no S3 bucket, so the required lease/artifact state targets and an account-bound Terraform plan do not yet exist. Terraform L1 evidence remains distinct from any account-bound plan or deployment receipt."
         },
         {
             "id": "B-NEURIPS-IMAGE-BUILD-VERIFICATION",
-            "summary": "No authorized deterministic image builds, image-digest comparison, or SBOM receipts exist; Step 7A fixture recipes do not satisfy Step 7B."
+            "summary": "The exact three-role double-build/SBOM receipt validator exists, but no authorized deterministic image builds, image-digest comparison, or SBOM receipts exist; Step 7A fixture recipes do not satisfy Step 7B."
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
@@ -999,7 +1002,7 @@
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
-            "summary": "The required pre-experiment hostile launch review has not occurred."
+            "summary": "The required pre-experiment hostile launch review has not occurred. Its spec generator now fails closed until genuine Step 5B, G-ROSTER, Step 7B, AWS-account, and one-GPU receipts exist."
         },
         {
             "id": "B-NEURIPS-EXPERIMENT-EXECUTION",

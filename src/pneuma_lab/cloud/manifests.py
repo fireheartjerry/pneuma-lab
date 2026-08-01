@@ -24,6 +24,11 @@ _SCHEMA_BY_KIND = {
     "cloud_pilot_protocol": "cloud-pilot-protocol.schema.json",
     "cloud_retrieval_authorization": "cloud-retrieval-authorization.schema.json",
     "cloud_qualification_audit": "cloud-qualification-audit.schema.json",
+    "cloud_pilot_admission_receipt": "cloud-pilot-admission-receipt.schema.json",
+    "cloud_image_build_receipt": "cloud-image-build-receipt.schema.json",
+    "cloud_aws_account_verification": "cloud-aws-account-verification.schema.json",
+    "cloud_approver_key_registry": "cloud-approver-key-registry.schema.json",
+    "cloud_licence_audit": "cloud-licence-audit.schema.json",
     "cloud_unattended_spend_policy": "cloud-unattended-spend-policy.schema.json",
 }
 
@@ -48,3 +53,31 @@ def validate_experiment_manifest(record: Mapping[str, Any]) -> dict[str, Any]:
     """Validate an unpromoted experiment manifest bound to an input-lock digest."""
 
     return _validate(record, expected_kind="cloud_experiment_manifest")
+
+
+def validate_pilot_admission_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate a recorded one-GPU admission measurement without promoting it.
+
+    A gate verdict is stored beside the counts it rests on, so the two can
+    disagree. They must not: a receipt claiming `tool_call: true` while its own
+    measurements record 3 of 4 cases passing is not a weaker pass, it is an
+    incoherent record, and admitting one would let a failed gate be reported as
+    a clean one. The p10-throughput gate is checked the same way against the
+    frozen protocol threshold in `pilot.require_p10_gate_consistency`.
+
+    Only the count-bearing gates are recomputed here. `oom` rests on
+    `peak_gpu_memory_gib` against a device capacity the schema already bounds,
+    and is checked where that capacity is known rather than asserted twice.
+    """
+
+    receipt = _validate(record, expected_kind="cloud_pilot_admission_receipt")
+    gates = receipt["gates"]
+    measurements = receipt["measurements"]
+    for gate, label in (("tool_call", "tool-call gate"), ("output_parity", "output-parity gate")):
+        cases = int(measurements[f"{gate}_cases"])
+        passes = int(measurements[f"{gate}_passes"])
+        if passes > cases:
+            raise CloudManifestError(f"{label} records more passes than cases")
+        if gates[gate] != (passes == cases):
+            raise CloudManifestError(f"{label} contradicts its own measurements ({passes}/{cases})")
+    return receipt

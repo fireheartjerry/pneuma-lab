@@ -253,7 +253,7 @@ def test_verification_rejects_a_later_forbidden_descendant(
 
 def test_verification_rejects_noncanonical_or_promoted_record(tmp_path: Path) -> None:
     path = create_timing_no_go(_fixture(tmp_path), run_root=tmp_path)
-    record = json.loads(path.read_text())
+    record = json.loads(path.read_text(encoding="utf-8"))
     record["payload"]["claims"]["scientific_result"] = True
     path.write_text(json.dumps(record, indent=2))
     with pytest.raises(RecordValidationError, match="canonical|claim"):

@@ -705,7 +705,7 @@ def test_verified_stream_conversion_rejects_malformed_nested_trace_before_write(
     with pytest.raises(ValueError, match="tool_calls"):
         converter.run_verified_stream_conversion(
             [trace],
-            json.loads((FIXTURE.parent / "adapter_report.json").read_text()),
+            json.loads((FIXTURE.parent / "adapter_report.json").read_text(encoding="utf-8")),
             repo_root=tmp_path / "repo",
             data_root=tmp_path / "pneuma-data",
             output_root=output_root,
@@ -723,7 +723,7 @@ def test_verified_stream_conversion_rejects_invalid_nested_tool_shape(
     with pytest.raises(ValueError, match="tool|schema|valid"):
         converter.run_verified_stream_conversion(
             traces,
-            json.loads((FIXTURE.parent / "adapter_report.json").read_text()),
+            json.loads((FIXTURE.parent / "adapter_report.json").read_text(encoding="utf-8")),
             repo_root=tmp_path / "repo",
             data_root=tmp_path / "pneuma-data",
             output_root=output_root,

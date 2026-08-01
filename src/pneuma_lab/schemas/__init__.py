@@ -107,6 +107,11 @@ CLOUD_SCHEMA_FILES = (
     "cloud-pilot-protocol.schema.json",
     "cloud-retrieval-authorization.schema.json",
     "cloud-qualification-audit.schema.json",
+    "cloud-pilot-admission-receipt.schema.json",
+    "cloud-image-build-receipt.schema.json",
+    "cloud-aws-account-verification.schema.json",
+    "cloud-approver-key-registry.schema.json",
+    "cloud-licence-audit.schema.json",
     "cloud-unattended-spend-policy.schema.json",
 )
 
