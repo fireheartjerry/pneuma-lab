@@ -1,0 +1,43 @@
+{
+  "action_class": "gpu_smoke",
+  "action_id": "step5b-model-fit-002",
+  "ami_id": "ami-011db5ae81cc0f370",
+  "automatic_stop_minutes": 170,
+  "cost_ceiling_usd": 8.0,
+  "ebs": {
+    "delete_on_termination": true,
+    "encrypted": true,
+    "size_gib": 200,
+    "type": "gp3"
+  },
+  "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:1fc54d73f9ec36356bec5c2c8497b671f72a9e43c0bae4fbb84be3ee6ede9ae2",
+  "input_lock_sha256": "e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84",
+  "input_receipts": {
+    "simulator_model_snapshot_sha256": "dea328ca1b895b1ed2da6702e37d436a5d96b46d4b87e7d5debf8e5d53422f67",
+    "subject_model_snapshot_sha256": "1358b8a66687d19e2170f57f0051f065c3f0141aee9c7bdf5e903c39fd7032db"
+  },
+  "instance_profile": "pneuma-c160-worker",
+  "instance_type": "g6e.2xlarge",
+  "max_instances": 1,
+  "max_retries": 0,
+  "model_fit_runner_sha256": "19b729d884bcb3dadd18aced8f0b00a03789812122324c4b4f4f8591534de72b",
+  "on_demand_hourly_usd": 2.24208,
+  "payload_manifest_sha256": "1f738eff8667f0b863cdd8259c7bfa071ec3a37b2d9963e999f11e7dda1087e4",
+  "plan_sha256": "fa79e069987ff4d4ff8a31e6e312a45847d11cd53a80da6f2d326acfd96bbc6c",
+  "projected_cost_usd": 7.0,
+  "provider": "aws",
+  "region": "us-east-1",
+  "security_group_id": "sg-08428ae82a7e2fd35",
+  "source_commit": "01fca0b0e5f272d34a216c94c2560e1fb3f1dc1e",
+  "subnet_id": "subnet-042e433905daddc0b",
+  "supersedes_plan_sha256": "a849cef94e0cafc25a0c43efe658576042490ef000839b24f79a653a46bb1066",
+  "user_data_sha256": "5e245ffa548d2ed6528520101f5d732d47ab1c2f8e75d60003a7b5546d0670b5",
+  "workload": [
+    "reconstruct and SHA-256 verify all sealed subject-model objects via the pinned AWS CLI",
+    "reconstruct and SHA-256 verify all sealed simulator-model objects via the pinned AWS CLI",
+    "subject vLLM fit and 128-token generation at 32768 context",
+    "subject vLLM fit and 128-token generation at 65536 context",
+    "simulator vLLM fit and 128-token generation at 32768 context",
+    "publish all success and failure receipts, then terminate"
+  ]
+}
