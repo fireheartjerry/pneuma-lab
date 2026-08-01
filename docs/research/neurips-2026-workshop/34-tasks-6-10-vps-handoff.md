@@ -979,3 +979,10 @@ fails closed. The streaming executor and offline final-receipt verifier now pass
 focused hostile regressions and are bound at executor-surface digest
 `33a85fd0381fc896aef98b6d53941878f32148047360b764d6c2daf3e29e0493`;
 they remain E2E-unrun.
+
+Authenticated Terraform plan
+`b8f0e95a05051ca4ba05eeb7bcf6316d0ad57834c71723435915095aca9fd243`
+is exactly 0 add / 1 update / 0 destroy and adds only the Step 5B 35/30/7
+lifecycle alongside the unchanged general rule. Live AWS still has only the
+general rule. Applying that exact zero-incremental-cost binary plan is the next
+provider mutation and requires explicit approval.

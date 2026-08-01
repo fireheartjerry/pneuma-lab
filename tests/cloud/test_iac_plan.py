@@ -36,6 +36,10 @@ def test_static_iac_contract_is_pinned_and_tier_agnostic() -> None:
     variables = (ROOT / "variables.tf").read_text(encoding="utf-8")
     assert 'variable "step5b_payload_expiration_days"' in variables
     assert "default     = 35" in variables
+    encryption_body = main.split('resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts" {', 1)[1].split('resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {', 1)[0]
+    lifecycle_body = main.split('resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {', 1)[1].split('resource "aws_dynamodb_table" "leases" {', 1)[0]
+    assert "expire-step5b-payloads" not in encryption_body
+    assert "expire-step5b-payloads" in lifecycle_body
     assert (ROOT / ".terraform.lock.hcl").is_file()
     iam = (ROOT / "iam.tf").read_text(encoding="utf-8")
     assert 'actions   = ["dynamodb:GetItem"]' in iam

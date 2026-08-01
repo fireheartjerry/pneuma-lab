@@ -4106,3 +4106,25 @@ The next event after the archived migration boundary is appended below.
   roster, keys, upstream identities, SHA-256 values, byte sum, action/manifest/
   pricing bindings, and request ceilings. Focused tests passed; no live network,
   provider mutation, authority, payload, reservation, or spend occurred.
+
+## 2026-08-01 — Account-bound Step 5B lifecycle plan
+
+- **Pre-plan rejection:** comparison against exact applied config/state found
+  the new lifecycle block accidentally nested under the S3 encryption resource.
+  Local string tests had missed the invalid HCL because Terraform is absent on
+  Windows. The block was moved into the lifecycle resource and a structural
+  regression now rejects that placement error.
+- **Lineage:** authenticated account `892077329800`; provider region
+  `us-east-1`; Terraform 1.15.8 / AWS provider 5.91.0; exact pre-plan state
+  SHA-256 `78e36e9659e7f0eee41881b68c6382f22306c83a16ef9e698b2d4e0e0a5b7cdf`.
+  The lifecycle-only config was derived from the exact applied config, excluding
+  unrelated later disabled-Batch implementation drift.
+- **Plan:** binary SHA-256
+  `b8f0e95a05051ca4ba05eeb7bcf6316d0ad57834c71723435915095aca9fd243`;
+  JSON `037609810584d2c5d23238afa3556493bd23107080fe1b64678c9ecfaba95b07`;
+  text `8bac0518dc7e346d79a132c34bc83a519e98e7100921ef8a3f1046ecc2876bb4`.
+  Exactly 0 add, 1 in-place update, 0 destroy. The old `runs/` 365/30/7 rule
+  remains and exact `runs/step5b/payloads/` 35/30/7 is added.
+- **Live boundary:** direct readback still returned only the old lifecycle rule.
+  The plan remains stored in CloudShell and was not applied. Incremental cost is
+  zero; no mutation, payload retrieval, reservation, or spend occurred.
