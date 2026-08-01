@@ -139,6 +139,34 @@ user's standing approval. The preserved partial P0 screen remains an incomplete
 experiment-only non-result and must not be resumed or rewritten without new
 explicit experiment authority.
 
+## KMS-backed signing is now active
+
+The VPS has a non-exporting signing path. Use these profiles with the ambient
+AWS session variables cleared (the original root `aws login` environment can
+override profile credentials):
+
+```bash
+env -u AWS_SESSION_TOKEN -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY \
+  AWS_PROFILE=pneuma-kms-signer \
+  PATH="$HOME/.local/bin:$PATH" \
+  aws sts get-caller-identity
+```
+
+- `pneuma-signer-bootstrap` is a narrowly scoped IAM user whose only permission
+  is `sts:AssumeRole` on `pneuma-kms-signer-v1`.
+- `pneuma-kms-signer` is the temporary role profile with KMS `Sign`, `Verify`,
+  `GetPublicKey`, and `DescribeKey` only for the registered signer key and only
+  with `ED25519_SHA_512` signing.
+- KMS alias: `alias/pneuma-approver`; key ARN and public bytes are bound in
+  `kms-signer-bootstrap-plan-004-20260801.json`.
+- Registered public key: `pneuma-kms-20260801-r1`.
+- Root direct `kms:Sign` was independently observed as denied; one role-backed
+  signature was verified offline.
+
+The exact Step 7B package is now signed through KMS and committed. Verify it
+against the registry and plan before executing any local build action. Never
+print, export, rotate, or copy the IAM secret or any KMS private material.
+
 ## Operating standard
 
 - Maintain the distinction between `implementation_complete`, `E2E_pending`,
