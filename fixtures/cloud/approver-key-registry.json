@@ -24,6 +24,17 @@
             "status": "active",
             "revoked_timestamp": null,
             "revocation_reason": null
+        },
+        {
+            "key_id": "pneuma-kms-20260801-r1",
+            "approver_id": "jerry-mathos-ai",
+            "algorithm": "ed25519",
+            "public_key_hex": "8bec051c2614356d4e25da7e2b1f5205ec68a1da45c62ea1a4ac0f73847f8de7",
+            "not_before": "2026-08-01T20:51:00Z",
+            "not_after": "2027-08-01T20:51:00Z",
+            "status": "active",
+            "revoked_timestamp": null,
+            "revocation_reason": null
         }
     ]
 }

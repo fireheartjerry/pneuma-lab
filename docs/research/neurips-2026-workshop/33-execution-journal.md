@@ -4410,3 +4410,15 @@ The next event after the archived migration boundary is appended below.
 - Provider reads prove the user has no inline policies and no access keys, and
   the signer role retains its prior root-only trust. Successor action 004 binds
   committed policy JSON files instead of shell-escaped policy text.
+
+### KMS custody activation closed
+
+- Action 004 completed after the committed policy files were applied. The VPS
+  now uses profile `pneuma-signer-bootstrap` (only `sts:AssumeRole` on the exact
+  signer role) and profile `pneuma-kms-signer` for temporary role credentials.
+- One KMS signature was produced through the role and verified offline against
+  public key `8bec051c2614356d4e25da7e2b1f5205ec68a1da45c62ea1a4ac0f73847f8de7`.
+  The root session's direct `kms:Sign` attempt returned `AccessDenied`.
+- The public key is now enumerated as active registry key
+  `pneuma-kms-20260801-r1`. No private signing key left KMS; the bootstrap IAM
+  access key was handled only inside the VPS and was never printed.

@@ -134,7 +134,7 @@ def test_committed_registry_revokes_lost_key_and_trusts_rotation() -> None:
 
     registry = validate_key_registry(json.loads((FIXTURES / "approver-key-registry.json").read_text(encoding="utf-8")))
     assert [key["key_id"] for key in registry["keys"]] == [
-        "pneuma-b1-20260731", "pneuma-b1-20260801-r1"
+        "pneuma-b1-20260731", "pneuma-b1-20260801-r1", "pneuma-kms-20260801-r1"
     ]
     assert registry["keys"][0]["status"] == "revoked"
     assert registry["keys"][1]["status"] == "active"
