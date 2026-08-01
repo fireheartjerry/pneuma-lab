@@ -10,6 +10,17 @@
             "public_key_hex": "28cfb37ddaa876dbf4ffeae36481e5b78796513d76d20500babbd63115852870",
             "not_before": "2026-07-31T00:00:00Z",
             "not_after": "2027-07-31T00:00:00Z",
+            "status": "revoked",
+            "revoked_timestamp": "2026-08-01T08:09:10Z",
+            "revocation_reason": "Private key was not present in persistent CloudShell storage; revoked before any signed preparation action."
+        },
+        {
+            "key_id": "pneuma-b1-20260801-r1",
+            "approver_id": "jerry-mathos-ai",
+            "algorithm": "ed25519",
+            "public_key_hex": "666953e2e6aaea11366280608b1b5cebe7641b6a9518b36ea9b14e65d361f932",
+            "not_before": "2026-08-01T08:09:10Z",
+            "not_after": "2027-08-01T08:09:10Z",
             "status": "active",
             "revoked_timestamp": null,
             "revocation_reason": null

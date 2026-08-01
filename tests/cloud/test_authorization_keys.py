@@ -129,11 +129,15 @@ def _sign(private: Ed25519PrivateKey, record: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def test_committed_registry_trusts_only_the_project_scoped_cloudshell_key() -> None:
-    """The public registry names precisely the generated CloudShell key."""
+def test_committed_registry_revokes_lost_key_and_trusts_rotation() -> None:
+    """The public registry keeps the lost key revoked and one rotation active."""
 
     registry = validate_key_registry(json.loads((FIXTURES / "approver-key-registry.json").read_text(encoding="utf-8")))
-    assert [key["key_id"] for key in registry["keys"]] == ["pneuma-b1-20260731"]
+    assert [key["key_id"] for key in registry["keys"]] == [
+        "pneuma-b1-20260731", "pneuma-b1-20260801-r1"
+    ]
+    assert registry["keys"][0]["status"] == "revoked"
+    assert registry["keys"][1]["status"] == "active"
     with pytest.raises(CloudManifestError, match="not in the trusted registry"):
         resolve_trusted_key(registry, "approver-primary", now=instant(NOW))
 

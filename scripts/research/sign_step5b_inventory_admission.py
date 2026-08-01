@@ -48,7 +48,7 @@ def _private_key(path: Path) -> Ed25519PrivateKey:
 def _approval(granted: str, expires: str) -> dict[str, Any]:
     return {
         "approver_id": "jerry-mathos-ai",
-        "key_id": "pneuma-b1-20260731",
+        "key_id": "pneuma-b1-20260801-r1",
         "granted_timestamp": granted,
         "expires_timestamp": expires,
         "body_sha256": "0" * 64,

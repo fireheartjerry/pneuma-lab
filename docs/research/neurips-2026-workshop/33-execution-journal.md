@@ -3973,3 +3973,17 @@ The next event after the archived migration boundary is appended below.
   history now hashes canonical UTF-8/LF text, and LF/CRLF parity is tested.
 - **Boundary:** both ledger rows remain pending exact user signature. No key was
   accessed, no authority signed, and no provider action or spend occurred.
+
+## 2026-08-01 — CloudShell approver-key rotation
+
+- **Finding:** after exact action approval, authenticated CloudShell account
+  `892077329800` contained no persistent file or environment handle for the
+  registered `pneuma-b1-20260731` private key. The earlier custody statement
+  was false and that identity could not sign.
+- **Authorized repair:** the user explicitly approved rotation. CloudShell
+  generated Ed25519 key `pneuma-b1-20260801-r1` at `2026-08-01T08:09:10Z`;
+  private PEM `~/.pneuma/approver-20260801.pem` is mode 0600 and remains there.
+  Only public key `666953e2e6aaea11366280608b1b5cebe7641b6a9518b36ea9b14e65d361f932`
+  and a non-secret private-file checksum were observed outside CloudShell.
+- **Governance:** the lost identity is revoked before any preparation action;
+  the rotation is the only active registry key. No action has yet been signed.

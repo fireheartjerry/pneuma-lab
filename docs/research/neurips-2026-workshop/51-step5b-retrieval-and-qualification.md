@@ -51,8 +51,8 @@ authorized record is committed by this correction.
 
 **Boundary of the ceremony:** an Ed25519 key establishes possession of that
 private key, not a person's intent, comprehension, or hardware identity. The
-registry now contains the project-scoped CloudShell public key
-`pneuma-b1-20260731`; its private half remains only in CloudShell. An unknown,
+registry contains the revoked `pneuma-b1-20260731` public identity and active
+CloudShell rotation `pneuma-b1-20260801-r1`. An unknown,
 revoked, out-of-window, or expired key authorizes nothing. Key compromise,
 single-signer trust, and registry-update governance remain explicit residual
 risks rather than being papered over by a stronger adjective.
@@ -246,9 +246,11 @@ proof of a person. A stolen or coerced key signs perfectly well; there is no
 hardware binding, no threshold or multi-party requirement, and no transparency
 log, so a single compromised key is a single point of failure. Nothing proves
 the approver understood what they signed. Revocation is only as timely as the
-committed registry. The registry currently names one real key generated in the
-user's CloudShell by a separately authorized session; **this lineage did not
-perform that ceremony and cannot attest to private-key custody.**
+committed registry. The original private key was absent from persistent
+CloudShell storage and was revoked before any preparation action. The rotated
+private key was generated at `2026-08-01T08:09:10Z`, remains at
+`~/.pneuma/approver-20260801.pem` with mode 0600, and its public bytes are the
+only key material committed here.
 
 ### Real candidate locks versus the Step 5A demonstration
 

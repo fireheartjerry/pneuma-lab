@@ -26,7 +26,7 @@ def test_two_stage_inventory_ceremony_binds_exact_plan(tmp_path) -> None:
     registry = {
         "record_kind": "cloud_approver_key_registry", "schema_version": "0.1.0",
         "frozen_timestamp": "2026-08-01T00:00:00Z", "keys": [{
-            "key_id": "pneuma-b1-20260731", "approver_id": "jerry-mathos-ai",
+            "key_id": "pneuma-b1-20260801-r1", "approver_id": "jerry-mathos-ai",
             "algorithm": "ed25519", "public_key_hex": public,
             "not_before": "2026-08-01T00:00:00Z", "not_after": "2027-08-01T00:00:00Z",
             "status": "active", "revoked_timestamp": None, "revocation_reason": None,
