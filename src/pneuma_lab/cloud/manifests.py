@@ -55,6 +55,28 @@ def validate_experiment_manifest(record: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def validate_pilot_admission_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate a recorded one-GPU admission measurement without promoting it."""
+    """Validate a recorded one-GPU admission measurement without promoting it.
 
-    return _validate(record, expected_kind="cloud_pilot_admission_receipt")
+    A gate verdict is stored beside the counts it rests on, so the two can
+    disagree. They must not: a receipt claiming `tool_call: true` while its own
+    measurements record 3 of 4 cases passing is not a weaker pass, it is an
+    incoherent record, and admitting one would let a failed gate be reported as
+    a clean one. The p10-throughput gate is checked the same way against the
+    frozen protocol threshold in `pilot.require_p10_gate_consistency`.
+
+    Only the count-bearing gates are recomputed here. `oom` rests on
+    `peak_gpu_memory_gib` against a device capacity the schema already bounds,
+    and is checked where that capacity is known rather than asserted twice.
+    """
+
+    receipt = _validate(record, expected_kind="cloud_pilot_admission_receipt")
+    gates = receipt["gates"]
+    measurements = receipt["measurements"]
+    for gate, label in (("tool_call", "tool-call gate"), ("output_parity", "output-parity gate")):
+        cases = int(measurements[f"{gate}_cases"])
+        passes = int(measurements[f"{gate}_passes"])
+        if passes > cases:
+            raise CloudManifestError(f"{label} records more passes than cases")
+        if gates[gate] != (passes == cases):
+            raise CloudManifestError(f"{label} contradicts its own measurements ({passes}/{cases})")
+    return receipt

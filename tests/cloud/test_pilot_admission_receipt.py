@@ -102,3 +102,21 @@ def test_receipt_rejects_gate_count_contradictions(field: str, value: object, me
     record["measurements"][field] = value
     with pytest.raises(CloudManifestError, match=message):
         validate_pilot_admission_receipt(record)
+
+
+def test_receipt_rejects_more_passes_than_cases() -> None:
+    """A count that cannot happen is refused rather than rounded into a pass."""
+
+    record = receipt()
+    record["measurements"]["tool_call_passes"] = 5
+    with pytest.raises(CloudManifestError, match="more passes than cases"):
+        validate_pilot_admission_receipt(record)
+
+
+def test_a_coherent_partial_failure_is_recordable() -> None:
+    """Failing a gate is representable; only the contradiction is refused."""
+
+    record = receipt()
+    record["measurements"]["tool_call_passes"] = 3
+    record["gates"]["tool_call"] = False
+    assert validate_pilot_admission_receipt(record)["gates"]["tool_call"] is False

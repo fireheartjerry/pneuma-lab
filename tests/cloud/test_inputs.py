@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import pathlib
 
 import pytest
 
@@ -68,3 +69,29 @@ def test_every_referenced_receipt_is_hash_verified(tmp_path) -> None:
     receipt_path.write_bytes(b"changed\n")
     with pytest.raises(CloudManifestError, match="digest mismatch"):
         verify_input_receipts(record, tmp_path)
+
+
+def test_receipt_verification_walks_the_committed_fixture(tmp_path) -> None:
+    """Regression: a half-reverted field left this crashing on every real lock.
+
+    `verify_input_receipts` briefly read `pin["artifacts"]`, an inventory field
+    that a later revert removed from the schema and every builder but not from
+    here. The result was an unconditional KeyError on any valid lock, which is
+    worse than a refusal because it looks like a crash rather than a verdict.
+    Walking the committed fixture pins the contract this function actually has.
+    """
+
+    import json
+
+    record = json.loads((pathlib.Path(__file__).resolve().parents[2] / "fixtures/cloud/input-lock-fixture.json").read_text(encoding="utf-8"))
+    payload = b"receipt bytes\n"
+    target = tmp_path / "receipts" / "source.json"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(payload)
+    digest = hashlib.sha256(payload).hexdigest()
+    for pin in record["model_pins"] + [record["tokenizer_pin"]] + record["benchmark_pins"] + record["verifier_sources"]:
+        pin["snapshot_receipt"]["sha256"] = digest
+    for item in record["contamination_receipts"] + record["license_receipts"]:
+        item["sha256"] = digest
+
+    assert verify_input_receipts(record, tmp_path) == ("receipts/source.json",)

@@ -52,7 +52,7 @@ def verify_input_receipts(record: Mapping[str, Any], receipt_root: Path) -> tupl
     root = receipt_root.resolve(strict=True)
     receipts: list[Mapping[str, str]] = []
     for pin in (*lock["model_pins"], lock["tokenizer_pin"], *lock["benchmark_pins"], *lock["verifier_sources"]):
-        receipts.extend(pin["artifacts"])
+        receipts.append(pin["snapshot_receipt"])
     receipts.extend(lock["contamination_receipts"])
     receipts.extend(lock["license_receipts"])
 
