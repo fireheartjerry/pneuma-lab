@@ -4235,3 +4235,15 @@ The next event after the archived migration boundary is appended below.
   canonical-record digest `8c00a40138792498f62ed16a54401e4c421b9a9d15c986bc8fd8f03d0e664ca0`.
 - Payload retrieval is settled. Real input lock, G-ROSTER, Linux worker
   qualification, and experiments remain open.
+
+## 2026-08-01 — Real candidate input lock sealed cross-platform
+
+- Derived seven role-specific artifact snapshot receipts from the complete
+  payload roster, plus source-license, task-license, and public-artifact
+  contamination evidence. Source licenses were verified from mirrored bytes:
+  Qwen 3.5/3.6 are Apache-2.0; SWE harness/dataset, tau2, and RepoLaunch are MIT.
+- The resulting lock classifies as `real_candidate`; all nine referenced local
+  receipts verify. Windows and AWS Linux independently produced identical
+  input-lock digest `e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84`.
+- This closes input-lock construction and portability. It does not promote a
+  G-ROSTER tier or authorize scientific execution.

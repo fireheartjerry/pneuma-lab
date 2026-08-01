@@ -1028,3 +1028,9 @@ the offline verifier accepts its complete ordered roster and exact plan,
 manifest, pricing, lifecycle, identity, byte, and request bindings. This closes
 payload retrieval only. Next: construct and dual-platform verify the real
 candidate input lock, admit SWE/tau2 G-ROSTER, then run Linux-only worker gates.
+
+The real candidate input lock is now sealed at
+`e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84`.
+Native Windows and AWS Linux independently classify it as `real_candidate` and
+verify all nine referenced receipts. The next blocking dependency is admitted
+SWE/tau2 G-ROSTER evidence; no experiment is authorized by the lock alone.

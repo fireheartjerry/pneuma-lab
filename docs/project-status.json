@@ -1001,7 +1001,7 @@
         },
         {
             "id": "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
-            "summary": "Step 5B authenticated payload retrieval is complete. Signed successor action 004, plan d40223db7385dc19ebcf7290029841b6318a66eb30a1f76e618cc6c856df1cf7, installed and independently reread all 1,705 retrievable objects totaling 67,483,211,374 bytes. AWS and Windows match the 980,909-byte final receipt at SHA-256 69d3e0db08788639de72d020af1ac061a2aa5f6a8742a288eb7d592ee8e7a89c, and the offline semantic verifier accepts the complete ordered roster and all bindings. Official AWS pricing remains USD 3.78 worst case under USD 5.00 and lifecycle receipt 5525f0016d91d1158c59215c88d5e454409942d08f649b0dc554d00712754c1d remains live. Real candidate input-lock construction and G-ROSTER admission remain incomplete, so experiments are still blocked."
+            "summary": "Step 5B authenticated payload retrieval and real-candidate input-lock construction are complete. All 1,705 retrievable objects totaling 67,483,211,374 bytes were independently reread; AWS and Windows match the final receipt at SHA-256 69d3e0db08788639de72d020af1ac061a2aa5f6a8742a288eb7d592ee8e7a89c. The derived lock binds role-specific snapshots plus source/task license and contamination evidence, classifies as real_candidate, and Windows/AWS Linux independently verify all nine receipts at input-lock digest e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84. G-ROSTER admission remains incomplete, so experiments are still blocked."
         },
         {
             "id": "B-NEURIPS-AWS-ACCOUNT-PLAN",
