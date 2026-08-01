@@ -4373,3 +4373,16 @@ The next event after the archived migration boundary is appended below.
   This is implementation only: the recipes remain fixture-only, no image was
   built or run, no receipt was promoted, and Step 7B/E2E qualification remains
   pending.
+
+### KMS signer bootstrap attempt 001 failed closed
+
+- The existing registered CloudShell key signed exact plan
+  `221427aa...8837`; signed-package SHA-256 is `4978ce0f...bc05`.
+- AWS created only IAM role `pneuma-kms-signer-v1` at
+  `2026-08-01T20:32:46Z`. The subsequent first and only KMS `CreateKey` call
+  failed with `MalformedPolicyDocumentException` because the newly created
+  role had not propagated as a valid key-policy principal. CloudTrail request
+  ID: `e32f453c-a21e-4a4a-b479-0d549c997fb3`.
+- Provider inventory confirms no customer-managed signer key or alias was
+  created. The zero-retry action was not reused. Successor plan
+  `37b36480...bd56` excludes role creation and binds the observed role.
