@@ -4128,3 +4128,36 @@ The next event after the archived migration boundary is appended below.
 - **Live boundary:** direct readback still returned only the old lifecycle rule.
   The plan remains stored in CloudShell and was not applied. Incremental cost is
   zero; no mutation, payload retrieval, reservation, or spend occurred.
+
+### Payload-readiness state correction
+
+- The payload plan previously called itself `ready_for_signature` while the
+  lifecycle it depends on remained unapplied. That label could permit signing
+  before the retention guarantee existed, even though runtime would later
+  refuse execution.
+- The contract now has distinct `lifecycle_apply_pending` state and binds both
+  Terraform plan SHA-256
+  `b8f0e95a05051ca4ba05eeb7bcf6316d0ad57834c71723435915095aca9fd243`
+  and a mandatory future live-receipt SHA-256. The live receipt has a closed
+  schema and recomputes account, region, bucket, before/after state, apply
+  output, 0/1/0 plan counts, zero incremental cost, and exact rules.
+- Current pending payload plan digest is
+  `28a925f2a925fae75eca4017aad2f6e26832bc1d1eedd54040e3a06839b3384c`;
+  updated executor surface is
+  `15c2fa66d872cfb03f86fff60c34f2d4866efe34814c9c3fdc069d50e619259c`.
+  No live receipt exists, so no payload plan is signable.
+
+## 2026-08-01 — Step 5B lifecycle applied and live-proof sealed
+
+- **Authority:** explicit user approval covered only saved Terraform binary
+  `b8f0e95a05051ca4ba05eeb7bcf6316d0ad57834c71723435915095aca9fd243`.
+  The authenticated account check and binary hash both passed before apply.
+- **Result:** Terraform reported 0 added, 1 changed, 0 destroyed. State advanced
+  from `78e36e...b7cdf` to `dff0f6...b57b5`; incremental cost is zero.
+- **Independent readback:** S3 returned the unchanged `runs/` 365/30/7 rule and
+  live `runs/step5b/payloads/` 35/30/7 rule. Canonical lifecycle receipt digest
+  is `5525f0016d91d1158c59215c88d5e454409942d08f649b0dc554d00712754c1d`.
+- **Consequence:** successor payload plan digest
+  `9334ffebd443dd4aee2a1a566ae5b29479b40a2856afe825a71e0c09ff74606a`
+  is `ready_for_signature` but remains unsigned and authorizes nothing. No
+  payload, GPU, model load, pilot, experiment, reservation, or spend occurred.

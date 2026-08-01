@@ -33,6 +33,7 @@ from pneuma_lab.cloud.payload_retrieval_plan import (
     validate_payload_retrieval_plan_semantics,
 )
 from pneuma_lab.cloud.preparation_admission import require_preparation_admission
+from pneuma_lab.cloud.step5b_lifecycle import step5b_lifecycle_receipt_digest
 
 
 def require_execution_environment(sts: Any, s3: Any, *, expected_account: str, expected_region: str) -> dict[str, str]:
@@ -143,6 +144,7 @@ def main() -> int:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--pricing", type=Path, required=True)
     parser.add_argument("--signing-package", type=Path, required=True)
+    parser.add_argument("--lifecycle-receipt", type=Path, required=True)
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--key-registry", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -157,6 +159,9 @@ def main() -> int:
         raise CloudManifestError("payload plan is not bound to the exact pricing receipt bytes")
     if plan["status"] != "ready_for_signature" or not pricing["within_ceiling"]:
         raise CloudManifestError("payload plan is not price-qualified for signature")
+    lifecycle_receipt = json.loads(args.lifecycle_receipt.read_text(encoding="utf-8"))
+    if step5b_lifecycle_receipt_digest(lifecycle_receipt, plan) != plan["lifecycle_live_receipt_sha256"]:
+        raise CloudManifestError("payload plan is not bound to the exact live lifecycle receipt bytes")
 
     package = json.loads(args.signing_package.read_text(encoding="utf-8"))
     registry = json.loads(args.key_registry.read_text(encoding="utf-8"))

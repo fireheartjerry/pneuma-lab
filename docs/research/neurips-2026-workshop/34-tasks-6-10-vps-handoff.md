@@ -971,18 +971,21 @@ It targets the existing encrypted/versioned S3 bucket under a content-addressed
 USD 5.00 ceiling. That historical candidate remains unsigned and unready. A
 successor binds the current AWS pricing receipt from official offer version
 `20260728131000`. Hostile review then added the omitted final receipt PUT and
-the exact 35-day Step 5B lifecycle rule. The corrected ready-plan digest is
-`6b5a87e38e4b003497b9ece033576d0dc486e27fb6ecc8e6c74c8f2d1afc6fab`;
-worst-case S3 storage/requests recompute to USD 3.78. It is still unsigned and
-authorizes nothing. The lifecycle Terraform change is unapplied, so execution
-fails closed. The streaming executor and offline final-receipt verifier now pass
+the exact 35-day Step 5B lifecycle rule. AWS applied the immutable Terraform
+plan and live readback proved both rules. Lifecycle receipt SHA-256 is
+`5525f0016d91d1158c59215c88d5e454409942d08f649b0dc554d00712754c1d`;
+the resulting ready-plan digest is
+`9334ffebd443dd4aee2a1a566ae5b29479b40a2856afe825a71e0c09ff74606a`.
+Worst-case S3 storage/requests recompute to USD 3.78. It is still unsigned and
+authorizes nothing, but its explicit state is now `ready_for_signature`. The streaming
+executor and offline final-receipt verifier pass
 focused hostile regressions and are bound at executor-surface digest
-`33a85fd0381fc896aef98b6d53941878f32148047360b764d6c2daf3e29e0493`;
+`15c2fa66d872cfb03f86fff60c34f2d4866efe34814c9c3fdc069d50e619259c`;
 they remain E2E-unrun.
 
 Authenticated Terraform plan
 `b8f0e95a05051ca4ba05eeb7bcf6316d0ad57834c71723435915095aca9fd243`
-is exactly 0 add / 1 update / 0 destroy and adds only the Step 5B 35/30/7
-lifecycle alongside the unchanged general rule. Live AWS still has only the
-general rule. Applying that exact zero-incremental-cost binary plan is the next
-provider mutation and requires explicit approval.
+was applied with exactly 0 add / 1 update / 0 destroy and added only the Step 5B
+35/30/7 lifecycle alongside the unchanged general rule. Post-apply state is
+`dff0f6b4b76898e1bab0dfb9ccd2ca7e6c44f0f7d3b3949a038ece1b895b57b5`.
+The next gate is a separately signed payload action; no payload is authorized yet.

@@ -64,15 +64,18 @@ def executor_sources_digest(repo_root: Path) -> str:
 
 def build_payload_retrieval_plan(
     manifest_record: Mapping[str, Any], *, executor_sources_sha256: str,
-    pricing_receipt_sha256: str | None = None,
+    lifecycle_terraform_plan_sha256: str, pricing_receipt_sha256: str | None = None,
+    lifecycle_live_receipt_sha256: str | None = None,
 ) -> dict[str, Any]:
     manifest = validate_payload_manifest_semantics(manifest_record)
     manifest_sha256 = payload_manifest_digest(manifest)
-    ready = pricing_receipt_sha256 is not None
+    status = "candidate"
+    if pricing_receipt_sha256 is not None:
+        status = "lifecycle_apply_pending" if lifecycle_live_receipt_sha256 is None else "ready_for_signature"
     record = {
         "record_kind": "cloud_payload_retrieval_plan",
         "schema_version": "0.1.0",
-        "status": "ready_for_signature" if ready else "candidate",
+        "status": status,
         "action_id": "step5b-payload-mirror-001",
         "frozen_timestamp": manifest["frozen_timestamp"],
         "provider": "aws",
@@ -81,6 +84,8 @@ def build_payload_retrieval_plan(
         "payload_manifest_sha256": manifest_sha256,
         "inventory_receipt_sha256": manifest["inventory_receipt_sha256"],
         "executor_sources_sha256": executor_sources_sha256,
+        "lifecycle_terraform_plan_sha256": lifecycle_terraform_plan_sha256,
+        "lifecycle_live_receipt_sha256": lifecycle_live_receipt_sha256,
         "retrieval_object_count": manifest["retrieval_object_count"],
         "retrieval_byte_ceiling_bytes": manifest["retrieval_byte_ceiling_bytes"],
         "destination": {
@@ -119,6 +124,9 @@ def validate_payload_retrieval_plan_semantics(
         raise CloudManifestError("payload destination prefix is not content-addressed by the manifest")
     if tuple(plan["allowed_hosts"]) != ALLOWED_HOSTS or tuple(plan["forbidden_actions"]) != FORBIDDEN_ACTIONS:
         raise CloudManifestError("payload plan network or execution boundary is not canonical")
-    if (plan["status"] == "ready_for_signature") != (plan["pricing_receipt_sha256"] is not None):
-        raise CloudManifestError("only a price-receipted payload plan may be ready for signature")
+    expected_status = "candidate"
+    if plan["pricing_receipt_sha256"] is not None:
+        expected_status = "lifecycle_apply_pending" if plan["lifecycle_live_receipt_sha256"] is None else "ready_for_signature"
+    if plan["status"] != expected_status:
+        raise CloudManifestError("payload plan readiness contradicts its pricing and live-lifecycle evidence")
     return plan

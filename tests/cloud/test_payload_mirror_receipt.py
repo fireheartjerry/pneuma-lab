@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def _records():
     manifest = json.loads((ROOT / "docs/research/neurips-2026-workshop/evidence/step5b-payload-retrieval-manifest-20260801.json").read_text())
-    plan = json.loads((ROOT / "fixtures/cloud/payload-retrieval-plan-ready.json").read_text())
+    plan = json.loads((ROOT / "fixtures/cloud/payload-retrieval-plan-lifecycle-pending.json").read_text())
     pricing = json.loads((ROOT / "docs/research/neurips-2026-workshop/evidence/step5b-payload-pricing-receipt-20260801.json").read_text())
     objects = []
     for item in manifest["objects"]:

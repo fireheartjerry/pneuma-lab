@@ -1,0 +1,31 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-step5b-lifecycle-receipt.schema.json",
+    "title": "Cloud Step 5B Lifecycle Receipt",
+    "description": "Account-bound proof that the exact approved Terraform plan was applied and the 35/30/7 S3 lifecycle is live.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "generated_timestamp", "account_id", "region", "bucket", "terraform_plan_sha256", "before_state_sha256", "after_state_sha256", "apply_output_sha256", "plan_counts", "incremental_cost_usd", "rules"],
+    "properties": {
+        "record_kind": {"const": "cloud_step5b_lifecycle_receipt"},
+        "schema_version": {"const": "0.1.0"},
+        "generated_timestamp": {"$ref": "#/$defs/timestamp"},
+        "account_id": {"const": "892077329800"},
+        "region": {"const": "us-east-1"},
+        "bucket": {"const": "pneuma-phase-b-892077329800"},
+        "terraform_plan_sha256": {"$ref": "#/$defs/sha256"},
+        "before_state_sha256": {"$ref": "#/$defs/sha256"},
+        "after_state_sha256": {"$ref": "#/$defs/sha256"},
+        "apply_output_sha256": {"$ref": "#/$defs/sha256"},
+        "plan_counts": {"type": "object", "required": ["add", "change", "destroy"], "properties": {"add": {"const": 0}, "change": {"const": 1}, "destroy": {"const": 0}}, "additionalProperties": false},
+        "incremental_cost_usd": {"const": 0.0},
+        "rules": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/rule"}}
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "timestamp": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"},
+        "rule": {"type": "object", "required": ["id", "status", "prefix", "expiration_days", "noncurrent_days", "abort_days"], "properties": {"id": {"type": "string", "minLength": 1}, "status": {"const": "Enabled"}, "prefix": {"type": "string", "minLength": 1}, "expiration_days": {"type": "integer", "minimum": 1}, "noncurrent_days": {"type": "integer", "minimum": 1}, "abort_days": {"type": "integer", "minimum": 1}}, "additionalProperties": false}
+    }
+}
