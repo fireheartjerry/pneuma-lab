@@ -4454,3 +4454,21 @@ The next event after the archived migration boundary is appended below.
   pilot, experiment, or scientific result occurred. This action has zero retries
   and is not reusable; a corrected successor needs independent hashes and KMS
   authority.
+
+### EJ-20260801-step7b-aws-builder-006-failure
+
+- **Scope:** the first and only execution of KMS-authorized action
+  `step7b-aws-builder-006`, after the AL2023 package correction.
+- **Outcome:** package setup, Syft installation, source retrieval, and Docker
+  startup completed. The controller build then failed closed because its
+  Dockerfile expected `controller.lock` at the build-context root, whereas the
+  sealed executor intentionally supplied the repository root. No image build
+  completed, no SBOM was generated, and no benchmark, model download, GPU use,
+  pilot, experiment, or scientific result occurred.
+- **Teardown:** AWS reports instance `i-01301ecefb3b70cb7` terminated and its
+  delete-on-termination encrypted root `vol-0a0f1b6b958cde412` as
+  `InvalidVolume.NotFound`. Output log and status versions are sealed in the
+  failure receipt.
+- **Successor rule:** action 006 is exhausted. Candidate 007 changes only the
+  three lock-file `COPY` paths and has independent source, plan, ledger, and
+  KMS-signature requirements.
