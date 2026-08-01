@@ -22,4 +22,8 @@ def test_step14_requires_production_execution_surface_receipt() -> None:
     assert receipts["production-execution-surface"] == (
         "build/research/neurips-2026-workshop/phase-b-evidence/production-execution-surface.json"
     )
-    assert len(receipts) == 6
+    assert receipts["interruption-recovery"].endswith("/interruption-recovery.json")
+    assert receipts["cross-platform-portability"].endswith(
+        "/cross-platform-portability.json"
+    )
+    assert len(receipts) == 8

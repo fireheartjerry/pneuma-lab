@@ -110,6 +110,18 @@ REQUIRED_RECEIPTS: tuple[tuple[str, str, str, str], ...] = (
         "build/research/neurips-2026-workshop/phase-b-evidence/one-gpu-admission.json",
         "hash-bound one-L40S OOM, tool-call, parity, and throughput receipt",
     ),
+    (
+        "interruption-recovery",
+        "artifact_root",
+        "build/research/neurips-2026-workshop/phase-b-evidence/interruption-recovery.json",
+        "independent AWS lease-expiry kill and exact completed-boundary restoration receipt",
+    ),
+    (
+        "cross-platform-portability",
+        "artifact_root",
+        "build/research/neurips-2026-workshop/phase-b-evidence/cross-platform-portability.json",
+        "Windows and Linux offline verification of the exact sealed receipt bundle",
+    ),
 )
 
 

@@ -204,6 +204,12 @@ Run independent leakage, statistical, security, cost, authority, and
 reproducibility audits. Resolve every launch-blocking finding and produce a
 signed launch-readiness report.
 
+The campaign spec fails closed unless it binds eight genuine Phase B evidence
+roots: Step 5B input lock, C120 G-ROSTER, Step 7B image builds/SBOMs,
+production execution surface, AWS account/quota/plan, one-GPU admission,
+interruption/recovery, and Windows/Linux receipt portability. Hashing a prose
+claim or omitting either of the last two runtime gates cannot admit Step 14.
+
 This is campaign 1 (`stage_1_pre_launch`) of the adversarial rejection-review
 system, whose sole objective is to construct the strongest evidence-based case
 for rejecting the work. Procedure, input contract, blocking rules, reviewer
