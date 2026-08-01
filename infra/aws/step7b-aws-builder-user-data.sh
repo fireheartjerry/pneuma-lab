@@ -7,6 +7,7 @@ set -euo pipefail
 readonly SOURCE_ARCHIVE_S3_URI='__SOURCE_ARCHIVE_S3_URI__'
 readonly SOURCE_ARCHIVE_SHA256='__SOURCE_ARCHIVE_SHA256__'
 readonly PLAN_S3_URI='__PLAN_S3_URI__'
+readonly ACTION_ID='__ACTION_ID__'
 readonly SYFT_URL='__SYFT_URL__'
 readonly SYFT_SHA256='__SYFT_SHA256__'
 readonly OUTPUT_PREFIX='__OUTPUT_PREFIX__'
@@ -46,6 +47,6 @@ rpm -qa --qf '%{NAME} %{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C so
 docker version --format '{{json .}}' > /opt/pneuma-step7b/output/docker-version.json
 syft version --output json > /opt/pneuma-step7b/output/syft-version.json
 find /opt/pneuma-step7b/output -type f -printf '%p\n' | LC_ALL=C sort | xargs sha256sum > /opt/pneuma-step7b/output/sha256sums.txt
-printf '{"state":"COMPLETE","action":"step7b-aws-builder-001"}\n' > /opt/pneuma-step7b/output/bootstrap-status.json
+printf '{"state":"COMPLETE","action":"%s"}\n' "$ACTION_ID" > /opt/pneuma-step7b/output/bootstrap-status.json
 aws s3 cp /opt/pneuma-step7b/output "${OUTPUT_PREFIX}" --recursive --only-show-errors
 shutdown -h now
