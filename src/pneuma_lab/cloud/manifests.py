@@ -33,6 +33,7 @@ _SCHEMA_BY_KIND = {
     "cloud_preparation_envelope": "cloud-preparation-envelope.schema.json",
     "cloud_preparation_admission": "cloud-preparation-admission.schema.json",
     "cloud_input_inventory_plan": "cloud-input-inventory-plan.schema.json",
+    "cloud_payload_retrieval_manifest": "cloud-payload-retrieval-manifest.schema.json",
 }
 
 
@@ -50,6 +51,12 @@ def validate_input_lock(record: Mapping[str, Any]) -> dict[str, Any]:
     """Validate a local fixture input lock without retrieving any input."""
 
     return _validate(record, expected_kind="cloud_input_lock")
+
+
+def validate_payload_retrieval_manifest(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate a metadata-derived payload manifest without authorizing it."""
+
+    return _validate(record, expected_kind="cloud_payload_retrieval_manifest")
 
 
 def validate_experiment_manifest(record: Mapping[str, Any]) -> dict[str, Any]:

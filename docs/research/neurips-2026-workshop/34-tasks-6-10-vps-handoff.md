@@ -954,6 +954,11 @@ authenticated AWS account `892077329800` / `us-east-1`. Canonical receipt
 `evidence/step5b-inventory-metadata-20260801.json` has SHA-256
 `ce9274cdb0825f93e52fec7a30b5210253f92289c4ae43bf4b922efa138f9452`
 and lists 1,762 immutable metadata entries across all eight roles. Next
-dependency: repair the real-lock inventory contract, bind this inventory, and
-separately authorize payload retrieval; Git SHA-1 metadata is not payload
-SHA-256 and must not be laundered into a verified-byte claim.
+dependency: the repaired pre-retrieval contract has now bound those entries as
+1,706 unique objects at canonical payload-manifest digest
+`1f738eff8667f0b863cdd8259c7bfa071ec3a37b2d9963e999f11e7dda1087e4`.
+One gitlink is lineage-only; the other 1,705 objects have an exact authenticated
+67,483,211,374-byte ceiling. This manifest authorizes nothing. Separately sign
+payload retrieval, verify Git/LFS/OCI identities while streaming, compute final
+SHA-256 receipts, then seal the real input lock; Git SHA-1 metadata must not be
+laundered into a verified-byte claim.

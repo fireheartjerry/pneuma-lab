@@ -4015,3 +4015,21 @@ The next event after the archived migration boundary is appended below.
   blobs carry Git SHA-1 identities rather than downloaded-byte SHA-256, so a
   separately signed payload retrieval remains necessary. No payload, weight,
   dataset blob, OCI layer, instance, GPU, pilot, experiment, or spend occurred.
+
+## 2026-08-01 — Step 5B payload-manifest derivation
+
+- **Contract repair:** added a distinct `cloud_payload_retrieval_manifest`
+  contract so pre-retrieval upstream identities cannot masquerade as a final
+  SHA-256 input lock. Object IDs, ordering, consumers, identity algorithms,
+  gitlink treatment, counts, and byte totals are all recomputed.
+- **Derivation:** exact metadata receipt
+  `ce9274cdb0825f93e52fec7a30b5210253f92289c4ae43bf4b922efa138f9452`
+  deterministically produced canonical manifest digest
+  `1f738eff8667f0b863cdd8259c7bfa071ec3a37b2d9963e999f11e7dda1087e4`.
+  Its 1,762 entries collapse to 1,706 unique objects because the subject model
+  and tokenizer share 56 exact objects. One SWE gitlink resolves to the frozen
+  RepoLaunch role, leaving 1,705 retrievable objects and an exact authenticated
+  byte ceiling of 67,483,211,374 bytes.
+- **Boundary:** the manifest authorizes nothing and is not a final input lock.
+  No payload byte, network request, provider action, GPU job, experiment, or
+  spend occurred.

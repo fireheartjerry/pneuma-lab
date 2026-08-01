@@ -116,6 +116,7 @@ CLOUD_SCHEMA_FILES = (
     "cloud-preparation-envelope.schema.json",
     "cloud-preparation-admission.schema.json",
     "cloud-input-inventory-plan.schema.json",
+    "cloud-payload-retrieval-manifest.schema.json",
 )
 
 ALL_SCHEMA_FILES = (
