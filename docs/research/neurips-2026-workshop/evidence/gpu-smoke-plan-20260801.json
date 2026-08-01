@@ -1,0 +1,35 @@
+{
+  "action_class": "gpu_smoke",
+  "action_id": "step5b-gpu-smoke-001",
+  "ami_id": "ami-011db5ae81cc0f370",
+  "automatic_stop_minutes": 110,
+  "cost_ceiling_usd": 5.0,
+  "ebs": {
+    "delete_on_termination": true,
+    "encrypted": true,
+    "size_gib": 200,
+    "type": "gp3"
+  },
+  "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:1fc54d73f9ec36356bec5c2c8497b671f72a9e43c0bae4fbb84be3ee6ede9ae2",
+  "input_lock_sha256": "e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84",
+  "instance_profile": "pneuma-c160-worker",
+  "instance_type": "g6e.2xlarge",
+  "max_instances": 1,
+  "max_retries": 0,
+  "on_demand_hourly_usd": 2.24208,
+  "plan_sha256": "de398bd589ddff2c9cabe234a2f8e5f7ed8e539e1684c382b33ebc7b1e1e0ab1",
+  "projected_cost_usd": 4.75,
+  "provider": "aws",
+  "region": "us-east-1",
+  "security_group_id": "sg-08428ae82a7e2fd35",
+  "source_commit": "f04df655035c02874170f951eeb698d2895122c9",
+  "subnet_id": "subnet-042e433905daddc0b",
+  "user_data_sha256": "e721b1b285fcad69a99e5bcdb3a1f585e2465038d70fdc1b475c1c5118b39586",
+  "workload": [
+    "immutable ECR pull",
+    "single-L40S nvidia-smi",
+    "containerized torch/vLLM CUDA inspection",
+    "encrypted S3 receipt publication",
+    "automatic instance termination"
+  ]
+}
