@@ -3958,3 +3958,18 @@ The next event after the archived migration boundary is appended below.
   receipts can no longer satisfy launch review while their executables are
   absent.
 - Focused regression pins the new receipt path and exact six-receipt set.
+
+## 2026-08-01 — Step 5B exact signing ceremony prepared
+
+- Added pending ledger rows CL-034/CL-035 and a CloudShell-only two-stage
+  ceremony. It signs the zero-dollar envelope first, binds the admission to the
+  resulting exact envelope digest, then independently verifies both signatures,
+  ledger rows, plan, provider/region, retry ceiling, and spend history before
+  writing a package.
+- The script accepts only the existing registered Ed25519 private key; it never
+  generates or prints key material. PEM, raw 32-byte, and 64-hex encodings are
+  supported.
+- Hostile portability review caught raw Markdown hashing before commit. Spend
+  history now hashes canonical UTF-8/LF text, and LF/CRLF parity is tested.
+- **Boundary:** both ledger rows remain pending exact user signature. No key was
+  accessed, no authority signed, and no provider action or spend occurred.

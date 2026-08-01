@@ -91,6 +91,19 @@ def canonical_bytes(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
+def canonical_ledger_digest(ledger_path: Path) -> str:
+    """Hash ledger text identically on Windows and Linux.
+
+    Git may materialize the Markdown file with CRLF or LF. Authority binds its
+    logical UTF-8 lines with exactly one terminal LF, not checkout mechanics.
+    Individual authorization rows remain bound separately by their exact
+    normalized line text through :func:`ledger_row`.
+    """
+
+    text = ledger_path.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256((text.rstrip("\n") + "\n").encode("utf-8")).hexdigest()
+
+
 def signed_body(record: Mapping[str, Any]) -> dict[str, Any]:
     """Return the complete body an approver signs.
 
