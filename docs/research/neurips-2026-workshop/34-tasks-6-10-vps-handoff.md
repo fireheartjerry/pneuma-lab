@@ -1034,3 +1034,16 @@ The real candidate input lock is now sealed at
 Native Windows and AWS Linux independently classify it as `real_candidate` and
 verify all nine referenced receipts. The next blocking dependency is admitted
 SWE/tau2 G-ROSTER evidence; no experiment is authorized by the lock alone.
+
+### C120 G-ROSTER candidate checkpoint — 2026-08-01
+
+Authority amendment 52 selects C120 and fixes the reserve at one unit per split
+before any pilot or experimental outcome. The committed candidate evidence binds
+144 distinct SWE repository lineages with admissible base-commit licences and
+immutable OCI manifest digests. The separately derived tau2 evidence binds the
+sealed 50-task airline pool, exact 114-task telecom `base` split, and 88 DB-basis
+banking tasks, then selects the registered minimum 20/16/13 tasks by a fixed
+lexicographic rule. Focused derivation tests pass. This is candidate ancestry,
+not admitted G-ROSTER: three independent Linux isolation pairs per split and the
+final qualification-audit receipts remain blocking. The completed Step 5B
+retrieval plan does not authorize GPU provisioning or scientific execution.

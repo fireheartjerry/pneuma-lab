@@ -997,7 +997,7 @@
         },
         {
             "id": "B-NEURIPS-G-ROSTER",
-            "summary": "Both C120 and C160 remain FEASIBILITY_NO_GO under the authenticated qualification contract. A real commit-addressed local audit now covers 743 tasks and 724 repository/base pairs (557 admissible, 122 not admissible, 45 unresolved), and a deterministic 176-repository C160 candidate selection exists, but those receipts have not yet been converted into and admitted as the exact cloud-licence-audit/G-ROSTER records required by the merged contract. Unfixed reserves and the C160 Hamilton allocation still fail closed, tau2 remains a separate required family, and no tier is promoted."
+            "summary": "C120 is the authority-selected qualification tier with a fixed reserve of one per split. Sealed candidate evidence now binds 144 distinct SWE repository lineages with admissible base-commit licences and immutable OCI manifest digests, plus the exact tau2 objective pools (50 airline, 114 telecom, 88 DB-qualified banking) and the minimum 49-task selection, to the real input lock lineage. G-ROSTER remains FEASIBILITY_NO_GO until Linux records three independently passing isolation pairs per split and emits the admitted SWE/tau2 qualification audits; C160 is not selected and no tier is promoted."
         },
         {
             "id": "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
