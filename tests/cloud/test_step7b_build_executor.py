@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.research import run_step7b_builds
 from scripts.research.run_step7b_builds import plan_digest, require_plan
 
 
@@ -28,7 +29,8 @@ def _plan(root: Path) -> dict:
     plan = {
         "action_id": "step7b-aws-builder-001", "action_class": "image_build", "max_retries": 0,
         "input_lock_sha256": "b" * 64, "source_date_epoch": 0, "recipe_sha256": "c" * 64,
-        "executor_sha256": "d" * 64, "runtime": {"path": "src/pneuma_lab/cloud/production_runtime.py", "sha256": runtime},
+        "executor_sha256": hashlib.sha256(Path(run_step7b_builds.__file__).read_bytes()).hexdigest(),
+        "runtime": {"path": "src/pneuma_lab/cloud/production_runtime.py", "sha256": runtime},
         "roles": roles,
         "requirements": {"forbidden": ["cloud_build", "ecr_push", "gpu_use", "benchmark_execution", "model_download"]},
     }
@@ -60,4 +62,11 @@ def test_executor_rejects_non_builder_action_identity(tmp_path) -> None:
     plan["action_id"] = "step7b-build-001"
     plan["plan_sha256"] = plan_digest(plan)
     with pytest.raises(ValueError, match="numbered Step 7B"):
+        require_plan(plan, tmp_path)
+
+
+def test_executor_rejects_changed_executor_bytes(tmp_path, monkeypatch) -> None:
+    plan = _plan(tmp_path)
+    monkeypatch.setattr(run_step7b_builds, "sha256_file", lambda _: "0" * 64)
+    with pytest.raises(ValueError, match="executor bytes"):
         require_plan(plan, tmp_path)

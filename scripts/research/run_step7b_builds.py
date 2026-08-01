@@ -53,6 +53,8 @@ def require_plan(plan: dict[str, Any], root: Path) -> None:
         raise ValueError("Step 7B successor must remain a zero-retry image build")
     if plan_digest(plan) != plan.get("plan_sha256"):
         raise ValueError("plan_sha256 does not bind canonical plan bytes")
+    if plan.get("executor_sha256") != sha256_file(Path(__file__)):
+        raise ValueError("executor bytes do not match the sealed plan")
     required = {"cloud_build", "ecr_push", "gpu_use", "benchmark_execution", "model_download"}
     if not required.issubset(set(plan["requirements"]["forbidden"])):
         raise ValueError("plan does not prohibit every non-build Step 7B action")
@@ -90,10 +92,12 @@ def build_role(plan: dict[str, Any], root: Path, output: Path, role: str) -> dic
     (output / f"{role}-positive.json").write_text(positive.stdout, encoding="utf-8")
     (output / f"{role}-wrong-hash.json").write_text(wrong.stdout, encoding="utf-8")
     return {
-        "record_kind": "cloud_image_build_receipt", "schema_version": "0.1.0", "role": role,
+        "record_kind": "cloud_image_build_receipt", "schema_version": "0.1.0",
+        "action_id": plan["action_id"], "plan_sha256": plan["plan_sha256"], "role": role,
         "recipe_sha256": plan["recipe_sha256"], "dockerfile_sha256": role_plan["dockerfile"]["sha256"],
         "base_digest": role_plan["base_digest"], "lock_sha256": role_plan["lock"]["sha256"],
-        "input_lock_sha256": plan["input_lock_sha256"], "builder_sha256": plan["executor_sha256"],
+        "input_lock_sha256": plan["input_lock_sha256"], "runtime_sha256": plan["runtime"]["sha256"],
+        "builder_sha256": plan["executor_sha256"],
         "build_image_digests": digests, "sbom_sha256": sha256_file(sbom), "reproducible": True,
     }
 

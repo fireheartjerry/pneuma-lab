@@ -47,6 +47,6 @@ rpm -qa --qf '%{NAME} %{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C so
 docker version --format '{{json .}}' > /opt/pneuma-step7b/output/docker-version.json
 syft version --output json > /opt/pneuma-step7b/output/syft-version.json
 find /opt/pneuma-step7b/output -type f -printf '%p\n' | LC_ALL=C sort | xargs sha256sum > /opt/pneuma-step7b/output/sha256sums.txt
-printf '{"state":"COMPLETE","action":"%s"}\n' "$ACTION_ID" > /opt/pneuma-step7b/output/bootstrap-status.json
+printf '{"state":"COMPLETE","action_id":"%s"}\n' "$ACTION_ID" > /opt/pneuma-step7b/output/bootstrap-status.json
 aws s3 cp /opt/pneuma-step7b/output "${OUTPUT_PREFIX}" --recursive --only-show-errors
 shutdown -h now
