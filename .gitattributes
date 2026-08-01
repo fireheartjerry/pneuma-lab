@@ -23,3 +23,7 @@ docs/research/neurips-2026-workshop/execution-journal/*.md text eol=lf -diff
 # "refreshed" the spec from a CRLF working copy and broke the fixture on every
 # LF checkout. Pin the endings instead of weakening the digest.
 fixtures/adversarial_review/** text eol=lf
+
+# Governed research evidence is hashed over exact canonical JSON bytes and must
+# survive native Windows checkout without a CRLF rewrite.
+docs/research/neurips-2026-workshop/evidence/**/*.json text eol=lf

@@ -4293,3 +4293,34 @@ The next event after the archived migration boundary is appended below.
   throughput observation only. It is not a benchmark, pilot, experiment, or
   scientific result. G-ROSTER isolation pairs, interruption/recovery,
   portability closure, and hostile launch review remain blocking.
+
+## 2026-08-01 — C120 G-ROSTER isolation qualification passed
+
+- Signed action `step5b-isolation-001` bound plan SHA-256
+  `f7ef1a40789be4b64b232f129e9b1ef84bd7b56311def38227b48c19429b6bf6`,
+  case-manifest digest
+  `f9f78c85c9647159ba098520bae42850feab65b873650e81aad0ebe653c39abd`,
+  real input lock `e6746a...67b84`, and package SHA-256
+  `f9b368697ee07358f8cbfc8c6007ec9941d03064a2f571c5dabad293df4a08fe`.
+- Linux x86_64 / Docker 25.0.16 executed exactly 33 pairs: three distinct
+  immutable units for every eight SWE and three tau2 C120 splits. Every pair
+  independently proved exact image digest, linux/amd64, network none, all
+  capabilities dropped, no-new-privileges, clean pair creation, bidirectional
+  cross-marker absence, and clean recreation. Result code was zero and stderr
+  was empty.
+- Exact AWS receipt bytes are 25,856 bytes at SHA-256
+  `599527e896e9f48a53252585d02e98fd725074e8faa503ab7ce017cf1997b284`;
+  canonical receipt digest is
+  `ac0e726612cdbfd48c0ef62fc51bba9c4a2b2346fa1411336be188db256903a1`.
+  A native-Windows checkout initially added a second newline; hostile byte
+  verification caught it before promotion. Governed evidence JSON is now
+  pinned to LF and the exact AWS digest reproduces locally.
+- Deterministic final audits resolve every evidence byte and evaluate both SWE
+  and tau2 as `CONDITIONALLY_FEASIBLE` at C120. Audit SHA-256 values are
+  `b1dae7a4623b211b83263333324c2fa9049597ddc7d2b2f2f636db995903d5fa`
+  and `4cb111081f2d5d411efd04de7dd3d8d004a9fd221f33c675e4076b63702d0ef0`;
+  closure SHA-256 is
+  `a887370640d2c6e9514e350c476e786d1040e6bcf3799422dee6c60b70944209`.
+- **Boundary:** this closes G-ROSTER qualification only. Throughput admission,
+  interruption/recovery, portability closure, and hostile launch review still
+  block any pilot or experiment.

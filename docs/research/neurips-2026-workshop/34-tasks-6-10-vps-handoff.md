@@ -1064,3 +1064,17 @@ lexicographic rule. Focused derivation tests pass. This is candidate ancestry,
 not admitted G-ROSTER: three independent Linux isolation pairs per split and the
 final qualification-audit receipts remain blocking. The completed Step 5B
 retrieval plan does not authorize GPU provisioning or scientific execution.
+
+### C120 G-ROSTER qualification complete — 2026-08-01
+
+The signed isolation action executed 33/33 passing Linux pairs: three distinct
+immutable units for every eight SWE and three tau2 splits. The exact receipt is
+25,856 bytes at SHA-256
+`599527e896e9f48a53252585d02e98fd725074e8faa503ab7ce017cf1997b284`;
+the deterministic final SWE and tau2 audits both evaluate
+`CONDITIONALLY_FEASIBLE`, with closure SHA-256
+`a887370640d2c6e9514e350c476e786d1040e6bcf3799422dee6c60b70944209`.
+G-ROSTER is therefore satisfied for C120 only. Registered p10 throughput,
+interruption/recovery, portable offline receipt closure, and the hostile
+pre-experiment launch review remain blocking. No pilot or experiment is
+authorized.
