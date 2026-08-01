@@ -1017,3 +1017,14 @@ consumer-specific namespace, binds executor
 `b4377bf94ec7b362455fec3faa1c1649ae3be18496cf5b2e1d132b40ce4a9617`,
 and has ready-plan digest
 `eca7d02e1010958724f9d7cb9c333ff78998f87bc8809f8cb0919067d5da2215`.
+
+### Step 5B payload-completion checkpoint — 2026-08-01
+
+Signed successor action 004 completed the authenticated payload mirror: exactly
+1,705 objects and 67,483,211,374 bytes were installed and independently reread.
+AWS and Windows match the final receipt bytes at SHA-256
+`69d3e0db08788639de72d020af1ac061a2aa5f6a8742a288eb7d592ee8e7a89c`;
+the offline verifier accepts its complete ordered roster and exact plan,
+manifest, pricing, lifecycle, identity, byte, and request bindings. This closes
+payload retrieval only. Next: construct and dual-platform verify the real
+candidate input lock, admit SWE/tau2 G-ROSTER, then run Linux-only worker gates.

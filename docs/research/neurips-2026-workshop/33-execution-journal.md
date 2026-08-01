@@ -4219,3 +4219,19 @@ The next event after the archived migration boundary is appended below.
 - Evidence is sealed in
   `evidence/step5b-payload-handoff-bundle-20260801.json`. No signature, payload,
   provider mutation, reservation, or spend occurred.
+
+## 2026-08-01 — Step 5B payload mirror completed
+
+- Actions 001–003 failed closed on endpoint/host, dataset namespace, and
+  expired anonymous Docker-token defects. Preserved content-addressed objects
+  were independently reread on each successor and never overwritten.
+- Signed action 004 bound plan `d40223db7385dc19ebcf7290029841b6318a66eb30a1f76e618cc6c856df1cf7`
+  and executor `b817f51b6ad97b5d152cff3e6ebe9d5ec70c5a175cf65e5f498f27122589f16b`.
+- AWS completed exactly 1,705 objects / 67,483,211,374 bytes with request
+  counts 1,916 PUT, zero LIST, and 3,416 GET, inside the signed ceilings.
+- AWS wrote and reread the receipt. Windows downloaded the same 980,909 bytes
+  at SHA-256 `69d3e0db08788639de72d020af1ac061a2aa5f6a8742a288eb7d592ee8e7a89c`;
+  offline semantic verification accepted the complete ordered roster and gave
+  canonical-record digest `8c00a40138792498f62ed16a54401e4c421b9a9d15c986bc8fd8f03d0e664ca0`.
+- Payload retrieval is settled. Real input lock, G-ROSTER, Linux worker
+  qualification, and experiments remain open.
