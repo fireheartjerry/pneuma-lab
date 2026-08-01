@@ -65,3 +65,5 @@ data/processed/
 .huggingface/
 hf_cache/
 datasets_cache/
+.terraform/
+*.tfplan
