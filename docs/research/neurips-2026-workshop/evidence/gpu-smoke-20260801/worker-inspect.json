@@ -1,0 +1,1 @@
+{"cuda_device_count": 1, "cuda_name": "NVIDIA L40S", "cuda_total_memory_bytes": 47665709056, "simulator_model": "Qwen/Qwen3.5-9B", "simulator_revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a", "subject_model": "Qwen/Qwen3.6-35B-A3B-FP8", "subject_revision": "95a723d08a9490559dae23d0cff1d9466213d989", "torch_version": "2.10.0+cu129", "vllm_version": "0.19.0"}

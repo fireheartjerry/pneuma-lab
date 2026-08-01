@@ -1013,7 +1013,7 @@
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-            "summary": "Real private S3 and DynamoDB substrate exists, but lease contention, object publication, interruption, resume, and watchdog behavior have not been exercised end to end. No Batch compute environment or queue exists; local fakes remain the only semantic execution evidence."
+            "summary": "Real private S3 and DynamoDB substrate exists. A bounded private g6e.2xlarge smoke has now proven the pinned ECS GPU AMI, immutable zero-finding worker image, Docker GPU passthrough, exactly one L40S with 47,665,709,056 bytes visible to Torch, vLLM import, encrypted S3 receipt publication, and instance-initiated teardown. Lease contention, interruption/resume, watchdog behavior under failure, model fit/throughput, and benchmark execution remain unverified; no Batch compute environment or queue exists."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
