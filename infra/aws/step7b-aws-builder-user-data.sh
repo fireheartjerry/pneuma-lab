@@ -26,9 +26,9 @@ fail() {
 trap 'fail bootstrap_error' ERR
 dnf install -y docker tar gzip curl
 systemctl enable --now docker
-curl --fail --silent --show-error --location "$SOURCE_ARCHIVE_URL" --output /opt/pneuma-step7b/source.tar
+aws s3 cp "$SOURCE_ARCHIVE_URL" /opt/pneuma-step7b/source.tar --only-show-errors
 printf '%s  %s\n' "$SOURCE_ARCHIVE_SHA256" /opt/pneuma-step7b/source.tar | sha256sum --check --status || fail source_archive_digest_mismatch
-curl --fail --silent --show-error --location "$PLAN_URL" --output /opt/pneuma-step7b/plan.json
+aws s3 cp "$PLAN_URL" /opt/pneuma-step7b/plan.json --only-show-errors
 printf '%s  %s\n' "$PLAN_SHA256" /opt/pneuma-step7b/plan.json | sha256sum --check --status || fail plan_digest_mismatch
 curl --fail --silent --show-error --location "$SYFT_URL" --output /opt/pneuma-step7b/syft.tar.gz
 printf '%s  %s\n' "$SYFT_SHA256" /opt/pneuma-step7b/syft.tar.gz | sha256sum --check --status || fail syft_digest_mismatch
