@@ -4260,3 +4260,14 @@ The next event after the archived migration boundary is appended below.
 - The published receipt is preserved under `evidence/model-fit-003-20260801/`.
   A successor may change only the cache location to the existing writable
   `/tmp` tmpfs. This is qualification evidence, not a scientific result.
+
+## 2026-08-01 — Model-fit action 004 failed closed on non-executable tmpfs
+
+- The successor reconstructed the same 72 objects / 56,822,409,329 bytes and
+  successfully redirected Triton's cache into `/tmp`.
+- All three rungs again exited 1 before model load or generation. Triton built
+  its CUDA helper, then dynamic loading failed with `failed to map segment from
+  shared object`: Docker's tmpfs was not executable.
+- The exact action-004 receipt is preserved under
+  `evidence/model-fit-004-20260801/`. A successor may add only `exec` to the
+  existing isolated `/tmp` tmpfs. Network isolation and read-only root remain.

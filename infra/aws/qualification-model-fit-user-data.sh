@@ -63,7 +63,7 @@ docker pull "$IMAGE" > "$ROOT/results/image-pull.txt" 2>&1
 run_fit() {
   name="$1"; role="$2"; model="$3"; length="$4"; tokens="$5"
   timeout 2700 docker run --rm --gpus all \
-    --name "pneuma-${name}" --network none --read-only --tmpfs /tmp:rw,nosuid,size=8g \
+    --name "pneuma-${name}" --network none --read-only --tmpfs /tmp:rw,exec,nosuid,size=8g \
     --env HOME=/tmp --env TRITON_CACHE_DIR=/tmp/triton \
     -v "$ROOT/models:/models:ro" -v "$ROOT/runner.py:/opt/pneuma/runner.py:ro" \
     --entrypoint python3 "$IMAGE" /opt/pneuma/runner.py \
