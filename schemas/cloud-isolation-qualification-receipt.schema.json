@@ -1,0 +1,52 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-isolation-qualification-receipt.schema.json",
+    "title": "Cloud Isolation Qualification Receipt",
+    "description": "Linux-only, per-split three-pair sandbox-isolation evidence. This is qualification evidence, never a benchmark or scientific result.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "frozen_timestamp", "tier", "input_lock_sha256", "case_manifest", "host", "pairs", "qualification_only"],
+    "properties": {
+        "record_kind": {"const": "cloud_isolation_qualification_receipt"},
+        "schema_version": {"const": "0.1.0"},
+        "frozen_timestamp": {"$ref": "#/$defs/timestamp"},
+        "tier": {"const": "C120"},
+        "input_lock_sha256": {"$ref": "#/$defs/sha256"},
+        "case_manifest": {
+            "type": "object",
+            "required": ["sha256", "input_lock_sha256"],
+            "properties": {"sha256": {"$ref": "#/$defs/sha256"}, "input_lock_sha256": {"$ref": "#/$defs/sha256"}},
+            "additionalProperties": false
+        },
+        "host": {
+            "type": "object",
+            "required": ["os", "architecture", "docker_version", "instance_id"],
+            "properties": {"os": {"const": "linux"}, "architecture": {"const": "x86_64"}, "docker_version": {"type": "string", "minLength": 1}, "instance_id": {"type": "string", "minLength": 1}},
+            "additionalProperties": false
+        },
+        "pairs": {"type": "array", "minItems": 33, "maxItems": 33, "items": {"$ref": "#/$defs/pair"}},
+        "qualification_only": {"const": true}
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "timestamp": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"},
+        "assertions": {
+            "type": "object",
+            "required": ["immutable_image_digest", "linux_amd64", "network_none", "capabilities_dropped", "no_new_privileges", "fresh_pair_clean", "a_marker_absent_from_b", "b_marker_absent_from_a", "recreated_a_clean"],
+            "properties": {
+                "immutable_image_digest": {"type": "boolean"}, "linux_amd64": {"type": "boolean"}, "network_none": {"type": "boolean"}, "capabilities_dropped": {"type": "boolean"}, "no_new_privileges": {"type": "boolean"}, "fresh_pair_clean": {"type": "boolean"}, "a_marker_absent_from_b": {"type": "boolean"}, "b_marker_absent_from_a": {"type": "boolean"}, "recreated_a_clean": {"type": "boolean"}
+            },
+            "additionalProperties": false
+        },
+        "pair": {
+            "type": "object",
+            "required": ["pair_id", "family", "split", "unit_id", "image_reference", "image_digest", "container_a_id", "container_b_id", "assertions"],
+            "properties": {
+                "pair_id": {"type": "string", "minLength": 1}, "family": {"enum": ["swe", "tau2"]}, "split": {"type": "string", "minLength": 1}, "unit_id": {"type": "string", "minLength": 1}, "image_reference": {"type": "string", "minLength": 1}, "image_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "container_a_id": {"type": "string", "minLength": 12}, "container_b_id": {"type": "string", "minLength": 12}, "assertions": {"$ref": "#/$defs/assertions"}
+            },
+            "additionalProperties": false
+        }
+    }
+}

@@ -38,6 +38,7 @@ _SCHEMA_BY_KIND = {
     "cloud_payload_pricing_receipt": "cloud-payload-pricing-receipt.schema.json",
     "cloud_payload_mirror_receipt": "cloud-payload-mirror-receipt.schema.json",
     "cloud_step5b_lifecycle_receipt": "cloud-step5b-lifecycle-receipt.schema.json",
+    "cloud_isolation_qualification_receipt": "cloud-isolation-qualification-receipt.schema.json",
 }
 
 

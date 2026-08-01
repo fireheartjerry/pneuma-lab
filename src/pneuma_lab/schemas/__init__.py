@@ -121,6 +121,7 @@ CLOUD_SCHEMA_FILES = (
     "cloud-payload-pricing-receipt.schema.json",
     "cloud-payload-mirror-receipt.schema.json",
     "cloud-step5b-lifecycle-receipt.schema.json",
+    "cloud-isolation-qualification-receipt.schema.json",
 )
 
 ALL_SCHEMA_FILES = (
