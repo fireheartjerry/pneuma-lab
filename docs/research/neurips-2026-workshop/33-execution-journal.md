@@ -4324,3 +4324,12 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** this closes G-ROSTER qualification only. Throughput admission,
   interruption/recovery, portability closure, and hostile launch review still
   block any pilot or experiment.
+
+### Isolation teardown independently closed
+
+- After AWS authentication resumed, exact provider reads returned
+  `InvalidInstanceID.NotFound` for instance `i-01d2a6e41101fc6df` and
+  `InvalidVolume.NotFound` for encrypted delete-on-termination volume
+  `vol-0ddb5ff0c80f2ce39` in `us-west-2`.
+- This closes the previously pending teardown observation. It adds no new
+  isolation, pilot, experiment, or scientific evidence.
