@@ -1009,7 +1009,7 @@
         },
         {
             "id": "B-NEURIPS-IMAGE-BUILD-VERIFICATION",
-            "summary": "A real hardened qualification-worker image was built and pushed at immutable ECR digest sha256:1fc54d73f9ec36356bec5c2c8497b671f72a9e43c0bae4fbb84be3ee6ede9ae2; its completed ECR scan has zero findings and the full scan response is hash-bound in encrypted S3. This clears the worker vulnerability blocker, but the contract's exact three-role repeat-build/digest-comparison/SBOM evidence is not complete, so Step 7B remains pending."
+            "summary": "A real hardened qualification-worker image was built and pushed at immutable ECR digest sha256:1fc54d73f9ec36356bec5c2c8497b671f72a9e43c0bae4fbb84be3ee6ede9ae2; its completed ECR scan has zero findings and the full scan response is hash-bound in encrypted S3. This clears the worker vulnerability blocker, but the contract's exact three-role repeat-build/digest-comparison/SBOM evidence is not complete. The three committed role recipes remain non-buildable fixtures, and no production cloud-controller or benchmark-worker entrypoint exists. Step 7B therefore remains pending."
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",

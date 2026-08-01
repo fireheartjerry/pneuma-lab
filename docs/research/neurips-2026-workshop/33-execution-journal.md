@@ -3936,3 +3936,17 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** no authority was signed and no metadata query, payload fetch,
   model pull, image-layer pull, provider mutation, GPU action, pilot, experiment,
   or spend occurred.
+
+## 2026-08-01 — Step 7B executable-surface audit
+
+- **Finding:** the repository has a real hardened qualification-worker image
+  and a static three-role receipt contract, but the controller, model-server,
+  and benchmark-worker recipes remain `registry.invalid` fixtures. More
+  importantly, no production cloud-controller or benchmark-worker entrypoint
+  exists for those images to run.
+- **Correction:** repaired the readiness audit's false claim that CL-028 is a
+  signed operative preparation envelope. CL-028 is a zero-spend local contract
+  record; no signed envelope or action admission is committed.
+- **Boundary:** no recipe was laundered into production status, and no image
+  pull/build/push, SBOM generation, provider action, GPU use, pilot, experiment,
+  or spend occurred.
