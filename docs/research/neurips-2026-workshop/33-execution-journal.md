@@ -3987,3 +3987,31 @@ The next event after the archived migration boundary is appended below.
   and a non-secret private-file checksum were observed outside CloudShell.
 - **Governance:** the lost identity is revoked before any preparation action;
   the rotation is the only active registry key. No action has yet been signed.
+
+## 2026-08-01 — Step 5B metadata inventory executed E2E
+
+- **Authority:** user-approved zero-dollar plan SHA-256
+  `c817eff762d1ebdeef30956bb719a06c67e30c79e8619777a0e78ddc70ae8c4f`.
+  Oregon CloudShell signed and independently verified envelope body
+  `d580345e47c7fee1575126a027011474e86f8d3fdfca0dd8400af8173d1d0494`
+  and admission body
+  `d6bedd4fd1795694070465d2a8d0119b266111280d822f149c93deb16f80918a`.
+  The public signing package is exact-byte SHA-256
+  `e7bce1acf98e60fa66ecf88b6810e04f02dd3382923be40a2899d2908e98c073`;
+  the private key never left Oregon CloudShell.
+- **Execution surface:** before action execution, AWS STS returned account
+  `892077329800` and root ARN `arn:aws:iam::892077329800:root`; both
+  `AWS_REGION` and `AWS_DEFAULT_REGION` were `us-east-1`. The transferred
+  executor bundle independently matched SHA-256
+  `5e6dd0b9a3360aeffa0dac53b415309bffbb8505058550f1c3e5a7142b5911a2`.
+- **Result:** the first and only attempt completed at `2026-08-01T08:49:04Z`.
+  Canonical receipt
+  `evidence/step5b-inventory-metadata-20260801.json` is 373,712 bytes with
+  SHA-256 `ce9274cdb0825f93e52fec7a30b5210253f92289c4ae43bf4b922efa138f9452`:
+  eight exact frozen roles, 1,762 metadata entries, and eight response pages.
+  Local verification reproduced the plan/source ordering, identity formats,
+  unique per-source paths, canonical bytes, and receipt digest.
+- **Boundary:** this is inventory metadata, not an input lock. Ordinary Git/HF
+  blobs carry Git SHA-1 identities rather than downloaded-byte SHA-256, so a
+  separately signed payload retrieval remains necessary. No payload, weight,
+  dataset blob, OCI layer, instance, GPU, pilot, experiment, or spend occurred.

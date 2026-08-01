@@ -948,6 +948,12 @@ metadata-only discovery plan with digest
 `c817eff762d1ebdeef30956bb719a06c67e30c79e8619777a0e78ddc70ae8c4f`.
 It forbids payload/model/layer downloads and experiment execution. The local
 743-task/724-pair audit and 176-image OCI metadata are raw evidence, not admitted
-G-ROSTER. Next dependency: an exact signed preparation envelope plus one-action
-admission for this digest; then resolve inventories, construct the real input
-lock, and separately authorize payload retrieval.
+G-ROSTER. The exact envelope and one-action admission were signed with registered
+key `pneuma-b1-20260801-r1`, independently verified, and executed once in
+authenticated AWS account `892077329800` / `us-east-1`. Canonical receipt
+`evidence/step5b-inventory-metadata-20260801.json` has SHA-256
+`ce9274cdb0825f93e52fec7a30b5210253f92289c4ae43bf4b922efa138f9452`
+and lists 1,762 immutable metadata entries across all eight roles. Next
+dependency: repair the real-lock inventory contract, bind this inventory, and
+separately authorize payload retrieval; Git SHA-1 metadata is not payload
+SHA-256 and must not be laundered into a verified-byte claim.
