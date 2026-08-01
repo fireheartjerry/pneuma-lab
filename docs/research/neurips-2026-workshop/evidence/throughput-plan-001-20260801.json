@@ -1,0 +1,43 @@
+{
+  "action_class": "gpu_smoke",
+  "action_id": "step5b-throughput-001",
+  "ami_id": "ami-011db5ae81cc0f370",
+  "architecture_sha256": "57339eb1e651f42c4b769a826999acffcfb0029e0e9890645de7a066e6ad1720",
+  "automatic_stop_minutes": 100,
+  "cost_ceiling_usd": 5.0,
+  "ebs": {"delete_on_termination": true, "encrypted": true, "size_gib": 200, "type": "gp3"},
+  "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:1fc54d73f9ec36356bec5c2c8497b671f72a9e43c0bae4fbb84be3ee6ede9ae2",
+  "input_lock_sha256": "e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84",
+  "input_receipts": {"subject_model_snapshot_sha256": "1358b8a66687d19e2170f57f0051f065c3f0141aee9c7bdf5e903c39fd7032db"},
+  "instance_profile": "pneuma-c160-worker",
+  "instance_type": "g6e.2xlarge",
+  "max_instances": 1,
+  "max_retries": 0,
+  "measurement": {
+    "concurrency": 1,
+    "minimum_p10_output_tokens_per_second": 8.0,
+    "output_tokens_per_sample": 128,
+    "p10_method": "nearest_rank",
+    "rungs": ["l40s-tp1-32768", "l40s-tp1-65536"],
+    "samples_per_rung": 10,
+    "warmup_samples_per_rung": 1
+  },
+  "on_demand_hourly_usd": 2.24208,
+  "payload_manifest_sha256": "1f738eff8667f0b863cdd8259c7bfa071ec3a37b2d9963e999f11e7dda1087e4",
+  "plan_sha256": "ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1",
+  "projected_cost_usd": 4.0,
+  "provider": "aws",
+  "region": "us-east-1",
+  "security_group_id": "sg-08428ae82a7e2fd35",
+  "source_commit": "777665574f8f77bc09a5b04614f62f70115700d4",
+  "subnet_id": "subnet-042e433905daddc0b",
+  "throughput_runner_sha256": "b94e081cd22b9f685e1dbb38ceeaa0f53119ab7b522279baa9108f40d7eb09de",
+  "user_data_sha256": "54dba7945bb154e49736613fda67db1fc0bbaf5bea11ee3cb2bb719dff783e8a",
+  "workload": [
+    "verify the exact subject snapshot and runner bytes before reconstruction",
+    "reconstruct and SHA-256 verify all sealed subject-model objects",
+    "execute one excluded warmup and ten sequential 128-token observations at each registered context rung",
+    "retain every raw elapsed time, rate, token count, and token-ID digest",
+    "publish all success and failure receipts to the action prefix, then terminate"
+  ]
+}
