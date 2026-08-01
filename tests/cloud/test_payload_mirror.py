@@ -9,6 +9,7 @@ from pneuma_lab.cloud.errors import CloudManifestError
 from pneuma_lab.cloud.payload_mirror import (
     HostPolicyRedirect,
     host_is_allowed,
+    source_url,
     upload_verified_object,
     validate_existing_head,
     verify_stored_object,
@@ -122,3 +123,13 @@ def test_cross_host_redirect_strips_authorization() -> None:
     )
     assert redirected is not None
     assert redirected.get_header("Authorization") is None
+
+
+def test_huggingface_dataset_and_model_urls_use_distinct_namespaces() -> None:
+    base = {"service": "huggingface", "repository": "org/repo", "revision": "abc", "path": "data/file.parquet"}
+    assert source_url({**base, "consumers": ["swe_dataset"]}) == (
+        "https://huggingface.co/datasets/org/repo/resolve/abc/data/file.parquet"
+    )
+    assert source_url({**base, "consumers": ["subject_model"]}) == (
+        "https://huggingface.co/org/repo/resolve/abc/data/file.parquet"
+    )

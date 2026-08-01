@@ -1009,3 +1009,11 @@ which was not in the signed allowlist. Successor action 002 adds only that host,
 binds executor surface `fbaf47939878dd9144e9163d6c0d95142f90a75e6b7ada983f3489ec61b80ade`,
 and has ready-plan digest `53dc77c9942cad311e13d92ab3de26a337ac9df97ebdf7487b8537afa022e088`.
 It remains subject to a fresh CL-047/CL-048 signature before continuation.
+
+Action 002 was signed and its first attempt advanced the verified mirror to 83
+objects / 3,443,039,872 bytes before stopping on a public Hugging Face dataset
+URL incorrectly constructed without `/datasets/`. Action 003 corrects only that
+consumer-specific namespace, binds executor
+`b4377bf94ec7b362455fec3faa1c1649ae3be18496cf5b2e1d132b40ce4a9617`,
+and has ready-plan digest
+`eca7d02e1010958724f9d7cb9c333ff78998f87bc8809f8cb0919067d5da2215`.

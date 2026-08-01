@@ -181,7 +181,8 @@ def source_url(item: Mapping[str, Any]) -> str:
     revision = str(item["revision"])
     path = item.get("path")
     if item["service"] == "huggingface":
-        return f"https://huggingface.co/{repository}/resolve/{revision}/{urllib.parse.quote(str(path), safe='/')}"
+        namespace = "datasets/" if "swe_dataset" in item.get("consumers", []) else ""
+        return f"https://huggingface.co/{namespace}{repository}/resolve/{revision}/{urllib.parse.quote(str(path), safe='/')}"
     if item["service"] == "github":
         return f"https://raw.githubusercontent.com/{repository}/{revision}/{urllib.parse.quote(str(path), safe='/')}"
     if item["service"] == "docker_registry":

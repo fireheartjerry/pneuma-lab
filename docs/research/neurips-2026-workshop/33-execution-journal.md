@@ -4069,6 +4069,20 @@ The next event after the archived migration boundary is appended below.
   `fbaf4793...0ade`; plan digest is `53dc77c9...e088`. Existing objects will be
   HEAD/GET verified rather than overwritten.
 
+### Action 002 public-dataset namespace failure
+
+- Action 002 signing package SHA-256 was `5372ebe3...f518`. Its first attempt
+  resumed successfully and advanced the verified mirror to 83 objects totaling
+  3,443,039,872 bytes.
+- It then stopped on HTTP 401 for frozen object `0b1d3a...c803f`. Inspection
+  proved the repository is public; the executor had generated a model URL
+  `huggingface.co/<repo>/resolve/...` instead of the dataset URL
+  `huggingface.co/datasets/<repo>/resolve/...`.
+- The correction is consumer-specific: only `swe_dataset` receives the datasets
+  namespace; subject/simulator model URLs remain unchanged. A focused regression
+  covers both routes. Successor action 003 binds executor `b4377bf9...a9617`
+  and plan `eca7d02e...a2215`. No substitute data or credential bypass is used.
+
 ## 2026-08-01 — Step 5B live S3 price qualification
 
 - **Official source:** AWS Price List AmazonS3 `us-east-1` offer version
