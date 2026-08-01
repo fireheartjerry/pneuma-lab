@@ -31,7 +31,10 @@ from pneuma_lab.cloud.payload_retrieval_plan import (
 )
 from pneuma_lab.cloud.preparation_admission import envelope_digest, require_preparation_admission
 from pneuma_lab.cloud.step5b_lifecycle import step5b_lifecycle_receipt_digest
-from scripts.research.sign_step5b_inventory_admission import _approval, _private_key, _sign
+try:
+    from scripts.research.sign_step5b_inventory_admission import _approval, _private_key, _sign
+except ModuleNotFoundError:  # Direct script execution puts scripts/research on sys.path.
+    from sign_step5b_inventory_admission import _approval, _private_key, _sign
 
 
 ENVELOPE_LEDGER_ROW = "CL-045"
