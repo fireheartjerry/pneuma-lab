@@ -1013,11 +1013,11 @@
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, and C120 sandbox isolation across 33/33 pairs. This is qualification-only evidence. Lease contention, interruption/resume, watchdog behavior under failure, registered p10 throughput, and benchmark execution remain unverified; no Batch compute environment or queue exists."
+            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, and C120 sandbox isolation across 33/33 pairs. The registered p10 estimator and exact bounded action plan ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1 are implemented and frozen before measurement; no p10 action has executed. Lease contention, interruption/resume, watchdog behavior under failure, and benchmark execution remain unverified; no Batch compute environment or queue exists."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
-            "summary": "The required pre-experiment hostile launch review has not occurred. Its spec generator now fails closed until genuine Step 5B, G-ROSTER, Step 7B, production execution-surface, AWS-account, and one-GPU receipts exist."
+            "summary": "The required pre-experiment hostile launch review has not occurred. Its spec generator now fails closed until eight genuine evidence roots exist: Step 5B input lock, G-ROSTER, Step 7B image builds/SBOMs, production execution surface, AWS account/quota/plan, one-GPU admission, interruption/recovery, and Windows/Linux portability. Current evidence does not satisfy the last six as complete launch receipts."
         },
         {
             "id": "B-NEURIPS-EXPERIMENT-EXECUTION",
