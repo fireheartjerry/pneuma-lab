@@ -1,7 +1,8 @@
 # 51 — Step 5B Retrieval Workflow and the G-ROSTER Determination
 
 **Status:** `implementation_complete`; `external_verification_pending`;
-`authorization_pending`. No external input has been retrieved.
+`authorization_pending`. Local public-source audit bytes exist, but no complete
+model/tokenizer/benchmark/verifier snapshot has been retrieved or admitted.
 **Date:** 2026-07-31
 **Authority records:** DL-162, DL-163; ledger rows CL-026, CL-027
 
@@ -267,7 +268,7 @@ narrow and worth stating: every required identity is present, immutable, and not
 obviously a placeholder. It does **not** mean the identity exists, resolves to
 anything, or that a single byte behind it was fetched or verified.
 
-### The base-commit licence audit is not yet evidence
+### The base-commit licence audit exists locally but is not yet admitted
 
 `src/pneuma_lab/cloud/licence_audit.py` provides the deterministic derivation
 command, an ordered roster carrying each lineage's base commit, explicit
@@ -285,8 +286,26 @@ fails closed and writes nothing, which is the correct state until Step 5B runs.
 **CL-009/DL-128 proxy prose is explicitly refused as qualification**: it was
 derived from present-day metadata rather than base commits, and CL-027 records
 that no response artifact, URL, or digest was committed, so a reviewer cannot
-recompute it. No licence-audit record exists in this repository, and a test
-asserts that.
+recompute it. A later local public-source run produced a commit-addressed audit
+covering 743 tasks and 724 repository/base pairs: 557 admissible, 122 excluded,
+and 45 unresolved. A deterministic 176-lineage C160 selection and complete OCI
+manifest/config/layer metadata for those 176 images also exist under ignored
+`build/` evidence. Those bytes are useful raw evidence, but they are not yet an
+admitted `cloud_licence_audit` or `cloud_qualification_audit`, do not bind a real
+input lock, and contain no three-pair isolation evidence. Calling G-ROSTER
+closed from them would be enthusiastic bookkeeping, not science.
+
+### Exact inventory bootstrap
+
+The real input lock has a bootstrap dependency: its snapshot receipts need the
+complete file inventory, hashes, and authenticated sizes before the lock can be
+signed. `cloud_input_inventory_plan` now freezes the only permitted discovery
+action for that step. Candidate digest
+`c817eff762d1ebdeef30956bb719a06c67e30c79e8619777a0e78ddc70ae8c4f`
+enumerates eight exact upstream roles and permits metadata listing only. Model
+weights, payload files, container layers, and experiment execution are all
+forbidden. The candidate itself grants no provider authority; an exact signed
+preparation envelope and admission remain required before execution.
 
 ### What follows, and what does not
 
@@ -318,10 +337,10 @@ input-lock digest before it will credit anything.
 
 ## 3. State
 
-Step 5B remains **unexecuted**: `implementation_complete`,
-`external_verification_pending`. The signed CL-028 preparation envelope now
-permits only bounded, per-admission AWS preparation work; it does not turn the
-synthetic candidate into an authorized retrieval. `authority_freeze_pending`,
+Step 5B remains **partially evidenced but unadmitted**: `implementation_complete`,
+`external_verification_pending`. No signed preparation envelope or concrete
+admission is committed. The metadata-only inventory candidate does not turn the
+synthetic lock into an authorized retrieval. `authority_freeze_pending`,
 `launch_review_pending`, and `execution_pending` remain. G-ROSTER remains
 **open and blocking**, awaiting either the base-commit qualification audit or a
 reviewed amendment. No experiment manifest is promoted, no pilot is authorized,

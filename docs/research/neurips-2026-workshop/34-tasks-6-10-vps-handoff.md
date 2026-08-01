@@ -940,3 +940,14 @@ is static implementation evidence only. Step 5B input retrieval, G-ROSTER,
 Step 7B double-build/SBOM evidence, account-bound plan and quota verification,
 one-GPU admission measurements, Step 14, and any paid or scientific execution
 remain independently blocked. Azure remains a separately governed path.
+
+### Step 5B inventory-bootstrap checkpoint — 2026-08-01
+
+The eight exact frozen upstream identities now have a schema-validated,
+metadata-only discovery plan with digest
+`c817eff762d1ebdeef30956bb719a06c67e30c79e8619777a0e78ddc70ae8c4f`.
+It forbids payload/model/layer downloads and experiment execution. The local
+743-task/724-pair audit and 176-image OCI metadata are raw evidence, not admitted
+G-ROSTER. Next dependency: an exact signed preparation envelope plus one-action
+admission for this digest; then resolve inventories, construct the real input
+lock, and separately authorize payload retrieval.

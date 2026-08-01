@@ -1001,7 +1001,7 @@
         },
         {
             "id": "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
-            "summary": "Step 5B authorization and fail-closed retrieval are implemented. Real commit-addressed licence bytes and contamination-risk characterization exist locally, and all 176 selected C160 OCI images now have full manifest/config/layer receipts with zero unresolved entries. The exact real model, tokenizer, benchmark, and verifier snapshot receipts have not been retrieved and bound into a schema-0.2.0 real-candidate input lock; the committed authorization remains an unsigned synthetic candidate. Therefore no full immutable input lock or concrete authenticated retrieval admission exists yet."
+            "summary": "Step 5B authorization and fail-closed retrieval are implemented. Real commit-addressed licence bytes and contamination-risk characterization exist locally, and all 176 selected C160 OCI images now have full manifest/config/layer receipts with zero unresolved entries. A metadata-only inventory bootstrap plan now freezes eight upstream roles at digest c817eff762d1ebdeef30956bb719a06c67e30c79e8619777a0e78ddc70ae8c4f and forbids payload, weight, layer, and experiment execution. It remains unsigned. The exact real model, tokenizer, benchmark, and verifier snapshot receipts have not been retrieved and bound into a schema-0.2.0 real-candidate input lock; the committed retrieval authorization remains an unsigned synthetic candidate. Therefore no full immutable input lock or concrete authenticated retrieval admission exists yet."
         },
         {
             "id": "B-NEURIPS-AWS-ACCOUNT-PLAN",

@@ -3919,3 +3919,20 @@ The next event after the archived migration boundary is appended below.
   cases); Ruff, project status, and whitespace checks pass.
 - **Boundary:** no envelope or admission was signed and no AWS action, resource,
   retrieval, build, GPU use, pilot, experiment, or spend occurred.
+
+## 2026-08-01 — Step 5B inventory bootstrap freeze
+
+- **Implementation:** added a closed `cloud_input_inventory_plan` contract and
+  deterministic generator for the eight frozen upstream roles. The plan permits
+  immutable tree/LFS/OCI metadata discovery only and explicitly forbids
+  payload, weight, layer, and experiment execution.
+- **Candidate:** `fixtures/cloud/input-inventory-plan-candidate.json`, canonical
+  SHA-256 `c817eff762d1ebdeef30956bb719a06c67e30c79e8619777a0e78ddc70ae8c4f`,
+  AWS `us-east-1`, zero-dollar ceiling, one retry.
+- **Correction:** the live Step 5B record now acknowledges the already-produced
+  local 743-task/724-pair licence audit, 176-lineage selection, and complete OCI
+  metadata while refusing to promote those ignored bytes without a real input
+  lock and exact admitted qualification records.
+- **Boundary:** no authority was signed and no metadata query, payload fetch,
+  model pull, image-layer pull, provider mutation, GPU action, pilot, experiment,
+  or spend occurred.

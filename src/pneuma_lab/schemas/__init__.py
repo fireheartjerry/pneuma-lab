@@ -115,6 +115,7 @@ CLOUD_SCHEMA_FILES = (
     "cloud-unattended-spend-policy.schema.json",
     "cloud-preparation-envelope.schema.json",
     "cloud-preparation-admission.schema.json",
+    "cloud-input-inventory-plan.schema.json",
 )
 
 ALL_SCHEMA_FILES = (

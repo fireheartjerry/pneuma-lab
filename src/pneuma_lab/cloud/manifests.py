@@ -32,6 +32,7 @@ _SCHEMA_BY_KIND = {
     "cloud_unattended_spend_policy": "cloud-unattended-spend-policy.schema.json",
     "cloud_preparation_envelope": "cloud-preparation-envelope.schema.json",
     "cloud_preparation_admission": "cloud-preparation-admission.schema.json",
+    "cloud_input_inventory_plan": "cloud-input-inventory-plan.schema.json",
 }
 
 
