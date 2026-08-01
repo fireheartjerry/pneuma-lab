@@ -107,6 +107,7 @@ CLOUD_SCHEMA_FILES = (
     "cloud-pilot-protocol.schema.json",
     "cloud-retrieval-authorization.schema.json",
     "cloud-qualification-audit.schema.json",
+    "cloud-unattended-spend-policy.schema.json",
 )
 
 ALL_SCHEMA_FILES = (

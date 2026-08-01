@@ -1,0 +1,15 @@
+{
+    "record_kind": "cloud_unattended_spend_policy",
+    "schema_version": "0.1.0",
+    "policy_id": "unattended-low-risk-v1-candidate",
+    "status": "candidate",
+    "providers": ["openai", "aws", "azure"],
+    "allowed_action_classes": ["bounded_retrieval", "non_scientific_smoke", "bounded_api_pilot"],
+    "rolling_window_days": 30,
+    "rolling_ceiling_usd": 25.0,
+    "per_job_ceiling_usd": 5.0,
+    "max_retries_per_job": 2,
+    "valid_from": "2026-07-31T00:00:00Z",
+    "expires_at": "2027-07-31T00:00:00Z",
+    "operator_approval": null
+}

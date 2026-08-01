@@ -227,6 +227,7 @@ resource "aws_launch_template" "worker" {
 }
 
 resource "aws_batch_compute_environment" "worker" {
+  count                    = var.create_batch_resources ? 1 : 0
   compute_environment_name = "${var.name_prefix}-worker"
   type                     = "MANAGED"
   state                    = "DISABLED"
@@ -258,12 +259,13 @@ resource "aws_batch_compute_environment" "worker" {
 }
 
 resource "aws_batch_job_queue" "worker" {
+  count    = var.create_batch_resources ? 1 : 0
   name     = "${var.name_prefix}-worker"
   state    = "DISABLED"
   priority = 1
   compute_environment_order {
     order               = 1
-    compute_environment = aws_batch_compute_environment.worker.arn
+    compute_environment = aws_batch_compute_environment.worker[0].arn
   }
 }
 
@@ -301,10 +303,10 @@ output "launch_state" {
   value = "DISABLED"
 }
 output "batch_compute_environment" {
-  value = aws_batch_compute_environment.worker.arn
+  value = try(aws_batch_compute_environment.worker[0].arn, null)
 }
 output "batch_job_queue" {
-  value = aws_batch_job_queue.worker.arn
+  value = try(aws_batch_job_queue.worker[0].arn, null)
 }
 output "ecr_repository_url" {
   value = aws_ecr_repository.worker.repository_url

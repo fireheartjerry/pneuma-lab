@@ -3640,3 +3640,116 @@ The next event after the archived migration boundary is appended below.
   spent, and no Step 4B, pilot, unblind, analysis, or scientific claim occurred.
   The committed authorization record is an unsigned candidate bound to a
   synthetic fixture lock and grants nothing.
+
+## 2026-07-31 — Human-readable unattended low-risk authority
+
+- **Decision:** DL-164 replaces per-job operator hash phrases for cheap bounded
+  work with one readable standing envelope. The controller retains exact hashes
+  in receipts; the operator does not type or repeat them.
+- **Limits:** USD 5 per job, USD 25 per rolling 30 days, at most two retries,
+  and only bounded retrieval, non-scientific smoke, or bounded API pilot work.
+  Canonical experiments, scientific replications, training, and result
+  promotion remain outside standing authority.
+- **Implementation:** added the closed policy schema, local admission module,
+  inactive candidate fixture, schema registry entry, and focused tests for
+  scope, provider, expiry, revocation, input binding, retry, per-job, and
+  rolling-window failures. Receipts accrue by stable policy ID so editing a
+  policy cannot reset its rolling spend.
+- **Verification:** the focused policy/schema tests and Ruff pass. No active
+  policy was created.
+- **Boundary:** no provider call, API inference, retrieval, cloud mutation,
+  reservation, spend, pilot, training, experiment, or result promotion occurred.
+
+## 2026-08-01 — C160 AWS prerequisite execution begins
+
+- **Authority:** the user explicitly directed execution of all enumerated C160
+  prerequisites, waived root MFA as an executive risk exception, supplied the
+  Budget notification address, and separately approved the bounded image-build
+  and ECR-storage estimate. DL-165 and CL-029 record the narrowed effects.
+- **Account evidence:** AWS CloudShell authenticated as the account root in
+  account `892077329800`. A USD 1,000 monthly Budget named
+  `pneuma-c160-monthly` was created with forecast-50%, actual-80%, and
+  actual-100% email notifications.
+- **AMI evidence:** public SSM parameter
+  `/aws/service/ecs/optimized-ami/amazon-linux-2023/gpu/recommended` resolved to
+  GPU ECS AMI `ami-011db5ae81cc0f370`, image version `2023.0.20260727`, ECS
+  agent `1.106.0`, and Docker `25.0.16`.
+- **Roster and OCI evidence:** deterministic selection receipt SHA-256
+  `8d6c3bc3dd332a7a0998a31b22ab2f46395889d9ada74d2c1d187bba797ff114`
+  selected 176 required repositories: C 14, C++ 16, C# 19, Go 38, Java 24,
+  JavaScript 21, Rust 16, and TypeScript 28. C/Rust reused existing full
+  receipts; the remaining manifests were resolved from two regional
+  CloudShell egress identities to remain within Docker Hub anonymous limits.
+  Final state is 176 full manifest/config/layer receipts, zero metadata-only,
+  and zero unresolved. Encrypted S3 bundles:
+  `receipts/step5b/c160-east.tgz` SHA-256
+  `3c9723b37c20fd9be526976253cbe2efd28b51906cf7d6c6a497e0330ad7507d`
+  and `receipts/step5b/c160-west.tgz` SHA-256
+  `8e0d205bd20a166237c6ffee08b1326df255d4c112724e61378b343bd6758bba`.
+- **Image preparation:** created immutable, scan-on-push, AES256 ECR repository
+  `pneuma-c160-worker`. Pinned vLLM 0.19.0 linux/amd64 base digest
+  `sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90`;
+  its 27 compressed layers declare 9,577,304,117 bytes. Local build context
+  SHA-256 is `c372be575145a24f0186f519cbdb601a1bc89891123af7da0f183a4a2657ed9a`
+  and is mirrored encrypted at `build/qualification-worker-source.zip`.
+- **Boundary:** no Batch environment, EC2 instance, GPU smoke, model retrieval,
+  pilot, canonical experiment, analysis, or result promotion has occurred.
+
+## 2026-08-01 — Account-bound Terraform apply, fail-closed Batch split
+
+- **Authorized plan:** the operator explicitly authorized plan SHA-256
+  `86aa19def10af6f1a334c1558f39d0d69271f6bef94292d43954aeca705a6ba2`
+  at approximately USD 88.56/month while Batch remained disabled.
+- **Apply result:** the non-Batch resources were created successfully: private
+  VPC and two subnets, six two-AZ interface endpoints, S3 gateway endpoint,
+  IAM roles/policies, encrypted/versioned/private S3 controls, DynamoDB lease
+  table, log group, launch template, and ECR lifecycle controls. AWS rejected
+  initial creation of the Batch compute environment because its API requires a
+  new environment to be created `ENABLED`; no environment was created.
+- **Fail-closed correction:** Terraform now gates both the Batch compute
+  environment and queue behind `create_batch_resources = false`. A refreshed
+  account-bound plan reported `No changes`, and direct AWS queries returned
+  empty arrays for both `pneuma-c160-worker` compute environments and queues.
+  Thus the current account cannot launch a C160 worker through Batch.
+- **State receipt:** Terraform state SHA-256
+  `78e36e9659e7f0eee41881b68c6382f22306c83a16ef9e698b2d4e0e0a5b7cdf`
+  is mirrored with AES256 encryption at
+  `s3://pneuma-phase-b-892077329800/receipts/terraform/c160-disabled-terraform.tfstate`.
+  The no-change plan SHA-256 is
+  `3a19417f3b013b837628f8494c8b431a69f38f1712cd321dddb305d9f92773f6`.
+- **Worker image receipt:** immutable ECR digest
+  `sha256:0ec1c276369de23f9d6056e652db26fe05b58eedc0c803d209b363ada71cf64c`
+  is 9,577,338,674 bytes. The completed basic scan reported 106 critical, 586
+  high, 641 medium, 9 low, and 51 undefined findings. This blocks qualification
+  and launch pending triage; it does not invalidate the disabled infrastructure.
+- **Boundary:** no Batch environment, queue, EC2 instance, EBS worker volume,
+  GPU smoke, model inference, pilot, canonical experiment, analysis, or result
+  promotion occurred.
+
+## 2026-08-01 — Worker image remediation and zero-finding receipt
+
+- **Remediation:** rebuilt the pinned vLLM worker after a full Ubuntu
+  `dist-upgrade` and removed the unused FFmpeg/libav runtime whose unfixed
+  CVEs accounted for every remaining critical finding. The final source bundle
+  SHA-256 is
+  `6b33d54d9a98a012fcda08f9203fc5d47f4e898ba0738e3252cfbb6976f685c5`.
+- **Build evidence:** CodeBuild execution
+  `pneuma-c160-worker-build:36ed3cce-b613-4b98-811b-730270ec4cac`
+  completed `SUCCEEDED`. Its CPU-only build gate compiles the shipped Python
+  entrypoint; CUDA behavior remains reserved for the separately authorized
+  single-L40S qualification smoke.
+- **Immutable image:** ECR tag `noffmpeg-6b33d54d9a98` resolves to digest
+  `sha256:1fc54d73f9ec36356bec5c2c8497b671f72a9e43c0bae4fbb84be3ee6ede9ae2`,
+  size 10,679,562,742 bytes, pushed at `2026-08-01T05:11:44.208Z`.
+- **Scan evidence:** the digest-bound ECR basic scan completed at
+  `2026-08-01T05:16:03Z` with an empty severity-count map: zero critical,
+  high, medium, low, or undefined findings. The full response has SHA-256
+  `122dbb5176582d1e066aa1a36a44fb21785b7555d34a16d1eaa2a7f9ffa299ad`
+  and is mirrored with AES256 encryption at
+  `s3://pneuma-phase-b-892077329800/receipts/ecr/c160-noffmpeg-1fc54d73f9ec-scan.json`.
+- **Fail-closed recheck:** direct AWS queries again returned empty arrays for
+  both the `pneuma-c160-worker` Batch compute environment and job queue.
+- **Boundary:** the image-security blocker is cleared, but no Batch
+  environment, queue, EC2 instance, EBS worker volume, GPU smoke, model
+  inference, pilot, canonical experiment, analysis, or result promotion has
+  occurred.

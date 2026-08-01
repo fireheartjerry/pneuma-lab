@@ -24,6 +24,7 @@ _SCHEMA_BY_KIND = {
     "cloud_pilot_protocol": "cloud-pilot-protocol.schema.json",
     "cloud_retrieval_authorization": "cloud-retrieval-authorization.schema.json",
     "cloud_qualification_audit": "cloud-qualification-audit.schema.json",
+    "cloud_unattended_spend_policy": "cloud-unattended-spend-policy.schema.json",
 }
 
 

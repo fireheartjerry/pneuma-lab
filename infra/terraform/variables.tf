@@ -24,6 +24,12 @@ variable "bootstrap_sha256" {
   }
 }
 
+variable "create_batch_resources" {
+  type        = bool
+  default     = false
+  description = "Create the Batch compute environment and queue only after Step 14 admission."
+}
+
 variable "artifact_bucket_name" {
   type        = string
   description = "Existing or new dedicated artifact bucket. Import an existing bucket before apply."

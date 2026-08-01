@@ -557,12 +557,16 @@
                 "docs/research/neurips-2026-workshop/43-spend-protection.md",
                 "schemas/cloud-spend-authorization.schema.json",
                 "schemas/cloud-approval-receipt.schema.json",
+                "schemas/cloud-unattended-spend-policy.schema.json",
+                "fixtures/cloud/unattended-spend-policy-candidate.json",
                 "src/pneuma_lab/cloud/spend.py",
+                "src/pneuma_lab/cloud/unattended_policy.py",
                 "src/pneuma_lab/cloud/watchdog.py",
                 "tests/cloud/test_spend.py",
                 "tests/cloud/test_watchdog.py",
                 "tests/cloud/test_projection.py",
-                "tests/cloud/test_approval.py"
+                "tests/cloud/test_approval.py",
+                "tests/cloud/test_unattended_policy.py"
             ],
             "blockers": [
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",

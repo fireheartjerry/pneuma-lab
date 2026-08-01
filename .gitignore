@@ -67,3 +67,5 @@ hf_cache/
 datasets_cache/
 .terraform/
 *.tfplan
+infra/terraform/environments/*.tfvars
+!infra/terraform/environments/aws-example.tfvars
