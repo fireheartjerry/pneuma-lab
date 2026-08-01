@@ -30,6 +30,7 @@ from .qualification import (
     require_roster_gate_satisfied,
     validate_qualification_audit,
 )
+from .portability import build_portability_bundle, roster_digest, verify_portability_bundle
 from .retrieval import (
     authorization_body_digest,
     build_audit_plan,
@@ -57,6 +58,7 @@ __all__ = [
     "build_candidate_input_lock",
     "build_receipt_verification_plan",
     "build_retrieval_plan",
+    "build_portability_bundle",
     "classify_input_lock",
     "derive_audit",
     "evaluate_roster_gate",
@@ -70,6 +72,7 @@ __all__ = [
     "require_roster_gate_satisfied",
     "require_terraform_for_l1",
     "resolve_trusted_key",
+    "roster_digest",
     "retrieve_and_verify",
     "terraform_status",
     "validate_experiment_manifest",
@@ -85,6 +88,7 @@ __all__ = [
     "verify_ledger_binding",
     "verify_licence_evidence",
     "verify_local_bytes",
+    "verify_portability_bundle",
     "verify_mirrored_file",
     "verify_signature",
 ]

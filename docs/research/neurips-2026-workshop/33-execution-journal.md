@@ -3873,3 +3873,35 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** no Batch environment, queue, EC2 instance, EBS worker volume,
   GPU smoke, model inference, pilot, canonical experiment, analysis, or result
   promotion occurred.
+
+## 2026-08-01 — Cross-platform receipt portability gate
+
+- **Implementation:** added a canonical receipt-bundle contract and offline
+  verifier. It binds the validated input lock, a complete ordered SWE/tau2
+  G-ROSTER audit set, and exact copied receipt payload identities using UTF-8,
+  terminal LF, fixed UTC time, canonical relative POSIX paths, and SHA-256.
+- **Verification:** `python -m pytest tests/cloud/test_portability.py -q` passed
+  2 cases on Windows; module compilation, `git diff --check`, and
+  `python -m pneuma_lab.status --check` passed. Fixtures prove input/record
+  ordering cannot change sealed bytes and CRLF payload drift is rejected.
+- **Boundary:** no upstream refetch, AWS operation, Docker/GPU/CUDA action,
+  scientific execution, spend, or result promotion occurred. A real sealed
+  bundle has not yet produced matching Windows/Linux receipts; E2E remains
+  pending.
+
+### E2E completion
+
+- Windows sealed the synthetic input lock, both C160 proxy roster records, and
+  the existing immutable C160 selection receipt. Local verification emitted
+  bundle `e655584c668f67375f7f1ef8eb4c31554501af3c21ad7b2704646f2595326d94`,
+  G-ROSTER `fe76744fa51f35ce64ae206f8734b014e01abf7aa0de970312ea112b60c393c2`,
+  and input-lock `bfe5848f3858e7648938428616e5ac81ef7c0ea9e6a2b597a1506e8f1597d2c3`.
+- The exact ZIP bytes were uploaded to authenticated AWS CloudShell in account
+  `892077329800`, region `us-west-2`. Linux matched archive SHA-256
+  `c6c3bcbc979051a8306b1f86b515436938c2babbd808c4e9db00a57fbc6239b4`
+  and independently reproduced all three digests above. The machine-readable
+  comparison is `evidence/portability-e2e-20260801.json`.
+- **Status:** cross-platform portability is E2E-complete for this exact
+  implementation-verification proxy lineage. The input lock is synthetic and
+  the rosters are proxies; real input authority, qualified G-ROSTER, Docker,
+  isolation, CUDA, throughput, interruption, and durability remain pending.

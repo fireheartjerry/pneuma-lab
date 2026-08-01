@@ -808,6 +808,29 @@ or power final of record, and therefore no P0 result. Passing the kernel
 equivalence gate is software evidence. The next gate is one genuinely admitted
 full P0 lineage under the unchanged frozen protocol.
 
+### Cross-platform receipt portability checkpoint — 2026-07-31
+
+`pneuma_lab.cloud.portability` now seals one canonical UTF-8/LF JSON bundle
+over a fixed timestamp, canonical relative POSIX receipt paths, exact receipt
+byte sizes and SHA-256 identities, the validated input-lock digest, and one
+complete tier's ordered SWE/tau2 G-ROSTER audit-set digest. The verifier rejects
+noncanonical JSON, duplicate keys, non-finite values, path escape, symlinks,
+and any byte, size, lock, or roster drift. It reads only the sealed bundle and
+local copied payloads: Windows and Linux never independently refetch upstream
+data for this comparison. `python -m pneuma_lab.cloud.portability_cli` emits the
+three comparison digests as canonical JSON on either platform.
+
+Focused Windows tests pass, including order invariance and deliberate CRLF
+payload drift. The implementation-verification E2E completed on 2026-08-01:
+Windows sealed the C160 proxy lineage plus the immutable C160 selection receipt,
+AWS CloudShell Linux independently matched the archive, bundle, input-lock, and
+G-ROSTER digests, and
+`evidence/portability-e2e-20260801.json` records the comparison. This closes
+cross-platform portability E2E for that exact proxy bundle only. It does not
+promote the synthetic input lock, turn proxy rosters into qualified G-ROSTER,
+or qualify Docker, isolation, CUDA, throughput, interruption, or worker
+durability; those Linux-only and scientific gates remain pending.
+
 ## Execution-class policy (2026-07-30)
 
 Canonical full-grid P0 work — an all-cell screen probe over the frozen 2,916

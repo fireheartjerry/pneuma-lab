@@ -485,6 +485,21 @@
             ]
         },
         {
+            "id": "neurips_resampling_null_receipt_portability",
+            "status": "implemented",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_complete",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/evidence/portability-e2e-20260801.json",
+                "docs/research/neurips-2026-workshop/33-execution-journal.md",
+                "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
+                "src/pneuma_lab/cloud/portability.py",
+                "tests/cloud/test_portability.py"
+            ],
+            "blockers": []
+        },
+        {
             "id": "neurips_resampling_null_step6_aws_architecture",
             "status": "partial",
             "scope": "offline_research",
