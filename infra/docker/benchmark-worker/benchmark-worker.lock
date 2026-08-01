@@ -1,3 +1,2 @@
-# Fixture lock; real benchmark verifier dependencies require Step 7B receipts.
-packaging==24.2 \
-    --hash=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+# The sealed role probe imports only the Python standard library.  It does not
+# install or execute a benchmark verifier during this build-only action.

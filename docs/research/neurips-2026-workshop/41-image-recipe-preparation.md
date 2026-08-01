@@ -1,29 +1,31 @@
 # 41 — Image Recipe Preparation
 
-**Status:** Step 7A implementation complete; real image verification pending
+**Status:** Step 7B build implementation complete; real receipt verification pending
 
-Three role-separated recipes exist for controller, model server, and benchmark
-worker. Their bases use syntactically pinned but intentionally invalid fixture
-registries; their dependency locks are likewise fixtures. This permits static
-pin-discipline and manifest-substitution tests without retrieving a single byte.
+Three role-separated recipes now exist for controller, model server, and
+benchmark worker. Each overlays the exact sealed standard-library role runtime
+on the one Linux/amd64 `vllm/vllm-openai` digest already enumerated in the real
+Step 5B input lock. Their dependency closures are intentionally empty because
+the probe imports only the standard library; no resolver runs during the build.
+The companion executor checks every bound source byte, builds each role twice,
+runs positive and wrong-hash probes with Docker networking disabled, emits SPDX
+SBOMs, and rejects any image-config digest mismatch.
 
 The Step 7B receipt contract now requires two image digests per role, an SBOM,
 builder/recipe/Dockerfile/base/dependency-lock bindings, and one exact Step 5B
 input-lock digest shared by all three roles. It also requires exact three-role
 coverage and a truthful reproducibility comparison. A mismatch blocks the set
-rather than being waived. No real base receipt, dependency lock, OCI image
-digest, build, comparison, SBOM, ECR action, or external input retrieval
-exists. Step 7B remains blocked on Step 5B, sufficient storage, and a separate
-hash-bound authorization for material local/network build action.
+rather than being waived. No real OCI image digest, build, comparison, SBOM,
+or ECR action exists yet. The sealed local-only plan is storage-blocked on this
+VPS and cannot authorize AWS; its successor must bind an EC2 builder, source
+archive, Syft binary, exact spend ceiling, teardown, and a new KMS admission.
+This build-only qualification neither loads a model nor runs a benchmark.
 
 ## Immutable base candidates (metadata only)
 
-The future real recipe may use the following Linux/amd64 manifest identities,
-resolved read-only on 2026-07-31. They are **candidates**, not retrieved base
-receipts, and do not replace the `registry.invalid` fixture lines until Step 5B
-hash verification and a concrete signed build admission both exist.
+The real role recipes use the following pre-locked Linux/amd64 manifest identity.
+It is an input-lock binding, not a completed image-pull or build receipt.
 
 | Roles | Candidate | Linux/amd64 manifest digest |
 | --- | --- | --- |
-| model-server | `vllm/vllm-openai:v0.19.0` | `sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90` |
-| controller, benchmark-worker | `python:3.12.12-slim-bookworm` | `sha256:2986c55feb36e6cae00fa1fefb454283e4b33f35e75ff8bdd123b134130be301` |
+| controller, model-server, benchmark-worker | `vllm/vllm-openai` | `sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90` |

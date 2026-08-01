@@ -40,6 +40,15 @@ def test_build_recipe_names_determinism_controls() -> None:
         assert control in recipe
 
 
+def test_step7b_recipes_are_real_role_probes_not_fixture_bases() -> None:
+    for role in ("controller", "model-server", "benchmark-worker"):
+        recipe = (ROOT / "infra" / "docker" / role / "Dockerfile").read_text(encoding="utf-8")
+        assert "registry.invalid" not in recipe
+        assert "vllm/vllm-openai@sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90" in recipe
+        assert f'"{role}"]' in recipe
+        assert "production_runtime.py" in recipe
+
+
 def build_receipt(role: str, letter: str = "a") -> dict:
     return {
         "record_kind": "cloud_image_build_receipt",

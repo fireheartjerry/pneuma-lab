@@ -1,3 +1,2 @@
-# Fixture lock; CUDA, driver, PyTorch, and vLLM receipts are Step 7B inputs.
-vllm==0.19.0 \
-    --hash=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+# The sealed role probe imports only the Python standard library.  vLLM is part
+# of the exact digest-pinned base, not an unpinned pip resolution during build.
