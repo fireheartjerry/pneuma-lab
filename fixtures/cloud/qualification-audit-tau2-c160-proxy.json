@@ -1,0 +1,64 @@
+{
+    "record_kind": "cloud_qualification_audit",
+    "schema_version": "0.2.0",
+    "frozen_timestamp": "2026-07-31T00:00:00Z",
+    "provenance": {
+        "design_sha256": "328b4dc2c736b6ebe405f585ff20e6f7e0ebedb58c989193c1120624a8a761d4",
+        "code_sha256": "786cff3ea9487c924bc26d6ae27ffe865c65260a0c9c0ef1469be46ba695031a"
+    },
+    "benchmark_family": "tau2",
+    "tier": "C160",
+    "evidence_class": "proxy_metadata",
+    "proxy_basis": "pinned_objective_pool",
+    "input_lock_sha256": null,
+    "splits": [
+        {
+            "split": "airline",
+            "proxy_units": 50,
+            "eligible_units": 0,
+            "confirmation_quota": 25,
+            "pilot_units": 1,
+            "fixed_reserve": null,
+            "hamilton_allocation": null,
+            "registered_minimum_units": 47,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "telecom",
+            "proxy_units": 114,
+            "eligible_units": 0,
+            "confirmation_quota": 18,
+            "pilot_units": 1,
+            "fixed_reserve": null,
+            "hamilton_allocation": null,
+            "registered_minimum_units": null,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "banking",
+            "proxy_units": 88,
+            "eligible_units": 0,
+            "confirmation_quota": 15,
+            "pilot_units": 1,
+            "fixed_reserve": null,
+            "hamilton_allocation": null,
+            "registered_minimum_units": null,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        }
+    ]
+}

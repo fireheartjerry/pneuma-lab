@@ -199,12 +199,12 @@ def test_cli_selftest_uses_exact_frozen_roster_and_is_byte_deterministic(
         assert main(["--run-root", str(root), "selftest", "--stop-after-study"]) == 0
         capsys.readouterr()
     expected = Path(__file__).parents[2] / "fixtures/resampling_null/p0-roster-synthetic.json"
-    manifests = [json.loads((root / "study-manifest.json").read_text()) for root in roots]
+    manifests = [json.loads((root / "study-manifest.json").read_text(encoding="utf-8")) for root in roots]
     roster_refs = [manifest["payload"]["roster_ref"] for manifest in manifests]
     expected_digest = __import__("hashlib").sha256(expected.read_bytes()).hexdigest()
     assert [ref["sha256"] for ref in roster_refs] == [expected_digest, expected_digest]
     for root, ref in zip(roots, roster_refs, strict=True):
-        roster = json.loads((root / ref["relative_path"]).read_text())
+        roster = json.loads((root / ref["relative_path"]).read_text(encoding="utf-8"))
         assert len(roster["tasks"]) == 40
         assert {task["benchmark"] for task in roster["tasks"]} == {"SWE", "TAU"}
     assert (roots[0] / "study-manifest.json").read_bytes() == (roots[1] / "study-manifest.json").read_bytes()

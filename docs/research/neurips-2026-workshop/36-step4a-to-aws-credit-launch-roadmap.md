@@ -30,11 +30,11 @@ reconcile them before execution.
   `implementation_complete; E2E_pending`.
 - AWS funding: $10,000 verified EC2-eligible credit plus a separate $100
   credit.
-- AWS support reports a partial 8-vCPU G/VT approval in `us-east-1`; independent
-  account verification must still identify whether it applies to On-Demand,
-  Spot, or both. DL-161 prospectively replaces the 48-vCPU/four-L40S topology
-  with one 8-vCPU `g6e.2xlarge`/L40S and sequential execution. Credits do not
-  bypass quota, model-fit, throughput, protocol, or spend gates.
+- AWS G/VT quotas: an authenticated console audit reports applied account-level
+  values of 8 vCPUs On-Demand and 16 vCPUs Spot in `us-east-1`, which satisfy
+  the DL-161 one-instance, 8-vCPU `g6e.2xlarge` topology. An account-bound
+  Terraform plan and deployment receipt remain unapplied. Credits do not bypass
+  quota, model-fit, throughput, protocol, or spend gates.
 
 The preserved canonical root
 `build/research/neurips-2026-workshop/p0-lineage-20260730` contains only 10 of

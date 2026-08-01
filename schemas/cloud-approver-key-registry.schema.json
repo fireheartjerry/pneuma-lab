@@ -1,0 +1,36 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-approver-key-registry.schema.json",
+    "title": "Cloud Approver Key Registry",
+    "description": "The explicit set of Ed25519 public keys trusted to authorize a Step 5B retrieval, with per-key validity windows and revocation state. A key absent from this registry can never authorize anything, so trust is enumerated rather than inferred from a signature that merely verifies.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "frozen_timestamp", "keys"],
+    "properties": {
+        "record_kind": {"const": "cloud_approver_key_registry"},
+        "schema_version": {"const": "0.1.0"},
+        "frozen_timestamp": {"$ref": "#/$defs/timestamp"},
+        "keys": {"type": "array", "minItems": 0, "items": {"$ref": "#/$defs/key"}, "description": "May be empty. An empty registry trusts nobody and is the correct committed state until a real key ceremony has happened."}
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "timestamp": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"},
+        "key": {
+            "type": "object",
+            "required": ["key_id", "approver_id", "algorithm", "public_key_hex", "not_before", "not_after", "status", "revoked_timestamp", "revocation_reason"],
+            "properties": {
+                "key_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,62}$", "description": "Stable identifier the authorization names. Never reuse one for a different key pair."},
+                "approver_id": {"type": "string", "minLength": 1},
+                "algorithm": {"const": "ed25519"},
+                "public_key_hex": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "The 32-byte Ed25519 public key, hex encoded."},
+                "not_before": {"$ref": "#/$defs/timestamp"},
+                "not_after": {"$ref": "#/$defs/timestamp"},
+                "status": {"enum": ["active", "revoked"]},
+                "revoked_timestamp": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/timestamp"}]},
+                "revocation_reason": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]}
+            },
+            "additionalProperties": false
+        }
+    }
+}

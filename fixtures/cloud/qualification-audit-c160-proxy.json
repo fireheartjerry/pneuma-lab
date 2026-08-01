@@ -1,0 +1,144 @@
+{
+    "record_kind": "cloud_qualification_audit",
+    "schema_version": "0.2.0",
+    "frozen_timestamp": "2026-07-31T00:00:00Z",
+    "provenance": {
+        "design_sha256": "328b4dc2c736b6ebe405f585ff20e6f7e0ebedb58c989193c1120624a8a761d4",
+        "code_sha256": "786cff3ea9487c924bc26d6ae27ffe865c65260a0c9c0ef1469be46ba695031a"
+    },
+    "benchmark_family": "swe",
+    "tier": "C160",
+    "evidence_class": "proxy_metadata",
+    "proxy_basis": "current_repository_metadata",
+    "input_lock_sha256": null,
+    "splits": [
+        {
+            "split": "C",
+            "proxy_units": 9,
+            "eligible_units": 0,
+            "confirmation_quota": 12,
+            "pilot_units": 1,
+            "fixed_reserve": null,
+            "hamilton_allocation": null,
+            "registered_minimum_units": null,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "C++",
+            "proxy_units": 14,
+            "eligible_units": 0,
+            "confirmation_quota": 12,
+            "pilot_units": 1,
+            "fixed_reserve": null,
+            "hamilton_allocation": null,
+            "registered_minimum_units": null,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "C#",
+            "proxy_units": 26,
+            "eligible_units": 0,
+            "confirmation_quota": 12,
+            "pilot_units": 1,
+            "fixed_reserve": null,
+            "hamilton_allocation": null,
+            "registered_minimum_units": null,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "Go",
+            "proxy_units": 77,
+            "eligible_units": 0,
+            "confirmation_quota": 12,
+            "pilot_units": 1,
+            "fixed_reserve": null,
+            "hamilton_allocation": null,
+            "registered_minimum_units": null,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "Java",
+            "proxy_units": 44,
+            "eligible_units": 0,
+            "confirmation_quota": 12,
+            "pilot_units": 1,
+            "fixed_reserve": null,
+            "hamilton_allocation": null,
+            "registered_minimum_units": null,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "JavaScript",
+            "proxy_units": 35,
+            "eligible_units": 0,
+            "confirmation_quota": 12,
+            "pilot_units": 1,
+            "fixed_reserve": null,
+            "hamilton_allocation": null,
+            "registered_minimum_units": null,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "Rust",
+            "proxy_units": 28,
+            "eligible_units": 0,
+            "confirmation_quota": 12,
+            "pilot_units": 1,
+            "fixed_reserve": null,
+            "hamilton_allocation": null,
+            "registered_minimum_units": null,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        },
+        {
+            "split": "TypeScript",
+            "proxy_units": 45,
+            "eligible_units": 0,
+            "confirmation_quota": 12,
+            "pilot_units": 1,
+            "fixed_reserve": null,
+            "hamilton_allocation": null,
+            "registered_minimum_units": null,
+            "isolation_evidence": null,
+            "license_evidence": null,
+            "three_pair_audit": {
+                "pairs_attempted": 0,
+                "pairs_independent_pass": 0
+            }
+        }
+    ]
+}

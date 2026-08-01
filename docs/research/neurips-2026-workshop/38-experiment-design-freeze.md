@@ -2,13 +2,15 @@
 
 **Status:** registered implementation freeze; not an execution authorization
 **Date:** 2026-07-31
-**Authority records:** DL-148, DL-149, and prospective amendment DL-161
+**Authority records:** DL-148, DL-149, and DL-161
 
-> **2026-07-31 prospective topology amendment:**
+> **2026-07-31 topology amendment and reconciliation:**
 > `49-single-l40s-topology-amendment.md` supersedes the AWS four-GPU execution
-> shape with one `g6e.2xlarge`/L40S and sequential arm/replica execution. The
-> scientific design below remains frozen. Implementation reconciliation,
-> one-GPU fit/throughput admission, and Step 14 review remain blocking.
+> shape with one `g6e.2xlarge`/L40S and sequential arm/replica execution, and
+> `49-single-l40s-topology-reconciliation.md` records the implementation
+> reconciliation of schemas, validator, quota preflight, pilot protocol, and
+> Terraform to that shape. The scientific design below remains frozen. One-GPU
+> fit/throughput admission and Step 14 review remain blocking.
 
 ## Frozen object
 
@@ -25,14 +27,14 @@ resolution floor; failure criteria; admission gates; and the pinned SWE-bench
 Live/MultiLang and tau2-bench roster definitions, Qwen3.6-35B-A3B-FP8 subject,
 and Qwen3.5-9B simulator.
 
-Topology is frozen as a four-rung candidate ladder plus its deterministic
-selection rule, not as an open configuration choice:
+DL-161 supersedes the retired multi-GPU topology in the referenced design. The
+AWS primary subject topology is frozen as the approved one-node
+`g6e.2xlarge` shape: 8 vCPUs, 64 GiB host memory, one L40S, and 44 GiB usable
+device memory. The only candidate context rungs are both TP1 on that same
+single L40S:
 
 1. one L40S, TP1, 32,768 tokens;
-2. one L40S, TP1, 65,536 tokens;
-3. two L40S, TP2, 65,536 tokens; then
-4. one H100 94 GB, TP1, at the largest validated cap not exceeding 131,072
-   tokens.
+2. one L40S, TP1, 65,536 tokens.
 
 The pilot may select only the largest rung passing OOM, tool-call,
 output-parity, and p10-throughput gates. It may not invent, substitute, or
@@ -68,6 +70,11 @@ benchmark outcomes, or any other outcome signal for selection.
   as a pending planning resource, not a verified spendable balance. Once
   verified, it may support separately designed training or other experiments;
   it does not modify or authorize this inference protocol.
+- The AWS controller cannot co-locate the τ³ simulator with the primary
+  subject. Any simulator capacity is a separate, explicitly metered and
+  separately authorized dependency; it is not supplied by Azure or inferred
+  from this single-GPU topology. Azure remains a separate subject and may not
+  be pooled with the AWS FP8 results.
 
 ## State and non-claims
 

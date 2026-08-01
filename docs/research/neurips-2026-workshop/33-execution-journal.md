@@ -3572,3 +3572,304 @@ The next event after the archived migration boundary is appended below.
   or claim occurred. Azure remains verified spendable 0.00 until official
   evidence is recorded, and any Azure training/other experiment requires a
   separate design and authority lineage.
+
+### EJ-20260731-aws-single-l40s-reconciliation
+
+- **Scope:** DL-161 static AWS-topology reconciliation. The cloud architecture
+  validator, quota preflight, pilot protocol, schemas, Terraform configuration,
+  fixtures, status, and handoff now bind exactly one 8-vCPU `g6e.2xlarge` with
+  one L40S and 44 GiB usable device memory. The Terraform admission definition
+  reserves one GPU, eight vCPUs, and 60,000 MiB host memory.
+- **Verification:** focused cloud and schema-registry tests passed (with the
+  explicit Terraform-on-PATH test skipped by design), Ruff for
+  `src/pneuma_lab/cloud`, status validation, whitespace check, and Terraform
+  L1 `fmt -check`, backend-free `init`, and `validate` passed.
+  The provider was initialized only to validate configuration; no credentials,
+  account plan, provider read, resource change, or `apply` occurred.
+- **Research correction:** current upstream material describes the Qwen3.6
+  FP8 variant at roughly 42 GiB and single-GPU validation on H100/H200 rather
+  than L40S. Community reports are mixed and include tool-call and thinking
+  failure modes. These are admission risks, not a substitute for a receipt.
+- **Boundary:** no Step 5B retrieval, G-ROSTER qualification, Step 7B image
+  build, AWS account/quota request, Docker pull/build, one-GPU measurement,
+  pilot, Step 14 campaign, experiment, Azure action, or spend occurred.
+
+### EJ-20260731-phase-b-external-evidence-preflight
+
+- **Implementation:** Step 5B retrieval planning now includes tokenizer,
+  dataset, and verifier sources and byte-verifies every referenced receipt.
+  Step 7B has a complete three-role, two-build, SBOM, and reproducibility
+  receipt contract. AWS account evidence has an offline validator binding STS
+  identity, both applied G/VT quotas, account-visible `g6e.2xlarge` zones, and
+  Terraform config/plan digests. Step 14 generation now requires all five real
+  Phase B evidence receipts and writes nothing while any are absent.
+- **Tooling/evidence:** AWS CLI 2.35.19 was installed user-locally after the
+  installer signature matched AWS's documented fingerprint; GPG reported that
+  signing key expired, which remains a trust-chain caveat. Terraform 1.15.8 was
+  checksum-verified and installed user-locally. Terraform L1 init/validate and
+  all focused cloud/schema tests passed. The first STS read failed with
+  `NoCredentials`; no account data was obtained.
+- **Resource gate:** the sole writable disk has about 153 GiB free versus the
+  historical 321–470 GiB retrieval estimate. Pending request 50 names exact
+  A1–A3 scopes and hashes, but authorizes nothing.
+- **Boundary:** no input or image retrieval, container build, AWS mutation,
+  Terraform plan/apply, quota change, GPU use, reviewer campaign, experiment,
+  Azure action, or spend occurred.
+
+### EJ-20260731-aws-authenticated-console-audit
+
+- **Scope:** fresh read-only inspection of the authenticated AWS console in
+  `us-east-1`; no account, quota, or resource mutation was attempted.
+- **Identity:** the console account name and 12-digit account identifier matched
+  the expected Jerry Mathos AI account. The identifier is retained in the
+  private console evidence and is not copied into this public-facing journal.
+- **Quota evidence:** Service Quotas reported applied account-level values of
+  8 vCPUs for `Running On-Demand G and VT instances` and 16 vCPUs for
+  `All G and VT Spot Instance Requests`. Both satisfy the exact 8-vCPU
+  `g6e.2xlarge` topology gate.
+- **Offering evidence:** the EC2 instance-type detail page reported
+  `g6e.2xlarge` in `us-east-1a`, `us-east-1b`, `us-east-1c`, and
+  `us-east-1d`, with 8 vCPUs, one NVIDIA L40S, and 44.7 GiB GPU memory.
+- **Residual gate:** this read-only console evidence does not supply CLI
+  credentials, a principal ARN receipt, Terraform variables, or an
+  account-bound Terraform plan hash. A same-session CloudShell `sts` read
+  subsequently confirmed the root-principal ARN. The account exposes a
+  default VPC with subnets in the available zones and its default security
+  group, but `dynamodb list-tables` and `s3api list-buckets` both returned
+  empty sets. The required lease table and artifact bucket do not exist, so a
+  real plan cannot be prepared without a separately authorized infrastructure
+  creation decision.
+- **Boundary:** no quota request, launch, Terraform plan/apply, provider
+  mutation, resource creation, GPU use, experiment, Azure action, or spend
+  occurred.
+
+## 2026-07-31 — Step 5B workflow and the G-ROSTER evaluation
+
+- **Scope:** isolated worktree/branch (`codex/step5b-groster`). Adds
+  `schemas/cloud-retrieval-authorization.schema.json`,
+  `schemas/cloud-qualification-audit.schema.json`,
+  `src/pneuma_lab/cloud/retrieval.py`, `src/pneuma_lab/cloud/qualification.py`,
+  `fixtures/cloud/`, `tests/cloud/test_retrieval.py`,
+  `tests/cloud/test_qualification.py`, and
+  `docs/research/neurips-2026-workshop/51-step5b-retrieval-and-qualification.md`.
+- **Evaluation (DL-163):** both tiers are `FEASIBILITY_NO_GO`. Against the
+  current-metadata proxy, C120 requires 11 C and 16 C++ root lineages versus 9
+  and 14, and C160 requires 14 C versus 9.
+- **Correction made under hostile review — recorded because it changes the
+  conclusion.** The first draft of this work claimed the inequality was
+  *unsatisfiable by any audit outcome*, reasoning that qualification only
+  filters the proxy pool. Independent hostile review showed the premise is
+  unsound: the DL-128 proxy filters present-day repository metadata, while the
+  registered eligibility criterion is base-commit licence evidence. A repository
+  archived or unlicensed today may still be admissible at its pinned base
+  commit, so the proxy is not an upper bound on eligibility. The draft had also
+  hard-coded that premise as a validation error, which would have made the one
+  finding capable of overturning the verdict impossible to record. Both are
+  fixed: records now declare `proxy_basis`, monotonicity is enforced only for
+  `base_commit_admissible`, and the shortfalls are reported
+  `provisional_unsatisfiable`. The strong claim is withdrawn.
+- **Other hostile-review repairs:** the human signature is now a binding digest
+  over the record (it was unverified free-text hex); the roster gate now
+  requires resolvable evidence bytes and the bound input-lock digest (a
+  hand-written JSON file previously reached `CONDITIONALLY_FEASIBLE`); verifier
+  sources are now a retrieval scope (they were silently omitted); mirror paths
+  are kind-scoped and collision-checked; the receipt plan binds the lock; and
+  the byte ceiling is checked before each declared fetch.
+- **Consequence for sequencing:** Step 5B and G-ROSTER are genuinely coupled.
+  The base-commit admissibility enumeration that settles the roster question is
+  Step 5B's licence audit, so the roster cannot be closed from a desk.
+- **Read-only corroboration (CL-027):** public sources corroborate 743 tasks /
+  381 repository strings for SWE-bench-Live MultiLang and the τ² domain counts
+  (airline 50, telecom 114, banking 97). The per-language lineage breakdown is
+  **not publicly published**, so the 9 C / 14 C++ proxy remains internal CL-009
+  evidence; no response artifact was committed for that check, so it is
+  unrecomputable by a reviewer and independent re-derivation stays pending.
+- **Second hostile review and further repairs.** A second independent review
+  found the roster gate still reachable from a hand-written record, `FEASIBLE`
+  accepting the weak `current_repository_metadata` basis it argues cannot bound
+  eligibility, and `build_audit_plan` silently skipping the benchmark
+  `dataset_revision` and `task_manifest_sha256` — the very bytes the roster
+  counts derive from. Fixed: `FEASIBLE` now requires
+  `base_commit_admissible`; the gate recomputes the lock digest from a supplied
+  lock instead of trusting a caller string; the dataset revision and task
+  manifest are planned and verified; and `require_complete_scopes` refuses an
+  authorization that would leave a pinned input unretrieved. The gate's residual
+  limit — it is a consistency check, not an authenticity check, satisfiable by
+  whoever writes both the record and the evidence files — is now stated in the
+  docstring, in doc 51, and pinned by a test named for what it actually proves.
+- **Verification:** `tests/cloud` and `tests/test_schema_loads.py` pass on this
+  branch except `test_iac_plan.py::test_terraform_binary_check_is_explicitly_skipped_when_absent`,
+  which `pytest.fail`s whenever a terraform binary is on PATH; that test is
+  unmodified here and its outcome is environmental. `ruff check` is clean on the
+  new modules and tests; the default smoke gate and
+  `python -m pneuma_lab.status --check` pass. Two independent hostile reviews
+  were run and every BLOCKING and MAJOR finding was repaired before commit.
+- **Boundary:** no external input was retrieved, no registry/provider/account
+  was contacted, no image or dataset byte was pulled, no meaningful storage was
+  consumed, no manifest was promoted, no roster was weakened, no credit was
+  spent, and no Step 4B, pilot, unblind, analysis, or scientific claim occurred.
+  The committed authorization record is an unsigned candidate bound to a
+  synthetic fixture lock and grants nothing.
+## 2026-07-31 — Authenticated Step 5B readiness
+
+- **Scope:** isolated worktree/branch (`codex/step5b-authenticated-readiness`).
+  Adds `schemas/cloud-approver-key-registry.schema.json`,
+  `schemas/cloud-licence-audit.schema.json`,
+  `src/pneuma_lab/cloud/{authorization_keys,input_lock,licence_audit,iac}.py`,
+  tau2 qualification fixtures, and focused tests; revises
+  `cloud-retrieval-authorization` to 0.2.0 and `cloud-qualification-audit` to
+  0.2.0.
+- **Checkout reconciliation (prior commit `7bc7ad9`).** Two lines of work had
+  descended from `d0b7fdd`: the pushed Step 5B/G-ROSTER commits and an unpushed
+  working tree that had reconciled the DL-161 single-L40S topology into code,
+  schemas, Terraform, and quota preflight. Both were genuine and both were
+  merged; the pre-merge tree is preserved on the local backup branch
+  `backup/dirty-worktree-20260731-130853` (`c3f9721`). **`3e2d825` had truncated
+  `34-tasks-6-10-vps-handoff.md` from 870 to 513 lines**, dropping the VPS start
+  commands, the Task 8/9/10 checkpoints, the execution-class policy, the Step
+  4A/4B definitions, and the canonical-run-stopped notice. All of it was
+  restored. DL-161 appeared on both sides describing the same decision at two
+  stages and was merged into one row citing both 49-* documents; no decision was
+  renumbered.
+- **Authentication (DL-164).** The DL-162 binding digest is replaced by Ed25519
+  over the complete canonical body, verified against a key enumerated in advance
+  in the committed registry, with validity-window, revocation, and expiry checks
+  and a ledger-row content binding. The registry names one real key generated in
+  the user's CloudShell by a separately authorized session; **this lineage did
+  not perform that key ceremony and cannot attest to private-key custody.**
+- **Arithmetic correction (DL-165).** `fixed_reserve` and the C160
+  `hamilton_allocation` now fail closed when no authority has fixed them,
+  instead of defaulting to 0 — the one substitution that can only make the gate
+  easier. A registered floor (`registered_minimum_units`) outranks the
+  inequality where the design states one directly.
+- **Family separation (DL-166).** SWE and tau2 qualify different units on
+  different evidence; the promotion gate now requires both and refuses a
+  single-family submission.
+- **Two independent hostile reviews were run and every finding repaired before
+  commit.** Review 1 (can an unauthorized byte move?) found that ISO-8601
+  timestamps were compared as **strings** while the schema permits fractional
+  seconds; because `.` sorts below `Z`, `…T00:00:00.001Z` compared as *earlier*
+  than `…T00:00:00Z`, so an authorization that had expired a millisecond
+  earlier verified as live. Timestamps are now parsed to instants. Review 1 also
+  found that the byte-ceiling controls — pre-fetch declared-size refusal and the
+  post-fetch backstop — had lost **all** test coverage when the retrieval tests
+  were rewritten for the authenticated signature; that coverage is restored.
+  Review 2 (does the record system overclaim?) found tau2 C160's registered
+  "at least 47 qualified airline tasks" was not modelled at all, understating
+  that split by twenty tasks against a quota-plus-pilots reading of 27.
+- **Verification:** `tests/cloud` and `tests/test_schema_loads.py` pass (455
+  cases) in the isolated worktree; `ruff` is clean on every new and revised
+  module and test; `python -m pneuma_lab.status --check` and `git diff --check`
+  pass. The Terraform environmental test now exercises the absent-binary branch
+  against an isolated empty search path and the present-binary branch against a
+  mock one, so it is deterministic whether or not terraform is installed; the
+  real `fmt -check` remains an honestly skipped environmental check.
+- **Residual limitations, stated because they are load-bearing.** A verifying
+  signature is not proof of a person: no hardware binding, threshold, or
+  transparency log exists, and revocation is only as fresh as the last commit.
+  The qualification gate remains a **consistency** check, not an authenticity
+  one — whoever writes both the audit record and its evidence files can satisfy
+  it. `real_candidate` classification speaks only to the *form* of an identity;
+  it does not establish that the identity exists or that any byte was fetched.
+  No licence-audit record exists, and CL-009/DL-128 proxy prose is explicitly
+  refused as qualification. The tau2 one-pilot-per-split shape is a modelling
+  assumption in the conservative direction.
+- **Boundary:** no external input or image retrieval, registry/provider/account
+  contact, container build, cloud mutation, Terraform plan or apply, quota
+  change, GPU use, credit spend, pilot, Step 4B, unblind, analysis, reviewer
+  campaign, Azure action, or scientific claim occurred from this lineage. The
+  `pneuma_lab.cloud` package imports no network, provider, or subprocess module,
+  so it cannot retrieve by construction. Separately authorized concurrent
+  sessions operating on the primary checkout did perform AWS bootstrap work;
+  that work is theirs, is recorded in their own documents, and is not part of
+  this branch.
+### EJ-20260731-step5b-execution-safety-repair
+
+- **Trigger:** pre-promotion review of the authenticated Step 5B slice reported
+  three launch-blocking authority issues and three portability failures. All six
+  were reproduced and are closed here; none was disputed.
+- **Caller-controlled authorization time (P1).** The execution gate accepted an
+  `at` string from its caller, which made expiry advisory: replaying an expired
+  authorization needed nothing more than passing an earlier in-window instant.
+  `require_authorized` and `retrieve_and_verify` no longer take an evaluation
+  instant at all; validity resolves through `trusted_now`. An injected clock
+  remains available as a **test seam** and a test asserts the parameter is
+  absent from both signatures. Honest limit: `trusted_now` is trusted only in
+  the sense that it is not caller-supplied — it is still host time, and binding
+  validity to an external time authority or a countersigned execution receipt
+  would close that gap and is not implemented.
+- **Ceiling enforced after spending (P1).** `declared_sizes` was optional and
+  fetcher-supplied, so an arbitrarily oversized object could transfer in full
+  before the post-fetch check rejected it. Sizes are now **authenticated**:
+  `cloud-input-lock` 0.2.0 pins `size_bytes` per receipt plus
+  `task_manifest_size_bytes` and `manifest_size_bytes`, and the lock digest sits
+  inside the signed authorization body, so a size is approved rather than
+  declared. The whole plan is checked against the ceiling before the first byte
+  moves, and the fetch boundary now yields chunks so each one is counted as it
+  arrives. A flooding fetcher is cut off within one chunk of its authenticated
+  size, which a test pins.
+- **Receipts named unwritten files (P1).** `mirror_path` was returned but never
+  written or reopened. Bytes now stream to a staged file, are fsynced and
+  atomically installed at the mirror path, then **reopened and rehashed
+  independently** — not reusing the streaming digest — before a receipt is
+  emitted. Receipts carry `installed_path` and `size_bytes`; an occupied
+  destination is refused rather than overwritten; a failed transfer publishes
+  nothing, which a test verifies by asserting the mirror is empty.
+- **Portability.** Provenance digests bound raw checkout bytes, so a CRLF
+  checkout invalidated every committed hash on Windows. `cloud/provenance.py`
+  canonicalizes text (UTF-8, LF, BOM-stripped) before hashing, matching the
+  content Git stores for a normalised text blob; the refresh script, the licence
+  audit's self-binding, and the provenance tests all use it. Every repository
+  document read in tests now specifies `encoding="utf-8"` rather than the
+  platform default. The Terraform mock stub is created as `terraform.bat` on
+  Windows, since an extensionless file is correctly not an executable there.
+- **Verification:** `tests/cloud` and `tests/test_schema_loads.py` pass (466
+  cases), and **the entire suite was re-run against a simulated CRLF checkout of
+  the design freeze, decision log, spend ledger, and both bound modules, and
+  passed unchanged**. The Terraform tests pass both with a real binary on PATH
+  and with `PATH` emptied. Ruff is clean on every new and revised module and
+  test; the default smoke gate, `python -m pneuma_lab.status --check`, and
+  `git diff --check` pass.
+- **Boundary:** no external retrieval, registry/provider/account contact, image
+  or dataset pull, container build, cloud mutation, Terraform plan or apply,
+  quota change, credit spend, pilot, Step 4B, unblind, analysis, manifest
+  promotion, or scientific claim occurred. The committed authorization is still
+  an unsigned candidate bound to the synthetic fixture lock, so the repaired
+  retrieval path remains unreachable. C120 and C160 remain
+  `FEASIBILITY_NO_GO` and nothing was weakened.
+
+## 2026-07-31 — Human-readable unattended low-risk authority
+
+- **Decision:** DL-168 permits one readable, tightly bounded standing envelope
+  for cheap retrieval, non-scientific smoke, or API-pilot work. The committed
+  policy is inactive and authorizes nothing.
+- **Implementation:** added its closed schema, admission module, candidate
+  fixture, registry entry, and focused tests. No external action occurred.
+
+## 2026-08-01 — C160 AWS substrate and immutable worker receipts
+
+- **Authority:** DL-169 records the user's root-MFA exception and preserves all
+  non-MFA scientific, cost, image, qualification, and admission gates.
+- **AWS substrate:** plan SHA-256
+  `86aa19def10af6f1a334c1558f39d0d69271f6bef94292d43954aeca705a6ba2`
+  was applied only for the private non-compute substrate. Because AWS requires
+  a new Batch compute environment to be born enabled, Terraform now gates the
+  compute environment, queue, and job definition behind
+  `create_batch_resources=false`. Direct queries returned no environment or
+  queue. State SHA-256 is
+  `78e36e9659e7f0eee41881b68c6382f22306c83a16ef9e698b2d4e0e0a5b7cdf`.
+- **Step 5B evidence:** selection SHA-256
+  `8d6c3bc3dd332a7a0998a31b22ab2f46395889d9ada74d2c1d187bba797ff114`
+  binds 176 repositories, all with full OCI manifest/config/layer receipts and
+  zero unresolved entries. Encrypted bundles are recorded under CL-031.
+- **Worker image:** CodeBuild
+  `pneuma-c160-worker-build:36ed3cce-b613-4b98-811b-730270ec4cac`
+  produced ECR digest
+  `sha256:1fc54d73f9ec36356bec5c2c8497b671f72a9e43c0bae4fbb84be3ee6ede9ae2`.
+  Its completed ECR scan has an empty severity map. Full scan-response SHA-256
+  `122dbb5176582d1e066aa1a36a44fb21785b7555d34a16d1eaa2a7f9ffa299ad`
+  is mirrored encrypted at
+  `s3://pneuma-phase-b-892077329800/receipts/ecr/c160-noffmpeg-1fc54d73f9ec-scan.json`.
+- **Boundary:** no Batch environment, queue, EC2 instance, EBS worker volume,
+  GPU smoke, model inference, pilot, canonical experiment, analysis, or result
+  promotion occurred.

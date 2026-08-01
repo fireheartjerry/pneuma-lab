@@ -1,0 +1,71 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-licence-audit.schema.json",
+    "title": "Cloud Base-Commit Licence Audit",
+    "description": "An independently reproducible base-commit licence audit: the derivation command, the ordered lineage roster with per-lineage inclusion or exclusion reasons and licence evidence digests, the pinned dataset and task-manifest digests it was derived from, the per-language counts, and a qualification receipt bound to the deriving code and to every input byte. Prose in a decision log or spend ledger is not this record and cannot substitute for it.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "frozen_timestamp", "derivation", "pinned_inputs", "lineages", "language_counts", "receipt"],
+    "properties": {
+        "record_kind": {"const": "cloud_licence_audit"},
+        "schema_version": {"const": "0.1.0"},
+        "frozen_timestamp": {"$ref": "#/$defs/timestamp"},
+        "derivation": {
+            "type": "object",
+            "description": "Everything a reviewer needs to re-run the derivation and compare byte for byte.",
+            "required": ["command", "code_sha256", "evidence_root"],
+            "properties": {
+                "command": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "description": "Argv of the deterministic derivation command, so re-derivation is a paste rather than a reconstruction."},
+                "code_sha256": {"$ref": "#/$defs/sha256", "description": "Digest of the module that produced this record."},
+                "evidence_root": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$", "description": "Repository-relative root the licence evidence paths resolve against."}
+            },
+            "additionalProperties": false
+        },
+        "pinned_inputs": {
+            "type": "object",
+            "description": "The immutable dataset and task-manifest identities the roster was derived from.",
+            "required": ["benchmark_repository", "benchmark_revision", "dataset_revision", "task_manifest_sha256"],
+            "properties": {
+                "benchmark_repository": {"type": "string", "minLength": 1},
+                "benchmark_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+                "dataset_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+                "task_manifest_sha256": {"$ref": "#/$defs/sha256"}
+            },
+            "additionalProperties": false
+        },
+        "lineages": {"type": "array", "minItems": 0, "items": {"$ref": "#/$defs/lineage"}, "description": "Ordered roster. Order is part of the record: a reviewer re-deriving it must obtain this exact sequence."},
+        "language_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}, "description": "Per-language admissible counts, derived from the roster and cross-checked against it rather than stated independently."},
+        "receipt": {
+            "type": "object",
+            "description": "Qualification receipt binding the deriving code and every input byte. Recomputed on validation, never trusted as written.",
+            "required": ["roster_sha256", "inputs_sha256", "qualification_sha256"],
+            "properties": {
+                "roster_sha256": {"$ref": "#/$defs/sha256"},
+                "inputs_sha256": {"$ref": "#/$defs/sha256"},
+                "qualification_sha256": {"$ref": "#/$defs/sha256"}
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "timestamp": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"},
+        "lineage": {
+            "type": "object",
+            "required": ["root_lineage", "language", "base_commit", "admitted", "reason", "licence", "licence_evidence"],
+            "properties": {
+                "root_lineage": {"type": "string", "minLength": 1, "description": "Collapsed root repository identity, not a task id."},
+                "language": {"type": "string", "minLength": 1},
+                "base_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$", "description": "The pinned base commit the licence is judged at. Present-day repository metadata is not this."},
+                "admitted": {"type": "boolean"},
+                "reason": {"enum": ["permissive_licence_at_base_commit", "no_licence_at_base_commit", "non_permissive_licence_at_base_commit", "licence_unreadable_at_base_commit", "base_commit_unavailable", "duplicate_root_lineage"], "description": "Explicit inclusion or exclusion reason. Every lineage carries one; silence is not an outcome."},
+                "licence": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}], "description": "SPDX identifier observed at the base commit, or null when none was readable."},
+                "licence_evidence": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/receipt_ref"}], "description": "Reference and digest of the retrieved licence bytes. Null is permitted only for a lineage excluded because nothing could be retrieved."}
+            },
+            "additionalProperties": false
+        },
+        "receipt_ref": {"type": "object", "required": ["relative_path", "sha256"], "properties": {"relative_path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$"}, "sha256": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false}
+    }
+}

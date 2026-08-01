@@ -1,5 +1,11 @@
 # Resampling Null — design brief
 
+**DL-161 topology supersession (2026-07-31).** The AWS primary path is exactly
+one `g6e.2xlarge` (8 vCPUs, one L40S, 44 GiB usable GPU memory), with only the
+two TP1 admission rungs below. Any former TP2, H100, multi-replica, or
+simulator-co-location wording is historical. Azure remains separate and this
+note confers no input, image, account, launch, or execution authorization.
+
 ## 4.1 SWE-bench-Live MultiLang roster
 
 - Frozen inputs: harness `microsoft/SWE-bench-Live` `70ec57e852e3f2d195790fe71f553e272c691833`; dataset `SWE-bench-Live/MultiLang` `608f7ae9ab8ea1f9f0d030fe04562cf6bd1a0c8b`; RepoLaunch `microsoft/RepoLaunch` `7735b1e7363dd3bbc69bd0ef80db646a2ae391fd`.
@@ -26,7 +32,10 @@
 - Primary: `Qwen/Qwen3.6-35B-A3B-FP8`, revision `95a723d08a9490559dae23d0cff1d9466213d989`, Apache-2.0, official block-wise FP8, text-only thinking-mode tool use, candidate `vllm==0.19.0`.
 - Flags: `--language-model-only`, `--reasoning-parser qwen3`, `--enable-auto-tool-choice`, `--tool-call-parser qwen3_coder`; no multi-token/speculative decoding. Prefix cache stays off unless parity proves frozen-seed byte identity.
 - Seal image/CUDA/driver/PyTorch/vLLM source-or-wheel/tokenizer/template/parser/packet policy/pad-unit bytes after parity test. Package version alone is insufficient.
-- Pre-pilot topology ladder: 1×L40S TP1 at 32,768; 1×L40S TP1 at 65,536; 2×L40S TP2 at 65,536; H100 94GB TP1 at largest validated <=131,072. FP8 weights ~34.9 GiB. Freeze largest OOM/tool/output-parity/p10-throughput passer; topology changes subject.
+- Pre-pilot topology ladder: the sole L40S on `g6e.2xlarge`, TP1 at 32,768 and
+  TP1 at 65,536. Treat only 44 GiB as usable device memory. Freeze the largest
+  OOM/tool/output-parity/p10-throughput passer; TP2, H100 substitution,
+  multi-replica scheduling, and simulator co-location are invalid for AWS.
 - BF16 replication is distinct: `Qwen/Qwen3.6-35B-A3B` `995ad96eacd98c81ed38be0c5b274b04031597b0`, ~67.0 GiB, planned Azure `Standard_NC48ads_A100_v4` 2×A100-80GB TP2. Local development subject: Qwen3.5-9B above. Never pool FP8/BF16.
 - Tier-1 reproducibility gate: `VLLM_BATCH_INVARIANT=1`, fixed order/concurrency/topology/per-call seeds, identical repeated token IDs. Failure is topology/hour-table no-go; concurrency-one with `VLLM_ENABLE_V1_MULTIPROCESSING=0` needs new measurement, costing, hash, approval. No byte-identical mode = serving feasibility no-go; IID slots, no common-random-number claim.
 - Arm-common sampling: SWE temp/top-p/top-k/presence/repetition `0.6/0.95/20/0/1`; τ³ `1.0/0.95/20/1.5/1`.
@@ -85,6 +94,11 @@
 - Independent reservation/watchdog meters compute/storage/log/network/API billing dimensions and remains through verified deletion or fully reserved retention; alerts are advisory, never stop authority. No fresh watchdog lease: no new model/API call.
 
 ## 14 costed execution tiers
+
+**Historical cost model.** The figures below were derived from the retired
+four-L40S topology and cannot authorize, reserve, or estimate the DL-161
+one-GPU path. Re-price the bounded one-GPU plan during authorized account
+verification; do not scale these figures by hand.
 
 - Cap hours/task: SWE `5×1.0=5.0` subject-hours; τ³ `5×0.5=2.5`. C120: SWE 600/150 AWS instance-hours, τ³ 300/100, total **250**. C160: 800/200, 400/133.3333, total **333.3333**. Four SWE or three τ³ subjects share AWS node (fourth τ³ GPU is simulator).
 - Fixed allowances: Tier-2 AWS S3 $46 + gp3 $160 + ECR/log/request/egress $200 = **$406**; Tier-3 incremental AWS **$506**; Tier-3 Azure Blob $41.60 + other $300 = **$341.60**; Tier-1 infra $20 AWS/$30 Azure.

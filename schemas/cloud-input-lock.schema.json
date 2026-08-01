@@ -2,14 +2,14 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://pneuma-lab.local/schemas/cloud-input-lock.schema.json",
     "title": "Cloud Input Lock",
-    "description": "Fixture-validatable immutable references for external experiment inputs.",
+    "description": "Immutable references for external experiment inputs, each pinned by content digest AND authenticated byte size so a retrieval ceiling can be enforced before and during transfer rather than after it.",
     "type": "object",
     "x-pneuma-schema-kind": "cloud-manifest",
-    "x-pneuma-version": "0.1.0",
+    "x-pneuma-version": "0.2.0",
     "required": ["record_kind", "schema_version", "frozen_timestamp", "provenance", "model_pins", "tokenizer_pin", "benchmark_pins", "container_bases", "verifier_sources", "contamination_receipts", "license_receipts"],
     "properties": {
         "record_kind": {"const": "cloud_input_lock"},
-        "schema_version": {"const": "0.1.0"},
+        "schema_version": {"const": "0.2.0"},
         "frozen_timestamp": {"$ref": "#/$defs/timestamp"},
         "provenance": {"$ref": "#/$defs/provenance"},
         "model_pins": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/revision_pin"}},
@@ -25,9 +25,9 @@
         "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "timestamp": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"},
         "provenance": {"type": "object", "required": ["design_sha256", "code_sha256"], "properties": {"design_sha256": {"$ref": "#/$defs/sha256"}, "code_sha256": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false},
-        "receipt": {"type": "object", "required": ["relative_path", "sha256"], "properties": {"relative_path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$"}, "sha256": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false},
+        "receipt": {"type": "object", "required": ["relative_path", "sha256", "size_bytes"], "properties": {"relative_path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$"}, "sha256": {"$ref": "#/$defs/sha256"}, "size_bytes": {"type": "integer", "minimum": 0, "description": "Authenticated byte size. Pinned in the lock, and the lock digest is inside the signed authorization body, so this size is approved rather than declared by the fetcher at transfer time."}}, "additionalProperties": false},
         "revision_pin": {"type": "object", "required": ["repository", "revision", "license", "snapshot_receipt"], "properties": {"repository": {"type": "string", "minLength": 1}, "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "license": {"type": "string", "minLength": 1}, "snapshot_receipt": {"$ref": "#/$defs/receipt"}}, "additionalProperties": false},
-        "benchmark_pin": {"type": "object", "required": ["repository", "revision", "license", "snapshot_receipt", "dataset_revision", "task_manifest_sha256"], "properties": {"repository": {"type": "string", "minLength": 1}, "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "license": {"type": "string", "minLength": 1}, "snapshot_receipt": {"$ref": "#/$defs/receipt"}, "dataset_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "task_manifest_sha256": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false},
-        "container_base": {"type": "object", "required": ["repository", "digest"], "properties": {"repository": {"type": "string", "minLength": 1}, "digest": {"type": "string", "pattern": "^linux/amd64@sha256:[0-9a-f]{64}$"}}, "additionalProperties": false}
+        "benchmark_pin": {"type": "object", "required": ["repository", "revision", "license", "snapshot_receipt", "dataset_revision", "task_manifest_sha256", "task_manifest_size_bytes"], "properties": {"repository": {"type": "string", "minLength": 1}, "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "license": {"type": "string", "minLength": 1}, "snapshot_receipt": {"$ref": "#/$defs/receipt"}, "dataset_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "task_manifest_sha256": {"$ref": "#/$defs/sha256"}, "task_manifest_size_bytes": {"type": "integer", "minimum": 0}}, "additionalProperties": false},
+        "container_base": {"type": "object", "required": ["repository", "digest", "manifest_size_bytes"], "properties": {"repository": {"type": "string", "minLength": 1}, "digest": {"type": "string", "pattern": "^linux/amd64@sha256:[0-9a-f]{64}$"}, "manifest_size_bytes": {"type": "integer", "minimum": 0}}, "additionalProperties": false}
     }
 }

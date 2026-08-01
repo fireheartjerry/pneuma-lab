@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tomllib
+
+import pytest
 
 from scripts.check_test_budget import inspect_test_budget
 
@@ -218,9 +221,12 @@ def test_default_pytest_collection_is_only_the_micro_gate() -> None:
     collected_files = tuple(
         line for line in result.stdout.splitlines() if line.startswith("tests/")
     )
-    assert collected_files == (
-        "tests/smoke/test_micro_gate.py: 1",
-    )
+    # The contract is that default collection reaches the micro gate and
+    # nothing else. Pinning the case count as well made the gate's own growth
+    # look like a budget violation: commit 79e9df7 deliberately took it to
+    # seven cases and this assertion still demanded one.
+    assert len(collected_files) == 1, collected_files
+    assert collected_files[0].startswith("tests/smoke/test_micro_gate.py:"), collected_files
     assert "resampling_null" not in result.stdout
 
 
@@ -285,6 +291,14 @@ def test_pytest_config_keeps_opt_in_markers_out_of_default_collection() -> None:
     assert "tests/test_foundation_qwen_smoke.py:" not in default_result.stdout
     assert bare_marker_result.returncode == 5, bare_marker_result.stderr
     assert "tests/test_foundation_qwen_smoke.py:" not in bare_marker_result.stdout
+    # The opt-in selection can only collect where the optional dependency it
+    # exercises is installed. Without torch the module is skipped at collection
+    # and pytest exits 5, which is an environment condition rather than a broken
+    # contract -- and the repository guide explicitly says not to install
+    # optional dependencies just to manufacture a pass. The marker-exclusion
+    # assertions above hold everywhere, so only this half is conditional.
+    if importlib.util.find_spec("torch") is None:
+        pytest.skip("torch unavailable: the qwen_smoke opt-in cannot collect in this environment")
     assert selected_result.returncode == 0, selected_result.stderr
     assert "tests/test_foundation_qwen_smoke.py: 1" in selected_result.stdout
 
@@ -302,9 +316,14 @@ def test_documented_pytest_commands_state_current_opt_in_contract() -> None:
         for command in required_commands:
             assert command in guide, f"{guide_name} must document: {command}"
         assert "$env:PYTHONPATH" in guide
-        assert "The compact milestone command is unavailable until aggressive pruning Task 4 marks and retains the suite." in guide
+        # The compact milestone suite was restored and is documented again, so
+        # the guides must name it. This assertion previously required the
+        # opposite -- that the command be absent and declared unavailable --
+        # which stopped being true once the suite was marked and retained.
+        assert "python -m pytest tests/resampling_null -m milestone -q" in guide
+        # Bare-marker forms remain wrong: default discovery is restricted to
+        # tests/smoke, so they silently collect nothing.
         assert "python -m pytest tests/ -m foundation -q" not in guide
-        assert "python -m pytest tests/resampling_null -m milestone -q" not in guide
 
 
 def test_missing_budget_directories_are_zero_and_pass(tmp_path: Path) -> None:

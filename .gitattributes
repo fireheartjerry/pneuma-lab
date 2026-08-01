@@ -15,3 +15,11 @@ scripts/foundation/*.sh text eol=lf
 # Historical journal segments are byte-addressed archival payloads. Preserve LF
 # bytes and suppress heuristic whitespace/diff rewriting of exact boundaries.
 docs/research/neurips-2026-workshop/execution-journal/*.md text eol=lf -diff
+
+# The adversarial-review fixture declares a SHA-256 over the exact committed
+# bytes of each reviewed input. `digest_file` is deliberately byte-exact, since
+# a review attests to the precise bytes that were reviewed, so a CRLF checkout
+# would make every declared digest stale. Commit c069c0d did exactly that: it
+# "refreshed" the spec from a CRLF working copy and broke the fixture on every
+# LF checkout. Pin the endings instead of weakening the digest.
+fixtures/adversarial_review/** text eol=lf

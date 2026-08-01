@@ -499,6 +499,34 @@ implementation complete where scoped, but 5B/7B, G-ROSTER, Azure, account/cloud
 semantics, quota, authority, and launch-review gates remain open. No Task 6–10
 scientific lineage changed.
 
+**Phase B authenticated-readiness checkpoint (2026-07-31):** Step 5B
+authorization is now authenticated rather than binding-digest bound (DL-164):
+Ed25519 over the complete canonical body, an enumerated trusted key registry,
+validity-window/revocation/expiry checks, and a ledger-row content binding, plus
+an independent requirement that the input lock classify as a real candidate
+rather than the Step 5A shape demonstration. G-ROSTER arithmetic is corrected
+(DL-165): unfixed reserves and the C160 Hamilton allocation fail closed instead
+of defaulting to zero, and a registered floor outranks the inequality. tau2 now
+has its own qualification path (DL-166) and the gate requires both families.
+Both tiers remain `FEASIBILITY_NO_GO` with **provisional** shortfalls; no
+verdict improved and no roster, quota, reserve, or floor was weakened. The
+committed authorization is still an unsigned candidate bound to a synthetic
+lock, no licence-audit record exists, and no external input has been retrieved
+from this lineage. No Task 6-10 scientific lineage changed.
+
+**Phase B Step 5B / G-ROSTER checkpoint (2026-07-31):** The Step 5B retrieval
+and hash-verification workflow is `implementation_complete` and fail-closed; its
+authorization is committed as an unsigned candidate bound to a *synthetic*
+fixture lock, so it is a shape demonstration, not a queued request, and no
+external input has been retrieved. G-ROSTER: both tiers are
+`FEASIBILITY_NO_GO`. The C and C++ shortfalls against the current-metadata proxy
+are **provisional**, not a determination that a tier is dead — eligibility is
+judged at the pinned base commits, so the metadata proxy is not an upper bound.
+Settling it requires the Step 5B base-commit admissibility enumeration or a
+reviewed amendment (DL-163, `51-step5b-retrieval-and-qualification.md`). Do not
+weaken quotas, reserves, or pilot pairs, and do not substitute a roster or
+benchmark, to manufacture feasibility. No Task 6-10 scientific lineage changed.
+
 The next phase is separately gated real-experiment work:
 
 1. SWE-bench-Live and τ³ adapter/roster qualification;
@@ -508,10 +536,11 @@ The next phase is separately gated real-experiment work:
 5. pilot, blinded discovery/confirmation execution, analysis, and submission.
 
 AWS currently has verified $10,000 EC2-eligible YC credit plus a separate $100
-Free Tier credit. On-Demand and Spot G/VT quota requests were opened at 16
-vCPUs and immediately amended through Support to the design-required 48 vCPUs.
-Applied quotas remain zero until AWS approves the cases. Quota availability
-does not bypass any scientific or per-action spending gate.
+Free Tier credit. The live AWS topology requires only 8 G/VT vCPUs for one
+`g6e.2xlarge`; historical quota support requests may remain at a different
+number, but neither a request nor a credit is account evidence. Applied quota
+is unverified in the current environment and does not bypass any scientific or
+per-action spending gate.
 
 ## VPS start commands
 
@@ -868,3 +897,15 @@ sealed canonical lineage, but neither surface creates or promotes one. A
 temporary miniature fallback validation hit the 60-second process ceiling and
 published no final artifact; that is an honest bounded-fixture non-result, not
 a Step 4B execution or a scientific conclusion.
+
+### AWS topology reconciliation checkpoint — 2026-07-31
+
+DL-161 now binds the AWS primary path to exactly one `g6e.2xlarge`: 8 vCPUs,
+one L40S, and 44 GiB usable device memory. The retired four-L40S, 48-vCPU,
+TP2/H100, multi-replica, and simulator-co-location descriptions are historical
+only and cannot reopen through a Task 6–10 implementation path. Terraform L1
+format and validation now cover the whole-node one-GPU job definition, but that
+is static implementation evidence only. Step 5B input retrieval, G-ROSTER,
+Step 7B double-build/SBOM evidence, account-bound plan and quota verification,
+one-GPU admission measurements, Step 14, and any paid or scientific execution
+remain independently blocked. Azure remains a separately governed path.
