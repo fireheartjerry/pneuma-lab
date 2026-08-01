@@ -7,6 +7,7 @@ import base64
 import hashlib
 import json
 import os
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -119,7 +120,17 @@ def open_upstream(item: dict[str, Any], allowed_hosts: list[str], docker_tokens:
             docker_tokens[repository] = _docker_token(opener, repository, allowed_hosts)
         token = docker_tokens[repository]
         headers["Authorization"] = f"Bearer {token}"
-    response = opener.open(urllib.request.Request(url, headers=headers), timeout=60)
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        response = opener.open(request, timeout=60)
+    except urllib.error.HTTPError as exc:
+        if item["service"] != "docker_registry" or exc.code != 401:
+            raise
+        exc.close()
+        repository = item["repository"]
+        docker_tokens[repository] = _docker_token(opener, repository, allowed_hosts)
+        headers["Authorization"] = f"Bearer {docker_tokens[repository]}"
+        response = opener.open(urllib.request.Request(url, headers=headers), timeout=60)
     final_host = urllib.parse.urlsplit(response.geturl()).hostname or ""
     if not host_is_allowed(final_host, allowed_hosts):
         response.close()
