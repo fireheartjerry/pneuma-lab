@@ -22,12 +22,10 @@ import concurrent.futures
 import hashlib
 import json
 import pathlib
+import subprocess
 import sys
 
-import boto3
-
 root, bucket, prefix = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
-s3 = boto3.client("s3", region_name="us-east-1")
 
 def install(role):
     snapshot = json.loads(root.joinpath(f"{role}.json").read_text())
@@ -36,12 +34,14 @@ def install(role):
         target = destination / row["path"]
         target.parent.mkdir(parents=True, exist_ok=True)
         temporary = target.with_name(target.name + ".partial")
+        subprocess.run([
+            "aws", "s3api", "get-object", "--region", "us-east-1",
+            "--bucket", bucket, "--key", f"{prefix}/{row['object_id']}", str(temporary),
+        ], check=True, stdout=subprocess.DEVNULL)
         digest = hashlib.sha256()
         size = 0
-        with temporary.open("wb") as handle:
-            body = s3.get_object(Bucket=bucket, Key=f"{prefix}/{row['object_id']}")["Body"]
-            for chunk in iter(lambda: body.read(8 * 1024 * 1024), b""):
-                handle.write(chunk)
+        with temporary.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
                 digest.update(chunk)
                 size += len(chunk)
         if size != row["size_bytes"] or digest.hexdigest() != row["payload_sha256"]:
