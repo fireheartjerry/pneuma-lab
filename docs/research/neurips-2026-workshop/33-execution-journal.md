@@ -3905,3 +3905,17 @@ The next event after the archived migration boundary is appended below.
   implementation-verification proxy lineage. The input lock is synthetic and
   the rosters are proxies; real input authority, qualified G-ROSTER, Docker,
   isolation, CUDA, throughput, interruption, and durability remain pending.
+
+## 2026-08-01 — Concrete preparation-admission authority
+
+- **Finding:** documents 48 and 51 required a signed
+  `cloud_preparation_admission`, but the repository contained no schema,
+  validator, or execution gate for that record.
+- **Implementation:** added closed preparation-envelope and one-action admission
+  schemas plus a two-signature/two-ledger verifier. It binds the exact envelope,
+  action, provider/region, input lock, manifest, prior cumulative spend and
+  history digest, projected cost, retries, teardown protection, and expiry.
+- **Verification:** focused authority and schema-registry tests pass (292
+  cases); Ruff, project status, and whitespace checks pass.
+- **Boundary:** no envelope or admission was signed and no AWS action, resource,
+  retrieval, build, GPU use, pilot, experiment, or spend occurred.

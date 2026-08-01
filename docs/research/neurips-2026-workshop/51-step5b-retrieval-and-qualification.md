@@ -40,6 +40,14 @@ ledger bindings before a provider operation. Training, canonical experiments,
 replication, unblinding, result promotion, and publication claims are outside
 the envelope and cannot be represented as an admissible action.
 
+**Executable correction (2026-08-01).** The earlier text named that two-layer
+gate before its schema or verifier existed. DL-170 closes the gap with
+`cloud-preparation-envelope`, `cloud-preparation-admission`, and
+`pneuma_lab.cloud.preparation_admission`. The live gate additionally checks the
+exact action id/class, provider/region, input/manifest identities, retries,
+teardown protection, and prior-plus-projected cumulative envelope spend. No
+authorized record is committed by this correction.
+
 **Boundary of the ceremony:** an Ed25519 key establishes possession of that
 private key, not a person's intent, comprehension, or hardware identity. The
 registry now contains the project-scoped CloudShell public key

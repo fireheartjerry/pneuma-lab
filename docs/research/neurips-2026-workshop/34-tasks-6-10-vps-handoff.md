@@ -831,6 +831,14 @@ promote the synthetic input lock, turn proxy rosters into qualified G-ROSTER,
 or qualify Docker, isolation, CUDA, throughput, interruption, or worker
 durability; those Linux-only and scientific gates remain pending.
 
+**Preparation-authority correction (2026-08-01):** the two-layer signed
+preparation envelope plus exact-action admission named by documents 48 and 51
+is now an executable schema/verification contract rather than prose. It checks
+both signatures and ledger rows plus exact provider, region, action, input,
+manifest, cost, spend-history, retry, teardown, and expiry bindings. No live
+envelope or action admission was minted, so this correction authorizes no AWS
+operation and changes no scientific status.
+
 ## Execution-class policy (2026-07-30)
 
 Canonical full-grid P0 work — an all-cell screen probe over the frozen 2,916

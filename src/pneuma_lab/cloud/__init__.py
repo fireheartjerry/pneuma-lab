@@ -30,6 +30,12 @@ from .qualification import (
     require_roster_gate_satisfied,
     validate_qualification_audit,
 )
+from .preparation_admission import (
+    envelope_digest,
+    require_preparation_admission,
+    validate_preparation_admission,
+    validate_preparation_envelope,
+)
 from .portability import build_portability_bundle, roster_digest, verify_portability_bundle
 from .retrieval import (
     authorization_body_digest,
@@ -62,12 +68,14 @@ __all__ = [
     "classify_input_lock",
     "derive_audit",
     "evaluate_roster_gate",
+    "envelope_digest",
     "missing_scopes",
     "policy_digest",
     "readable_policy_summary",
     "real_candidate_findings",
     "require_authorized",
     "require_complete_scopes",
+    "require_preparation_admission",
     "require_real_candidate_lock",
     "require_roster_gate_satisfied",
     "require_terraform_for_l1",
@@ -80,6 +88,8 @@ __all__ = [
     "validate_key_registry",
     "validate_licence_audit",
     "validate_pilot_admission_receipt",
+    "validate_preparation_admission",
+    "validate_preparation_envelope",
     "validate_qualification_audit",
     "validate_retrieval_authorization",
     "validate_unattended_policy",

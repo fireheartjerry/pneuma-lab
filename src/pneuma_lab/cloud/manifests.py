@@ -30,6 +30,8 @@ _SCHEMA_BY_KIND = {
     "cloud_approver_key_registry": "cloud-approver-key-registry.schema.json",
     "cloud_licence_audit": "cloud-licence-audit.schema.json",
     "cloud_unattended_spend_policy": "cloud-unattended-spend-policy.schema.json",
+    "cloud_preparation_envelope": "cloud-preparation-envelope.schema.json",
+    "cloud_preparation_admission": "cloud-preparation-admission.schema.json",
 }
 
 

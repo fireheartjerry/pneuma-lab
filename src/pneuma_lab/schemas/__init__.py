@@ -113,6 +113,8 @@ CLOUD_SCHEMA_FILES = (
     "cloud-approver-key-registry.schema.json",
     "cloud-licence-audit.schema.json",
     "cloud-unattended-spend-policy.schema.json",
+    "cloud-preparation-envelope.schema.json",
+    "cloud-preparation-admission.schema.json",
 )
 
 ALL_SCHEMA_FILES = (
