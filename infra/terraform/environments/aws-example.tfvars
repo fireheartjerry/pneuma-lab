@@ -1,17 +1,15 @@
-region      = "us-east-1"
-name_prefix = "pneuma-example"
-# Environment-only placeholders. Scientific inputs never belong in tfvars.
-ami_id                   = "ami-REPLACE"
-root_snapshot_id         = "snap-REPLACE"
-bootstrap_sha256         = "0000000000000000000000000000000000000000000000000000000000000000"
-bucket_prefix            = "runs/example"
-bucket_arn               = "arn:aws:s3:::REPLACE"
-lease_table              = "pneuma-example-leases"
-lease_table_arn          = "arn:aws:dynamodb:us-east-1:000000000000:table/REPLACE"
-lease_key                = "REPLACE"
-batch_service_role_arn   = "arn:aws:iam::000000000000:role/REPLACE"
-ecs_instance_profile_arn = "arn:aws:iam::000000000000:instance-profile/REPLACE"
-security_group_id        = "sg-REPLACE"
-subnet_id                = "subnet-REPLACE"
-controller_image         = "000000000000.dkr.ecr.us-east-1.amazonaws.com/REPLACE@sha256:0000000000000000000000000000000000000000000000000000000000000000"
-tier                     = "tier-agnostic"
+region               = "us-east-1"
+name_prefix          = "pneuma-c160"
+ami_id               = "ami-REPLACE_WITH_PINNED_BATCH_GPU_AMI"
+bootstrap_sha256     = "REPLACE_WITH_64_LOWERCASE_HEX"
+artifact_bucket_name = "pneuma-phase-b-REPLACE_ACCOUNT_ID"
+artifact_prefix      = "runs"
+root_volume_gib      = 3072
+monthly_budget_usd   = 1000
+budget_alert_email   = "REPLACE_WITH_CONFIRMED_EMAIL"
+controller_image     = "000000000000.dkr.ecr.us-east-1.amazonaws.com/REPLACE@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+common_tags = {
+  Owner       = "REPLACE"
+  Environment = "research"
+}

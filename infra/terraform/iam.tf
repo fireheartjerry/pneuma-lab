@@ -1,30 +1,120 @@
-data "aws_iam_policy_document" "controller" {
+data "aws_iam_policy_document" "ec2_assume" {
   statement {
-    effect    = "Allow"
-    actions   = ["s3:GetObject", "s3:PutObject"]
-    resources = ["${var.bucket_arn}/${var.bucket_prefix}/*"]
-  }
-  statement {
-    effect    = "Allow"
-    actions   = ["dynamodb:GetItem"]
-    resources = [var.lease_table_arn]
-    condition {
-      test     = "ForAllValues:StringEquals"
-      variable = "dynamodb:LeadingKeys"
-      values   = [var.lease_key]
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
     }
   }
 }
 
-data "aws_iam_policy_document" "watcher" {
+data "aws_iam_policy_document" "batch_assume" {
   statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["batch.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "batch_service" {
+  name               = "${var.name_prefix}-batch-service"
+  assume_role_policy = data.aws_iam_policy_document.batch_assume.json
+}
+
+resource "aws_iam_role_policy_attachment" "batch_service" {
+  role       = aws_iam_role.batch_service.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole"
+}
+
+resource "aws_iam_role" "worker" {
+  name               = "${var.name_prefix}-worker"
+  assume_role_policy = data.aws_iam_policy_document.ec2_assume.json
+}
+
+resource "aws_iam_instance_profile" "worker" {
+  name = "${var.name_prefix}-worker"
+  role = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_worker" {
+  role       = aws_iam_role.worker.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_worker" {
+  role       = aws_iam_role.worker.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+data "aws_iam_policy_document" "worker" {
+  statement {
+    sid       = "ArtifactPrefix"
     effect    = "Allow"
-    actions   = ["dynamodb:UpdateItem"]
-    resources = [var.lease_table_arn]
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:AbortMultipartUpload"]
+    resources = ["${aws_s3_bucket.artifacts.arn}/${var.artifact_prefix}/*"]
   }
   statement {
+    sid       = "ArtifactList"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.artifacts.arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["${var.artifact_prefix}/*"]
+    }
+  }
+  statement {
+    sid       = "ReadLeaseOnly"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.leases.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "worker" {
+  name   = "bounded-experiment-access"
+  role   = aws_iam_role.worker.id
+  policy = data.aws_iam_policy_document.worker.json
+}
+
+resource "aws_iam_role" "watcher" {
+  name               = "${var.name_prefix}-watcher"
+  assume_role_policy = data.aws_iam_policy_document.ec2_assume.json
+}
+
+data "aws_iam_policy_document" "watcher" {
+  statement {
+    sid       = "RenewLease"
+    effect    = "Allow"
+    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.leases.arn]
+  }
+  statement {
+    sid       = "StopOwnedBatchWork"
+    effect    = "Allow"
+    actions   = ["batch:CancelJob", "batch:TerminateJob", "batch:UpdateComputeEnvironment", "batch:UpdateJobQueue"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "TerminateTaggedWorkers"
     effect    = "Allow"
     actions   = ["ec2:TerminateInstances"]
     resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = ["pneuma-lab"]
+    }
   }
+}
+
+resource "aws_iam_role_policy" "watcher" {
+  name   = "independent-stop-authority"
+  role   = aws_iam_role.watcher.id
+  policy = data.aws_iam_policy_document.watcher.json
 }
