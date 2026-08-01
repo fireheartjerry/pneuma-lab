@@ -64,6 +64,7 @@ run_fit() {
   name="$1"; role="$2"; model="$3"; length="$4"; tokens="$5"
   timeout 2700 docker run --rm --gpus all \
     --name "pneuma-${name}" --network none --read-only --tmpfs /tmp:rw,nosuid,size=8g \
+    --env HOME=/tmp --env TRITON_CACHE_DIR=/tmp/triton \
     -v "$ROOT/models:/models:ro" -v "$ROOT/runner.py:/opt/pneuma/runner.py:ro" \
     --entrypoint python3 "$IMAGE" /opt/pneuma/runner.py \
     --role "$role" --model "$model" --max-model-len "$length" --max-tokens "$tokens" \

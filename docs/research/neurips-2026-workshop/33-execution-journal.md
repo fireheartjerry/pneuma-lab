@@ -4247,3 +4247,16 @@ The next event after the archived migration boundary is appended below.
   input-lock digest `e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84`.
 - This closes input-lock construction and portability. It does not promote a
   G-ROSTER tier or authorize scientific execution.
+
+## 2026-08-01 — Model-fit action 003 failed closed on read-only Triton cache
+
+- Signed action `step5b-model-fit-003` reconstructed and independently SHA-256
+  verified all 72 sealed model objects / 56,822,409,329 bytes and pulled the
+  immutable vLLM worker image.
+- Subject 32k, subject 65k, and simulator 32k each exited 1 before model load or
+  generation. The first causal exception is `OSError: [Errno 30] Read-only file
+  system: '/root/.triton'`; vLLM architecture inspection tried to initialize
+  Triton's cache beneath the intentionally read-only root filesystem.
+- The published receipt is preserved under `evidence/model-fit-003-20260801/`.
+  A successor may change only the cache location to the existing writable
+  `/tmp` tmpfs. This is qualification evidence, not a scientific result.
