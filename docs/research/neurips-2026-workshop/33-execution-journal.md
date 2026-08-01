@@ -4333,3 +4333,29 @@ The next event after the archived migration boundary is appended below.
   `vol-0ddb5ff0c80f2ce39` in `us-west-2`.
 - This closes the previously pending teardown observation. It adds no new
   isolation, pilot, experiment, or scientific evidence.
+
+## 2026-08-01 — Step 5B registered p10 throughput qualification sealed
+
+- **Live re-observation:** authenticated AWS STS returned account `892077329800`.
+  The exact tagged `g6e.2xlarge` action `step5b-throughput-001` had stopped
+  after publishing its complete output prefix. The signed package, frozen plan,
+  runner, user-data, subject snapshot, receipt, and every output object were
+  downloaded from encrypted, versioned S3 and checked by SHA-256.
+- **Authority and execution:** plan
+  `ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1`,
+  input lock `e6746a...67b84`, and signed package `13df9a...29c4b` verify.
+  The action used its first and only allowed attempt. The runner and user-data
+  hashes match the sealed plan; the 56 subject objects / 37,493,015,668 bytes
+  reconstructed with return code zero; immutable image digest matches exactly.
+- **Result:** both registered rungs completed with return code zero. The raw
+  ten-sample nearest-rank p10 values are 11.555050851717397 output tok/s at
+  32,768 and 11.548052621929092 output tok/s at 65,536, each above the frozen
+  8.0 floor. Container stdout contains vLLM diagnostics followed by one terminal
+  JSON record; parsing that terminal record and recomputing every rate and p10
+  passed. This is bounded infrastructure qualification, not a benchmark, pilot,
+  experiment, or scientific result.
+- **Teardown:** after a fresh tag/volume/delete-on-termination check, the VPS
+  terminated `i-057047dfb078a326e`. AWS reports it terminated and independently
+  returns `InvalidVolume.NotFound` for encrypted root
+  `vol-0160c8cc693ca39d2`. Exact evidence and raw-object hashes are sealed in
+  `evidence/throughput-001-20260801/verification.json`.

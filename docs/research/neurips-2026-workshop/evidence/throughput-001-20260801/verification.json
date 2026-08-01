@@ -1,0 +1,49 @@
+{
+    "action_id": "step5b-throughput-001",
+    "action_kind": "one_l40s_p10_qualification",
+    "authority": {
+        "plan_sha256": "ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1",
+        "signing_package_sha256": "13df9afa59c7a034fc3c71ea3003aaa673a70c3d1bc7e6ab2b18f8c9fb329c4b",
+        "input_lock_sha256": "e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84",
+        "max_retries": 0,
+        "cost_ceiling_usd": 5.0,
+        "projected_cost_usd": 4.0
+    },
+    "provider": {
+        "account_id": "892077329800",
+        "region": "us-east-1",
+        "instance_id": "i-057047dfb078a326e",
+        "instance_type": "g6e.2xlarge",
+        "root_volume_id": "vol-0160c8cc693ca39d2",
+        "termination_observation": "terminated",
+        "volume_teardown_observation": "InvalidVolume.NotFound"
+    },
+    "verification": {
+        "result": "PASS",
+        "receipt_sha256": "0716f82525eab3974e5c18f5376c799fcf090d9bb23a9995fb538f1d5affcc16",
+        "receipt_artifacts_verified": 8,
+        "sealed_subject_snapshot": {
+            "object_count": 56,
+            "bytes": 37493015668,
+            "reconstruction_rc": 0
+        },
+        "observations": [
+            {
+                "rung": "l40s-tp1-32768",
+                "sample_count": 10,
+                "p10_output_tokens_per_second": 11.555050851717397,
+                "stdout_sha256": "cdd9358bb44a2809d6203f50b1f216e4f19d88c122bd0253f316cf8eb3aa11ad",
+                "stderr_sha256": "7ae4c3bfcead4d7cf68a7edd5ec5de37610f130036c6edad6540f47c326e608a"
+            },
+            {
+                "rung": "l40s-tp1-65536",
+                "sample_count": 10,
+                "p10_output_tokens_per_second": 11.548052621929092,
+                "stdout_sha256": "4190dd5269a0be94543b689caf35fa6f63be98621bc41abf86e053b455c5f330",
+                "stderr_sha256": "90bf21141a6b813d372ec9973ae579ca4b8429740676748f53590fdad3fca368"
+            }
+        ],
+        "raw_evidence": "Encrypted, versioned S3 output objects are retained at runs/qualification/throughput-001/outputs/. Each stdout object contains vLLM diagnostics followed by exactly one terminal JSON observation; the raw object SHA-256 values above, return codes, and receipt artifact hashes were independently verified."
+    },
+    "claim_boundary": "Qualification only. This is not a benchmark, pilot, experiment, or scientific result."
+}

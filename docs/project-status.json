@@ -2,7 +2,7 @@
     "$schema": "../schemas/project-status.schema.json",
     "manifest_kind": "pneuma_project_status",
     "manifest_schema_version": "0.1.0",
-    "as_of": "2026-07-31",
+    "as_of": "2026-08-01",
     "project": {
         "role": "standalone_research_evaluation_harness",
         "integration_mode": "standalone",
@@ -997,11 +997,11 @@
         },
         {
             "id": "B-NEURIPS-G-ROSTER",
-            "summary": "C120 is the authority-selected tier with a fixed reserve of one per split. Exact Linux qualification recorded 33/33 independently passing isolation pairs: three distinct immutable units for every eight SWE and three tau2 splits. The final evidence root resolves the real input lock, 144 licence/OCI-qualified SWE lineages, the selected 49 tau2 tasks, and exact isolation receipt bytes; both family audits derive CONDITIONALLY_FEASIBLE. G-ROSTER is satisfied for C120 only. This authorizes no pilot or experiment; throughput, interruption/recovery, portability, and hostile launch review remain blocking."
+            "summary": "C120 is the authority-selected tier with a fixed reserve of one per split. Exact Linux qualification recorded 33/33 independently passing isolation pairs: three distinct immutable units for every eight SWE and three tau2 splits. The final evidence root resolves the real input lock, 144 licence/OCI-qualified SWE lineages, the selected 49 tau2 tasks, and exact isolation receipt bytes; both family audits derive CONDITIONALLY_FEASIBLE. The registered one-L40S p10 action also passed at both 32k and 65k rungs and its instance/volume teardown is sealed. G-ROSTER is satisfied for C120 only. This authorizes no pilot or experiment; interruption/recovery, portability, and hostile launch review remain blocking."
         },
         {
             "id": "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
-            "summary": "Step 5B authenticated payload retrieval, real-candidate input-lock construction, and C120 G-ROSTER qualification are complete. All 1,705 retrievable objects totaling 67,483,211,374 bytes were independently reread; AWS and Windows match the final payload receipt and input-lock digest e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84. Exact Linux evidence adds 33/33 passing isolation pairs and separate CONDITIONALLY_FEASIBLE SWE/tau2 audits. Experiments remain blocked by the independent throughput, interruption/recovery, portability, and hostile launch-review gates."
+            "summary": "Step 5B authenticated payload retrieval, real-candidate input-lock construction, C120 G-ROSTER qualification, and the registered one-L40S p10 qualification are complete. All 1,705 retrievable objects totaling 67,483,211,374 bytes were independently reread; AWS and Windows match the final payload receipt and input-lock digest e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84. Exact Linux evidence adds 33/33 passing isolation pairs, separate CONDITIONALLY_FEASIBLE SWE/tau2 audits, and p10 values 11.555050851717397 (32k) and 11.548052621929092 (65k) above the 8.0 floor. Experiments remain blocked by interruption/recovery, portability, and hostile launch-review gates."
         },
         {
             "id": "B-NEURIPS-AWS-ACCOUNT-PLAN",
@@ -1013,7 +1013,7 @@
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, and C120 sandbox isolation across 33/33 pairs. The registered p10 estimator and exact bounded action plan ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1 are implemented and frozen before measurement; no p10 action has executed. Lease contention, interruption/resume, watchdog behavior under failure, and benchmark execution remain unverified; no Batch compute environment or queue exists."
+            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, and the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1. Its verified nearest-rank p10 values are 11.555050851717397 (32k) and 11.548052621929092 (65k), each above 8.0; instance and encrypted volume teardown are sealed. Lease contention, interruption/resume, watchdog behavior under failure, and benchmark execution remain unverified; no Batch compute environment or queue exists."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
