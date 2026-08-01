@@ -70,3 +70,11 @@ def test_executor_rejects_changed_executor_bytes(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(run_step7b_builds, "sha256_file", lambda _: "0" * 64)
     with pytest.raises(ValueError, match="executor bytes"):
         require_plan(plan, tmp_path)
+
+
+def test_role_dockerfiles_use_the_repository_build_context() -> None:
+    """The executor supplies the sealed source root as Docker's build context."""
+    repository = Path(__file__).resolve().parents[2]
+    for role in ("controller", "model-server", "benchmark-worker"):
+        text = (repository / f"infra/docker/{role}/Dockerfile").read_text(encoding="utf-8")
+        assert f"COPY infra/docker/{role}/{role}.lock " in text
