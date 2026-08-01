@@ -23,6 +23,7 @@ _SCHEMA_BY_KIND = {
     "cloud_result_binding": "cloud-result-binding.schema.json",
     "cloud_pilot_protocol": "cloud-pilot-protocol.schema.json",
     "cloud_interruption_qualification_receipt": "cloud-interruption-qualification-receipt.schema.json",
+    "cloud_production_execution_surface": "cloud-production-execution-surface.schema.json",
     "cloud_retrieval_authorization": "cloud-retrieval-authorization.schema.json",
     "cloud_qualification_audit": "cloud-qualification-audit.schema.json",
     "cloud_pilot_admission_receipt": "cloud-pilot-admission-receipt.schema.json",
@@ -87,6 +88,10 @@ def validate_interruption_qualification_receipt(
     record: Mapping[str, Any],
 ) -> dict[str, Any]:
     return _validate(record, expected_kind="cloud_interruption_qualification_receipt")
+
+
+def validate_production_execution_surface(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate(record, expected_kind="cloud_production_execution_surface")
 
 
 def validate_experiment_manifest(record: Mapping[str, Any]) -> dict[str, Any]:
