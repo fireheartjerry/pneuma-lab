@@ -4271,3 +4271,25 @@ The next event after the archived migration boundary is appended below.
 - The exact action-004 receipt is preserved under
   `evidence/model-fit-004-20260801/`. A successor may add only `exec` to the
   existing isolated `/tmp` tmpfs. Network isolation and read-only root remain.
+
+## 2026-08-01 — Real-model fit qualification passed
+
+- Signed action `step5b-model-fit-005` bound plan SHA-256
+  `141562f5b7b60620f39ce108791b47204596503be224df6dbc3b506f8348a24e`
+  and package SHA-256
+  `171729725e25b84b220b1bfeb3a6af444dfc48666dbaf3b0895295faf8eceedd`.
+  It used zero retries and reconstructed and SHA-256 verified all 72 immutable
+  model objects / 56,822,409,329 bytes.
+- The 35B FP8 subject generated 128 tokens at both 32,768 and 65,536 context,
+  measuring 8.0345 and 8.0569 output tokens/second. The 9B simulator generated
+  109 tokens before EOS at 32,768 context, measuring 14.7979 output
+  tokens/second. All three result codes were zero on one NVIDIA L40S with Torch
+  2.10.0+cu129 and vLLM 0.19.0.
+- Exact receipt SHA-256 is
+  `0725e12255c790daf2260f3c6998260e5ebfbedbd99cafced998f973cd6bbfcd`.
+  EC2 instance `i-0c0449cd0776839dc` and encrypted delete-on-termination volume
+  `vol-015492544df656a45` both independently return not found after teardown.
+- **Boundary:** this establishes real-model fit and a bounded single-prompt
+  throughput observation only. It is not a benchmark, pilot, experiment, or
+  scientific result. G-ROSTER isolation pairs, interruption/recovery,
+  portability closure, and hostile launch review remain blocking.

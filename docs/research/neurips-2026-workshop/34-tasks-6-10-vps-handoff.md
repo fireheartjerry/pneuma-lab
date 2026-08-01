@@ -1035,6 +1035,23 @@ Native Windows and AWS Linux independently classify it as `real_candidate` and
 verify all nine referenced receipts. The next blocking dependency is admitted
 SWE/tau2 G-ROSTER evidence; no experiment is authorized by the lock alone.
 
+### Real-model fit qualification checkpoint — 2026-08-01
+
+Signed action `step5b-model-fit-005` reconstructed and independently verified
+all 72 immutable model objects / 56,822,409,329 bytes. On one L40S, the 35B FP8
+subject passed 128-token generation at both 32,768 and 65,536 context (8.0345
+and 8.0569 output tokens/second), while the 9B simulator passed at 32,768 and
+generated 109 tokens before EOS (14.7979 output tokens/second). Exact receipt
+SHA-256 is `0725e12255c790daf2260f3c6998260e5ebfbedbd99cafced998f973cd6bbfcd`.
+Instance `i-0c0449cd0776839dc` and encrypted delete-on-termination volume
+`vol-015492544df656a45` are absent after teardown.
+
+This closes real-model fit, not scientific execution. The single prompt per
+rung is bounded throughput evidence only. G-ROSTER still needs three Linux
+isolation pairs per split and final SWE/tau2 audits; interruption/recovery,
+portable offline receipt closure, and the hostile pre-experiment launch review
+also remain blocking.
+
 ### C120 G-ROSTER candidate checkpoint — 2026-08-01
 
 Authority amendment 52 selects C120 and fixes the reserve at one unit per split
