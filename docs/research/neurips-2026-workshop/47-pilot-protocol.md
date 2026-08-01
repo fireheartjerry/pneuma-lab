@@ -27,10 +27,19 @@ to 16 seconds and a 256-token response to 32 seconds. It deliberately does
 not weaken the separate OOM, tool-call, output-parity, hash-binding, cost, or
 authorization gates.
 
+The measurement estimator is frozen before execution: each rung receives one
+excluded warmup followed by exactly ten sequential observations of exactly 128
+output tokens at temperature zero, batch size one, and concurrency one. EOS is
+ignored so an early stop cannot inflate throughput. The p10 estimator is the
+nearest-rank tenth percentile, `sorted(samples)[ceil(0.10 * n) - 1]`; with ten
+observations this is the minimum observed rate. Receipts retain all ten raw
+rates, elapsed times, token counts, and output-token digests. A summary p10 is
+recomputed from those raw observations and cannot self-certify.
+
 The threshold is bound to the approved topology SHA-256
 `57339eb1e651f42c4b769a826999acffcfb0029e0e9890645de7a066e6ad1720` and
 pilot-protocol schema SHA-256
-`d13633f7c64338de9278b9735332d6ac251311fadfa9c0840a6a21ea743af945`.
+`2fef9fd67c7b1a1046ea61f523bef69d19a57a60735057b1e158c0f22eb85ae0`.
 Changing either requires a new threshold decision; a future pilot receipt must
 also bind canonical machine-readable protocol bytes through `protocol_sha256`.
 

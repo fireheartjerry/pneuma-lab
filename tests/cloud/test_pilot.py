@@ -10,7 +10,7 @@ from pneuma_lab.cloud.pilot import (
 
 
 def protocol() -> dict:
-    return {"rungs": list(RUNG_NAMES), "max_cost_usd": 1.0, "max_runtime_minutes": 10, "max_retries": 1, "max_samples": 2, "minimum_p10_output_tokens_per_second": MINIMUM_P10_OUTPUT_TOKENS_PER_SECOND}
+    return {"rungs": list(RUNG_NAMES), "max_cost_usd": 1.0, "max_runtime_minutes": 10, "max_retries": 1, "max_samples": 20, "minimum_p10_output_tokens_per_second": MINIMUM_P10_OUTPUT_TOKENS_PER_SECOND, "throughput_samples_per_rung": 10, "output_tokens_per_sample": 128, "warmup_samples_per_rung": 1, "p10_method": "nearest_rank"}
 
 
 def test_protocol_rejects_expansion_and_efficacy_selection() -> None:

@@ -8,6 +8,12 @@ from collections.abc import Mapping
 from typing import Any
 
 from .errors import CloudManifestError
+from .throughput import (
+    OUTPUT_TOKENS_PER_SAMPLE,
+    P10_METHOD,
+    THROUGHPUT_SAMPLES_PER_RUNG,
+    WARMUP_SAMPLES_PER_RUNG,
+)
 
 
 # Both candidates use the approved g6e.2xlarge's sole L40S.  The admission
@@ -27,6 +33,17 @@ def validate_protocol(protocol: Mapping[str, object]) -> None:
         raise CloudManifestError(
             "protocol p10-throughput threshold must equal the DL-165 registered floor"
         )
+    exact_measurement = {
+        "throughput_samples_per_rung": THROUGHPUT_SAMPLES_PER_RUNG,
+        "output_tokens_per_sample": OUTPUT_TOKENS_PER_SAMPLE,
+        "warmup_samples_per_rung": WARMUP_SAMPLES_PER_RUNG,
+        "p10_method": P10_METHOD,
+    }
+    for field, expected in exact_measurement.items():
+        if protocol.get(field) != expected:
+            raise CloudManifestError(
+                f"protocol must freeze {field} as {expected!r} before measurement"
+            )
 
 
 def select_rung(protocol: Mapping[str, object], measurements: Mapping[str, Mapping[str, bool]]) -> str:

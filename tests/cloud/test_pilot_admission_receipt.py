@@ -18,8 +18,12 @@ def protocol() -> dict:
         "max_cost_usd": 25.0,
         "max_runtime_minutes": 60,
         "max_retries": 2,
-        "max_samples": 4,
+        "max_samples": 20,
         "minimum_p10_output_tokens_per_second": MINIMUM_P10_OUTPUT_TOKENS_PER_SECOND,
+        "throughput_samples_per_rung": 10,
+        "output_tokens_per_sample": 128,
+        "warmup_samples_per_rung": 1,
+        "p10_method": "nearest_rank",
         "rungs": ["l40s-tp1-32768", "l40s-tp1-65536"],
         "bound_hashes": {name: "a" * 64 for name in ("architecture", "authorization", "image", "input_lock", "code")},
     }
