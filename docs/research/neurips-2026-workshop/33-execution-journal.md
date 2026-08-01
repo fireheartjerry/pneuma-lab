@@ -4386,3 +4386,17 @@ The next event after the archived migration boundary is appended below.
 - Provider inventory confirms no customer-managed signer key or alias was
   created. The zero-retry action was not reused. Successor plan
   `37b36480...bd56` excludes role creation and binds the observed role.
+
+### KMS signer resources created; root cannot assume roles
+
+- Signed successor package SHA-256 `67280246...b67e0` authorized action 002.
+  Its first and only create call produced enabled Ed25519 SIGN_VERIFY key
+  `8c240f51-e35b-40d7-955e-4230b8d291ce`, alias
+  `alias/pneuma-approver`, and the exact signer-role permission.
+- Exported public bytes are
+  `8bec051c2614356d4e25da7e2b1f5205ec68a1da45c62ea1a4ac0f73847f8de7`.
+  Root direct `kms:Sign` returned `AccessDeniedException`, as required.
+- AWS rejects `AssumeRole` from an account-root session (`Roles may not be
+  assumed by root accounts`). No role signature was emitted; a zero-byte probe
+  output failed offline verification and was not promoted. A new exact action
+  is required to provision a scoped non-root bootstrap identity.
