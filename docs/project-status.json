@@ -1017,7 +1017,7 @@
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
-            "summary": "The required pre-experiment hostile launch review has not occurred. Its spec generator now fails closed until genuine Step 5B, G-ROSTER, Step 7B, AWS-account, and one-GPU receipts exist."
+            "summary": "The required pre-experiment hostile launch review has not occurred. Its spec generator now fails closed until genuine Step 5B, G-ROSTER, Step 7B, production execution-surface, AWS-account, and one-GPU receipts exist."
         },
         {
             "id": "B-NEURIPS-EXPERIMENT-EXECUTION",

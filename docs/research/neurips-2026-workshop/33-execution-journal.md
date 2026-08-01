@@ -3950,3 +3950,11 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** no recipe was laundered into production status, and no image
   pull/build/push, SBOM generation, provider action, GPU use, pilot, experiment,
   or spend occurred.
+
+### Fail-closed launch-gate repair
+
+- Added a sixth mandatory Step 14 input: an E2E-qualified production execution
+  surface covering the controller, model server, and benchmark worker. Image
+  receipts can no longer satisfy launch review while their executables are
+  absent.
+- Focused regression pins the new receipt path and exact six-receipt set.

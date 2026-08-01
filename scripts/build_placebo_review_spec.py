@@ -93,6 +93,12 @@ REQUIRED_RECEIPTS: tuple[tuple[str, str, str, str], ...] = (
         "Step 7B complete double-build and SBOM receipt set",
     ),
     (
+        "production-execution-surface",
+        "artifact_root",
+        "build/research/neurips-2026-workshop/phase-b-evidence/production-execution-surface.json",
+        "E2E-qualified controller, model-server, and benchmark-worker entrypoints",
+    ),
+    (
         "aws-account-verification",
         "artifact_root",
         "build/research/neurips-2026-workshop/phase-b-evidence/aws-account-verification.json",
