@@ -1,0 +1,45 @@
+{
+  "action_class": "gpu_smoke",
+  "action_id": "step5b-model-fit-004",
+  "ami_id": "ami-011db5ae81cc0f370",
+  "automatic_stop_minutes": 170,
+  "cost_ceiling_usd": 8.0,
+  "ebs": {"delete_on_termination": true, "encrypted": true, "size_gib": 200, "type": "gp3"},
+  "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:1fc54d73f9ec36356bec5c2c8497b671f72a9e43c0bae4fbb84be3ee6ede9ae2",
+  "input_lock_sha256": "e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84",
+  "input_receipts": {
+    "simulator_model_snapshot_sha256": "dea328ca1b895b1ed2da6702e37d436a5d96b46d4b87e7d5debf8e5d53422f67",
+    "subject_model_snapshot_sha256": "1358b8a66687d19e2170f57f0051f065c3f0141aee9c7bdf5e903c39fd7032db"
+  },
+  "instance_profile": "pneuma-c160-worker",
+  "instance_type": "g6e.2xlarge",
+  "max_instances": 1,
+  "max_retries": 0,
+  "model_fit_runner_sha256": "19b729d884bcb3dadd18aced8f0b00a03789812122324c4b4f4f8591534de72b",
+  "on_demand_hourly_usd": 2.24208,
+  "payload_manifest_sha256": "1f738eff8667f0b863cdd8259c7bfa071ec3a37b2d9963e999f11e7dda1087e4",
+  "predecessor_teardown": {
+    "instance_id": "i-0ebf672536b59a84f",
+    "instance_state": "terminated",
+    "volume_id": "vol-07d3ad09d584c6ebb",
+    "volume_state": "absent"
+  },
+  "plan_sha256": "6ff7cc622024c982f07d45ad1c33d68c23407511f8e68b1cc5da27e0183198e1",
+  "projected_cost_usd": 7.0,
+  "provider": "aws",
+  "region": "us-east-1",
+  "security_group_id": "sg-08428ae82a7e2fd35",
+  "source_commit": "c339694b32ecab45d483ef9eb5713df667c3027e",
+  "subnet_id": "subnet-042e433905daddc0b",
+  "supersedes_plan_sha256": "d8f7e0e11ca3a115888e5c5c75507ec29a381cdcc4cf988942e3152f14ee7c5d",
+  "user_data_sha256": "abbd1f892ec6aee5d1fa018b08c638f4ca938c460ca01bcdb3370d9f268e62ed",
+  "workload": [
+    "reconstruct and SHA-256 verify all sealed subject-model objects via the pinned AWS CLI",
+    "reconstruct and SHA-256 verify all sealed simulator-model objects via the pinned AWS CLI",
+    "route HOME and Triton cache only to the existing writable /tmp tmpfs",
+    "subject vLLM fit and 128-token generation at 32768 context",
+    "subject vLLM fit and 128-token generation at 65536 context",
+    "simulator vLLM fit and 128-token generation at 32768 context",
+    "publish all success and failure receipts to the action-004 prefix, then terminate"
+  ]
+}
