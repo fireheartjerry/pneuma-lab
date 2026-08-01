@@ -4161,3 +4161,15 @@ The next event after the archived migration boundary is appended below.
   `9334ffebd443dd4aee2a1a566ae5b29479b40a2856afe825a71e0c09ff74606a`
   is `ready_for_signature` but remains unsigned and authorizes nothing. No
   payload, GPU, model load, pilot, experiment, reservation, or spend occurred.
+
+## 2026-08-01 — Step 5B payload-signing ceremony prepared
+
+- Added a deterministic signing entrypoint that revalidates the exact ready
+  plan, payload manifest, pricing bytes, lifecycle receipt, executor-source
+  digest, ledger rows, trusted key, and projected USD 3.78 cost before emitting
+  the two-stage Ed25519 package.
+- Pending ledger rows CL-045/CL-046 bind envelope ceiling USD 5.00 and exact
+  action digest `9334ffeb...4606a`. They grant nothing while unsigned.
+- Focused signing/admission tests, Ruff, status coherence, digest parity, and
+  whitespace checks passed. No private key was accessed; no signature, payload,
+  provider action, reservation, or spend occurred.

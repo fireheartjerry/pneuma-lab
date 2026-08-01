@@ -989,3 +989,8 @@ was applied with exactly 0 add / 1 update / 0 destroy and added only the Step 5B
 35/30/7 lifecycle alongside the unchanged general rule. Post-apply state is
 `dff0f6b4b76898e1bab0dfb9ccd2ca7e6c44f0f7d3b3949a038ece1b895b57b5`.
 The next gate is a separately signed payload action; no payload is authorized yet.
+The deterministic signing ceremony is implemented at
+`scripts/research/sign_step5b_payload_admission.py`. It refuses stale executor,
+pricing, or lifecycle bindings and references pending immutable ledger rows
+CL-045/CL-046. Invoking it with the registered private key remains the explicit
+authorization boundary.
