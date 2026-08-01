@@ -4,7 +4,7 @@ set -uo pipefail
 REGION="us-east-1"
 BUCKET="pneuma-phase-b-892077329800"
 PAYLOAD_PREFIX="runs/step5b/payloads/1f738eff8667f0b863cdd8259c7bfa071ec3a37b2d9963e999f11e7dda1087e4/objects"
-ACTION_PREFIX="runs/qualification/model-fit-004"
+ACTION_PREFIX="runs/qualification/model-fit-005"
 IMAGE="892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:1fc54d73f9ec36356bec5c2c8497b671f72a9e43c0bae4fbb84be3ee6ede9ae2"
 ROOT="/var/lib/pneuma-model-fit"
 mkdir -p "$ROOT/results" "$ROOT/models/subject" "$ROOT/models/simulator"
