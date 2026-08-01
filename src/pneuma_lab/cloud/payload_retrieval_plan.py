@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from .authorization_keys import canonical_bytes
@@ -15,9 +16,13 @@ from .payload_inventory import payload_manifest_digest, validate_payload_manifes
 ALLOWED_HOSTS = (
     "auth.docker.io",
     "huggingface.co",
+    "*.hf.co",
+    "*.huggingface.co",
     "raw.githubusercontent.com",
     "registry-1.docker.io",
-    "s3.us-east-1.amazonaws.com",
+    "pneuma-phase-b-892077329800.s3.us-east-1.amazonaws.com",
+    "production.cloudflare.docker.com",
+    "sts.us-east-1.amazonaws.com",
 )
 FORBIDDEN_ACTIONS = (
     "container_execution",
@@ -33,8 +38,33 @@ def payload_retrieval_plan_digest(record: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical_bytes(validate_payload_retrieval_plan(record))).hexdigest()
 
 
+def executor_sources_digest(repo_root: Path) -> str:
+    """Hash the complete executable cloud surface with portable LF bytes."""
+
+    paths = [
+        repo_root / "src/pneuma_lab/__init__.py",
+        repo_root / "src/pneuma_lab/schemas/__init__.py",
+        repo_root / "scripts/research/execute_step5b_payload_mirror.py",
+        *sorted((repo_root / "src/pneuma_lab/cloud").glob("*.py")),
+        *sorted((repo_root / "schemas").glob("cloud-*.json")),
+    ]
+    entries = []
+    for path in paths:
+        if not path.is_file():
+            raise CloudManifestError(f"executor source is missing: {path}")
+        raw = path.read_bytes().replace(b"\r\n", b"\n")
+        if b"\r" in raw:
+            raise CloudManifestError(f"executor source contains a bare CR: {path}")
+        entries.append({
+            "path": path.relative_to(repo_root).as_posix(),
+            "sha256": hashlib.sha256(raw).hexdigest(), "size_bytes": len(raw),
+        })
+    return hashlib.sha256(canonical_bytes(entries)).hexdigest()
+
+
 def build_payload_retrieval_plan(
-    manifest_record: Mapping[str, Any], *, pricing_receipt_sha256: str | None = None
+    manifest_record: Mapping[str, Any], *, executor_sources_sha256: str,
+    pricing_receipt_sha256: str | None = None,
 ) -> dict[str, Any]:
     manifest = validate_payload_manifest_semantics(manifest_record)
     manifest_sha256 = payload_manifest_digest(manifest)
@@ -50,6 +80,7 @@ def build_payload_retrieval_plan(
         "region": "us-east-1",
         "payload_manifest_sha256": manifest_sha256,
         "inventory_receipt_sha256": manifest["inventory_receipt_sha256"],
+        "executor_sources_sha256": executor_sources_sha256,
         "retrieval_object_count": manifest["retrieval_object_count"],
         "retrieval_byte_ceiling_bytes": manifest["retrieval_byte_ceiling_bytes"],
         "destination": {

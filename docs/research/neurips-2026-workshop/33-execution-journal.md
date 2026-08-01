@@ -4082,3 +4082,27 @@ The next event after the archived migration boundary is appended below.
   `runs/step5b/payloads/` lifecycle: current <=35 days, noncurrent <=30, and
   incomplete multipart <=7. This is implementation only; until an exact
   account-bound plan/apply proves the rule live, payload execution fails closed.
+
+## 2026-08-01 — Step 5B payload executor implementation
+
+- **Code binding:** ready plan digest
+  `6b5a87e38e4b003497b9ece033576d0dc486e27fb6ecc8e6c74c8f2d1afc6fab`
+  binds portable executor-surface digest
+  `33a85fd0381fc896aef98b6d53941878f32148047360b764d6c2daf3e29e0493`.
+  The surface includes the entrypoint, all cloud Python contracts, all cloud
+  schemas, and package/schema loaders; CRLF/LF differences normalize to LF.
+- **Streaming invariants:** HTTP Content-Length and encoding are checked before
+  transfer; Git blobs use `sha1("blob <size>\\0" + bytes)`, while LFS/OCI use
+  SHA-256. Small bytes verify before PUT. Multipart bytes verify before Complete;
+  failure aborts the upload. S3 bytes are then independently reread to compute
+  final payload SHA-256 before a receipt can exist.
+- **Resume/security:** content-addressed keys use conditional publication;
+  existing objects must match size, AES256, versioning metadata, upstream
+  identity, and a full reread. Redirects are restricted to signed hosts and
+  cross-host redirects strip authorization. The executor verifies STS account,
+  region, bucket public-access/ownership/encryption/versioning, and the exact
+  35/30/7 lifecycle before the first payload request.
+- **Receipt:** closed schema and offline verifier recompute the exact 1,705-item
+  roster, keys, upstream identities, SHA-256 values, byte sum, action/manifest/
+  pricing bindings, and request ceilings. Focused tests passed; no live network,
+  provider mutation, authority, payload, reservation, or spend occurred.

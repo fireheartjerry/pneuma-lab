@@ -119,6 +119,7 @@ CLOUD_SCHEMA_FILES = (
     "cloud-payload-retrieval-manifest.schema.json",
     "cloud-payload-retrieval-plan.schema.json",
     "cloud-payload-pricing-receipt.schema.json",
+    "cloud-payload-mirror-receipt.schema.json",
 )
 
 ALL_SCHEMA_FILES = (

@@ -972,7 +972,10 @@ USD 5.00 ceiling. That historical candidate remains unsigned and unready. A
 successor binds the current AWS pricing receipt from official offer version
 `20260728131000`. Hostile review then added the omitted final receipt PUT and
 the exact 35-day Step 5B lifecycle rule. The corrected ready-plan digest is
-`b06f2a9e629960e1844b227fd7188c06b3be1461da9c08db833063b5fbc467c8`;
+`6b5a87e38e4b003497b9ece033576d0dc486e27fb6ecc8e6c74c8f2d1afc6fab`;
 worst-case S3 storage/requests recompute to USD 3.78. It is still unsigned and
 authorizes nothing. The lifecycle Terraform change is unapplied, so execution
-fails closed; no payload executor has yet passed hostile review.
+fails closed. The streaming executor and offline final-receipt verifier now pass
+focused hostile regressions and are bound at executor-surface digest
+`33a85fd0381fc896aef98b6d53941878f32148047360b764d6c2daf3e29e0493`;
+they remain E2E-unrun.

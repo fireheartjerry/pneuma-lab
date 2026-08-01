@@ -6,7 +6,7 @@
     "type": "object",
     "x-pneuma-schema-kind": "cloud-manifest",
     "x-pneuma-version": "0.1.0",
-    "required": ["record_kind", "schema_version", "status", "action_id", "frozen_timestamp", "provider", "account_id", "region", "payload_manifest_sha256", "inventory_receipt_sha256", "retrieval_object_count", "retrieval_byte_ceiling_bytes", "destination", "retention_days", "max_retries", "cost_ceiling_usd", "pricing_receipt_sha256", "allowed_hosts", "forbidden_actions"],
+    "required": ["record_kind", "schema_version", "status", "action_id", "frozen_timestamp", "provider", "account_id", "region", "payload_manifest_sha256", "inventory_receipt_sha256", "executor_sources_sha256", "retrieval_object_count", "retrieval_byte_ceiling_bytes", "destination", "retention_days", "max_retries", "cost_ceiling_usd", "pricing_receipt_sha256", "allowed_hosts", "forbidden_actions"],
     "properties": {
         "record_kind": {"const": "cloud_payload_retrieval_plan"},
         "schema_version": {"const": "0.1.0"},
@@ -18,6 +18,7 @@
         "region": {"const": "us-east-1"},
         "payload_manifest_sha256": {"$ref": "#/$defs/sha256"},
         "inventory_receipt_sha256": {"$ref": "#/$defs/sha256"},
+        "executor_sources_sha256": {"$ref": "#/$defs/sha256"},
         "retrieval_object_count": {"type": "integer", "minimum": 1},
         "retrieval_byte_ceiling_bytes": {"type": "integer", "minimum": 1},
         "destination": {
