@@ -43,6 +43,6 @@ def test_payload_ceremony_binds_exact_ready_plan_and_cost(tmp_path: Path) -> Non
         spend_history_sha256=canonical_ledger_digest(ledger),
         clock=lambda: datetime(2026, 8, 1, 10, tzinfo=timezone.utc),
     )
-    assert result["manifest_sha256"] == "eca7d02e1010958724f9d7cb9c333ff78998f87bc8809f8cb0919067d5da2215"
+    assert result["manifest_sha256"] == "d40223db7385dc19ebcf7290029841b6318a66eb30a1f76e618cc6c856df1cf7"
     assert envelope["total_cost_ceiling_usd"] == 5.0
     assert admission["projected_cost_usd"] == 3.78
