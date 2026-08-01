@@ -49,6 +49,7 @@ def build_receipt(role: str, letter: str = "a") -> dict:
         "dockerfile_sha256": letter * 64,
         "base_digest": "sha256:" + letter * 64,
         "lock_sha256": letter * 64,
+        "input_lock_sha256": "9" * 64,
         "builder_sha256": "d" * 64,
         "build_image_digests": ["sha256:" + "e" * 64] * 2,
         "sbom_sha256": "f" * 64,
@@ -62,3 +63,10 @@ def test_step7b_requires_two_equal_builds_and_all_roles() -> None:
     records[0]["build_image_digests"][1] = "sha256:" + "0" * 64
     with pytest.raises(CloudManifestError, match="reproducible"):
         validate_image_build_receipt(records[0])
+
+
+def test_step7b_refuses_builds_bound_to_different_input_locks() -> None:
+    records = [build_receipt(role, letter) for role, letter in (("controller", "a"), ("model-server", "b"), ("benchmark-worker", "c"))]
+    records[2]["input_lock_sha256"] = "8" * 64
+    with pytest.raises(CloudManifestError, match="one exact Step 5B input lock"):
+        validate_image_build_set(records)

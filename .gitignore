@@ -65,3 +65,6 @@ data/processed/
 .huggingface/
 hf_cache/
 datasets_cache/
+
+# Terraform provider/cache directories are regenerated from the committed lock.
+.terraform/

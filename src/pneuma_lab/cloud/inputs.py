@@ -51,10 +51,8 @@ def verify_input_receipts(record: Mapping[str, Any], receipt_root: Path) -> tupl
     lock = validate_input_lock(record)
     root = receipt_root.resolve(strict=True)
     receipts: list[Mapping[str, str]] = []
-    receipts.extend(item["snapshot_receipt"] for item in lock["model_pins"])
-    receipts.append(lock["tokenizer_pin"]["snapshot_receipt"])
-    receipts.extend(item["snapshot_receipt"] for item in lock["benchmark_pins"])
-    receipts.extend(item["snapshot_receipt"] for item in lock["verifier_sources"])
+    for pin in (*lock["model_pins"], lock["tokenizer_pin"], *lock["benchmark_pins"], *lock["verifier_sources"]):
+        receipts.extend(pin["artifacts"])
     receipts.extend(lock["contamination_receipts"])
     receipts.extend(lock["license_receipts"])
 

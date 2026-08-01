@@ -1,0 +1,6 @@
+region                    = "us-east-1"
+bucket_name               = "pneuma-phase-b-892077329800"
+lease_table_name          = "pneuma-phase-b-leases"
+security_group_id         = "sg-02a6d8fb9c26477eb"
+batch_service_role_name   = "pneuma-phase-b-batch-service"
+ecs_instance_profile_name = "pneuma-phase-b-ecs-instance"

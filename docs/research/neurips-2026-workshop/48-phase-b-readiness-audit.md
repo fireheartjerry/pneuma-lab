@@ -12,7 +12,7 @@ build, account plan, or launch approval. Azure remains separately governed.
 
 ## Implemented preparation
 
-Steps 4, 5A, 6, 7A, 8, 9, 10, 11 (T1), 12, and 13 are
+Steps 4, 5A, 6, 7A, 8, 9, 10, 11 (T1), and 12 are
 `implementation_complete` in their bounded local/static scope. Each has a
 committed status record, focused tests, append-only decision/ledger/journal
 record, and a pushed commit. They establish no scientific result.
@@ -21,24 +21,29 @@ record, and a pushed commit. They establish no scientific result.
 
 | item | implementation | external verification | authority freeze | launch review | execution |
 | --- | --- | --- | --- | --- | --- |
-| Step 5B real inputs | implementation_complete: retrieval workflow, offline receipt-verification path, and unsigned shape-demo candidate | pending: no retrieved receipts; host storage insufficient for the projected retrieval | pending: candidate unsigned and bound to a fixture lock; request 50 outstanding | pending | pending |
-| Step 7B real builds | double-build/SBOM receipt path complete | pending: no image/SBOM/repeat-build receipts | pending request 50 | pending | pending |
+| Step 5B real inputs | implementation_complete: retrieval workflow, offline receipt-verification path, and unsigned shape-demo candidate | pending: no retrieved receipts; host storage insufficient for the projected retrieval | signed CL-028 preparation envelope exists, but the synthetic candidate is still unsigned and fixture-bound; each real action requires a separately signed concrete admission | pending | pending |
+| Step 7B real builds | double-build/SBOM receipt path complete | pending: no image/SBOM/repeat-build receipts | signed CL-028 preparation envelope exists; each real build requires a separately signed concrete admission | pending | pending |
 | G-ROSTER | evaluator implementation_complete | pending: both tiers FEASIBILITY_NO_GO; C/C++ shortfalls provisional only (DL-163) | pending base-commit admissibility audit or reviewed amendment | pending | pending |
-| AWS architecture | 8-vCPU single-L40S reconciliation complete; static/L1 Terraform validation complete | authenticated console audit confirms On-Demand 8, Spot 16, and `g6e.2xlarge` in `us-east-1a`-`1d`; CLI credentials, Terraform L3 plan, and an account-bound receipt remain pending | pending request 50 A1 | pending | pending |
+| AWS architecture | 8-vCPU single-L40S reconciliation and static/L1 Terraform validation complete; B1 account bootstrap and read-only account-bound plan complete | authenticated CloudShell audit confirms On-Demand 8, Spot 16, `g6e.2xlarge` in `us-east-1a`-`1d`, and the exact S3/DynamoDB/IAM/network substrate; no compute/deployment or teardown-drill receipt | B1 consumed for substrate only; future compute action requires fresh authority | pending | pending |
 | Azure parity/other studies | boundary only; user reports $10k incoming | official balance/terms remain unverified | separate authority required | pending | pending |
-| pilot | protocol and exact receipt path complete | pending admission evidence | pending hash-bound human/spend authorization | pending | pending |
+| pilot | implementation_complete: protocol now freezes an 8.0 output-token/sec p10 floor and receipt-vs-protocol validation | pending admission evidence | signed CL-028 covers only non-scientific smoke/bounded API work; an exact signed admission and all upstream receipts remain required | pending | pending |
 
-The authorization audit found no NeurIPS-specific, positive, hash-bound
-authorization capable of permitting external input retrieval or deterministic
-container builds. Foundation-training authorizations are unrelated authority and
-cannot be reused. Therefore no Step 5B retrieval, Step 7B build, provider call,
-cloud provisioning, paid action, Step 14, Step 4B, or pilot was performed.
+The B1 authorization was consumed only for the bounded non-compute substrate
+recorded in receipt 52. CL-028 separately authorizes bounded non-scientific AWS
+preparation, but no concrete action admission, external input retrieval,
+deterministic container build, compute capacity, GPU measurement, or pilot
+authorization exists. Foundation-training authorizations are unrelated
+authority and cannot be reused. Therefore no Step 5B retrieval, Step 7B build,
+compute/deployment, paid execution, Step 14, Step 4B, or pilot was performed.
 
 The host currently exposes about 153 GiB free on its only writable disk, below
 the 321–470 GiB historical retrieval estimate and the conservative 600 GiB
-request ceiling. The signed pending action request is document 50. It is not
-authority. Step 14 spec generation now refuses to substitute contract prose
-for the five required evidence receipts and exits before writing a spec.
+request ceiling. Document 50 is a historical, unsigned non-authorizing request
+whose listed hashes predate the later admission and input-inventory hardening;
+it must not be signed or reused. CL-028 is the only operative preparation
+envelope, and it still requires a separately signed concrete admission for each
+action. Step 14 spec generation now refuses to substitute contract prose for
+the five required evidence receipts and exits before writing a spec.
 
 This closes the requested implementation-preparation track, **not Phase B as a
 fully externally verified or launch-ready phase**.
@@ -51,7 +56,7 @@ Terraform have been reconciled to it. That reconciliation does not itself
 establish quota class, model fit, throughput, cost, or launch readiness.
 
 The current upstream serving record also leaves one-L40S feasibility explicitly
-empirical: the current vLLM recipe documents the FP8 variant at 42 GiB and
-single-GPU verification on H100/H200, not L40S. It is therefore a reason to
-keep the frozen OOM/tool-call/output-parity/p10-throughput admission gate, not
-a reason to waive it.
+empirical: official long-context examples use multi-way tensor parallelism and
+community reports do not establish this exact L40S/tool-call configuration. It
+is therefore a reason to keep the frozen OOM/tool-call/output-parity/p10-
+throughput admission gate, not a reason to waive it.

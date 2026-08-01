@@ -1,0 +1,23 @@
+{
+    "record_kind": "cloud_preparation_authorization",
+    "schema_version": "0.1.0",
+    "frozen_timestamp": "2026-07-31T00:00:00Z",
+    "status": "authorized",
+    "provider": "aws",
+    "window_start": "2026-07-31T00:00:00Z",
+    "window_end": "2026-08-30T00:00:00Z",
+    "rolling_ceiling_usd": 250.0,
+    "per_job_ceiling_usd": {"retrieval_or_image_build": 75.0, "smoke_or_bounded_api_pilot": 25.0},
+    "max_retries_per_job": 2,
+    "allowed_actions": ["immutable_input_retrieval", "licence_contamination_audit", "container_build", "storage", "non_scientific_smoke", "bounded_api_pilot"],
+    "ledger_row_id": "CL-028",
+    "ledger_row_sha256": "51498fc071506a7ab263051ef48aa77f073d55e8bc142860cf17f28fcf350a7f",
+    "human_authorization": {
+        "approver_id": "jerry-mathos-ai",
+        "key_id": "pneuma-b1-20260731",
+        "granted_timestamp": "2026-07-31T00:00:00Z",
+        "expires_timestamp": "2026-08-30T00:00:00Z",
+        "body_sha256": "511249c5447eaa5f005f755297acbc17dd4ccb73f803f6f15a8633e45d50fe69",
+        "signature_ed25519": "b098a7bcb84811233289f1baeca361f052d61c3f904ec300215e71d91d29caf448592db4ed2e5b5895b9604f18f3cc79ecd06b42e9ecb9602dbfdc3d16d05205"
+    }
+}

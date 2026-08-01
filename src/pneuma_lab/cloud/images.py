@@ -55,6 +55,8 @@ def validate_image_build_set(records: Sequence[Mapping[str, Any]]) -> tuple[dict
         raise CloudManifestError("Step 7B requires exactly one receipt for each image role")
     if len(receipts) != 3 or len({record["recipe_sha256"] for record in receipts}) != 1:
         raise CloudManifestError("Step 7B build receipts must bind one recipe exactly once per role")
+    if len({record["input_lock_sha256"] for record in receipts}) != 1:
+        raise CloudManifestError("Step 7B build receipts must bind one exact Step 5B input lock")
     if not all(record["reproducible"] for record in receipts):
         raise CloudManifestError("Step 7B remains blocked by a non-reproducible image")
     return receipts

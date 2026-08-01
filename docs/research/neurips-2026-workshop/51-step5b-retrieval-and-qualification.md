@@ -21,23 +21,45 @@ record requires **both** a `CL-0xx` ledger row and a human authorization block;
 a `candidate` must have **neither**. A half-signed record fails closed rather
 than degrading to either state.
 
-`signature_sha256` must equal `authorization_binding_digest`, computed over the
-record with the signature removed plus the approver and grant time. A signature
-therefore cannot be free-text hex, cannot survive an edit to the scopes, byte
-ceiling, or lock digest, and cannot be lifted from another record. **Stated
-plainly: this is a binding digest, not a cryptographic authentication.** It
-proves the approval names this exact record; it does not prove who computed it.
-Approver authentication needs a key ceremony this package deliberately does not
-implement, so a signed record is evidence of intent, never of identity.
+An `authorized` record names an active, pre-enumerated Ed25519 public key and
+carries a signature over the complete canonical body, including scope, byte
+ceiling, input-lock digest, spend-ledger row digest, approval metadata, and
+expiry. It cannot survive an edit to any of those fields or be lifted to a
+different record. The gate also verifies that the exact referenced ledger row
+still exists and matches its approved digest. A candidate has neither a ledger
+binding nor a signature.
+
+**Preparation envelope and concrete action.** CL-028 is a signed AWS-only
+rolling preparation envelope, not a transferable approval to run arbitrary
+jobs. Before any retrieval, audit, build, storage operation, smoke, or bounded
+API pilot, `cloud_preparation_admission` must separately be signed and bind the
+exact envelope digest, input-lock digest, scopes, provider, projected cost,
+retry count, complete spend-history digest, teardown protection, expiry, and
+its own exact ledger row. The admission gate verifies both signatures and both
+ledger bindings before a provider operation. Training, canonical experiments,
+replication, unblinding, result promotion, and publication claims are outside
+the envelope and cannot be represented as an admissible action.
+
+**Boundary of the ceremony:** an Ed25519 key establishes possession of that
+private key, not a person's intent, comprehension, or hardware identity. The
+registry now contains the project-scoped CloudShell public key
+`pneuma-b1-20260731`; its private half remains only in CloudShell. An unknown,
+revoked, out-of-window, or expired key authorizes nothing. Key compromise,
+single-signer trust, and registry-update governance remain explicit residual
+risks rather than being papered over by a stronger adjective.
 
 `require_authorized` additionally recomputes the input-lock digest and refuses
-any authorization not bound to that exact lock. `ledger_row_id` is checked for
-the `CL-0xx` shape only; nothing verifies the row exists, so it records an
-intended ledger reference rather than proving one.
+any authorization not bound to that exact lock. It resolves the named ledger
+row from the append-only ledger and compares the row's exact bytes with the
+signed `ledger_row_sha256`; a missing, duplicate, or edited row fails closed.
 
-**Plans.** `build_audit_plan` derives ordered retrieval steps for the model,
-tokenizer, benchmark, **verifier-source**, and container-base scopes from
-immutable values only — 40-hex revisions and `linux/amd64@sha256:` digests. No
+**Plans.** `build_audit_plan` derives ordered retrieval steps for **every
+inventory-listed file** in the model, tokenizer, benchmark, and
+**verifier-source** snapshots, plus the dataset manifest and container base.
+Each revision pin carries an immutable inventory manifest and that manifest
+must also be an artifact in the hashed inventory; a single README or metadata
+receipt can therefore never stand in for an unconstrained snapshot. Revisions
+are 40-hex identities and container bases use `linux/amd64@sha256:` digests; no
 tag is resolved and no registry is consulted. Mirror paths are scoped by kind,
 repository, and reference, and uniqueness is enforced on the destination path,
 so two artifacts can never be written to one location and clobber it. The plan
@@ -45,6 +67,11 @@ is buildable from a *candidate*, which is what makes an unexecuted plan
 reviewable in advance. `build_receipt_verification_plan` covers the licence and
 contamination receipts — audit outputs verified as mirrored files rather than
 fetched — and binds the input-lock digest like the retrieval plan does.
+
+An upstream artifact may legitimately appear in more than one role when the
+subject and tokenizer share a pinned repository. That is not a collision: the
+role/repository/revision mirror namespace separates the destinations. Duplicate
+entries within one snapshot inventory remain forbidden.
 
 **Execution.** `retrieve_and_verify` is the only function that moves bytes, and
 it does so exclusively through a caller-injected fetcher; the package has no
@@ -284,7 +311,9 @@ input-lock digest before it will credit anything.
 ## 3. State
 
 Step 5B remains **unexecuted**: `implementation_complete`,
-`external_verification_pending`. `authority_freeze_pending`,
+`external_verification_pending`. The signed CL-028 preparation envelope now
+permits only bounded, per-admission AWS preparation work; it does not turn the
+synthetic candidate into an authorized retrieval. `authority_freeze_pending`,
 `launch_review_pending`, and `execution_pending` remain. G-ROSTER remains
 **open and blocking**, awaiting either the base-commit qualification audit or a
 reviewed amendment. No experiment manifest is promoted, no pilot is authorized,

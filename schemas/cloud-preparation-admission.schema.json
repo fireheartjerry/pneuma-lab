@@ -1,0 +1,33 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-preparation-admission.schema.json",
+    "title": "Cloud Preparation Admission",
+    "description": "One signed, non-scientific AWS preparation action. This record binds the generic preparation envelope to exact inputs, scopes, costs, expiry, spend-history evidence, and teardown protection before a provider operation.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "envelope_sha256", "provider", "action", "input_lock_sha256", "scopes", "projected_cost_usd", "retries", "spend_history_sha256", "spend_history_complete", "teardown_protected", "ledger_row_id", "ledger_row_sha256", "human_authorization"],
+    "properties": {
+        "record_kind": {"const": "cloud_preparation_admission"},
+        "schema_version": {"const": "0.1.0"},
+        "envelope_sha256": {"$ref": "#/$defs/digest"},
+        "provider": {"const": "aws"},
+        "action": {"enum": ["immutable_input_retrieval", "licence_contamination_audit", "container_build", "storage", "non_scientific_smoke", "bounded_api_pilot"]},
+        "input_lock_sha256": {"$ref": "#/$defs/digest"},
+        "scopes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["model", "tokenizer", "benchmark", "container_base", "verifier", "license", "contamination"]}},
+        "projected_cost_usd": {"type": "number", "minimum": 0},
+        "retries": {"type": "integer", "minimum": 0},
+        "spend_history_sha256": {"$ref": "#/$defs/digest"},
+        "spend_history_complete": {"const": true},
+        "teardown_protected": {"const": true},
+        "ledger_row_id": {"type": "string", "pattern": "^CL-\\d{3}$"},
+        "ledger_row_sha256": {"$ref": "#/$defs/digest"},
+        "human_authorization": {"$ref": "#/$defs/human_authorization"}
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"},
+        "human_authorization": {"type": "object", "required": ["approver_id", "key_id", "granted_timestamp", "expires_timestamp", "body_sha256", "signature_ed25519"], "properties": {"approver_id": {"type": "string", "minLength": 1}, "key_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,62}$"}, "granted_timestamp": {"$ref": "#/$defs/timestamp"}, "expires_timestamp": {"$ref": "#/$defs/timestamp"}, "body_sha256": {"$ref": "#/$defs/digest"}, "signature_ed25519": {"type": "string", "pattern": "^[0-9a-f]{128}$"}}, "additionalProperties": false}
+    }
+}

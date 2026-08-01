@@ -1,12 +1,13 @@
 # 40 — AWS Architecture Contract
 
-**Status:** Step 6 static implementation complete; external verification pending
+**Status:** Step 6 static implementation complete; bootstrap account
+verification complete; compute/deployment verification pending
 
-> **Superseded execution shape (2026-07-31):** DL-161 and
-> `49-single-l40s-topology-amendment.md` prospectively select one
+> **Execution shape (2026-07-31):** DL-161 and
+> `49-single-l40s-topology-reconciliation.md` bind the AWS primary path to one
 > `g6e.2xlarge`, 8 vCPUs, and one L40S with sequential execution. The static
-> Terraform described below still encodes the former `g6e.12xlarge` shape and
-> must be reconciled and reverified before Step 14. It is not launch-ready.
+> Terraform and its manifests encode that shape. Receipt 52 independently
+> verifies only its non-compute account substrate; it is not launch-ready.
 
 This is a tier-agnostic, static transcription of the AWS primary-path contract:
 `us-east-1`; disabled managed EC2 Batch controller shape with one
@@ -23,7 +24,7 @@ separate and is the only declared holder of lease-update/termination authority.
 No benchmark-container execution surface is declared in this slice, so no
 credential, IMDS, or Docker-socket access is introduced.
 
-The committed provider selection is static. Terraform L1 evidence and any L2
-plan remain distinct from L3 account-bound planning. Provisioning, `apply`,
-spending, pilot authorization, and experiment execution remain out of scope and
-unperformed.
+The committed provider selection is static. Terraform L1 evidence, the
+read-only bootstrap account plan in receipt 52, and any later compute L3 plan
+remain distinct. No compute `apply`, spending, pilot authorization, or
+experiment execution is authorized or performed.
