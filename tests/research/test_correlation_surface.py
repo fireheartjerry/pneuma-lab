@@ -37,6 +37,22 @@ def _canonical_bytes(value: object) -> bytes:
     ).encode("utf-8")
 
 
+# The surface is derived *from* a sealed P0 power report and its prior anchor.
+# Neither is committed: `build/` is generated, and no canonical P0 lineage has
+# ever completed, so on a fresh checkout these inputs simply do not exist. That
+# is a missing-artifact condition, not a defect in the surface code, and it must
+# be reported as a skip rather than an error -- an error here reads as broken
+# statistics when the truth is that the experiment has not been run. Fabricating
+# a stand-in report would be far worse: it would manufacture the exact artifact
+# whose absence is a tracked blocker.
+_MISSING_INPUTS = [path for path in (SEALED_REPORT, PRIOR_ANCHOR) if not path.is_file()]
+pytestmark = pytest.mark.skipif(
+    bool(_MISSING_INPUTS),
+    reason="sealed P0 inputs absent (no canonical P0 lineage exists): "
+    + ", ".join(path.relative_to(REPO_ROOT).as_posix() for path in _MISSING_INPUTS),
+)
+
+
 @pytest.fixture(scope="module")
 def deterministic_surfaces() -> tuple[dict[str, object], dict[str, object]]:
     arguments = {
