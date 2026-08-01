@@ -4049,3 +4049,21 @@ The next event after the archived migration boundary is appended below.
 - **Fail-closed state:** `pricing_receipt_sha256` is null, therefore status is
   `candidate`, not `ready_for_signature`. No signature, authority, network,
   provider mutation, reservation, or spend occurred.
+
+## 2026-08-01 — Step 5B live S3 price qualification
+
+- **Official source:** AWS Price List AmazonS3 `us-east-1` offer version
+  `20260728131000`, published `2026-07-28T13:10:00Z`, exact source SHA-256
+  `6568366729d8ec8a581178a35204d18cab66c009eecc9745c2e417ce8e17cae6`.
+  Extracted rates are USD 0.023/GB-month S3 Standard, USD 0.000005 per
+  Tier-1 request, and USD 0.0000004 per Tier-2 request.
+- **Recomputed bound:** 72 billable copy-days cover 35 current, 30 noncurrent
+  retry, and 7 abandoned-multipart days. Request ceilings cover 5,542 PUT-class,
+  3,410 LIST, and 13,640 GET-class operations. Worst case rounds upward to USD
+  3.78 under the USD 5.00 ceiling. Canonical pricing receipt SHA-256 is
+  `386cb5c1906fa6e8b93b8b05dc19534d18ea97a3a581f11f2cc9d86d9db6709f`.
+- **Ready record:** the price-qualified plan is
+  `fixtures/cloud/payload-retrieval-plan-ready.json`, canonical digest
+  `e2a2869d75b6596804075f208fc48227979b6e1f2a55f1ee2aacd02368267542`.
+  `ready_for_signature` is a mechanical state, not authority. No signature,
+  provider mutation, reservation, payload retrieval, or spend occurred.

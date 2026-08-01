@@ -968,5 +968,9 @@ The bounded payload-action candidate is now
 `18f8edebbcb9e394259b1d7e0afc4d92cc01c05f933f871ead4fcf094330511a`.
 It targets the existing encrypted/versioned S3 bucket under a content-addressed
 `runs/` prefix, limits retention to 35 days and retries to one, and carries a
-USD 5.00 ceiling. It remains unsigned and unready: the required current AWS
-pricing receipt is null, and no payload executor has yet passed hostile review.
+USD 5.00 ceiling. That historical candidate remains unsigned and unready. A
+successor binds the current AWS pricing receipt from official offer version
+`20260728131000`; its ready-for-signature plan digest is
+`e2a2869d75b6596804075f208fc48227979b6e1f2a55f1ee2aacd02368267542`;
+worst-case S3 storage/requests recompute to USD 3.78. It is still unsigned and
+authorizes nothing, and no payload executor has yet passed hostile review.

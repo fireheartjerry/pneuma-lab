@@ -35,6 +35,7 @@ _SCHEMA_BY_KIND = {
     "cloud_input_inventory_plan": "cloud-input-inventory-plan.schema.json",
     "cloud_payload_retrieval_manifest": "cloud-payload-retrieval-manifest.schema.json",
     "cloud_payload_retrieval_plan": "cloud-payload-retrieval-plan.schema.json",
+    "cloud_payload_pricing_receipt": "cloud-payload-pricing-receipt.schema.json",
 }
 
 
@@ -64,6 +65,10 @@ def validate_payload_retrieval_plan(record: Mapping[str, Any]) -> dict[str, Any]
     """Validate one unsigned or price-qualified payload action plan."""
 
     return _validate(record, expected_kind="cloud_payload_retrieval_plan")
+
+
+def validate_payload_pricing_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _validate(record, expected_kind="cloud_payload_pricing_receipt")
 
 
 def validate_experiment_manifest(record: Mapping[str, Any]) -> dict[str, Any]:
