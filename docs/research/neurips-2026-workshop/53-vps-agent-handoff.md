@@ -38,9 +38,12 @@ instance role/workload identity for unattended VPS operation. AWS Agent Toolkit
 is useful for agent tooling but does not itself provide process persistence;
 run the agent inside `tmux` and keep its receipts on durable storage.
 
-## Live AWS action to recover first
+## Reconciled AWS actions
 
-The active action at handoff is the registered one-L40S p10 qualification:
+The previously active one-L40S p10 qualification `step5b-throughput-001` is
+sealed and independently torn down. Its bounded receipt remains
+infrastructure evidence only: it is not a benchmark, pilot, experiment, or
+scientific result.
 
 - action: `step5b-throughput-001`
 - region: `us-east-1`
@@ -60,41 +63,14 @@ The active action at handoff is the registered one-L40S p10 qualification:
 - output prefix:
   `s3://pneuma-phase-b-892077329800/runs/qualification/throughput-001/outputs/`
 
-Last observation before handoff: the instance was running; sealed model and
-runner hashes had verified; the NVIDIA driver loaded; ECR login succeeded; no
-output object had yet published. That observation is stale by definition.
-
-Recover with read-only provider queries first:
-
-```bash
-aws sts get-caller-identity
-aws ec2 describe-instances \
-  --region us-east-1 \
-  --instance-ids i-057047dfb078a326e \
-  --query 'Reservations[0].Instances[0].{State:State.Name,LaunchTime:LaunchTime,Volume:BlockDeviceMappings[0].Ebs.VolumeId,Reason:StateTransitionReason}' \
-  --output json
-aws s3api list-objects-v2 \
-  --region us-east-1 \
-  --bucket pneuma-phase-b-892077329800 \
-  --prefix runs/qualification/throughput-001/outputs/ \
-  --query 'Contents[].{Key:Key,Size:Size,Modified:LastModified}' \
-  --output json
-```
-
-If receipts exist, download all outputs, retain raw samples/stdout/stderr/return
-codes, record S3 object versions and SHA-256 values, and verify with the exact
-repository verifier. Do not interpret the largest rung as admitted unless every
-registered gate passes. This qualification does not establish tool-call parity,
-benchmark validity, a pilot result, or a scientific result.
-
-If the action failed, preserve every failure artifact and record the failed
-action. **Do not retry it.** A successor requires a newly hashed plan and fresh
-action-specific admission. Never silently reuse this plan or authority.
-
-After evidence publication, ensure the instance is terminated and independently
-verify both the instance and encrypted delete-on-termination volume are absent.
-Record the outcome in the append-only execution journal and spend ledger before
-claiming closure.
+- `step5b-throughput-001` completed both registered rungs above the frozen p10
+  floor; its instance and encrypted root volume are absent. The exact receipt
+  and raw-object verification remain in the execution journal.
+- `step7b-aws-builder-009` then completed the three-role double-build/SBOM
+  action. Its exact success receipt is
+  `evidence/step7b-aws-builder-success-009-20260802.json`; instance
+  `i-0bdfb8bedd57ab630`, root `vol-09c73e10cb4679fa6`, and temporary group
+  `sg-0c3acb5ff13aebea2` are independently absent.
 
 ## Completed evidence relevant to continuation
 
@@ -107,6 +83,9 @@ claiming closure.
 - The production execution-surface contract exists in commit `2e5c98e`, but
   real production adapters are still missing. Do not substitute decorative
   containers or fixture-only tests for that runtime evidence.
+- Step 7B reproducible three-role builds and SBOMs are now externally verified
+  under the zero-retry KMS-admitted action 009. This closes image-build
+  evidence only; it does not close the production execution surface.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.
@@ -116,20 +95,18 @@ claiming closure.
 Proceed in this order unless stronger current evidence changes the dependency
 graph:
 
-1. Seal `step5b-throughput-001`, including independent teardown verification.
-2. Implement and qualify the real controller/model-server/benchmark-worker
+1. Implement and qualify the real controller/model-server/benchmark-worker
    execution surface against the exact harness bytes.
-3. Complete Step 7B reproducible three-role builds and SBOM receipts.
-4. Execute and seal the AWS interruption/recovery drill.
-5. Generate each portability bundle once, then independently verify the exact
+2. Execute and seal the AWS interruption/recovery drill.
+3. Generate each portability bundle once, then independently verify the exact
    sealed bytes on Linux and native Windows. Require identical input-lock and
    G-ROSTER digests; Linux-only CUDA/Docker results must remain offline
    verifiable on Windows.
-6. Run the final hostile Step 14 launch review against all eight receipt
+4. Run the final hostile Step 14 launch review against all eight receipt
    classes.
-7. Complete bounded Step 4A through analysis, then revalidate Tasks 6/7
+5. Complete bounded Step 4A through analysis, then revalidate Tasks 6/7
    continuity and finish Task 10 release preparation.
-8. Before any canonical benchmark/model experiment, create fresh immutable,
+6. Before any canonical benchmark/model experiment, create fresh immutable,
    hash-bound scientific authority with its own spend, topology, retry,
    stop-condition, and claim boundaries.
 

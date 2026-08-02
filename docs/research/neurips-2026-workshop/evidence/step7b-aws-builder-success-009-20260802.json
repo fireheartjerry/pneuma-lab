@@ -1,0 +1,76 @@
+{
+  "record_kind": "step7b_aws_builder_success_receipt",
+  "schema_version": "0.1.0",
+  "state": "COMPLETE",
+  "action_id": "step7b-aws-builder-009",
+  "admission_package_sha256": "d86c680b82af3756b84fb09243c4bc6a5c8a5d30f284fd523022b4c2020aac4c",
+  "plan_sha256": "51abcdc14ca59d01f0c5122f8c8f6e348e99f54357688dd65bb1afb70674359f",
+  "input_lock_sha256": "e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84",
+  "source_commit": "e4f589da7c8cffbb9bca283e7eaebf1b5fac0413",
+  "source_archive": {
+    "key": "runs/preparation/step7b-aws-builder-009/source.tar",
+    "version_id": "tOCS1TdvUbXgpnzNSIRiYXpMYx5aEMwS",
+    "sha256": "67bef9261d9b62789a4a4ed0c709e48510ddfca652bf69840896f6f44e55a3a3",
+    "size_bytes": 28702720
+  },
+  "plan_object": {
+    "key": "runs/preparation/step7b-aws-builder-009/plan.json",
+    "version_id": "lMKA7.PsWcOu_YPpUt7dvPuog9VF2yAJ",
+    "sha256": "636d20f0ddceab626c5bf1d89a571ad31cab1a06abea3d9b7cf5669e6a1a5819"
+  },
+  "instance": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "instance_id": "i-0bdfb8bedd57ab630",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-02T00:41:33Z",
+    "terminal_state": "terminated",
+    "root_volume_id": "vol-09c73e10cb4679fa6",
+    "root_volume_state": "InvalidVolume.NotFound",
+    "security_group_id": "sg-0c3acb5ff13aebea2",
+    "security_group_state": "InvalidGroup.NotFound",
+    "teardown_verified_at": "2026-08-02T01:53:47Z"
+  },
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/step7b-aws-builder-009/outputs/",
+  "output_objects": {
+    "bootstrap-status.json": {"version_id": "g9jAsZtjUoIt8DM5I5vrL81jF964hLFz", "size_bytes": 58, "sha256": "bead0a20e22031b0833b29bf9128001adaf8abd63a1419ca7ceb6f4b35968567"},
+    "bootstrap.log": {"version_id": "n3D4.F1C78rw0gFBb58JX9Bz_rRIP.ln", "size_bytes": 40471, "sha256": "a295d4bae54bf6d3b4ee19bc21e7cad8f0d7a5cf5334032f00b0d813a1269745"},
+    "step7b-build-receipts.json": {"version_id": "NlD3b0yDURl601pu1rdS2qz6tL96wgcn", "size_bytes": 3232, "sha256": "a00791ba0f2513d004529349fcc0b8c153a8a2ccad093799cb2a3c88f17aaf2a"},
+    "controller.spdx.json": {"version_id": "CbzjpdqpgWPZLyVbtG11HiYDuEuDGp.6", "size_bytes": 25296943, "sha256": "b009cea78a90da0fce984c935127f0844320e2d2e3eef68333fcc8d389d56ec3"},
+    "model-server.spdx.json": {"version_id": "KB2Vekiw6EwmcEX6qvC86foWBUbgABo_", "size_bytes": 25300521, "sha256": "68c3ae81eb563fefb3c003d94d229ad34474019d564c953db7ba08a91ca848b3"},
+    "benchmark-worker.spdx.json": {"version_id": "0qEs6DuyeCiSWBiZNWBZWorbfGShaAOP", "size_bytes": 25307677, "sha256": "f0f7218fec43b590b1d14168dae2f1dd124d42229f35a7fe7a1cdcd0e0c38970"},
+    "controller-positive.json": {"version_id": "PhjMPzWBRtYOf925ooKmOgEIKHIi27f8", "size_bytes": 142, "sha256": "ceddcbdec871dd278717629d1ccd9e355af6679662845f2282d2438f4ffe89db"},
+    "controller-wrong-hash.json": {"version_id": "DYwquRyfLftk0cuiIGbB8ZcYylyziYtp", "size_bytes": 74, "sha256": "465d1798a7354fa208d6dcecf59e941620bef6d9d5bf70345fcee4c365accc9e"},
+    "model-server-positive.json": {"version_id": "jT.A5XSJKdAsqkpyMKl18RcXsFWXWhv8", "size_bytes": 144, "sha256": "10dfca90c5424f42554245318f5b6c2634a484a7662d7558148bc1b8969d23da"},
+    "model-server-wrong-hash.json": {"version_id": "3_SyuVDBDgJTMtKG2pxUhET0wq2_UGvK", "size_bytes": 76, "sha256": "f5af82608e5fa36fa66b05d00d91a94ff0b857b23c764c52d5f87db8430f1189"},
+    "benchmark-worker-positive.json": {"version_id": "uUnbG3re72Iu9IX.fuvotjT8ebV7K1Mv", "size_bytes": 148, "sha256": "bb2e1e09b0462467c926c2e611093cd154f14b0e356df5b60eb8a5ac9e401abb"},
+    "benchmark-worker-wrong-hash.json": {"version_id": "lmeSw87iaSOkFXxQIhBLAJSyG_TTddbi", "size_bytes": 80, "sha256": "2f90830aa8afef34bdfcbaae655dd5a90c353f57c1daa8d675cc748b06a067d4"},
+    "controller-harness.json": {"version_id": "7kswuBKw9mu9CmoDwZQ1y_ukj3kwnp_m", "size_bytes": 146, "sha256": "27603666ab91196b58d18053d84a64148bdcb8e007c8b2be388d38f50212147a"},
+    "model-server-harness.json": {"version_id": "cbrKwJZJuusD31ggHvRTWZ15dSTl7zxv", "size_bytes": 148, "sha256": "1f7563052500db76fa6028df0b857194df4dd5c2a97d86d5385bfcd6d0c44757"},
+    "benchmark-worker-harness.json": {"version_id": "ADH.wVkGCzaitJ.dFmjcuLlUPxwpUl.f", "size_bytes": 152, "sha256": "879d7c74c08d1c5f0950bcf7e5b4e7090126f4adde69e70d070ea17fbcfaf154"},
+    "instance-identity.json": {"version_id": "P.C_Shk4v5Y95WV9M0ulonT_gQc4r4eX", "size_bytes": 185, "sha256": "38bbf380be19ca3c3ef93d269cd4563a42f00263822b24f2cb4518b20386fb0a"},
+    "docker-info-before-build.json": {"version_id": "6a9D8Q7idMZBjy3teALIEOYF52nQdyTU", "size_bytes": 1316, "sha256": "bc9003320134c2b873056f033c28b9ca5aae726447d443803ff7f7c377890e7b"},
+    "docker-version.json": {"version_id": "GVbliFjx4ZixA0ViE6sLb5wYRnmB_29Y", "size_bytes": 1063, "sha256": "e938e0d538bdd3771ce0de8d6069a603e9d1cf8388c403cd40cca53f8eb8b051"},
+    "syft-version.json": {"version_id": "2eA8hfOFF8_dZEPgJfEFNjz3XY8aMlKM", "size_bytes": 277, "sha256": "2c7144dc213bf4e3d81dc1ef47732836ae55c5062b96aec200f2b12facfef52b"},
+    "rpm-manifest.txt": {"version_id": "tGRmGx7B_IS_THTOVbpiwemFZbiPVgfa", "size_bytes": 21605, "sha256": "e6ae9ee9665635f0b3a6ad2eadc968f73050ead62ada07fb78bc37de7df0bf80"},
+    "sha256sums.txt": {"version_id": "klpYIqNCA7gETg_YXshKnu5eUWWKF8Q8", "size_bytes": 2327, "sha256": "b39d30904988420bb8ad98b65887824214e0820f1e956e3357ebc70c3d241a5a"}
+  },
+  "build_receipts_sha256": "a00791ba0f2513d004529349fcc0b8c153a8a2ccad093799cb2a3c88f17aaf2a",
+  "roles": {
+    "controller": {"image_digests": ["sha256:042add3a17590f1b96de2399dd63d0e7ea50284018259cbb398ecd85f47a0cc3", "sha256:042add3a17590f1b96de2399dd63d0e7ea50284018259cbb398ecd85f47a0cc3"], "sbom_sha256": "b009cea78a90da0fce984c935127f0844320e2d2e3eef68333fcc8d389d56ec3"},
+    "model-server": {"image_digests": ["sha256:eb00c9ae3dcec74ede579f46ee3976464fffebc4e9015859fae8f2da3132f4b6", "sha256:eb00c9ae3dcec74ede579f46ee3976464fffebc4e9015859fae8f2da3132f4b6"], "sbom_sha256": "68c3ae81eb563fefb3c003d94d229ad34474019d564c953db7ba08a91ca848b3"},
+    "benchmark-worker": {"image_digests": ["sha256:bffc7427e155e68c5d5c1e6bf2e58c7a85843de2c573ab2483989af534c3338e", "sha256:bffc7427e155e68c5d5c1e6bf2e58c7a85843de2c573ab2483989af534c3338e"], "sbom_sha256": "f0f7218fec43b590b1d14168dae2f1dd124d42229f35a7fe7a1cdcd0e0c38970"}
+  },
+  "verification": {
+    "status_complete": true,
+    "all_three_roles": true,
+    "double_build_digests_equal": true,
+    "positive_harness_probes": true,
+    "wrong_hash_probes_failed_closed": true,
+    "sboms_nonempty_and_sha256_verified": true,
+    "receipt_schema_and_plan_bindings_verified": true,
+    "forbidden_workload_absent": true,
+    "teardown_instance_root_and_security_group_verified": true
+  },
+  "verified_at": "2026-08-02T01:53:47Z"
+}

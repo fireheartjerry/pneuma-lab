@@ -457,7 +457,6 @@
                 "docs/superpowers/specs/2026-07-28-neurips-resampling-null-design.md"
             ],
             "blockers": [
-                "B-NEURIPS-G-ROSTER",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -478,8 +477,6 @@
                 "tests/cloud/test_manifests.py"
             ],
             "blockers": [
-                "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
-                "B-NEURIPS-G-ROSTER",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -526,17 +523,17 @@
             "status": "partial",
             "scope": "offline_research",
             "implementation_status": "implementation_complete",
-            "e2e_status": "E2E_pending",
+            "e2e_status": "E2E_complete",
             "evidence_refs": [
                 "docs/research/neurips-2026-workshop/41-image-recipe-preparation.md",
                 "schemas/cloud-image-manifest.schema.json",
                 "infra/docker/README.md",
                 "src/pneuma_lab/cloud/images.py",
-                "tests/cloud/test_images.py"
+                "tests/cloud/test_images.py",
+                "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-success-009-20260802.json",
+                "docs/research/neurips-2026-workshop/33-execution-journal.md"
             ],
             "blockers": [
-                "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
-                "B-NEURIPS-IMAGE-BUILD-VERIFICATION",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -667,10 +664,8 @@
                 "tests/cloud/test_pilot.py"
             ],
             "blockers": [
-                "B-NEURIPS-G-ROSTER",
-                "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
-                "B-NEURIPS-IMAGE-BUILD-VERIFICATION",
                 "B-NEURIPS-STEP14-REVIEW",
+                "B-NEURIPS-PRODUCTION-SURFACE-E2E",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -686,11 +681,9 @@
                 "docs/research/neurips-2026-workshop/36-step4a-to-aws-credit-launch-roadmap.md"
             ],
             "blockers": [
-                "B-NEURIPS-G-ROSTER",
-                "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
-                "B-NEURIPS-IMAGE-BUILD-VERIFICATION",
                 "B-NEURIPS-AWS-ACCOUNT-PLAN",
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
+                "B-NEURIPS-PRODUCTION-SURFACE-E2E",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -996,28 +989,20 @@
             "summary": "Task 10 has no complete authority-backed P0 lineage, isolated result of record, or independently verified canonical release decision; its state is implementation_complete and E2E_pending."
         },
         {
-            "id": "B-NEURIPS-G-ROSTER",
-            "summary": "C120 is the authority-selected tier with a fixed reserve of one per split. Exact Linux qualification recorded 33/33 independently passing isolation pairs: three distinct immutable units for every eight SWE and three tau2 splits. The final evidence root resolves the real input lock, 144 licence/OCI-qualified SWE lineages, the selected 49 tau2 tasks, and exact isolation receipt bytes; both family audits derive CONDITIONALLY_FEASIBLE. The registered one-L40S p10 action also passed at both 32k and 65k rungs and its instance/volume teardown is sealed. G-ROSTER is satisfied for C120 only. This authorizes no pilot or experiment; interruption/recovery, portability, and hostile launch review remain blocking."
-        },
-        {
-            "id": "B-NEURIPS-EXTERNAL-INPUT-VERIFICATION",
-            "summary": "Step 5B authenticated payload retrieval, real-candidate input-lock construction, C120 G-ROSTER qualification, and the registered one-L40S p10 qualification are complete. All 1,705 retrievable objects totaling 67,483,211,374 bytes were independently reread; AWS and Windows match the final payload receipt and input-lock digest e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84. Exact Linux evidence adds 33/33 passing isolation pairs, separate CONDITIONALLY_FEASIBLE SWE/tau2 audits, and p10 values 11.555050851717397 (32k) and 11.548052621929092 (65k) above the 8.0 floor. Experiments remain blocked by interruption/recovery, portability, and hostile launch-review gates."
-        },
-        {
             "id": "B-NEURIPS-AWS-ACCOUNT-PLAN",
             "summary": "Authenticated AWS evidence confirms the expected account, 8 On-Demand and 16 Spot G/VT vCPUs, and g6e.2xlarge availability. The authorized account-bound Terraform plan created the private non-compute substrate, including VPC endpoints, encrypted/versioned S3 controls, DynamoDB lease state, IAM, logs, launch template, and ECR controls. Terraform state and a refreshed no-change plan are hash-bound and mirrored. Because AWS requires a new Batch compute environment to be born enabled, create_batch_resources remains false and direct queries show no compute environment or queue; no EC2/GPU/EBS worker exists."
-        },
-        {
-            "id": "B-NEURIPS-IMAGE-BUILD-VERIFICATION",
-            "summary": "A real hardened qualification-worker image was built and pushed at immutable ECR digest sha256:1fc54d73f9ec36356bec5c2c8497b671f72a9e43c0bae4fbb84be3ee6ede9ae2; its completed ECR scan has zero findings and the full scan response is hash-bound in encrypted S3. The three-role runtime entrypoint now verifies exact harness bytes and emits a canonical terminal record. The committed Step 7B recipes are buildable, digest-pinned role probes and their executor fails closed on changed bytes, wrong-hash probes, missing SBOM tooling, or repeat-build mismatch. No containerized E2E, actual image pull, complete repeat-build/SBOM receipt set, or AWS successor admission exists, so Step 7B remains pending."
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
             "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, and the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1. Its verified nearest-rank p10 values are 11.555050851717397 (32k) and 11.548052621929092 (65k), each above 8.0; instance and encrypted volume teardown are sealed. Lease contention, interruption/resume, watchdog behavior under failure, and benchmark execution remain unverified; no Batch compute environment or queue exists."
         },
         {
+            "id": "B-NEURIPS-PRODUCTION-SURFACE-E2E",
+            "summary": "Step 7B image/SBOM qualification is complete, but no current receipt proves a real controller/model-server/benchmark-worker production execution surface against the exact harness bytes. The committed runtime is still a qualification boundary; production adapters, terminal/failure receipts, and role-boundary E2E evidence remain required."
+        },
+        {
             "id": "B-NEURIPS-STEP14-REVIEW",
-            "summary": "The required pre-experiment hostile launch review has not occurred. Its spec generator now fails closed until eight genuine evidence roots exist: Step 5B input lock, G-ROSTER, Step 7B image builds/SBOMs, production execution surface, AWS account/quota/plan, one-GPU admission, interruption/recovery, and Windows/Linux portability. Current evidence does not satisfy the last six as complete launch receipts."
+            "summary": "The required pre-experiment hostile launch review has not occurred. Its spec generator now fails closed until eight genuine evidence roots exist: Step 5B input lock, G-ROSTER, Step 7B image builds/SBOMs, production execution surface, AWS account/quota/plan, one-GPU admission, interruption/recovery, and Windows/Linux portability. Current evidence closes the input lock, G-ROSTER, Step 7B builds/SBOMs, one-GPU admission, and portability roots; production-surface E2E, interruption/recovery, account/plan reconciliation, and the review itself remain open."
         },
         {
             "id": "B-NEURIPS-EXPERIMENT-EXECUTION",

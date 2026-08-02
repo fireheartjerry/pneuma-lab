@@ -47,6 +47,19 @@ the five required evidence receipts and exits before writing a spec.
 This closes the requested implementation-preparation track, **not Phase B as a
 fully externally verified or launch-ready phase**.
 
+## 2026-08-02 reconciliation
+
+The previously pending Step 7B row is now externally closed for its bounded
+image-build/SBOM scope. KMS-admitted AWS action 009 produced two matching
+digests for each of the three roles, three nonempty SPDX SBOMs, positive and
+wrong-hash probe receipts, and an independently verified teardown. The exact
+receipt is `evidence/step7b-aws-builder-success-009-20260802.json`.
+
+This does not close the production execution-surface gate: the current role
+runtime remains a byte-verifying qualification boundary, not a real
+controller/model-server/benchmark-worker adapter. Interruption/recovery and
+Step 14 therefore remain open, and no pilot or experiment is authorized.
+
 ## Topology change and its residual empirical risk
 
 DL-161 selects an 8-vCPU `g6e.2xlarge` single-L40S AWS path with sequential

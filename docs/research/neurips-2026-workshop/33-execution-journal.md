@@ -4578,3 +4578,46 @@ The next event after the archived migration boundary is appended below.
 - Signing authorizes only the bounded CPU image qualification. No upload,
   instance, SBOM, GPU, model workload, benchmark, pilot, experiment, or
   scientific result occurred in this step.
+
+### EJ-20260802-step7b-aws-builder-009-success
+
+- **Execution:** The single admitted attempt launched `i-0bdfb8bedd57ab630`
+  (`m7i.xlarge`, `us-east-1`, 650 GiB encrypted gp3 root) from the exact
+  rendered user-data SHA-256 `d92b56be624f242f0d1370630a3b61b9b360bd8fe81f806367b4b8f53f19c54`.
+  The controller, model-server, and benchmark-worker each completed two
+  `--no-cache --pull=false --provenance=false --sbom=false` builds. The two
+  image IDs were equal for every role: controller
+  `sha256:042add3a17590f1b96de2399dd63d0e7ea50284018259cbb398ecd85f47a0cc3`,
+  model-server
+  `sha256:eb00c9ae3dcec74ede579f46ee3976464fffebc4e9015859fae8f2da3132f4b6`,
+  and benchmark-worker
+  `sha256:bffc7427e155e68c5d5c1e6bf2e58c7a85843de2c573ab2483989af534c3338e`.
+- **Probes and SBOMs:** All three positive exact-harness probes emitted
+  `READY`; all three wrong-hash probes emitted `FAILED` with
+  `harness_sha256_mismatch` and exit code 2. SPDX SBOMs are nonempty and
+  independently SHA-256 verified: controller `b009cea7...d56ec3` (25,296,943
+  bytes), model-server `68c3ae81...a848b3` (25,300,521 bytes), and
+  benchmark-worker `f0f7218f...c38970` (25,307,677 bytes). The canonical build
+  receipt SHA-256 is `a00791ba0f2513d004529349fcc0b8c153a8a2ccad093799cb2a3c88f17aaf2a`.
+- **Publication:** The terminal status was
+  `{"state":"COMPLETE","action_id":"step7b-aws-builder-009"}`. Every
+  output object was downloaded from the versioned S3 prefix, compared against
+  its recorded size/hash, and checked against the image-receipt schema and
+  plan/input/runtime/executor bindings. The complete evidence receipt is
+  `evidence/step7b-aws-builder-success-009-20260802.json`.
+- **Boundary:** This is a CPU-only reproducible image/SBOM qualification. It
+  does not qualify the real production execution surface, load a model, run a
+  benchmark, establish a pilot, or create a scientific result.
+
+### EJ-20260802-step7b-aws-builder-009-teardown
+
+- After the instance self-stopped, a fresh provider read confirmed the exact
+  action tag, root volume, and delete-on-termination setting before the one
+  authorized termination call. AWS reports `i-0bdfb8bedd57ab630` terminated;
+  `vol-09c73e10cb4679fa6` returns `InvalidVolume.NotFound` and the temporary
+  builder security group `sg-0c3acb5ff13aebea2` returns
+  `InvalidGroup.NotFound` after dependency checks showed no attached ENI or
+  instance. No residual action-tagged resource remains.
+- Spend is recorded as pending provider billing settlement under CL-119/CL-120;
+  no cash charge or credit application has been observed yet. Action 009 is
+  exhausted with zero retries and is not reusable.

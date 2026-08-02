@@ -1078,3 +1078,21 @@ G-ROSTER is therefore satisfied for C120 only. Registered p10 throughput,
 interruption/recovery, portable offline receipt closure, and the hostile
 pre-experiment launch review remain blocking. No pilot or experiment is
 authorized.
+
+### Step 7B reproducible build qualification complete — 2026-08-02
+
+The fourth corrected AWS builder action (`step7b-aws-builder-009`) completed
+under its zero-retry KMS admission after the earlier package, build-context,
+entrypoint, and Syft-storage failures were exhausted. The action built
+controller, model-server, and benchmark-worker twice each from the exact
+source archive and pinned base digest; every role's two image IDs matched.
+All three positive exact-harness probes passed, all three wrong-hash probes
+failed closed, and three nonempty SPDX SBOMs were published to versioned S3.
+The raw objects and schema/plan/hash verification are sealed in
+`evidence/step7b-aws-builder-success-009-20260802.json`.
+
+The instance, encrypted root volume, and temporary security group were
+independently removed. This closes Step 7B image-build/SBOM evidence only. The
+real three-role production execution surface, interruption/recovery drill,
+and Step 14 hostile review remain open; no benchmark, pilot, experiment, or
+scientific claim is authorized.

@@ -1,6 +1,6 @@
 # 41 — Image Recipe Preparation
 
-**Status:** Step 7B build implementation complete; real receipt verification pending
+**Status:** Step 7B build/SBOM qualification complete; production execution-surface E2E pending
 
 Three role-separated recipes now exist for controller, model server, and
 benchmark worker. Each overlays the exact sealed standard-library role runtime
@@ -14,12 +14,13 @@ SBOMs, and rejects any image-config digest mismatch.
 The Step 7B receipt contract now requires two image digests per role, an SBOM,
 builder/recipe/Dockerfile/base/dependency-lock bindings, and one exact Step 5B
 input-lock digest shared by all three roles. It also requires exact three-role
-coverage and a truthful reproducibility comparison. A mismatch blocks the set
-rather than being waived. No real OCI image digest, build, comparison, SBOM,
-or ECR action exists yet. The sealed local-only plan is storage-blocked on this
-VPS and cannot authorize AWS; its successor must bind an EC2 builder, source
-archive, Syft binary, exact spend ceiling, teardown, and a new KMS admission.
-This build-only qualification neither loads a model nor runs a benchmark.
+coverage and a truthful reproducibility comparison. The KMS-admitted AWS
+successor action 009 now provides the real receipt set: each role has two
+identical image IDs, positive and wrong-hash probes behaved as required, and a
+nonempty SPDX SBOM is independently hashed. The complete versioned output set
+is sealed in `evidence/step7b-aws-builder-success-009-20260802.json`.
+This build-only qualification neither loads a model nor runs a benchmark; the
+real production execution-surface E2E remains pending.
 
 ## Immutable base candidates (metadata only)
 
