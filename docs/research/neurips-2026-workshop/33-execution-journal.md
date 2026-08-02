@@ -4654,3 +4654,26 @@ The next event after the archived migration boundary is appended below.
   execution, registry push, GPU use, pilot, experiment, and scientific claims.
   No upload, signature, provider mutation, image build, SBOM, or spend occurred
   in this preparation step.
+
+### EJ-20260802-step7b-aws-builder-010-kms-admission
+
+- **Fresh-state admission:** account `892077329800`, region `us-east-1`, clean
+  committed candidate, no live action-010 instance, and no action-010 security
+  group were reread before signing. The scoped `pneuma-kms-signer` role
+  returned the registered Ed25519 KMS identity; no root direct-sign path was
+  used.
+- **Authority receipt:** KMS signed the exact CL-121/CL-122 envelope and
+  admission for plan `898d7f534c761d3618b73da971b6a64c9d89a8365de8ab455d4f6d86f1414f61`,
+  zero retries, projected USD 2.25, and expiry `2026-08-02T14:30:00Z`.
+  Signed-package SHA-256 is
+  `a9313f61ca4d624831571f5d382c8741ed8107ffe2f5a9d12d1e3e3c3f89b38f`.
+  The package binds envelope body
+  `ff224b3453c6c06fbb71802bc4508fbd4d73a878ddb6a42e553768fd1134fd57`,
+  admission body
+  `3244e16d2ebb6f6f27d7f7bfa345908e9dcba711222eaf1424604f317034b4a4`,
+  and the canonical production harness digest
+  `d32bb3d94a19ffda0718117b7273b05a117ae4a14b88c66d341db60ca9b0174f`.
+- **Boundary:** authorization covers one CPU image-build attempt plus the
+  explicitly bound infrastructure handshake. It does not authorize a model
+  download, benchmark episode, pilot, experiment, registry push, or scientific
+  claim.
