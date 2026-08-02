@@ -5802,3 +5802,25 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** This is a forensic checker compatibility repair only. It does
   not add scientific evidence, authorize a provider action, or alter any
   Task 6–10 or Step 14 decision.
+
+### EJ-20260802-pre-experiment-closure
+
+- **Local closure:** At source commit
+  `63156f34537be4b83638f9af84fb6bae1e92b1d6`, the locked Python environment,
+  canonical status check, focused Tasks 6–10 gates, dual-worker admission /
+  partition / recovery fixtures, throughput contracts, and whitespace checks
+  passed under the bounded test policy. No GPU admission probe ran.
+- **Terraform:** A platform checksum missing from the pinned-provider lockfile
+  was repaired in a separate lock-only commit. Read-only init, validate, fmt,
+  and an authenticated saved plan then passed. The plan digest is
+  `7eb7e501b64ee0945e51978c7c30ed31f618a0812bb2486abb258ba5b1af20e9`; it
+  contains hypothetical changes only and was not applied.
+- **AWS read-only evidence:** STS identity, the required 8 On-Demand and 16
+  Spot G/VT quotas, four `g6e.2xlarge` availability-zone offerings, and 23
+  Linux/UNIX Spot observations in a fresh 24-hour window all passed. These
+  observations do not prove capacity or authorize launch.
+- **Boundary:** No resource was created, no mutation or spend occurred, and
+  no model, benchmark, pilot, P0/Step 4B lineage, unblind, official
+  experiment, or scientific claim was produced. The sanitized report is
+  `evidence/pre-experiment-closure-20260802.md`; canonical status and the
+  `launch_blocked` Step 14 disposition remain unchanged.
