@@ -288,11 +288,22 @@ def main() -> int:
                 if not child_environment.get("PYTHONPATH")
                 else source_pythonpath + os.pathsep + child_environment["PYTHONPATH"]
             )
-            completed = subprocess.run(command, check=True, text=True, capture_output=True, env=child_environment)
+            completed = subprocess.run(command, check=False, text=True, capture_output=True, env=child_environment)
             (output / "production-surface-command.json").write_text(
-                json.dumps({"command": command, "stdout": completed.stdout}, sort_keys=True) + "\n",
+                json.dumps(
+                    {
+                        "command": command,
+                        "returncode": completed.returncode,
+                        "stdout": completed.stdout,
+                        "stderr": completed.stderr,
+                    },
+                    sort_keys=True,
+                )
+                + "\n",
                 encoding="utf-8",
             )
+            if completed.returncode != 0:
+                raise RuntimeError(f"production surface command failed with exit code {completed.returncode}")
     finally:
         remove_builder(builder)
     print(json.dumps({"receipt_sha256": sha256_file(output / "step7b-build-receipts.json"), "roles": list(ROLES)}, sort_keys=True))

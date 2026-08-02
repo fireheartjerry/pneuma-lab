@@ -119,6 +119,15 @@ def test_executor_uses_root_backed_syft_staging() -> None:
     assert 'BuildKit(?: version)?' in source
 
 
+def test_production_surface_failure_receipt_preserves_child_output() -> None:
+    source = Path(run_step7b_builds.__file__).read_text(encoding="utf-8")
+    assert "subprocess.run(command, check=False, text=True, capture_output=True" in source
+    assert '"returncode": completed.returncode' in source
+    assert '"stdout": completed.stdout' in source
+    assert '"stderr": completed.stderr' in source
+    assert 'if completed.returncode != 0:' in source
+
+
 def test_role_dockerfiles_use_the_repository_build_context() -> None:
     """The executor supplies the sealed source root as Docker's build context."""
     repository = Path(__file__).resolve().parents[2]
