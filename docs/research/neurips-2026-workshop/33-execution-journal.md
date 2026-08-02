@@ -5677,11 +5677,18 @@ The next event after the archived migration boundary is appended below.
   The ten reviewer transcripts were re-read after that repair; stale citation
   findings were removed rather than replayed as if still true.
 - **Rerun:** The same digest-bound Step 14 campaign was regenerated and replayed
-  with ten bounded `agent-session` reviewers. It remained `launch_blocked`, now
-  with three independent blockers: the missing real authority-backed power and
-  tier receipt, and absent packet/assignment/detectability/unblind receipts in
-  the Step-14 input index. The rerun is still a review gate and authorizes
-  nothing.
+  with ten bounded `agent-session` reviewers. Spec digest
+  `60c37477a49a27d9b2e1e02358bd8bf43642e423266e054906c93e9eb605331f`, input
+  digest `1451ba86d46dd2756fff5bd17393af2b1c31813813a8bb69b17a214bbea647d6`,
+  report digest `e1e74048f8dfda5dfa3a6ee42898e9c262375982622b74a0435b10ff4e8c9059`,
+  falsification digest
+  `69e80d6119f2d36db07998a600f77d462c4e0d785e144faa09091329d268c7de`, and
+  disposition digest `7be2be130b29f3998a2fb9f46dd1176c67205dd236338b3e3a140a88f1899c34`
+  are recorded in the compact receipt. The verdict remained
+  `launch_blocked`, now with three independent blockers: the missing real
+  authority-backed power and tier receipt, and absent
+  packet/assignment/detectability/unblind receipts in the Step-14 input index.
+  The rerun is still a review gate and authorizes nothing.
 - **Boundary:** No benchmark, model, pilot, experiment, unblind, provider
   action, spend, or scientific result occurred. Synthetic Step 4A artifacts
   were not promoted to power or blinding evidence.
