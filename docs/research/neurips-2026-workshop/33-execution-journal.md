@@ -5367,3 +5367,26 @@ The next event after the archived migration boundary is appended below.
   `sg-039ce59c6ac73e87d` had no instance or ENI dependencies, was deleted once,
   and the post-delete query returned `InvalidGroup.NotFound`. No action-022
   resource remains. No successor is admitted yet.
+
+### EJ-20260802-step7b-aws-builder-023-failure
+
+- **Launch rejection:** Action 023 was admitted and its source, plan, and
+  signed package were uploaded and read back with exact version/metadata
+  bindings. The sole intended `run-instances` command was rejected locally by
+  AWS CLI parameter validation because `--monitoring Enabled` omitted the
+  required `=true`. No provider `RunInstances` request was sent, and no
+  instance, volume, ENI, bootstrap, image, SBOM, production surface, model,
+  benchmark, pilot, experiment, or scientific result exists.
+- **Receipt:** The exact CLI error, input object versions, rendered user-data
+  digest, and no-resource teardown are sealed in
+  `evidence/step7b-aws-builder-failure-023-20260802.json`. The zero-retry
+  action is exhausted. A fresh successor must use the validated
+  `--monitoring Enabled=true` form.
+
+### EJ-20260802-step7b-aws-builder-023-teardown
+
+- Fresh reads at `2026-08-02T14:35:23Z` found no action-023 instance, volume,
+  or ENI. Temporary SG `sg-0e5c107708fdc0668` had no dependencies, was deleted
+  once, and returned `InvalidGroup.NotFound` on the post-delete read. No
+  action-023 resource remains; its versioned input objects are retained as
+  immutable failure provenance.

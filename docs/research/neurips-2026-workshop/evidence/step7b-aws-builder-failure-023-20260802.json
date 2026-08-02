@@ -1,0 +1,42 @@
+{
+    "record_kind": "step7b_aws_builder_failure_receipt",
+    "schema_version": "0.1.0",
+    "state": "FAILED",
+    "action_id": "step7b-aws-builder-023",
+    "admission_package_sha256": "faa7c7b0d1f55b4ec50aee510fb6d2c47da7aa103a681bee1ac1d30c4718602e",
+    "plan_sha256": "f9bfd0f7b8e405deaa995c811dc1ec986f3c9f09ccf55dd54ffb9ca4b4dac630",
+    "input_lock_sha256": "e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84",
+    "source_commit": "feb0eab73d50244b7ad5cf68a54225aa728d4d33",
+    "rendered_user_data_sha256": "7c490094d6c5b8747424850d80e7fc8512c21b43325ed22e4c4af810169e8802",
+    "failure_reason": "launch_cli_parameter_validation",
+    "diagnosis": {
+        "provider_call_sent": false,
+        "command": "aws ec2 run-instances ... --monitoring Enabled ...",
+        "error": "ParamValidation: Expected: '=', received: 'EOF' for input: Enabled",
+        "repair": "Use the exact AWS CLI structure --monitoring Enabled=true in a fresh successor."
+    },
+    "input_objects": {
+        "source": {"version_id": "6Aykp7AAtCRafGGr3gWjBAEwA6aU6gXz", "sha256": "e2a1ce2a72b1ef325f1bfba06fbcd3ff1dc1c6d439149875f7af6cc137cbe040", "size_bytes": 29071360},
+        "plan": {"version_id": "pmMAWkTdMPJibj8zs317RQQRi.MS80yv", "plan_sha256": "f9bfd0f7b8e405deaa995c811dc1ec986f3c9f09ccf55dd54ffb9ca4b4dac630", "size_bytes": 4506},
+        "admission_package": {"version_id": "0hVvq0TPp09hlXs3pY85zrcAf6PBLB9T", "sha256": "faa7c7b0d1f55b4ec50aee510fb6d2c47da7aa103a681bee1ac1d30c4718602e", "size_bytes": 2381}
+    },
+    "instance": {
+        "account_id": "892077329800",
+        "region": "us-east-1",
+        "instance_id": null,
+        "terminal_state": "not_created",
+        "root_volume_id": null,
+        "network_interface_id": null,
+        "security_group_id": "sg-0e5c107708fdc0668",
+        "security_group_state": "InvalidGroup.NotFound",
+        "teardown_verified_at": "2026-08-02T14:35:23Z"
+    },
+    "verification": {
+        "provider_mutation_sent": false,
+        "no_instance_volume_or_eni_created": true,
+        "security_group_deleted_once": true,
+        "teardown_verified": true,
+        "no_retry": true,
+        "no_model_benchmark_pilot_experiment_or_scientific_result": true
+    }
+}
