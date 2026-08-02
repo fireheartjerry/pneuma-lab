@@ -4498,3 +4498,18 @@ The next event after the archived migration boundary is appended below.
   occurred, described the decision log as ending at obsolete row numbers, and
   contradicted the live AWS qualification and Step 7B execution receipts.
   None of its completion or gate claims is promoted or relied upon.
+
+### EJ-20260802-step7b-aws-builder-008-preparation
+
+- **Correction and local gate:** the three role Dockerfiles use `python3` for
+  their immutable production-runtime entrypoints. The focused successor-plan,
+  build-executor, and production-runtime gate passed, as did Ruff and
+  whitespace checks.
+- **Reproducible authority input:** the successor generator derived exact plan
+  `88f6ad03...a910a2` from exhausted action 007 and live committed source
+  `d4861e5...fc551e`. Its `git archive` is 28,682,240 bytes at SHA-256
+  `c87cbec4...64a5f74`; all executor, bootstrap, runtime, recipe, lock, and
+  Dockerfile digests were reread rather than copied by assertion.
+- **Boundary:** this is an unsigned zero-retry candidate. No upload, signature,
+  provider mutation, image build, SBOM, GPU use, model download, benchmark,
+  pilot, experiment, or scientific result has occurred under action 008.
