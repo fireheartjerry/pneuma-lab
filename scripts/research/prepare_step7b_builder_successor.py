@@ -46,6 +46,7 @@ def prepare(
     expires_timestamp: str,
     source_commit: str,
     production_surface: bool = False,
+    security_group_id: str | None = None,
 ) -> dict[str, Any]:
     previous_action = predecessor.get("action_id")
     if not isinstance(previous_action, str) or re.fullmatch(r"step7b-aws-builder-[0-9]{3}", previous_action) is None:
@@ -57,6 +58,10 @@ def prepare(
     plan["frozen_timestamp"] = frozen_timestamp
     plan["expires_timestamp"] = expires_timestamp
     plan["source_commit"] = source_commit
+    if security_group_id is not None:
+        if re.fullmatch(r"sg-[0-9a-f]{8,}", security_group_id) is None:
+            raise ValueError("security_group_id must be a provider security-group id")
+        plan["instance"]["security_group_id"] = security_group_id
     plan["archive"]["s3_uri"] = _replace_action(plan["archive"]["s3_uri"], previous_action, action_id)
     plan["archive"]["sha256"] = sha256_file(archive)
     plan["archive"]["size_bytes"] = archive.stat().st_size
@@ -105,6 +110,7 @@ def main() -> int:
     parser.add_argument("--expires-timestamp", required=True)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--production-surface", action="store_true")
+    parser.add_argument("--security-group-id")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     predecessor = json.loads(args.predecessor.read_text(encoding="utf-8"))
@@ -117,6 +123,7 @@ def main() -> int:
         expires_timestamp=args.expires_timestamp,
         source_commit=args.source_commit,
         production_surface=args.production_surface,
+        security_group_id=args.security_group_id,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(canonical_bytes(plan) + b"\n")

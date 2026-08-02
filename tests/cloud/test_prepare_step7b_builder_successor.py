@@ -22,10 +22,12 @@ def test_successor_rebinds_action_archive_source_and_live_surface(tmp_path: Path
         frozen_timestamp="2026-08-02T01:00:00Z",
         expires_timestamp="2026-08-03T01:00:00Z",
         source_commit="a" * 40,
+        security_group_id="sg-0123456789abcdef0",
     )
 
     assert plan["action_id"] == "step7b-aws-builder-008"
     assert plan["source_commit"] == "a" * 40
+    assert plan["instance"]["security_group_id"] == "sg-0123456789abcdef0"
     assert plan["archive"]["sha256"] == hashlib.sha256(b"fresh archive").hexdigest()
     assert plan["archive"]["size_bytes"] == len(b"fresh archive")
     assert "step7b-aws-builder-008" in plan["archive"]["s3_uri"]
