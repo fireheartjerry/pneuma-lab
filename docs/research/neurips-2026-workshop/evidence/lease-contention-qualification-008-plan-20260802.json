@@ -1,0 +1,59 @@
+{
+  "account_id": "892077329800",
+  "action_class": "qualification_audit",
+  "action_id": "lease-contention-008",
+  "attempt_count": 32,
+  "cli_timeout_seconds": 30,
+  "condition_expression": "attribute_not_exists(lease_key)",
+  "cost_ceiling_usd": 0.25,
+  "executor_sha256": "8bb35ed80f4141ca2fa7a4f9ff5221b2ef7a54aa5549f5895c78272399fe1c10",
+  "execution_profile": "default",
+  "expires_timestamp": "2026-08-03T02:00:00Z",
+  "forbidden": [
+    "batch_submission",
+    "benchmark_execution",
+    "experiment_execution",
+    "gpu_use",
+    "model_download",
+    "pilot",
+    "registry_push",
+    "scientific_unblind",
+    "training"
+  ],
+  "frozen_timestamp": "2026-08-02T17:57:06Z",
+  "input_lock_sha256": null,
+  "key_registry_path": "fixtures/cloud/approver-key-registry.json",
+  "lease_expires_epoch": 1785694026,
+  "lease_key": "runs/preparation/lease-contention-008-20260802-9fa2b8",
+  "max_concurrency": 32,
+  "max_retries": 0,
+  "operations": [
+    "STS GetCallerIdentity read-only account check",
+    "DynamoDB DescribeTable read-only exact ARN/status check",
+    "DynamoDB GetItem consistent-read exact-key preflight",
+    "DynamoDB Scan select COUNT read-only preflight",
+    "32 concurrent PutItem attempts with one conditional expression and AWS_MAX_ATTEMPTS=1",
+    "DynamoDB GetItem consistent-read exact winner readback",
+    "one conditional DeleteItem exact-key teardown",
+    "DynamoDB GetItem consistent-read exact-key absence readback",
+    "DynamoDB Scan select COUNT read-only final check"
+  ],
+  "plan_sha256": "4f5a440c54d85952295b4cb4a295b436e1fda6600bbaf240fa0bb3702d870b9f",
+  "projected_cost_usd": 0.05,
+  "provider": "aws",
+  "region": "us-east-1",
+  "source_commit": "1710ede567eb2e828fdec02eea4ccb67fe4a4699",
+  "source_script_path": "scripts/research/qualify_dynamodb_lease_contention.py",
+  "table_arn": "arn:aws:dynamodb:us-east-1:892077329800:table/pneuma-c160-leases",
+  "table_name": "pneuma-c160-leases",
+  "teardown": {
+    "condition": "owner = :owner",
+    "final_exact_item_absence_required": true,
+    "no_table_deletion": true,
+    "one_delete_attempt_only": true
+  },
+  "expected": {
+    "conditional_failure_count": 31,
+    "winner_count": 1
+  }
+}
