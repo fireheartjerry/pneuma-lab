@@ -4791,6 +4791,26 @@ The next event after the archived migration boundary is appended below.
   pending provider billing settlement under CL-131/CL-132; no model,
   benchmark, pilot, experiment, or scientific result occurred.
 
+### EJ-20260802-step7b-aws-builder-013-preparation
+
+- **Repair:** action 012 showed that the pinned Docker/BuildKit path could
+  leave build-owned `COPY` and work-directory mtimes host-dependent even when
+  `SOURCE_DATE_EPOCH` and the exporter flag were present. The three role
+  Dockerfiles now normalize `/opt/pneuma` and `/opt` with the sealed epoch
+  before the entrypoint; focused executor/image tests, Ruff, whitespace, and
+  status checks pass.
+- **Candidate:** a fresh `git archive --format=tar HEAD` produced archive
+  `b7587d7166c97f5e8761d02bae3b8b0289d025e5866e15285ce890fbf21ff6f2`
+  (28,815,360 bytes). Plan
+  `41ef38ad1b508aabe32e067c91a6701ac8e47462a43a778316d25bfed17c9019` binds
+  source `99953946e0171b91a4f01e51c97e2c2fac9d16a3`, executor
+  `17e4c43ba34924a79f8219386dbb9b6aa9d2eda5a92f484ed561e04eb4770776`, the
+  fresh no-ingress SG `sg-09037f520fd0c97d8`, and production harness
+  `7fb36e364914187ad4f14845e43f18c00fc05488835604d94fcbd808d57efb4e`.
+- **Boundary:** action 013 is an unsigned zero-retry candidate. No source or
+  plan upload, signature, instance launch, image build, SBOM, role-chain E2E,
+  or scientific execution has occurred in this preparation entry.
+
 ### EJ-20260802-step7b-aws-builder-011-failure
 
 - **Execution:** The one admitted attempt launched exact instance
