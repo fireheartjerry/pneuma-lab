@@ -1,0 +1,14 @@
+{
+  "record_kind": "cloud_preparation_action_retirement",
+  "schema_version": "0.1.0",
+  "action_id": "lease-contention-008",
+  "plan_sha256": "d0cc76144d039af67f4da2960e4594fcbdc84ff33f557f6593b57789cf957d56",
+  "signed_package_sha256": "4e53550025df745e35db44e144b6a53c8c964fa71e1fc8ee95275a348418862e",
+  "state": "retired_without_execution",
+  "reason": "The signed executor assumed missing DynamoDB GetItem returned JSON {}, but this AWS CLI emitted an empty body. The mismatch was discovered during read-only final-state verification before the executor was invoked.",
+  "provider_mutation_occurred": false,
+  "target_table_mutation_occurred": false,
+  "model_benchmark_pilot_or_experiment_occurred": false,
+  "successor_required": true,
+  "successor_repair": "Treat an empty successful GetItem body as an empty response object while retaining AWS_MAX_ATTEMPTS=1 and exact teardown gates."
+}

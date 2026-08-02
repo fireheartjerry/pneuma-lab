@@ -72,6 +72,8 @@ def _run_aws(plan: dict[str, Any], command: list[str]) -> dict[str, Any]:
 def _json(result: dict[str, Any]) -> dict[str, Any]:
     if result.get("return_code") != 0:
         raise QualificationError("AWS read or mutation returned a non-zero status")
+    if not result["stdout"].strip():
+        return {}
     try:
         return json.loads(result["stdout"].decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
