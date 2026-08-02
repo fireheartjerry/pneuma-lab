@@ -6,12 +6,12 @@ phases:
       - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "$REPOSITORY_URI"
   build:
     commands:
-      - docker build --pull=false --build-arg "SOURCE_COMMIT=$SOURCE_COMMIT" --tag "$REPOSITORY_URI:$IMAGE_TAG" .
+      - docker build --pull=false --build-arg "SOURCE_COMMIT=$SOURCE_COMMIT" --file infra/docker/qualification-worker/Dockerfile --tag "$REPOSITORY_URI:$IMAGE_TAG" .
   post_build:
     commands:
       # CodeBuild has no GPU. Validate that the shipped entrypoint compiles;
       # CUDA capability is exercised only by the separately authorized L40S smoke.
-      - docker run --rm --entrypoint python3 "$REPOSITORY_URI:$IMAGE_TAG" -m py_compile /opt/pneuma/qualification_entrypoint.py
+      - docker run --rm --entrypoint python3 "$REPOSITORY_URI:$IMAGE_TAG" -m py_compile /opt/pneuma/pneuma_lab/cloud/fixed_admission_probe.py /opt/pneuma/pneuma_lab/cloud/dual_worker_admission_probe.py
       - docker push "$REPOSITORY_URI:$IMAGE_TAG"
       - IMAGE_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "$REPOSITORY_URI:$IMAGE_TAG" | sed 's/^.*@//')"
       - test -n "$IMAGE_DIGEST"

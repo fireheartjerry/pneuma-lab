@@ -5865,3 +5865,22 @@ The next event after the archived migration boundary is appended below.
   Terraform fmt/validate, status coherence, and whitespace checks passed.
 - **Boundary:** No authentication, plan, apply, job submission, AWS call,
   GPU/model execution, benchmark, pilot, or scientific work occurred.
+
+### EJ-20260802-ephemeral-runner-executable-repair
+
+- **Implementation:** Moved the dual-worker probe into the importable cloud
+  package and retained only a compatibility wrapper under `scripts/`. The
+  qualification image now copies the package and dispatches the fixed probe
+  from its immutable ENTRYPOINT; Batch supplies an empty command. The probe
+  arms a 3,500-second in-process watchdog and writes `worker-0`/`worker-1`
+  index-derived raw evidence paths. Terraform restores 60,000 MiB, binds an
+  explicit `qualification_action_id` in every qualification tag, and keeps
+  the signed action ID separate from the resource name.
+- **Runner:** Added inert-by-default CLI wiring, injectable Terraform/AWS CLI
+  adapters, exact saved-plan-byte hashing and apply, read-only Spot pricing
+  projection, real submit/describe/download/absence command sequences, dual
+  evidence collection, and mandatory disable/drain → destroy → absence order.
+- **Validation:** Focused fake-subprocess tests, Ruff, Terraform fmt/validate,
+  status coherence, and whitespace checks passed. No authentication, plan,
+  apply, build, push, AWS call, job, GPU, model, benchmark, pilot, or
+  scientific work occurred.

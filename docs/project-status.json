@@ -722,6 +722,9 @@
                 "tests/cloud/test_ephemeral_qualification.py",
                 "src/pneuma_lab/cloud/ephemeral_runner.py",
                 "src/pneuma_lab/cloud/fixed_admission_probe.py",
+                "src/pneuma_lab/cloud/dual_worker_admission_probe.py",
+                "scripts/research/run_ephemeral_dual_worker_qualification.py",
+                "infra/docker/qualification-worker/Dockerfile",
                 "tests/cloud/test_ephemeral_runner.py"
             ],
             "blockers": [

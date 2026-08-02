@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
+from pathlib import Path
+import subprocess
+import json
 
 import pytest
 
 from pneuma_lab.cloud.ephemeral_runner import (
     EXPECTED_RESOURCE_ADDRESSES,
     RunnerConfig,
+    AwsCliAdapter,
+    TerraformAdapter,
     execute,
     require_account_plan,
     terraform_mutation_commands,
@@ -18,6 +24,7 @@ def account_plan() -> dict[str, object]:
     return {
         "plan_sha256": "a" * 64,
         "spend_history_sha256": "b" * 64,
+        "qualification_action_id": "qual-1",
         "resource_changes": [
             {"address": address, "actions": ["create"]}
             for address in sorted(EXPECTED_RESOURCE_ADDRESSES)
@@ -33,10 +40,15 @@ def account_plan() -> dict[str, object]:
 @dataclass
 class FakeProvider:
     calls: list[str] = field(default_factory=list)
+    projection: float = 99.0
 
     def preflight(self, tags):
         self.calls.append("preflight")
         return {"ok": True}
+
+    def pricing_projection(self, *, worker_seconds):
+        self.calls.append("pricing")
+        return self.projection
 
     def submit_array(self, *, size, timeout_seconds, attempts, tags):
         self.calls.append(f"submit:{size}:{timeout_seconds}:{attempts}")
@@ -88,7 +100,7 @@ def authority(*args, **kwargs):
 def test_runner_verifies_authority_then_submits_one_array_and_tears_down() -> None:
     provider, terraform = FakeProvider(), FakeTerraform()
     result = execute(
-        RunnerConfig("qual-1", "us-east-1", 99.0),
+        RunnerConfig("qual-1", "us-east-1"),
         envelope={},
         admission={},
         key_registry={},
@@ -100,6 +112,7 @@ def test_runner_verifies_authority_then_submits_one_array_and_tears_down() -> No
     )
     assert result["qualification_only"] is True
     assert provider.calls == [
+        "pricing",
         "preflight",
         "submit:2:3600:1",
         "collect",
@@ -116,7 +129,7 @@ def test_invalid_account_plan_fails_before_provider_or_terraform_mutation() -> N
     bad["resource_changes"] = bad["resource_changes"][:-1]
     with pytest.raises(CloudManifestError):
         execute(
-            RunnerConfig("qual-1", "us-east-1", 99.0),
+            RunnerConfig("qual-1", "us-east-1"),
             envelope={},
             admission={},
             key_registry={},
@@ -131,9 +144,10 @@ def test_invalid_account_plan_fails_before_provider_or_terraform_mutation() -> N
 
 def test_cost_bound_and_recovery_are_fail_closed() -> None:
     provider, terraform = FakeProvider(), FakeTerraform()
+    provider.projection = 100.01
     with pytest.raises(CloudManifestError):
         execute(
-            RunnerConfig("qual-1", "us-east-1", 100.01),
+            RunnerConfig("qual-1", "us-east-1"),
             envelope={},
             admission={},
             key_registry={},
@@ -145,7 +159,7 @@ def test_cost_bound_and_recovery_are_fail_closed() -> None:
         )
     with pytest.raises(CloudManifestError):
         execute(
-            RunnerConfig("qual-1", "us-east-1", 100.0),
+            RunnerConfig("qual-1", "us-east-1"),
             envelope={},
             admission={},
             key_registry={},
@@ -173,7 +187,7 @@ def test_apply_failure_still_attempts_destroy_and_absence_readback() -> None:
     terraform.apply = fail_apply  # type: ignore[method-assign]
     with pytest.raises(CloudManifestError, match="qualification failed closed"):
         execute(
-            RunnerConfig("qual-1", "us-east-1", 99.0),
+            RunnerConfig("qual-1", "us-east-1"),
             envelope={},
             admission={},
             key_registry={},
@@ -194,3 +208,57 @@ def test_account_plan_rejects_non_qualification_resource() -> None:
     ]
     with pytest.raises(CloudManifestError):
         require_account_plan(bad)
+
+
+def test_terraform_adapter_hashes_exact_plan_and_applies_that_path(
+    tmp_path: Path,
+) -> None:
+    plan_path = tmp_path / "saved.tfplan"
+    plan_path.write_bytes(b"exact-plan-bytes")
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        if argv[2] == "show":
+            payload = account_plan()
+            return subprocess.CompletedProcess(
+                argv, 0, json.dumps(payload).encode(), b""
+            )
+        return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+    adapter = TerraformAdapter(run)
+    plan = adapter.load_account_plan(plan_path)
+    assert plan["plan_sha256"] == hashlib.sha256(b"exact-plan-bytes").hexdigest()
+    adapter.apply(lock_timeout="60s", tags={})
+    assert calls[0][2:4] == ["show", "-json"]
+    assert str(plan_path) in calls[1]
+    assert "-lock=false" not in calls[1]
+
+
+def test_aws_adapter_submission_is_one_tagged_size_two_array() -> None:
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, b'{"jobId":"parent"}', b"")
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="q",
+        job_definition="d",
+        output_root="s3://bucket/run",
+    )
+    assert (
+        adapter.submit_array(
+            size=2,
+            timeout_seconds=3600,
+            attempts=1,
+            tags={"QualificationAction": "qual-1"},
+        )
+        == "parent"
+    )
+    command = " ".join(calls[0])
+    assert '--array-properties {"size":2}' in command
+    assert '--retry-strategy {"attempts":1}' in command
+    assert "qual-1" in command

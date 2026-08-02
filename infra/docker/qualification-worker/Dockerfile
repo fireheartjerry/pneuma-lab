@@ -31,6 +31,9 @@ ENV PYTHONHASHSEED=0 \
     PNEUMA_SIMULATOR_MODEL=Qwen/Qwen3.5-9B \
     PNEUMA_SIMULATOR_REVISION=c202236235762e1c871ad0ccb60c8ee5ba337b9a
 
-COPY qualification_entrypoint.py /opt/pneuma/qualification_entrypoint.py
-ENTRYPOINT ["python3", "/opt/pneuma/qualification_entrypoint.py"]
-CMD ["inspect"]
+# Ship the importable package, including the fixed two-rung admission probe.
+# The image itself selects qualification mode; Batch supplies no alternate
+# command and therefore cannot dispatch a scientific workload.
+COPY src/pneuma_lab /opt/pneuma/pneuma_lab
+ENV PYTHONPATH=/opt/pneuma
+ENTRYPOINT ["python3", "-m", "pneuma_lab.cloud.fixed_admission_probe"]

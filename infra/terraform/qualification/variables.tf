@@ -7,6 +7,14 @@ variable "name_prefix" {
   type = string
 }
 
+variable "qualification_action_id" {
+  type = string
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]{2,79}$", var.qualification_action_id))
+    error_message = "qualification_action_id must be the signed action identifier."
+  }
+}
+
 variable "ami_id" {
   type = string
 }

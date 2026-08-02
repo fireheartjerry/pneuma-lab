@@ -18,7 +18,7 @@ locals {
     QualificationPurpose   = "dual-l40s-admission-only"
     QualificationTopology  = "two-g6e-2xlarge-l40s"
     QualificationManagedBy = "pneuma-ephemeral-runner-v1"
-    QualificationAction    = var.name_prefix
+    QualificationAction    = var.qualification_action_id
   }
 }
 
@@ -70,10 +70,12 @@ resource "aws_batch_job_definition" "worker" {
     resourceRequirements = [
       { type = "GPU", value = "1" },
       { type = "VCPU", value = "8" },
+      { type = "MEMORY", value = "60000" },
     ]
     # This image-bound adapter invokes the fixed two-rung probe and binds the
     # Batch array index to worker 0 or 1. Ref:: is resolved by Batch per child.
-    command = ["python", "-m", "pneuma_lab.cloud.fixed_admission_probe"]
+    # The immutable image ENTRYPOINT already dispatches fixed admission mode.
+    command = []
     environment = [
       { name = "QUALIFICATION_MODEL", value = var.qualification_model },
       { name = "QUALIFICATION_MODEL_REVISION", value = var.qualification_model_revision },
@@ -82,7 +84,7 @@ resource "aws_batch_job_definition" "worker" {
       { name = "QUALIFICATION_AUTHORIZATION", value = var.authorization_path },
       { name = "QUALIFICATION_IMAGE", value = var.image_path },
       { name = "QUALIFICATION_INPUT_LOCK", value = var.input_lock_path },
-      { name = "QUALIFICATION_OUTPUT", value = var.output_path },
+      { name = "QUALIFICATION_OUTPUT_ROOT", value = var.output_path },
     ]
   })
 

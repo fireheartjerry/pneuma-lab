@@ -77,6 +77,24 @@ def test_ephemeral_stack_has_destroyable_watchdog_and_no_retry_contract() -> Non
     assert 'allocation_strategy = "SPOT_PRICE_CAPACITY_OPTIMIZED"' in text
     assert "attempt_duration_seconds = 3600" in text
     assert "attempts = 1" in text
-    assert "pneuma_lab.cloud.fixed_admission_probe" in text
-    assert "qualification-entrypoint" not in text
+    dockerfile = (ROOT / "infra/docker/qualification-worker/Dockerfile").read_text()
+    assert "pneuma_lab.cloud.fixed_admission_probe" in dockerfile
+    assert "qualification-entrypoint" not in dockerfile
     assert "prevent_destroy" not in text
+
+
+def test_image_and_batch_command_bind_fixed_probe_and_distinct_outputs() -> None:
+    dockerfile = (ROOT / "infra/docker/qualification-worker/Dockerfile").read_text()
+    hcl = (ROOT / "infra/terraform/qualification/main.tf").read_text()
+    adapter = (ROOT / "src/pneuma_lab/cloud/fixed_admission_probe.py").read_text()
+    probe = (ROOT / "src/pneuma_lab/cloud/dual_worker_admission_probe.py").read_text()
+    assert "COPY src/pneuma_lab /opt/pneuma/pneuma_lab" in dockerfile
+    assert (
+        'ENTRYPOINT ["python3", "-m", "pneuma_lab.cloud.fixed_admission_probe"]'
+        in dockerfile
+    )
+    assert "command = []" in hcl
+    assert 'value = "60000"' in hcl
+    assert "qualification_action_id" in hcl
+    assert "worker-{raw_index}" in adapter
+    assert "_WATCHDOG_SECONDS = 3500" in probe
