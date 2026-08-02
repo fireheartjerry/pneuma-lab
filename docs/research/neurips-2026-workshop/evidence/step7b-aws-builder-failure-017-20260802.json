@@ -1,0 +1,123 @@
+{
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED_NO_RETRY",
+  "action_id": "step7b-aws-builder-017",
+  "admission_package_sha256": "5de8ae4453e71c79e1b31523584a2845e408b12797ca883436471b26668cfba4",
+  "plan_sha256": "5ce31bbc9485e2b5a1d23568390ebf5331ddf852be4b38ec3b282874408b365c",
+  "source_commit": "fdd0b6ee7ec250f4a055d5ea04115b913a9cbf41",
+  "failure_reason": "All three roles completed reproducible double-builds, positive probes, wrong-harness fail-closed probes, and non-empty SPDX SBOMs. The image-bound production-surface subprocess then failed closed before writing any handshake receipt: run_production_surface_e2e.py appended a role argument after each image reference even though the sealed image ENTRYPOINT already contains that role, so the container received a duplicate positional role and exited. No production-surface handshake, model, benchmark, pilot, or experiment occurred.",
+  "diagnosis": {
+    "executor_trace": "CalledProcessError from run_production_surface_e2e.py while invoking the image-bound production-surface command",
+    "sealed_entrypoint_contract": "Each role Dockerfile ENTRYPOINT is [python3, -m, pneuma_lab.cloud.production_runtime, <role>]",
+    "faulty_argument_shape": "<image> <role> --protocol e2e",
+    "repair_commit": "8f187e2f8e8674afa48dbe9342edce7367d577e9",
+    "repair": "The image launcher now relies on the sealed ENTRYPOINT and passes only --protocol e2e and its sealed arguments."
+  },
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-017/plan.json",
+      "version_id": "_FXabXhHMPEWJluhsT6gulI5qMKRQSAK",
+      "sha256": "32090c62cdc53732dee1014b5b8be2c6510bdee134eb22345ac521ee2b8248e8"
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-017/source.tar",
+      "version_id": "KcAjUzdGYn3hJwlf8QVFkYcKkPViPJjF",
+      "sha256": "520badd293e94dfb557e8a8913415b13ce0237c9065cc3b2bc850ac9c1c042b3",
+      "size_bytes": 28907520
+    },
+    "admission_package": {
+      "key": "runs/preparation/step7b-aws-builder-017/admission-package.json",
+      "version_id": "uR5eflRlBHqE3li9c26ZHvzPC_CLoug9",
+      "sha256": "5de8ae4453e71c79e1b31523584a2845e408b12797ca883436471b26668cfba4"
+    }
+  },
+  "instance": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "instance_id": "i-01f32a96fcc9c2c29",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-02T04:56:29Z",
+    "terminal_state": "terminated",
+    "root_volume_id": "vol-069513aaab0e1ef3f",
+    "root_volume_state": "InvalidVolume.NotFound",
+    "security_group_id": "sg-0fa80f9418264fc47",
+    "security_group_state": "InvalidGroup.NotFound",
+    "terminated_timestamp": "2026-08-02T06:18:40Z"
+  },
+  "rendered_user_data_sha256": "92b30150609bf0f68fc7476ab1bc6c84a6ef1937b378a1aac9f9785963fbd2a9",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/step7b-aws-builder-017/outputs/",
+  "output_artifacts": {
+    "bootstrap_status": {
+      "key": "runs/preparation/step7b-aws-builder-017/outputs/bootstrap-status.json",
+      "version_id": "hSVTrhUGLZzlmuQEU8CM_DAWzAFnuVnB",
+      "size_bytes": 46,
+      "sha256": "f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7"
+    },
+    "bootstrap_log": {
+      "key": "runs/preparation/step7b-aws-builder-017/outputs/bootstrap.log",
+      "version_id": "xD_QFQ1PWIQJkShtWwqkNC8IV_Yaddih",
+      "size_bytes": 48397,
+      "sha256": "3d6168c4c63d127a004b5f9e6570c2a7fef00a1d0b29036499e047307bf69039"
+    },
+    "buildx_builder": {
+      "key": "runs/preparation/step7b-aws-builder-017/outputs/buildx-builder.txt",
+      "version_id": "aj0GP5zBw8KDuZduAxXCJ9mC3fGoeJnT",
+      "size_bytes": 1335,
+      "sha256": "e9852f611c2a6870378adec7f9f1bb0895db10a0e29b3dbba3289170de9f08cb"
+    },
+    "buildx_version": {
+      "key": "runs/preparation/step7b-aws-builder-017/outputs/buildx-version.txt",
+      "version_id": "K4fTdfPi378.M8n1opmoGypGYaDvFoaA",
+      "size_bytes": 74,
+      "sha256": "b4bf86bfe454ff406daca442a45f72b3070388bff27ecf83fcb58643e52635a9"
+    },
+    "step7b_build_receipts": {
+      "key": "runs/preparation/step7b-aws-builder-017/outputs/step7b-build-receipts.json",
+      "version_id": "wRFQ4JDQf3KlgyQnRd13Hxi4ACXOShg2",
+      "size_bytes": 3232,
+      "sha256": "e8e70bc1eeb1276ce04ff99f85f11bbc8a0105bbe700cd79b969fc49ed42ce4b"
+    },
+    "production_surface_harness": {
+      "key": "runs/preparation/step7b-aws-builder-017/outputs/production-surface-harness.json",
+      "version_id": "aKVcMhvt9rlCSq1Od4UkYM7PvrfQTCIg",
+      "size_bytes": 350,
+      "sha256": "01c9a670e40429b61172a9c4c9890d2fd5424f331051db1bf926e1a23258253f"
+    },
+    "controller_sbom": {
+      "key": "runs/preparation/step7b-aws-builder-017/outputs/controller.spdx.json",
+      "version_id": "wDMfUTOJWm0XvcbW3g8LaHDAhq8lkRr5",
+      "size_bytes": 25296943,
+      "sha256": "52dcd58f5df3caca97f1825a433d49ed887f49dbf3f40715b482b9b5299a9bcd"
+    },
+    "model_server_sbom": {
+      "key": "runs/preparation/step7b-aws-builder-017/outputs/model-server.spdx.json",
+      "version_id": "G3lcO1YYntRlUvb8.ltERe0bolGhbXZm",
+      "size_bytes": 25300521,
+      "sha256": "31cf62e79c06c3461f3e311e5b53465c02f87f0effc18c2aab647db53c691a8a"
+    },
+    "benchmark_worker_sbom": {
+      "key": "runs/preparation/step7b-aws-builder-017/outputs/benchmark-worker.spdx.json",
+      "version_id": "UyJXziJLT2wRYlW8HbprGGJIR76oFoy2",
+      "size_bytes": 25307677,
+      "sha256": "2411a210601443b00c3f60d7bf6bec48925449eeae9f931e7c599051d690ccf4"
+    }
+  },
+  "partial_results": {
+    "bootstrap": "ROLE_BUILDS_AND_SBOMS_COMPLETE",
+    "buildx": "v0.13.1_VERIFIED",
+    "buildkit": "v0.13.2_VERIFIED",
+    "controller": "REPRODUCIBLE_AND_PROBED",
+    "model-server": "REPRODUCIBLE_AND_PROBED",
+    "benchmark-worker": "REPRODUCIBLE_AND_PROBED",
+    "production_surface": "FAILED_DUPLICATE_ENTRYPOINT_ROLE_ARGUMENT",
+    "scientific_execution": "NOT_RUN"
+  },
+  "teardown": {
+    "instance_termination_verified": true,
+    "root_volume_absence_verified": true,
+    "security_group_no_eni_verified": true,
+    "security_group_deletion_verified": true,
+    "verification_timestamp": "2026-08-02T06:18:40Z"
+  }
+}

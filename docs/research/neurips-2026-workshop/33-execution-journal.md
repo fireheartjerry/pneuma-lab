@@ -5079,3 +5079,32 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** Action 017 is an unsigned zero-retry candidate. No source or
   plan upload, signature, instance launch, image build, SBOM, role-chain E2E,
   or scientific execution has occurred in this preparation entry.
+
+### EJ-20260802-step7b-aws-builder-017-failure
+
+- **Execution:** The single admitted attempt launched exact instance
+  `i-01f32a96fcc9c2c29` (`m7i.xlarge`, 650 GiB encrypted gp3 root) from
+  rendered user-data SHA-256
+  `92b30150609bf0f68fc7476ab1bc6c84a6ef1937b378a1aac9f9785963fbd2a9`.
+- **Qualification progress:** Pinned Buildx `v0.13.1` and BuildKit `v0.13.2`
+  were verified. Controller, model-server, and benchmark-worker each produced
+  identical double-build image IDs, positive and wrong-harness fail-closed
+  probes, and non-empty SPDX SBOMs. Their receipt and artifact hashes are
+  sealed in `evidence/step7b-aws-builder-failure-017-20260802.json`.
+- **Failure:** The image-bound production-surface subprocess failed before the
+  first controller handshake. Its command appended `<role>` after the image
+  reference even though every sealed image ENTRYPOINT already contains its
+  role, producing a duplicate positional argument. No production-surface
+  receipt, model execution, benchmark episode, pilot, experiment, or scientific
+  result occurred. The repair is committed as `8f187e2f8e8674afa48dbe9342edce7367d577e9`;
+  action 017 remains exhausted with zero retries.
+
+### EJ-20260802-step7b-aws-builder-017-teardown
+
+- The host self-terminated at `2026-08-02T06:18:40Z`; fresh provider reads show
+  encrypted root `vol-069513aaab0e1ef3f` as `InvalidVolume.NotFound`. The
+  temporary security group `sg-0fa80f9418264fc47` had no ENI dependencies,
+  was deleted after the terminated/no-ENI check, and then returned
+  `InvalidGroup.NotFound`. No action-tagged resource remains.
+- The projected USD 2.25 is recorded as pending provider billing settlement
+  under CL-151/CL-152; no scientific work occurred.
