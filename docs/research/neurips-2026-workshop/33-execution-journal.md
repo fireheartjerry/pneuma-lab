@@ -5835,3 +5835,17 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** This corrects operational provenance only. It changes no
   AWS observation, Terraform plan, provider state, scientific evidence,
   authorization, or launch disposition.
+
+### EJ-20260802-ephemeral-qualification-path-implementation
+
+- **Implementation:** Added a separate destroyable Terraform qualification
+  stack for exactly two `g6e.2xlarge` Spot workers, with a 16-vCPU
+  `SPOT_PRICE_CAPACITY_OPTIMIZED` ceiling, one-GPU/eight-vCPU job resources,
+  a 3,600-second attempt timeout, and one attempt (zero retries). Added
+  provider-free admission/watchdog/cost/teardown gates and focused regressions
+  for cardinality, timeout, USD 100 ceiling, and post-destroy absence.
+- **Validation:** Terraform fmt/validate, the focused cloud tests, status
+  checker, and `git diff --check` passed. No apply, AWS resource, GPU, model,
+  benchmark, pilot, P0/Step 4B lineage, unblind, or scientific claim occurred.
+- **Boundary:** This is implementation evidence only; the main experiment
+  Terraform stack and its `prevent_destroy` lifecycle were not changed.

@@ -715,7 +715,11 @@
                 "docs/research/neurips-2026-workshop/evidence/step5b-c120-g-roster-final-20260801/closure.json",
                 "docs/research/neurips-2026-workshop/evidence/step5b-c120-g-roster-final-20260801/isolation-receipt.json",
                 "docs/research/neurips-2026-workshop/evidence/step5b-lifecycle-live-receipt-20260801.json",
-                "docs/research/neurips-2026-workshop/evidence/throughput-001-20260801/verification.json"
+                "docs/research/neurips-2026-workshop/evidence/throughput-001-20260801/verification.json",
+                "docs/research/neurips-2026-workshop/57-ephemeral-dual-worker-qualification.md",
+                "infra/terraform/qualification/main.tf",
+                "src/pneuma_lab/cloud/ephemeral_qualification.py",
+                "tests/cloud/test_ephemeral_qualification.py"
             ],
             "blockers": [
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",

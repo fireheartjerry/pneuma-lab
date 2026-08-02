@@ -20,7 +20,7 @@ def protocol() -> dict:
         "rungs": ["l40s-tp1-32768", "l40s-tp1-65536"],
         "max_cost_usd": 25.0,
         "max_runtime_minutes": 60,
-        "max_retries": 2,
+        "max_retries": 0,
         "max_samples": 20,
         "worker_count": 2,
         "worker_vcpus": 8,

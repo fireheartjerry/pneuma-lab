@@ -18,7 +18,7 @@ def protocol() -> dict:
         "schema_version": "0.2.0",
         "max_cost_usd": 25.0,
         "max_runtime_minutes": 60,
-        "max_retries": 2,
+        "max_retries": 0,
         "max_samples": 20,
         "worker_count": 2,
         "worker_vcpus": 8,
