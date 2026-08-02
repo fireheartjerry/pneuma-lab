@@ -1,0 +1,50 @@
+{
+  "account_id": "892077329800",
+  "action_class": "qualification_audit",
+  "action_id": "lease-contention-cleanup-010",
+  "cli_timeout_seconds": 30,
+  "cost_ceiling_usd": 0.25,
+  "executor_sha256": "cde65f8f2aa44721c92103787239f00e400375d64be708ec5966ea1715479f7d",
+  "execution_profile": "default",
+  "expires_timestamp": "2026-08-03T03:00:00Z",
+  "forbidden": [
+    "batch_submission",
+    "benchmark_execution",
+    "experiment_execution",
+    "gpu_use",
+    "model_download",
+    "pilot",
+    "registry_push",
+    "scientific_unblind",
+    "training"
+  ],
+  "frozen_timestamp": "2026-08-02T18:08:25Z",
+  "expected_owner": "lease-contention-009-worker-03",
+  "input_lock_sha256": null,
+  "key_registry_path": "fixtures/cloud/approver-key-registry.json",
+  "lease_key": "runs/preparation/lease-contention-009-20260802-4c8d1e",
+  "max_retries": 0,
+  "operations": [
+    "STS GetCallerIdentity read-only account check",
+    "DynamoDB DescribeTable read-only exact ARN/status check",
+    "DynamoDB GetItem consistent-read exact target/owner/action check",
+    "one conditional DeleteItem using the exact owner and AWS_MAX_ATTEMPTS=1",
+    "DynamoDB GetItem consistent-read exact-key absence readback",
+    "DynamoDB Scan select COUNT read-only final check"
+  ],
+  "plan_sha256": "eb9f6ea9c938effc4604a4705d955e25ba9827efe64bc95fbd2eba7fcf343e2a",
+  "projected_cost_usd": 0.05,
+  "provider": "aws",
+  "region": "us-east-1",
+  "source_commit": "0db0425e478c7e054f856d217564a5e200e66e70",
+  "source_script_path": "scripts/research/cleanup_dynamodb_lease_contention.py",
+  "table_arn": "arn:aws:dynamodb:us-east-1:892077329800:table/pneuma-c160-leases",
+  "table_name": "pneuma-c160-leases",
+  "target_action_id": "lease-contention-009",
+  "teardown": {
+    "condition": "#owner = :owner",
+    "final_exact_item_absence_required": true,
+    "no_table_deletion": true,
+    "one_delete_attempt_only": true
+  }
+}
