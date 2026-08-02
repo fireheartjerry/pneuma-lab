@@ -481,6 +481,18 @@ closes only DynamoDB contention/teardown semantics. Batch scheduling/array
 behavior and all scientific gates remain open, and no Task 6–10 lineage or
 claim changed.
 
+**Phase B Step 8 Batch checkpoint (2026-08-02):** A separately signed AWS
+qualification (`batch-array-qualification-014`) created a VALID Fargate
+compute environment and queue, registered a pinned public Alpine digest, and
+submitted one size-three array. Children 0, 1, and 2 each reached `SUCCEEDED`
+with exactly one attempt and the parent reached `SUCCEEDED`; the action then
+disabled/deleted the queue and environment, deregistered the job definition,
+detached/deleted the execution role, deleted the Batch service-linked role, and
+proved final absence. This closes only Batch scheduling/array/teardown
+semantics. It does not authorize a benchmark, model, pilot, experiment, or
+scientific claim; cloud checkpoint restoration and all scientific gates remain
+open.
+
 **Phase B Step 9 checkpoint (2026-07-31):** Local spend/approval/watchdog
 contracts are implementation complete against fixtures only. No real balance,
 price, provider, authorization, or execution was used; no Task 6–10 state or

@@ -555,7 +555,10 @@
                 "docs/research/neurips-2026-workshop/evidence/interruption-qualification-receipt-007-20260802.json",
                 "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json",
                 "docs/research/neurips-2026-workshop/evidence/lease-contention-qualification-009-receipt-20260802.json",
-                "docs/research/neurips-2026-workshop/evidence/lease-contention-cleanup-010-receipt-20260802.json"
+                "docs/research/neurips-2026-workshop/evidence/lease-contention-cleanup-010-receipt-20260802.json",
+                "docs/research/neurips-2026-workshop/evidence/batch-array-qualification-014-plan-20260802.json",
+                "docs/research/neurips-2026-workshop/evidence/batch-array-qualification-014-signed-package-20260802.json",
+                "docs/research/neurips-2026-workshop/evidence/batch-array-qualification-014-receipt-20260802.json"
             ],
             "blockers": [
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
@@ -1005,7 +1008,7 @@
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1, and the Step 7B production surface. The independent action-007 interruption/recovery receipt proves lease expiry observation, controller-renewal denial, watcher termination, exact completed-boundary restoration, and full teardown. The real DynamoDB contention qualification produced exactly one conditional-write winner and 31 conditional losers; its failed delete and separately signed cleanup are sealed in the action-009 and cleanup-010 receipts. Batch scheduling/array semantics and benchmark execution remain unverified; no Batch compute environment or queue exists."
+            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1, and the Step 7B production surface. The independent action-007 interruption/recovery receipt proves lease expiry observation, controller-renewal denial, watcher termination, exact completed-boundary restoration, and full teardown. The real DynamoDB contention qualification produced exactly one conditional-write winner and 31 conditional losers; its failed delete and separately signed cleanup are sealed in the action-009 and cleanup-010 receipts. The real Batch action-014 receipt proves a VALID Fargate environment and queue, a size-three array with child indices 0/1/2 each SUCCEEDED exactly once, a SUCCEEDED parent, and exact IAM/Batch teardown. Benchmark/model execution, scientific lineage, and the remaining cloud parity gates are still unverified; no Batch compute environment or queue remains."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",

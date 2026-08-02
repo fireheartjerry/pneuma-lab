@@ -5724,3 +5724,30 @@ The next event after the archived migration boundary is appended below.
   unblind, training, registry push, or scientific result occurred. The earlier
   parser-bugged action-008 package remains immutable with its retirement receipt;
   no signed package was overwritten.
+
+### EJ-20260802-batch-array-qualification-011-through-014
+
+- **Authority:** Four immutable, KMS-signed action packages were issued in
+  sequence. Actions 011--013 were exhausted without replay after, respectively,
+  a signed plan-key mismatch, parent-terminal polling defect, and a measured
+  300-second Fargate startup timeout. Their signed packages and receipts remain
+  preserved; independent fresh reads prove every predecessor resource absent.
+- **Successful action:** Action 014 plan digest is
+  `920668ddd6b896a9906c1fe348881d696289bd598d2877e5c2013f579f711f79`;
+  signed-package SHA-256 is `d8be2c911b1d1e55c569f17ba5d23f3dc7e88f5d0981623d3ef1369613070852`.
+  The action used the corrected executor and a signed 600-second observation
+  ceiling, with AWS CLI mutation retries fixed at one attempt.
+- **Qualification:** AWS reported a VALID Fargate compute environment and
+  VALID queue. The pinned public Docker Hub Alpine digest ran as a size-three
+  array: children 0, 1, and 2 each reached `SUCCEEDED` with exactly one
+  attempt, and the parent reached `SUCCEEDED`. The receipt is
+  `evidence/batch-array-qualification-014-receipt-20260802.json` with SHA-256
+  `fa6fa4a00c9f5eab815ed43f50e9986a0ead423451eaae52a13e57056840830c`.
+- **Teardown:** All 15 signed mutations succeeded once. The queue and compute
+  environment were disabled/deleted, the job definition was deregistered, the
+  execution policy detached, the execution role deleted, and the Batch
+  service-linked role deletion task returned `SUCCEEDED`; final reads found no
+  Batch environment, queue, active definition, or IAM role.
+- **Boundary:** This was infrastructure semantics evidence only. No model,
+  benchmark, pilot, experiment, unblind, training, registry push, or scientific
+  result occurred, and no Task 6--10 scientific lineage or claim changed.
