@@ -13,6 +13,7 @@ readonly SYFT_SHA256='__SYFT_SHA256__'
 readonly BUILDX_URL='__BUILDX_URL__'
 readonly BUILDX_SHA256='__BUILDX_SHA256__'
 readonly OUTPUT_PREFIX='__OUTPUT_PREFIX__'
+readonly RUNTIME_REQUIREMENTS_SHA256='__RUNTIME_REQUIREMENTS_SHA256__'
 
 mkdir -p /opt/pneuma-step7b/{source,output,tools,syft-tmp}
 export TMPDIR=/opt/pneuma-step7b/syft-tmp
@@ -31,6 +32,7 @@ trap 'fail bootstrap_error' ERR
 # Amazon Linux supplies curl-minimal; requesting the conflicting curl package
 # makes dnf fail before the pinned Buildx/BuildKit toolchain can start.
 dnf install -y docker tar gzip
+dnf install -y python3-pip
 systemctl enable --now docker
 aws --version
 aws sts get-caller-identity --output json > /opt/pneuma-step7b/output/instance-identity.json
@@ -50,6 +52,13 @@ tar -xzf /opt/pneuma-step7b/syft.tar.gz -C /opt/pneuma-step7b/tools syft
 install -m 0755 /opt/pneuma-step7b/tools/syft /usr/local/bin/syft
 command -v syft
 tar -xf /opt/pneuma-step7b/source.tar -C /opt/pneuma-step7b/source
+readonly RUNTIME_REQUIREMENTS_PATH=/opt/pneuma-step7b/source/infra/aws/step7b-runtime-requirements-py39.txt
+printf '%s  %s\n' "$RUNTIME_REQUIREMENTS_SHA256" "$RUNTIME_REQUIREMENTS_PATH" | sha256sum --check --status || fail runtime_dependency_digest_mismatch
+readonly PYTHON_DEPS=/opt/pneuma-step7b/python-deps
+mkdir -p "$PYTHON_DEPS"
+python3 -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: --require-hashes --target "$PYTHON_DEPS" --index-url https://pypi.org/simple -r "$RUNTIME_REQUIREMENTS_PATH"
+export PYTHONPATH="$PYTHON_DEPS:/opt/pneuma-step7b/source/src${PYTHONPATH:+:$PYTHONPATH}"
+python3 -c 'import json, jsonschema; from jsonschema import Draft202012Validator; print(json.dumps({"jsonschema": jsonschema.__version__, "validator": Draft202012Validator.__name__}, sort_keys=True))' > /opt/pneuma-step7b/output/runtime-dependency.json
 timeout --preserve-status 6h python3 /opt/pneuma-step7b/source/scripts/research/run_step7b_builds.py \
     --plan /opt/pneuma-step7b/plan.json \
     --source-root /opt/pneuma-step7b/source \

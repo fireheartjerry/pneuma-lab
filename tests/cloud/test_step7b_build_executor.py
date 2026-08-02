@@ -25,6 +25,7 @@ def _write(path: Path, value: bytes) -> str:
 
 def _plan(root: Path) -> dict:
     runtime = _write(root / "src/pneuma_lab/cloud/production_runtime.py", b"runtime")
+    dependency = _write(root / "infra/aws/step7b-runtime-requirements-py39.txt", b"jsonschema==4.25.1\n")
     roles = {}
     for role in ("controller", "model-server", "benchmark-worker"):
         dockerfile = _write(root / f"infra/docker/{role}/Dockerfile", role.encode())
@@ -48,6 +49,12 @@ def _plan(root: Path) -> dict:
             "image": "moby/buildkit:v0.13.2@sha256:" + "d" * 64,
         },
         "runtime": {"path": "src/pneuma_lab/cloud/production_runtime.py", "sha256": runtime},
+        "runtime_dependency": {
+            "path": "infra/aws/step7b-runtime-requirements-py39.txt",
+            "sha256": dependency,
+            "python": "3.9",
+            "install_target": "/opt/pneuma-step7b/python-deps",
+        },
         "roles": roles,
         "requirements": {
             "forbidden": ["cloud_build", "ecr_push", "gpu_use", "benchmark_execution", "model_download"],
@@ -147,3 +154,27 @@ def test_aws_bootstrap_pins_the_reproducible_builder_client() -> None:
     assert "docker buildx version" in template
     assert "docker/cli-plugins/docker-buildx" in template
     assert "buildx_digest_mismatch" in template
+    assert "dnf install -y python3-pip" in template
+    assert "RUNTIME_REQUIREMENTS_SHA256" in template
+    assert "--require-hashes" in template
+    assert "Draft202012Validator" in template
+
+
+def test_executor_binds_the_provider_runtime_dependency_lock(tmp_path) -> None:
+    plan = _plan(tmp_path)
+    dependency = _write(
+        tmp_path / "infra/aws/step7b-runtime-requirements-py39.txt",
+        b"jsonschema==4.25.1\n",
+    )
+    plan["runtime_dependency"] = {
+        "path": "infra/aws/step7b-runtime-requirements-py39.txt",
+        "sha256": dependency,
+        "python": "3.9",
+        "install_target": "/opt/pneuma-step7b/python-deps",
+    }
+    plan["plan_sha256"] = plan_digest(plan)
+    require_plan(plan, tmp_path)
+    plan["runtime_dependency"]["sha256"] = "0" * 64
+    plan["plan_sha256"] = plan_digest(plan)
+    with pytest.raises(ValueError, match="dependency lock"):
+        require_plan(plan, tmp_path)

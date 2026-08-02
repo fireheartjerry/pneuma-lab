@@ -100,6 +100,14 @@ def require_plan(plan: dict[str, Any], root: Path) -> None:
     runtime = root / plan["runtime"]["path"]
     if not runtime.is_file() or sha256_file(runtime) != plan["runtime"]["sha256"]:
         raise ValueError("sealed runtime bytes are absent or changed")
+    dependency = plan.get("runtime_dependency")
+    if not isinstance(dependency, dict):
+        raise ValueError("sealed provider runtime dependency lock is missing")
+    dependency_path = root / dependency.get("path", "")
+    if not dependency_path.is_file() or sha256_file(dependency_path) != dependency.get("sha256"):
+        raise ValueError("sealed provider runtime dependency lock is absent or changed")
+    if dependency.get("python") != "3.9" or dependency.get("install_target") != "/opt/pneuma-step7b/python-deps":
+        raise ValueError("provider runtime dependency lock is not the sealed Python 3.9 target")
 
 
 def require_free_storage(plan: dict[str, Any], path: Path) -> None:
