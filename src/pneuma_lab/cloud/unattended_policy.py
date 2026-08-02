@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .errors import CloudManifestError
@@ -28,7 +28,7 @@ def _parse_timestamp(value: object, *, field: str) -> datetime:
         raise CloudManifestError(f"{field} must be an RFC3339 timestamp") from exc
     if parsed.tzinfo is None:
         raise CloudManifestError(f"{field} must include a timezone")
-    return parsed.astimezone(UTC)
+    return parsed.astimezone(timezone.utc)
 
 
 def policy_digest(policy: Mapping[str, object]) -> str:
@@ -81,7 +81,7 @@ def admit_unattended_job(
     """
 
     checked = validate_unattended_policy(policy)
-    instant = now.astimezone(UTC)
+    instant = now.astimezone(timezone.utc)
     if checked["status"] != "active" or checked["operator_approval"] is None:
         raise CloudManifestError("unattended policy is not active")
     if not (_parse_timestamp(checked["valid_from"], field="valid_from") <= instant < _parse_timestamp(checked["expires_at"], field="expires_at")):

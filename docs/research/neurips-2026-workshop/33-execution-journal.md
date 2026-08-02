@@ -5326,3 +5326,44 @@ The next event after the archived migration boundary is appended below.
   temporary SG `sg-0c8eb506d362a5d3d` had no ENIs, was deleted once, and the
   post-delete query returned `InvalidGroup.NotFound`. No action-tagged
   resource remains; teardown is sealed in the same failure receipt.
+
+### EJ-20260802-step7b-aws-builder-022-execution
+
+- **Execution:** The one KMS-admitted, zero-retry launch for exact action
+  `step7b-aws-builder-022` succeeded at `2026-08-02T13:04:13Z` as instance
+  `i-0f05e01a0b018753d` (`m7i.xlarge`, private subnet, 650 GiB encrypted
+  delete-on-termination gp3 root). The fresh no-ingress SG, AMI, subnet,
+  worker profile, IMDSv2 settings, quota, and versioned S3 inputs matched the
+  admitted plan. No model, benchmark, pilot, experiment, or scientific result
+  was authorized.
+- **Qualification progress:** The isolated hash-pinned Python 3.9 dependency
+  target imported `jsonschema 4.25.1` and `Draft202012Validator`. Controller,
+  model-server, and benchmark-worker each produced identical double-build
+  image IDs, positive and wrong-hash fail-closed probes, and non-empty SPDX
+  SBOMs. The host published exactly 23 versioned output objects; every object
+  was downloaded and SHA-256 verified.
+
+### EJ-20260802-step7b-aws-builder-022-failure
+
+- **Failure:** The image-bound production-surface command returned code 1
+  before any role container launched. The preserved traceback is an exact
+  Python 3.9 compatibility failure: `ImportError: cannot import name 'UTC'
+  from 'datetime'` at `src/pneuma_lab/cloud/unattended_policy.py:13`.
+  `datetime.UTC` is Python 3.11-only; the sealed provider runtime target is
+  Python 3.9. The image/SBOM/probe partial results remain valid qualification
+  evidence, but no production-surface role receipt or surface receipt exists.
+- **Receipt:** The full object inventory, S3 versions, exact traceback, partial
+  result classification, and launch/teardown bindings are sealed in
+  `evidence/step7b-aws-builder-failure-022-20260802.json`. Action 022 is
+  exhausted with zero retries. The minimal successor repair replaces this
+  stdlib-only use with `timezone.utc`; it must bind a new source archive,
+  plan, admission, and action identity.
+
+### EJ-20260802-step7b-aws-builder-022-teardown
+
+- Fresh AWS root reads at `2026-08-02T14:28:05Z` found the instance terminated,
+  encrypted root `vol-0978bb2c355789d47` absent, and ENI
+  `eni-0a9508a3a3bf4cf52` absent. The temporary SG
+  `sg-039ce59c6ac73e87d` had no instance or ENI dependencies, was deleted once,
+  and the post-delete query returned `InvalidGroup.NotFound`. No action-022
+  resource remains. No successor is admitted yet.
