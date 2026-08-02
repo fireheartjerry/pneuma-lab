@@ -22,6 +22,11 @@ throughput result. A receipt with `p10_throughput=true` must both name that
 exact digest and show a measured p10 at or above its registered floor; a merely
 positive measurement is not a passing admission.
 
+Each worker retains one complete raw measurement object covering both rungs.
+`scripts/research/compile_dual_worker_admissions.py` hashes those exact raw
+bytes, selects only the largest passing registered rung, and emits the two
+typed receipts. It performs no provider or model action.
+
 ## Registered p10 floor
 
 At each tested rung, the p10 of measured output-token throughput must be at

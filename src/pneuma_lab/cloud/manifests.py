@@ -26,6 +26,7 @@ _SCHEMA_BY_KIND = {
     "cloud_production_execution_surface": "cloud-production-execution-surface.schema.json",
     "cloud_retrieval_authorization": "cloud-retrieval-authorization.schema.json",
     "cloud_qualification_audit": "cloud-qualification-audit.schema.json",
+    "cloud_worker_admission_measurement": "cloud-worker-admission-measurement.schema.json",
     "cloud_pilot_admission_receipt": "cloud-pilot-admission-receipt.schema.json",
     "cloud_image_build_receipt": "cloud-image-build-receipt.schema.json",
     "cloud_aws_account_verification": "cloud-aws-account-verification.schema.json",
@@ -126,6 +127,12 @@ def validate_experiment_manifest(record: Mapping[str, Any]) -> dict[str, Any]:
     """Validate an unpromoted experiment manifest bound to an input-lock digest."""
 
     return _validate(record, expected_kind="cloud_experiment_manifest")
+
+
+def validate_worker_admission_measurement(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate one raw worker measurement before it is compiled to a receipt."""
+
+    return _validate(record, expected_kind="cloud_worker_admission_measurement")
 
 
 def validate_pilot_admission_receipt(record: Mapping[str, Any]) -> dict[str, Any]:

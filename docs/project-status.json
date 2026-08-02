@@ -677,7 +677,10 @@
                 "docs/research/neurips-2026-workshop/55-dual-l40s-spot-topology-reconciliation.md",
                 "schemas/cloud-pilot-protocol.schema.json",
                 "src/pneuma_lab/cloud/pilot.py",
-                "tests/cloud/test_pilot.py"
+                "tests/cloud/test_pilot.py",
+                "schemas/cloud-worker-admission-measurement.schema.json",
+                "src/pneuma_lab/cloud/worker_admission.py",
+                "tests/cloud/test_worker_admission.py"
             ],
             "blockers": [
                 "B-NEURIPS-STEP14-REVIEW",

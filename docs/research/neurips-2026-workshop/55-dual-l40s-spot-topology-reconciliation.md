@@ -62,7 +62,8 @@ failed work identifier to another worker under the same action.
 2. Terraform L1 validation and a fresh L3 plan that binds the two-worker Spot
    environment, Spot Fleet role, exact AMI, image, and bootstrap bytes.
 3. One bound OOM/tool-call/output-parity/p10 receipt for each worker index,
-   using the same frozen per-worker rung protocol.
+   compiled from distinct retained raw-measurement bytes using the same frozen
+   per-worker rung protocol.
 4. A no-overlap allocation receipt and interruption/recovery drill over the
    two-worker partition.
 5. A fresh Step 14 hostile review that consumes the revised topology and all

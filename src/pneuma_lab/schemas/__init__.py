@@ -109,6 +109,7 @@ CLOUD_SCHEMA_FILES = (
     "cloud-production-execution-surface.schema.json",
     "cloud-retrieval-authorization.schema.json",
     "cloud-qualification-audit.schema.json",
+    "cloud-worker-admission-measurement.schema.json",
     "cloud-pilot-admission-receipt.schema.json",
     "cloud-image-build-receipt.schema.json",
     "cloud-aws-account-verification.schema.json",

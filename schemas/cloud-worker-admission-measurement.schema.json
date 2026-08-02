@@ -1,0 +1,48 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-worker-admission-measurement.schema.json",
+    "title": "Cloud Worker Admission Measurement",
+    "description": "Raw per-worker, per-rung non-efficacy measurements used to compile a pilot admission receipt; it is neither an authorization nor a scientific result.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "protocol_sha256", "architecture_sha256", "authorization_sha256", "image_sha256", "input_lock_sha256", "code_sha256", "worker_index", "instance_id", "rungs"],
+    "properties": {
+        "record_kind": {"const": "cloud_worker_admission_measurement"},
+        "schema_version": {"const": "0.1.0"},
+        "protocol_sha256": {"$ref": "#/$defs/digest"},
+        "architecture_sha256": {"$ref": "#/$defs/digest"},
+        "authorization_sha256": {"$ref": "#/$defs/digest"},
+        "image_sha256": {"$ref": "#/$defs/digest"},
+        "input_lock_sha256": {"$ref": "#/$defs/digest"},
+        "code_sha256": {"$ref": "#/$defs/digest"},
+        "worker_index": {"enum": [0, 1]},
+        "instance_id": {"type": "string", "pattern": "^i-[0-9a-f]{8,17}$"},
+        "rungs": {
+            "type": "object",
+            "required": ["l40s-tp1-32768", "l40s-tp1-65536"],
+            "properties": {
+                "l40s-tp1-32768": {"$ref": "#/$defs/rung"},
+                "l40s-tp1-65536": {"$ref": "#/$defs/rung"}
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "rung": {
+            "type": "object",
+            "required": ["peak_gpu_memory_gib", "p10_output_tokens_per_second", "tool_call_cases", "tool_call_passes", "output_parity_cases", "output_parity_passes"],
+            "properties": {
+                "peak_gpu_memory_gib": {"type": "number", "minimum": 0},
+                "p10_output_tokens_per_second": {"type": "number", "exclusiveMinimum": 0},
+                "tool_call_cases": {"type": "integer", "minimum": 1},
+                "tool_call_passes": {"type": "integer", "minimum": 0},
+                "output_parity_cases": {"type": "integer", "minimum": 1},
+                "output_parity_passes": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+        }
+    }
+}

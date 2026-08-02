@@ -28,6 +28,7 @@ from .manifests import (
     validate_lease_contention_cleanup_receipt,
     validate_lease_contention_qualification_receipt,
     validate_pilot_admission_receipt,
+    validate_worker_admission_measurement,
 )
 from .qualification import (
     evaluate_roster_gate,
@@ -59,6 +60,11 @@ from .unattended_policy import (
     readable_policy_summary,
     validate_unattended_policy,
 )
+from .worker_admission import (
+    compile_dual_worker_admissions,
+    compile_worker_admission,
+    measurement_evidence_digest,
+)
 
 __all__ = [
     "admit_unattended_job",
@@ -71,10 +77,13 @@ __all__ = [
     "build_retrieval_plan",
     "build_portability_bundle",
     "classify_input_lock",
+    "compile_dual_worker_admissions",
+    "compile_worker_admission",
     "derive_audit",
     "evaluate_roster_gate",
     "envelope_digest",
     "missing_scopes",
+    "measurement_evidence_digest",
     "policy_digest",
     "readable_policy_summary",
     "real_candidate_findings",
@@ -98,6 +107,7 @@ __all__ = [
     "validate_key_registry",
     "validate_licence_audit",
     "validate_pilot_admission_receipt",
+    "validate_worker_admission_measurement",
     "validate_preparation_admission",
     "validate_preparation_envelope",
     "validate_qualification_audit",
