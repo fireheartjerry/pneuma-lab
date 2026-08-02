@@ -5485,3 +5485,18 @@ The next event after the archived migration boundary is appended below.
   ENI, S3 object, model, benchmark, pilot, experiment, or scientific result
   exists. A fresh successor must bind the exact pathless IAM ARN and use the
   same 30 GiB encrypted gp3 root.
+
+### EJ-20260802-interruption-qualification-plan-004-admission
+
+- **Successor:** Action 003 is exhausted and was not retried. Fresh action
+  `interruption-qualification-004` binds the exact pathless watcher role ARN,
+  a new profile/action prefix, the same input lock and template, and the
+  encrypted delete-on-termination gp3 root at exactly 30 GiB. Its canonical
+  plan digest is
+  `9758cf0c5888b4119bb128d6824c47aa3135efd9bd885382666d3c6cdd90ab11`.
+- **Admission:** The KMS-signed package
+  `679700d2cdecda5821c40f2d5e806eed1f2edcb83423d36dd23e74748ccb2b04`
+  binds ledger rows CL-188/CL-189, the active registered Ed25519 approver,
+  zero retries, USD 0.05 projected cost, the current spend history, and
+  expiry `2026-08-03T06:30:00Z`. Offline `require_preparation_admission`
+  passed. No provider action had started at admission.
