@@ -5284,6 +5284,45 @@ The next event after the archived migration boundary is appended below.
   and admission body `18910de33004fc8de74c1182db9ec5c4cebd7bcc426339e477a777a2f8f9c27a`.
   The source, plan, and package were uploaded once and downloaded back with
   exact SHA-256 matches; the final same-channel preflight passed with no
-  action-tagged instance, volume, or ENI. The single launch remains pending.
-  No provider execution, model, benchmark, pilot, experiment, or scientific
-  result occurred in this preparation entry.
+  action-tagged instance, volume, or ENI. The subsequent execution, failure,
+  and teardown are recorded below; this preparation entry itself contains no
+  provider execution, model, benchmark, pilot, experiment, or scientific
+  result.
+
+### EJ-20260802-step7b-aws-builder-021-execution
+
+- **Execution:** The one KMS-admitted, zero-retry launch for exact action
+  `step7b-aws-builder-021` succeeded at `2026-08-02T11:20:33Z` as instance
+  `i-074fad2be31354c50` (`m7i.xlarge`, 650 GiB encrypted delete-on-termination
+  gp3 root). The fresh SG, AMI, subnet, instance profile, IMDSv2 settings,
+  quota, and versioned S3 inputs matched the admitted plan. No model,
+  benchmark, pilot, experiment, or scientific result was authorized.
+- **Qualification progress:** Buildx `v0.13.1` and BuildKit `v0.13.2` were
+  verified. Controller, model-server, and benchmark-worker each produced
+  identical double-build image IDs, positive and wrong-hash fail-closed probes,
+  and non-empty SPDX SBOMs. The host published exactly 22 versioned output
+  objects under the action prefix; all were downloaded and SHA-256 verified.
+
+### EJ-20260802-step7b-aws-builder-021-failure
+
+- **Failure:** The image-bound production-surface command returned code 1
+  before any role container launched. Its preserved stderr is an exact import
+  failure: `ImportError: cannot import name 'Draft202012Validator' from
+  'jsonschema' (/usr/lib/python3.9/site-packages/jsonschema/__init__.py)`.
+  The AMI's system Python has an old `jsonschema`; the repository contract
+  requires `jsonschema>=4.20`. The executor therefore failed closed before
+  writing any controller/model-server/benchmark-worker E2E role receipt or
+  surface receipt.
+- **Receipt:** The complete inventory and diagnosis are sealed in
+  `evidence/step7b-aws-builder-failure-021-20260802.json`. This is a provider
+  runtime dependency failure, not an E2E pass, model execution, benchmark
+  episode, pilot, experiment, or scientific result. Action 021 is exhausted
+  with zero retries; action 022 must bind an isolated, hash-pinned runtime.
+
+### EJ-20260802-step7b-aws-builder-021-teardown
+
+- The host shut down and terminated itself. Fresh root reads at
+  `2026-08-02T12:48:07Z` found the encrypted root volume and ENI absent. The
+  temporary SG `sg-0c8eb506d362a5d3d` had no ENIs, was deleted once, and the
+  post-delete query returned `InvalidGroup.NotFound`. No action-tagged
+  resource remains; teardown is sealed in the same failure receipt.

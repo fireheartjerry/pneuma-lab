@@ -158,14 +158,19 @@ receipt. The 21-object output inventory and independent teardown are sealed in
 replay passes, while the cloud child stderr remains unpreserved. A fresh
 diagnostic action 021 is required; the production-surface gate remains open.
 
-Admitted diagnostic action 021 is prepared from commit `1bb54ab` with fresh
+Admitted diagnostic action 021 was prepared from commit `1bb54ab` with fresh
 no-ingress SG `sg-0c8eb506d362a5d3d`, archive
 `38521fcd...ca93`, and plan digest
 `ebc0bec75480b140df2b12ff72c5eeefc351973d659629b70605207cd43a263b`. Its
-executor will persist the child production-surface return code/stdout/stderr
-before raising. The KMS-signed package and versioned inputs were verified by
-exact download-back hashes, and the final same-channel preflight passed. The
-action remains unexecuted; the single launch is pending.
+executor persisted the child production-surface return code/stdout/stderr
+before raising. The one permitted launch completed all three reproducible
+builds, probes, and SBOMs, then the surface command returned 1 before any role
+container launched because the AMI system Python exposed an old `jsonschema`
+without `Draft202012Validator`. The exact traceback, 22-object inventory, and
+independent teardown are sealed in
+`evidence/step7b-aws-builder-failure-021-20260802.json`; action 021 is
+exhausted with zero retries. A fresh action 022 must bind an isolated,
+hash-pinned runtime dependency and requalify the production surface.
 
 Corrected successor action 015 is prepared but remains an unsigned candidate.
 It binds the repaired curl-minimal-safe bootstrap, source commit

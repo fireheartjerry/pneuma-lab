@@ -1,0 +1,213 @@
+{
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED_NO_RETRY",
+  "action_id": "step7b-aws-builder-021",
+  "admission_package_sha256": "e99ddec60ba9579b24520d761b822e368a2fedc4aa892281d1e86608e9e56d0e",
+  "plan_sha256": "ebc0bec75480b140df2b12ff72c5eeefc351973d659629b70605207cd43a263b",
+  "source_commit": "1bb54ab273ec56d294f72d18a3fc058f80a168fb",
+  "failure_reason": "All three roles completed reproducible double-builds, positive probes, wrong-hash fail-closed probes, and non-empty SPDX SBOMs. The image-bound production-surface subprocess then exited with return code 1 before launching any role container because the AMI system Python exposed a jsonschema module without Draft202012Validator. The diagnostic command receipt preserved the exact ImportError. No production-surface handshake, model, benchmark, pilot, experiment, or scientific result occurred.",
+  "diagnosis": {
+    "executor_trace": "bootstrap.log ends after the three role receipts and the diagnostic run_production_surface_e2e.py invocation; production-surface-command.json records returncode 1, empty stdout, and the complete child traceback.",
+    "cloud_observation": "bootstrap-status.json is FAILED/bootstrap_error; the 22-object inventory contains all three role/SBOM gates, the production-surface harness, and the diagnostic command receipt, but no controller/model-server/benchmark-worker E2E role receipts or surface receipt.",
+    "child_error": "ImportError: cannot import name 'Draft202012Validator' from 'jsonschema' (/usr/lib/python3.9/site-packages/jsonschema/__init__.py).",
+    "root_cause": "The bootstrap installs Docker, tar, and gzip but does not install the repository runtime dependencies or create an isolated Python environment. The AMI's system jsonschema is too old for the repository's pinned jsonschema>=4.20 contract.",
+    "classification": "FAILED_IMAGE_BOUND_E2E_DEPENDENCY_IMPORT_JSONSCHEMA",
+    "local_reproduction": "The failure is provider-environment-specific and was captured before any role container launch; no guessed cloud cause or production-surface result is promoted.",
+    "repair_required": "A fresh successor must bind an isolated runtime with the committed dependency lock, verify jsonschema>=4.20 and Draft202012Validator before the E2E command, and preserve zero-retry authority.",
+    "next_action": "step7b-aws-builder-022, pending a fresh repair, signed admission, and final preflight; action 021 is exhausted."
+  },
+  "partial_results": {
+    "bootstrap": "ROLE_BUILDS_AND_SBOMS_COMPLETE",
+    "buildx": "v0.13.1_VERIFIED",
+    "buildkit": "v0.13.2_VERIFIED",
+    "controller": "REPRODUCIBLE_AND_PROBED",
+    "model-server": "REPRODUCIBLE_AND_PROBED",
+    "benchmark-worker": "REPRODUCIBLE_AND_PROBED",
+    "production_surface": "FAILED_DEPENDENCY_IMPORT_JSONSCHEMA",
+    "e2e_role_receipts": "NONE_WRITTEN",
+    "scientific_execution": "NOT_RUN"
+  },
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/step7b-aws-builder-021/outputs/",
+  "rendered_user_data_sha256": "dc4cbd7645a4f642a5d5b57166d58aa96f12d95cec6dd8ff0d27b211d52b4db8",
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-021/plan.json",
+      "version_id": "dYESPQbKLlzRdNuKEdeZE_2olvufWhst",
+      "sha256": "69627cf80cd36fd1c2edb815de575b0035c407fce27984132b7127f1fca4767a",
+      "size_bytes": 4378
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-021/source.tar",
+      "version_id": "uhSAIOMUxSImWU3sDjM7ZOFt4LnWYwR2",
+      "sha256": "38521fcd4f9fbda0bbb8ad97f5c1a3f2c0b6b785b0e78a2a510ab175f4f1ca93",
+      "size_bytes": 29009920
+    },
+    "admission_package": {
+      "key": "runs/preparation/step7b-aws-builder-021/admission-package.json",
+      "version_id": "9JmT0VmGMflgiTyUNA_11iKtffxBU4MS",
+      "sha256": "e99ddec60ba9579b24520d761b822e368a2fedc4aa892281d1e86608e9e56d0e",
+      "size_bytes": 2381
+    }
+  },
+  "output_artifacts": {
+    "benchmark_worker_harness": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/benchmark-worker-harness.json",
+      "version_id": "22VrwBWBY3poOe1w9EyiU23FtaRdrHb7",
+      "size_bytes": 152,
+      "sha256": "f4ac00ee5da0dea6f93849482650c2583f46d98a16abc5b37d8c0599eb20212f"
+    },
+    "benchmark_worker_positive": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/benchmark-worker-positive.json",
+      "version_id": "M9GOzs0FDIECG1s7Kdme7xzhoIcDuEeL",
+      "size_bytes": 148,
+      "sha256": "ca66326b8454da223454e113b53b50c00c89f78d6a5de4d48e004e36c2aee5ea"
+    },
+    "benchmark_worker_wrong_hash": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/benchmark-worker-wrong-hash.json",
+      "version_id": "wLx0cxi1w10MEMikNmp7P7uqehaIYDDU",
+      "size_bytes": 80,
+      "sha256": "2f90830aa8afef34bdfcbaae655dd5a90c353f57c1daa8d675cc748b06a067d4"
+    },
+    "benchmark_worker_sbom": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/benchmark-worker.spdx.json",
+      "version_id": "pEJyJFN6t9Bq5wM7KztQTF9cMknYzPIK",
+      "size_bytes": 25307677,
+      "sha256": "38f307570105b0bf92eb5918e5ffeab2be4ab14b9a7ba048350ee5dd4021b6ef"
+    },
+    "bootstrap_status": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/bootstrap-status.json",
+      "version_id": "F1vsE50RtBOWoXjjmLoCozk2eAeIqHrg",
+      "size_bytes": 46,
+      "sha256": "f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7"
+    },
+    "bootstrap_log": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/bootstrap.log",
+      "version_id": "zTTkTvw3Y9VfmLvODNRvr7jf1.sUIOds",
+      "size_bytes": 45852,
+      "sha256": "5e347e21626dec6cfe1182977c1d58da1c9513122bd7650a2b639af9f746d10e"
+    },
+    "buildx_builder_stderr": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/buildx-builder-stderr.txt",
+      "version_id": "A.PAgTLW5l3YxxbnDO6IoDB_VSe4i84C",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "buildx_builder": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/buildx-builder.txt",
+      "version_id": "3hC4HV.RlmoZGRbhOHA02uAPaglHMazE",
+      "size_bytes": 1335,
+      "sha256": "4fd0f5222b7c87ad20c3ad51985db6ddad5dce996566e254f639d8b34b45c032"
+    },
+    "buildx_version": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/buildx-version.txt",
+      "version_id": "SHXIc9qO5ntstv0K3wWbndLzUZRzo.NM",
+      "size_bytes": 74,
+      "sha256": "b4bf86bfe454ff406daca442a45f72b3070388bff27ecf83fcb58643e52635a9"
+    },
+    "controller_harness": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/controller-harness.json",
+      "version_id": "4URXe5JiGiyb2HbB8lqu6FC4H0ePB.3Y",
+      "size_bytes": 146,
+      "sha256": "91d1729ee53ab75e1aaa5d48b754ca04d110ac29f99ebbbd9bfd9c643cde2f3f"
+    },
+    "controller_positive": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/controller-positive.json",
+      "version_id": "3ihK581C8kO8KKXqK.VecCu85XZ8N_5g",
+      "size_bytes": 142,
+      "sha256": "ae3a6bb4189f2e6709aad0ed121563f101249542d0efd49fb9b606c106d6e65f"
+    },
+    "controller_wrong_hash": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/controller-wrong-hash.json",
+      "version_id": "qPb3Lw6TaaWlYZ1UZCsnz.yXYevxmPWr",
+      "size_bytes": 74,
+      "sha256": "465d1798a7354fa208d6dcecf59e941620bef6d9d5bf70345fcee4c365accc9e"
+    },
+    "controller_sbom": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/controller.spdx.json",
+      "version_id": "gK.eh4_xfKO5vgzuptHXsXPWWIy5D9SL",
+      "size_bytes": 25296943,
+      "sha256": "4edd861852b1f7b0d533e4be3b7e78b7a8274631306d55ebf2d088c7e6cc7beb"
+    },
+    "docker_info_before_build": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/docker-info-before-build.json",
+      "version_id": "SlmJZ3HRUa2ANkKmrAhsnVrj3uIquPw0",
+      "size_bytes": 1317,
+      "sha256": "73baab6da55d56f056ae1fed4aa40830d4399658f01e6bc76abc9a5899973c7f"
+    },
+    "instance_identity": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/instance-identity.json",
+      "version_id": "phvmEC4mV6XXaDhuj0OuL4q2C1kulMVs",
+      "size_bytes": 185,
+      "sha256": "8c569a6a736517ce2860f46af1987638d69772d23ed14da3f389acaba93ed748"
+    },
+    "model_server_harness": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/model-server-harness.json",
+      "version_id": "qN68Q15oxZQ8_5tHOnMmna7N7qYFNwkl",
+      "size_bytes": 148,
+      "sha256": "2bab08d09475c64fd7bdf86e1f3db515c52123b46fc3c2375348b453affbd1f3"
+    },
+    "model_server_positive": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/model-server-positive.json",
+      "version_id": "XlpR7a_tThizfZCms1x8zNoBCgM5e6kt",
+      "size_bytes": 144,
+      "sha256": "1ad71a6de7826cdfa54bdd79068ee63327f29e26a04da76d40cfdf9e556bc567"
+    },
+    "model_server_wrong_hash": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/model-server-wrong-hash.json",
+      "version_id": "DSNPuH4v.ZAIXDaBIVd5h7HwKyrNZ9ST",
+      "size_bytes": 76,
+      "sha256": "f5af82608e5fa36fa66b05d00d91a94ff0b857b23c764c52d5f87db8430f1189"
+    },
+    "model_server_sbom": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/model-server.spdx.json",
+      "version_id": "Cc.tJoOsiYqsbP5WLZNhFdVoW.VRwib.",
+      "size_bytes": 25300521,
+      "sha256": "eff4dda5378337ca763fbe4906bcaf99f05659b18e13cf4879074ba6b6705879"
+    },
+    "production_surface_command": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/production-surface-command.json",
+      "version_id": "8gEfj27KIaXlzgt9XvE_Ybt96_NV5BRL",
+      "size_bytes": 1816,
+      "sha256": "78a031db60cc7729b6c93df11e60649026a62893b781f150d7d787ac2ab5a140"
+    },
+    "production_surface_harness": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/production-surface-harness.json",
+      "version_id": "TmNGkDYdkKD3ll.v7OI6kZoEy8vuqCzA",
+      "size_bytes": 350,
+      "sha256": "6c07b7f5029ffa2ae97b9f83fc167ff83b0e410b445ab0863c2f74256d6bbf2e"
+    },
+    "step7b_build_receipts": {
+      "key": "runs/preparation/step7b-aws-builder-021/outputs/step7b-build-receipts.json",
+      "version_id": "aezDLVe2cd9oYG0x.YSEKnZsYdShVTmx",
+      "size_bytes": 3232,
+      "sha256": "d7e9fb26ac5b2021f8b76a352252a825e03399699ab7134d684b8e5ccb46f108"
+    }
+  },
+  "instance": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "instance_id": "i-074fad2be31354c50",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-02T11:20:33Z",
+    "private_ip": "172.31.5.175",
+    "public_ip": "98.84.48.102",
+    "network_interface_id": "eni-0d22d00904a87026a",
+    "terminal_state": "terminated",
+    "root_volume_id": "vol-0d35fce5dde81f45c",
+    "root_volume_state": "InvalidVolume.NotFound",
+    "security_group_id": "sg-0c8eb506d362a5d3d",
+    "security_group_state": "InvalidGroup.NotFound",
+    "termination_timestamp": null,
+    "verification_timestamp": "2026-08-02T12:48:07Z"
+  },
+  "teardown": {
+    "instance_termination_verified": true,
+    "root_volume_absence_verified": true,
+    "network_interface_absence_verified": true,
+    "security_group_no_eni_verified": true,
+    "security_group_deletion_verified": true,
+    "verification_timestamp": "2026-08-02T12:48:07Z",
+    "method": "AWS root reads found the instance terminated by instance-initiated shutdown; DescribeVolumes and DescribeNetworkInterfaces returned not-found; a fresh group dependency read found zero ENIs before one DeleteSecurityGroup call, and the post-query returned InvalidGroup.NotFound."
+  }
+}
