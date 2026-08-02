@@ -5692,3 +5692,35 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** No benchmark, model, pilot, experiment, unblind, provider
   action, spend, or scientific result occurred. Synthetic Step 4A artifacts
   were not promoted to power or blinding evidence.
+
+### EJ-20260802-dynamodb-contention-qualification-009-cleanup-010
+
+- **Authority:** A fresh KMS-backed successor plan bound the existing
+  `pneuma-c160-leases` table, region `us-east-1`, account `892077329800`, the
+  exact key `runs/preparation/lease-contention-009-20260802-4c8d1e`, 32
+  concurrent conditional `PutItem` attempts, `AWS_MAX_ATTEMPTS=1`, and one
+  conditional delete. Plan digest is
+  `57f8e854199f6c355000fbf8cda0dfe671089683dfa6eaadf48005c825f24281`;
+  signed package digest is
+  `4423297fe02b658f49e3cb7b567f00b84436190011fb1d219f18142e026fbadf`.
+- **Qualification:** The action produced exactly one successful conditional
+  write (`lease-contention-009-worker-03`) and 31
+  `ConditionalCheckFailedException` losers. Its one delete attempt returned
+  non-zero, so the action was recorded as failed with no retry. The machine
+  receipt is `evidence/lease-contention-qualification-009-receipt-20260802.json`
+  (SHA-256 `2a5c75633925388456620b06f42cd717453525fa57a11b4f3076922d52e2833c`).
+- **Cleanup:** A separate signed cleanup action bound the observed owner and
+  failed-action id. Cleanup plan digest is
+  `eb9f6ea9c938effc4604a4705d955e25ba9827efe64bc95fbd2eba7fcf343e2a`;
+  package digest is
+  `472e66c6ebd2d68c1a113a76e00365ad712d19ab0a3e633b58e2d93891e9b9ab`.
+  The cleanup receipt
+  `evidence/lease-contention-cleanup-010-receipt-20260802.json` (SHA-256
+  `0f835a43ebb57bb98bfbad174c704d4a63c6ddd5ff16c7d2b0770fc1b18b6609`)
+  passes exact owner/action binding, one-delete/no-retry, and consistent-read
+  absence; the table remains ACTIVE and no residual item remains.
+- **Boundary:** This was a bounded infrastructure qualification only. No
+  Batch submission, GPU use, model download, benchmark, pilot, experiment,
+  unblind, training, registry push, or scientific result occurred. The earlier
+  parser-bugged action-008 package remains immutable with its retirement receipt;
+  no signed package was overwritten.
