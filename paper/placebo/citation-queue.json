@@ -1,6 +1,6 @@
 {
     "description": "Citation verification queue for paper/placebo_protocol.tex. Every entry must reach state 'verified' before the paper preflight will pass. An entry in state 'unresolved' is a blocking defect, not a formatting nit: the manuscript makes a prior-art comparison it cannot currently substantiate.",
-    "checked_on": "2026-07-31",
+    "checked_on": "2026-08-02",
     "method": "arXiv export API id_list lookup; titles, author lists, and dates transcribed from the returned Atom feed.",
     "entries": [
         {
@@ -29,16 +29,14 @@
         },
         {
             "key": "try_again_dont_look_back_2026",
-            "state": "unresolved",
-            "identifier": null,
-            "title": "Try Again, Don't Look Back",
-            "cited_for": "closest prior art for the retry-versus-feedback contrast; the manuscript is required to state an explicit delta against it",
-            "note": "Named as a July 2026 paper in the branch directive. Two targeted searches on 2026-07-31 (title-exact, and topical against arxiv.org) returned no matching record, and no local receipt in this repository references it. It is recorded unresolved rather than cited from memory: fabricating a bibliographic record for the paper the work is most directly compared against would be the single worst citation error available. BLOCKING until a primary source is supplied.",
-            "searches_performed": [
-                "\"Try Again, Don't Look Back\" agent verifier feedback paper arXiv 2026",
-                "arxiv July 2026 \"don't look back\" retry resampling baseline LLM agent feedback ablation (allowed_domains: arxiv.org)"
+            "state": "verified",
+            "identifier": "arXiv:2607.26117",
+            "title": "Try Again, Don't Look Back: Blind Resampling Outperforms Self-Repair in Small Code Models",
+            "authors": [
+                "Verma, Yuvraj"
             ],
-            "resolution_required_before": "submission"
+            "cited_for": "closest prior art for the retry-versus-feedback contrast; the manuscript is required to state an explicit delta against it",
+            "note": "Title, sole author, submission date, abstract scope, and arXiv subject classification verified against the primary arXiv record on 2026-08-02: https://arxiv.org/abs/2607.26117."
         }
     ]
 }

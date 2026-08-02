@@ -5596,3 +5596,92 @@ The next event after the archived migration boundary is appended below.
   zero retries, USD 0.05 projected cost, the current spend history, and
   expiry `2026-08-03T06:30:00Z`. Offline `require_preparation_admission`
   passed. No provider action had started at admission.
+
+### EJ-20260802-interruption-qualification-007-execution
+
+- **Admission and network:** Signed action `interruption-qualification-007`
+  used plan digest
+  `2fc5a522c52f07a6ffa002e466b7fef23f018c3f33dc9173e95821e0dd66841d` and
+  package digest `50eaadb53507155a03a9c19348fb8817e208c076c3a070bef05b1fa2e8ce7308`.
+  One DynamoDB gateway endpoint and private-DNS STS/EC2 interface endpoints
+  were created once with the exact least-privilege policies and pinned subnet
+  and endpoint security group. Fresh reads showed all three `available` before
+  launch.
+- **Lease and roles:** The fresh pathless watcher role/profile was attached to
+  the exact DynamoDB `GetItem`/`UpdateItem` and conditional EC2 terminate
+  policy. The lease was issued at `2026-08-02T17:02:15Z`, expired at
+  `17:07:15Z`, and bound controller `i-0242e65c32ec0f01d`; controller renewal
+  count remained zero.
+- **Interruption:** Controller `i-0242e65c32ec0f01d` published the completed
+  boundary and report. The independent watcher on `i-077df508c942e0514`
+  observed expiry at `17:07:17Z`, wrote its distinct assumed-role identity,
+  set termination requested, terminated the controller, and shut itself down.
+  The controller report records renewal exit code 254 and
+  `denied_as_expected`.
+- **Recovery:** Recovery `i-03a5847454feb7acf` read the boundary through the
+  S3 gateway, emitted `recovery-report.json`, and shut down. The pre-interrupt
+  and restored boundary hash is exactly
+  `01491fef444ad184df3f089b53ff441cf67a6d05021ccef7e1391bfd805c8a95`, and
+  all three arms were visible. The schema-valid receipt is
+  `evidence/interruption-qualification-receipt-007-20260802.json` (SHA-256
+  `3a94dae1ec8c0b440b0a01f1c7d66a6dd30a321c9bc01a44c1331b92f563af28`);
+  `require_interruption_qualification` passes it.
+
+### EJ-20260802-interruption-qualification-007-teardown
+
+- All three instances terminated exactly once under the bound shutdown policy;
+  their encrypted gp3 roots and instance ENIs returned `not-found`. The three
+  temporary endpoints were deleted exactly once and their interface ENIs
+  returned `not-found`; the existing worker and endpoint security groups were
+  not touched.
+- The lease item was deleted once and a consistent read returned no item. The
+  watcher profile, inline policy, and role were removed once and fresh IAM reads
+  returned `NoSuchEntity`. The three versioned S3 objects were deleted by their
+  exact version IDs; fresh live-object, version, and delete-marker listings are
+  empty.
+- The complete success and cleanup evidence is sealed in
+  `evidence/interruption-qualification-success-007-20260802.json` (SHA-256
+  `a5960a5b274262652521d616f575aa7605d8b287f5a47f9b85df9bc78744ae6b`).
+  Projected USD 0.05 remains pending provider billing settlement; no model,
+  benchmark, pilot, experiment, scientific result, or claim promotion occurred.
+
+### EJ-20260802-step14-hostile-launch-review
+
+- **Preparation:** The eight required Phase-B evidence roots were assembled
+  under ignored `build/research/neurips-2026-workshop/phase-b-evidence/` and
+  digest-bound by `build/adversarial_review/step14/campaign-spec.json`.
+  The spec digest is
+  `a48eb5f579177940b2b34996884a488ea1b7011b8f78bf77342ff0301e07bf2e` and
+  its declared input digest is
+  `9e7f42a92ebde5ab4bf9ab4beb322acb6ece90c4576247653aa075ef86e79143`.
+- **Independent review:** Ten bounded Claude reviewer sessions were run via
+  `/home/ubuntu/.agents/skills/agent-sessions/scripts/agent-session`, one per
+  R01--R10 role. Their proposals were treated as untrusted; invalid evidence
+  kinds and stale/unsupported claims were discarded or rewritten into valid
+  grounded proposals before replay. The campaign replay produced disposition
+  `133c2e5fc1b19c42415edaba0e669162911ca3f818080554d30f1acc752bafe6` with
+  verdict `launch_blocked` and seven independent blocker findings.
+- **Strongest blockers:** unresolved closest-prior-art citations; the missing
+  real authority-backed power report (the current slot is an explicitly marked
+  prose stand-in); and absent packet/assignment/detectability/unblind receipts
+  from the Step-14 digest index. The review authorizes nothing and no provider
+  or scientific action occurred. The compact receipt is
+  `evidence/step14-launch-review-20260802.json`.
+
+### EJ-20260802-step14-citation-repair-rerun
+
+- **Repair:** The closest-prior-art record was verified against the primary
+  arXiv entry `arXiv:2607.26117` (Yuvraj Verma), the manuscript TODO was
+  replaced with a bounded delta paragraph, and the three adjacent Iscan
+  bibliography records were rechecked against their primary arXiv records.
+  The ten reviewer transcripts were re-read after that repair; stale citation
+  findings were removed rather than replayed as if still true.
+- **Rerun:** The same digest-bound Step 14 campaign was regenerated and replayed
+  with ten bounded `agent-session` reviewers. It remained `launch_blocked`, now
+  with three independent blockers: the missing real authority-backed power and
+  tier receipt, and absent packet/assignment/detectability/unblind receipts in
+  the Step-14 input index. The rerun is still a review gate and authorizes
+  nothing.
+- **Boundary:** No benchmark, model, pilot, experiment, unblind, provider
+  action, spend, or scientific result occurred. Synthetic Step 4A artifacts
+  were not promoted to power or blinding evidence.

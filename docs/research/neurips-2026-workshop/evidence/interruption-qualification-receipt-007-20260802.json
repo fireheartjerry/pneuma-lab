@@ -1,0 +1,71 @@
+{
+  "record_kind": "cloud_interruption_qualification_receipt",
+  "schema_version": "0.1.0",
+  "plan_sha256": "2fc5a522c52f07a6ffa002e466b7fef23f018c3f33dc9173e95821e0dd66841d",
+  "input_lock_sha256": "e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "drill_id": "interruption-qualification-007",
+  "controller_identity_arn": "arn:aws:iam::892077329800:role/pneuma-c160-worker",
+  "watcher_identity_arn": "arn:aws:iam::892077329800:role/pneuma-c160-interruption-watcher-20260802-007",
+  "lease": {
+    "key": "interruption-qualification-007",
+    "issued_timestamp": "2026-08-02T17:02:15Z",
+    "expires_timestamp": "2026-08-02T17:07:15Z",
+    "watcher_observed_timestamp": "2026-08-02T17:07:17Z",
+    "controller_renewal_count": 0
+  },
+  "boundary": {
+    "sequence": 1,
+    "pre_interrupt_sha256": "01491fef444ad184df3f089b53ff441cf67a6d05021ccef7e1391bfd805c8a95",
+    "restored_sha256": "01491fef444ad184df3f089b53ff441cf67a6d05021ccef7e1391bfd805c8a95",
+    "all_arm_visible_bytes_match": true
+  },
+  "resources": [
+    {
+      "resource_id": "i-0242e65c32ec0f01d",
+      "resource_type": "compute",
+      "state_before": "running",
+      "state_after": "absent"
+    },
+    {
+      "resource_id": "i-077df508c942e0514",
+      "resource_type": "compute",
+      "state_before": "running",
+      "state_after": "absent"
+    },
+    {
+      "resource_id": "i-03a5847454feb7acf",
+      "resource_type": "compute",
+      "state_before": "running",
+      "state_after": "absent"
+    },
+    {
+      "resource_id": "vol-0da37de19395165d2",
+      "resource_type": "disk",
+      "state_before": "attached",
+      "state_after": "absent"
+    },
+    {
+      "resource_id": "vol-0294819f33a2136ef",
+      "resource_type": "disk",
+      "state_before": "attached",
+      "state_after": "absent"
+    },
+    {
+      "resource_id": "vol-0b1e4eefd2d906b58",
+      "resource_type": "disk",
+      "state_before": "attached",
+      "state_after": "absent"
+    }
+  ],
+  "residual_resource_ids": [],
+  "gates": {
+    "independent_watcher": true,
+    "lease_expired": true,
+    "controller_could_not_renew": true,
+    "boundary_exact": true,
+    "all_tagged_resources_absent": true
+  }
+}

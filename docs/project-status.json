@@ -551,7 +551,9 @@
                 "src/pneuma_lab/cloud/reconcile.py",
                 "tests/cloud/test_orchestration.py",
                 "tests/cloud/test_shards.py",
-                "tests/cloud/test_reconcile.py"
+                "tests/cloud/test_reconcile.py",
+                "docs/research/neurips-2026-workshop/evidence/interruption-qualification-receipt-007-20260802.json",
+                "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
             ],
             "blockers": [
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
@@ -578,7 +580,8 @@
                 "tests/cloud/test_watchdog.py",
                 "tests/cloud/test_projection.py",
                 "tests/cloud/test_approval.py",
-                "tests/cloud/test_unattended_policy.py"
+                "tests/cloud/test_unattended_policy.py",
+                "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
             ],
             "blockers": [
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
@@ -602,7 +605,9 @@
                 "tests/cloud/test_binding.py",
                 "tests/cloud/test_worker_env.py",
                 "tests/cloud/test_secrets.py",
-                "tests/cloud/test_journal.py"
+                "tests/cloud/test_journal.py",
+                "docs/research/neurips-2026-workshop/evidence/interruption-qualification-receipt-007-20260802.json",
+                "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
             ],
             "blockers": [
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
@@ -640,7 +645,8 @@
                 "infra/README.md",
                 "infra/terraform/environments/aws-example.tfvars",
                 "src/pneuma_lab/cloud/preflight.py",
-                "tests/cloud/test_preflight.py"
+                "tests/cloud/test_preflight.py",
+                "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
             ],
             "blockers": [
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
@@ -686,6 +692,8 @@
                 "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-failure-012-20260802.json",
                 "tests/cloud/test_production_runtime.py",
                 "tests/cloud/test_production_surface_e2e.py"
+                ,"docs/research/neurips-2026-workshop/evidence/interruption-qualification-receipt-007-20260802.json"
+                ,"docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
             ],
             "blockers": [
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
@@ -995,11 +1003,11 @@
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, and the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1. Its verified nearest-rank p10 values are 11.555050851717397 (32k) and 11.548052621929092 (65k), each above 8.0; instance and encrypted volume teardown are sealed. The Step 7B production surface is now independently qualified by action 024, but lease contention, interruption/resume, watchdog behavior under failure, and benchmark execution remain unverified; no Batch compute environment or queue exists."
+            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1, and the Step 7B production surface. The independent action-007 interruption/recovery receipt now proves lease expiry observation, controller-renewal denial, watcher termination, exact completed-boundary restoration, and full teardown. Lease-contention stress and benchmark execution remain unverified; no Batch compute environment or queue exists."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
-            "summary": "The required pre-experiment hostile launch review has not occurred. Its spec generator now fails closed until eight genuine evidence roots exist: Step 5B input lock, G-ROSTER, Step 7B image builds/SBOMs, production execution surface, AWS account/quota/plan, one-GPU admission, interruption/recovery, and Windows/Linux portability. Current evidence closes the input lock, G-ROSTER, Step 7B builds/SBOMs, production-surface E2E, account/plan reconciliation, one-GPU admission, and portability roots; interruption/recovery and the review itself remain open."
+            "summary": "The required pre-experiment hostile launch review ran against ten digest-bound reviewer transcripts and failed closed with verdict launch_blocked. The citation repair and primary-source verification removed the citation blockers; three grounded blockers remain: no real authority-backed power report/tier receipt, and missing packet/assignment/detectability/unblind receipts from the Step 14 index. The compact receipt is docs/research/neurips-2026-workshop/evidence/step14-launch-review-20260802.json. No experiment or provider action is authorized."
         },
         {
             "id": "B-NEURIPS-EXPERIMENT-EXECUTION",

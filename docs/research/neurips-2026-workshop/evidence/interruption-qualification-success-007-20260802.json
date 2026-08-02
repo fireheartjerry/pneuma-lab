@@ -1,0 +1,150 @@
+{
+  "record_kind": "cloud_interruption_qualification_success_receipt",
+  "schema_version": "0.1.0",
+  "state": "QUALIFIED",
+  "action_id": "interruption-qualification-007",
+  "plan_sha256": "2fc5a522c52f07a6ffa002e466b7fef23f018c3f33dc9173e95821e0dd66841d",
+  "signed_package_sha256": "50eaadb53507155a03a9c19348fb8817e208c076c3a070bef05b1fa2e8ce7308",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "account_identity_arn": "arn:aws:iam::892077329800:root",
+  "qualification_receipt": "interruption-qualification-receipt-007-20260802.json",
+  "controller_identity_arn": "arn:aws:iam::892077329800:role/pneuma-c160-worker",
+  "watcher_identity_arn": "arn:aws:iam::892077329800:role/pneuma-c160-interruption-watcher-20260802-007",
+  "lease": {
+    "key": "interruption-qualification-007",
+    "issued_timestamp": "2026-08-02T17:02:15Z",
+    "expires_timestamp": "2026-08-02T17:07:15Z",
+    "watcher_observed_timestamp": "2026-08-02T17:07:17Z",
+    "controller_instance_id": "i-0242e65c32ec0f01d",
+    "controller_renewal_count": 0,
+    "watcher_termination_requested": true,
+    "watcher_termination_state": "requested",
+    "watcher_assumed_role_identity": "arn:aws:sts::892077329800:assumed-role/pneuma-c160-interruption-watcher-20260802-007/i-077df508c942e0514",
+    "deleted_once": true,
+    "absent_after_cleanup": true
+  },
+  "boundary": {
+    "object_key": "runs/preparation/interruption-qualification-007/completed-boundary.json",
+    "sequence": 1,
+    "arms": {
+      "control": "completed-control-v1",
+      "null": "completed-null-v1",
+      "treated": "completed-treated-v1"
+    },
+    "pre_interrupt_sha256": "01491fef444ad184df3f089b53ff441cf67a6d05021ccef7e1391bfd805c8a95",
+    "restored_sha256": "01491fef444ad184df3f089b53ff441cf67a6d05021ccef7e1391bfd805c8a95",
+    "all_arm_visible_bytes_match": true,
+    "controller_report_sha256": "0bee5889554c7d12bcc4e89d31aa3ec77e9f28fa04aa447de130d6c8d5bf1623",
+    "controller_report": {
+      "action_id": "interruption-qualification-007",
+      "boundary_sha256": "01491fef444ad184df3f089b53ff441cf67a6d05021ccef7e1391bfd805c8a95",
+      "controller_identity": "arn:aws:sts::892077329800:assumed-role/pneuma-c160-worker/i-0242e65c32ec0f01d",
+      "renewal_exit_code": 254,
+      "renewal_outcome": "denied_as_expected"
+    },
+    "recovery_report_sha256": "ed3f784be470c8dc84477ae2241be02d25e7d4eb56bab78118ddb1e6f513b048",
+    "recovery_report": {
+      "action_id": "interruption-qualification-007",
+      "restored_sha256": "01491fef444ad184df3f089b53ff441cf67a6d05021ccef7e1391bfd805c8a95",
+      "all_arm_visible_bytes_match": true
+    }
+  },
+  "launch": {
+    "ami_id": "ami-011db5ae81cc0f370",
+    "instance_type": "t3.nano",
+    "vpc_id": "vpc-0577decd080525e86",
+    "subnet_id": "subnet-042e433905daddc0b",
+    "security_group_id": "sg-08428ae82a7e2fd35",
+    "root_device": "/dev/xvda",
+    "root_volume_gib": 30,
+    "root_volume_type": "gp3",
+    "root_volume_encrypted": true,
+    "delete_on_termination": true,
+    "imds_v2_required": true,
+    "instance_initiated_shutdown_behavior": "terminate",
+    "controller_userdata_sha256": "f07854e451be420b889257da203528d94601019c12209ccd0eb649b55088f689",
+    "watcher_userdata_sha256": "b11a0f7572644508e069443651e53edba8d777a52cd34f8c061786bdf29f3a85",
+    "recovery_userdata_sha256": "684d9eea615e33f83ebf157be60c69f062337b33b4b2d8cfd357810bd8cb5104",
+    "instances_created": [
+      "i-0242e65c32ec0f01d",
+      "i-077df508c942e0514",
+      "i-03a5847454feb7acf"
+    ],
+    "root_volumes_created": [
+      "vol-0da37de19395165d2",
+      "vol-0294819f33a2136ef",
+      "vol-0b1e4eefd2d906b58"
+    ],
+    "enis_created": [
+      "eni-06fe7faf7a3887265",
+      "eni-0a0c6b62571ab08d9",
+      "eni-024f29dc5684f8db6"
+    ]
+  },
+  "network_mutation": {
+    "dynamodb_endpoint_id": "vpce-03744ac853f40d8f7",
+    "dynamodb_endpoint_policy_sha256": "7083ccb25370de465b234d75f19bd542fdd320ef7738ad65ec1776572f2b72d4",
+    "dynamodb_endpoint_deleted_once": true,
+    "dynamodb_endpoint_absent_after_cleanup": true,
+    "sts_endpoint_id": "vpce-0a25fc7dc6254ec83",
+    "sts_endpoint_policy_sha256": "0d7ca3e1422070d73cfeedda73da705766b9e763fd632fc9668a7d0952e72e43",
+    "sts_endpoint_deleted_once": true,
+    "sts_endpoint_absent_after_cleanup": true,
+    "ec2_endpoint_id": "vpce-0c76609cbb835c1e2",
+    "ec2_endpoint_policy_sha256": "bf2f8eb845e5afde3cc915bbb3682afa12795011eb398325dfc867d1b68e4755",
+    "ec2_endpoint_deleted_once": true,
+    "ec2_endpoint_absent_after_cleanup": true,
+    "endpoint_network_interfaces_absent_after_cleanup": [
+      "eni-0e9cc20bfa6a69de2",
+      "eni-077e238adc88de736"
+    ],
+    "route_table_id": "rtb-0786adc7fddd32540",
+    "endpoint_security_group_id": "sg-0d0d671dd86611d92",
+    "worker_security_group_touched": false
+  },
+  "s3_cleanup": {
+    "bucket": "pneuma-phase-b-892077329800",
+    "prefix": "runs/preparation/interruption-qualification-007/",
+    "versions_deleted_once": [
+      {
+        "key": "runs/preparation/interruption-qualification-007/completed-boundary.json",
+        "version_id": "XSiKjcPwcnlXZew.27mHhk0whYEV1XU."
+      },
+      {
+        "key": "runs/preparation/interruption-qualification-007/controller-report.json",
+        "version_id": "W5bk4aCZAStg.Q7mLoFQCbzU_3JAhqLW"
+      },
+      {
+        "key": "runs/preparation/interruption-qualification-007/recovery-report.json",
+        "version_id": "kAoikic5aWUpYBdQRt6xjJKk3.iItB_I"
+      }
+    ],
+    "live_objects_after_cleanup": [],
+    "versions_after_cleanup": [],
+    "delete_markers_after_cleanup": []
+  },
+  "iam_cleanup": {
+    "role_name": "pneuma-c160-interruption-watcher-20260802-007",
+    "role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-interruption-watcher-20260802-007",
+    "profile_deleted_once": true,
+    "inline_policy_name": "interruption-qualification-least-privilege",
+    "inline_policy_deleted_once": true,
+    "role_deleted_once": true,
+    "profile_absent_after_cleanup": true,
+    "role_absent_after_cleanup": true
+  },
+  "provider_cleanup": {
+    "instances_terminated_once": true,
+    "instances_final_state": {
+      "i-0242e65c32ec0f01d": "terminated",
+      "i-077df508c942e0514": "terminated",
+      "i-03a5847454feb7acf": "terminated"
+    },
+    "root_volumes_absent_after_termination": true,
+    "instance_enis_absent_after_termination": true,
+    "verified_at": "2026-08-02T17:13:58Z"
+  },
+  "scientific_boundary": "No batch submission, GPU use, model download, benchmark execution, pilot, experiment, registry push, scientific result, or claim promotion occurred. This receipt qualifies only the bounded AWS lease-expiry interruption and exact completed-boundary restoration plumbing."
+}

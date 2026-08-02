@@ -1,0 +1,31 @@
+{
+  "record_kind": "cloud_adversarial_review_receipt",
+  "schema_version": "0.1.0",
+  "campaign_id": "placebo-step14-pre-launch",
+  "stage": "stage_1_pre_launch",
+  "spec_sha256": "a48eb5f579177940b2b34996884a488ea1b7011b8f78bf77342ff0301e07bf2e",
+  "inputs_digest": "9e7f42a92ebde5ab4bf9ab4beb322acb6ece90c4576247653aa075ef86e79143",
+  "reports_digest": "4ab8d7ff5f766c8b8c47ce64161e33ecf5f07e60c3fe8daafba68560860eef59",
+  "falsification_digest": "01c645672fda29bb66fd73caf8f35b64241e0948abd320e26ab96122a7af760f",
+  "disposition_digest": "133c2e5fc1b19c42415edaba0e669162911ca3f818080554d30f1acc752bafe6",
+  "verdict": "launch_blocked",
+  "reviewer_count": 10,
+  "transcript_engine": "claude via /home/ubuntu/.agents/skills/agent-sessions/scripts/agent-session",
+  "blocking_finding_count": 7,
+  "blocking_finding_digests": [
+    "2a4013a5b3d70c0f10043e02bae8e8933fc987f9db0f51ea677dc444b2ddb10a",
+    "4b5b7bd647244597bc230323c5c9785daba72a9ca16b3aa37b1dcaec9aa8212d",
+    "4dd276663cf81c9f533359c9c0ac0650f02f7a876679932995c2711207fb60cf",
+    "4de814525873780edc3fda66c6e614bcd218a995ad581168635e46abece9e454",
+    "65eb3511819ae8316488d51a15291890507bf936fd9b3ea12f5a8fa4bf85d565",
+    "94509b043dfe5e6ffc5293f98d192c7e2660af81efed0a2281cde52c73bdf336",
+    "b7409088c623d6a9b0e5e9460cc7182d42b035fc0935ff098de2e11e1ca595a3"
+  ],
+  "blocking_topics": [
+    "unverified and unresolved closest-prior-art citations",
+    "missing real authority-backed power report",
+    "blinding-critical receipts absent from the Step 14 index"
+  ],
+  "non_authorization_notice": "This review records a fail-closed pre-experiment gate. It authorizes no experiment, provider action, spend, scientific claim, or submission.",
+  "scientific_boundary": "No benchmark, pilot, experiment, model training, or scientific result occurred during this review."
+}
