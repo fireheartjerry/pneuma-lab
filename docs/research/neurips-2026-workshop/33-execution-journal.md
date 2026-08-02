@@ -4803,3 +4803,21 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** action 012 is an unsigned zero-retry candidate. No upload,
   signature, provider mutation, image build, SBOM, role-chain E2E, or
   scientific execution occurred in this preparation entry.
+
+### EJ-20260802-step7b-aws-builder-012-kms-admission
+
+- Fresh account `892077329800`, region `us-east-1`, clean committed candidate,
+  and zero live action-012 resources were reread before signing. The scoped
+  `pneuma-kms-signer` role matched the active Ed25519 registry identity.
+- KMS signed the exact CL-129/CL-130 envelope and admission for plan
+  `c4fb3a7fe68654c4caf142a55406b2a9948ba2bab147289e16b174d1806ab11a`, zero
+  retries, projected USD 2.25, and expiry `2026-08-02T15:15:00Z`.
+  Signed-package SHA-256 is
+  `a70729135d1c9a96d9dfd9f35fa5dc718ae940a0f1c70eb067f7e01fedb7d62e`;
+  envelope body is
+  `d75e4e01251623fbc87c1cfc38a18ca9a00ed66f7ce6806208dbc93eecb73381`,
+  admission body is
+  `c6ff3761adfe98af159d0d3cfa3c27fba55a04c9704efe483d8aeb1bbdb37c4e`.
+- Authorization remains limited to one CPU image-build attempt and its
+  explicitly bound infrastructure handshake; no model, benchmark, pilot,
+  experiment, registry push, or scientific claim is authorized.
