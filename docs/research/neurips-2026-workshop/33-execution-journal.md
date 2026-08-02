@@ -5139,3 +5139,55 @@ The next event after the archived migration boundary is appended below.
   the provider state and the successful mutation separately.
 - The projected USD 2.25 is recorded as pending provider billing settlement
   under CL-155/CL-156; no scientific work occurred.
+
+### EJ-20260802-step7b-aws-builder-019-preparation
+
+- **Repair:** Action 018 reproduced the strict dropped-cap bind failure locally;
+  committed source `2a8a6633a73bac420265d55180f3eb1666441385` includes the
+  readable non-secret bind repair `f5a871d`.
+- **Candidate:** The clean source archive is
+  `4b0fdc584b220ce0f85d919505fcd9ae8d027559962e9a5c6dc54a83f5a8a943`
+  (28,958,720 bytes). Plan
+  `6bf9fa6f945de7502064a409ed6fa3806c339186a15e7768d3e205a40778927d`
+  binds the current archive, fresh no-ingress SG, action-019 production
+  harness, pinned Buildx/BuildKit, and zero retries. The rendered user-data
+  SHA-256 is
+  `69cd315d1e293e5d07a1293b21c00d11574bc27ab80072e596aabcb0368a5430`.
+- **Admission:** KMS signed package
+  `9b4b30165ea23b5d99a76a10798897ff19545b633b69d2e0c58273c7b15f9a64`
+  contains envelope body
+  `8cc23375f6aa16e77b6d6947270940845c167b341babe606c0ad99402e5e9214`
+  and admission body
+  `75e28b5a9fb866628aa0e633ebe3a315bc1dfd81cad752a77c3b34594ff6a76a`.
+  Source, plan, and package were uploaded once under the action-019 prefix;
+  S3 versions are `nCItp2xOgW2e6Y_.lDe94UyJpMfPk3Ar`,
+  `ncIaiIkoSstQfVRFe.Be7WuP0CqinN.T`, and
+  `mnIez27agPmkU6eImJ_K5SsoyWXqHgES`, respectively. No scientific execution
+  authority was granted.
+
+### EJ-20260802-step7b-aws-builder-019-failure
+
+- **Provider preflight:** Root identity `arn:aws:iam::892077329800:root`,
+  the action-tagged instance/volume/ENI sets empty, AMI available, profile and
+  subnet exact, standard On-Demand quota 32 vCPUs, and the fresh SG
+  `sg-0606c059ca9fcc76e` verified with zero ingress and only TCP/UDP DNS to
+  `172.31.0.2/32` plus TCP 443 egress. The preflight also verified all three
+  versioned S3 input objects and their SHA-256 checksums.
+- **Failure:** The single permitted shell `aws ec2 run-instances` call was
+  rejected before instance creation with
+  `InvalidGroup.NotFound` for `sg-0606c059ca9fcc76e` in
+  `vpc-0baeaefeb8b57c19b`. An immediate independent read found the exact
+  tagged SG, so this is recorded as an EC2 control-plane propagation race,
+  not as a successful launch. No instance, volume, bootstrap output, image,
+  SBOM, production-surface handshake, model, benchmark, pilot, experiment,
+  or scientific result exists. Action 019 is exhausted with zero retries;
+  receipt: `evidence/step7b-aws-builder-failure-019-20260802.json`.
+
+### EJ-20260802-step7b-aws-builder-019-teardown
+
+- Fresh root reads found no action-019 instance, volume, or ENI. The temporary
+  SG `sg-0606c059ca9fcc76e` was deleted once after that no-dependency check;
+  the post-delete security-group query was empty. The projected cost is
+  recorded as zero pending settlement under CL-158/CL-159. A new action 020
+  must use a fresh SG and a consistency-gated launch path; action 019's
+  package, group, and attempted launch cannot be replayed.

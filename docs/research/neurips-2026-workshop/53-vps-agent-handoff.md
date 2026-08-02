@@ -174,11 +174,18 @@ created. The next action must bind the corrected bootstrap bytes afresh.
   teardown are sealed in
   `evidence/step7b-aws-builder-failure-018-20260802.json`; action 018 is
   exhausted with zero retries and no production-surface receipt exists.
-- The next permitted step is a fresh, independently admitted action
-  `step7b-aws-builder-019` bound to current committed source and a fresh
-  no-ingress security group. Do not reuse action 018's package, instance,
-  group, or receipt as authority; no model, benchmark, pilot, or experiment
-  may run in the successor.
+- Action 019 was the next independently admitted step and bound current
+  committed source to a fresh no-ingress security group. Action 018's package,
+  instance, group, and receipt were not reused; no model, benchmark, pilot, or
+  experiment was permitted.
+- Action 019 was signed and preflighted, but its one permitted EC2 launch was
+  rejected before instance creation with `InvalidGroup.NotFound` for the fresh
+  SG, even though an immediate independent read found that SG afterward. This
+  is sealed as a control-plane propagation failure in
+  `evidence/step7b-aws-builder-failure-019-20260802.json`; action 019 is
+  exhausted with zero retries and its SG is deleted. Action 020 must bind a
+  fresh SG and a consistency-gated creation/launch path; action 019's launch
+  cannot be replayed.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.

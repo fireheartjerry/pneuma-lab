@@ -1,0 +1,71 @@
+{
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED_NO_RETRY",
+  "action_id": "step7b-aws-builder-019",
+  "admission_package_sha256": "9b4b30165ea23b5d99a76a10798897ff19545b633b69d2e0c58273c7b15f9a64",
+  "plan_sha256": "6bf9fa6f945de7502064a409ed6fa3806c339186a15e7768d3e205a40778927d",
+  "source_commit": "2a8a6633a73bac420265d55180f3eb1666441385",
+  "failure_reason": "The final provider preflight passed, but the single permitted EC2 RunInstances call was rejected with InvalidGroup.NotFound for the freshly created action-019 security group. An immediate independent provider read then found the tagged group, indicating an EC2 control-plane propagation race. No instance or volume was created, no bootstrap ran, and no image, SBOM, production-surface, model, benchmark, pilot, or experiment work occurred. The zero-retry action is exhausted and must not be replayed.",
+  "diagnosis": {
+    "provider_error": "aws ec2 run-instances returned InvalidGroup.NotFound: The security group sg-0606c059ca9fcc76e does not exist in VPC vpc-0baeaefeb8b57c19b",
+    "post_error_observation": "Independent AWS root reads immediately afterward returned the exact tagged SG in vpc-0baeaefeb8b57c19b with zero ingress and the sealed DNS/HTTPS egress rules.",
+    "launch_result": "REJECTED_BEFORE_INSTANCE_CREATION",
+    "retry_policy": "max_retries=0; no replay permitted",
+    "next_action": "step7b-aws-builder-020, pending a fresh admission with a consistency-gated SG creation/launch path"
+  },
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-019/plan.json",
+      "version_id": "ncIaiIkoSstQfVRFe.Be7WuP0CqinN.T",
+      "sha256": "8cc8b882007898c1ac260dbec6bd1fc55d752a565ffa1710dbd20ca8fee88848",
+      "size_bytes": 4377
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-019/source.tar",
+      "version_id": "nCItp2xOgW2e6Y_.lDe94UyJpMfPk3Ar",
+      "sha256": "4b0fdc584b220ce0f85d919505fcd9ae8d027559962e9a5c6dc54a83f5a8a943",
+      "size_bytes": 28958720
+    },
+    "admission_package": {
+      "key": "runs/preparation/step7b-aws-builder-019/admission-package.json",
+      "version_id": "mnIez27agPmkU6eImJ_K5SsoyWXqHgES",
+      "sha256": "9b4b30165ea23b5d99a76a10798897ff19545b633b69d2e0c58273c7b15f9a64",
+      "size_bytes": 2381
+    }
+  },
+  "rendered_user_data_sha256": "69cd315d1e293e5d07a1293b21c00d11574bc27ab80072e596aabcb0368a5430",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/step7b-aws-builder-019/outputs/",
+  "output_artifacts": {},
+  "instance": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "instance_id": null,
+    "instance_type": "m7i.xlarge",
+    "terminal_state": "not_created_provider_rejected",
+    "root_volume_id": null,
+    "root_volume_state": "not_created",
+    "security_group_id": "sg-0606c059ca9fcc76e",
+    "security_group_state": "InvalidGroup.NotFound",
+    "verification_timestamp": "2026-08-02T09:30:15Z"
+  },
+  "partial_results": {
+    "provider_identity": "ROOT_ACCOUNT_VERIFIED",
+    "s3_inputs": "VERSIONED_AND_CHECKSUM_VERIFIED",
+    "security_group_preflight": "NO_INGRESS_EXACT_EGRESS_VERIFIED",
+    "instance_preflight": "NO_ACTION_RESOURCES_PRESENT",
+    "launch": "REJECTED_INVALID_GROUP_BEFORE_INSTANCE_CREATION",
+    "bootstrap": "NOT_STARTED",
+    "image_builds": "NOT_RUN",
+    "production_surface": "NOT_RUN",
+    "scientific_execution": "NOT_RUN"
+  },
+  "teardown": {
+    "instance_termination_verified": true,
+    "root_volume_absence_verified": true,
+    "security_group_no_eni_verified": true,
+    "security_group_deletion_verified": true,
+    "verification_timestamp": "2026-08-02T09:30:15Z",
+    "method": "AWS root DescribeInstances, DescribeVolumes, and DescribeNetworkInterfaces returned empty before deletion; DeleteSecurityGroup succeeded once; post-DescribeSecurityGroups returned empty."
+  }
+}

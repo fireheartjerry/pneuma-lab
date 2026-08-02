@@ -124,11 +124,20 @@ teardown are sealed in
 `evidence/step7b-aws-builder-failure-018-20260802.json`; no production-surface
 receipt exists and action 018 is exhausted with zero retries.
 
-Action 019 is the only permitted successor: it must receive a fresh admission,
+Action 019 was the next permitted successor and received a fresh admission,
 fresh no-ingress security group, and a new archive of the committed repair.
-Action 018's package, group, instance, and partial output cannot be reused as
+Action 018's package, group, instance, and partial output were not reused as
 authority. This remains build/qualification work only; no model, benchmark,
 pilot, experiment, or scientific result is authorized.
+
+Action 019 was then admitted once and rejected before instance creation by
+`InvalidGroup.NotFound` on the EC2 launch call, despite an immediate independent
+read finding the tagged group. The failure is sealed in
+`evidence/step7b-aws-builder-failure-019-20260802.json`; no bootstrap, image,
+SBOM, or production-surface output exists, and its SG was independently
+deleted. Action 019 is exhausted with zero retries. The next successor must
+bind a fresh group and prove a consistency-gated group-readback before its
+single launch call; no action-019 resource or authorization may be reused.
 
 ## Immutable base candidates (metadata only)
 

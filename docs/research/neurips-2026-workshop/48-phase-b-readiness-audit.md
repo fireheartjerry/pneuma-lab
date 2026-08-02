@@ -138,6 +138,16 @@ passes. The full 21-object cloud inventory and teardown are sealed in
 receipt exists, and action 018 is exhausted with zero retries. A fresh action
 019 admission is required; no model, benchmark, pilot, or experiment ran.
 
+Action 019 was then signed and its provider preflight passed, but the one
+permitted EC2 launch was rejected before instance creation with
+`InvalidGroup.NotFound` for the freshly created SG. Immediate independent
+reads found the tagged SG, so the failure is recorded as an EC2 control-plane
+propagation race rather than a successful launch. The failure and teardown are
+sealed in `evidence/step7b-aws-builder-failure-019-20260802.json`; no
+bootstrap, image, SBOM, production surface, model, benchmark, pilot, or
+experiment ran. Action 019 is exhausted with zero retries; a fresh action 020
+must add a consistency-gated SG launch path.
+
 Corrected successor action 015 is prepared but remains an unsigned candidate.
 It binds the repaired curl-minimal-safe bootstrap, source commit
 `98dd81a...c806`, archive `9229854...b579`, pinned Buildx/BuildKit, and fresh
