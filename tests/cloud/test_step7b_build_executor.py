@@ -78,3 +78,4 @@ def test_role_dockerfiles_use_the_repository_build_context() -> None:
     for role in ("controller", "model-server", "benchmark-worker"):
         text = (repository / f"infra/docker/{role}/Dockerfile").read_text(encoding="utf-8")
         assert f"COPY infra/docker/{role}/{role}.lock " in text
+        assert f'ENTRYPOINT ["python3", "-m", "pneuma_lab.cloud.production_runtime", "{role}"]' in text

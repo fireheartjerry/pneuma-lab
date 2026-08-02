@@ -8,4 +8,4 @@ WORKDIR /opt/pneuma
 COPY infra/docker/controller/controller.lock /opt/pneuma/controller.lock
 COPY src/pneuma_lab/__init__.py /opt/pneuma/pneuma_lab/__init__.py
 COPY src/pneuma_lab/cloud/production_runtime.py /opt/pneuma/pneuma_lab/cloud/production_runtime.py
-ENTRYPOINT ["python", "-m", "pneuma_lab.cloud.production_runtime", "controller"]
+ENTRYPOINT ["python3", "-m", "pneuma_lab.cloud.production_runtime", "controller"]
