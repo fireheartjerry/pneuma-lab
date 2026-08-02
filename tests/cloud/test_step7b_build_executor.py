@@ -114,6 +114,9 @@ def test_executor_uses_root_backed_syft_staging() -> None:
     assert '"--builder"' in source
     assert 'docker-container' in source
     assert '"linux/amd64"' in source
+    assert 'buildx-builder-stderr.txt' in source
+    assert 'inspection_result.returncode' in source
+    assert 'BuildKit(?: version)?' in source
 
 
 def test_role_dockerfiles_use_the_repository_build_context() -> None:

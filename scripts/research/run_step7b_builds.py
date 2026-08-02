@@ -203,10 +203,19 @@ def create_builder(plan: dict[str, Any], output: Path) -> str:
         ],
         capture=True,
     )
-    inspection = run(["docker", "buildx", "inspect", builder, "--bootstrap"], capture=True).stdout
-    if f"BuildKit version: {BUILDKIT_VERSION}" not in inspection:
-        raise ValueError(f"BuildKit version does not match the sealed {BUILDKIT_VERSION}")
+    inspection_result = subprocess.run(
+        ["docker", "buildx", "inspect", builder, "--bootstrap"],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    inspection = inspection_result.stdout
     (output / "buildx-builder.txt").write_text(inspection, encoding="utf-8")
+    (output / "buildx-builder-stderr.txt").write_text(inspection_result.stderr, encoding="utf-8")
+    if inspection_result.returncode != 0:
+        raise ValueError(f"BuildKit inspection failed with exit code {inspection_result.returncode}")
+    if not re.search(rf"BuildKit(?: version)?:\s*{re.escape(BUILDKIT_VERSION)}(?:\b|$)", inspection, re.MULTILINE):
+        raise ValueError(f"BuildKit version does not match the sealed {BUILDKIT_VERSION}")
     return builder
 
 
