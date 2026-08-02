@@ -4,7 +4,7 @@
 
 **Source commit:** `63156f34537be4b83638f9af84fb6bae1e92b1d6`
 
-The checkout was at the required base commit `e8cb882a85268c846bf344fc4e0f7a03776c9234`; the campaign added only the Terraform lockfile repair recorded in the source commit above. The private `infra/terraform/environments/aws-private.tfvars` file was present, ignored, and mode `600`. Its contents were never printed, hashed, staged, copied, or edited.
+The checkout was at the required base commit `e8cb882a85268c846bf344fc4e0f7a03776c9234`; the campaign added only the Terraform lockfile repair recorded in the source commit above. The private `infra/terraform/environments/aws-private.tfvars` file was present, ignored, and mode `600`. It was copied once from the user's local secure checkout into this dedicated VPS worktree before the campaign; its contents were never printed, hashed, staged, or edited.
 
 This report is sanitized. Raw AWS responses, the saved plan, and temporary command logs remained inside a mode-0700 directory outside Git. No account IDs, ARNs, tokens, image references, bucket paths, or private variable values are recorded here.
 

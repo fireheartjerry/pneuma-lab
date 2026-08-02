@@ -5824,3 +5824,14 @@ The next event after the archived migration boundary is appended below.
   experiment, or scientific claim was produced. The sanitized report is
   `evidence/pre-experiment-closure-20260802.md`; canonical status and the
   `launch_blocked` Step 14 disposition remain unchanged.
+
+### EJ-20260802-pre-experiment-closure-private-config-correction
+
+- **Correction:** The initial sanitized report incorrectly stated that the
+  ignored private Terraform variable file was never copied. Before the
+  campaign, it was copied once from the user's local secure checkout into the
+  dedicated VPS preflight worktree at the user's direction and then protected
+  with mode `600`. No value was printed, hashed, staged, committed, or edited.
+- **Boundary:** This corrects operational provenance only. It changes no
+  AWS observation, Terraform plan, provider state, scientific evidence,
+  authorization, or launch disposition.
