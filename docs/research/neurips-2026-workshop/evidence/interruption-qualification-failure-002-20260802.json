@@ -1,0 +1,43 @@
+{
+  "record_kind": "cloud_interruption_qualification_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED",
+  "action_id": "interruption-qualification-002",
+  "plan_sha256": "a06c4e5771cc18fe2dc4e1af76dbad7f4f7521e8648d2d7d5e52d275a9fcddd4",
+  "signed_package_sha256": "9bdcaa3daa44d2f6c04379856f7abe483303ea6e6cc127c127da42e5e83ca641",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "attempted_at": "2026-08-02T16:15:00Z",
+  "failure_class": "provider_validation_rejection",
+  "provider_error": "InvalidBlockDeviceMapping: Volume of size 8GB is smaller than snapshot snap-0eefac4eed781f70b, expect size >= 30GB",
+  "retry_policy": "zero_retry_action_exhausted",
+  "launch_request": {
+    "ami_id": "ami-011db5ae81cc0f370",
+    "instance_type": "t3.nano",
+    "subnet_id": "subnet-042e433905daddc0b",
+    "security_group_id": "sg-08428ae82a7e2fd35",
+    "root_volume_gib_requested": 8,
+    "root_volume_encrypted": true,
+    "delete_on_termination": true
+  },
+  "resources": {
+    "instances_created": [],
+    "volumes_created": [],
+    "enis_created": [],
+    "s3_objects_created": []
+  },
+  "cleanup": {
+    "lease_key": "interruption-qualification-002",
+    "lease_deleted_once": true,
+    "lease_absent_after_cleanup": true,
+    "watcher_profile_deleted_once": true,
+    "watcher_role_policy_deleted_once": true,
+    "watcher_role_deleted_once": true,
+    "watcher_profile_absent_after_cleanup": true,
+    "watcher_role_absent_after_cleanup": true,
+    "security_group_touched": false,
+    "verified_at": "2026-08-02T16:18:00Z"
+  },
+  "scientific_boundary": "No instance, lease execution, watcher observation, recovery, model, benchmark, pilot, experiment, or scientific result occurred."
+}

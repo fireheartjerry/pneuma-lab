@@ -5437,3 +5437,20 @@ The next event after the archived migration boundary is appended below.
   approver key, the exact plan digest, input-lock digest, USD 0.05 projection,
   zero retries, and expiry `2026-08-03T06:30:00Z`. Offline admission
   verification passed. No interruption provider action has started yet.
+
+### EJ-20260802-interruption-qualification-002-failure
+
+- **Launch rejection:** The one admitted, zero-retry launch for
+  `interruption-qualification-002` was rejected before `RunInstances` could
+  create a resource. AWS returned `InvalidBlockDeviceMapping`: the requested
+  encrypted 8 GiB root was smaller than the pinned AMI snapshot's 30 GiB
+  minimum. No instance, volume, ENI, S3 object, lease execution, model,
+  benchmark, pilot, experiment, or scientific result exists. The exact failure
+  and request bindings are sealed in
+  `evidence/interruption-qualification-failure-002-20260802.json` (SHA-256
+  `39eced45e99f29db8fef9a038dd25653d2546b9cd316aadd33f3026b3caf2973`).
+- **Teardown:** The temporary lease item was deleted once after a fresh read;
+  the independent watcher profile, inline policy, and role were each removed
+  once and independently returned not-found. The existing security group was
+  not touched. Action 002 is exhausted with zero retries; successor action
+  003 must bind a root volume of at least 30 GiB.
