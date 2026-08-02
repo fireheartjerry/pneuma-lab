@@ -93,7 +93,12 @@ scientific result.
   (`0a3834…996b9` versus `84fef3…0b2da`). Its failure and teardown are sealed
   in `evidence/step7b-aws-builder-failure-010-20260802.json`; it is exhausted
   with zero retries. Do not treat action 009's older-runtime images as E2E
-  evidence or silently reuse action 010.
+evidence or silently reuse action 010.
+- The timestamp-stability successor action 011 also failed closed at the same
+  controller double-build gate despite `SOURCE_DATE_EPOCH`,
+  `BUILDKIT_MULTI_PLATFORM=1`, and `linux/amd64`. Its failure and teardown are
+  sealed in `evidence/step7b-aws-builder-failure-011-20260802.json`; action 011
+  is exhausted and the production-surface gate remains open.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.

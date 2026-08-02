@@ -1,0 +1,54 @@
+{
+  "action_id": "step7b-aws-builder-011",
+  "admission_package_sha256": "e2f6c22675bdf1467e81b0ee33487af6efd9a9e20aeb21f3b3ef191a52bcdb5c",
+  "failure_reason": "The timestamp-bound environment and BUILDKIT_MULTI_PLATFORM flag did not make the controller image reproducible: the first build produced image ID sha256:04fbf1b4200af24f2c7b251fd98a2a1e847bf84da39afd7eb16432aaf35116bc and the second produced sha256:ff196cd7c3fc87017716987032e51ad6fdd86dedb97508c236131a7d27d6f9f2. The zero-retry executor failed closed before the positive probe, remaining role builds, SBOMs, or production-surface handshake.",
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-011/plan.json",
+      "version_id": "4ormy9R4lLrwu7UFoZ4rPivMRbCm0V4U"
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-011/source.tar",
+      "version_id": "yAIEbdkuUaBd4mYFy3.B0xAJ_MW6i7Fg"
+    }
+  },
+  "instance_id": "i-0fb19c8b0aaf1e231",
+  "instance_state": "terminated",
+  "launch_time": "2026-08-02T02:38:03Z",
+  "security_group_id": "sg-085a6dcdb09d9fa9c",
+  "rendered_user_data_sha256": "361139a18f6866a70d34fd75df227a37e919e046a4e7bbefa9a521b4754df16c",
+  "output_artifacts": {
+    "bootstrap_log": {
+      "key": "runs/preparation/step7b-aws-builder-011/outputs/bootstrap.log",
+      "sha256": "e3e0de0eabe8ad797b9d0ce9ee29a92ecf1b8c40593cdd82f42944dcc7de1f17",
+      "version_id": "kr6rkCAlj2R8OsA2YvbBzyXOpcMs6_4C"
+    },
+    "bootstrap_status": {
+      "key": "runs/preparation/step7b-aws-builder-011/outputs/bootstrap-status.json",
+      "sha256": "f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7",
+      "version_id": "aU8YPPaL0Y.fvkhKhMCtbneSlHIv0PJE"
+    },
+    "controller_harness": {
+      "key": "runs/preparation/step7b-aws-builder-011/outputs/controller-harness.json",
+      "sha256": "94b4cc0f15f83b60429ce0168bdd678ac637bd473f480ade7a6cf649791f54fe",
+      "version_id": "aJV6LALxWPikSv_x7kh0JYtmlFuFVkU6"
+    },
+    "docker_info": {
+      "key": "runs/preparation/step7b-aws-builder-011/outputs/docker-info-before-build.json",
+      "sha256": "5646f47a7b1160afba5234751766c3f11ce179943ecd7a7704e3417ce2de27e5",
+      "version_id": "Pto3t9iNqzFlU8BaApbucF4A4G2BUp6l"
+    },
+    "instance_identity": {
+      "key": "runs/preparation/step7b-aws-builder-011/outputs/instance-identity.json",
+      "sha256": "b4291895d769838dd44ea2cd9146226e008a8c5c9119328a10e23a77462e36f9",
+      "version_id": "Cmzq8X_X38XuhozRNsl2nJLf41CKGQv4"
+    }
+  },
+  "plan_sha256": "32714d078b9a14b30d4762b523913ca5fd62a2eb01a75d2a176d3669a810e205",
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "root_volume_id": "vol-01d76a36d200005f1",
+  "root_volume_state": "InvalidVolume.NotFound",
+  "state": "FAILED_NO_RETRY",
+  "terminated_timestamp": "2026-08-02T02:44:50Z",
+  "security_group_state": "InvalidGroup.NotFound"
+}

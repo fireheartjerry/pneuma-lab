@@ -67,6 +67,13 @@ failure and independent teardown are sealed in
 `evidence/step7b-aws-builder-failure-010-20260802.json`; action 010 is
 exhausted with zero retries and action 009's older images are not a substitute.
 
+The timestamp-stability successor action 011 failed at the same controller
+double-build reproducibility gate despite exporting `SOURCE_DATE_EPOCH`,
+setting `BUILDKIT_MULTI_PLATFORM=1`, and pinning `linux/amd64`. Its failure and
+teardown are sealed in
+`evidence/step7b-aws-builder-failure-011-20260802.json`; no current image-bound
+production-surface receipt exists.
+
 ## Topology change and its residual empirical risk
 
 DL-161 selects an 8-vCPU `g6e.2xlarge` single-L40S AWS path with sequential

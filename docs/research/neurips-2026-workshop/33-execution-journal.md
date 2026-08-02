@@ -4750,3 +4750,37 @@ The next event after the archived migration boundary is appended below.
 - Authorization remains limited to one CPU image-build attempt and its
   explicitly bound infrastructure handshake; no model, benchmark, pilot,
   experiment, registry push, or scientific claim is authorized.
+
+### EJ-20260802-step7b-aws-builder-011-failure
+
+- **Execution:** The one admitted attempt launched exact instance
+  `i-0fb19c8b0aaf1e231` (`m7i.xlarge`, 650 GiB encrypted gp3 root) from
+  rendered user-data SHA-256
+  `361139a18f6866a70d34fd75df227a37e919e046a4e7bbefa9a521b4754df16c`.
+  The pinned base completed its pull and the controller built once as
+  `sha256:04fbf1b4200af24f2c7b251fd98a2a1e847bf84da39afd7eb16432aaf35116bc`.
+- **Failure:** The second build, despite the exported timestamp,
+  `BUILDKIT_MULTI_PLATFORM=1`, and pinned `linux/amd64`, produced
+  `sha256:ff196cd7c3fc87017716987032e51ad6fdd86dedb97508c236131a7d27d6f9f2`.
+  The executor failed closed before a positive probe, the other roles, SBOMs,
+  or production-surface handshake. This remains a reproducibility failure, not
+  an E2E or scientific result.
+- **Receipt:** Versioned S3 outputs are sealed: bootstrap log
+  `kr6rkCAlj2R8OsA2YvbBzyXOpcMs6_4C` / SHA-256
+  `e3e0de0eabe8ad797b9d0ce9ee29a92ecf1b8c40593cdd82f42944dcc7de1f17`,
+  bootstrap status `aU8YPPaL0Y.fvkhKhMCtbneSlHIv0PJE` / SHA-256
+  `f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7`.
+  Failure receipt is
+  `evidence/step7b-aws-builder-failure-011-20260802.json`; action 011 is
+  exhausted with zero retries.
+
+### EJ-20260802-step7b-aws-builder-011-teardown
+
+- The instance self-stopped after the fail-closed executor; one independent
+  termination call returned `terminated`. Fresh provider reads show encrypted
+  root `vol-01d76a36d200005f1` as `InvalidVolume.NotFound`. The temporary
+  security group `sg-085a6dcdb09d9fa9c` had no attached ENI or instance, was
+  deleted, and then returned `InvalidGroup.NotFound`.
+- No action-tagged resource remains. The projected USD 2.25 is recorded as
+  pending provider billing settlement under CL-127/CL-128; no model,
+  benchmark, pilot, experiment, or scientific result occurred.

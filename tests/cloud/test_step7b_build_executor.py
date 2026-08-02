@@ -93,6 +93,8 @@ def test_executor_uses_root_backed_syft_staging() -> None:
     assert 'syft_env = dict(os.environ, TMPDIR=str(syft_tmp))' in source
     assert 'build_environment["SOURCE_DATE_EPOCH"]' in source
     assert '"BUILDKIT_MULTI_PLATFORM=1"' in source
+    assert 'type=docker,rewrite-timestamp=true' in source
+    assert '"linux/amd64"' in source
 
 
 def test_role_dockerfiles_use_the_repository_build_context() -> None:

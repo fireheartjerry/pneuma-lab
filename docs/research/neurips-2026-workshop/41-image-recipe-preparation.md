@@ -29,6 +29,12 @@ sealed in `evidence/step7b-aws-builder-failure-010-20260802.json`; action 010
 is exhausted and action 009's older-runtime images cannot be reused as E2E
 evidence.
 
+The timestamp-stability successor action 011 also failed closed at the same
+controller double-build gate after exporting `SOURCE_DATE_EPOCH`, setting
+`BUILDKIT_MULTI_PLATFORM=1`, and pinning `linux/amd64`. Its failure and teardown
+are sealed in `evidence/step7b-aws-builder-failure-011-20260802.json`; no
+current production-surface image set exists.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.
