@@ -4784,3 +4784,22 @@ The next event after the archived migration boundary is appended below.
 - No action-tagged resource remains. The projected USD 2.25 is recorded as
   pending provider billing settlement under CL-127/CL-128; no model,
   benchmark, pilot, experiment, or scientific result occurred.
+
+### EJ-20260802-step7b-aws-builder-012-preparation
+
+- **Repair:** action 011 showed that timestamp environment and multi-platform
+  flags alone did not stabilize Docker's image exporter. The successor
+  executor now pins `linux/amd64` and requests BuildKit's explicit
+  `type=docker,rewrite-timestamp=true` exporter while retaining the sealed
+  timestamp and no-provenance/no-SBOM build flags. Focused executor tests,
+  Ruff, whitespace, and status checks pass.
+- **Candidate:** a fresh `git archive --format=tar HEAD` produced archive
+  `6328e5d414b21963d7472d6050f1b34224c6701e61a17e4c21c354ffa02f0bcf`
+  (28,794,880 bytes). Plan
+  `c4fb3a7fe68654c4caf142a55406b2a9948ba2bab147289e16b174d1806ab11a` binds
+  source `46f005f8fab83bda47c2a7121d15bc47a45d66f2`, executor
+  `17e4c43ba34924a79f8219386dbb9b6aa9d2eda5a92f484ed561e04eb4770776`, and
+  production harness `a43d9da3e8a43c9af2ffbe93fac979c092903cf225995107d99651b957984327`.
+- **Boundary:** action 012 is an unsigned zero-retry candidate. No upload,
+  signature, provider mutation, image build, SBOM, role-chain E2E, or
+  scientific execution occurred in this preparation entry.
