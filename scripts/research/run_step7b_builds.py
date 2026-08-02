@@ -139,8 +139,6 @@ def build_role(plan: dict[str, Any], root: Path, output: Path, role: str, builde
                 "type=docker,rewrite-timestamp=true",
                 "--build-arg",
                 f"SOURCE_DATE_EPOCH={plan['source_date_epoch']}",
-                "--build-arg",
-                "BUILDKIT_MULTI_PLATFORM=1",
                 "--file",
                 str(dockerfile),
                 "--tag",

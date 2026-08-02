@@ -108,7 +108,7 @@ def test_executor_uses_root_backed_syft_staging() -> None:
     assert 'syft_tmp = output.parent / "syft-tmp"' in source
     assert 'syft_env = dict(os.environ, TMPDIR=str(syft_tmp))' in source
     assert 'build_environment["SOURCE_DATE_EPOCH"]' in source
-    assert '"BUILDKIT_MULTI_PLATFORM=1"' in source
+    assert '"BUILDKIT_MULTI_PLATFORM=1"' not in source
     assert 'type=docker,rewrite-timestamp=true' in source
     assert '"buildx",\n                "build"' in source
     assert '"--builder"' in source
