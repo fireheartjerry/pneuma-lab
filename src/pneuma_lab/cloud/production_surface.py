@@ -24,7 +24,7 @@ def require_production_execution_surface(record: Mapping[str, Any]) -> dict[str,
         raise CloudManifestError("production roles must not share one entrypoint")
     for role in roles:
         entrypoint = list(role["entrypoint"])
-        if entrypoint[:3] != ["python", "-m", _RUNTIME_MODULE] or entrypoint[3:] != [role["role"]]:
+        if entrypoint[:3] != ["python3", "-m", _RUNTIME_MODULE] or entrypoint[3:] != [role["role"]]:
             raise CloudManifestError("production role must use the sealed role runtime entrypoint")
         gates = role["gates"]
         if role["role"] == "controller":

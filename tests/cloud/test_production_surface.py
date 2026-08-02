@@ -15,7 +15,7 @@ def surface() -> dict:
         roles.append({
             "role": role,
             "image_digest": "sha256:" + str(index + 1) * 64,
-            "entrypoint": ["python", "-m", "pneuma_lab.cloud.production_runtime", role],
+            "entrypoint": ["python3", "-m", "pneuma_lab.cloud.production_runtime", role],
             "source_sha256": chr(97 + index) * 64,
             "e2e_receipt_sha256": chr(100 + index) * 64,
             "gates": {
@@ -47,6 +47,13 @@ def test_duplicate_role_or_entrypoint_fails() -> None:
         row["roles"][1][field] = row["roles"][0][field]
         with pytest.raises(CloudManifestError):
             require_production_execution_surface(row)
+
+
+def test_runtime_interpreter_must_match_built_images() -> None:
+    row = surface()
+    row["roles"][0]["entrypoint"][0] = "python"
+    with pytest.raises(CloudManifestError, match="sealed role runtime"):
+        require_production_execution_surface(row)
 
 
 @pytest.mark.parametrize("role_index", [1, 2])
