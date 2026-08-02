@@ -38,3 +38,35 @@ variable "security_group_ids" {
 variable "subnet_ids" {
   type = list(string)
 }
+
+variable "qualification_model" {
+  type = string
+}
+
+variable "qualification_model_revision" {
+  type = string
+}
+
+variable "protocol_path" {
+  type = string
+}
+
+variable "architecture_path" {
+  type = string
+}
+
+variable "authorization_path" {
+  type = string
+}
+
+variable "image_path" {
+  type = string
+}
+
+variable "input_lock_path" {
+  type = string
+}
+
+variable "output_path" {
+  type = string
+}

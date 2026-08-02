@@ -719,7 +719,10 @@
                 "docs/research/neurips-2026-workshop/57-ephemeral-dual-worker-qualification.md",
                 "infra/terraform/qualification/main.tf",
                 "src/pneuma_lab/cloud/ephemeral_qualification.py",
-                "tests/cloud/test_ephemeral_qualification.py"
+                "tests/cloud/test_ephemeral_qualification.py",
+                "src/pneuma_lab/cloud/ephemeral_runner.py",
+                "src/pneuma_lab/cloud/fixed_admission_probe.py",
+                "tests/cloud/test_ephemeral_runner.py"
             ],
             "blockers": [
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",

@@ -5849,3 +5849,19 @@ The next event after the archived migration boundary is appended below.
   benchmark, pilot, P0/Step 4B lineage, unblind, or scientific claim occurred.
 - **Boundary:** This is implementation evidence only; the main experiment
   Terraform stack and its `prevent_destroy` lifecycle were not changed.
+
+### EJ-20260802-ephemeral-runner-wiring
+
+- **Implementation:** Replaced the placeholder Batch entrypoint with the
+  image-bound fixed two-rung admission adapter, bound to
+  `AWS_BATCH_JOB_ARRAY_INDEX` 0 or 1. Added a mockable runner that verifies the
+  signed preparation envelope/admission and exact three-resource plan before
+  mutation, submits one size-two array, enforces one 3,600-second attempt and
+  a strictly-below-USD-100 projection, then drains/disables and destroys.
+  Tagged absence checks cover jobs, instances, volumes, definition, queue, and
+  compute environment. Terraform mutations use a 60-second lock timeout;
+  `-lock=false` is forbidden.
+- **Validation:** Focused hermetic runner/qualification tests, Ruff,
+  Terraform fmt/validate, status coherence, and whitespace checks passed.
+- **Boundary:** No authentication, plan, apply, job submission, AWS call,
+  GPU/model execution, benchmark, pilot, or scientific work occurred.

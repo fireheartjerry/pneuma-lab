@@ -13,6 +13,15 @@ provider "aws" {
   region = var.region
 }
 
+locals {
+  qualification_tags = {
+    QualificationPurpose   = "dual-l40s-admission-only"
+    QualificationTopology  = "two-g6e-2xlarge-l40s"
+    QualificationManagedBy = "pneuma-ephemeral-runner-v1"
+    QualificationAction    = var.name_prefix
+  }
+}
+
 # This stack is intentionally separate from infra/terraform.  It owns only
 # disabled-at-rest qualification control-plane objects; workers appear only
 # for the two explicitly submitted admission jobs.
@@ -35,6 +44,7 @@ resource "aws_batch_compute_environment" "qualification" {
     security_group_ids  = var.security_group_ids
     subnets             = var.subnet_ids
   }
+  tags = local.qualification_tags
 }
 
 resource "aws_batch_job_queue" "qualification" {
@@ -46,6 +56,7 @@ resource "aws_batch_job_queue" "qualification" {
     order               = 1
     compute_environment = aws_batch_compute_environment.qualification.arn
   }
+  tags = local.qualification_tags
 }
 
 resource "aws_batch_job_definition" "worker" {
@@ -60,8 +71,19 @@ resource "aws_batch_job_definition" "worker" {
       { type = "GPU", value = "1" },
       { type = "VCPU", value = "8" },
     ]
-    # The worker entrypoint must run its fixture-only probe and watchdog.
-    command = ["qualification-entrypoint", "--watchdog-seconds", "3600", "--max-retries", "0"]
+    # This image-bound adapter invokes the fixed two-rung probe and binds the
+    # Batch array index to worker 0 or 1. Ref:: is resolved by Batch per child.
+    command = ["python", "-m", "pneuma_lab.cloud.fixed_admission_probe"]
+    environment = [
+      { name = "QUALIFICATION_MODEL", value = var.qualification_model },
+      { name = "QUALIFICATION_MODEL_REVISION", value = var.qualification_model_revision },
+      { name = "QUALIFICATION_PROTOCOL", value = var.protocol_path },
+      { name = "QUALIFICATION_ARCHITECTURE", value = var.architecture_path },
+      { name = "QUALIFICATION_AUTHORIZATION", value = var.authorization_path },
+      { name = "QUALIFICATION_IMAGE", value = var.image_path },
+      { name = "QUALIFICATION_INPUT_LOCK", value = var.input_lock_path },
+      { name = "QUALIFICATION_OUTPUT", value = var.output_path },
+    ]
   })
 
   timeout {
@@ -71,4 +93,5 @@ resource "aws_batch_job_definition" "worker" {
   retry_strategy {
     attempts = 1
   }
+  tags = local.qualification_tags
 }

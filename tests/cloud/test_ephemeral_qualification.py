@@ -77,4 +77,6 @@ def test_ephemeral_stack_has_destroyable_watchdog_and_no_retry_contract() -> Non
     assert 'allocation_strategy = "SPOT_PRICE_CAPACITY_OPTIMIZED"' in text
     assert "attempt_duration_seconds = 3600" in text
     assert "attempts = 1" in text
+    assert "pneuma_lab.cloud.fixed_admission_probe" in text
+    assert "qualification-entrypoint" not in text
     assert "prevent_destroy" not in text
