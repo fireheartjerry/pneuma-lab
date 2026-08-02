@@ -56,11 +56,10 @@ def _require_contiguous(events: list[Event]) -> None:
     for previous, current in zip(events, events[1:], strict=False):
         same_day = current.date == previous.date
         valid_same_day = same_day and current.sequence == previous.sequence + 1
-        valid_new_day = (
-            current.date > previous.date
-            and current.sequence == 1
-            and current.date != previous.date
-        )
+        valid_new_day = current.date > previous.date and current.sequence in {
+            1,
+            previous.sequence + 1,
+        }
         if not (valid_same_day or valid_new_day):
             raise JournalIntegrityError(
                 "noncontiguous event IDs: "

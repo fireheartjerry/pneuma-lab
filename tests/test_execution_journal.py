@@ -119,6 +119,32 @@ def test_migration_never_spans_date_boundaries_in_a_shard(
     ]
 
 
+def test_migration_accepts_global_sequence_across_date_boundary(
+    tmp_path: Path,
+) -> None:
+    journal = tmp_path / "33-execution-journal.md"
+    archive = tmp_path / "execution-journal"
+    journal.write_bytes(
+        _journal_bytes(
+            [
+                "EJ-20260729-0170",
+                "EJ-20260730-0171",
+            ]
+        )
+    )
+
+    manifest_path = migrate_journal(
+        journal,
+        archive,
+        cutoff_event_id="EJ-20260730-0171",
+        shard_size=50,
+    )
+
+    assert verify_journal(journal, manifest_path)["last_event_id"] == (
+        "EJ-20260730-0171"
+    )
+
+
 def test_migration_appends_only_a_contiguous_live_prefix(tmp_path: Path) -> None:
     journal = tmp_path / "33-execution-journal.md"
     archive = tmp_path / "execution-journal"

@@ -5786,3 +5786,19 @@ The next event after the archived migration boundary is appended below.
   not close Step 14, create a P0 power/tier receipt, create packet/assignment/
   detectability/unblind receipts, authorize a pilot, or change the
   `implementation_complete; E2E_pending` state of Tasks 6–10.
+
+### EJ-20260802-journal-continuity-repair
+
+- **Finding:** The repository journal checker rejected the preserved archive at
+  the first UTC-date boundary (`EJ-20260729-0170` → `EJ-20260730-0171`). The
+  published journal uses a global monotonic sequence across that boundary,
+  while the checker accepted only a reset to `0001`.
+- **Repair:** The checker now accepts either a date-boundary reset to `0001` or
+  an exact global successor (`previous + 1`) and still rejects gaps, rewinds,
+  duplicate IDs, and date regressions. A focused regression fixture covers the
+  global-successor form. Archived journal bytes and manifest hashes were not
+  changed; the full checker now returns `status: ok` with 568 archived and 277
+  current numeric events through `EJ-20260730-0230`.
+- **Boundary:** This is a forensic checker compatibility repair only. It does
+  not add scientific evidence, authorize a provider action, or alter any
+  Task 6–10 or Step 14 decision.
