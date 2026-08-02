@@ -5,6 +5,13 @@
 **Branch:** `codex/neurips-2026-empirical`  
 **Handoff commit floor:** `9abc45b` (`Close isolation teardown evidence`)
 
+> **Current-state notice (2026-08-02, commit `7a9f406`):** The snapshot
+> sections below were written before the later sealed qualifications. Read the
+> **Current state override** at the end of this document before taking any
+> action; it supersedes the older “remaining dependency chain”, startup
+> prompt, and `/goal` text below. No resource, credential, or scientific
+> authority is created by this notice.
+
 This document transfers orchestration from the Windows Codex session to a
 persistent Linux VPS session. It is an operational handoff, not scientific
 authority and not permission to weaken any fail-closed contract.
@@ -320,3 +327,46 @@ Preserve all spend, retry, teardown, evidence, and claim boundaries; do not
 declare completion until every requirement is proven by current committed
 evidence.
 ```
+
+## Current state override — 2026-08-02
+
+The older snapshot and dependency chain above are retained for provenance, but
+they are no longer the live queue. The current committed evidence proves the
+following bounded pre-experiment roots:
+
+1. Step 5B's real input lock is sealed at
+   `e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84`; the
+   1,705-object payload mirror was independently reread on Windows and AWS.
+2. C120 G-ROSTER is closed at its qualification boundary: 33/33 Linux
+   isolation pairs passed, three distinct immutable units per registered split,
+   with isolation receipt
+   `599527e896e9f48a53252585d02e98fd725074e8faa503ab7ce017cf1997b284` and
+   closure receipt `a887370640d2c6e9514e350c476e786d1040e6bcf3799422dee6c60b70944209`.
+   C160 is not selected.
+3. Step 7B image builds/SBOMs and the controller → model-server →
+   benchmark-worker production surface are closed by action 024; surface
+   digest `e028d66d15247ab52dabfed8913fa7b841a1bc85c6604a06c596e1f51d77ee38`.
+4. The account/plan, one-L40S admission, interruption/recovery, and
+   Windows/Linux portability roots are sealed. DynamoDB contention/cleanup and
+   AWS Batch array semantics are separately qualified and fully torn down.
+
+The eight receipt roots required by Step 14 are therefore present. The fresh
+hostile review receipt
+`evidence/step14-launch-review-20260802.json` has verdict `launch_blocked`
+with three remaining findings: no authority-backed P0 power/tier receipt, and
+no packet/assignment/detectability/unblind receipts in the canonical Step-14
+index. Tasks 6–10 remain honestly `implementation_complete; E2E_pending`.
+
+Those three findings are not infrastructure gaps that another Batch or login
+check can close. They require a fresh, separately authorized canonical P0
+lineage (or a reviewed formal timing/no-go disposition) and must not be
+fabricated from Step 4A or qualification receipts. Until that authority exists:
+
+- do not run Step 4B, a benchmark/model episode, a pilot, an unblind, or a
+  scientific analysis;
+- do not reuse the stopped partial P0 root;
+- preserve the clean branch and all zero-retry teardown evidence; and
+- report the exact `launch_blocked` disposition rather than “launch ready”.
+
+This override is the current continuation contract for the VPS and supersedes
+the archived startup prompt and `/goal` text above.
