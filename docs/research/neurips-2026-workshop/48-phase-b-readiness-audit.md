@@ -91,6 +91,13 @@ independent teardown are sealed in
 or production-surface handshake ran. Action 013 is exhausted with zero
 retries, so the current production-surface gate remains open.
 
+The pinned Buildx/BuildKit successor action 014 failed closed during Amazon
+Linux bootstrap because requesting `curl` conflicted with the AMI's installed
+`curl-minimal` package. No Buildx/BuildKit installation, image build, SBOM,
+role probe, or production-surface handshake ran. The failure and teardown are
+sealed in `evidence/step7b-aws-builder-failure-014-20260802.json`; action 014
+is exhausted with zero retries and the production-surface gate remains open.
+
 ## Topology change and its residual empirical risk
 
 DL-161 selects an 8-vCPU `g6e.2xlarge` single-L40S AWS path with sequential

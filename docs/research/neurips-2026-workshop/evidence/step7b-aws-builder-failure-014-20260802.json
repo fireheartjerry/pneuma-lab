@@ -1,0 +1,71 @@
+{
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED_NO_RETRY",
+  "action_id": "step7b-aws-builder-014",
+  "admission_package_sha256": "e146d5625ae46c99981296f770681fff39bd4082ef4f3c6461a23d3c00a81509",
+  "plan_sha256": "9db1962d326d733718e510b3ba60b6bb9fb487dddb144d5d884d12f3f9c51457",
+  "source_commit": "e687554a02fded64ae469a394945cdbe5d232d0e",
+  "failure_reason": "The pinned Buildx/BuildKit action failed during Amazon Linux bootstrap before any image build. dnf install -y docker tar gzip curl attempted to install curl while the AMI already supplied curl-minimal, producing a package conflict and bootstrap_error. No Buildx binary was installed, no BuildKit container was created, no source or plan was executed by the builder, and no role probe, SBOM, production-surface handshake, model, benchmark, pilot, or experiment occurred.",
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-014/plan.json",
+      "version_id": "Gsy5ibuLpAVy5SIkv6forx.ZrYei2Tuw",
+      "sha256": "04999b6cb3b04070bd1b561a374d6d9e19aaf222dc1ee07a223d3e89b11cd543"
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-014/source.tar",
+      "version_id": "0Z6bYIFltzkjpsAn7zOcZdrk5D9e8z2u",
+      "sha256": "e0e99d23417a864519d555f17f377d1ef9ee593e2d1632a56c50d77f6986266c",
+      "size_bytes": 28846080
+    },
+    "admission_package": {
+      "key": "runs/preparation/step7b-aws-builder-014/admission-package.json",
+      "version_id": "oYNBzilziyN1F6zZUpPO0B5vv9cA7.37",
+      "sha256": "e146d5625ae46c99981296f770681fff39bd4082ef4f3c6461a23d3c00a81509"
+    }
+  },
+  "instance": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "instance_id": "i-020f7544dcf95f161",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-02T04:19:21Z",
+    "terminal_state": "terminated",
+    "root_volume_id": "vol-01ef175a0b60a325d",
+    "root_volume_state": "InvalidVolume.NotFound",
+    "security_group_id": "sg-024de73fe15daaafc",
+    "security_group_state": "InvalidGroup.NotFound",
+    "terminated_timestamp": "2026-08-02T04:21:44Z"
+  },
+  "rendered_user_data_sha256": "4d0d763ae30ce4259a853f63470fd46a0225625694039eb59e7dc92ac9eddb19",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/step7b-aws-builder-014/outputs/",
+  "output_artifacts": {
+    "bootstrap_status": {
+      "key": "runs/preparation/step7b-aws-builder-014/outputs/bootstrap-status.json",
+      "version_id": "LdY5sJk7scuXnpP2vz8T5LDrqM7hISyS",
+      "size_bytes": 46,
+      "sha256": "f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7"
+    },
+    "bootstrap_log": {
+      "key": "runs/preparation/step7b-aws-builder-014/outputs/bootstrap.log",
+      "version_id": "XMoKKFfX4ZXrK07wEzD9SWyGGh_os0yz",
+      "size_bytes": 64514,
+      "sha256": "6170c29947d2d09f55245412a1e0acc89e8b21ad103b3c2ef09279dca3c72e6b"
+    }
+  },
+  "partial_results": {
+    "bootstrap": "FAILED_BEFORE_BUILD",
+    "controller": "NOT_RUN",
+    "model-server": "NOT_RUN",
+    "benchmark-worker": "NOT_RUN",
+    "production_surface": "NOT_RUN"
+  },
+  "teardown": {
+    "instance_termination_verified": true,
+    "root_volume_absence_verified": true,
+    "security_group_no_eni_verified": true,
+    "security_group_deletion_verified": true,
+    "verification_timestamp": "2026-08-02T04:21:44Z"
+  }
+}

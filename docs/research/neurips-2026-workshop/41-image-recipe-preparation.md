@@ -54,6 +54,15 @@ exhausted with zero retries. No role probes, SBOMs, or production-surface
 handshake were run, and no current image-bound production-surface receipt
 exists.
 
+The pinned Buildx/BuildKit successor action 014 did not reach the build: the
+Amazon Linux bootstrap requested `curl` even though the AMI already provides
+`curl-minimal`, so `dnf` failed closed before Buildx or BuildKit installation.
+The versioned failure output and independent teardown are sealed in
+`evidence/step7b-aws-builder-failure-014-20260802.json`; action 014 is
+exhausted with zero retries. The next successor removes only that conflicting
+package request; no image, SBOM, or production-surface evidence is promoted
+from action 014.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.

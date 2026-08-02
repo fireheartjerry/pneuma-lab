@@ -4946,3 +4946,28 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** action 014 is an unsigned zero-retry candidate. No source or
   plan upload, signature, instance launch, image build, SBOM, role-chain E2E,
   or scientific execution has occurred in this preparation entry.
+
+### EJ-20260802-step7b-aws-builder-014-failure
+
+- **Execution:** The single admitted attempt launched exact instance
+  `i-020f7544dcf95f161` (`m7i.xlarge`, 650 GiB encrypted gp3 root) from
+  rendered user-data SHA-256
+  `4d0d763ae30ce4259a853f63470fd46a0225625694039eb59e7dc92ac9eddb19`.
+- **Failure:** Amazon Linux bootstrap ran `dnf install -y docker tar gzip
+  curl`; the AMI's preinstalled `curl-minimal` caused a package conflict and
+  the bootstrap entered `FAILED` before Buildx or BuildKit installation. No
+  source retrieval, image build, SBOM, role probe, production-surface
+  handshake, model, benchmark, pilot, or experiment occurred. The sealed
+  status/log versions and hashes, partial-result states, and bindings are in
+  `evidence/step7b-aws-builder-failure-014-20260802.json`; action 014 is
+  exhausted with zero retries.
+
+### EJ-20260802-step7b-aws-builder-014-teardown
+
+- The host was stopped and terminated at `2026-08-02T04:21:44Z`. Fresh
+  provider reads show encrypted root `vol-01ef175a0b60a325d` as
+  `InvalidVolume.NotFound`. The temporary security group
+  `sg-024de73fe15daaafc` had no ENI or instance dependencies, was deleted, and
+  then returned `InvalidGroup.NotFound`. No action-tagged resource remains.
+- The projected USD 2.25 is recorded as pending provider billing settlement
+  under CL-139/CL-140; no scientific work occurred.

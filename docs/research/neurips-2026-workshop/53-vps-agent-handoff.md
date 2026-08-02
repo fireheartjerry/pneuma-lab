@@ -114,6 +114,12 @@ evidence or silently reuse action 010.
   `evidence/step7b-aws-builder-failure-013-20260802.json`; no role probes,
   SBOMs, or production-surface handshake ran. Action 013 is exhausted with
   zero retries; do not treat any partial output as a production-surface pass.
+- The pinned Buildx/BuildKit successor action 014 failed closed before any
+  build because Amazon Linux's preinstalled `curl-minimal` conflicted with the
+  bootstrap's explicit `curl` package request. Its failure and teardown are
+  sealed in `evidence/step7b-aws-builder-failure-014-20260802.json`; action
+  014 is exhausted with zero retries, and no production-surface evidence was
+  created. The next action must bind the corrected bootstrap bytes afresh.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.
