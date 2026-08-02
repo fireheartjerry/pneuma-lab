@@ -6,7 +6,7 @@
   "cli_timeout_seconds": 30,
   "condition_expression": "attribute_not_exists(lease_key)",
   "cost_ceiling_usd": 0.25,
-  "executor_sha256": "8bb35ed80f4141ca2fa7a4f9ff5221b2ef7a54aa5549f5895c78272399fe1c10",
+  "executor_sha256": "e3d3370af9b25d72c2750c2af440ee64cef28028d7cfb7fb450601ba044d8a47",
   "execution_profile": "default",
   "expires_timestamp": "2026-08-03T02:00:00Z",
   "forbidden": [
@@ -38,11 +38,11 @@
     "DynamoDB GetItem consistent-read exact-key absence readback",
     "DynamoDB Scan select COUNT read-only final check"
   ],
-  "plan_sha256": "4f5a440c54d85952295b4cb4a295b436e1fda6600bbaf240fa0bb3702d870b9f",
+  "plan_sha256": "d0cc76144d039af67f4da2960e4594fcbdc84ff33f557f6593b57789cf957d56",
   "projected_cost_usd": 0.05,
   "provider": "aws",
   "region": "us-east-1",
-  "source_commit": "1710ede567eb2e828fdec02eea4ccb67fe4a4699",
+  "source_commit": "f92a7421bea5166aa7fa1b7862868d805adbb792",
   "source_script_path": "scripts/research/qualify_dynamodb_lease_contention.py",
   "table_arn": "arn:aws:dynamodb:us-east-1:892077329800:table/pneuma-c160-leases",
   "table_name": "pneuma-c160-leases",
