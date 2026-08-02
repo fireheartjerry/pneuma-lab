@@ -41,6 +41,7 @@ _SCHEMA_BY_KIND = {
     "cloud_payload_mirror_receipt": "cloud-payload-mirror-receipt.schema.json",
     "cloud_step5b_lifecycle_receipt": "cloud-step5b-lifecycle-receipt.schema.json",
     "cloud_isolation_qualification_receipt": "cloud-isolation-qualification-receipt.schema.json",
+    "cloud_production_role_receipt": "cloud-production-role-receipt.schema.json",
 }
 
 
@@ -92,6 +93,12 @@ def validate_interruption_qualification_receipt(
 
 def validate_production_execution_surface(record: Mapping[str, Any]) -> dict[str, Any]:
     return _validate(record, expected_kind="cloud_production_execution_surface")
+
+
+def validate_production_role_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate one role hand-off receipt without promoting it to science."""
+
+    return _validate(record, expected_kind="cloud_production_role_receipt")
 
 
 def validate_experiment_manifest(record: Mapping[str, Any]) -> dict[str, Any]:

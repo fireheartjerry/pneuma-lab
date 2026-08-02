@@ -678,7 +678,14 @@
             "evidence_refs": [
                 "docs/research/neurips-2026-workshop/48-phase-b-readiness-audit.md",
                 "docs/research/neurips-2026-workshop/37-phase-b-4-13-implementation-plan.md",
-                "docs/research/neurips-2026-workshop/36-step4a-to-aws-credit-launch-roadmap.md"
+                "docs/research/neurips-2026-workshop/36-step4a-to-aws-credit-launch-roadmap.md",
+                "src/pneuma_lab/cloud/production_runtime.py",
+                "src/pneuma_lab/cloud/manifests.py",
+                "src/pneuma_lab/cloud/production_surface.py",
+                "schemas/cloud-production-role-receipt.schema.json",
+                "scripts/research/run_production_surface_e2e.py",
+                "tests/cloud/test_production_runtime.py",
+                "tests/cloud/test_production_surface_e2e.py"
             ],
             "blockers": [
                 "B-NEURIPS-AWS-ACCOUNT-PLAN",

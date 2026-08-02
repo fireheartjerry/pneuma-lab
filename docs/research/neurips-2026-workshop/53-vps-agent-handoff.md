@@ -80,9 +80,11 @@ scientific result.
   `InvalidInstanceID.NotFound` for `i-01d2a6e41101fc6df` and
   `InvalidVolume.NotFound` for `vol-0ddb5ff0c80f2ce39`; closure is committed in
   `9abc45b`.
-- The production execution-surface contract exists in commit `2e5c98e`, but
-  real production adapters are still missing. Do not substitute decorative
-  containers or fixture-only tests for that runtime evidence.
+- The production execution-surface contract exists in commit `2e5c98e`; the
+  bounded controller → model-server → benchmark-worker handshake is now
+  implemented and locally tested in document 54. Real image E2E receipts are
+  still missing. Do not substitute fixture-only tests for that provider-bound
+  evidence.
 - Step 7B reproducible three-role builds and SBOMs are now externally verified
   under the zero-retry KMS-admitted action 009. This closes image-build
   evidence only; it does not close the production execution surface.

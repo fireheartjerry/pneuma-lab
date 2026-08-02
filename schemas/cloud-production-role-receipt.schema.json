@@ -1,0 +1,25 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-production-role-receipt.schema.json",
+    "title": "Cloud Production Role Receipt",
+    "description": "One role's content-addressed qualification hand-off receipt; it is not benchmark or model evidence.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": ["record_kind", "schema_version", "role", "state", "action_id", "input_lock_sha256", "harness_sha256", "harness_bytes", "request_id", "request_sha256", "payload"],
+    "properties": {
+        "record_kind": {"const": "cloud_production_role_receipt"},
+        "schema_version": {"const": "0.1.0"},
+        "role": {"enum": ["controller", "model-server", "benchmark-worker"]},
+        "state": {"enum": ["DISPATCHED", "RESPONDED", "COMPLETE"]},
+        "action_id": {"type": "string", "minLength": 1},
+        "input_lock_sha256": {"$ref": "#/$defs/digest"},
+        "harness_sha256": {"$ref": "#/$defs/digest"},
+        "harness_bytes": {"type": "integer", "minimum": 1},
+        "request_id": {"type": "string", "minLength": 1},
+        "request_sha256": {"$ref": "#/$defs/digest"},
+        "payload": {"type": "object"}
+    },
+    "additionalProperties": false,
+    "$defs": {"digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

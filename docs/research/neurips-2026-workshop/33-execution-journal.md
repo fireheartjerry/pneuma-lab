@@ -4621,3 +4621,17 @@ The next event after the archived migration boundary is appended below.
 - Spend is recorded as pending provider billing settlement under CL-119/CL-120;
   no cash charge or credit application has been observed yet. Action 009 is
   exhausted with zero retries and is not reusable.
+
+### EJ-20260802-production-surface-handshake-implementation
+
+- Replaced the former READY-only role stub with a bounded content-addressed
+  handshake: controller dispatch, model-server response, and benchmark-worker
+  terminal receipt. Each role rejects mismatched harness, authority, request,
+  predecessor state, response digest, or token payload; the wrong-hash probe
+  remains fail-closed.
+- Added the role-receipt schema, aggregate E2E runner, and focused subprocess
+  regressions. The local chain and malformed/wrong-hash cases pass, with no
+  network, model load, benchmark task, provider action, or scientific result.
+- **Boundary:** this is implementation evidence only. A fresh image-bound E2E
+  action must execute the same chain under network-none/read-only isolation and
+  bind its receipts before the production-surface gate can close.
