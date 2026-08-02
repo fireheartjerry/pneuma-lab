@@ -91,6 +91,12 @@ def _read(plan: dict[str, Any], command: list[str]) -> Any:
     return _json(_run_aws(plan, command))
 
 
+def _first(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return a safe empty object for an eventually-consistent empty read."""
+
+    return rows[0] if rows else {}
+
+
 def _record_mutation(receipt: dict[str, Any], operation: str, result: dict[str, Any]) -> None:
     receipt["mutations"].append(
         {
@@ -397,7 +403,7 @@ def _teardown(plan: dict[str, Any], receipt: dict[str, Any], flags: dict[str, bo
         result = _safe_mutate(plan, receipt, "disable_job_queue", ["batch", "update-job-queue", "--job-queue", queue_arn, "--state", "DISABLED"], errors)
         if result is not None:
             try:
-                _poll(plan, lambda: _read(plan, ["batch", "describe-job-queues", "--job-queues", queue_arn]).get("jobQueues", [{}])[0], lambda row: row.get("state") == "DISABLED", "job queue disabled")
+                _poll(plan, lambda: _first(_read(plan, ["batch", "describe-job-queues", "--job-queues", queue_arn]).get("jobQueues", [])), lambda row: row.get("state") == "DISABLED", "job queue disabled")
                 receipt["teardown"]["queue_disabled"] = True
             except QualificationError:
                 errors.append("poll_disabled_job_queue")
@@ -413,7 +419,7 @@ def _teardown(plan: dict[str, Any], receipt: dict[str, Any], flags: dict[str, bo
         result = _safe_mutate(plan, receipt, "disable_compute_environment", ["batch", "update-compute-environment", "--compute-environment", environment_arn, "--state", "DISABLED"], errors)
         if result is not None:
             try:
-                _poll(plan, lambda: _read(plan, ["batch", "describe-compute-environments", "--compute-environments", environment_arn]).get("computeEnvironments", [{}])[0], lambda row: row.get("state") == "DISABLED", "compute environment disabled")
+                _poll(plan, lambda: _first(_read(plan, ["batch", "describe-compute-environments", "--compute-environments", environment_arn]).get("computeEnvironments", [])), lambda row: row.get("state") == "DISABLED", "compute environment disabled")
                 receipt["teardown"]["compute_environment_disabled"] = True
             except QualificationError:
                 errors.append("poll_disabled_compute_environment")
@@ -558,7 +564,7 @@ def execute(plan: dict[str, Any], package: dict[str, Any], registry: dict[str, A
             raise QualificationError("compute environment ARN differs from signed plan")
         ce = _poll(
             plan,
-            lambda: _read(plan, ["batch", "describe-compute-environments", "--compute-environments", plan["compute_environment_arn"]]).get("computeEnvironments", [{}])[0],
+            lambda: _first(_read(plan, ["batch", "describe-compute-environments", "--compute-environments", plan["compute_environment_arn"]]).get("computeEnvironments", [])),
             lambda row: row.get("status") == "VALID",
             "compute environment VALID",
         )
@@ -578,7 +584,7 @@ def execute(plan: dict[str, Any], package: dict[str, Any], registry: dict[str, A
                 "--priority",
                 "1",
                 "--compute-environment-order",
-                json.dumps({"order": 1, "computeEnvironment": plan["compute_environment_arn"]}, sort_keys=True, separators=(",", ":")),
+                json.dumps([{"order": 1, "computeEnvironment": plan["compute_environment_arn"]}], sort_keys=True, separators=(",", ":")),
             ],
         )
         flags["queue_created"] = True
@@ -587,7 +593,7 @@ def execute(plan: dict[str, Any], package: dict[str, Any], registry: dict[str, A
             raise QualificationError("job queue ARN differs from signed plan")
         job_queue = _poll(
             plan,
-            lambda: _read(plan, ["batch", "describe-job-queues", "--job-queues", plan["job_queue_arn"]]).get("jobQueues", [{}])[0],
+            lambda: _first(_read(plan, ["batch", "describe-job-queues", "--job-queues", plan["job_queue_arn"]]).get("jobQueues", [])),
             lambda row: row.get("status") == "VALID",
             "job queue VALID",
         )
