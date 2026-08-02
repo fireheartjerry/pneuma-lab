@@ -104,7 +104,6 @@ def run_role(
     command.extend(
         [
             image,
-            role,
             "--protocol",
             "e2e",
             "--harness",

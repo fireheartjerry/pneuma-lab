@@ -7,9 +7,32 @@ import sys
 from pathlib import Path
 
 from pneuma_lab.cloud.production_surface import require_production_execution_surface
+from scripts.research import run_production_surface_e2e
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_image_role_uses_sealed_entrypoint_without_duplicate_role(tmp_path, monkeypatch) -> None:
+    commands: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout=b"{}", stderr=b"")
+
+    monkeypatch.setattr(run_production_surface_e2e.subprocess, "run", fake_run)
+    run_production_surface_e2e.run_role(
+        "model-server",
+        image="pneuma-step7b-model-server:build-1",
+        harness=tmp_path / "harness.json",
+        harness_sha256="a" * 64,
+        input_path=None,
+        work=tmp_path,
+        controller_privileged=False,
+    )
+    command = commands[0]
+    image_index = command.index("pneuma-step7b-model-server:build-1")
+    assert command[image_index + 1 : image_index + 3] == ["--protocol", "e2e"]
 
 
 def test_local_three_role_surface_e2e(tmp_path) -> None:
