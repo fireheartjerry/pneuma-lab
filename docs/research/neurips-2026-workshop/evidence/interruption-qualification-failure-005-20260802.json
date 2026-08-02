@@ -1,0 +1,68 @@
+{
+  "record_kind": "cloud_interruption_qualification_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED",
+  "action_id": "interruption-qualification-005",
+  "plan_sha256": "4db26070b1ac8e3c5751b811f4563d64518a632d36874de24c49c4ee5f2aedc8",
+  "signed_package_sha256": "6248f98fdccd73fad5c3382a0251e68fd0ba073ad5f7e7b16d877d188b8056de",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "attempted_at": "2026-08-02T16:30:27Z",
+  "failure_class": "private_subnet_service_reachability_timeout",
+  "provider_error": "Controller cloud-init recorded Connect timeout on endpoint URL https://dynamodb.us-east-1.amazonaws.com/ at 2026-08-02T16:33:47Z; the user-data module failed before publishing the completed boundary or controller report. The expired watcher could not write its observation or terminate the controller because the same private subnet has no DynamoDB service endpoint or NAT route.",
+  "retry_policy": "zero_retry_action_exhausted",
+  "launch_request": {
+    "ami_id": "ami-011db5ae81cc0f370",
+    "instance_type": "t3.nano",
+    "subnet_id": "subnet-042e433905daddc0b",
+    "vpc_id": "vpc-0577decd080525e86",
+    "security_group_id": "sg-08428ae82a7e2fd35",
+    "root_device": "/dev/xvda",
+    "root_volume_gib": 30,
+    "root_volume_type": "gp3",
+    "root_volume_encrypted": true,
+    "delete_on_termination": true,
+    "controller_userdata_sha256": "b4f50d0edd9b498a523d0e014ad0b210ae9ab00ca3f3260ed787da4492330cb9",
+    "watcher_userdata_sha256": "7de4d5289780c8eba07f9a900d013c465494927a92f2c87344539795510bdaa8"
+  },
+  "lease": {
+    "key": "interruption-qualification-005",
+    "issued_timestamp": "2026-08-02T16:29:54Z",
+    "expires_timestamp": "2026-08-02T16:34:54Z",
+    "controller_instance_id": "i-0c017f06c9e4f4173",
+    "controller_renewal_count": 0,
+    "watcher_observed_timestamp": null,
+    "watcher_termination_state": null
+  },
+  "network_evidence": {
+    "main_route_table_id": "rtb-0786adc7fddd32540",
+    "main_route_table_routes": ["10.42.0.0/16 local", "S3 prefix-list via vpce-09d6f8fe78df0fb1f"],
+    "dynamodb_gateway_endpoint_present": false,
+    "nat_route_present": false,
+    "s3_gateway_endpoint_id": "vpce-09d6f8fe78df0fb1f",
+    "controller_console_timeout_timestamp": "2026-08-02T16:33:47Z"
+  },
+  "resources": {
+    "instances_created": ["i-0c017f06c9e4f4173", "i-04e63da48a5769bd3"],
+    "volumes_created": ["vol-097f106d80881a254", "vol-0e45b22f1d65b897b"],
+    "enis_created": ["eni-07017a51de29aba95", "eni-0220b8185ba61ac43"],
+    "s3_objects_created": []
+  },
+  "cleanup": {
+    "instances_terminated_once": true,
+    "instances_absent_after_termination": true,
+    "volumes_absent_after_termination": true,
+    "enis_absent_after_termination": true,
+    "lease_deleted_once": true,
+    "lease_absent_after_cleanup": true,
+    "watcher_profile_deleted_once": true,
+    "watcher_role_policy_deleted_once": true,
+    "watcher_role_deleted_once": true,
+    "watcher_profile_absent_after_cleanup": true,
+    "watcher_role_absent_after_cleanup": true,
+    "security_group_touched": false,
+    "verified_at": "2026-08-02T16:37:17Z"
+  },
+  "scientific_boundary": "No lease observation, completed-boundary restoration, model, benchmark, pilot, experiment, or scientific result occurred."
+}

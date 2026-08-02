@@ -5501,6 +5501,24 @@ The next event after the archived migration boundary is appended below.
   expiry `2026-08-03T06:30:00Z`. Offline `require_preparation_admission`
   passed. No provider action had started at admission.
 
+### EJ-20260802-interruption-qualification-005-failure
+
+- **Network qualification failure:** The exact controller/watcher launches
+  succeeded with the bound t3.nano/30 GiB encrypted gp3 settings, but the
+  private subnet could not reach DynamoDB. Controller console output recorded
+  `Connect timeout on endpoint URL: "https://dynamodb.us-east-1.amazonaws.com/"`
+  at `2026-08-02T16:33:47Z`; cloud-init failed before boundary/report
+  publication. The lease expired at `16:34:54Z` with renewal count 0 and no
+  watcher observation. The exact topology and hashes are sealed in
+  `evidence/interruption-qualification-failure-005-20260802.json`.
+- **Teardown:** Both instances were terminated once. Fresh reads returned
+  both roots and ENIs not-found; the lease item and temporary watcher
+  profile/role were deleted once and returned absent. No S3 object, model,
+  benchmark, pilot, experiment, or scientific result exists. Action 005 is
+  exhausted with zero retries. Any successor must bind and qualify a
+  DynamoDB-reachable private path (or an explicitly authorized equivalent)
+  before rerunning the watchdog.
+
 ### EJ-20260802-interruption-qualification-004-failure
 
 - **Fail-closed CLI gate:** The sole profile-create command was rejected by
