@@ -135,6 +135,14 @@ created. The next action must bind the corrected bootstrap bytes afresh.
   `evidence/step7b-aws-builder-failure-015-20260802.json`; action 015 is
   exhausted with zero retries. A successor must bind and publish the exact
   builder inspection output before any further build attempt.
+- Diagnostic successor action 016 is prepared but not admitted or run. It
+  binds source commit `4a067231...e0a`, archive
+  `26ab4f48f37b6492c594c0775b8e9bcb5546f0d4a36b14a3ec17621169764e39`, the
+  inspection stdout/stderr sealing repair, pinned Buildx/BuildKit, and fresh
+  no-ingress security group `sg-0c527fadf035615a6`. Plan
+  `2cc7f3724709a831ff925bfc7d0c51a2b39d6a0589ee573e438545aa89983e6d` is a
+  zero-retry candidate only; no provider execution or production-surface
+  receipt exists.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.

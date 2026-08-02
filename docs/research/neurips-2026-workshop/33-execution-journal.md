@@ -5015,3 +5015,22 @@ The next event after the archived migration boundary is appended below.
   then returned `InvalidGroup.NotFound`. No action-tagged resource remains.
 - The projected USD 2.25 is recorded as pending provider billing settlement
   under CL-143/CL-144; no scientific work occurred.
+
+### EJ-20260802-step7b-aws-builder-016-preparation
+
+- **Repair:** Action 015 verified Docker and Buildx but failed before the
+  strict BuildKit version gate without publishing the provider's inspection
+  output. The executor now seals builder stdout and stderr before validation,
+  records a nonzero inspect exit code, and accepts only the exact pinned
+  version label (with the two known Buildx label forms). Focused executor
+  tests, Ruff, whitespace, and status checks pass.
+- **Candidate:** A clean archive from committed source `4a067231...e0a` is
+  `26ab4f48f37b6492c594c0775b8e9bcb5546f0d4a36b14a3ec17621169764e39`
+  (28,887,040 bytes). Plan
+  `2cc7f3724709a831ff925bfc7d0c51a2b39d6a0589ee573e438545aa89983e6d`
+  binds the diagnostic executor, pinned Buildx/BuildKit, production harness
+  `089ad399d43ebc0996e86a68a7640215974c49048e815a462d395a21ed549b19`, and
+  fresh no-ingress security group `sg-0c527fadf035615a6`.
+- **Boundary:** Action 016 is an unsigned zero-retry candidate. No source or
+  plan upload, signature, instance launch, image build, SBOM, role-chain E2E,
+  or scientific execution has occurred in this preparation entry.

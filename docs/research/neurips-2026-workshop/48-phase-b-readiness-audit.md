@@ -98,6 +98,13 @@ role probe, or production-surface handshake ran. The failure and teardown are
 sealed in `evidence/step7b-aws-builder-failure-014-20260802.json`; action 014
 is exhausted with zero retries and the production-surface gate remains open.
 
+Diagnostic successor action 016 is prepared but remains an unsigned candidate.
+It binds the inspection stdout/stderr sealing repair, source commit
+`4a067231...e0a`, archive `26ab4f4...4e39`, pinned Buildx/BuildKit, and fresh
+security group `sg-0c527fadf035615a6`; plan
+`2cc7f3724709a831ff925bfc7d0c51a2b39d6a0589ee573e438545aa89983e6d` binds the
+exact bytes. No provider execution or new production-surface evidence exists.
+
 Corrected successor action 015 is prepared but remains an unsigned candidate.
 It binds the repaired curl-minimal-safe bootstrap, source commit
 `98dd81a...c806`, archive `9229854...b579`, pinned Buildx/BuildKit, and fresh

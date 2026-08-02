@@ -81,6 +81,14 @@ versioned outputs and teardown are sealed in
 exhausted with zero retries. The next successor must publish the exact builder
 inspection bytes before attempting any image build.
 
+Diagnostic successor action 016 is prepared but not yet admitted or run. It
+binds source commit `4a067231...e0a`, archive
+`26ab4f48f37b6492c594c0775b8e9bcb5546f0d4a36b14a3ec17621169764e39`, the
+inspection stdout/stderr sealing repair, pinned Buildx/BuildKit, and fresh
+no-ingress security group `sg-0c527fadf035615a6`. Plan
+`2cc7f3724709a831ff925bfc7d0c51a2b39d6a0589ee573e438545aa89983e6d` is a
+zero-retry candidate only; no provider execution or new image evidence exists.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.
