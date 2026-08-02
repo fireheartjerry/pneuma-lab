@@ -1,0 +1,37 @@
+{
+  "record_kind": "cloud_interruption_qualification_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED",
+  "action_id": "interruption-qualification-003",
+  "plan_sha256": "e3db6e957e142e6067e782e2a2f79958e88c84f8f2973a713843284fd338e76e",
+  "signed_package_sha256": "9906d1c0dbb885ccae1822e0d729aa4a371d1ac3d51dcdc834384a91d6f6d4dc",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "attempted_at": "2026-08-02T16:22:26Z",
+  "failure_class": "execution_preflight_binding_mismatch",
+  "provider_error": "Temporary watcher role was created with path /pneuma/, yielding ARN arn:aws:iam::892077329800:role/pneuma/pneuma-c160-interruption-watcher-20260802-003, but the signed plan bound arn:aws:iam::892077329800:role/pneuma-c160-interruption-watcher-20260802-003. No EC2 RunInstances request was attempted.",
+  "retry_policy": "zero_retry_action_exhausted",
+  "launch_request": {
+    "attempted": false,
+    "expected_watcher_role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-interruption-watcher-20260802-003",
+    "observed_watcher_role_arn": "arn:aws:iam::892077329800:role/pneuma/pneuma-c160-interruption-watcher-20260802-003"
+  },
+  "resources": {
+    "iam_roles_created": ["arn:aws:iam::892077329800:role/pneuma/pneuma-c160-interruption-watcher-20260802-003"],
+    "iam_roles_remaining": [],
+    "instance_profiles_created": [],
+    "instances_created": [],
+    "volumes_created": [],
+    "enis_created": [],
+    "s3_objects_created": []
+  },
+  "cleanup": {
+    "role_deleted_once": true,
+    "role_absent_after_cleanup": true,
+    "profile_created": false,
+    "security_group_touched": false,
+    "verified_at": "2026-08-02T16:23:00Z"
+  },
+  "scientific_boundary": "No EC2 instance, lease execution, watcher observation, recovery, model, benchmark, pilot, experiment, or scientific result occurred."
+}

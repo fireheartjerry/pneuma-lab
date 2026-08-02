@@ -5470,3 +5470,18 @@ The next event after the archived migration boundary is appended below.
   expiry `2026-08-03T06:30:00Z`. Offline `require_preparation_admission`
   passed. The provider action is still pending; no interruption instance has
   been launched yet.
+
+### EJ-20260802-interruption-qualification-003-failure
+
+- **Fail-closed preflight:** The first IAM mutation for action 003 used an
+  explicit `/pneuma/` path, producing watcher ARN
+  `arn:aws:iam::892077329800:role/pneuma/pneuma-c160-interruption-watcher-20260802-003`
+  instead of the pathless ARN bound by the signed plan. The mismatch was
+  detected before profile creation or `RunInstances`; action 003 is exhausted
+  with zero retries. The exact failure is sealed in
+  `evidence/interruption-qualification-failure-003-20260802.json`.
+- **Cleanup:** The sole temporary role was deleted once and a fresh read
+  returned `NoSuchEntity`; no instance profile, lease item, instance, volume,
+  ENI, S3 object, model, benchmark, pilot, experiment, or scientific result
+  exists. A fresh successor must bind the exact pathless IAM ARN and use the
+  same 30 GiB encrypted gp3 root.
