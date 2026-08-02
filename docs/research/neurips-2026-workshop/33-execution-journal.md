@@ -4920,3 +4920,29 @@ The next event after the archived migration boundary is appended below.
 - No action-tagged resource remains. The projected USD 2.25 is recorded as
   pending provider billing settlement under CL-135/CL-136; no model,
   benchmark, pilot, experiment, or scientific result occurred.
+
+### EJ-20260802-step7b-aws-builder-014-preparation
+
+- **Repair:** action 013 reproduced the old Docker-packaged BuildKit failure
+  even after Dockerfile-owned mtime normalization. A bounded local control
+  reproduced the same behavior with BuildKit 0.12.5: two identical exports
+  had different image IDs. The same control with content-addressed BuildKit
+  v0.13.2 produced identical image IDs. The executor now installs and hashes
+  Buildx v0.13.1, creates a named `docker-container` builder from the exact
+  BuildKit v0.13.2 image, verifies both versions, and retains the strict
+  digest gate.
+- **Candidate:** a fresh `git archive --format=tar HEAD` produced archive
+  `e0e99d23417a864519d555f17f377d1ef9ee593e2d1632a56c50d77f6986266c`
+  (28,846,080 bytes). Plan
+  `9db1962d326d733718e510b3ba60b6bb9fb487dddb144d5d884d12f3f9c51457` binds
+  source `e687554a02fded64ae469a394945cdbe5d232d0e`, executor
+  `4ecfc977817ceedc444ae5efaeb32705971697c62e096a3b976b054ea0983288`,
+  Buildx SHA-256
+  `3e2bc8ed25a9125d6aeec07df4e0211edea6288e075b524160ef3fd305d3d74c`,
+  BuildKit image
+  `moby/buildkit:v0.13.2@sha256:9194b5ec1be368f41c516df7f93f7f540630ea06136056b2ffebb62226ed4ad6`,
+  fresh no-ingress SG `sg-024de73fe15daaafc`, and production harness
+  `1d94c0f17cd25e0c42acf91badec55f964be567db67f0c31d67caf0b68958968`.
+- **Boundary:** action 014 is an unsigned zero-retry candidate. No source or
+  plan upload, signature, instance launch, image build, SBOM, role-chain E2E,
+  or scientific execution has occurred in this preparation entry.
