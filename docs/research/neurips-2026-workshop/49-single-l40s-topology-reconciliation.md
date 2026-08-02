@@ -2,7 +2,9 @@
 
 **Date:** 2026-07-31
 **Authority:** DL-161; user-approved execution topology
-**Status:** implementation reconciliation complete; external gates remain open
+**Status:** superseded for future action by DL-171 and
+`55-dual-l40s-spot-topology-reconciliation.md`; retained as the immutable
+single-worker reconciliation record
 
 Machine-readable state: [`docs/project-status.json`](../../project-status.json).
 

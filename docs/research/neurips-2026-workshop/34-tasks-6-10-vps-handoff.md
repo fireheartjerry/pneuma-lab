@@ -16,6 +16,14 @@ This document is a routing summary, not a replacement for the controlling plan,
 design, decision log, or execution journal. Read those authorities completely
 before changing scientific behavior.
 
+**Current topology amendment (2026-08-02):** DL-171 supersedes the former
+single-L40S primary topology for future actions. The current local contract is
+two independent 8-vCPU/one-L40S `g6e.2xlarge` Spot workers, capped at 16 Spot
+vCPUs, with canonical disjoint partitioning and freeze-and-resume recovery.
+Read `55-dual-l40s-spot-topology-reconciliation.md` before changing cloud,
+pilot, or execution behavior. This amendment authorizes no provider action,
+experiment, or claim.
+
 Paper-facing artifacts for this lineage live alongside the core:
 `paper/placebo_protocol.tex`, `src/pneuma_lab/placebo_paper/`, and
 `src/pneuma_lab/adversarial_review/`. Task 10 release preparation must produce

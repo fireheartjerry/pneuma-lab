@@ -2,15 +2,21 @@ import pytest
 
 from pneuma_lab.cloud.errors import CloudManifestError
 from pneuma_lab.cloud.pilot import (
+    INTERRUPTION_POLICY,
     MINIMUM_P10_OUTPUT_TOKENS_PER_SECOND,
+    PARTITIONING,
     RUNG_NAMES,
+    TOTAL_SPOT_VCPUS,
+    WORKER_COUNT,
+    WORKER_GPU_COUNT,
+    WORKER_VCPUS,
     require_within_protocol,
     select_rung,
 )
 
 
 def protocol() -> dict:
-    return {"rungs": list(RUNG_NAMES), "max_cost_usd": 1.0, "max_runtime_minutes": 10, "max_retries": 1, "max_samples": 20, "minimum_p10_output_tokens_per_second": MINIMUM_P10_OUTPUT_TOKENS_PER_SECOND, "throughput_samples_per_rung": 10, "output_tokens_per_sample": 128, "warmup_samples_per_rung": 1, "p10_method": "nearest_rank"}
+    return {"rungs": list(RUNG_NAMES), "max_cost_usd": 1.0, "max_runtime_minutes": 10, "max_retries": 1, "max_samples": 20, "worker_count": WORKER_COUNT, "worker_vcpus": WORKER_VCPUS, "worker_gpu_count": WORKER_GPU_COUNT, "total_spot_vcpus": TOTAL_SPOT_VCPUS, "partitioning": PARTITIONING, "interruption_policy": INTERRUPTION_POLICY, "minimum_p10_output_tokens_per_second": MINIMUM_P10_OUTPUT_TOKENS_PER_SECOND, "throughput_samples_per_rung": 10, "output_tokens_per_sample": 128, "warmup_samples_per_rung": 1, "p10_method": "nearest_rank"}
 
 
 def test_protocol_rejects_expansion_and_efficacy_selection() -> None:
@@ -36,4 +42,12 @@ def test_protocol_cannot_substitute_a_different_p10_floor() -> None:
     altered = protocol()
     altered["minimum_p10_output_tokens_per_second"] = 7.99
     with pytest.raises(CloudManifestError, match="DL-165"):
+        require_within_protocol(altered, cost=1.0, runtime=1, retries=0, samples=1)
+
+
+@pytest.mark.parametrize("field,value", [("worker_count", 1), ("total_spot_vcpus", 8), ("partitioning", "submitter_order")])
+def test_protocol_rejects_a_reduced_or_noncanonical_worker_topology(field: str, value: object) -> None:
+    altered = protocol()
+    altered[field] = value
+    with pytest.raises(CloudManifestError, match=field):
         require_within_protocol(altered, cost=1.0, runtime=1, retries=0, samples=1)

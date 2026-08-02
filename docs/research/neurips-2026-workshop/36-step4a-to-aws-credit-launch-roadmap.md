@@ -31,10 +31,11 @@ reconcile them before execution.
 - AWS funding: $10,000 verified EC2-eligible credit plus a separate $100
   credit.
 - AWS G/VT quotas: an authenticated console audit reports applied account-level
-  values of 8 vCPUs On-Demand and 16 vCPUs Spot in `us-east-1`, which satisfy
-  the DL-161 one-instance, 8-vCPU `g6e.2xlarge` topology. An account-bound
-  Terraform plan and deployment receipt remain unapplied. Credits do not bypass
-  quota, model-fit, throughput, protocol, or spend gates.
+  values of 8 vCPUs On-Demand and 16 vCPUs Spot in `us-east-1`, satisfying
+  DL-171's two-worker Spot envelope plus its one-worker On-Demand recovery
+  floor. A fresh account/capacity/pricing receipt, Terraform plan, and
+  deployment receipt remain required for the revised topology. Credits do not
+  bypass quota, model-fit, throughput, protocol, or spend gates.
 
 The preserved canonical root
 `build/research/neurips-2026-workshop/p0-lineage-20260730` contains only 10 of
@@ -204,11 +205,12 @@ Run independent leakage, statistical, security, cost, authority, and
 reproducibility audits. Resolve every launch-blocking finding and produce a
 signed launch-readiness report.
 
-The campaign spec fails closed unless it binds eight genuine Phase B evidence
+The campaign spec fails closed unless it binds nine genuine Phase B evidence
 roots: Step 5B input lock, C120 G-ROSTER, Step 7B image builds/SBOMs,
-production execution surface, AWS account/quota/plan, one-GPU admission,
-interruption/recovery, and Windows/Linux receipt portability. Hashing a prose
-claim or omitting either of the last two runtime gates cannot admit Step 14.
+production execution surface, AWS account/quota/capacity/plan, per-worker
+admission, canonical partition, interruption/recovery, and Windows/Linux
+receipt portability. Hashing a prose claim or omitting any runtime gate cannot
+admit Step 14.
 
 This is campaign 1 (`stage_1_pre_launch`) of the adversarial rejection-review
 system, whose sole objective is to construct the strongest evidence-based case

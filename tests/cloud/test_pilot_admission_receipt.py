@@ -8,17 +8,24 @@ from pneuma_lab.cloud.pilot import (
     MINIMUM_P10_OUTPUT_TOKENS_PER_SECOND,
     protocol_digest,
     require_receipt_within_protocol,
+    require_worker_receipts_within_protocol,
 )
 
 
 def protocol() -> dict:
     return {
         "record_kind": "cloud_pilot_protocol",
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "max_cost_usd": 25.0,
         "max_runtime_minutes": 60,
         "max_retries": 2,
         "max_samples": 20,
+        "worker_count": 2,
+        "worker_vcpus": 8,
+        "worker_gpu_count": 1,
+        "total_spot_vcpus": 16,
+        "partitioning": "canonical_round_robin",
+        "interruption_policy": "freeze_and_resume",
         "minimum_p10_output_tokens_per_second": MINIMUM_P10_OUTPUT_TOKENS_PER_SECOND,
         "throughput_samples_per_rung": 10,
         "output_tokens_per_sample": 128,
@@ -32,13 +39,14 @@ def protocol() -> dict:
 def receipt() -> dict:
     return {
         "record_kind": "cloud_pilot_admission_receipt",
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "protocol_sha256": "a" * 64,
         "architecture_sha256": "b" * 64,
         "authorization_sha256": "c" * 64,
         "image_sha256": "d" * 64,
         "input_lock_sha256": "e" * 64,
         "code_sha256": "f" * 64,
+        "worker_index": 0,
         "rung": "l40s-tp1-65536",
         "compute": {
             "instance_type": "g6e.2xlarge",
@@ -124,3 +132,16 @@ def test_a_coherent_partial_failure_is_recordable() -> None:
     record["measurements"]["tool_call_passes"] = 3
     record["gates"]["tool_call"] = False
     assert validate_pilot_admission_receipt(record)["gates"]["tool_call"] is False
+
+
+def test_two_worker_admission_requires_a_distinct_receipt_for_each_worker() -> None:
+    frozen = protocol()
+    first = receipt()
+    first["protocol_sha256"] = protocol_digest(frozen)
+    second = receipt()
+    second["protocol_sha256"] = protocol_digest(frozen)
+    second["worker_index"] = 1
+    assert set(require_worker_receipts_within_protocol({0: first, 1: second}, frozen)) == {0, 1}
+
+    with pytest.raises(CloudManifestError, match="worker indexes"):
+        require_worker_receipts_within_protocol({0: first, 1: first}, frozen)

@@ -7,7 +7,7 @@ from pneuma_lab.cloud.errors import CloudManifestError
 
 
 def architecture() -> dict:
-    return {"record_kind": "cloud_architecture_manifest", "schema_version": "0.1.0", "region": "us-east-1", "tier": "tier-agnostic", "compute": {"instance_type": "g6e.2xlarge", "max_vcpus": 8, "min_vcpus": 0, "gpu_count": 1, "usable_gpu_memory_gib": 44, "allocation_strategy": "BEST_FIT", "ami_id": "ami-fixture", "root_snapshot_id": "snap-fixture", "bootstrap_sha256": "a" * 64}, "storage": {"bucket_prefix": "runs/fixture", "lifecycle_policy_id": "fixture-policy", "absolute_deletion_date": "2027-01-01"}, "lease": {"table": "fixture-leases", "key": "fixture-run"}, "controller_policy": {"identity": "controller", "actions": ["dynamodb:GetItem", "s3:GetObject", "s3:PutObject"]}, "watcher_policy": {"identity": "watcher", "actions": ["dynamodb:UpdateItem", "ec2:TerminateInstances"]}}
+    return {"record_kind": "cloud_architecture_manifest", "schema_version": "0.2.0", "region": "us-east-1", "tier": "tier-agnostic", "compute": {"instance_type": "g6e.2xlarge", "max_vcpus": 16, "min_vcpus": 0, "worker_count": 2, "worker_vcpus": 8, "worker_gpu_count": 1, "total_gpu_count": 2, "usable_gpu_memory_gib": 44, "allocation_strategy": "SPOT_PRICE_CAPACITY_OPTIMIZED", "partitioning": "canonical_round_robin", "interruption_policy": "freeze_and_resume", "ami_id": "ami-fixture", "root_snapshot_id": "snap-fixture", "bootstrap_sha256": "a" * 64}, "storage": {"bucket_prefix": "runs/fixture", "lifecycle_policy_id": "fixture-policy", "absolute_deletion_date": "2027-01-01"}, "lease": {"table": "fixture-leases", "key": "fixture-run"}, "controller_policy": {"identity": "controller", "actions": ["dynamodb:GetItem", "s3:GetObject", "s3:PutObject"]}, "watcher_policy": {"identity": "watcher", "actions": ["dynamodb:UpdateItem", "ec2:TerminateInstances"]}}
 
 
 def test_architecture_requires_separate_read_only_controller() -> None:
@@ -38,7 +38,11 @@ def test_controller_cannot_renew_lease_or_share_watcher_identity() -> None:
     [
         ("instance_type", "g6e.12xlarge"),
         ("max_vcpus", 48),
-        ("gpu_count", 4),
+        ("worker_count", 1),
+        ("worker_gpu_count", 2),
+        ("total_gpu_count", 4),
+        ("allocation_strategy", "BEST_FIT"),
+        ("partitioning", "caller_order"),
         ("usable_gpu_memory_gib", 48),
     ],
 )

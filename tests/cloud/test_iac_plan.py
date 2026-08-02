@@ -24,7 +24,13 @@ ROOT = Path(__file__).resolve().parents[2] / "infra" / "terraform"
 def test_static_iac_contract_is_pinned_and_tier_agnostic() -> None:
     main = (ROOT / "main.tf").read_text(encoding="utf-8")
     assert 'instance_type       = ["g6e.2xlarge"]' in main
-    assert "max_vcpus           = 8" in main
+    assert 'type                = "SPOT"' in main
+    assert 'allocation_strategy = "SPOT_PRICE_CAPACITY_OPTIMIZED"' in main
+    assert "max_vcpus           = 16" in main
+    assert "bid_percentage      = 100" in main
+    assert "spot_iam_fleet_role" in main
+    assert 'resource "aws_batch_job_definition" "gpu_worker"' in main
+    assert "var.gpu_worker_image" in main
     assert "g6e.12xlarge" not in main
     assert 'type = "GPU", value = "1"' in main
     assert 'type = "VCPU", value = "8"' in main
@@ -36,6 +42,7 @@ def test_static_iac_contract_is_pinned_and_tier_agnostic() -> None:
     variables = (ROOT / "variables.tf").read_text(encoding="utf-8")
     assert 'variable "step5b_payload_expiration_days"' in variables
     assert "default     = 35" in variables
+    assert 'variable "gpu_worker_image"' in variables
     encryption_body = main.split('resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts" {', 1)[1].split('resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {', 1)[0]
     lifecycle_body = main.split('resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {', 1)[1].split('resource "aws_dynamodb_table" "leases" {', 1)[0]
     assert "expire-step5b-payloads" not in encryption_body
@@ -114,4 +121,14 @@ def test_real_terraform_passes_the_credential_free_format_check() -> None:
     """
 
     terraform = require_terraform_for_l1(os.environ.get("PATH", ""))
-    subprocess.run([terraform, "fmt", "-check", "-recursive"], cwd=ROOT, check=True, timeout=60)
+    # Environment-specific tfvars, including ignored local credentials, do not
+    # define the Terraform source contract. Formatting them recursively makes a
+    # user-owned private file turn a source validation into a false failure.
+    for source_root in (ROOT, ROOT / "bootstrap-verification"):
+        sources = sorted(path.name for path in source_root.glob("*.tf"))
+        subprocess.run(
+            [terraform, "fmt", "-check", *sources],
+            cwd=source_root,
+            check=True,
+            timeout=60,
+        )

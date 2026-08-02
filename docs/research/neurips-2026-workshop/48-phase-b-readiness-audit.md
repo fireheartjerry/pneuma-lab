@@ -233,3 +233,14 @@ packet/assignment/detectability/unblind receipts exist. Those missing receipts
 require a separately authorized canonical lineage and cannot be manufactured
 by another infrastructure check. The project status and handoff remain
 `implementation_complete; E2E_pending` for Tasks 6–10.
+
+## 2026-08-02 dual-worker amendment
+
+DL-171 supersedes the previously current one-L40S primary topology for future
+actions. The local architecture, Terraform, pilot protocol, quota receipt
+contract, and deterministic partitioning primitive now require two independent
+8-vCPU/one-L40S Spot workers (16 Spot vCPUs total), while retaining an 8-vCPU
+On-Demand recovery floor. This is a local amendment only: it invalidates the
+old topology as a future launch binding and requires fresh capacity, plan,
+per-worker admission, partition/recovery, and Step 14 review receipts. No
+resource, model, benchmark, pilot, or scientific execution occurred.

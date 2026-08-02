@@ -129,7 +129,7 @@ def validate_experiment_manifest(record: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def validate_pilot_admission_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate a recorded one-GPU admission measurement without promoting it.
+    """Validate a recorded per-worker admission measurement without promotion.
 
     A gate verdict is stored beside the counts it rests on, so the two can
     disagree. They must not: a receipt claiming `tool_call: true` while its own

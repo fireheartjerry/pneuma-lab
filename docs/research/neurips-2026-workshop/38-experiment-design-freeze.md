@@ -2,15 +2,14 @@
 
 **Status:** registered implementation freeze; not an execution authorization
 **Date:** 2026-07-31
-**Authority records:** DL-148, DL-149, and DL-161
+**Authority records:** DL-148, DL-149, DL-161, and DL-171
 
-> **2026-07-31 topology amendment and reconciliation:**
-> `49-single-l40s-topology-amendment.md` supersedes the AWS four-GPU execution
-> shape with one `g6e.2xlarge`/L40S and sequential arm/replica execution, and
-> `49-single-l40s-topology-reconciliation.md` records the implementation
-> reconciliation of schemas, validator, quota preflight, pilot protocol, and
-> Terraform to that shape. The scientific design below remains frozen. One-GPU
-> fit/throughput admission and Step 14 review remain blocking.
+> **2026-08-02 topology amendment and reconciliation:** DL-171 supersedes the
+> former sequential one-L40S execution shape with two independent
+> `g6e.2xlarge`/L40S Spot workers and canonical disjoint partitioning. See
+> `55-dual-l40s-spot-topology-reconciliation.md`. The scientific design below
+> remains frozen. Per-worker fit/throughput admission, partition/recovery, and
+> Step 14 review remain blocking.
 
 ## Frozen object
 
@@ -27,19 +26,19 @@ resolution floor; failure criteria; admission gates; and the pinned SWE-bench
 Live/MultiLang and tau2-bench roster definitions, Qwen3.6-35B-A3B-FP8 subject,
 and Qwen3.5-9B simulator.
 
-DL-161 supersedes the retired multi-GPU topology in the referenced design. The
-AWS primary subject topology is frozen as the approved one-node
-`g6e.2xlarge` shape: 8 vCPUs, 64 GiB host memory, one L40S, and 44 GiB usable
-device memory. The only candidate context rungs are both TP1 on that same
-single L40S:
+DL-171 supersedes the former one-worker topology in the referenced design. The
+AWS primary subject topology is frozen as two independent `g6e.2xlarge` Spot
+workers: 16 Spot vCPUs total, with each worker providing 8 vCPUs, 64 GiB host
+memory, one L40S, and 44 GiB usable device memory. The only candidate context
+rungs are both TP1 on each independently admitted worker:
 
-1. one L40S, TP1, 32,768 tokens;
-2. one L40S, TP1, 65,536 tokens.
+1. one worker L40S, TP1, 32,768 tokens;
+2. one worker L40S, TP1, 65,536 tokens.
 
 The pilot may select only the largest rung passing OOM, tool-call,
-output-parity, and p10-throughput gates. It may not invent, substitute, or
-interpolate a configuration, and it may never use efficacy, arm effects,
-benchmark outcomes, or any other outcome signal for selection.
+output-parity, and p10-throughput gates on **each** worker. It may not invent,
+substitute, or interpolate a configuration, and it may never use efficacy, arm
+effects, benchmark outcomes, or any other outcome signal for selection.
 
 ## Reconciliations and gates
 

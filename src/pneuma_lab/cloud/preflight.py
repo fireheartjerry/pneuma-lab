@@ -8,10 +8,13 @@ from .errors import CloudManifestError
 
 
 _ORDER = ("jobs", "queue", "compute", "instances", "volumes_endpoints", "registry", "buckets")
-PRIMARY_REQUIRED_VCPUS = 8
+PRIMARY_ON_DEMAND_REQUIRED_VCPUS = 8
+PRIMARY_SPOT_REQUIRED_VCPUS = 16
 
 
-def require_quota(applied_vcpus: int, required_vcpus: int = PRIMARY_REQUIRED_VCPUS) -> None:
+def require_quota(
+    applied_vcpus: int, required_vcpus: int = PRIMARY_ON_DEMAND_REQUIRED_VCPUS
+) -> None:
     if applied_vcpus < required_vcpus:
         raise CloudManifestError("applied quota is zero or insufficient")
 

@@ -74,12 +74,12 @@ variable "budget_alert_email" {
   description = "Email that must confirm AWS Budget notifications."
 }
 
-variable "controller_image" {
+variable "gpu_worker_image" {
   type        = string
-  description = "Immutable ECR image reference accepted by the Step 7B receipt."
+  description = "Immutable one-GPU worker image reference accepted by the Step 7B receipt."
   validation {
-    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.controller_image))
-    error_message = "controller_image must be an immutable sha256 digest reference."
+    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.gpu_worker_image))
+    error_message = "gpu_worker_image must be an immutable sha256 digest reference."
   }
 }
 

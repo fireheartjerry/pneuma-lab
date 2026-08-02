@@ -10,7 +10,7 @@ from pneuma_lab.cloud.aws_account import (
 from pneuma_lab.cloud.errors import CloudManifestError
 
 
-def _quotas(on_demand: float = 8.0, spot: float = 8.0) -> list[dict]:
+def _quotas(on_demand: float = 8.0, spot: float = 16.0) -> list[dict]:
     return [
         {"QuotaName": ON_DEMAND_QUOTA_NAME, "Value": on_demand},
         {"QuotaName": SPOT_QUOTA_NAME, "Value": spot},
@@ -29,7 +29,7 @@ def test_receipt_requires_identity_both_quotas_offering_and_plan() -> None:
     assert receipt["availability_zones"] == ["us-east-1a"]
 
 
-@pytest.mark.parametrize("on_demand,spot", [(7.0, 8.0), (8.0, 7.0)])
+@pytest.mark.parametrize("on_demand,spot", [(7.0, 16.0), (8.0, 15.0)])
 def test_both_gpu_quota_paths_must_be_applied(on_demand: float, spot: float) -> None:
     with pytest.raises(CloudManifestError, match="quota"):
         build_account_verification(

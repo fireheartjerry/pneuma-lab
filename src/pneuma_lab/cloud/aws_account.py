@@ -7,7 +7,11 @@ from typing import Any
 
 from .errors import CloudManifestError
 from .manifests import _validate
-from .preflight import PRIMARY_REQUIRED_VCPUS, require_quota
+from .preflight import (
+    PRIMARY_ON_DEMAND_REQUIRED_VCPUS,
+    PRIMARY_SPOT_REQUIRED_VCPUS,
+    require_quota,
+)
 
 ON_DEMAND_QUOTA_NAME = "Running On-Demand G and VT instances"
 SPOT_QUOTA_NAME = "All G and VT Spot Instance Requests"
@@ -43,8 +47,8 @@ def build_account_verification(
 
     on_demand = _quota_value(quotas, ON_DEMAND_QUOTA_NAME)
     spot = _quota_value(quotas, SPOT_QUOTA_NAME)
-    require_quota(int(on_demand))
-    require_quota(int(spot))
+    require_quota(int(on_demand), PRIMARY_ON_DEMAND_REQUIRED_VCPUS)
+    require_quota(int(spot), PRIMARY_SPOT_REQUIRED_VCPUS)
 
     zones = sorted(
         {
@@ -59,12 +63,13 @@ def build_account_verification(
 
     receipt = {
         "record_kind": "cloud_aws_account_verification",
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "account_id": account_id,
         "principal_arn": principal_arn,
         "region": "us-east-1",
         "instance_type": "g6e.2xlarge",
-        "required_vcpus": PRIMARY_REQUIRED_VCPUS,
+        "required_on_demand_vcpus": PRIMARY_ON_DEMAND_REQUIRED_VCPUS,
+        "required_spot_vcpus": PRIMARY_SPOT_REQUIRED_VCPUS,
         "on_demand_g_vt_vcpus": on_demand,
         "spot_g_vt_vcpus": spot,
         "availability_zones": zones,

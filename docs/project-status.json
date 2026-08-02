@@ -508,12 +508,14 @@
             "e2e_status": "E2E_pending",
             "evidence_refs": [
                 "docs/research/neurips-2026-workshop/40-aws-architecture.md",
-                "docs/research/neurips-2026-workshop/49-single-l40s-topology-reconciliation.md",
+                "docs/research/neurips-2026-workshop/55-dual-l40s-spot-topology-reconciliation.md",
                 "schemas/cloud-architecture-manifest.schema.json",
                 "src/pneuma_lab/cloud/architecture.py",
+                "src/pneuma_lab/cloud/worker_allocation.py",
                 "infra/terraform/main.tf",
                 "infra/terraform/iam.tf",
                 "tests/cloud/test_architecture.py",
+                "tests/cloud/test_worker_allocation.py",
                 "tests/cloud/test_iac_plan.py"
             ],
             "blockers": [
@@ -672,7 +674,7 @@
             "e2e_status": "E2E_pending",
             "evidence_refs": [
                 "docs/research/neurips-2026-workshop/47-pilot-protocol.md",
-                "docs/research/neurips-2026-workshop/49-single-l40s-topology-reconciliation.md",
+                "docs/research/neurips-2026-workshop/55-dual-l40s-spot-topology-reconciliation.md",
                 "schemas/cloud-pilot-protocol.schema.json",
                 "src/pneuma_lab/cloud/pilot.py",
                 "tests/cloud/test_pilot.py"
@@ -916,7 +918,7 @@
         "docs/research/00-program-overview.md",
         "docs/research/10-anti-fake-progress.md",
         "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
-        "docs/research/neurips-2026-workshop/49-single-l40s-topology-reconciliation.md",
+        "docs/research/neurips-2026-workshop/55-dual-l40s-spot-topology-reconciliation.md",
         "docs/research/jspace-readiness.md",
         "docs/vision.md",
         "docs/gauge-card-standard.md",
@@ -1020,7 +1022,7 @@
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1, and the Step 7B production surface. The independent action-007 interruption/recovery receipt proves lease expiry observation, controller-renewal denial, watcher termination, exact completed-boundary restoration, and full teardown. The real DynamoDB contention qualification produced exactly one conditional-write winner and 31 conditional losers; its failed delete and separately signed cleanup are sealed in the action-009 and cleanup-010 receipts. The real Batch action-014 receipt proves a VALID Fargate environment and queue, a size-three array with child indices 0/1/2 each SUCCEEDED exactly once, a SUCCEEDED parent, and exact IAM/Batch teardown. Benchmark/model execution, scientific lineage, and the remaining cloud parity gates are still unverified; no Batch compute environment or queue remains."
+            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1, and the Step 7B production surface. The dual-worker topology now treats those as per-worker evidence only: fresh two-worker Spot capacity/pricing, independent per-worker admission, canonical partition/recovery, and Step 14 receipts remain required. The independent action-007 interruption/recovery receipt proves lease expiry observation, controller-renewal denial, watcher termination, exact completed-boundary restoration, and full teardown. The real DynamoDB contention qualification produced exactly one conditional-write winner and 31 conditional losers; its failed delete and separately signed cleanup are sealed in the action-009 and cleanup-010 receipts. The real Batch action-014 receipt proves a VALID Fargate environment and queue, a size-three array with child indices 0/1/2 each SUCCEEDED exactly once, a SUCCEEDED parent, and exact IAM/Batch teardown. Benchmark/model execution, scientific lineage, and the remaining cloud parity gates are still unverified; no Batch compute environment or queue remains."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",

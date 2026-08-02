@@ -252,14 +252,20 @@ resource "aws_batch_compute_environment" "worker" {
   service_role             = aws_iam_role.batch_service.arn
 
   compute_resources {
-    type                = "EC2"
-    allocation_strategy = "BEST_FIT_PROGRESSIVE"
+    # Two one-GPU jobs may run concurrently. The pinned instance type keeps
+    # each worker's memory/throughput admission identical; the controller
+    # supplies a static disjoint partition rather than letting Batch choose
+    # scientific work at submission time.
+    type                = "SPOT"
+    allocation_strategy = "SPOT_PRICE_CAPACITY_OPTIMIZED"
     min_vcpus           = 0
-    max_vcpus           = 8
+    max_vcpus           = 16
     desired_vcpus       = 0
+    bid_percentage      = 100
     instance_type       = ["g6e.2xlarge"]
     image_id            = var.ami_id
     instance_role       = aws_iam_instance_profile.worker.arn
+    spot_iam_fleet_role = aws_iam_role.spot_fleet.arn
     security_group_ids  = [aws_security_group.worker.id]
     subnets             = aws_subnet.private[*].id
 
@@ -274,6 +280,11 @@ resource "aws_batch_compute_environment" "worker" {
   lifecycle {
     prevent_destroy = true
   }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.batch_service,
+    aws_iam_role_policy_attachment.spot_fleet,
+  ]
 }
 
 resource "aws_batch_job_queue" "worker" {
@@ -287,16 +298,16 @@ resource "aws_batch_job_queue" "worker" {
   }
 }
 
-# Whole-node admission job. The image may be populated only from the immutable
-# Step 7B image receipt; registering it does not enable or submit work.
-resource "aws_batch_job_definition" "one_gpu_admission" {
+# Each worker occupies one whole node. The image may be populated only from the
+# immutable Step 7B image receipt; registering it does not enable or submit work.
+resource "aws_batch_job_definition" "gpu_worker" {
   count                 = var.create_batch_resources ? 1 : 0
-  name                  = "${var.name_prefix}-one-gpu-admission"
+  name                  = "${var.name_prefix}-gpu-worker"
   type                  = "container"
   platform_capabilities = ["EC2"]
 
   container_properties = jsonencode({
-    image      = var.controller_image
+    image      = var.gpu_worker_image
     privileged = true
     resourceRequirements = [
       { type = "GPU", value = "1" },

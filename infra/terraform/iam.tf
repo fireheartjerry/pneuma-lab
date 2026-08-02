@@ -30,6 +30,30 @@ resource "aws_iam_role_policy_attachment" "batch_service" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole"
 }
 
+data "aws_iam_policy_document" "spot_fleet_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["spotfleet.amazonaws.com"]
+    }
+  }
+}
+
+# Required by the managed EC2 Spot environment. This identity has no access
+# to experiment data or authority; it only lets Batch launch/tag/terminate its
+# own Spot Fleet capacity.
+resource "aws_iam_role" "spot_fleet" {
+  name               = "${var.name_prefix}-spot-fleet"
+  assume_role_policy = data.aws_iam_policy_document.spot_fleet_assume.json
+}
+
+resource "aws_iam_role_policy_attachment" "spot_fleet" {
+  role       = aws_iam_role.spot_fleet.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole"
+}
+
 resource "aws_iam_role" "worker" {
   name               = "${var.name_prefix}-worker"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume.json

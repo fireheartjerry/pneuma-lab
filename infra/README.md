@@ -1,8 +1,8 @@
 # AWS C160 infrastructure
 
-`terraform/` implements the single-node `g6e.2xlarge` AWS Batch topology. The
-compute environment and queue are created **disabled** with zero desired vCPUs;
-applying infrastructure cannot start an experiment by itself.
+`terraform/` implements the two-worker `g6e.2xlarge` AWS Batch Spot topology.
+The compute environment and queue are created **disabled** with zero desired
+vCPUs; applying infrastructure cannot start an experiment by itself.
 
 The stack includes:
 
@@ -15,7 +15,8 @@ The stack includes:
 - separate worker and watcher identities, with no lease-renew action on the
   worker and tag-bounded EC2 termination authority on the watcher;
 - an IMDSv2-only launch template with an encrypted, auto-deleting gp3 volume;
-- a disabled, zero-idle-vCPU Batch environment pinned to one `g6e.2xlarge`; and
+- a disabled, zero-idle-vCPU Batch Spot environment capped at two independent
+  `g6e.2xlarge` workers (16 vCPUs total); and
 - monthly AWS Budget notifications at forecast 50%, actual 80%, and actual
   100%.
 

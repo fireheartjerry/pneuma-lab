@@ -13,12 +13,12 @@ conflict with this plan, stop and reconcile them in the decision log before
 execution. It is a plan, not an authority: it freezes nothing, authorizes
 nothing, and promotes nothing.
 
-**Supersession note (DL-161).** All four-L40S/48-vCPU, TP2, H100-substitution,
-and co-located-simulator wording below is historical planning text. The live
-AWS primary contract is the approved single-L40S `g6e.2xlarge` (8-vCPU) shape;
-the two TP1 context rungs and their one-GPU admission are controlling. Azure
-remains separately governed. This note changes no scientific input, roster,
-endpoint, or authorization.
+**Supersession note (DL-171).** All former one-L40S/8-vCPU, four-L40S/48-vCPU,
+TP2, H100-substitution, and co-located-simulator wording below is historical
+planning text. The live AWS primary contract is two independent Spot
+`g6e.2xlarge` workers (16 vCPUs total), canonical disjoint partitioning, and
+per-worker one-GPU admission. Azure remains separately governed. This note
+changes no scientific input, roster, endpoint, or authorization.
 
 ## Boundary of this document
 

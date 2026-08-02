@@ -16,16 +16,33 @@ from .throughput import (
 )
 
 
-# Both candidates use the approved g6e.2xlarge's sole L40S.  The admission
-# cannot grow into TP2 or substitute an H100; Azure remains separately governed.
+# Every candidate uses one L40S. The official topology requires two such
+# workers, with static disjoint allocation and no co-located replicas.
 RUNG_NAMES = ("l40s-tp1-32768", "l40s-tp1-65536")
 SELECTION_GATES = frozenset({"oom", "tool_call", "output_parity", "p10_throughput"})
 MINIMUM_P10_OUTPUT_TOKENS_PER_SECOND = 8.0
+WORKER_COUNT = 2
+WORKER_VCPUS = 8
+WORKER_GPU_COUNT = 1
+TOTAL_SPOT_VCPUS = WORKER_COUNT * WORKER_VCPUS
+PARTITIONING = "canonical_round_robin"
+INTERRUPTION_POLICY = "freeze_and_resume"
 
 
 def validate_protocol(protocol: Mapping[str, object]) -> None:
     if tuple(protocol.get("rungs", ())) != RUNG_NAMES:
-        raise CloudManifestError("protocol must freeze the exact approved one-GPU rung set")
+        raise CloudManifestError("protocol must freeze the exact approved per-worker rung set")
+    topology = {
+        "worker_count": WORKER_COUNT,
+        "worker_vcpus": WORKER_VCPUS,
+        "worker_gpu_count": WORKER_GPU_COUNT,
+        "total_spot_vcpus": TOTAL_SPOT_VCPUS,
+        "partitioning": PARTITIONING,
+        "interruption_policy": INTERRUPTION_POLICY,
+    }
+    for field, expected in topology.items():
+        if protocol.get(field) != expected:
+            raise CloudManifestError(f"protocol must freeze {field} as {expected!r}")
     threshold = protocol.get("minimum_p10_output_tokens_per_second")
     if not isinstance(threshold, (int, float)) or isinstance(threshold, bool) or threshold <= 0:
         raise CloudManifestError("protocol lacks a positive preregistered p10-throughput threshold")
@@ -64,7 +81,7 @@ def require_within_protocol(protocol: Mapping[str, object], *, cost: float, runt
 
 
 def protocol_digest(protocol: Mapping[str, object]) -> str:
-    """Return the canonical digest a one-GPU receipt must bind."""
+    """Return the canonical digest every per-worker admission receipt must bind."""
 
     validate_protocol(protocol)
     return hashlib.sha256(
@@ -93,4 +110,20 @@ def require_receipt_within_protocol(
         raise CloudManifestError("p10-throughput gate contradicts the frozen protocol threshold")
     if verified["rung"] not in protocol["rungs"]:
         raise CloudManifestError("pilot receipt rung is not in the frozen protocol")
+    return verified
+
+
+def require_worker_receipts_within_protocol(
+    receipts: Mapping[int, Mapping[str, Any]], protocol: Mapping[str, object]
+) -> dict[int, dict[str, Any]]:
+    """Require one coherent p10 admission receipt for each official worker."""
+
+    if set(receipts) != set(range(WORKER_COUNT)):
+        raise CloudManifestError("two-worker admission requires receipts for worker indexes 0 and 1")
+    verified = {
+        index: require_receipt_within_protocol(receipt, protocol)
+        for index, receipt in receipts.items()
+    }
+    if any(record["worker_index"] != index for index, record in verified.items()):
+        raise CloudManifestError("pilot receipt worker indexes do not match their admission slots")
     return verified

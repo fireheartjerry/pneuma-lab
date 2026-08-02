@@ -1,17 +1,20 @@
 # 47 — Pilot Protocol
 
-**Status:** Step 13 implementation is complete; external authorization and
-execution remain pending. The preregistered one-GPU p10 output-throughput floor
-is **8.0 tokens/sec**, selected under DL-165 before any admission measurement.
+**Status:** local two-worker protocol amendment is complete; external
+authorization and execution remain pending. The preregistered per-worker p10
+output-throughput floor is **8.0 tokens/sec**, selected under DL-165 before any
+admission measurement.
 
-This freezes two admissible context rungs on the approved one-GPU
+This freezes two admissible context rungs on each worker's one-GPU
 `g6e.2xlarge`/L40S topology—TP1 at 32,768 and 65,536 tokens—plus maximum
 cost/runtime/retries/sample count, exact bound-hash slots, and the deterministic
 selection rule: choose the largest rung that passes OOM, tool-call,
-output-parity, and p10-throughput gates. Efficacy is rejected as a selection
-input, and no new rung may be invented, interpolated, or substituted with TP2
-or H100 hardware. Azure is not a fallback for this protocol; it remains
-separately governed.
+output-parity, and p10-throughput gates. The official admission requires one
+coherent receipt for each of two worker indexes, then canonical round-robin
+partitioning and freeze-and-resume interruption handling. Efficacy is rejected
+as a selection input, and no new rung may be invented, interpolated, or
+substituted with TP2 or H100 hardware. Azure is not a fallback for this
+protocol; it remains separately governed.
 
 The receipt gate re-hashes the exact protocol bytes before it accepts a
 throughput result. A receipt with `p10_throughput=true` must both name that
