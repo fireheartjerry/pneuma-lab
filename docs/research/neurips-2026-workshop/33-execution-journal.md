@@ -5519,6 +5519,22 @@ The next event after the archived migration boundary is appended below.
   DynamoDB-reachable private path (or an explicitly authorized equivalent)
   before rerunning the watchdog.
 
+### EJ-20260802-interruption-qualification-plan-007-admission
+
+- **Network successor:** Action 006 is exhausted and was not retried. Fresh
+  action `interruption-qualification-007` binds a least-privilege DynamoDB
+  gateway endpoint plus private STS and EC2 interface endpoints on the pinned
+  subnet/endpoint security group, all endpoint deletions, a fresh watcher
+  identity, and the exact encrypted delete-on-termination 30 GiB gp3 root.
+  Its canonical plan digest is
+  `2fc5a522c52f07a6ffa002e466b7fef23f018c3f33dc9173e95821e0dd66841d`.
+- **Admission:** The KMS-signed package
+  `50eaadb53507155a03a9c19348fb8817e208c076c3a070bef05b1fa2e8ce7308`
+  binds ledger rows CL-200/CL-201, the active registered Ed25519 approver,
+  zero retries, USD 0.05 projected cost, the current spend history, and
+  expiry `2026-08-03T06:30:00Z`. Offline `require_preparation_admission`
+  passed. No provider action had started at admission.
+
 ### EJ-20260802-interruption-qualification-006-failure
 
 - **STS qualification failure:** The one admitted DynamoDB gateway endpoint
