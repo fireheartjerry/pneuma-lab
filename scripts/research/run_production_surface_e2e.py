@@ -30,6 +30,22 @@ def sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _ensure_container_bind_readable(path: Path) -> None:
+    """Make a non-secret bind-mounted receipt readable under dropped caps.
+
+    The image qualification command deliberately drops every Linux capability.
+    A root process inside that sandbox cannot use ``CAP_DAC_OVERRIDE`` to read
+    a host file left at mode ``0600``.  Harnesses and predecessor receipts are
+    qualification inputs, not secrets, so expose only the normal read bits
+    before mounting them read-only.
+    """
+
+    mode = path.stat().st_mode
+    readable_mode = mode | 0o444
+    if readable_mode != mode:
+        path.chmod(readable_mode)
+
+
 def parse_bindings(values: list[str], *, label: str) -> dict[str, str]:
     result: dict[str, str] = {}
     for value in values:
@@ -132,6 +148,7 @@ def main() -> int:
         parser.error("--harness-sha256 must be lowercase SHA-256")
     if not args.harness.is_file() or sha256(args.harness.read_bytes()) != args.harness_sha256:
         parser.error("harness bytes do not match --harness-sha256")
+    _ensure_container_bind_readable(args.harness.resolve())
     images = parse_bindings(args.image, label="--image") if args.image else {}
     image_digests = parse_bindings(args.image_digest, label="--image-digest") if args.image_digest else {}
     if bool(images) != bool(image_digests):
@@ -163,6 +180,7 @@ def main() -> int:
         )
         path = output / f"{role}.json"
         path.write_bytes(stdout)
+        _ensure_container_bind_readable(path)
         receipt = json.loads(stdout.decode("utf-8"))
         validated = validate_production_role_receipt(receipt)
         if validated["state"] != expected_states[role]:

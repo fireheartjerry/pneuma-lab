@@ -35,6 +35,16 @@ def test_image_role_uses_sealed_entrypoint_without_duplicate_role(tmp_path, monk
     assert command[image_index + 1 : image_index + 3] == ["--protocol", "e2e"]
 
 
+def test_container_bind_receipts_get_read_bits(tmp_path) -> None:
+    harness = tmp_path / "harness.json"
+    harness.write_bytes(b"qualification harness")
+    harness.chmod(0o600)
+
+    run_production_surface_e2e._ensure_container_bind_readable(harness)
+
+    assert harness.stat().st_mode & 0o444 == 0o444
+
+
 def test_local_three_role_surface_e2e(tmp_path) -> None:
     harness = tmp_path / "harness.json"
     harness_bytes = json.dumps(
