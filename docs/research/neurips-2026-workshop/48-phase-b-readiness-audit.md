@@ -98,6 +98,14 @@ role probe, or production-surface handshake ran. The failure and teardown are
 sealed in `evidence/step7b-aws-builder-failure-014-20260802.json`; action 014
 is exhausted with zero retries and the production-surface gate remains open.
 
+Corrected successor action 015 is prepared but remains an unsigned candidate.
+It binds the repaired curl-minimal-safe bootstrap, source commit
+`98dd81a...c806`, archive `9229854...b579`, pinned Buildx/BuildKit, and fresh
+security group `sg-04331c50b912dac3d`; plan
+`dbc75690017269be0544d9cc9c3fe3d8870928058fa80cac9c08acd38d35fa5a` binds
+the exact bytes. No provider execution or new production-surface evidence
+exists from this preparation entry.
+
 ## Topology change and its residual empirical risk
 
 DL-161 selects an 8-vCPU `g6e.2xlarge` single-L40S AWS path with sequential

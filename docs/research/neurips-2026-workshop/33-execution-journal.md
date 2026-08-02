@@ -4971,3 +4971,21 @@ The next event after the archived migration boundary is appended below.
   then returned `InvalidGroup.NotFound`. No action-tagged resource remains.
 - The projected USD 2.25 is recorded as pending provider billing settlement
   under CL-139/CL-140; no scientific work occurred.
+
+### EJ-20260802-step7b-aws-builder-015-preparation
+
+- **Repair:** Action 014's only fault was the Amazon Linux package conflict:
+  the bootstrap requested `curl` while the AMI supplied `curl-minimal`. The
+  template now installs `docker tar gzip` only; its focused executor/bootstrap
+  tests, Ruff, whitespace, and status checks pass.
+- **Candidate:** A clean archive from committed source `98dd81a...c806` is
+  `9229854312d86740e02b1cff25419abc7aaaff3bdfc023973a92d7940b80b579`
+  (28,866,560 bytes). Plan
+  `dbc75690017269be0544d9cc9c3fe3d8870928058fa80cac9c08acd38d35fa5a`
+  binds the corrected template, pinned Buildx `v0.13.1`, content-addressed
+  BuildKit `v0.13.2`, production harness
+  `f97d3c87622f932656266922ca7f488a33057e37c333afe2de1f483e9d876172`, and
+  fresh no-ingress security group `sg-04331c50b912dac3d`.
+- **Boundary:** Action 015 is an unsigned zero-retry candidate. No source or
+  plan upload, signature, instance launch, image build, SBOM, role-chain E2E,
+  or scientific execution has occurred in this preparation entry.

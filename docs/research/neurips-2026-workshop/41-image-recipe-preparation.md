@@ -63,6 +63,15 @@ exhausted with zero retries. The next successor removes only that conflicting
 package request; no image, SBOM, or production-surface evidence is promoted
 from action 014.
 
+The corrected successor action 015 is prepared but not yet admitted or run.
+It binds source commit `98dd81a...c806`, archive
+`9229854312d86740e02b1cff25419abc7aaaff3bdfc023973a92d7940b80b579`, the
+curl-minimal-safe bootstrap, pinned Buildx/BuildKit, and fresh no-ingress
+security group `sg-04331c50b912dac3d`. Plan
+`dbc75690017269be0544d9cc9c3fe3d8870928058fa80cac9c08acd38d35fa5a` is a
+zero-retry candidate only; no upload, signature, image, SBOM, or production
+surface result exists yet.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.

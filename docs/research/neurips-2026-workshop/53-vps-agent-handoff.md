@@ -119,7 +119,15 @@ evidence or silently reuse action 010.
   bootstrap's explicit `curl` package request. Its failure and teardown are
   sealed in `evidence/step7b-aws-builder-failure-014-20260802.json`; action
   014 is exhausted with zero retries, and no production-surface evidence was
-  created. The next action must bind the corrected bootstrap bytes afresh.
+created. The next action must bind the corrected bootstrap bytes afresh.
+- Corrected successor action 015 is now prepared but not admitted or run. It
+  binds source commit `98dd81a...c806`, archive
+  `9229854312d86740e02b1cff25419abc7aaaff3bdfc023973a92d7940b80b579`, the
+  curl-minimal-safe bootstrap, pinned Buildx/BuildKit, and fresh no-ingress
+  security group `sg-04331c50b912dac3d`. Plan
+  `dbc75690017269be0544d9cc9c3fe3d8870928058fa80cac9c08acd38d35fa5a` is a
+  zero-retry candidate only; no provider execution or production-surface
+  receipt exists.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.
