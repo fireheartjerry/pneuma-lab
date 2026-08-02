@@ -5,11 +5,11 @@
     "description": "Hash-bound measurement record for one worker in the approved two-worker admission; it is neither an authorization nor a scientific result.",
     "type": "object",
     "x-pneuma-schema-kind": "cloud-manifest",
-    "x-pneuma-version": "0.2.0",
-    "required": ["record_kind", "schema_version", "protocol_sha256", "architecture_sha256", "authorization_sha256", "image_sha256", "input_lock_sha256", "code_sha256", "worker_index", "rung", "compute", "gates", "measurements"],
+    "x-pneuma-version": "0.3.0",
+    "required": ["record_kind", "schema_version", "protocol_sha256", "architecture_sha256", "authorization_sha256", "image_sha256", "input_lock_sha256", "code_sha256", "worker_index", "instance_id", "measurement_evidence_sha256", "rung", "compute", "gates", "measurements"],
     "properties": {
         "record_kind": {"const": "cloud_pilot_admission_receipt"},
-        "schema_version": {"const": "0.2.0"},
+        "schema_version": {"const": "0.3.0"},
         "protocol_sha256": {"$ref": "#/$defs/digest"},
         "architecture_sha256": {"$ref": "#/$defs/digest"},
         "authorization_sha256": {"$ref": "#/$defs/digest"},
@@ -17,6 +17,8 @@
         "input_lock_sha256": {"$ref": "#/$defs/digest"},
         "code_sha256": {"$ref": "#/$defs/digest"},
         "worker_index": {"enum": [0, 1]},
+        "instance_id": {"type": "string", "pattern": "^i-[0-9a-f]{8,17}$"},
+        "measurement_evidence_sha256": {"$ref": "#/$defs/digest"},
         "rung": {"enum": ["l40s-tp1-32768", "l40s-tp1-65536"]},
         "compute": {
             "type": "object",

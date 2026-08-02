@@ -39,14 +39,16 @@ def protocol() -> dict:
 def receipt() -> dict:
     return {
         "record_kind": "cloud_pilot_admission_receipt",
-        "schema_version": "0.2.0",
+        "schema_version": "0.3.0",
         "protocol_sha256": "a" * 64,
-        "architecture_sha256": "b" * 64,
-        "authorization_sha256": "c" * 64,
-        "image_sha256": "d" * 64,
-        "input_lock_sha256": "e" * 64,
-        "code_sha256": "f" * 64,
+        "architecture_sha256": "a" * 64,
+        "authorization_sha256": "a" * 64,
+        "image_sha256": "a" * 64,
+        "input_lock_sha256": "a" * 64,
+        "code_sha256": "a" * 64,
         "worker_index": 0,
+        "instance_id": "i-0123456789abcdef0",
+        "measurement_evidence_sha256": "1" * 64,
         "rung": "l40s-tp1-65536",
         "compute": {
             "instance_type": "g6e.2xlarge",
@@ -141,7 +143,34 @@ def test_two_worker_admission_requires_a_distinct_receipt_for_each_worker() -> N
     second = receipt()
     second["protocol_sha256"] = protocol_digest(frozen)
     second["worker_index"] = 1
+    second["instance_id"] = "i-1123456789abcdef0"
+    second["measurement_evidence_sha256"] = "2" * 64
     assert set(require_worker_receipts_within_protocol({0: first, 1: second}, frozen)) == {0, 1}
 
     with pytest.raises(CloudManifestError, match="worker indexes"):
         require_worker_receipts_within_protocol({0: first, 1: first}, frozen)
+
+
+def test_two_worker_admission_rejects_relabelled_machine_or_raw_evidence() -> None:
+    frozen = protocol()
+    first = receipt()
+    first["protocol_sha256"] = protocol_digest(frozen)
+    second = receipt()
+    second["protocol_sha256"] = protocol_digest(frozen)
+    second["worker_index"] = 1
+
+    with pytest.raises(CloudManifestError, match="distinct instance"):
+        require_worker_receipts_within_protocol({0: first, 1: second}, frozen)
+
+    second["instance_id"] = "i-1123456789abcdef0"
+    with pytest.raises(CloudManifestError, match="distinct raw"):
+        require_worker_receipts_within_protocol({0: first, 1: second}, frozen)
+
+
+def test_receipt_rejects_a_binding_that_differs_from_the_frozen_protocol() -> None:
+    frozen = protocol()
+    record = receipt()
+    record["protocol_sha256"] = protocol_digest(frozen)
+    record["image_sha256"] = "b" * 64
+    with pytest.raises(CloudManifestError, match="frozen image"):
+        require_receipt_within_protocol(record, frozen)

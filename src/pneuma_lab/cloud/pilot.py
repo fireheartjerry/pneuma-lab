@@ -27,6 +27,19 @@ WORKER_GPU_COUNT = 1
 TOTAL_SPOT_VCPUS = WORKER_COUNT * WORKER_VCPUS
 PARTITIONING = "canonical_round_robin"
 INTERRUPTION_POLICY = "freeze_and_resume"
+_BOUND_HASH_NAMES = frozenset({"architecture", "authorization", "image", "input_lock", "code"})
+
+
+def _require_bound_hashes(protocol: Mapping[str, object]) -> Mapping[str, str]:
+    """Return the complete frozen receipt bindings, never a permissive subset."""
+
+    hashes = protocol.get("bound_hashes")
+    if not isinstance(hashes, Mapping) or set(hashes) != _BOUND_HASH_NAMES:
+        raise CloudManifestError("protocol must bind exactly architecture, authorization, image, input_lock, and code hashes")
+    for name, value in hashes.items():
+        if not isinstance(value, str) or len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+            raise CloudManifestError(f"protocol has an invalid {name} hash binding")
+    return hashes
 
 
 def validate_protocol(protocol: Mapping[str, object]) -> None:
@@ -61,6 +74,7 @@ def validate_protocol(protocol: Mapping[str, object]) -> None:
             raise CloudManifestError(
                 f"protocol must freeze {field} as {expected!r} before measurement"
             )
+    _require_bound_hashes(protocol)
 
 
 def select_rung(protocol: Mapping[str, object], measurements: Mapping[str, Mapping[str, bool]]) -> str:
@@ -110,6 +124,9 @@ def require_receipt_within_protocol(
         raise CloudManifestError("p10-throughput gate contradicts the frozen protocol threshold")
     if verified["rung"] not in protocol["rungs"]:
         raise CloudManifestError("pilot receipt rung is not in the frozen protocol")
+    for name, expected in _require_bound_hashes(protocol).items():
+        if verified[f"{name}_sha256"] != expected:
+            raise CloudManifestError(f"pilot receipt is not bound to the frozen {name} bytes")
     return verified
 
 
@@ -126,4 +143,8 @@ def require_worker_receipts_within_protocol(
     }
     if any(record["worker_index"] != index for index, record in verified.items()):
         raise CloudManifestError("pilot receipt worker indexes do not match their admission slots")
+    if len({record["instance_id"] for record in verified.values()}) != WORKER_COUNT:
+        raise CloudManifestError("two-worker admission requires two distinct instance identities")
+    if len({record["measurement_evidence_sha256"] for record in verified.values()}) != WORKER_COUNT:
+        raise CloudManifestError("two-worker admission requires distinct raw measurement evidence")
     return verified

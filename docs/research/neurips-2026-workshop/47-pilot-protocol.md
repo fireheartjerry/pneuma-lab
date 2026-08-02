@@ -10,7 +10,8 @@ This freezes two admissible context rungs on each worker's one-GPU
 cost/runtime/retries/sample count, exact bound-hash slots, and the deterministic
 selection rule: choose the largest rung that passes OOM, tool-call,
 output-parity, and p10-throughput gates. The official admission requires one
-coherent receipt for each of two worker indexes, then canonical round-robin
+coherent receipt for each of two worker indexes, each bound to a distinct EC2
+instance identity and raw measurement-evidence digest, then canonical round-robin
 partitioning and freeze-and-resume interruption handling. Efficacy is rejected
 as a selection input, and no new rung may be invented, interpolated, or
 substituted with TP2 or H100 hardware. Azure is not a fallback for this

@@ -44,8 +44,9 @@ failed work identifier to another worker under the same action.
   required at launch.
 - A two-worker static contract is not a deployment, GPU smoke, pilot, model
   episode, benchmark result, or scientific claim.
-- Every worker must have a matching image/runtime admission receipt. One
-  worker's pass cannot be silently generalized to its peer.
+- Every worker must have a matching image/runtime admission receipt, with a
+  distinct EC2 instance identity and raw-measurement digest. One worker's pass
+  cannot be silently generalized to its peer or relabelled as two workers.
 - The controller must remain outside the two-GPU scientific worker budget or
   use separately authorized non-GPU capacity. It cannot consume a registered
   worker slot and then claim two-worker scientific throughput.
