@@ -28,7 +28,9 @@ fail() {
 }
 
 trap 'fail bootstrap_error' ERR
-dnf install -y docker tar gzip curl
+# Amazon Linux supplies curl-minimal; requesting the conflicting curl package
+# makes dnf fail before the pinned Buildx/BuildKit toolchain can start.
+dnf install -y docker tar gzip
 systemctl enable --now docker
 aws --version
 aws sts get-caller-identity --output json > /opt/pneuma-step7b/output/instance-identity.json

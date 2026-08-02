@@ -130,6 +130,8 @@ def test_aws_bootstrap_pins_the_reproducible_builder_client() -> None:
     template = (Path(__file__).resolve().parents[2] / "infra/aws/step7b-aws-builder-user-data.sh").read_text(encoding="utf-8")
     assert "__BUILDX_URL__" in template
     assert "__BUILDX_SHA256__" in template
+    assert "dnf install -y docker tar gzip\n" in template
+    assert "dnf install -y docker tar gzip curl" not in template
     assert "docker buildx version" in template
     assert "docker/cli-plugins/docker-buildx" in template
     assert "buildx_digest_mismatch" in template
