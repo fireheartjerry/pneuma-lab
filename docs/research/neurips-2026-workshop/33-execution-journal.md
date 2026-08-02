@@ -4530,3 +4530,24 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** signing grants only this bounded CPU image-build action. No
   upload, instance, image build, SBOM, GPU use, model download, benchmark,
   pilot, experiment, or scientific result occurred in this step.
+
+### EJ-20260802-step7b-aws-builder-008-failure
+
+- **Execution:** the one authorized attempt launched exact instance
+  `i-0b11e1f80f10a14df`. Fresh reads proved the expected AMI, `m7i.xlarge`,
+  subnet/VPC, no-ingress security group, instance profile, IMDSv2, monitoring,
+  exact user-data SHA-256 `68769c8d...097383`, action tags, and a 650 GiB
+  encrypted delete-on-termination root.
+- **Outcome:** both controller builds produced image ID
+  `sha256:f7b3e748...d39ce6`; the corrected `python3` entrypoint advanced past the
+  positive probe. Syft then failed closed while saving the image under its
+  default `/tmp` because that staging surface lacked space. The zero-byte SBOM
+  is preserved as failure evidence and is not admissible.
+- **Receipts and teardown:** versioned log SHA-256 `01978f88...40b00` and
+  status SHA-256 `f64d6f3e...7216e7` were reread before termination. AWS now
+  reports the instance terminated and `InvalidVolume.NotFound` for encrypted
+  root `vol-0ab935d326c7ed6f5`. Action 008 is exhausted; no retry occurred.
+- **Successor condition:** bind Syft temporary storage to the verified large
+  root surface and enforce the plan's 600 GiB free-space floor before the first
+  build. No GPU, model workload, benchmark, pilot, experiment, or scientific
+  result occurred.
