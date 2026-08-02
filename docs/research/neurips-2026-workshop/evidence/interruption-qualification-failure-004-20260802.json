@@ -1,0 +1,38 @@
+{
+  "record_kind": "cloud_interruption_qualification_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED",
+  "action_id": "interruption-qualification-004",
+  "plan_sha256": "9758cf0c5888b4119bb128d6824c47aa3135efd9bd885382666d3c6cdd90ab11",
+  "signed_package_sha256": "679700d2cdecda5821c40f2d5e806eed1f2edcb83423d36dd23e74748ccb2b04",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "attempted_at": "2026-08-02T16:25:38Z",
+  "failure_class": "client_parameter_validation_rejection",
+  "provider_error": "aws iam create-instance-profile rejected locally: Unknown options: --description, Bounded interruption qualification watcher 004. No IAM CreateInstanceProfile request was sent.",
+  "retry_policy": "zero_retry_action_exhausted",
+  "launch_request": {
+    "attempted": false,
+    "rejected_command": "aws iam create-instance-profile --instance-profile-name pneuma-c160-interruption-watcher-20260802-004 --description Bounded interruption qualification watcher 004"
+  },
+  "resources": {
+    "iam_roles_created": ["arn:aws:iam::892077329800:role/pneuma-c160-interruption-watcher-20260802-004"],
+    "iam_roles_remaining": [],
+    "instance_profiles_created": [],
+    "instances_created": [],
+    "volumes_created": [],
+    "enis_created": [],
+    "s3_objects_created": []
+  },
+  "cleanup": {
+    "role_policy_deleted_once": true,
+    "role_deleted_once": true,
+    "role_absent_after_cleanup": true,
+    "profile_created": false,
+    "profile_absent_after_cleanup": true,
+    "security_group_touched": false,
+    "verified_at": "2026-08-02T16:26:00Z"
+  },
+  "scientific_boundary": "No EC2 instance, lease execution, watcher observation, recovery, model, benchmark, pilot, experiment, or scientific result occurred."
+}

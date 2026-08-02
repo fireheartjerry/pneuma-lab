@@ -5500,3 +5500,17 @@ The next event after the archived migration boundary is appended below.
   zero retries, USD 0.05 projected cost, the current spend history, and
   expiry `2026-08-03T06:30:00Z`. Offline `require_preparation_admission`
   passed. No provider action had started at admission.
+
+### EJ-20260802-interruption-qualification-004-failure
+
+- **Fail-closed CLI gate:** The sole profile-create command was rejected by
+  local AWS CLI parameter validation because `create-instance-profile` does
+  not accept `--description`. No provider `CreateInstanceProfile` request was
+  sent; action 004 is exhausted with zero retries. The exact command and
+  error are sealed in
+  `evidence/interruption-qualification-failure-004-20260802.json`.
+- **Cleanup:** The temporary watcher policy and pathless role were each
+  removed once and fresh reads returned not-found. No profile, lease item,
+  instance, volume, ENI, S3 object, model, benchmark, pilot, experiment, or
+  scientific result exists. A fresh successor must use the validated profile
+  command without unsupported options.
