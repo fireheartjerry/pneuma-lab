@@ -4635,3 +4635,22 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** this is implementation evidence only. A fresh image-bound E2E
   action must execute the same chain under network-none/read-only isolation and
   bind its receipts before the production-surface gate can close.
+
+### EJ-20260802-step7b-aws-builder-010-preparation
+
+- **Successor binding:** after the production-surface runtime and builder
+  executor were committed, a fresh `git archive --format=tar HEAD` produced
+  source archive SHA-256 `321a907aa92da24794480b29e90427f78eb9a7cfc5a979a05b67582ef9440b02`
+  (28,753,920 bytes). Candidate plan
+  `898d7f534c761d3618b73da971b6a64c9d89a8365de8ab455d4f6d86f1414f61` binds
+  source commit `efa632570c20b8e81f410ec5dccc96d4279c98db`, executor
+  `d7c0e7b8b7983e49a919c0844cb34b3bcf5919bd3b96b1d3883a5a5cf549aa06`,
+  runtime `e684adf0b78aba1af207cf7a509179279267ea9f1ed913bacb43570c98b88055`,
+  and the canonical harness digest
+  `d32bb3d94a19ffda0718117b7273b05a117ae4a14b88c66d341db60ca9b0174f`.
+- **Scope:** action `step7b-aws-builder-010` remains an unsigned, zero-retry
+  CPU image-build candidate. It adds only the explicitly bound infrastructure
+  handshake after the six builds; it still forbids model download, benchmark
+  execution, registry push, GPU use, pilot, experiment, and scientific claims.
+  No upload, signature, provider mutation, image build, SBOM, or spend occurred
+  in this preparation step.
