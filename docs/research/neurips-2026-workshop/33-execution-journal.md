@@ -4472,3 +4472,14 @@ The next event after the archived migration boundary is appended below.
 - **Successor rule:** action 006 is exhausted. Candidate 007 changes only the
   three lock-file `COPY` paths and has independent source, plan, ledger, and
   KMS-signature requirements.
+
+### EJ-20260802-step7b-aws-builder-007-failure
+
+- **Scope:** the single KMS-authorized attempt completed both controller builds
+  with the same image ID, then failed closed at the network-isolated probe.
+- **Outcome:** the pinned vLLM base exposes `python3`; the role entrypoints used
+  `python`, producing exit 127. No SBOM, benchmark, model workload, GPU use,
+  pilot, experiment, or scientific result occurred.
+- **Teardown:** `i-0918b57add957b178` is terminated and encrypted root
+  `vol-08825f7f6964e0b3f` returns `InvalidVolume.NotFound`. The immutable
+  status and log are recorded in the failure receipt. Action 007 is exhausted.
