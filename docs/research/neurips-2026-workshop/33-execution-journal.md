@@ -5060,3 +5060,22 @@ The next event after the archived migration boundary is appended below.
   then returned `InvalidGroup.NotFound`. No action-tagged resource remains.
 - The projected USD 2.25 is recorded as pending provider billing settlement
   under CL-147/CL-148; no scientific work occurred.
+
+### EJ-20260802-step7b-aws-builder-017-preparation
+
+- **Repair:** Action 016 showed that Docker 25's Docker exporter rejects the
+  manifest-list result forced by `BUILDKIT_MULTI_PLATFORM=1`. The locked vLLM
+  reference itself is a single manifest; action 017 removes only that build
+  argument while retaining `linux/amd64`, `SOURCE_DATE_EPOCH`, and
+  `rewrite-timestamp=true`. Focused executor tests, Ruff, whitespace, and
+  status checks pass.
+- **Candidate:** A clean archive from committed source `fdd0b6e...bf41` is
+  `520badd293e94dfb557e8a8913415b13ce0237c9065cc3b2bc850ac9c1c042b3`
+  (28,907,520 bytes). Plan
+  `5ce31bbc9485e2b5a1d23568390ebf5331ddf852be4b38ec3b282874408b365c`
+  binds the exporter repair, pinned Buildx/BuildKit, production harness
+  `01c9a670e40429b61172a9c4c9890d2fd5424f331051db1bf926e1a23258253f`, and
+  fresh no-ingress security group `sg-0fa80f9418264fc47`.
+- **Boundary:** Action 017 is an unsigned zero-retry candidate. No source or
+  plan upload, signature, instance launch, image build, SBOM, role-chain E2E,
+  or scientific execution has occurred in this preparation entry.

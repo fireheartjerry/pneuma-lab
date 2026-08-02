@@ -151,6 +151,14 @@ created. The next action must bind the corrected bootstrap bytes afresh.
   `evidence/step7b-aws-builder-failure-016-20260802.json`; action 016 is
   exhausted with zero retries. The next action must bind a platform-specific
   exporter repair without weakening the Step 5B base lock.
+- Platform-export successor action 017 is prepared but not admitted or run. It
+  binds source commit `fdd0b6e...bf41`, archive
+  `520badd293e94dfb557e8a8913415b13ce0237c9065cc3b2bc850ac9c1c042b3`, pinned
+  Buildx/BuildKit, the retained single-platform/timestamp exporter controls,
+  and fresh no-ingress security group `sg-0fa80f9418264fc47`. Plan
+  `5ce31bbc9485e2b5a1d23568390ebf5331ddf852be4b38ec3b282874408b365c` is a
+  zero-retry candidate only; no provider execution or production-surface
+  receipt exists.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.

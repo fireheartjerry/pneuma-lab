@@ -98,6 +98,14 @@ versioned log, builder inspection, and teardown are sealed in
 exhausted with zero retries. The next successor must bind a platform-specific
 export repair without weakening the Step 5B base lock.
 
+Platform-export successor action 017 is prepared but not yet admitted or run.
+It binds source commit `fdd0b6e...bf41`, archive
+`520badd293e94dfb557e8a8913415b13ce0237c9065cc3b2bc850ac9c1c042b3`, pinned
+Buildx/BuildKit, the retained single-platform/timestamp exporter controls, and
+fresh no-ingress security group `sg-0fa80f9418264fc47`. Plan
+`5ce31bbc9485e2b5a1d23568390ebf5331ddf852be4b38ec3b282874408b365c` is a
+zero-retry candidate only; no provider execution or new image evidence exists.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.

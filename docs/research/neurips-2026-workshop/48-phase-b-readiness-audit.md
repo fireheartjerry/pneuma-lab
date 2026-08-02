@@ -113,6 +113,14 @@ teardown are sealed in `evidence/step7b-aws-builder-failure-016-20260802.json`;
 action 016 is exhausted with zero retries and the production-surface gate
 remains open.
 
+Platform-export successor action 017 is prepared but remains an unsigned
+candidate. It binds removal of the forced multi-platform exporter flag while
+retaining the single `linux/amd64` target, timestamp, and rewrite-timestamp
+controls, plus source commit `fdd0b6e...bf41`, archive `520badd...42b3`, and
+fresh security group `sg-0fa80f9418264fc47`; plan
+`5ce31bbc9485e2b5a1d23568390ebf5331ddf852be4b38ec3b282874408b365c` binds the
+exact bytes. No provider execution or new production-surface evidence exists.
+
 Corrected successor action 015 is prepared but remains an unsigned candidate.
 It binds the repaired curl-minimal-safe bootstrap, source commit
 `98dd81a...c806`, archive `9229854...b579`, pinned Buildx/BuildKit, and fresh
