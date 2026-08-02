@@ -126,6 +126,7 @@ CLOUD_SCHEMA_FILES = (
     "cloud-isolation-qualification-receipt.schema.json",
     "cloud-production-role-receipt.schema.json",
     "cloud-lease-contention-qualification-receipt.schema.json",
+    "cloud-lease-contention-cleanup-receipt.schema.json",
 )
 
 ALL_SCHEMA_FILES = (

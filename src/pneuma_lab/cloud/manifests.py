@@ -43,6 +43,7 @@ _SCHEMA_BY_KIND = {
     "cloud_isolation_qualification_receipt": "cloud-isolation-qualification-receipt.schema.json",
     "cloud_production_role_receipt": "cloud-production-role-receipt.schema.json",
     "cloud_lease_contention_qualification_receipt": "cloud-lease-contention-qualification-receipt.schema.json",
+    "cloud_lease_contention_cleanup_receipt": "cloud-lease-contention-cleanup-receipt.schema.json",
 }
 
 
@@ -100,6 +101,12 @@ def validate_lease_contention_qualification_receipt(record: Mapping[str, Any]) -
     """Validate a real DynamoDB contention receipt without promoting science."""
 
     return _validate(record, expected_kind="cloud_lease_contention_qualification_receipt")
+
+
+def validate_lease_contention_cleanup_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate exact cleanup evidence without promoting a scientific result."""
+
+    return _validate(record, expected_kind="cloud_lease_contention_cleanup_receipt")
 
 
 def validate_production_role_receipt(record: Mapping[str, Any]) -> dict[str, Any]:

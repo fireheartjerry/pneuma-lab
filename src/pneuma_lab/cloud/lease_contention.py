@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .errors import CloudManifestError
-from .manifests import validate_lease_contention_qualification_receipt
+from .manifests import validate_lease_contention_cleanup_receipt, validate_lease_contention_qualification_receipt
 
 
 def require_lease_contention_qualification(record: Mapping[str, Any]) -> dict[str, Any]:
@@ -53,4 +53,32 @@ def require_lease_contention_qualification(record: Mapping[str, Any]) -> dict[st
         raise CloudManifestError("lease-contention qualification has a failing gate")
     if receipt["residual_resource_ids"]:
         raise CloudManifestError("lease-contention qualification leaves residual resources")
+    return receipt
+
+
+def require_lease_contention_cleanup(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Require cleanup of one exact failed-qualification item."""
+
+    receipt = validate_lease_contention_cleanup_receipt(record)
+    preflight = receipt["preflight"]
+    deletion = receipt["deletion"]
+    final = receipt["final"]
+    if not (preflight["table_active"] and preflight["table_arn_exact"] and preflight["item_present"]):
+        raise CloudManifestError("cleanup preflight did not find the signed target item")
+    if not (preflight["owner_exact"] and preflight["action_id_exact"]):
+        raise CloudManifestError("cleanup target item is not bound to the failed action")
+    if not (deletion["attempted"] and deletion["succeeded"] and final["item_absent"]):
+        raise CloudManifestError("cleanup did not prove exact item absence")
+    expected_gates = {
+        "identity_bound": True,
+        "exact_item_bound": True,
+        "delete_succeeded": True,
+        "final_absent": True,
+        "no_retries": True,
+        "no_scientific_action": True,
+    }
+    if receipt["gates"] != expected_gates or receipt["verdict"] != "passed":
+        raise CloudManifestError("cleanup qualification has a failing gate")
+    if receipt["residual_resource_ids"]:
+        raise CloudManifestError("cleanup leaves residual resources")
     return receipt
