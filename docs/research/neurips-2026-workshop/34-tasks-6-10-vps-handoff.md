@@ -472,6 +472,15 @@ and reconciliation contracts are implementation complete against fakes only.
 They do not prove AWS Batch/DynamoDB/S3 semantics or authorize execution; no
 Task 6–10 state or scientific lineage changed.
 
+**Phase B Step 8 real-semantics checkpoint (2026-08-02):** A separately signed
+AWS qualification exercised the existing DynamoDB lease table with 32
+concurrent conditional writes and produced one winner plus 31 conditional
+failures. The first action's failed delete was not retried; a fresh signed
+cleanup action deleted the exact item and proved consistent-read absence. This
+closes only DynamoDB contention/teardown semantics. Batch scheduling/array
+behavior and all scientific gates remain open, and no Task 6–10 lineage or
+claim changed.
+
 **Phase B Step 9 checkpoint (2026-07-31):** Local spend/approval/watchdog
 contracts are implementation complete against fixtures only. No real balance,
 price, provider, authorization, or execution was used; no Task 6–10 state or
