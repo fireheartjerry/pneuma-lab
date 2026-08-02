@@ -530,6 +530,7 @@
                 "src/pneuma_lab/cloud/images.py",
                 "tests/cloud/test_images.py",
                 "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-success-009-20260802.json",
+                "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-success-024-20260802.json",
                 "docs/research/neurips-2026-workshop/33-execution-journal.md"
             ],
             "blockers": [
@@ -696,9 +697,11 @@
                 "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-failure-011-20260802.json",
                 "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-failure-012-20260802.json",
                 "tests/cloud/test_production_runtime.py",
-                "tests/cloud/test_production_surface_e2e.py"
-                ,"docs/research/neurips-2026-workshop/evidence/interruption-qualification-receipt-007-20260802.json"
-                ,"docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
+                "tests/cloud/test_production_surface_e2e.py",
+                "docs/research/neurips-2026-workshop/evidence/interruption-qualification-receipt-007-20260802.json",
+                "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json",
+                "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-success-024-20260802.json",
+                "docs/research/neurips-2026-workshop/evidence/batch-array-qualification-014-receipt-20260802.json"
             ],
             "blockers": [
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",

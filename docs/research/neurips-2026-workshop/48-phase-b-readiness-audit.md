@@ -199,3 +199,34 @@ empirical: official long-context examples use multi-way tensor parallelism and
 community reports do not establish this exact L40S/tool-call configuration. It
 is therefore a reason to keep the frozen OOM/tool-call/output-parity/p10-
 throughput admission gate, not a reason to waive it.
+
+## 2026-08-02 authenticated and semantic reconciliation
+
+The stale table above is historical for the 2026-07-31 audit and is not the
+current evidence ledger. A fresh read-only AWS CLI audit after the operator
+login returned account `892077329800` as the root identity, the applied
+On-Demand G/VT quota `L-DB2E81BA = 8` vCPUs, the applied G/VT Spot quota
+`L-3819A6DF = 16` vCPUs, and `g6e.2xlarge` offerings in
+`us-east-1a` through `us-east-1d`. No EC2 instance, AWS Batch compute
+environment, or AWS Batch queue remained at the read boundary. This confirms
+the account-bound substrate record; it does not authorize compute or scientific
+execution.
+
+Since the historical table was written, the bounded external gates have also
+advanced. KMS-admitted action 024 independently qualified all three image
+double-build/SBOM paths and the network-none, read-only controller →
+model-server → benchmark-worker handshake; its sealed receipt is
+`evidence/step7b-aws-builder-success-024-20260802.json`. The interruption
+qualification 007 receipt, DynamoDB contention/cleanup 009/010 receipts, and
+Batch array qualification 014 receipt separately prove their narrow cloud
+semantics and exact teardown. These receipts remain infrastructure evidence:
+no model, benchmark episode, pilot, canonical P0 lineage, unblind, or
+scientific result ran.
+
+The live blockers are therefore narrower than the original table: Step 5B
+real-input lock and G-ROSTER admission remain unverified; the hostile Step 14
+review remains `launch_blocked` because no authority-backed P0 power/tier
+receipt and no packet/assignment/detectability/unblind receipts exist. Those
+missing receipts require a separately authorized canonical lineage and cannot
+be manufactured by another infrastructure check. The project status and
+handoff remain `implementation_complete; E2E_pending` for Tasks 6–10.

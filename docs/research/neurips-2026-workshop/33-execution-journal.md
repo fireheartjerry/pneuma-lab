@@ -5751,3 +5751,18 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** This was infrastructure semantics evidence only. No model,
   benchmark, pilot, experiment, unblind, training, registry push, or scientific
   result occurred, and no Task 6--10 scientific lineage or claim changed.
+
+### EJ-20260802-authenticated-cli-reconciliation
+
+- **Read-only audit:** After the operator authenticated the local AWS CLI,
+  `sts get-caller-identity` returned account `892077329800` and
+  `arn:aws:iam::892077329800:root`. Service Quotas returned account-level
+  `L-DB2E81BA` (Running On-Demand G/VT) at 8 vCPUs and `L-3819A6DF` (All G/VT
+  Spot) at 16 vCPUs. `g6e.2xlarge` was offered in `us-east-1a`, `1b`, `1c`, and
+  `1d`.
+- **Residual check:** Fresh EC2, Batch compute-environment, and Batch queue
+  reads returned empty results. The read used `AWS_MAX_ATTEMPTS=1`, made no
+  mutations, and incurred no spend.
+- **Boundary:** This confirms the account/quota substrate only. It does not
+  authorize a launch, model or benchmark work, pilot, canonical P0 lineage,
+  unblind, or scientific claim.
