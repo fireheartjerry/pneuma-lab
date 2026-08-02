@@ -8,6 +8,14 @@ from .authorization_keys import (
 )
 from .batch_array import require_batch_array_qualification
 from .aws_account import build_account_verification
+from .admission_measurement import (
+    OUTPUT_PARITY_FIXTURE_IDS,
+    TOOL_CALL_FIXTURES,
+    USABLE_GPU_MEMORY_BYTES,
+    canonical_tool_call,
+    require_l40s_runtime,
+    summarize_rung,
+)
 from .iac import require_terraform_for_l1, terraform_status
 from .input_lock import (
     build_candidate_input_lock,
@@ -69,6 +77,7 @@ from .worker_admission import (
 __all__ = [
     "admit_unattended_job",
     "authorization_body_digest",
+    "canonical_tool_call",
     "build_account_verification",
     "require_batch_array_qualification",
     "build_audit_plan",
@@ -84,6 +93,7 @@ __all__ = [
     "envelope_digest",
     "missing_scopes",
     "measurement_evidence_digest",
+    "OUTPUT_PARITY_FIXTURE_IDS",
     "policy_digest",
     "readable_policy_summary",
     "real_candidate_findings",
@@ -91,14 +101,18 @@ __all__ = [
     "require_complete_scopes",
     "require_lease_contention_cleanup",
     "require_lease_contention_qualification",
+    "require_l40s_runtime",
     "require_preparation_admission",
     "require_real_candidate_lock",
     "require_roster_gate_satisfied",
     "require_terraform_for_l1",
     "resolve_trusted_key",
     "roster_digest",
+    "summarize_rung",
     "retrieve_and_verify",
     "terraform_status",
+    "TOOL_CALL_FIXTURES",
+    "USABLE_GPU_MEMORY_BYTES",
     "validate_experiment_manifest",
     "validate_input_lock",
     "validate_lease_contention_cleanup_receipt",

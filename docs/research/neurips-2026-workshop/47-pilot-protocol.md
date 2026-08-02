@@ -27,6 +27,14 @@ Each worker retains one complete raw measurement object covering both rungs.
 bytes, selects only the largest passing registered rung, and emits the two
 typed receipts. It performs no provider or model action.
 
+The raw object is evidence, not six asserted summary fields: it retains the
+peak allocated bytes; all ten ordered timing/token-digest observations; four
+fixed non-benchmark structured-tool fixtures with their parsed names and
+arguments; and four fixed output-parity fixtures with both complete token-ID
+sequences. The compiler recomputes the p10, all pass counts, and the 44-GiB
+memory decision before it can emit a receipt. A malformed or altered raw
+fixture is a no-go, not a weaker pass.
+
 ## Registered p10 floor
 
 At each tested rung, the p10 of measured output-token throughput must be at

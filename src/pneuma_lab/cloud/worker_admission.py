@@ -12,6 +12,7 @@ import hashlib
 from collections.abc import Mapping
 from typing import Any
 
+from .admission_measurement import require_l40s_runtime, summarize_rung
 from .errors import CloudManifestError
 from .manifests import validate_pilot_admission_receipt, validate_worker_admission_measurement
 from .pilot import (
@@ -41,18 +42,18 @@ def measurement_evidence_digest(raw_bytes: bytes) -> str:
     return hashlib.sha256(raw_bytes).hexdigest()
 
 
-def _rung_gates(rung: Mapping[str, Any]) -> dict[str, bool]:
-    tool_cases = int(rung["tool_call_cases"])
-    tool_passes = int(rung["tool_call_passes"])
-    parity_cases = int(rung["output_parity_cases"])
-    parity_passes = int(rung["output_parity_passes"])
+def _rung_gates(summary: Mapping[str, Any]) -> dict[str, bool]:
+    tool_cases = int(summary["tool_call_cases"])
+    tool_passes = int(summary["tool_call_passes"])
+    parity_cases = int(summary["output_parity_cases"])
+    parity_passes = int(summary["output_parity_passes"])
     if tool_passes > tool_cases or parity_passes > parity_cases:
         raise CloudManifestError("raw worker measurement has impossible passing-case counts")
     return {
-        "oom": float(rung["peak_gpu_memory_gib"]) <= 44.0,
+        "oom": float(summary["peak_gpu_memory_gib"]) <= 44.0,
         "tool_call": tool_passes == tool_cases,
         "output_parity": parity_passes == parity_cases,
-        "p10_throughput": float(rung["p10_output_tokens_per_second"])
+        "p10_throughput": float(summary["p10_output_tokens_per_second"])
         >= MINIMUM_P10_OUTPUT_TOKENS_PER_SECOND,
     }
 
@@ -71,14 +72,16 @@ def compile_worker_admission(
     """
 
     raw = validate_worker_admission_measurement(measurement)
+    require_l40s_runtime(raw["runtime"])
     if raw["protocol_sha256"] != protocol_digest(protocol):
         raise CloudManifestError("raw worker measurement is not bound to the frozen pilot protocol")
     if not isinstance(evidence_sha256, str) or len(evidence_sha256) != 64:
         raise CloudManifestError("raw worker measurement digest must be a SHA-256 hex string")
 
-    rung_gates = {name: _rung_gates(raw["rungs"][name]) for name in RUNG_NAMES}
+    rung_summaries = {name: summarize_rung(raw["rungs"][name]) for name in RUNG_NAMES}
+    rung_gates = {name: _rung_gates(rung_summaries[name]) for name in RUNG_NAMES}
     selected_rung = select_rung(protocol, rung_gates)
-    selected = raw["rungs"][selected_rung]
+    selected = rung_summaries[selected_rung]
     receipt = {
         "record_kind": "cloud_pilot_admission_receipt",
         "schema_version": "0.3.0",
