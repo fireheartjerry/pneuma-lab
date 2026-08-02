@@ -360,7 +360,8 @@ def _poll_array(plan: dict[str, Any], parent_id: str) -> tuple[dict[str, Any], l
                 )
             children.sort(key=lambda child: (child["index"], child["job_id"]))
             terminal = all(child["status"] in {"SUCCEEDED", "FAILED"} for child in children)
-            if len(children) == int(plan["array_size"]) and terminal:
+            parent_terminal = parent.get("status") in {"SUCCEEDED", "FAILED"}
+            if len(children) == int(plan["array_size"]) and terminal and parent_terminal:
                 return parent, children
         time.sleep(min(float(plan["poll_interval_seconds"]), 5.0, max(0.0, deadline - time.monotonic())))
     raise QualificationError("poll timeout: Batch array children")
@@ -674,6 +675,11 @@ def execute(plan: dict[str, Any], package: dict[str, Any], registry: dict[str, A
 
     try:
         receipt["teardown"]["final_resources_absent"] = _final_resources_absent(plan, receipt)
+        deletion_task_id = receipt["teardown"]["service_linked_role_deletion_task_id"]
+        if deletion_task_id and not receipt["teardown"]["service_linked_role_deleted"]:
+            deletion = _read(plan, ["iam", "get-service-linked-role-deletion-status", "--deletion-task-id", deletion_task_id])
+            if deletion.get("Status") == "SUCCEEDED" and _role_absent(plan, plan["service_linked_role_name"]):
+                receipt["teardown"]["service_linked_role_deleted"] = True
     except Exception:
         cleanup_errors.append("final_resource_readback")
     if cleanup_errors and receipt["failure_reason"] is None:
