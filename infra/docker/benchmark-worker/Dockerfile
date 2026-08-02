@@ -6,4 +6,7 @@ WORKDIR /opt/pneuma
 COPY infra/docker/benchmark-worker/benchmark-worker.lock /opt/pneuma/benchmark-worker.lock
 COPY src/pneuma_lab/__init__.py /opt/pneuma/pneuma_lab/__init__.py
 COPY src/pneuma_lab/cloud/production_runtime.py /opt/pneuma/pneuma_lab/cloud/production_runtime.py
+# Normalize build-owned mtimes for reproducibility on the pinned BuildKit.
+RUN find /opt/pneuma -xdev -exec touch --date="@${SOURCE_DATE_EPOCH}" --no-dereference {} + \
+    && touch --date="@${SOURCE_DATE_EPOCH}" --no-dereference /opt
 ENTRYPOINT ["python3", "-m", "pneuma_lab.cloud.production_runtime", "benchmark-worker"]

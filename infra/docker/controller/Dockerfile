@@ -8,4 +8,9 @@ WORKDIR /opt/pneuma
 COPY infra/docker/controller/controller.lock /opt/pneuma/controller.lock
 COPY src/pneuma_lab/__init__.py /opt/pneuma/pneuma_lab/__init__.py
 COPY src/pneuma_lab/cloud/production_runtime.py /opt/pneuma/pneuma_lab/cloud/production_runtime.py
+# BuildKit before the timestamp-rewriting exporter leaves COPY-layer file and
+# workdir mtimes host-dependent. Normalize this small build-owned tree so the
+# image config/rootfs digest remains reproducible on the pinned AWS builder.
+RUN find /opt/pneuma -xdev -exec touch --date="@${SOURCE_DATE_EPOCH}" --no-dereference {} + \
+    && touch --date="@${SOURCE_DATE_EPOCH}" --no-dereference /opt
 ENTRYPOINT ["python3", "-m", "pneuma_lab.cloud.production_runtime", "controller"]
