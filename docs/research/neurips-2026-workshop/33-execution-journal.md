@@ -5514,3 +5514,18 @@ The next event after the archived migration boundary is appended below.
   instance, volume, ENI, S3 object, model, benchmark, pilot, experiment, or
   scientific result exists. A fresh successor must use the validated profile
   command without unsupported options.
+
+### EJ-20260802-interruption-qualification-plan-005-admission
+
+- **Successor:** Action 004 is exhausted and was not retried. Fresh action
+  `interruption-qualification-005` binds path `/` for the watcher role and
+  profile, the validated profile-create command without unsupported options,
+  the same input lock/template, and the exact encrypted delete-on-termination
+  gp3 root at 30 GiB. Its canonical plan digest is
+  `4db26070b1ac8e3c5751b811f4563d64518a632d36874de24c49c4ee5f2aedc8`.
+- **Admission:** The KMS-signed package
+  `6248f98fdccd73fad5c3382a0251e68fd0ba073ad5f7e7b16d877d188b8056de`
+  binds ledger rows CL-192/CL-193, the active registered Ed25519 approver,
+  zero retries, USD 0.05 projected cost, the current spend history, and
+  expiry `2026-08-03T06:30:00Z`. Offline `require_preparation_admission`
+  passed. No provider action had started at admission.
