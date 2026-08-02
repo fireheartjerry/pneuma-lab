@@ -5519,6 +5519,21 @@ The next event after the archived migration boundary is appended below.
   DynamoDB-reachable private path (or an explicitly authorized equivalent)
   before rerunning the watchdog.
 
+### EJ-20260802-interruption-qualification-plan-006-admission
+
+- **Network successor:** Action 005 is exhausted and was not retried. Fresh
+  action `interruption-qualification-006` binds one least-privilege DynamoDB
+  gateway endpoint on the VPC main route table, exact endpoint-policy digest,
+  endpoint deletion at teardown, a fresh pathless watcher identity, and the
+  same exact 30 GiB encrypted gp3 root. Its canonical plan digest is
+  `23bc947675cba3c1c59c0b3e3792f8649ace792290e3eefb1cd9fa66a9fcf49f`.
+- **Admission:** The KMS-signed package
+  `a4bc2d68e59f90bece46ae2a6db856057911d675ebcf24f7126ee1f908db0305`
+  binds ledger rows CL-196/CL-197, the active registered Ed25519 approver,
+  zero retries, USD 0.05 projected cost, the current spend history, and
+  expiry `2026-08-03T06:30:00Z`. Offline `require_preparation_admission`
+  passed. No provider action had started at admission.
+
 ### EJ-20260802-interruption-qualification-004-failure
 
 - **Fail-closed CLI gate:** The sole profile-create command was rejected by
