@@ -1,0 +1,109 @@
+{
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED_NO_RETRY",
+  "action_id": "step7b-aws-builder-016",
+  "admission_package_sha256": "b7e289472c35570812e65f91c2961a393caff1dbbdebf6d6762326ebd5535cb4",
+  "plan_sha256": "2cc7f3724709a831ff925bfc7d0c51a2b39d6a0589ee573e438545aa89983e6d",
+  "source_commit": "4a067231db69b7fb8770e22b8da7a9eb5eb32e0a",
+  "failure_reason": "The pinned Buildx v0.13.1 and content-addressed BuildKit v0.13.2 were verified, but the first controller export failed closed on Amazon Linux Docker 25.0.16: the Docker exporter does not currently support exporting manifest lists. The locked vllm/vllm-openai base reference is a manifest-list digest, and this host's Docker/BuildKit integration attempted a manifest-list export despite the single linux/amd64 target. No controller image, SBOM, role probe, model-server, benchmark-worker, production-surface handshake, model, benchmark, pilot, or experiment occurred.",
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-016/plan.json",
+      "version_id": "K1K2yhujhdYO43vBkowte.bP1fh16Plt",
+      "sha256": "52d0eeff2092fa6e900c14a899c6740c239372edfef1a6b5d3f624025ea9e566"
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-016/source.tar",
+      "version_id": "1EprKpu3E6EJZmqGm94VXpMgo1Fto3TO",
+      "sha256": "26ab4f48f37b6492c594c0775b8e9bcb5546f0d4a36b14a3ec17621169764e39",
+      "size_bytes": 28887040
+    },
+    "admission_package": {
+      "key": "runs/preparation/step7b-aws-builder-016/admission-package.json",
+      "version_id": "xsNyHZ5ZImSS1gmMeOYOt_th5G0wbuaH",
+      "sha256": "b7e289472c35570812e65f91c2961a393caff1dbbdebf6d6762326ebd5535cb4"
+    }
+  },
+  "instance": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "instance_id": "i-0c346da7f8d7810ad",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-02T04:41:33Z",
+    "terminal_state": "terminated",
+    "root_volume_id": "vol-04c1ee7d6e1a5d70a",
+    "root_volume_state": "InvalidVolume.NotFound",
+    "security_group_id": "sg-0c527fadf035615a6",
+    "security_group_state": "InvalidGroup.NotFound",
+    "terminated_timestamp": "2026-08-02T04:48:18Z"
+  },
+  "rendered_user_data_sha256": "950bd79bcd224656dec305330d8a5e7c9a5f6c90cb35a6ad17cbec5c7642568f6",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/step7b-aws-builder-016/outputs/",
+  "output_artifacts": {
+    "bootstrap_status": {
+      "key": "runs/preparation/step7b-aws-builder-016/outputs/bootstrap-status.json",
+      "version_id": "oEehRB.WPkqfey7278FyvKoglsOrpTPK",
+      "size_bytes": 46,
+      "sha256": "f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7"
+    },
+    "bootstrap_log": {
+      "key": "runs/preparation/step7b-aws-builder-016/outputs/bootstrap.log",
+      "version_id": "1hbj.EBACeF2SgnhsdXDwl3HHveJEISf",
+      "size_bytes": 32533,
+      "sha256": "ab0de5b41eccb0634661f3ea86800630e13e8998a6ae4600e91cd03794099682"
+    },
+    "buildx_builder": {
+      "key": "runs/preparation/step7b-aws-builder-016/outputs/buildx-builder.txt",
+      "version_id": "L.nz5fmF2gVY1q6YyL0hrwk1eFj7_0TU",
+      "size_bytes": 1335,
+      "sha256": "c23309981637799779088e4af0f9cdffd889ca4956c489f53856d655b7c00281"
+    },
+    "buildx_builder_stderr": {
+      "key": "runs/preparation/step7b-aws-builder-016/outputs/buildx-builder-stderr.txt",
+      "version_id": "37H3DATMdRdpTSTLEHURTZmE3Naw73H6",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "buildx_version": {
+      "key": "runs/preparation/step7b-aws-builder-016/outputs/buildx-version.txt",
+      "version_id": "lje04jzfpErb_vzfByf9hFtIJsBq92ow",
+      "size_bytes": 74,
+      "sha256": "b4bf86bfe454ff406daca442a45f72b3070388bff27ecf83fcb58643e52635a9"
+    },
+    "controller_harness": {
+      "key": "runs/preparation/step7b-aws-builder-016/outputs/controller-harness.json",
+      "version_id": "HvszQUvhBOSWFxWmw0oNMt.0J1yXQTyp",
+      "size_bytes": 146,
+      "sha256": "86e0796a9198d164db448f88cc479fb5eaf2fe719ad87525c41bb1775de53de7"
+    },
+    "docker_info": {
+      "key": "runs/preparation/step7b-aws-builder-016/outputs/docker-info-before-build.json",
+      "version_id": "R6HC6nohvzKarOFySosJKflmTczKf6tA",
+      "size_bytes": 1317,
+      "sha256": "3dcf543b109b2887eec4c91b06d31566e2d2370eaee99261bb2c3d9ece497b8c"
+    },
+    "instance_identity": {
+      "key": "runs/preparation/step7b-aws-builder-016/outputs/instance-identity.json",
+      "version_id": "CrkWncby9S5Mq4tN_hQZ.Rpzkeqjr9YP",
+      "size_bytes": 185,
+      "sha256": "ddfd857e8f974ef9b452469fa714d3a92b50bf2bb6ab54be2736b89164e82d80"
+    }
+  },
+  "partial_results": {
+    "bootstrap": "FAILED_CONTROLLER_EXPORT_MANIFEST_LIST_UNSUPPORTED",
+    "buildx": "v0.13.1_VERIFIED",
+    "buildkit": "v0.13.2_VERIFIED",
+    "controller": "FAILED_FIRST_EXPORT",
+    "model-server": "NOT_RUN",
+    "benchmark-worker": "NOT_RUN",
+    "production_surface": "NOT_RUN"
+  },
+  "teardown": {
+    "instance_termination_verified": true,
+    "root_volume_absence_verified": true,
+    "security_group_no_eni_verified": true,
+    "security_group_deletion_verified": true,
+    "verification_timestamp": "2026-08-02T04:48:18Z"
+  }
+}

@@ -89,6 +89,15 @@ no-ingress security group `sg-0c527fadf035615a6`. Plan
 `2cc7f3724709a831ff925bfc7d0c51a2b39d6a0589ee573e438545aa89983e6d` is a
 zero-retry candidate only; no provider execution or new image evidence exists.
 
+The diagnostic action 016 verified the pinned Buildx/BuildKit stack and then
+failed at the first controller export: Amazon Linux Docker 25 reported that
+its Docker exporter cannot export the locked vLLM base manifest list. No
+controller image, SBOM, role probe, or production-surface handshake ran. The
+versioned log, builder inspection, and teardown are sealed in
+`evidence/step7b-aws-builder-failure-016-20260802.json`; action 016 is
+exhausted with zero retries. The next successor must bind a platform-specific
+export repair without weakening the Step 5B base lock.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.

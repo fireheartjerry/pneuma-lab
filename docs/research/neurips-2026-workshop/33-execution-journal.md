@@ -5034,3 +5034,29 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** Action 016 is an unsigned zero-retry candidate. No source or
   plan upload, signature, instance launch, image build, SBOM, role-chain E2E,
   or scientific execution has occurred in this preparation entry.
+
+### EJ-20260802-step7b-aws-builder-016-failure
+
+- **Execution:** The single admitted attempt launched exact instance
+  `i-0c346da7f8d7810ad` (`m7i.xlarge`, 650 GiB encrypted gp3 root) from
+  rendered user-data SHA-256
+  `950bd79bcd224656dec305330d8a5e7c9a5f6c90cb35a6ad17cbec5c7642568f6`.
+- **Failure:** The sealed builder inspection proved Buildx `v0.13.1`, the
+  content-addressed BuildKit `v0.13.2`, and the exact image digest. The first
+  controller export then failed with Docker 25's
+  `docker exporter does not currently support exporting manifest lists` for
+  the locked vLLM base reference. No controller image, SBOM, role probe,
+  production-surface handshake, model, benchmark, pilot, or experiment ran.
+  The complete output inventory and teardown are sealed in
+  `evidence/step7b-aws-builder-failure-016-20260802.json`; action 016 is
+  exhausted with zero retries.
+
+### EJ-20260802-step7b-aws-builder-016-teardown
+
+- The host self-terminated at `2026-08-02T04:47:01Z`; fresh provider reads at
+  `2026-08-02T04:48:18Z` show encrypted root `vol-04c1ee7d6e1a5d70a` as
+  `InvalidVolume.NotFound`. The temporary security group
+  `sg-0c527fadf035615a6` had no ENI or instance dependencies, was deleted, and
+  then returned `InvalidGroup.NotFound`. No action-tagged resource remains.
+- The projected USD 2.25 is recorded as pending provider billing settlement
+  under CL-147/CL-148; no scientific work occurred.

@@ -143,6 +143,14 @@ created. The next action must bind the corrected bootstrap bytes afresh.
   `2cc7f3724709a831ff925bfc7d0c51a2b39d6a0589ee573e438545aa89983e6d` is a
   zero-retry candidate only; no provider execution or production-surface
   receipt exists.
+- Diagnostic action 016 verified pinned Buildx `v0.13.1` and BuildKit
+  `v0.13.2`, then failed at the first controller export because Amazon Linux
+  Docker 25's Docker exporter cannot export the locked vLLM base manifest list.
+  No controller image, SBOM, role probe, or production-surface handshake ran.
+  Its log, builder inspection, and teardown are sealed in
+  `evidence/step7b-aws-builder-failure-016-20260802.json`; action 016 is
+  exhausted with zero retries. The next action must bind a platform-specific
+  exporter repair without weakening the Step 5B base lock.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.
