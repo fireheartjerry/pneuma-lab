@@ -4513,3 +4513,20 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** this is an unsigned zero-retry candidate. No upload, signature,
   provider mutation, image build, SBOM, GPU use, model download, benchmark,
   pilot, experiment, or scientific result has occurred under action 008.
+
+### EJ-20260802-step7b-aws-builder-008-kms-admission
+
+- **Fresh-state check:** account `892077329800`, region `us-east-1`, clean
+  committed candidate `afdd491...598797`, and zero live instances tagged for
+  action 008 were re-observed immediately before signing. The scoped signer
+  assumed `pneuma-kms-signer-v1`; its Ed25519 public identity matches active
+  registry key `pneuma-kms-20260801-r1`.
+- **Authority receipt:** KMS signed the exact envelope and action admission
+  bound to plan `88f6ad03...a910a2`, ledger rows CL-114/CL-115, zero retries,
+  projected cost USD 2.25, and expiry `2026-08-02T12:18:51Z`. Canonical package
+  bytes have SHA-256 `5dd7ee3d...428b60`; the production verifier accepted both
+  signatures and all ledger, spend-history, action, manifest, and input-lock
+  bindings before publication.
+- **Boundary:** signing grants only this bounded CPU image-build action. No
+  upload, instance, image build, SBOM, GPU use, model download, benchmark,
+  pilot, experiment, or scientific result occurred in this step.
