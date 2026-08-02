@@ -5454,3 +5454,19 @@ The next event after the archived migration boundary is appended below.
   once and independently returned not-found. The existing security group was
   not touched. Action 002 is exhausted with zero retries; successor action
   003 must bind a root volume of at least 30 GiB.
+
+### EJ-20260802-interruption-qualification-plan-003-admission
+
+- **Successor:** Action 002 is exhausted and was not retried. Fresh action
+  `interruption-qualification-003` binds the same input lock and template,
+  fresh watcher identity, and the exact launch-critical root mapping:
+  encrypted gp3, `/dev/xvda`, delete-on-termination, and 30 GiB (the pinned
+  AMI snapshot minimum). Its canonical plan digest is
+  `e3db6e957e142e6067e782e2a2f79958e88c84f8f2973a713843284fd338e76e`.
+- **Admission:** The KMS-signed package
+  `9906d1c0dbb885ccae1822e0d729aa4a371d1ac3d51dcdc834384a91d6f6d4dc`
+  binds ledger rows CL-184/CL-185, the active registered Ed25519 approver,
+  zero retries, USD 0.05 projected cost, the current spend history, and
+  expiry `2026-08-03T06:30:00Z`. Offline `require_preparation_admission`
+  passed. The provider action is still pending; no interruption instance has
+  been launched yet.
