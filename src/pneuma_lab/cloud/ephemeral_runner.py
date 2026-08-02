@@ -171,10 +171,11 @@ def execute(
     tags = dict(QUALIFICATION_TAGS)
     tags["QualificationAction"] = config.action_id
     provider.preflight(tags)
-    terraform.apply(lock_timeout=config.lock_timeout, tags=tags)
     parent_job_id: str | None = None
     failure: Exception | None = None
+    cleanup_failure: Exception | None = None
     try:
+        terraform.apply(lock_timeout=config.lock_timeout, tags=tags)
         parent_job_id = provider.submit_array(
             size=2,
             timeout_seconds=MAX_WORKER_RUNTIME_MINUTES * 60,
@@ -191,8 +192,14 @@ def execute(
     except Exception as exc:
         failure = exc
     finally:
-        provider.disable_and_drain(tags)
-        terraform.destroy(lock_timeout=config.lock_timeout, tags=tags)
+        try:
+            provider.disable_and_drain(tags)
+        except Exception as exc:
+            cleanup_failure = exc
+        try:
+            terraform.destroy(lock_timeout=config.lock_timeout, tags=tags)
+        except Exception as exc:
+            cleanup_failure = cleanup_failure or exc
     absence = provider.verify_absence(tags)
     required_absence = {
         "jobs",
@@ -206,6 +213,10 @@ def execute(
         raise CloudManifestError(
             "provider-side qualification teardown absence is incomplete"
         )
+    if cleanup_failure is not None:
+        raise CloudManifestError(
+            "qualification teardown failed closed"
+        ) from cleanup_failure
     if failure is not None:
         raise CloudManifestError("qualification failed closed") from failure
     return {"parent_job_id": parent_job_id, "tags": tags, "qualification_only": True}

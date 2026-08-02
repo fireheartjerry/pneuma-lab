@@ -163,6 +163,30 @@ def test_future_terraform_mutations_use_lock_timeout_not_lock_false() -> None:
     assert "-lock-timeout=60s" in apply and "-lock-timeout=60s" in destroy
 
 
+def test_apply_failure_still_attempts_destroy_and_absence_readback() -> None:
+    provider, terraform = FakeProvider(), FakeTerraform()
+
+    def fail_apply(*, lock_timeout, tags):
+        terraform.calls.append(f"apply:{lock_timeout}")
+        raise RuntimeError("partial apply")
+
+    terraform.apply = fail_apply  # type: ignore[method-assign]
+    with pytest.raises(CloudManifestError, match="qualification failed closed"):
+        execute(
+            RunnerConfig("qual-1", "us-east-1", 99.0),
+            envelope={},
+            admission={},
+            key_registry={},
+            ledger_path=None,
+            account_plan=account_plan(),
+            provider=provider,
+            terraform=terraform,
+            verify_authority=authority,
+        )
+    assert terraform.calls == ["apply:60s", "destroy:60s"]
+    assert provider.calls[-2:] == ["disable-drain", "absence"]
+
+
 def test_account_plan_rejects_non_qualification_resource() -> None:
     bad = account_plan()
     bad["resource_changes"] = [
