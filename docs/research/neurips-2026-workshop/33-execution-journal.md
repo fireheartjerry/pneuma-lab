@@ -5390,3 +5390,33 @@ The next event after the archived migration boundary is appended below.
   once, and returned `InvalidGroup.NotFound` on the post-delete read. No
   action-023 resource remains; its versioned input objects are retained as
   immutable failure provenance.
+
+### EJ-20260802-step7b-aws-builder-024-execution
+
+- **Execution:** The one KMS-admitted, zero-retry launch for exact action
+  `step7b-aws-builder-024` succeeded at `2026-08-02T14:39:17Z` as instance
+  `i-00ec94d0c64a03cc5` (`m7i.xlarge`, 650 GiB encrypted delete-on-termination
+  gp3 root, IMDSv2 required, detailed monitoring enabled). The source archive,
+  plan, and signed package were uploaded once and downloaded back with exact
+  byte and SHA-256 matches. No model download, benchmark episode, pilot,
+  experiment, or scientific result was authorized.
+- **Qualification:** The isolated Python 3.9 runtime imported
+  `jsonschema 4.25.1` and `Draft202012Validator`. Controller, model-server,
+  and benchmark-worker each produced equal double-build image digests,
+  positive and wrong-hash fail-closed probes, and non-empty SPDX SBOMs. The
+  host published exactly 34 versioned output objects. The production-surface
+  command returned `0` with empty stderr; all three role receipts and the
+  surface digest `e028d66d15247ab52dabfed8913fa7b841a1bc85c6604a06c596e1f51d77ee38`
+  passed independent local validators. The complete evidence is sealed in
+  `evidence/step7b-aws-builder-success-024-20260802.json` (SHA-256
+  `732a1c761f7d8443a157e934fde6c22568288f28a98576f47ad7b37171d6d13a`).
+
+### EJ-20260802-step7b-aws-builder-024-teardown
+
+- Fresh AWS reads at `2026-08-02T16:04:31Z` found the instance terminated,
+  encrypted root `vol-0b99228e11e5a74a7` absent, and ENI
+  `eni-051eea56bdf494511` absent. The temporary SG `sg-02dd39d7dc45cbb99`
+  had no instance or ENI dependencies, was deleted once, and returned
+  `InvalidGroup.NotFound` on the post-delete read. No action-024 resource
+  remains. The versioned S3 input/output objects are retained as immutable
+  qualification provenance.

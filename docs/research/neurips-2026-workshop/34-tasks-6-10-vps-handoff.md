@@ -1096,3 +1096,24 @@ independently removed. This closes Step 7B image-build/SBOM evidence only. The
 real three-role production execution surface, interruption/recovery drill,
 and Step 14 hostile review remain open; no benchmark, pilot, experiment, or
 scientific claim is authorized.
+
+### Step 7B production-surface E2E qualification complete — 2026-08-02
+
+The successor chain exhausted action 022 on the Python 3.9 `datetime.UTC`
+compatibility failure and action 023 on a client-side `--monitoring Enabled`
+syntax rejection. Fresh zero-retry action `step7b-aws-builder-024` then bound
+the repaired source, exact `--monitoring Enabled=true` launch, and the same
+build-only boundary. It completed all three reproducible double-builds,
+positive and wrong-hash probes, non-empty SPDX SBOMs, and the network-none,
+read-only controller → model-server → benchmark-worker production-surface
+handshake. The command returned zero with empty stderr, and independent local
+validation accepted all role receipts plus surface digest
+`e028d66d15247ab52dabfed8913fa7b841a1bc85c6604a06c596e1f51d77ee38`.
+
+The exact 34-object S3 inventory, source/plan/package bindings, and teardown
+are sealed in
+`evidence/step7b-aws-builder-success-024-20260802.json` (SHA-256
+`732a1c761f7d8443a157e934fde6c22568288f28a98576f47ad7b37171d6d13a`). This
+closes the production execution-surface gate only. The interruption/recovery
+drill and Step 14 hostile launch review remain blocking; no benchmark episode,
+pilot, canonical P0 lineage, experiment, or scientific claim is authorized.

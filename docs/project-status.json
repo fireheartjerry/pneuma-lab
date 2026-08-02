@@ -513,7 +513,6 @@
                 "tests/cloud/test_iac_plan.py"
             ],
             "blockers": [
-                "B-NEURIPS-AWS-ACCOUNT-PLAN",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -644,7 +643,6 @@
                 "tests/cloud/test_preflight.py"
             ],
             "blockers": [
-                "B-NEURIPS-AWS-ACCOUNT-PLAN",
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
@@ -665,7 +663,6 @@
             ],
             "blockers": [
                 "B-NEURIPS-STEP14-REVIEW",
-                "B-NEURIPS-PRODUCTION-SURFACE-E2E",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
         },
@@ -691,9 +688,7 @@
                 "tests/cloud/test_production_surface_e2e.py"
             ],
             "blockers": [
-                "B-NEURIPS-AWS-ACCOUNT-PLAN",
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-                "B-NEURIPS-PRODUCTION-SURFACE-E2E",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -999,20 +994,12 @@
             "summary": "Task 10 has no complete authority-backed P0 lineage, isolated result of record, or independently verified canonical release decision; its state is implementation_complete and E2E_pending."
         },
         {
-            "id": "B-NEURIPS-AWS-ACCOUNT-PLAN",
-            "summary": "Authenticated AWS evidence confirms the expected account, 8 On-Demand and 16 Spot G/VT vCPUs, and g6e.2xlarge availability. The authorized account-bound Terraform plan created the private non-compute substrate, including VPC endpoints, encrypted/versioned S3 controls, DynamoDB lease state, IAM, logs, launch template, and ECR controls. Terraform state and a refreshed no-change plan are hash-bound and mirrored. Because AWS requires a new Batch compute environment to be born enabled, create_batch_resources remains false and direct queries show no compute environment or queue; no EC2/GPU/EBS worker exists."
-        },
-        {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, and the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1. Its verified nearest-rank p10 values are 11.555050851717397 (32k) and 11.548052621929092 (65k), each above 8.0; instance and encrypted volume teardown are sealed. Lease contention, interruption/resume, watchdog behavior under failure, and benchmark execution remain unverified; no Batch compute environment or queue exists."
-        },
-        {
-            "id": "B-NEURIPS-PRODUCTION-SURFACE-E2E",
-            "summary": "Step 7B image/SBOM qualification is complete for the older action-009 runtime, but fresh actions 010 and 011 bound to the current handshake failed closed at controller reproducibility, action 012 failed closed at benchmark-worker reproducibility after controller/model-server partial receipts, action 013 failed closed at controller reproducibility despite build-owned mtime normalization, action 014 failed during Amazon Linux bootstrap because the requested curl package conflicted with preinstalled curl-minimal, action 015 failed closed when the host did not report the sealed BuildKit v0.13.2 during builder validation, action 016 failed at the first controller export because Docker 25's Docker exporter rejected the locked base manifest list, action 017 failed at a duplicate role argument against the sealed image ENTRYPOINT, action 018 failed at the strict dropped-cap read-only harness bind (locally reproduced as PermissionError for mode 0600), action 019 was rejected before instance creation by an EC2 InvalidGroup.NotFound propagation race, action 020 completed all three image/SBOM gates but failed closed at the cloud image-bound production-surface subprocess before any handshake receipt was written, and diagnostic action 021 completed all image/SBOM/probe gates but failed closed before role launch because the AMI system Python lacked the required Draft202012Validator from the repository's jsonschema contract. Actions 010-021 are exhausted with sealed failures and teardowns. A fresh action 022 must bind an isolated, hash-pinned runtime dependency and requalify the production surface; no current cloud receipt proves a real controller/model-server/benchmark-worker production execution surface."
+            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, and the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1. Its verified nearest-rank p10 values are 11.555050851717397 (32k) and 11.548052621929092 (65k), each above 8.0; instance and encrypted volume teardown are sealed. The Step 7B production surface is now independently qualified by action 024, but lease contention, interruption/resume, watchdog behavior under failure, and benchmark execution remain unverified; no Batch compute environment or queue exists."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
-            "summary": "The required pre-experiment hostile launch review has not occurred. Its spec generator now fails closed until eight genuine evidence roots exist: Step 5B input lock, G-ROSTER, Step 7B image builds/SBOMs, production execution surface, AWS account/quota/plan, one-GPU admission, interruption/recovery, and Windows/Linux portability. Current evidence closes the input lock, G-ROSTER, Step 7B builds/SBOMs, one-GPU admission, and portability roots; production-surface E2E, interruption/recovery, account/plan reconciliation, and the review itself remain open."
+            "summary": "The required pre-experiment hostile launch review has not occurred. Its spec generator now fails closed until eight genuine evidence roots exist: Step 5B input lock, G-ROSTER, Step 7B image builds/SBOMs, production execution surface, AWS account/quota/plan, one-GPU admission, interruption/recovery, and Windows/Linux portability. Current evidence closes the input lock, G-ROSTER, Step 7B builds/SBOMs, production-surface E2E, account/plan reconciliation, one-GPU admission, and portability roots; interruption/recovery and the review itself remain open."
         },
         {
             "id": "B-NEURIPS-EXPERIMENT-EXECUTION",
