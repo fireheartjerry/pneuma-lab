@@ -4565,3 +4565,16 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** action 009 remains unsigned and unexecuted. No upload,
   signature, provider mutation, image build, SBOM, GPU, model workload,
   benchmark, pilot, experiment, or scientific result occurred in preparation.
+
+### EJ-20260802-step7b-aws-builder-009-kms-admission
+
+- Fresh account, scoped signer, clean-tree, and zero-live-action checks passed.
+  KMS signed the exact CL-117/CL-118 envelope and admission for plan
+  `51abcdc1...674359f`, zero retries, USD 2.25 projected cost, and expiry
+  `2026-08-02T12:39:19Z`.
+- The production verifier accepted every signature, ledger, spend-history,
+  action, manifest, and input-lock binding. Canonical signed-package SHA-256 is
+  `d86c680b...0aac4c`.
+- Signing authorizes only the bounded CPU image qualification. No upload,
+  instance, SBOM, GPU, model workload, benchmark, pilot, experiment, or
+  scientific result occurred in this step.
