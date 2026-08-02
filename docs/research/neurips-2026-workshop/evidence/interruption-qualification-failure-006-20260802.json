@@ -1,0 +1,76 @@
+{
+  "record_kind": "cloud_interruption_qualification_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED",
+  "action_id": "interruption-qualification-006",
+  "plan_sha256": "23bc947675cba3c1c59c0b3e3792f8649ace792290e3eefb1cd9fa66a9fcf49f",
+  "signed_package_sha256": "a4bc2d68e59f90bece46ae2a6db856057911d675ebcf24f7126ee1f908db0305",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "attempted_at": "2026-08-02T16:42:37Z",
+  "failure_class": "private_subnet_sts_reachability_timeout",
+  "provider_error": "Controller cloud-init recorded Connect timeout on endpoint URL https://sts.us-east-1.amazonaws.com/ at 2026-08-02T16:47:45Z after publishing the completed boundary; the controller report and watcher observation were therefore never published. The expired watcher could not obtain its STS identity or request termination.",
+  "retry_policy": "zero_retry_action_exhausted",
+  "launch_request": {
+    "ami_id": "ami-011db5ae81cc0f370",
+    "instance_type": "t3.nano",
+    "subnet_id": "subnet-042e433905daddc0b",
+    "vpc_id": "vpc-0577decd080525e86",
+    "security_group_id": "sg-08428ae82a7e2fd35",
+    "root_device": "/dev/xvda",
+    "root_volume_gib": 30,
+    "root_volume_type": "gp3",
+    "root_volume_encrypted": true,
+    "delete_on_termination": true,
+    "controller_userdata_sha256": "36b733317ad6cf5aa0790ad88f8dcbb2c00847725d664ee227327081ea7808e5",
+    "watcher_userdata_sha256": "98c38c4c69ca91e57bc8f078886c62e128d8c537d6308f36fde57d87cfe6c699"
+  },
+  "network_mutation": {
+    "dynamodb_endpoint_id": "vpce-04a2bcef91027743e",
+    "dynamodb_endpoint_policy_sha256": "7083ccb25370de465b234d75f19bd542fdd320ef7738ad65ec1776572f2b72d4",
+    "dynamodb_endpoint_created_at": "2026-08-02T16:42:37Z",
+    "dynamodb_endpoint_deleted_once": true,
+    "dynamodb_endpoint_absent_after_cleanup": true,
+    "route_table_id": "rtb-0786adc7fddd32540",
+    "sts_endpoint_present": false
+  },
+  "lease": {
+    "key": "interruption-qualification-006",
+    "issued_timestamp": "2026-08-02T16:43:53Z",
+    "expires_timestamp": "2026-08-02T16:48:53Z",
+    "controller_instance_id": "i-097d18193d9cde51c",
+    "controller_renewal_count": 0,
+    "watcher_observed_timestamp": null,
+    "watcher_termination_state": null
+  },
+  "boundary": {
+    "object_key": "runs/preparation/interruption-qualification-006/completed-boundary.json",
+    "version_id": "bjWkfqWzkFir32ehPsbzP9SNYCCfJrrm",
+    "sha256": "8011cd69cdae3858db213ddad31653d5beea1187a74fd2589f59c7c4d5fac8a",
+    "deleted_once": true,
+    "absent_after_cleanup": true
+  },
+  "resources": {
+    "instances_created": ["i-097d18193d9cde51c", "i-00aef6acec8f2f99b"],
+    "volumes_created": ["vol-04649ec1c2744e236", "vol-040fcc810a4966974"],
+    "enis_created": ["eni-013ba9226d247d0f7", "eni-0b8be6a9123b04c07"],
+    "s3_objects_created": ["runs/preparation/interruption-qualification-006/completed-boundary.json"]
+  },
+  "cleanup": {
+    "instances_terminated_once": true,
+    "instances_absent_after_termination": true,
+    "volumes_absent_after_termination": true,
+    "enis_absent_after_termination": true,
+    "lease_deleted_once": true,
+    "lease_absent_after_cleanup": true,
+    "watcher_profile_deleted_once": true,
+    "watcher_role_policy_deleted_once": true,
+    "watcher_role_deleted_once": true,
+    "watcher_profile_absent_after_cleanup": true,
+    "watcher_role_absent_after_cleanup": true,
+    "security_group_touched": false,
+    "verified_at": "2026-08-02T16:51:14Z"
+  },
+  "scientific_boundary": "No watcher observation, lease-expiry termination, recovery, model, benchmark, pilot, experiment, or scientific result occurred."
+}

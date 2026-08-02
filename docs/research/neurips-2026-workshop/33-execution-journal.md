@@ -5519,6 +5519,24 @@ The next event after the archived migration boundary is appended below.
   DynamoDB-reachable private path (or an explicitly authorized equivalent)
   before rerunning the watchdog.
 
+### EJ-20260802-interruption-qualification-006-failure
+
+- **STS qualification failure:** The one admitted DynamoDB gateway endpoint
+  made action 006 publish the completed boundary, but the controller then
+  blocked on the pinned private STS path. Its console recorded
+  `Connect timeout on endpoint URL: "https://sts.us-east-1.amazonaws.com/"`
+  at `2026-08-02T16:47:45Z`; the controller report and watcher observation
+  were never published. The endpoint policy, boundary hash, and exact
+  zero-retry failure are sealed in
+  `evidence/interruption-qualification-failure-006-20260802.json`.
+- **Teardown:** Both instances were terminated once; roots and ENIs returned
+  not-found. The boundary object version was deleted once, the lease was
+  deleted once, the watcher profile/policy/role were removed once, and the
+  temporary DynamoDB endpoint was deleted once; fresh reads found all absent.
+  The existing S3 endpoint and worker security group were untouched. Action
+  006 is exhausted with zero retries. Any successor must bind and qualify an
+  STS-reachable interface endpoint as well as DynamoDB.
+
 ### EJ-20260802-interruption-qualification-plan-006-admission
 
 - **Network successor:** Action 005 is exhausted and was not retried. Fresh
