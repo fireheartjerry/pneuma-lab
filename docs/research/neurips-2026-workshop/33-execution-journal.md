@@ -4551,3 +4551,17 @@ The next event after the archived migration boundary is appended below.
   root surface and enforce the plan's 600 GiB free-space floor before the first
   build. No GPU, model workload, benchmark, pilot, experiment, or scientific
   result occurred.
+
+### EJ-20260802-step7b-aws-builder-009-preparation
+
+- **Repair:** the executor now rejects less than the sealed 600 GiB free-space
+  floor before any build and passes a dedicated root-volume-backed `TMPDIR` to
+  Syft. The bootstrap creates and exports the same staging location. Focused
+  failure tests, executor compatibility, Ruff, whitespace, and status checks
+  pass.
+- **Candidate:** exact successor plan `51abcdc1...674359f` binds committed
+  source `e4f589d...ac0413`, archive `67bef926...e55a3a3`, executor
+  `ebd57fa2...4675fc`, and bootstrap `7ad89afa...715352`.
+- **Boundary:** action 009 remains unsigned and unexecuted. No upload,
+  signature, provider mutation, image build, SBOM, GPU, model workload,
+  benchmark, pilot, experiment, or scientific result occurred in preparation.
