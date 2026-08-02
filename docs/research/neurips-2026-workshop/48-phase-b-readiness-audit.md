@@ -148,6 +148,13 @@ bootstrap, image, SBOM, production surface, model, benchmark, pilot, or
 experiment ran. Action 019 is exhausted with zero retries; a fresh action 020
 must add a consistency-gated SG launch path.
 
+Action 020 is now the sole active qualification attempt. Its fresh SG was
+created and read back through the same CLI channel used for the launch; the
+one permitted launch succeeded for `i-0f9fa01a181cccca2`. The host is healthy,
+has completed its first controller export, and has not yet published the final
+receipt set. The production-surface gate remains open until the sealed output
+inventory and handshake receipt are independently verified.
+
 Corrected successor action 015 is prepared but remains an unsigned candidate.
 It binds the repaired curl-minimal-safe bootstrap, source commit
 `98dd81a...c806`, archive `9229854...b579`, pinned Buildx/BuildKit, and fresh

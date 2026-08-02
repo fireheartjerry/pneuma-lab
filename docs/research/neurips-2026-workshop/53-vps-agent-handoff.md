@@ -186,6 +186,13 @@ created. The next action must bind the corrected bootstrap bytes afresh.
   exhausted with zero retries and its SG is deleted. Action 020 must bind a
   fresh SG and a consistency-gated creation/launch path; action 019's launch
   cannot be replayed.
+- Action 020 is now signed, uploaded, and launched once through that
+  consistency-gated CLI path. Instance `i-0f9fa01a181cccca2` is healthy and
+  running; the executor has completed the first controller export but has not
+  yet published its final output prefix. Continue monitoring the instance and
+  S3 receipt set; do not claim production-surface E2E until the sealed success
+  receipt verifies the handshake and all artifact hashes, then perform the
+  independent teardown.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.

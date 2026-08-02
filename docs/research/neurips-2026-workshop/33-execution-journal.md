@@ -5191,3 +5191,46 @@ The next event after the archived migration boundary is appended below.
   recorded as zero pending settlement under CL-158/CL-159. A new action 020
   must use a fresh SG and a consistency-gated launch path; action 019's
   package, group, and attempted launch cannot be replayed.
+
+### EJ-20260802-step7b-aws-builder-020-preparation
+
+- **Repair:** Action 019 exposed an EC2 cross-channel security-group
+  propagation race. Action 020 binds current committed source
+  `627d5ae98ec3681b53e5b211fc8a7a8ccd03a457`, archive
+  `5c3751a23542dd40e20e1404932edc173a4360ee8ec3aa4775357b855e55bba3`
+  (28,979,200 bytes), and the CLI-created no-ingress SG
+  `sg-0fafd831d4a66c8f6`. Its plan digest is
+  `9ba8d301f38c011ec79a3dbd1b4dfa8ddb274e4bf498df472bf2cc05d2f58aee` and
+  rendered user-data SHA-256 is
+  `87bd5625fa8bc2f50446f4c319890a50e37e5c9f9a4287fabcb784fda18e99d4`.
+- **Consistency gate:** The SG was created and configured through the same
+  AWS CLI path used for launch, then read back with zero ingress and exactly
+  TCP/UDP DNS to `172.31.0.2/32` plus TCP 443 egress. The final same-channel
+  preflight found no action-020 instance, volume, or ENI, verified the AMI,
+  subnet, profile, account, and 32-vCPU quota, and downloaded the S3 source
+  object back with the exact archive SHA-256.
+- **Admission:** KMS signed package
+  `0a9f6a8db70f9ee1969ffa3798b3b02c28f68eb3cafe2ae3162cf4a65d9f3153`
+  contains envelope body
+  `c1cd9b765d8e32bef67f298a20bfff007a06682654dd8723bd1a86b246a9cd2a`
+  and admission body
+  `24383a01b28de15d5b6c4990636cd14e6520f71ed19ecd173404ff488453480c`.
+  Source, plan, and package are versioned under the action-020 prefix; the
+  source version is `nNhoecJlyTesITa.oVqvhU8_ikP1RSWt`, the plan version is
+  `VXQTB25Ly_Vdr94ALusH0K2Udn3ZUBEo`, and the package version is
+  `aTB98nLWex1581wuzezmGZkQ3qxrP2Oz`.
+
+### EJ-20260802-step7b-aws-builder-020-execution
+
+- The single permitted launch succeeded at
+  `2026-08-02T09:36:53Z`: instance `i-0f9fa01a181cccca2`, private IP
+  `172.31.15.114`, public IP `3.238.223.80`, ENI
+  `eni-0494cd4ccf5ec48f9`, and encrypted root `vol-03aa2c04d175a5e55`.
+  It is an On-Demand `m7i.xlarge` with a 650 GiB encrypted delete-on-termination
+  gp3 root, EBS optimization, detailed monitoring, IMDSv2 required with hop
+  limit 2, and instance-initiated termination.
+- At the latest monitor, the instance remains `running` with EC2/EBS
+  reachability passed and no output objects yet. Console output confirms the
+  locked base transfer and first controller export completed; the remainder
+  is captured by the executor and will publish only on failure or completion.
+  No model, benchmark, pilot, experiment, or scientific result is being run.
