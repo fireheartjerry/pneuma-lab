@@ -20,9 +20,11 @@ from .licence_audit import (
     validate_licence_audit,
     verify_licence_evidence,
 )
+from .lease_contention import require_lease_contention_qualification
 from .manifests import (
     validate_experiment_manifest,
     validate_input_lock,
+    validate_lease_contention_qualification_receipt,
     validate_pilot_admission_receipt,
 )
 from .qualification import (
@@ -75,6 +77,7 @@ __all__ = [
     "real_candidate_findings",
     "require_authorized",
     "require_complete_scopes",
+    "require_lease_contention_qualification",
     "require_preparation_admission",
     "require_real_candidate_lock",
     "require_roster_gate_satisfied",
@@ -85,6 +88,7 @@ __all__ = [
     "terraform_status",
     "validate_experiment_manifest",
     "validate_input_lock",
+    "validate_lease_contention_qualification_receipt",
     "validate_key_registry",
     "validate_licence_audit",
     "validate_pilot_admission_receipt",

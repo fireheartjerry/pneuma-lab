@@ -42,6 +42,7 @@ _SCHEMA_BY_KIND = {
     "cloud_step5b_lifecycle_receipt": "cloud-step5b-lifecycle-receipt.schema.json",
     "cloud_isolation_qualification_receipt": "cloud-isolation-qualification-receipt.schema.json",
     "cloud_production_role_receipt": "cloud-production-role-receipt.schema.json",
+    "cloud_lease_contention_qualification_receipt": "cloud-lease-contention-qualification-receipt.schema.json",
 }
 
 
@@ -93,6 +94,12 @@ def validate_interruption_qualification_receipt(
 
 def validate_production_execution_surface(record: Mapping[str, Any]) -> dict[str, Any]:
     return _validate(record, expected_kind="cloud_production_execution_surface")
+
+
+def validate_lease_contention_qualification_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate a real DynamoDB contention receipt without promoting science."""
+
+    return _validate(record, expected_kind="cloud_lease_contention_qualification_receipt")
 
 
 def validate_production_role_receipt(record: Mapping[str, Any]) -> dict[str, Any]:
