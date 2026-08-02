@@ -4712,3 +4712,23 @@ The next event after the archived migration boundary is appended below.
 - No action-tagged resource remains. The signed action's projected USD 2.25 is
   recorded as pending provider billing settlement under CL-123/CL-124; no
   model, benchmark, pilot, experiment, or scientific result occurred.
+
+### EJ-20260802-step7b-aws-builder-011-preparation
+
+- **Repair:** action 010's controller double-build mismatch was preserved as a
+  no-retry failure. The successor executor now exports the sealed
+  `SOURCE_DATE_EPOCH` into each Docker build environment, passes
+  `BUILDKIT_MULTI_PLATFORM=1`, and the AWS bootstrap exports the same timestamp
+  before invoking Docker. Focused executor tests, Ruff, whitespace, and status
+  checks pass.
+- **Candidate:** a fresh `git archive --format=tar HEAD` produced archive
+  `fb68f972d434aa2984fef49854f77a58d9c82b422b386704b9c4a48071eeae62`
+  (28,774,400 bytes). Plan
+  `32714d078b9a14b30d4762b523913ca5fd62a2eb01a75d2a176d3669a810e205` binds
+  source `06de1bf88ae85dee47ad62a3c1b914b83d25cf9c`, executor
+  `e5df9b73a53d7058ee0f5ea9f49135a05d273eba1d5b6695cae02aa8b430d654`,
+  bootstrap `fad19b0dac4bab6c91dc565898873226b70eea2e0e46c197136f13adb9aad759`,
+  and production harness `ba404049586f4ac289cdc25002234d6b79c9b815b94f481d5f720cca0a78b750`.
+- **Boundary:** action 011 is an unsigned zero-retry candidate. No upload,
+  signature, provider mutation, image build, SBOM, role-chain E2E, or
+  scientific execution occurred in this preparation entry.
