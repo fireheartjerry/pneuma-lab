@@ -37,3 +37,29 @@ def test_successor_rebinds_action_archive_source_and_live_surface(tmp_path: Path
     body = dict(plan)
     digest = body.pop("plan_sha256")
     assert digest == hashlib.sha256(canonical_bytes(body)).hexdigest()
+
+
+def test_successor_can_bind_the_production_surface_harness(tmp_path: Path) -> None:
+    archive = tmp_path / "source.tar"
+    archive.write_bytes(b"fresh archive")
+    plan = prepare(
+        json.loads(PREDECESSOR.read_text(encoding="utf-8")),
+        root=ROOT,
+        archive=archive,
+        action_id="step7b-aws-builder-010",
+        frozen_timestamp="2026-08-02T02:00:00Z",
+        expires_timestamp="2026-08-03T02:00:00Z",
+        source_commit="b" * 40,
+        production_surface=True,
+    )
+    surface = plan["production_surface"]
+    assert surface["controller_privileged"] is True
+    assert surface["request"]["max_tokens"] == 4
+    harness = {
+        "record_kind": surface["record_kind"],
+        "schema_version": surface["schema_version"],
+        "action_id": plan["action_id"],
+        "input_lock_sha256": plan["input_lock_sha256"],
+        "request": surface["request"],
+    }
+    assert surface["harness_sha256"] == hashlib.sha256(canonical_bytes(harness) + b"\n").hexdigest()

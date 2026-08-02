@@ -59,6 +59,21 @@ def require_plan(plan: dict[str, Any], root: Path) -> None:
     required = {"cloud_build", "ecr_push", "gpu_use", "benchmark_execution", "model_download"}
     if not required.issubset(set(plan["requirements"]["forbidden"])):
         raise ValueError("plan does not prohibit every non-build Step 7B action")
+    surface = plan.get("production_surface")
+    if surface is not None:
+        if not isinstance(surface, dict) or surface.get("record_kind") != "cloud_production_e2e_harness":
+            raise ValueError("production surface must bind a canonical E2E harness")
+        if surface.get("schema_version") != "0.1.0" or surface.get("controller_privileged") is not True:
+            raise ValueError("production surface must bind the sealed controller privilege boundary")
+        request = surface.get("request")
+        if not isinstance(request, dict) or not request.get("request_id") or not request.get("prompt"):
+            raise ValueError("production surface request is incomplete")
+        if type(request.get("max_tokens")) is not int or not 1 <= request["max_tokens"] <= 16:
+            raise ValueError("production surface max_tokens is outside the bounded range")
+        if type(request.get("temperature")) is not float or request["temperature"] != 0.0:
+            raise ValueError("production surface temperature must be exactly 0.0")
+        if "benchmark_execution" not in plan["requirements"]["forbidden"]:
+            raise ValueError("production surface cannot authorize benchmark execution")
     for role in ROLES:
         paths = plan["roles"][role]
         for key in ("dockerfile", "lock"):
@@ -137,6 +152,54 @@ def main() -> int:
     require_free_storage(plan, output)
     receipts = [build_role(plan, root, output, role) for role in ROLES]
     (output / "step7b-build-receipts.json").write_bytes(canonical_bytes(receipts) + b"\n")
+    surface = plan.get("production_surface")
+    if surface is not None:
+        harness = {
+            "record_kind": surface["record_kind"],
+            "schema_version": surface["schema_version"],
+            "action_id": plan["action_id"],
+            "input_lock_sha256": plan["input_lock_sha256"],
+            "request": surface["request"],
+        }
+        harness_path = output / "production-surface-harness.json"
+        harness_path.write_bytes(canonical_bytes(harness) + b"\n")
+        harness_digest = sha256_file(harness_path)
+        expected_digest = surface.get("harness_sha256")
+        if expected_digest is not None and expected_digest != harness_digest:
+            raise ValueError("production surface harness digest does not match the sealed plan")
+        image_args = [
+            item
+            for role, receipt in zip(ROLES, receipts)
+            for item in ("--image", f"{role}=pneuma-step7b-{role}:build-1", "--image-digest", f"{role}={receipt['build_image_digests'][0]}")
+        ]
+        command = [
+            "python3",
+            str(root / "scripts/research/run_production_surface_e2e.py"),
+            "--harness",
+            str(harness_path),
+            "--harness-sha256",
+            harness_digest,
+            "--output-dir",
+            str(output / "production-surface"),
+            "--source-root",
+            str(root),
+            "--source-commit",
+            plan["source_commit"],
+            "--controller-privileged",
+            *image_args,
+        ]
+        child_environment = dict(os.environ)
+        source_pythonpath = str(root / "src")
+        child_environment["PYTHONPATH"] = (
+            source_pythonpath
+            if not child_environment.get("PYTHONPATH")
+            else source_pythonpath + os.pathsep + child_environment["PYTHONPATH"]
+        )
+        completed = subprocess.run(command, check=True, text=True, capture_output=True, env=child_environment)
+        (output / "production-surface-command.json").write_text(
+            json.dumps({"command": command, "stdout": completed.stdout}, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     print(json.dumps({"receipt_sha256": sha256_file(output / "step7b-build-receipts.json"), "roles": list(ROLES)}, sort_keys=True))
     return 0
 
