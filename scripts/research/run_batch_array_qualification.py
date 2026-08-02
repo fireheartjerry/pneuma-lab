@@ -603,7 +603,7 @@ def execute(plan: dict[str, Any], package: dict[str, Any], registry: dict[str, A
             "image": plan["image"],
             "command": plan["command"],
             "resourceRequirements": [
-                {"type": "VCPU", "value": str(plan["vcpu"])},
+                {"type": "VCPU", "value": str(plan["vcpus"])},
                 {"type": "MEMORY", "value": str(plan["memory_mib"])},
             ],
             "executionRoleArn": plan["execution_role_arn"],
