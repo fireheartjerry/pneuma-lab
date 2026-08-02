@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from scripts.research import run_step7b_builds
-from scripts.research.run_step7b_builds import plan_digest, require_plan
+from scripts.research.run_step7b_builds import plan_digest, require_free_storage, require_plan
 
 
 def _write(path: Path, value: bytes) -> str:
@@ -32,7 +33,10 @@ def _plan(root: Path) -> dict:
         "executor_sha256": hashlib.sha256(Path(run_step7b_builds.__file__).read_bytes()).hexdigest(),
         "runtime": {"path": "src/pneuma_lab/cloud/production_runtime.py", "sha256": runtime},
         "roles": roles,
-        "requirements": {"forbidden": ["cloud_build", "ecr_push", "gpu_use", "benchmark_execution", "model_download"]},
+        "requirements": {
+            "forbidden": ["cloud_build", "ecr_push", "gpu_use", "benchmark_execution", "model_download"],
+            "minimum_verified_free_storage_gib": 600,
+        },
     }
     plan["plan_sha256"] = plan_digest(plan)
     return plan
@@ -70,6 +74,23 @@ def test_executor_rejects_changed_executor_bytes(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(run_step7b_builds, "sha256_file", lambda _: "0" * 64)
     with pytest.raises(ValueError, match="executor bytes"):
         require_plan(plan, tmp_path)
+
+
+def test_executor_enforces_sealed_free_storage_floor(tmp_path, monkeypatch) -> None:
+    plan = _plan(tmp_path)
+    monkeypatch.setattr(
+        run_step7b_builds.shutil,
+        "disk_usage",
+        lambda _: SimpleNamespace(free=599 * 1024**3),
+    )
+    with pytest.raises(ValueError, match="below the sealed 600 GiB floor"):
+        require_free_storage(plan, tmp_path)
+
+
+def test_executor_uses_root_backed_syft_staging() -> None:
+    source = Path(run_step7b_builds.__file__).read_text(encoding="utf-8")
+    assert 'syft_tmp = output.parent / "syft-tmp"' in source
+    assert 'syft_env = dict(os.environ, TMPDIR=str(syft_tmp))' in source
 
 
 def test_role_dockerfiles_use_the_repository_build_context() -> None:

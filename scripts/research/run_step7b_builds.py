@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -69,6 +70,15 @@ def require_plan(plan: dict[str, Any], root: Path) -> None:
         raise ValueError("sealed runtime bytes are absent or changed")
 
 
+def require_free_storage(plan: dict[str, Any], path: Path) -> None:
+    minimum_gib = plan["requirements"]["minimum_verified_free_storage_gib"]
+    if not isinstance(minimum_gib, int) or minimum_gib <= 0:
+        raise ValueError("minimum verified free storage must be a positive integer")
+    free_bytes = shutil.disk_usage(path).free
+    if free_bytes < minimum_gib * 1024**3:
+        raise ValueError(f"builder free storage is below the sealed {minimum_gib} GiB floor")
+
+
 def build_role(plan: dict[str, Any], root: Path, output: Path, role: str) -> dict[str, Any]:
     role_plan = plan["roles"][role]
     dockerfile = root / role_plan["dockerfile"]["path"]
@@ -87,8 +97,17 @@ def build_role(plan: dict[str, Any], root: Path, output: Path, role: str) -> dic
     if wrong.returncode != 2:
         raise ValueError(f"{role} did not fail closed for the wrong harness digest")
     sbom = output / f"{role}.spdx.json"
+    syft_tmp = output.parent / "syft-tmp"
+    syft_tmp.mkdir(parents=True, exist_ok=True)
+    syft_env = dict(os.environ, TMPDIR=str(syft_tmp))
     with sbom.open("w", encoding="utf-8") as handle:
-        subprocess.run(["syft", tags[0], "-o", "spdx-json"], check=True, text=True, stdout=handle)
+        subprocess.run(
+            ["syft", tags[0], "-o", "spdx-json"],
+            check=True,
+            text=True,
+            stdout=handle,
+            env=syft_env,
+        )
     (output / f"{role}-positive.json").write_text(positive.stdout, encoding="utf-8")
     (output / f"{role}-wrong-hash.json").write_text(wrong.stdout, encoding="utf-8")
     return {
@@ -115,6 +134,7 @@ def main() -> int:
     output = args.output_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
     require_plan(plan, root)
+    require_free_storage(plan, output)
     receipts = [build_role(plan, root, output, role) for role in ROLES]
     (output / "step7b-build-receipts.json").write_bytes(canonical_bytes(receipts) + b"\n")
     print(json.dumps({"receipt_sha256": sha256_file(output / "step7b-build-receipts.json"), "roles": list(ROLES)}, sort_keys=True))

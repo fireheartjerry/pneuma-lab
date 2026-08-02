@@ -12,7 +12,8 @@ readonly SYFT_URL='__SYFT_URL__'
 readonly SYFT_SHA256='__SYFT_SHA256__'
 readonly OUTPUT_PREFIX='__OUTPUT_PREFIX__'
 
-mkdir -p /opt/pneuma-step7b/{source,output,tools}
+mkdir -p /opt/pneuma-step7b/{source,output,tools,syft-tmp}
+export TMPDIR=/opt/pneuma-step7b/syft-tmp
 exec > >(tee /opt/pneuma-step7b/output/bootstrap.log) 2>&1
 
 fail() {
