@@ -4677,3 +4677,38 @@ The next event after the archived migration boundary is appended below.
   explicitly bound infrastructure handshake. It does not authorize a model
   download, benchmark episode, pilot, experiment, registry push, or scientific
   claim.
+
+### EJ-20260802-step7b-aws-builder-010-failure
+
+- **Execution:** The one admitted attempt launched exact instance
+  `i-0cd61b4b43fdee032` (`m7i.xlarge`, 650 GiB encrypted gp3 root) from
+  rendered user-data SHA-256
+  `cdd86c1958fadc7901704387db1ad3ba9c3f98fabfd708221bb20e9c9a60dd55`.
+  AMI, profile, subnet, action tags, IMDSv2, and the no-ingress/DNS+443-only
+  security group were fresh-checked.
+- **Failure:** The pinned base pulled successfully and the controller image
+  built once as `sha256:0a3834cc4c4ca299258dcbf0c35f9b044aa4cb7fd15c88d1bbbd3a6dfbb996b9`.
+  The second no-cache build produced
+  `sha256:84fef39d73180640261cf89626bc426f73bdb63acf808fcd77fd6081790b2da`,
+  so the executor stopped before a positive probe, the other roles, SBOMs, or
+  the production-surface handshake. This is a reproducibility failure, not a
+  scientific result or a production-surface pass.
+- **Receipt:** Versioned S3 outputs are preserved: bootstrap log
+  `wReQknvOKR1y6_WimXIVpbD1kpWpQo_.` / SHA-256
+  `1e1b4c8a1b188edfe852e24c8cdcb4be57c68e96e6d69171319f2e013b09c3e1`,
+  bootstrap status `gLHeX7WanFLgSZWcIYSuIyFhQHaWyWhK` / SHA-256
+  `f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7`.
+  Failure receipt is
+  `evidence/step7b-aws-builder-failure-010-20260802.json`; action 010 is
+  exhausted with zero retries.
+
+### EJ-20260802-step7b-aws-builder-010-teardown
+
+- The instance self-stopped after the fail-closed executor; one independent
+  termination call returned `terminated`. Fresh provider reads show encrypted
+  root `vol-0382ce24cd85aec6a` as `InvalidVolume.NotFound`. The temporary
+  security group `sg-055557b40784442b3` had no attached ENI or instance, was
+  deleted, and then returned `InvalidGroup.NotFound`.
+- No action-tagged resource remains. The signed action's projected USD 2.25 is
+  recorded as pending provider billing settlement under CL-123/CL-124; no
+  model, benchmark, pilot, experiment, or scientific result occurred.

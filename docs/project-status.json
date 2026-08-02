@@ -684,6 +684,7 @@
                 "src/pneuma_lab/cloud/production_surface.py",
                 "schemas/cloud-production-role-receipt.schema.json",
                 "scripts/research/run_production_surface_e2e.py",
+                "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-failure-010-20260802.json",
                 "tests/cloud/test_production_runtime.py",
                 "tests/cloud/test_production_surface_e2e.py"
             ],
@@ -1005,7 +1006,7 @@
         },
         {
             "id": "B-NEURIPS-PRODUCTION-SURFACE-E2E",
-            "summary": "Step 7B image/SBOM qualification is complete, but no current receipt proves a real controller/model-server/benchmark-worker production execution surface against the exact harness bytes. The committed runtime is still a qualification boundary; production adapters, terminal/failure receipts, and role-boundary E2E evidence remain required."
+            "summary": "Step 7B image/SBOM qualification is complete for the older action-009 runtime, but the fresh action-010 bound to the current handshake failed closed when its controller double-build IDs differed. No current receipt proves a real controller/model-server/benchmark-worker production execution surface against the exact harness bytes; the failure and teardown are sealed, and a new reproducible image-bound action remains required."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",

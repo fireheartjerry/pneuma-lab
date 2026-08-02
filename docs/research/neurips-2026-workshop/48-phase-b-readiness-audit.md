@@ -60,6 +60,13 @@ runtime remains a byte-verifying qualification boundary, not a real
 controller/model-server/benchmark-worker adapter. Interruption/recovery and
 Step 14 therefore remain open, and no pilot or experiment is authorized.
 
+The first fresh image-bound attempt for the new handshake (KMS-admitted action
+010) failed closed at the controller reproducibility gate: its two image IDs
+were different, so no probe, SBOM, or role-chain receipt was admissible. The
+failure and independent teardown are sealed in
+`evidence/step7b-aws-builder-failure-010-20260802.json`; action 010 is
+exhausted with zero retries and action 009's older images are not a substitute.
+
 ## Topology change and its residual empirical risk
 
 DL-161 selects an 8-vCPU `g6e.2xlarge` single-L40S AWS path with sequential

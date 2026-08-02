@@ -22,6 +22,13 @@ is sealed in `evidence/step7b-aws-builder-success-009-20260802.json`.
 This build-only qualification neither loads a model nor runs a benchmark; the
 real production execution-surface E2E remains pending.
 
+The fresh successor action 010 bound to the new handshake did not produce a
+qualifying image set: its controller double-build IDs differed and the
+executor failed closed before probes or SBOM publication. That failure is
+sealed in `evidence/step7b-aws-builder-failure-010-20260802.json`; action 010
+is exhausted and action 009's older-runtime images cannot be reused as E2E
+evidence.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.

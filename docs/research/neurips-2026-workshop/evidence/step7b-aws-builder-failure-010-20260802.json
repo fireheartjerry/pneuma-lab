@@ -1,0 +1,54 @@
+{
+  "action_id": "step7b-aws-builder-010",
+  "admission_package_sha256": "a9313f61ca4d624831571f5d382c8741ed8107ffe2f5a9d12d1e3e3c3f89b38f",
+  "failure_reason": "The first controller build produced image ID sha256:0a3834cc4c4ca299258dcbf0c35f9b044aa4cb7fd15c88d1bbbd3a6dfbb996b9 and the second produced sha256:84fef39d73180640261cf89626bc426f73bdb63acf808fcd77fd6081790b2da. The zero-retry executor failed closed before the positive probe, remaining role builds, SBOMs, or production-surface handshake.",
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-010/plan.json",
+      "version_id": "T9HsKlsRc4yIUwnPozVfnDCOtTbnU1TL"
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-010/source.tar",
+      "version_id": "g4DRVinpuoW4TPlGrxMrxTrPyX28Y6b0"
+    }
+  },
+  "instance_id": "i-0cd61b4b43fdee032",
+  "instance_state": "terminated",
+  "launch_time": "2026-08-02T02:22:53Z",
+  "security_group_id": "sg-055557b40784442b3",
+  "rendered_user_data_sha256": "cdd86c1958fadc7901704387db1ad3ba9c3f98fabfd708221bb20e9c9a60dd55",
+  "output_artifacts": {
+    "bootstrap_log": {
+      "key": "runs/preparation/step7b-aws-builder-010/outputs/bootstrap.log",
+      "sha256": "1e1b4c8a1b188edfe852e24c8cdcb4be57c68e96e6d69171319f2e013b09c3e1",
+      "version_id": "wReQknvOKR1y6_WimXIVpbD1kpWpQo_."
+    },
+    "bootstrap_status": {
+      "key": "runs/preparation/step7b-aws-builder-010/outputs/bootstrap-status.json",
+      "sha256": "f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7",
+      "version_id": "gLHeX7WanFLgSZWcIYSuIyFhQHaWyWhK"
+    },
+    "controller_harness": {
+      "key": "runs/preparation/step7b-aws-builder-010/outputs/controller-harness.json",
+      "sha256": "293cf9d0da352472480a0222b3cd3e38ccbd14283c4a15b38a87d1514322c8f5",
+      "version_id": "2i1XtsM9tQFUE7QzLAkue7JkuzlSh4IF"
+    },
+    "docker_info": {
+      "key": "runs/preparation/step7b-aws-builder-010/outputs/docker-info-before-build.json",
+      "sha256": "0eed25de3f32c89776d390888256b03ff2887dd6394487c342a6e96622193c5c",
+      "version_id": "R0udjNIE2nufnEfqCn0_XaWaYczeNIr0"
+    },
+    "instance_identity": {
+      "key": "runs/preparation/step7b-aws-builder-010/outputs/instance-identity.json",
+      "sha256": "6a687ca154fecf9cc3d04c4def49a67bc93da077f677fca360e0bd2d9378f7ee",
+      "version_id": "0uuyHgkA61I8n_ojZTdECmFBalTzL9rj"
+    }
+  },
+  "plan_sha256": "898d7f534c761d3618b73da971b6a64c9d89a8365de8ab455d4f6d86f1414f61",
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "root_volume_id": "vol-0382ce24cd85aec6a",
+  "root_volume_state": "InvalidVolume.NotFound",
+  "state": "FAILED_NO_RETRY",
+  "terminated_timestamp": "2026-08-02T02:29:47Z",
+  "security_group_state": "InvalidGroup.NotFound"
+}

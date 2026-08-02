@@ -88,6 +88,12 @@ scientific result.
 - Step 7B reproducible three-role builds and SBOMs are now externally verified
   under the zero-retry KMS-admitted action 009. This closes image-build
   evidence only; it does not close the production execution surface.
+- The successor action 010 bound to the new production-surface handshake
+  failed closed before probes because its two controller image IDs differed
+  (`0a3834…996b9` versus `84fef3…0b2da`). Its failure and teardown are sealed
+  in `evidence/step7b-aws-builder-failure-010-20260802.json`; it is exhausted
+  with zero retries. Do not treat action 009's older-runtime images as E2E
+  evidence or silently reuse action 010.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.
