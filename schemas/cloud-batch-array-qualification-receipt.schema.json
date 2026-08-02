@@ -1,0 +1,170 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-batch-array-qualification-receipt.schema.json",
+    "title": "Cloud Batch Array Qualification Receipt",
+    "description": "Real AWS Batch Fargate array scheduling and exact teardown evidence; never a scientific result.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "record_kind", "schema_version", "plan_sha256", "input_lock_sha256", "provider", "region",
+        "account_id", "qualification_id", "identity_arn", "preflight", "resources", "mutations",
+        "observations", "teardown", "gates", "residual_resource_ids", "no_scientific_action", "verdict"
+    ],
+    "properties": {
+        "record_kind": {"const": "cloud_batch_array_qualification_receipt"},
+        "schema_version": {"const": "0.1.0"},
+        "plan_sha256": {"$ref": "#/$defs/digest"},
+        "input_lock_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/digest"}]},
+        "provider": {"const": "aws"},
+        "region": {"type": "string", "pattern": "^[a-z]{2}(?:-gov)?-[a-z]+-\\d$"},
+        "account_id": {"type": "string", "pattern": "^[0-9]{12}$"},
+        "qualification_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,79}$"},
+        "identity_arn": {"type": "string", "minLength": 1},
+        "preflight": {
+            "type": "object",
+            "required": [
+                "account_exact", "vpc_exact", "subnet_exact", "security_group_exact",
+                "compute_environment_absent", "job_queue_absent", "job_definition_absent",
+                "service_linked_role_absent", "execution_role_absent"
+            ],
+            "properties": {
+                "account_exact": {"type": "boolean"},
+                "vpc_exact": {"type": "boolean"},
+                "subnet_exact": {"type": "boolean"},
+                "security_group_exact": {"type": "boolean"},
+                "compute_environment_absent": {"type": "boolean"},
+                "job_queue_absent": {"type": "boolean"},
+                "job_definition_absent": {"type": "boolean"},
+                "service_linked_role_absent": {"type": "boolean"},
+                "execution_role_absent": {"type": "boolean"}
+            },
+            "additionalProperties": false
+        },
+        "resources": {
+            "type": "object",
+            "required": [
+                "service_linked_role_arn", "execution_role_arn", "compute_environment_arn",
+                "compute_environment_name", "job_queue_arn", "job_queue_name", "job_definition_arn",
+                "job_definition_revision", "parent_job_id", "child_job_ids"
+            ],
+            "properties": {
+                "service_linked_role_arn": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+                "execution_role_arn": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+                "compute_environment_arn": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+                "compute_environment_name": {"type": "string", "minLength": 1},
+                "job_queue_arn": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+                "job_queue_name": {"type": "string", "minLength": 1},
+                "job_definition_arn": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+                "job_definition_revision": {"oneOf": [{"type": "null"}, {"type": "integer", "minimum": 1}]},
+                "parent_job_id": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+                "child_job_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+            },
+            "additionalProperties": false
+        },
+        "mutations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["operation", "return_code", "stdout_sha256", "stderr_sha256", "duration_ms", "succeeded"],
+                "properties": {
+                    "operation": {
+                        "enum": [
+                            "create_service_linked_role", "create_execution_role", "attach_execution_role_policy",
+                            "create_compute_environment", "create_job_queue", "register_job_definition",
+                            "submit_array_job", "cancel_job", "disable_job_queue", "delete_job_queue",
+                            "disable_compute_environment", "delete_compute_environment", "deregister_job_definition",
+                            "detach_execution_role_policy", "delete_execution_role", "delete_service_linked_role"
+                        ]
+                    },
+                    "return_code": {"type": "integer"},
+                    "stdout_sha256": {"$ref": "#/$defs/digest"},
+                    "stderr_sha256": {"$ref": "#/$defs/digest"},
+                    "duration_ms": {"type": "integer", "minimum": 0},
+                    "succeeded": {"type": "boolean"}
+                },
+                "additionalProperties": false
+            }
+        },
+        "observations": {
+            "type": "object",
+            "required": [
+                "compute_environment_status", "job_queue_status", "parent_status", "array_size",
+                "child_indices", "children"
+            ],
+            "properties": {
+                "compute_environment_status": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+                "job_queue_status": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+                "parent_status": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+                "array_size": {"type": "integer", "minimum": 0},
+                "child_indices": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["job_id", "index", "status", "attempt_count"],
+                        "properties": {
+                            "job_id": {"type": "string", "minLength": 1},
+                            "index": {"type": "integer", "minimum": 0},
+                            "status": {"type": "string", "minLength": 1},
+                            "attempt_count": {"type": "integer", "minimum": 0}
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "teardown": {
+            "type": "object",
+            "required": [
+                "job_cancelled_if_needed", "queue_disabled", "queue_deleted", "compute_environment_disabled",
+                "compute_environment_deleted", "job_definition_deregistered", "execution_policy_detached",
+                "execution_role_deleted", "service_linked_role_deleted", "final_resources_absent",
+                "service_linked_role_deletion_task_id"
+            ],
+            "properties": {
+                "job_cancelled_if_needed": {"type": "boolean"},
+                "queue_disabled": {"type": "boolean"},
+                "queue_deleted": {"type": "boolean"},
+                "compute_environment_disabled": {"type": "boolean"},
+                "compute_environment_deleted": {"type": "boolean"},
+                "job_definition_deregistered": {"type": "boolean"},
+                "execution_policy_detached": {"type": "boolean"},
+                "execution_role_deleted": {"type": "boolean"},
+                "service_linked_role_deleted": {"type": "boolean"},
+                "final_resources_absent": {"type": "boolean"},
+                "service_linked_role_deletion_task_id": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]}
+            },
+            "additionalProperties": false
+        },
+        "gates": {
+            "type": "object",
+            "required": [
+                "preflight_exact", "compute_environment_valid", "job_queue_valid", "array_size_exact",
+                "child_indices_exact", "all_children_succeeded", "all_children_one_attempt", "no_provider_errors",
+                "no_retries", "exact_teardown", "no_scientific_action"
+            ],
+            "properties": {
+                "preflight_exact": {"type": "boolean"},
+                "compute_environment_valid": {"type": "boolean"},
+                "job_queue_valid": {"type": "boolean"},
+                "array_size_exact": {"type": "boolean"},
+                "child_indices_exact": {"type": "boolean"},
+                "all_children_succeeded": {"type": "boolean"},
+                "all_children_one_attempt": {"type": "boolean"},
+                "no_provider_errors": {"type": "boolean"},
+                "no_retries": {"type": "boolean"},
+                "exact_teardown": {"type": "boolean"},
+                "no_scientific_action": {"type": "boolean"}
+            },
+            "additionalProperties": false
+        },
+        "residual_resource_ids": {"type": "array", "maxItems": 0},
+        "no_scientific_action": {"const": true},
+        "verdict": {"enum": ["passed", "failed"]},
+        "failure_reason": {"type": ["string", "null"]}
+    },
+    "additionalProperties": false,
+    "$defs": {"digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

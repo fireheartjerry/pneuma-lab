@@ -6,6 +6,7 @@ from .authorization_keys import (
     verify_ledger_binding,
     verify_signature,
 )
+from .batch_array import require_batch_array_qualification
 from .aws_account import build_account_verification
 from .iac import require_terraform_for_l1, terraform_status
 from .input_lock import (
@@ -63,6 +64,7 @@ __all__ = [
     "admit_unattended_job",
     "authorization_body_digest",
     "build_account_verification",
+    "require_batch_array_qualification",
     "build_audit_plan",
     "build_candidate_input_lock",
     "build_receipt_verification_plan",
@@ -92,6 +94,7 @@ __all__ = [
     "validate_input_lock",
     "validate_lease_contention_cleanup_receipt",
     "validate_lease_contention_qualification_receipt",
+    "validate_batch_array_qualification_receipt",
     "validate_key_registry",
     "validate_licence_audit",
     "validate_pilot_admission_receipt",
