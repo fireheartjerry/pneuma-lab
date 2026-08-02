@@ -5108,3 +5108,34 @@ The next event after the archived migration boundary is appended below.
   `InvalidGroup.NotFound`. No action-tagged resource remains.
 - The projected USD 2.25 is recorded as pending provider billing settlement
   under CL-151/CL-152; no scientific work occurred.
+
+### EJ-20260802-step7b-aws-builder-018-failure
+
+- **Execution:** The single admitted attempt launched exact instance
+  `i-07555f56dd79c4d7a` (`m7i.xlarge`, 650 GiB encrypted gp3 root) from
+  rendered user-data SHA-256
+  `e113d0cea4606d4fb18b31ec7659c0ebf3a44d34146d6a6855548c041f7c4617`.
+- **Qualification progress:** Pinned Buildx `v0.13.1` and BuildKit `v0.13.2`
+  were verified. Controller, model-server, and benchmark-worker each produced
+  identical double-build image IDs, positive and wrong-hash fail-closed probes,
+  and non-empty SPDX SBOMs. The complete 21-object output inventory is sealed
+  in `evidence/step7b-aws-builder-failure-018-20260802.json`.
+- **Failure:** The image-bound production-surface E2E failed closed while
+  opening the non-secret read-only harness bind under `--cap-drop ALL`.
+  Local strict replay reproduced `PermissionError` for mode `0600` and passed
+  after the repair made non-secret binds readable. No production-surface
+  handshake, model execution, benchmark episode, pilot, experiment, or
+  scientific result occurred. The repair is committed as `f5a871d`; action 018
+  remains exhausted with zero retries.
+
+### EJ-20260802-step7b-aws-builder-018-teardown
+
+- Fresh AWS root reads at `2026-08-02T09:17:29Z` found no instance
+  `i-07555f56dd79c4d7a` and no encrypted root `vol-0ffcfa457377a9f5b`.
+  The temporary security group `sg-0c87cb38edf5d6a7e` had no ENIs, was
+  deleted once, and then returned `InvalidGroup.NotFound`. No action-tagged
+  resource remains. The delete call succeeded; the post-query wrapper's
+  expected not-found handling was itself imperfect, so the receipt records
+  the provider state and the successful mutation separately.
+- The projected USD 2.25 is recorded as pending provider billing settlement
+  under CL-155/CL-156; no scientific work occurred.

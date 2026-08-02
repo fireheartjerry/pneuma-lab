@@ -1,0 +1,200 @@
+{
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED_NO_RETRY",
+  "action_id": "step7b-aws-builder-018",
+  "admission_package_sha256": "34df9dd3321ec467ffb16a7015fb122049fe82933380ece6ce518c0098a120d1",
+  "plan_sha256": "9ba41ef43a27a4f6f1b163f42c37e06b2c07bee322f65f8ad94377cee3382bb2",
+  "source_commit": "8f187e2f8e8674afa48dbe9342edce7367d577e9",
+  "failure_reason": "All three roles completed reproducible double-builds, positive probes, wrong-hash fail-closed probes, and non-empty SPDX SBOMs. The image-bound production-surface E2E then failed closed while opening the read-only harness bind under --cap-drop ALL; local strict replay reproduced PermissionError for a mode-0600 bind. No production-surface handshake, model, benchmark, pilot, or experiment occurred.",
+  "diagnosis": {
+    "executor_trace": "CalledProcessError from run_production_surface_e2e.py while invoking the image-bound production-surface command; child stderr was not preserved in the bootstrap log.",
+    "cloud_observation": "bootstrap-status.json is FAILED/bootstrap_error and no production-surface handshake receipt was written.",
+    "local_reproduction": "A strict dropped-cap image container opening mode-0600 /work/harness.json raised PermissionError; the same image-bound replay passed with mode-0644 non-secret binds.",
+    "repair_commit": "f5a871d",
+    "repair": "_ensure_container_bind_readable now ORs read bits on non-secret harness and predecessor-receipt binds before strict containers; the focused image-bound replay passes.",
+    "next_action": "step7b-aws-builder-019, pending a new admission"
+  },
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-018/plan.json",
+      "version_id": "9jt22CUTPMZ9KMUVnQ0bxaYFkdnsg36t",
+      "sha256": "0c6f53391107648eb25df84442efe174fd2abebac6a3a8d37fc61882094f4be5",
+      "size_bytes": 4378
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-018/source.tar",
+      "version_id": "VU10xvBY3L2eZUb.7.QK8_MBRDDLDua_",
+      "sha256": "34d5b56a3fa2d50d95d1533cd22b0e0482efccf08935177a2b2aca83aafa5959",
+      "size_bytes": 28928000
+    },
+    "admission_package": {
+      "key": "runs/preparation/step7b-aws-builder-018/admission-package.json",
+      "version_id": "x8Rqz6Y4oJEt2W0WLL_o1_oJTXSNQCvw",
+      "sha256": "34df9dd3321ec467ffb16a7015fb122049fe82933380ece6ce518c0098a120d1",
+      "size_bytes": 2381
+    }
+  },
+  "instance": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "instance_id": "i-07555f56dd79c4d7a",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-02T06:33:51Z",
+    "terminal_state": "not_found_after_bootstrap",
+    "root_volume_id": "vol-0ffcfa457377a9f5b",
+    "root_volume_state": "InvalidVolume.NotFound",
+    "security_group_id": "sg-0c87cb38edf5d6a7e",
+    "security_group_state": "InvalidGroup.NotFound",
+    "termination_timestamp": null,
+    "verification_timestamp": "2026-08-02T09:17:29Z"
+  },
+  "rendered_user_data_sha256": "e113d0cea4606d4fb18b31ec7659c0ebf3a44d34146d6a6855548c041f7c4617",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/step7b-aws-builder-018/outputs/",
+  "output_artifacts": {
+    "benchmark_worker_harness": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/benchmark-worker-harness.json",
+      "version_id": "zIisEdGu4Qpfgh.ZO94CFEg5PIPuBfUa",
+      "size_bytes": 152,
+      "sha256": "e1c6aea7b192d223a7e4c0a219f14633423b29eece44d1faa7f3ec64bf42bf57"
+    },
+    "benchmark_worker_positive": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/benchmark-worker-positive.json",
+      "version_id": "nug0xCtH3pHzn1F86NnDT9CeEthsP_sO",
+      "size_bytes": 148,
+      "sha256": "c3f29e9faced2b7fa4f625321519c8aa4b0a2a80813d2e4ed5edc4a4958452d0"
+    },
+    "benchmark_worker_wrong_hash": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/benchmark-worker-wrong-hash.json",
+      "version_id": "1ktojcNuwF_l9TW_7BePB9BMdhI4IOoR",
+      "size_bytes": 80,
+      "sha256": "2f90830aa8afef34bdfcbaae655dd5a90c353f57c1daa8d675cc748b06a067d4"
+    },
+    "benchmark_worker_sbom": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/benchmark-worker.spdx.json",
+      "version_id": "IeZti9QFgqVH69cxEdVLRGhyGVPRCjv3",
+      "size_bytes": 25307677,
+      "sha256": "06235c0175da958b483b86a95b7f75cb96ea397ee3bad5b91e6c815d58c435dd"
+    },
+    "bootstrap_status": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/bootstrap-status.json",
+      "version_id": "6Wr2b7hhDnbfMg1mWsOnTGMJeDq.wzXJ",
+      "size_bytes": 46,
+      "sha256": "f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7"
+    },
+    "bootstrap_log": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/bootstrap.log",
+      "version_id": "GCq1wMzqRJlsEvfeP9zkgvTFpofWP3v.",
+      "size_bytes": 48630,
+      "sha256": "d0b762741c2ae9739f6112b76ecb2aa165d0bf56cd0f5d34ed0948b354fd7d6f"
+    },
+    "buildx_builder_stderr": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/buildx-builder-stderr.txt",
+      "version_id": "MXjMr81tLufnkcyarENO6k_153qtZ1ST",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "buildx_builder": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/buildx-builder.txt",
+      "version_id": "skNrSWoR49wM7mgM.k1HfbBgwn245AmV",
+      "size_bytes": 1335,
+      "sha256": "90e96029c9cd475c0020c9b80b4cc5f4a057abd0dc4f681f99e08b26a36d91d1"
+    },
+    "buildx_version": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/buildx-version.txt",
+      "version_id": "FdVqfpxF8dj_SbvhwZZ9RAQIg5nOxsWo",
+      "size_bytes": 74,
+      "sha256": "b4bf86bfe454ff406daca442a45f72b3070388bff27ecf83fcb58643e52635a9"
+    },
+    "controller_harness": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/controller-harness.json",
+      "version_id": "NOPTtlK9j6x5.3iR2i2thlEM8oHKYLD1",
+      "size_bytes": 146,
+      "sha256": "c92a2b8de575d0598eec04f09ac5c6b19384264856b8ab6abb09d2bcd58785e2"
+    },
+    "controller_positive": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/controller-positive.json",
+      "version_id": "QHagxORDaF4eGpaj.0pW7TI8kEfbTuPn",
+      "size_bytes": 142,
+      "sha256": "a0839eabb25ac97b840a90ec2692d27b6cd3b537479122025507e9a25c9f9d0"
+    },
+    "controller_wrong_hash": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/controller-wrong-hash.json",
+      "version_id": "lOCW..A5xPFT90ts4hgiILpFnnI7M8k1",
+      "size_bytes": 74,
+      "sha256": "465d1798a7354fa208d6dcecf59e941620bef6d9d5bf70345fcee4c365accc9e"
+    },
+    "controller_sbom": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/controller.spdx.json",
+      "version_id": "pJQ2HpQg4HnKZmZJ0m.J2z2HCpJr10Ho",
+      "size_bytes": 25296943,
+      "sha256": "c026e74e9d9192bb3147e828e135603b35e4d372c1b3e82b1b037d3255e32321"
+    },
+    "docker_info_before_build": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/docker-info-before-build.json",
+      "version_id": "_1RlicKg6fkgHYEw4vOBoCEvem7tawaA",
+      "size_bytes": 1317,
+      "sha256": "1dca5ed44b24513f3716ccb2ddbdb8a4ee6eb3ff3d0c958f49ccf67bacc9ff95"
+    },
+    "instance_identity": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/instance-identity.json",
+      "version_id": "IlcaQeWmsHp8pVYk1fx8jMz6oXHNJUW_",
+      "size_bytes": 185,
+      "sha256": "2805f2b84f16988a4b2c02fe094a86af9149a319d3022a251defe81fe6430fbe"
+    },
+    "model_server_harness": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/model-server-harness.json",
+      "version_id": "wjLjfDV81iJ1sbEMOiIwbWnxdDpltF2F",
+      "size_bytes": 148,
+      "sha256": "5382beefbafede18ec6b21dacee6ff2c5bbc5da156f4f7c020955260fd117f89"
+    },
+    "model_server_positive": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/model-server-positive.json",
+      "version_id": "WP5FqO6hva0Pw20.Urv97xiHfzz_tjdD",
+      "size_bytes": 144,
+      "sha256": "575bfda94aa5bd02eca960e0f88d297aac971cd1acc56103a218dd7b5e214a4c"
+    },
+    "model_server_wrong_hash": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/model-server-wrong-hash.json",
+      "version_id": "lFcOsuQJMmiJOlLF3G5S96LX.4BfMDbj",
+      "size_bytes": 76,
+      "sha256": "f5af82608e5fa36fa66b05d00d91a94ff0b857b23c764c52d5f87db8430f1189"
+    },
+    "model_server_sbom": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/model-server.spdx.json",
+      "version_id": "jIRD9a6jS5RK7iMa2ElxFehhw43YFiak",
+      "size_bytes": 25300521,
+      "sha256": "ffebac7a4bb1d064ca2bae8894ceb7a97029c48245a989ee415baacefeecb6e3"
+    },
+    "production_surface_harness": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/production-surface-harness.json",
+      "version_id": "usaBg0NxpFohbCE36lh0A4pQyR229VZK",
+      "size_bytes": 350,
+      "sha256": "1d8a24da5142a9f5d6742f94e43de3f7cd65b288e6caf3405781d050e293a436"
+    },
+    "step7b_build_receipts": {
+      "key": "runs/preparation/step7b-aws-builder-018/outputs/step7b-build-receipts.json",
+      "version_id": "OKeVshJsEg8srf0U7UUz.y_YuWT18U0g",
+      "size_bytes": 3232,
+      "sha256": "202b51e9532fb77bd8d3108a0aecf88721e45b48f1c04bc574b401e230e6b20c"
+    }
+  },
+  "partial_results": {
+    "bootstrap": "ROLE_BUILDS_AND_SBOMS_COMPLETE",
+    "buildx": "v0.13.1_VERIFIED",
+    "buildkit": "v0.13.2_VERIFIED",
+    "controller": "REPRODUCIBLE_AND_PROBED",
+    "model-server": "REPRODUCIBLE_AND_PROBED",
+    "benchmark-worker": "REPRODUCIBLE_AND_PROBED",
+    "production_surface": "FAILED_STRICT_BIND_PERMISSION",
+    "scientific_execution": "NOT_RUN"
+  },
+  "teardown": {
+    "instance_termination_verified": true,
+    "root_volume_absence_verified": true,
+    "security_group_no_eni_verified": true,
+    "security_group_deletion_verified": true,
+    "verification_timestamp": "2026-08-02T09:17:29Z",
+    "method": "AWS root DescribeInstances, DescribeNetworkInterfaces, and DescribeSecurityGroups reads; DeleteSecurityGroup succeeded once after the no-ENI check; post-queries returned empty/not-found."
+  }
+}

@@ -106,6 +106,30 @@ fresh no-ingress security group `sg-0fa80f9418264fc47`. Plan
 `5ce31bbc9485e2b5a1d23568390ebf5331ddf852be4b38ec3b282874408b365c` is a
 zero-retry candidate only; no provider execution or new image evidence exists.
 
+Admitted action 017 completed the three role builds, positive and wrong-hash
+probes, and non-empty SBOMs, then failed closed before the production-surface
+handshake because its launcher supplied a duplicate role argument after the
+role already sealed in each image ENTRYPOINT. The failure and teardown are
+sealed in `evidence/step7b-aws-builder-failure-017-20260802.json`; action 017
+is exhausted with zero retries.
+
+Successor action 018 bound the corrected image-entrypoint launcher and again
+completed all three builds, probes, and SBOMs. It failed closed at the strict
+image-bound production surface when a mode-0600 read-only harness bind could
+not be opened under `--cap-drop ALL`; a local strict replay reproduced the
+`PermissionError`. The repair in commit `f5a871d` makes non-secret harness and
+predecessor binds readable before strict containers, and the repaired local
+image-bound replay passes. The complete cloud output inventory and independent
+teardown are sealed in
+`evidence/step7b-aws-builder-failure-018-20260802.json`; no production-surface
+receipt exists and action 018 is exhausted with zero retries.
+
+Action 019 is the only permitted successor: it must receive a fresh admission,
+fresh no-ingress security group, and a new archive of the committed repair.
+Action 018's package, group, instance, and partial output cannot be reused as
+authority. This remains build/qualification work only; no model, benchmark,
+pilot, experiment, or scientific result is authorized.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.

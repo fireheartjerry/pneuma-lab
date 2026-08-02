@@ -159,6 +159,26 @@ created. The next action must bind the corrected bootstrap bytes afresh.
   `5ce31bbc9485e2b5a1d23568390ebf5331ddf852be4b38ec3b282874408b365c` is a
   zero-retry candidate only; no provider execution or production-surface
   receipt exists.
+- Admitted action 017 completed all three reproducible builds, probes, and
+  SBOMs, then failed closed before the production-surface handshake because
+  the launcher duplicated the role already sealed in each image ENTRYPOINT.
+  Failure and teardown are sealed in
+  `evidence/step7b-aws-builder-failure-017-20260802.json`; action 017 is
+  exhausted with zero retries.
+- Successor action 018 bound the image-entrypoint launcher repair and was
+  admitted once. It again completed all three builds, probes, and SBOMs, then
+  failed closed when the strict image-bound production surface could not open
+  its mode-0600 read-only harness bind under `--cap-drop ALL`. Local replay
+  reproduced the `PermissionError`; repair commit `f5a871d` makes non-secret
+  harness/predecessor binds readable before strict containers. Failure and
+  teardown are sealed in
+  `evidence/step7b-aws-builder-failure-018-20260802.json`; action 018 is
+  exhausted with zero retries and no production-surface receipt exists.
+- The next permitted step is a fresh, independently admitted action
+  `step7b-aws-builder-019` bound to current committed source and a fresh
+  no-ingress security group. Do not reuse action 018's package, instance,
+  group, or receipt as authority; no model, benchmark, pilot, or experiment
+  may run in the successor.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.

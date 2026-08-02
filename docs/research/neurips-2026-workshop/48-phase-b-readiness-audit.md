@@ -121,6 +121,23 @@ fresh security group `sg-0fa80f9418264fc47`; plan
 `5ce31bbc9485e2b5a1d23568390ebf5331ddf852be4b38ec3b282874408b365c` binds the
 exact bytes. No provider execution or new production-surface evidence exists.
 
+Admitted action 017 then completed all three reproducible builds, probes, and
+SBOMs but failed closed before the production-surface handshake because the
+launcher duplicated the role already present in the sealed image ENTRYPOINT.
+Its failure and independent teardown are sealed in
+`evidence/step7b-aws-builder-failure-017-20260802.json`; action 017 is
+exhausted with zero retries.
+
+Successor action 018 bound the image-entrypoint repair and completed the same
+three build/probe/SBOM gates. It failed closed at the strict production
+surface when the mode-0600 non-secret harness bind was unreadable under
+`--cap-drop ALL`; a local strict replay reproduced `PermissionError`. Commit
+`f5a871d` repairs the bind-mode handling and the local image-bound replay
+passes. The full 21-object cloud inventory and teardown are sealed in
+`evidence/step7b-aws-builder-failure-018-20260802.json`; no production-surface
+receipt exists, and action 018 is exhausted with zero retries. A fresh action
+019 admission is required; no model, benchmark, pilot, or experiment ran.
+
 Corrected successor action 015 is prepared but remains an unsigned candidate.
 It binds the repaired curl-minimal-safe bootstrap, source commit
 `98dd81a...c806`, archive `9229854...b579`, pinned Buildx/BuildKit, and fresh
