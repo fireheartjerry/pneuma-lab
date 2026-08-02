@@ -10,6 +10,8 @@ readonly PLAN_S3_URI='__PLAN_S3_URI__'
 readonly ACTION_ID='__ACTION_ID__'
 readonly SYFT_URL='__SYFT_URL__'
 readonly SYFT_SHA256='__SYFT_SHA256__'
+readonly BUILDX_URL='__BUILDX_URL__'
+readonly BUILDX_SHA256='__BUILDX_SHA256__'
 readonly OUTPUT_PREFIX='__OUTPUT_PREFIX__'
 
 mkdir -p /opt/pneuma-step7b/{source,output,tools,syft-tmp}
@@ -26,10 +28,15 @@ fail() {
 }
 
 trap 'fail bootstrap_error' ERR
-dnf install -y docker tar gzip
+dnf install -y docker tar gzip curl
 systemctl enable --now docker
 aws --version
 aws sts get-caller-identity --output json > /opt/pneuma-step7b/output/instance-identity.json
+curl --fail --silent --show-error --location "$BUILDX_URL" --output /opt/pneuma-step7b/tools/docker-buildx
+printf '%s  %s\n' "$BUILDX_SHA256" /opt/pneuma-step7b/tools/docker-buildx | sha256sum --check --status || fail buildx_digest_mismatch
+install -d -m 0755 /usr/libexec/docker/cli-plugins
+install -m 0755 /opt/pneuma-step7b/tools/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
+docker buildx version > /opt/pneuma-step7b/output/buildx-version.txt
 docker info > /opt/pneuma-step7b/output/docker-info-before-build.json
 aws s3 cp "$SOURCE_ARCHIVE_S3_URI" /opt/pneuma-step7b/source.tar --only-show-errors
 printf '%s  %s\n' "$SOURCE_ARCHIVE_SHA256" /opt/pneuma-step7b/source.tar | sha256sum --check --status || fail source_archive_digest_mismatch

@@ -7,7 +7,14 @@ from types import SimpleNamespace
 import pytest
 
 from scripts.research import run_step7b_builds
-from scripts.research.run_step7b_builds import plan_digest, require_free_storage, require_plan
+from scripts.research.run_step7b_builds import (
+    BUILDX_SHA256,
+    BUILDX_VERSION,
+    BUILDKIT_VERSION,
+    plan_digest,
+    require_free_storage,
+    require_plan,
+)
 
 
 def _write(path: Path, value: bytes) -> str:
@@ -31,6 +38,15 @@ def _plan(root: Path) -> dict:
         "action_id": "step7b-aws-builder-001", "action_class": "image_build", "max_retries": 0,
         "input_lock_sha256": "b" * 64, "source_date_epoch": 0, "recipe_sha256": "c" * 64,
         "executor_sha256": hashlib.sha256(Path(run_step7b_builds.__file__).read_bytes()).hexdigest(),
+        "buildx": {
+            "version": BUILDX_VERSION,
+            "url": "https://example.invalid/buildx",
+            "sha256": BUILDX_SHA256,
+        },
+        "buildkit": {
+            "version": BUILDKIT_VERSION,
+            "image": "moby/buildkit:v0.13.2@sha256:" + "d" * 64,
+        },
         "runtime": {"path": "src/pneuma_lab/cloud/production_runtime.py", "sha256": runtime},
         "roles": roles,
         "requirements": {
@@ -94,6 +110,9 @@ def test_executor_uses_root_backed_syft_staging() -> None:
     assert 'build_environment["SOURCE_DATE_EPOCH"]' in source
     assert '"BUILDKIT_MULTI_PLATFORM=1"' in source
     assert 'type=docker,rewrite-timestamp=true' in source
+    assert '"buildx",\n                "build"' in source
+    assert '"--builder"' in source
+    assert 'docker-container' in source
     assert '"linux/amd64"' in source
 
 
@@ -105,3 +124,12 @@ def test_role_dockerfiles_use_the_repository_build_context() -> None:
         assert f"COPY infra/docker/{role}/{role}.lock " in text
         assert f'ENTRYPOINT ["python3", "-m", "pneuma_lab.cloud.production_runtime", "{role}"]' in text
         assert 'find /opt/pneuma -xdev -exec touch --date="@${SOURCE_DATE_EPOCH}"' in text
+
+
+def test_aws_bootstrap_pins_the_reproducible_builder_client() -> None:
+    template = (Path(__file__).resolve().parents[2] / "infra/aws/step7b-aws-builder-user-data.sh").read_text(encoding="utf-8")
+    assert "__BUILDX_URL__" in template
+    assert "__BUILDX_SHA256__" in template
+    assert "docker buildx version" in template
+    assert "docker/cli-plugins/docker-buildx" in template
+    assert "buildx_digest_mismatch" in template

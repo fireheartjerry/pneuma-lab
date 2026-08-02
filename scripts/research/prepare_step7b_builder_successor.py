@@ -11,6 +11,15 @@ from typing import Any
 
 
 ROLES = ("controller", "model-server", "benchmark-worker")
+BUILDX = {
+    "version": "v0.13.1",
+    "url": "https://github.com/docker/buildx/releases/download/v0.13.1/buildx-v0.13.1.linux-amd64",
+    "sha256": "3e2bc8ed25a9125d6aeec07df4e0211edea6288e075b524160ef3fd305d3d74c",
+}
+BUILDKIT = {
+    "version": "v0.13.2",
+    "image": "moby/buildkit:v0.13.2@sha256:9194b5ec1be368f41c516df7f93f7f540630ea06136056b2ffebb62226ed4ad6",
+}
 
 
 def canonical_bytes(value: object) -> bytes:
@@ -54,6 +63,8 @@ def prepare(
     for key in ("output_s3_uri", "plan_s3_uri"):
         plan["bootstrap"][key] = _replace_action(plan["bootstrap"][key], previous_action, action_id)
     plan["executor_sha256"] = sha256_file(root / "scripts/research/run_step7b_builds.py")
+    plan["buildx"] = dict(BUILDX)
+    plan["buildkit"] = dict(BUILDKIT)
     plan["bootstrap"]["template_sha256"] = sha256_file(root / plan["bootstrap"]["template_path"])
     plan["runtime"]["sha256"] = sha256_file(root / plan["runtime"]["path"])
     for role in ROLES:

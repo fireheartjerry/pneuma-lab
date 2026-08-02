@@ -19,6 +19,9 @@ from typing import Any
 
 
 ROLES = ("controller", "model-server", "benchmark-worker")
+BUILDX_VERSION = "v0.13.1"
+BUILDX_SHA256 = "3e2bc8ed25a9125d6aeec07df4e0211edea6288e075b524160ef3fd305d3d74c"
+BUILDKIT_VERSION = "v0.13.2"
 
 
 def canonical_bytes(value: object) -> bytes:
@@ -61,6 +64,15 @@ def require_plan(plan: dict[str, Any], root: Path) -> None:
         raise ValueError("plan_sha256 does not bind canonical plan bytes")
     if plan.get("executor_sha256") != sha256_file(Path(__file__)):
         raise ValueError("executor bytes do not match the sealed plan")
+    buildx = plan.get("buildx")
+    if not isinstance(buildx, dict) or buildx.get("version") != BUILDX_VERSION or buildx.get("sha256") != BUILDX_SHA256:
+        raise ValueError("plan does not bind the pinned Buildx executable")
+    buildkit = plan.get("buildkit")
+    if not isinstance(buildkit, dict) or buildkit.get("version") != BUILDKIT_VERSION:
+        raise ValueError("plan does not bind the pinned BuildKit version")
+    buildkit_image = buildkit.get("image")
+    if not isinstance(buildkit_image, str) or "@sha256:" not in buildkit_image:
+        raise ValueError("plan does not bind a content-addressed BuildKit image")
     required = {"cloud_build", "ecr_push", "gpu_use", "benchmark_execution", "model_download"}
     if not required.issubset(set(plan["requirements"]["forbidden"])):
         raise ValueError("plan does not prohibit every non-build Step 7B action")
@@ -99,7 +111,7 @@ def require_free_storage(plan: dict[str, Any], path: Path) -> None:
         raise ValueError(f"builder free storage is below the sealed {minimum_gib} GiB floor")
 
 
-def build_role(plan: dict[str, Any], root: Path, output: Path, role: str) -> dict[str, Any]:
+def build_role(plan: dict[str, Any], root: Path, output: Path, role: str, builder: str) -> dict[str, Any]:
     role_plan = plan["roles"][role]
     dockerfile = root / role_plan["dockerfile"]["path"]
     harness = output / f"{role}-harness.json"
@@ -113,7 +125,10 @@ def build_role(plan: dict[str, Any], root: Path, output: Path, role: str) -> dic
         run(
             [
                 "docker",
+                "buildx",
                 "build",
+                "--builder",
+                builder,
                 "--no-cache",
                 "--pull=false",
                 "--provenance=false",
@@ -166,6 +181,45 @@ def build_role(plan: dict[str, Any], root: Path, output: Path, role: str) -> dic
     }
 
 
+def create_builder(plan: dict[str, Any], output: Path) -> str:
+    buildx_version = run(["docker", "buildx", "version"], capture=True).stdout.strip()
+    if BUILDX_VERSION not in buildx_version:
+        raise ValueError(f"Buildx version does not match the sealed {BUILDX_VERSION}: {buildx_version!r}")
+    (output / "buildx-version.txt").write_text(buildx_version + "\n", encoding="utf-8")
+    builder = f"pneuma-step7b-{plan['action_id']}"
+    run(
+        [
+            "docker",
+            "buildx",
+            "create",
+            "--name",
+            builder,
+            "--driver",
+            "docker-container",
+            "--driver-opt",
+            f"image={plan['buildkit']['image']}",
+            "--use",
+            "--bootstrap",
+        ],
+        capture=True,
+    )
+    inspection = run(["docker", "buildx", "inspect", builder, "--bootstrap"], capture=True).stdout
+    if f"BuildKit version: {BUILDKIT_VERSION}" not in inspection:
+        raise ValueError(f"BuildKit version does not match the sealed {BUILDKIT_VERSION}")
+    (output / "buildx-builder.txt").write_text(inspection, encoding="utf-8")
+    return builder
+
+
+def remove_builder(builder: str) -> None:
+    subprocess.run(
+        ["docker", "buildx", "rm", "--force", builder],
+        check=False,
+        text=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--plan", required=True, type=Path)
@@ -180,56 +234,60 @@ def main() -> int:
     output.mkdir(parents=True, exist_ok=True)
     require_plan(plan, root)
     require_free_storage(plan, output)
-    receipts = [build_role(plan, root, output, role) for role in ROLES]
-    (output / "step7b-build-receipts.json").write_bytes(canonical_bytes(receipts) + b"\n")
-    surface = plan.get("production_surface")
-    if surface is not None:
-        harness = {
-            "record_kind": surface["record_kind"],
-            "schema_version": surface["schema_version"],
-            "action_id": plan["action_id"],
-            "input_lock_sha256": plan["input_lock_sha256"],
-            "request": surface["request"],
-        }
-        harness_path = output / "production-surface-harness.json"
-        harness_path.write_bytes(canonical_bytes(harness) + b"\n")
-        harness_digest = sha256_file(harness_path)
-        expected_digest = surface.get("harness_sha256")
-        if expected_digest is not None and expected_digest != harness_digest:
-            raise ValueError("production surface harness digest does not match the sealed plan")
-        image_args = [
-            item
-            for role, receipt in zip(ROLES, receipts)
-            for item in ("--image", f"{role}=pneuma-step7b-{role}:build-1", "--image-digest", f"{role}={receipt['build_image_digests'][0]}")
-        ]
-        command = [
-            "python3",
-            str(root / "scripts/research/run_production_surface_e2e.py"),
-            "--harness",
-            str(harness_path),
-            "--harness-sha256",
-            harness_digest,
-            "--output-dir",
-            str(output / "production-surface"),
-            "--source-root",
-            str(root),
-            "--source-commit",
-            plan["source_commit"],
-            "--controller-privileged",
-            *image_args,
-        ]
-        child_environment = dict(os.environ)
-        source_pythonpath = str(root / "src")
-        child_environment["PYTHONPATH"] = (
-            source_pythonpath
-            if not child_environment.get("PYTHONPATH")
-            else source_pythonpath + os.pathsep + child_environment["PYTHONPATH"]
-        )
-        completed = subprocess.run(command, check=True, text=True, capture_output=True, env=child_environment)
-        (output / "production-surface-command.json").write_text(
-            json.dumps({"command": command, "stdout": completed.stdout}, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+    builder = create_builder(plan, output)
+    try:
+        receipts = [build_role(plan, root, output, role, builder) for role in ROLES]
+        (output / "step7b-build-receipts.json").write_bytes(canonical_bytes(receipts) + b"\n")
+        surface = plan.get("production_surface")
+        if surface is not None:
+            harness = {
+                "record_kind": surface["record_kind"],
+                "schema_version": surface["schema_version"],
+                "action_id": plan["action_id"],
+                "input_lock_sha256": plan["input_lock_sha256"],
+                "request": surface["request"],
+            }
+            harness_path = output / "production-surface-harness.json"
+            harness_path.write_bytes(canonical_bytes(harness) + b"\n")
+            harness_digest = sha256_file(harness_path)
+            expected_digest = surface.get("harness_sha256")
+            if expected_digest is not None and expected_digest != harness_digest:
+                raise ValueError("production surface harness digest does not match the sealed plan")
+            image_args = [
+                item
+                for role, receipt in zip(ROLES, receipts)
+                for item in ("--image", f"{role}=pneuma-step7b-{role}:build-1", "--image-digest", f"{role}={receipt['build_image_digests'][0]}")
+            ]
+            command = [
+                "python3",
+                str(root / "scripts/research/run_production_surface_e2e.py"),
+                "--harness",
+                str(harness_path),
+                "--harness-sha256",
+                harness_digest,
+                "--output-dir",
+                str(output / "production-surface"),
+                "--source-root",
+                str(root),
+                "--source-commit",
+                plan["source_commit"],
+                "--controller-privileged",
+                *image_args,
+            ]
+            child_environment = dict(os.environ)
+            source_pythonpath = str(root / "src")
+            child_environment["PYTHONPATH"] = (
+                source_pythonpath
+                if not child_environment.get("PYTHONPATH")
+                else source_pythonpath + os.pathsep + child_environment["PYTHONPATH"]
+            )
+            completed = subprocess.run(command, check=True, text=True, capture_output=True, env=child_environment)
+            (output / "production-surface-command.json").write_text(
+                json.dumps({"command": command, "stdout": completed.stdout}, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+    finally:
+        remove_builder(builder)
     print(json.dumps({"receipt_sha256": sha256_file(output / "step7b-build-receipts.json"), "roles": list(ROLES)}, sort_keys=True))
     return 0
 

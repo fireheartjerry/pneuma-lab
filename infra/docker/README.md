@@ -16,7 +16,9 @@ order is base receipt → dependency closure → source copy → image build →
 authorizes no pull, build, push, provider action, or experiment.
 
 The role Dockerfiles also normalize the build-owned `/opt` tree to
-`SOURCE_DATE_EPOCH`. This is required for the pinned AWS Docker/BuildKit path:
-the older exporter does not reliably rewrite `COPY` and work-directory mtimes,
-so relying on an accidental same-second double build would be an invalid
-reproducibility claim.
+`SOURCE_DATE_EPOCH`. The AWS executor uses a content-addressed BuildKit
+`v0.13.2` container through a content-addressed Buildx `v0.13.1` client. The
+older Docker-packaged BuildKit `v0.12.x` path does not reliably produce
+reproducible exported image metadata even with `SOURCE_DATE_EPOCH` and
+`rewrite-timestamp=true`; relying on an accidental same-second double build
+would be an invalid reproducibility claim.
