@@ -7,10 +7,8 @@ import hashlib
 import json
 import os
 import subprocess
-import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -31,10 +29,6 @@ def plan_digest(plan: dict[str, Any]) -> str:
 
 def _digest_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
-
-
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _run_aws(plan: dict[str, Any], command: list[str]) -> dict[str, Any]:
@@ -166,8 +160,12 @@ def execute(plan: dict[str, Any], package: dict[str, Any], key_registry: dict[st
         raise QualificationError("executor bytes do not match the signed plan")
     if package.get("record_kind") != "cloud_preparation_signing_package" or package.get("plan_sha256") != plan["plan_sha256"]:
         raise QualificationError("signing package is not bound to this plan")
-    if subprocess.run(["git", "rev-parse", "HEAD"], check=True, stdout=subprocess.PIPE, text=True).stdout.strip() != plan["source_commit"]:
-        raise QualificationError("checkout HEAD does not match the signed source commit")
+    source_check = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", plan["source_commit"], "HEAD"],
+        check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    if source_check.returncode != 0:
+        raise QualificationError("checkout HEAD does not descend from the signed source commit")
     require_preparation_admission(
         package["envelope"], package["admission"], key_registry=key_registry, ledger_path=ledger_path,
         expected_action_id=plan["action_id"], expected_action_class=plan["action_class"],
