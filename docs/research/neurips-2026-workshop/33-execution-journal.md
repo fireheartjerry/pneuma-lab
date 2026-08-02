@@ -4881,3 +4881,42 @@ The next event after the archived migration boundary is appended below.
 - Authorization remains limited to one CPU image-build attempt and its
   explicitly bound infrastructure handshake; no model, benchmark, pilot,
   experiment, registry push, or scientific claim is authorized.
+
+### EJ-20260802-step7b-aws-builder-013-failure
+
+- **Execution:** The one admitted attempt launched exact instance
+  `i-03d76c4d5910ec427` (`m7i.xlarge`, 650 GiB encrypted gp3 root) from
+  rendered user-data SHA-256
+  `9dace810871bd46fe621d0738a8a9d177c9916f10e15d57427547257183892b9`.
+  The source archive was the plan-bound 28,815,360-byte object with SHA-256
+  `b7587d7166c97f5e8761d02bae3b8b0289d025e5866e15285ce890fbf21ff6f2`.
+- **Failure:** The controller's first image export produced
+  `sha256:03cfc60ce5758346211e708287cb42191960e4a5822e3e74d50b53c47614991c`;
+  its second no-cache export produced
+  `sha256:652fd34ae2fb9a9f3006f8582a65bdd4753e29fb2254bdfe092bc09b22303055`.
+  This remained a reproducibility failure despite the explicit
+  `SOURCE_DATE_EPOCH`/`BUILDKIT_MULTI_PLATFORM` bindings, pinned
+  `linux/amd64`, `rewrite-timestamp=true`, and Dockerfile-owned mtime
+  normalization. The executor failed closed before controller probes/SBOM,
+  the other roles, or the production-surface handshake. This is not an E2E
+  or scientific result.
+- **Receipt:** Versioned S3 outputs are sealed under
+  `runs/preparation/step7b-aws-builder-013/outputs/`: bootstrap status
+  `mz8wPbCV8sWdlhbic5xNz9ydX61qRWIv` / SHA-256
+  `f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7`, and
+  bootstrap log `SNALFNgLueszdsAtKl7GuhmdIShqv5ko` / SHA-256
+  `5a27224bbc38e7b5beae4383eb9993b779e21b53907c017cf25ca8ddcda7d8c7`.
+  The complete partial-output inventory and teardown evidence are sealed in
+  `evidence/step7b-aws-builder-failure-013-20260802.json`; action 013 is
+  exhausted with zero retries.
+
+### EJ-20260802-step7b-aws-builder-013-teardown
+
+- The fail-closed executor stopped the host; one independent termination call
+  returned `terminated`. Fresh provider reads show encrypted root
+  `vol-07a56f141a5e8fd50` as `InvalidVolume.NotFound`. The temporary security
+  group `sg-09037f520fd0c97d8` had no attached ENI or instance, was deleted,
+  and then returned `InvalidGroup.NotFound`.
+- No action-tagged resource remains. The projected USD 2.25 is recorded as
+  pending provider billing settlement under CL-135/CL-136; no model,
+  benchmark, pilot, experiment, or scientific result occurred.

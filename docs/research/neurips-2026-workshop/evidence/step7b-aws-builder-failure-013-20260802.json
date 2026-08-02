@@ -1,0 +1,102 @@
+{
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED_NO_RETRY",
+  "action_id": "step7b-aws-builder-013",
+  "admission_package_sha256": "176a1e248c3da095b9dca1bbd409eb953a359000aa0d5d6ee91a7165686b7fc3",
+  "plan_sha256": "41ef38ad1b508aabe32e067c91a6701ac8e47462a43a778316d25bfed17c9019",
+  "source_commit": "99953946e0171b91a4f01e51c97e2c2fac9d16a3",
+  "failure_reason": "The explicit build-owned mtime normalization repair did not make the controller image config reproducible on the pinned Docker/BuildKit path. The controller first build produced sha256:03cfc60ce5758346211e708287cb42191960e4a5822e3e74d50b53c47614991c and the second produced sha256:652fd34ae2fb9a9f3006f8582a65bdd4753e29fb2254bdfe092bc09b22303055. The zero-retry executor failed closed before controller probes/SBOM publication, before model-server or benchmark-worker builds, and before the production-surface handshake.",
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-013/plan.json",
+      "version_id": "pdGcXeEetNIz88CBM2y02V2w4GPlVky_",
+      "sha256": "41ef38ad1b508aabe32e067c91a6701ac8e47462a43a778316d25bfed17c9019"
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-013/source.tar",
+      "version_id": "m1QZCQyGzzQB4anITGymCs4BG2ilkYgo",
+      "sha256": "b7587d7166c97f5e8761d02bae3b8b0289d025e5866e15285ce890fbf21ff6f2",
+      "size_bytes": 28815360
+    }
+  },
+  "instance": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "instance_id": "i-03d76c4d5910ec427",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-02T03:54:45Z",
+    "terminal_state": "terminated",
+    "root_volume_id": "vol-07a56f141a5e8fd50",
+    "root_volume_state": "InvalidVolume.NotFound",
+    "security_group_id": "sg-09037f520fd0c97d8",
+    "security_group_state": "InvalidGroup.NotFound",
+    "terminated_timestamp": "2026-08-02T04:02:12Z"
+  },
+  "rendered_user_data_sha256": "9dace810871bd46fe621d0738a8a9d177c9916f10e15d57427547257183892b9",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/step7b-aws-builder-013/outputs/",
+  "output_artifacts": {
+    "bootstrap_status": {
+      "key": "runs/preparation/step7b-aws-builder-013/outputs/bootstrap-status.json",
+      "version_id": "mz8wPbCV8sWdlhbic5xNz9ydX61qRWIv",
+      "size_bytes": 46,
+      "sha256": "f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7"
+    },
+    "bootstrap_log": {
+      "key": "runs/preparation/step7b-aws-builder-013/outputs/bootstrap.log",
+      "version_id": "SNALFNgLueszdsAtKl7GuhmdIShqv5ko",
+      "size_bytes": 36521,
+      "sha256": "5a27224bbc38e7b5beae4383eb9993b779e21b53907c017cf25ca8ddcda7d8c7"
+    },
+    "controller_harness": {
+      "key": "runs/preparation/step7b-aws-builder-013/outputs/controller-harness.json",
+      "version_id": "97FZ.HPHha.WYRy4SnuR4_TRVe4cUKTR",
+      "size_bytes": 146,
+      "sha256": "a0c58bd2eb20b095b49f26dfc125073221028bff3b82ed9b42138530698a3b4f"
+    },
+    "docker_info": {
+      "key": "runs/preparation/step7b-aws-builder-013/outputs/docker-info-before-build.json",
+      "version_id": "TrSuBxKEUKat4CxaFiUIrF_zF0XUGc6e",
+      "size_bytes": 1316,
+      "sha256": "a726e5950188aae918e1c2488ff3aa7745ad27653839093247c59ebc6097b23c"
+    },
+    "instance_identity": {
+      "key": "runs/preparation/step7b-aws-builder-013/outputs/instance-identity.json",
+      "version_id": "NpGB4fMDvCDYvXM.tShY4wpzq0xjQpPb",
+      "size_bytes": 185,
+      "sha256": "5194f1047e10e7a450fa704425eef422282a47b4ebfbd3b930b703011c1e62dd"
+    }
+  },
+  "partial_results": {
+    "controller": {
+      "build_image_digests": [
+        "sha256:03cfc60ce5758346211e708287cb42191960e4a5822e3e74d50b53c47614991c",
+        "sha256:652fd34ae2fb9a9f3006f8582a65bdd4753e29fb2254bdfe092bc09b22303055"
+      ],
+      "double_build_digests_equal": false,
+      "positive_probe": "NOT_RUN",
+      "wrong_hash_probe": "NOT_RUN",
+      "sbom": "NOT_PUBLISHED"
+    },
+    "model-server": {
+      "build_image_digests": [],
+      "positive_probe": "NOT_RUN",
+      "wrong_hash_probe": "NOT_RUN",
+      "sbom": "NOT_PUBLISHED"
+    },
+    "benchmark-worker": {
+      "build_image_digests": [],
+      "positive_probe": "NOT_RUN",
+      "wrong_hash_probe": "NOT_RUN",
+      "sbom": "NOT_PUBLISHED"
+    },
+    "production_surface": "NOT_RUN"
+  },
+  "teardown": {
+    "instance_termination_verified": true,
+    "root_volume_absence_verified": true,
+    "security_group_no_eni_verified": true,
+    "security_group_deletion_verified": true,
+    "verification_timestamp": "2026-08-02T04:02:12Z"
+  }
+}

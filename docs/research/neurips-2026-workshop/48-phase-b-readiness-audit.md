@@ -83,6 +83,14 @@ surface were not run. Failure and teardown are sealed in
 `evidence/step7b-aws-builder-failure-012-20260802.json`; the current
 production-surface gate remains open and action 012 is exhausted.
 
+The build-owned mtime-normalization successor action 013 failed closed even
+earlier at controller reproducibility: IDs `sha256:03cfc60c...4991c` and
+`sha256:652fd34a...03055` differed. Its versioned failure output and
+independent teardown are sealed in
+`evidence/step7b-aws-builder-failure-013-20260802.json`; no role probe, SBOM,
+or production-surface handshake ran. Action 013 is exhausted with zero
+retries, so the current production-surface gate remains open.
+
 ## Topology change and its residual empirical risk
 
 DL-161 selects an 8-vCPU `g6e.2xlarge` single-L40S AWS path with sequential

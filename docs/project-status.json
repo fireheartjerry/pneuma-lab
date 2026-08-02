@@ -1008,7 +1008,7 @@
         },
         {
             "id": "B-NEURIPS-PRODUCTION-SURFACE-E2E",
-            "summary": "Step 7B image/SBOM qualification is complete for the older action-009 runtime, but fresh actions 010 and 011 bound to the current handshake failed closed at controller reproducibility, and action 012 failed closed at benchmark-worker reproducibility after controller/model-server partial receipts. No current receipt proves a real controller/model-server/benchmark-worker production execution surface against the exact harness bytes; all three failures and teardowns are sealed, and a new reproducible image-bound action remains required."
+            "summary": "Step 7B image/SBOM qualification is complete for the older action-009 runtime, but fresh actions 010 and 011 bound to the current handshake failed closed at controller reproducibility, action 012 failed closed at benchmark-worker reproducibility after controller/model-server partial receipts, and action 013 failed closed at controller reproducibility despite build-owned mtime normalization. No current receipt proves a real controller/model-server/benchmark-worker production execution surface against the exact harness bytes; all four failures and teardowns are sealed, and a new reproducible image-bound action remains required."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",

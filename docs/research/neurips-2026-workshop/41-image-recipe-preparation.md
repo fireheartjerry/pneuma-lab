@@ -45,6 +45,15 @@ not run. The failure and independent teardown are sealed in
 image-bound production-surface receipt exists and action 012 is exhausted with
 zero retries.
 
+The build-owned mtime-normalization successor action 013 then failed closed at
+the controller gate: its two image IDs were
+`sha256:03cfc60c...4991c` and `sha256:652fd34a...03055`. The exact failure,
+partial output inventory, and independent teardown are sealed in
+`evidence/step7b-aws-builder-failure-013-20260802.json`; action 013 is
+exhausted with zero retries. No role probes, SBOMs, or production-surface
+handshake were run, and no current image-bound production-surface receipt
+exists.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.

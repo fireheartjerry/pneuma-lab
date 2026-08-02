@@ -107,6 +107,13 @@ evidence or silently reuse action 010.
   probes/SBOM and the production-surface handshake were not run. Action 012 is
   exhausted with zero retries; no current image-bound production-surface
   receipt exists.
+- The build-owned mtime-normalization successor action 013 failed closed at
+  the controller reproducibility gate: image IDs
+  `sha256:03cfc60c...4991c` and `sha256:652fd34a...03055` differed. Its
+  failure, partial output inventory, and teardown are sealed in
+  `evidence/step7b-aws-builder-failure-013-20260802.json`; no role probes,
+  SBOMs, or production-surface handshake ran. Action 013 is exhausted with
+  zero retries; do not treat any partial output as a production-surface pass.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.
