@@ -4483,3 +4483,18 @@ The next event after the archived migration boundary is appended below.
 - **Teardown:** `i-0918b57add957b178` is terminated and encrypted root
   `vol-08825f7f6964e0b3f` returns `InvalidVolume.NotFound`. The immutable
   status and log are recorded in the failure receipt. Action 007 is exhausted.
+
+### EJ-20260802-agent-session-preexperiment-audit
+
+- **Task and cost bound:** `agent-session` ran one read-only Claude Haiku
+  (`--tier cheap`, 900-second timeout) audit of the named pre-experiment
+  authorities. No incremental currency estimate was exposed by the tool; the
+  enforced bound was one cheap-tier turn and the recorded transcript/result
+  under local session `preexperiment-audit`.
+- **Receipt:** the child exited zero and returned a checklist. It was treated as
+  an untrusted proposal and checked directly against the current status,
+  decision log, spend ledger, and execution journal.
+- **Rejection:** the proposal falsely reported that no provider action had
+  occurred, described the decision log as ending at obsolete row numbers, and
+  contradicted the live AWS qualification and Step 7B execution receipts.
+  None of its completion or gate claims is promoted or relied upon.
