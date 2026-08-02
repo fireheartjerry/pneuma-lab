@@ -1,0 +1,91 @@
+{
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED_NO_RETRY",
+  "action_id": "step7b-aws-builder-015",
+  "admission_package_sha256": "bca4bc90af9229e8a45af7acbfa1ac6c77a62a68b13b65c6a5b1111293e2a498",
+  "plan_sha256": "dbc75690017269be0544d9cc9c3fe3d8870928058fa80cac9c08acd38d35fa5a",
+  "source_commit": "98dd81ad29c3721f0f58213f6d4fe7f9fbc0c806",
+  "failure_reason": "The corrected bootstrap installed Docker and the pinned Buildx v0.13.1 client, but the executor failed closed while validating the named docker-container builder: docker buildx inspect did not report the sealed BuildKit v0.13.2 version. No role build, SBOM, probe, production-surface handshake, model, benchmark, pilot, or experiment ran. The exact BuildKit inspection output was not published by the pre-existing executor, so a successor must bind diagnostic inspection bytes before any further qualification.",
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-015/plan.json",
+      "version_id": "ana3tGpWl27nayX8riY31impY4h.3WJY",
+      "sha256": "5b87b37541c6d8afdf4957461698b2ba96a4f19fa2c0f8dc4301f845af3ab6bf"
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-015/source.tar",
+      "version_id": "528.HPSDyBqeWNZe.1SDJN._b8ts6jGU",
+      "sha256": "9229854312d86740e02b1cff25419abc7aaaff3bdfc023973a92d7940b80b579",
+      "size_bytes": 28866560
+    },
+    "admission_package": {
+      "key": "runs/preparation/step7b-aws-builder-015/admission-package.json",
+      "version_id": "IxlzHtxweGlh6hCVGFyS9.IjZbeRGgo1",
+      "sha256": "bca4bc90af9229e8a45af7acbfa1ac6c77a62a68b13b65c6a5b1111293e2a498"
+    }
+  },
+  "instance": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "instance_id": "i-0a053da387bc63267",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-02T04:31:28Z",
+    "terminal_state": "terminated",
+    "root_volume_id": "vol-02d4da5bf566445bd",
+    "root_volume_state": "InvalidVolume.NotFound",
+    "security_group_id": "sg-04331c50b912dac3d",
+    "security_group_state": "InvalidGroup.NotFound",
+    "terminated_timestamp": "2026-08-02T04:34:58Z"
+  },
+  "rendered_user_data_sha256": "b0851044b5e676cc135de11039ba878de724b3c1e4dd91d653f802d7e23329f6",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/step7b-aws-builder-015/outputs/",
+  "output_artifacts": {
+    "bootstrap_status": {
+      "key": "runs/preparation/step7b-aws-builder-015/outputs/bootstrap-status.json",
+      "version_id": "HEZ.Ma8fw3MXVH7xjdwHSjkJPFdHPaYd",
+      "size_bytes": 46,
+      "sha256": "f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7"
+    },
+    "bootstrap_log": {
+      "key": "runs/preparation/step7b-aws-builder-015/outputs/bootstrap.log",
+      "version_id": "iMGgW_IIemEF3jnqin4LnAN4Jc1YL4ri",
+      "size_bytes": 7149,
+      "sha256": "3a17cf7008bc66b1e7663b8266c40892594e2034baa49799893ba4c3cfe122ae"
+    },
+    "buildx_version": {
+      "key": "runs/preparation/step7b-aws-builder-015/outputs/buildx-version.txt",
+      "version_id": "HkFpOd9dYKJjCi2IfdeMvOoCwIOsKKuE",
+      "size_bytes": 74,
+      "sha256": "b4bf86bfe454ff406daca442a45f72b3070388bff27ecf83fcb58643e52635a9"
+    },
+    "docker_info": {
+      "key": "runs/preparation/step7b-aws-builder-015/outputs/docker-info-before-build.json",
+      "version_id": "JS6g8_0yZyy2hqNimA10s5euU55wza3b",
+      "size_bytes": 1317,
+      "sha256": "b820af94065d7b97dafb8f77c96fed946c6ca21382562e08a81030e1af553841"
+    },
+    "instance_identity": {
+      "key": "runs/preparation/step7b-aws-builder-015/outputs/instance-identity.json",
+      "version_id": "JX4d4.5tlWTPktQHewWc8GCWmrzxEtFa",
+      "size_bytes": 185,
+      "sha256": "7217f6eeb23ba88abf42e713073eaa73290bec4750b3fb363a30aebde5875cfc"
+    }
+  },
+  "partial_results": {
+    "bootstrap": "FAILED_BUILDKIT_VERSION_VALIDATION",
+    "buildx": "v0.13.1_VERIFIED",
+    "buildkit": "VERSION_MISMATCH_OR_UNREPORTED",
+    "controller": "NOT_RUN",
+    "model-server": "NOT_RUN",
+    "benchmark-worker": "NOT_RUN",
+    "production_surface": "NOT_RUN"
+  },
+  "teardown": {
+    "instance_termination_verified": true,
+    "root_volume_absence_verified": true,
+    "security_group_no_eni_verified": true,
+    "security_group_deletion_verified": true,
+    "verification_timestamp": "2026-08-02T04:34:58Z"
+  }
+}

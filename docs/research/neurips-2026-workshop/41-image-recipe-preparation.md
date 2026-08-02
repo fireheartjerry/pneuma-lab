@@ -72,6 +72,15 @@ security group `sg-04331c50b912dac3d`. Plan
 zero-retry candidate only; no upload, signature, image, SBOM, or production
 surface result exists yet.
 
+The admitted corrected action 015 installed Docker and Buildx `v0.13.1` but
+failed closed while validating the pinned Docker-container builder: the host's
+`docker buildx inspect` output did not report the sealed BuildKit `v0.13.2`
+version. No role build, SBOM, probe, or production-surface handshake ran. The
+versioned outputs and teardown are sealed in
+`evidence/step7b-aws-builder-failure-015-20260802.json`; action 015 is
+exhausted with zero retries. The next successor must publish the exact builder
+inspection bytes before attempting any image build.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.

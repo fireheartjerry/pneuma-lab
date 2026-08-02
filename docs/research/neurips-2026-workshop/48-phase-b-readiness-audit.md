@@ -106,6 +106,13 @@ security group `sg-04331c50b912dac3d`; plan
 the exact bytes. No provider execution or new production-surface evidence
 exists from this preparation entry.
 
+Admitted action 015 removed the package conflict and verified Buildx
+`v0.13.1`, but failed closed because the provider host did not report the
+sealed BuildKit `v0.13.2` during builder validation. No role build, SBOM,
+probe, or production-surface handshake ran. The failure and teardown are
+sealed in `evidence/step7b-aws-builder-failure-015-20260802.json`; action 015
+is exhausted with zero retries and the production-surface gate remains open.
+
 ## Topology change and its residual empirical risk
 
 DL-161 selects an 8-vCPU `g6e.2xlarge` single-L40S AWS path with sequential

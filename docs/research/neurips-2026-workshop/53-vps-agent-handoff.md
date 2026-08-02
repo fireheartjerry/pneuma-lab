@@ -128,6 +128,13 @@ created. The next action must bind the corrected bootstrap bytes afresh.
   `dbc75690017269be0544d9cc9c3fe3d8870928058fa80cac9c08acd38d35fa5a` is a
   zero-retry candidate only; no provider execution or production-surface
   receipt exists.
+- Admitted action 015 installed and verified Buildx `v0.13.1`, then failed
+  closed because `docker buildx inspect` did not report the sealed BuildKit
+  `v0.13.2` version. No role builds, SBOMs, probes, or production-surface
+  handshake ran. Its output inventory and teardown are sealed in
+  `evidence/step7b-aws-builder-failure-015-20260802.json`; action 015 is
+  exhausted with zero retries. A successor must bind and publish the exact
+  builder inspection output before any further build attempt.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.

@@ -4989,3 +4989,29 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** Action 015 is an unsigned zero-retry candidate. No source or
   plan upload, signature, instance launch, image build, SBOM, role-chain E2E,
   or scientific execution has occurred in this preparation entry.
+
+### EJ-20260802-step7b-aws-builder-015-failure
+
+- **Execution:** The single admitted attempt launched exact instance
+  `i-0a053da387bc63267` (`m7i.xlarge`, 650 GiB encrypted gp3 root) from
+  rendered user-data SHA-256
+  `b0851044b5e676cc135de11039ba878de724b3c1e4dd91d653f802d7e23329f6`.
+- **Failure:** The corrected package install completed and Buildx
+  `v0.13.1` was verified, but the executor failed closed because
+  `docker buildx inspect` did not report the sealed BuildKit `v0.13.2`. The
+  old executor did not publish the inspection text, so the exact provider
+  mismatch remains an explicit diagnostic gap. No role build, SBOM, probe,
+  production-surface handshake, model, benchmark, pilot, or experiment ran.
+  The sealed status/log/tool outputs and bindings are in
+  `evidence/step7b-aws-builder-failure-015-20260802.json`; action 015 is
+  exhausted with zero retries.
+
+### EJ-20260802-step7b-aws-builder-015-teardown
+
+- The host self-terminated at `2026-08-02T04:32:28Z`; fresh provider reads at
+  `2026-08-02T04:34:58Z` show encrypted root `vol-02d4da5bf566445bd` as
+  `InvalidVolume.NotFound`. The temporary security group
+  `sg-04331c50b912dac3d` had no ENI or instance dependencies, was deleted, and
+  then returned `InvalidGroup.NotFound`. No action-tagged resource remains.
+- The projected USD 2.25 is recorded as pending provider billing settlement
+  under CL-143/CL-144; no scientific work occurred.
