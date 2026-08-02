@@ -5263,3 +5263,27 @@ The next event after the archived migration boundary is appended below.
   `sg-0fafd831d4a66c8f6` had no ENI dependencies, was deleted once, and the
   post-query returned `InvalidGroup.NotFound`. The projected USD 2.25 remains
   pending billing settlement under CL-162/CL-163.
+
+### EJ-20260802-step7b-aws-builder-021-preparation
+
+- **Repair:** Action 020 completed all image/SBOM gates but discarded the
+  image-bound production-surface child stderr on failure. Commit `1bb54ab`
+  changes the executor to persist `production-surface-command.json` with
+  command, return code, stdout, and stderr before raising; the focused cloud
+  executor and E2E tests pass.
+- **Admission:** Fresh zero-retry action 021 binds source commit
+  `1bb54ab273ec56d294f72d18a3fc058f80a168fb`, archive
+  `38521fcd4f9fbda0bbb8ad97f5c1a3f2c0b6b785b0e78a2a510ab175f4f1ca93`
+  (29,009,920 bytes), plan digest
+  `ebc0bec75480b140df2b12ff72c5eeefc351973d659629b70605207cd43a263b`,
+  rendered production harness
+  `6c07b7f5029ffa2ae97b9f83fc167ff83b0e410b445ab0863c2f74256d6bbf2e`,
+  and fresh no-ingress SG `sg-0c8eb506d362a5d3d`. The KMS-signed package
+  `e99ddec60ba9579b24520d761b822e368a2fedc4aa892281d1e86608e9e56d0e`
+  binds envelope body `e165a8f438270b81d8328454597c5074eef76f2d2c35d700cae957bafa3384d2`
+  and admission body `18910de33004fc8de74c1182db9ec5c4cebd7bcc426339e477a777a2f8f9c27a`.
+  The source, plan, and package were uploaded once and downloaded back with
+  exact SHA-256 matches; the final same-channel preflight passed with no
+  action-tagged instance, volume, or ENI. The single launch remains pending.
+  No provider execution, model, benchmark, pilot, experiment, or scientific
+  result occurred in this preparation entry.

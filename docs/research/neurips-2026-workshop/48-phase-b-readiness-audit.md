@@ -158,6 +158,15 @@ receipt. The 21-object output inventory and independent teardown are sealed in
 replay passes, while the cloud child stderr remains unpreserved. A fresh
 diagnostic action 021 is required; the production-surface gate remains open.
 
+Admitted diagnostic action 021 is prepared from commit `1bb54ab` with fresh
+no-ingress SG `sg-0c8eb506d362a5d3d`, archive
+`38521fcd...ca93`, and plan digest
+`ebc0bec75480b140df2b12ff72c5eeefc351973d659629b70605207cd43a263b`. Its
+executor will persist the child production-surface return code/stdout/stderr
+before raising. The KMS-signed package and versioned inputs were verified by
+exact download-back hashes, and the final same-channel preflight passed. The
+action remains unexecuted; the single launch is pending.
+
 Corrected successor action 015 is prepared but remains an unsigned candidate.
 It binds the repaired curl-minimal-safe bootstrap, source commit
 `98dd81a...c806`, archive `9229854...b579`, pinned Buildx/BuildKit, and fresh

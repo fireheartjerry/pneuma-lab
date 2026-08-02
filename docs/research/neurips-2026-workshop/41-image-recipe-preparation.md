@@ -149,6 +149,15 @@ inventory and independent teardown are sealed in
 or scientific result may be claimed. Successor action 021 must preserve the
 child stderr and first-role diagnostics before another bounded qualification.
 
+Admitted action 021 is prepared from diagnostic commit `1bb54ab` and a fresh
+no-ingress SG `sg-0c8eb506d362a5d3d`. It binds archive
+`38521fcd...ca93`, plan digest
+`ebc0bec75480b140df2b12ff72c5eeefc351973d659629b70605207cd43a263b`, and an
+executor that persists the production-surface command return code/stdout/stderr
+before raising. The signed package and all three versioned inputs were
+downloaded back with exact SHA-256 matches; the final same-channel preflight
+passed. It is admitted but unexecuted; the single launch is pending.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.
