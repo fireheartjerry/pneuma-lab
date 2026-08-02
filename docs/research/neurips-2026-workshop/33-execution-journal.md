@@ -5766,3 +5766,23 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** This confirms the account/quota substrate only. It does not
   authorize a launch, model or benchmark work, pilot, canonical P0 lineage,
   unblind, or scientific claim.
+
+### EJ-20260802-phase-b-status-reconciliation
+
+- **Finding:** A completion audit found that the older table in the Phase-B
+  readiness document still described Step 5B and G-ROSTER as pending, even
+  though the canonical status and handoff already record their later sealed
+  receipts. The inconsistency was documentation drift, not a new scientific
+  finding.
+- **Evidence restored:** The real input-lock receipt binds digest
+  `e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84` and the
+  nine independently verified snapshot/receipt paths. The C120 closure binds
+  33/33 passing Linux isolation pairs and closure digest
+  `a887370640d2c6e9514e350c476e786d1040e6bcf3799422dee6c60b70944209`; C160
+  remains unselected. The status manifest now references those exact files,
+  alongside the existing action-024, interruption, Batch, account-plan, and
+  throughput receipts.
+- **Boundary:** This repairs evidence indexing and stale prose only. It does
+  not close Step 14, create a P0 power/tier receipt, create packet/assignment/
+  detectability/unblind receipts, authorize a pilot, or change the
+  `implementation_complete; E2E_pending` state of Tasks 6–10.

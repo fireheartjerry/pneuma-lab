@@ -223,10 +223,13 @@ semantics and exact teardown. These receipts remain infrastructure evidence:
 no model, benchmark episode, pilot, canonical P0 lineage, unblind, or
 scientific result ran.
 
-The live blockers are therefore narrower than the original table: Step 5B
-real-input lock and G-ROSTER admission remain unverified; the hostile Step 14
-review remains `launch_blocked` because no authority-backed P0 power/tier
-receipt and no packet/assignment/detectability/unblind receipts exist. Those
-missing receipts require a separately authorized canonical lineage and cannot
-be manufactured by another infrastructure check. The project status and
-handoff remain `implementation_complete; E2E_pending` for Tasks 6–10.
+The live blockers are therefore narrower than the original table: Step 5B's
+real input lock and the C120 G-ROSTER admission are closed at their bounded
+qualification scope (the lock digest is `e6746ad843b0da9a6144fa84a5a231dd350b6845a321ffaff171df4540f67b84`;
+the C120 closure is `a887370640d2c6e9514e350c476e786d1040e6bcf3799422dee6c60b70944209`).
+C160 is not selected. The hostile Step 14 review remains `launch_blocked`
+because no authority-backed P0 power/tier receipt and no
+packet/assignment/detectability/unblind receipts exist. Those missing receipts
+require a separately authorized canonical lineage and cannot be manufactured
+by another infrastructure check. The project status and handoff remain
+`implementation_complete; E2E_pending` for Tasks 6–10.

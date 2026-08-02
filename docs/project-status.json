@@ -474,7 +474,11 @@
                 "src/pneuma_lab/cloud/inputs.py",
                 "src/pneuma_lab/cloud/manifests.py",
                 "tests/cloud/test_inputs.py",
-                "tests/cloud/test_manifests.py"
+                "tests/cloud/test_manifests.py",
+                "docs/research/neurips-2026-workshop/evidence/step5b-real-input-lock-20260801/input-lock.json",
+                "docs/research/neurips-2026-workshop/evidence/step5b-input-lock-portability-20260801.json",
+                "docs/research/neurips-2026-workshop/evidence/step5b-c120-g-roster-final-20260801/closure.json",
+                "docs/research/neurips-2026-workshop/evidence/step5b-c120-g-roster-final-20260801/isolation-receipt.json"
             ],
             "blockers": [
                 "B-NEURIPS-STEP14-REVIEW",
@@ -701,7 +705,12 @@
                 "docs/research/neurips-2026-workshop/evidence/interruption-qualification-receipt-007-20260802.json",
                 "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json",
                 "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-success-024-20260802.json",
-                "docs/research/neurips-2026-workshop/evidence/batch-array-qualification-014-receipt-20260802.json"
+                "docs/research/neurips-2026-workshop/evidence/batch-array-qualification-014-receipt-20260802.json",
+                "docs/research/neurips-2026-workshop/evidence/step5b-real-input-lock-20260801/input-lock.json",
+                "docs/research/neurips-2026-workshop/evidence/step5b-c120-g-roster-final-20260801/closure.json",
+                "docs/research/neurips-2026-workshop/evidence/step5b-c120-g-roster-final-20260801/isolation-receipt.json",
+                "docs/research/neurips-2026-workshop/evidence/step5b-lifecycle-live-receipt-20260801.json",
+                "docs/research/neurips-2026-workshop/evidence/throughput-001-20260801/verification.json"
             ],
             "blockers": [
                 "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
