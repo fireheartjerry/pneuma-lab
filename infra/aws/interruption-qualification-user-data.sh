@@ -54,13 +54,14 @@ EOF
         --return-values ALL_NEW >/tmp/renewal-attempt.json 2>/tmp/renewal-attempt.stderr
     renewal_rc=$?
     set -e
+    controller_arn=$(aws sts get-caller-identity --query Arn --output text)
     if [[ "$renewal_rc" -eq 0 ]]; then
         renewal_outcome=unexpectedly_allowed
     else
         renewal_outcome=denied_as_expected
     fi
-    printf '{"action_id":"%s","boundary_sha256":"%s","renewal_exit_code":%d,"renewal_outcome":"%s"}\n' \
-        "$ACTION_ID" "$pre_hash" "$renewal_rc" "$renewal_outcome" >/tmp/controller-report.json
+    printf '{"action_id":"%s","boundary_sha256":"%s","controller_identity":"%s","renewal_exit_code":%d,"renewal_outcome":"%s"}\n' \
+        "$ACTION_ID" "$pre_hash" "$controller_arn" "$renewal_rc" "$renewal_outcome" >/tmp/controller-report.json
     aws s3 cp /tmp/controller-report.json "s3://$BUCKET/$CONTROLLER_REPORT_KEY" \
         --sse AES256 --only-show-errors
     while true; do sleep 5; done
@@ -71,11 +72,12 @@ if [[ "$ROLE" == watcher ]]; then
         now=$(date -u +%s)
         if [[ "$now" -ge "$LEASE_EXPIRY" ]]; then
             observed=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            watcher_arn=$(aws sts get-caller-identity --query Arn --output text)
             aws dynamodb update-item \
                 --table-name "$TABLE" \
                 --key "{\"lease_key\":{\"S\":\"$LEASE_KEY\"}}" \
-                --update-expression 'SET watcher_observed_timestamp = :t, watcher_termination_requested = :v' \
-                --expression-attribute-values "{\":t\":{\"S\":\"$observed\"},\":v\":{\"BOOL\":true}}" \
+                --update-expression 'SET watcher_observed_timestamp = :t, watcher_termination_requested = :v, watcher_identity = :a' \
+                --expression-attribute-values "{\":t\":{\"S\":\"$observed\"},\":v\":{\"BOOL\":true},\":a\":{\"S\":\"$watcher_arn\"}}" \
                 --return-values ALL_NEW >/tmp/watcher-update.json
             aws ec2 terminate-instances --instance-ids "$CONTROLLER_INSTANCE_ID" \
                 --output json >/tmp/watcher-terminate.json
