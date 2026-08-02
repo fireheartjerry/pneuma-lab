@@ -35,6 +35,16 @@ controller double-build gate after exporting `SOURCE_DATE_EPOCH`, setting
 are sealed in `evidence/step7b-aws-builder-failure-011-20260802.json`; no
 current production-surface image set exists.
 
+The explicit exporter successor action 012 made the controller and model-server
+double-build IDs equal, but failed closed at the benchmark-worker gate: its two
+IDs were `sha256:6ab20d3b...b4d1139` and `sha256:86630dda...b3112af`.
+The controller/model-server probes and SBOMs are preserved as partial evidence,
+but the benchmark-worker probes, SBOM, and production-surface handshake were
+not run. The failure and independent teardown are sealed in
+`evidence/step7b-aws-builder-failure-012-20260802.json`; no current
+image-bound production-surface receipt exists and action 012 is exhausted with
+zero retries.
+
 ## Immutable base candidates (metadata only)
 
 The real role recipes use the following pre-locked Linux/amd64 manifest identity.

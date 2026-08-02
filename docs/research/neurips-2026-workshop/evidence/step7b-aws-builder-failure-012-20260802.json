@@ -1,0 +1,73 @@
+{
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED_NO_RETRY",
+  "action_id": "step7b-aws-builder-012",
+  "admission_package_sha256": "a70729135d1c9a96d9dfd9f35fa5dc718ae940a0f1c70eb067f7e01fedb7d62e",
+  "plan_sha256": "c4fb3a7fe68654c4caf142a55406b2a9948ba2bab147289e16b174d1806ab11a",
+  "source_commit": "46f005f8fab83bda47c2a7121d15bc47a45d66f2",
+  "failure_reason": "The explicit BuildKit rewrite-timestamp exporter made the controller and model-server double-build image IDs equal, but the benchmark-worker first build produced sha256:6ab20d3b18d22adfbbcb0b6840f2bed9f52bd9a4efc3ae7072e14c9e5b4d1139 and the second produced sha256:86630dda644139c97d54c9a2c007421c92443344e0530a2f9a5204a07b3112af. The zero-retry executor failed closed before benchmark-worker probes or SBOM publication and before the production-surface handshake.",
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-012/plan.json",
+      "version_id": "RUkycDBJURfoMkpLtHPLDPWSMXYBOCYa",
+      "sha256": "c4fb3a7fe68654c4caf142a55406b2a9948ba2bab147289e16b174d1806ab11a"
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-012/source.tar",
+      "version_id": "Pm0cp6B8ntgx5gT7mO3W0oPoc3.ND8rP",
+      "sha256": "6328e5d414b21963d7472d6050f1b34224c6701e61a17e4c21c354ffa02f0bcf",
+      "size_bytes": 28794880
+    }
+  },
+  "instance": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "instance_id": "i-0b9fca99f7ba96475",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-02T02:50:20Z",
+    "terminal_state": "terminated",
+    "root_volume_id": "vol-041c4388f42887c31",
+    "root_volume_state": "InvalidVolume.NotFound",
+    "security_group_id": "sg-05ffcf16e3f1b5ead",
+    "security_group_state": "InvalidGroup.NotFound",
+    "terminated_timestamp": "2026-08-02T03:37:26Z"
+  },
+  "rendered_user_data_sha256": "ce9ab0440b9875ebc034279beb8a2e67c62587aae231e85d31533bad5fbc5643",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/step7b-aws-builder-012/outputs/",
+  "output_artifacts": {
+    "benchmark_worker_harness": {"key": "runs/preparation/step7b-aws-builder-012/outputs/benchmark-worker-harness.json", "version_id": "9GNw4oywf6GPRAMXW1zd2vTiRtI2wKLD", "size_bytes": 152, "sha256": "8095ef0b8f7e63c6dcc76fd12a1d636a9b49661c29de68e8b6e9402b61785d02"},
+    "bootstrap_status": {"key": "runs/preparation/step7b-aws-builder-012/outputs/bootstrap-status.json", "version_id": "a_qEyx.aH.nESM5kHY6ear4VzxCvLcI0", "size_bytes": 46, "sha256": "f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7"},
+    "bootstrap_log": {"key": "runs/preparation/step7b-aws-builder-012/outputs/bootstrap.log", "version_id": "OLGrxCuIZ_wPeHbZnRKcr.eKnpeMsYV1", "size_bytes": 40731, "sha256": "13a3e997a971fcf44e318d09b7fe235483aa33da2c8c4107b27e1123e61b2955"},
+    "controller_harness": {"key": "runs/preparation/step7b-aws-builder-012/outputs/controller-harness.json", "version_id": "M4rqWBI_ktTgC8KCJCS7IOiJ1DuxU520", "size_bytes": 146, "sha256": "96e20be90864155dda595206630f7034c6a987ab44383c569ca01261a240c160"},
+    "controller_positive": {"key": "runs/preparation/step7b-aws-builder-012/outputs/controller-positive.json", "version_id": "qQKguI73DqfQyIMiXx0myG3sNT7QXDil", "size_bytes": 142, "sha256": "c4e98735d8129e3859dcc39c402db9ae7455b1970147437b6b5f824c2cdc9bd5"},
+    "controller_wrong_hash": {"key": "runs/preparation/step7b-aws-builder-012/outputs/controller-wrong-hash.json", "version_id": "KrdBTs8uaAxoFmqyf7IZN_sd6nYw0MMU", "size_bytes": 74, "sha256": "465d1798a7354fa208d6dcecf59e941620bef6d9d5bf70345fcee4c365accc9e"},
+    "controller_sbom": {"key": "runs/preparation/step7b-aws-builder-012/outputs/controller.spdx.json", "version_id": "Mq3L_KPCEhrCzOWr6.zcDz3PZQi6a1Ir", "size_bytes": 25296943, "sha256": "4bcf04b25896a5f9d2c46701c9ad30dbbe566ef848894c348ff61ed4fedc212e"},
+    "docker_info": {"key": "runs/preparation/step7b-aws-builder-012/outputs/docker-info-before-build.json", "version_id": "dm_R4tj9IAKUZn527D_NRuwPBqF4S3Sw", "size_bytes": 1316, "sha256": "63371f7a1af768f0f40ee171fff7999c58ec89d1c7dfd85a326cd650a007925a"},
+    "instance_identity": {"key": "runs/preparation/step7b-aws-builder-012/outputs/instance-identity.json", "version_id": "B4BVv9LU2EAwiBSoJeO5hKyeLz2WifhM", "size_bytes": 185, "sha256": "26d54a8e773a9252e829461240de0b46459b6dcf7266c288cd69d906f9b94705"},
+    "model_server_harness": {"key": "runs/preparation/step7b-aws-builder-012/outputs/model-server-harness.json", "version_id": "K7BYB44FqiN1rosGzzV3Ut6CpWRia4zJ", "size_bytes": 148, "sha256": "748256ad320b855eef7f62f23e2fc3d7ade61139b0003bf4076ada750684f3bf"},
+    "model_server_positive": {"key": "runs/preparation/step7b-aws-builder-012/outputs/model-server-positive.json", "version_id": "crYf1WrLFHxksupAJ7Y8Pcyvzk5WIpDa", "size_bytes": 144, "sha256": "0bcf1a4cb0496865cf5425319ea57322684812a8f424ba6c099ded99682fb6d0"},
+    "model_server_wrong_hash": {"key": "runs/preparation/step7b-aws-builder-012/outputs/model-server-wrong-hash.json", "version_id": "iQxaR2q5dCjeJ1Huw97yYK9EYSTNKoYR", "size_bytes": 76, "sha256": "f5af82608e5fa36fa66b05d00d91a94ff0b857b23c764c52d5f87db8430f1189"},
+    "model_server_sbom": {"key": "runs/preparation/step7b-aws-builder-012/outputs/model-server.spdx.json", "version_id": "iF5QIq7HydFVAq24lhA.Vj4sEsfCggNG", "size_bytes": 25300521, "sha256": "21db2b32d03186ee1bbd2a92cb940a5439f7556ea0ddf072e7395d5967e6673f"}
+  },
+  "partial_results": {
+    "controller": {
+      "build_image_digests": ["sha256:2392c5d503a3d3f9234d0f61f9ae8b7416b98dc550f6705f3f5b19944825dbd6", "sha256:2392c5d503a3d3f9234d0f61f9ae8b7416b98dc550f6705f3f5b19944825dbd6"],
+      "positive_probe": "READY",
+      "wrong_hash_probe": "FAILED"
+    },
+    "model-server": {
+      "build_image_digests": ["sha256:30d963461192a92711891f3d4727f90e7f04cbfba7153675cf32266a78474c3b", "sha256:30d963461192a92711891f3d4727f90e7f04cbfba7153675cf32266a78474c3b"],
+      "positive_probe": "READY",
+      "wrong_hash_probe": "FAILED"
+    },
+    "benchmark-worker": {
+      "build_image_digests": ["sha256:6ab20d3b18d22adfbbcb0b6840f2bed9f52bd9a4efc3ae7072e14c9e5b4d1139", "sha256:86630dda644139c97d54c9a2c007421c92443344e0530a2f9a5204a07b3112af"],
+      "double_build_digests_equal": false,
+      "positive_probe": "NOT_RUN",
+      "wrong_hash_probe": "NOT_RUN",
+      "sbom": "NOT_PUBLISHED"
+    },
+    "production_surface": "NOT_RUN"
+  }
+}

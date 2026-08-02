@@ -4751,6 +4751,46 @@ The next event after the archived migration boundary is appended below.
   explicitly bound infrastructure handshake; no model, benchmark, pilot,
   experiment, registry push, or scientific claim is authorized.
 
+### EJ-20260802-step7b-aws-builder-012-failure
+
+- **Execution:** The one admitted attempt launched exact instance
+  `i-0b9fca99f7ba96475` (`m7i.xlarge`, 650 GiB encrypted gp3 root) from
+  rendered user-data SHA-256
+  `ce9ab0440b9875ebc034279beb8a2e67c62587aae231e85d31533bad5fbc5643`.
+  The controller built twice as the identical image ID
+  `sha256:2392c5d503a3d3f9234d0f61f9ae8b7416b98dc550f6705f3f5b19944825dbd6`;
+  the model-server also built twice as the identical ID
+  `sha256:30d963461192a92711891f3d4727f90e7f04cbfba7153675cf32266a78474c3b`.
+  Their positive probes returned `READY`, wrong-hash probes returned
+  `FAILED`, and their nonempty SPDX SBOMs were uploaded.
+- **Failure:** The benchmark-worker first build produced
+  `sha256:6ab20d3b18d22adfbbcb0b6840f2bed9f52bd9a4efc3ae7072e14c9e5b4d1139`;
+  the second produced
+  `sha256:86630dda644139c97d54c9a2c007421c92443344e0530a2f9a5204a07b3112af`.
+  The executor failed closed before benchmark-worker probes/SBOM and before
+  the production-surface handshake. This is a reproducibility failure, not an
+  E2E or scientific result.
+- **Receipt:** Versioned S3 outputs are sealed under
+  `runs/preparation/step7b-aws-builder-012/outputs/`: bootstrap status
+  `a_qEyx.aH.nESM5kHY6ear4VzxCvLcI0` / SHA-256
+  `f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7`, and
+  bootstrap log `OLGrxCuIZ_wPeHbZnRKcr.eKnpeMsYV1` / SHA-256
+  `13a3e997a971fcf44e318d09b7fe235483aa33da2c8c4107b27e1123e61b2955`.
+  The complete partial-output inventory, image IDs, and teardown evidence are
+  sealed in `evidence/step7b-aws-builder-failure-012-20260802.json`; action 012
+  is exhausted with zero retries.
+
+### EJ-20260802-step7b-aws-builder-012-teardown
+
+- The instance self-stopped after the fail-closed executor. One independent
+  termination call returned `terminated` at 03:37:26Z. Fresh provider reads
+  show encrypted root `vol-041c4388f42887c31` as `InvalidVolume.NotFound`.
+  The temporary security group `sg-05ffcf16e3f1b5ead` had no attached ENI or
+  instance, was deleted, and then returned `InvalidGroup.NotFound`.
+- No action-tagged resource remains. The projected USD 2.25 is recorded as
+  pending provider billing settlement under CL-131/CL-132; no model,
+  benchmark, pilot, experiment, or scientific result occurred.
+
 ### EJ-20260802-step7b-aws-builder-011-failure
 
 - **Execution:** The one admitted attempt launched exact instance

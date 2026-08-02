@@ -74,6 +74,15 @@ teardown are sealed in
 `evidence/step7b-aws-builder-failure-011-20260802.json`; no current image-bound
 production-surface receipt exists.
 
+The explicit exporter successor action 012 passed the controller and
+model-server double-build gates, then failed closed at benchmark-worker
+reproducibility: IDs `sha256:6ab20d3b...b4d1139` and
+`sha256:86630dda...b3112af` differed. Partial controller/model-server probes
+and SBOMs are preserved, but benchmark-worker probes/SBOM and the production
+surface were not run. Failure and teardown are sealed in
+`evidence/step7b-aws-builder-failure-012-20260802.json`; the current
+production-surface gate remains open and action 012 is exhausted.
+
 ## Topology change and its residual empirical risk
 
 DL-161 selects an 8-vCPU `g6e.2xlarge` single-L40S AWS path with sequential

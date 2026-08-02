@@ -99,6 +99,14 @@ evidence or silently reuse action 010.
   `BUILDKIT_MULTI_PLATFORM=1`, and `linux/amd64`. Its failure and teardown are
   sealed in `evidence/step7b-aws-builder-failure-011-20260802.json`; action 011
   is exhausted and the production-surface gate remains open.
+- The explicit exporter successor action 012 passed controller and model-server
+  reproducibility, then failed closed at benchmark-worker reproducibility:
+  image IDs `sha256:6ab20d3b...b4d1139` and `sha256:86630dda...b3112af` differed.
+  Its partial receipts and teardown are sealed in
+  `evidence/step7b-aws-builder-failure-012-20260802.json`; benchmark-worker
+  probes/SBOM and the production-surface handshake were not run. Action 012 is
+  exhausted with zero retries; no current image-bound production-surface
+  receipt exists.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.

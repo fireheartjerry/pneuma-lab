@@ -2,7 +2,7 @@
     "$schema": "../schemas/project-status.schema.json",
     "manifest_kind": "pneuma_project_status",
     "manifest_schema_version": "0.1.0",
-    "as_of": "2026-08-01",
+    "as_of": "2026-08-02",
     "project": {
         "role": "standalone_research_evaluation_harness",
         "integration_mode": "standalone",
@@ -686,6 +686,7 @@
                 "scripts/research/run_production_surface_e2e.py",
                 "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-failure-010-20260802.json",
                 "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-failure-011-20260802.json",
+                "docs/research/neurips-2026-workshop/evidence/step7b-aws-builder-failure-012-20260802.json",
                 "tests/cloud/test_production_runtime.py",
                 "tests/cloud/test_production_surface_e2e.py"
             ],
@@ -1007,7 +1008,7 @@
         },
         {
             "id": "B-NEURIPS-PRODUCTION-SURFACE-E2E",
-            "summary": "Step 7B image/SBOM qualification is complete for the older action-009 runtime, but fresh actions 010 and 011 bound to the current handshake both failed closed when their controller double-build IDs differed. No current receipt proves a real controller/model-server/benchmark-worker production execution surface against the exact harness bytes; both failures and teardowns are sealed, and a new reproducible image-bound action remains required."
+            "summary": "Step 7B image/SBOM qualification is complete for the older action-009 runtime, but fresh actions 010 and 011 bound to the current handshake failed closed at controller reproducibility, and action 012 failed closed at benchmark-worker reproducibility after controller/model-server partial receipts. No current receipt proves a real controller/model-server/benchmark-worker production execution surface against the exact harness bytes; all three failures and teardowns are sealed, and a new reproducible image-bound action remains required."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
