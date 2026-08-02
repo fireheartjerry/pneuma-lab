@@ -14,6 +14,7 @@ readonly OUTPUT_PREFIX='__OUTPUT_PREFIX__'
 
 mkdir -p /opt/pneuma-step7b/{source,output,tools,syft-tmp}
 export TMPDIR=/opt/pneuma-step7b/syft-tmp
+export SOURCE_DATE_EPOCH=0
 exec > >(tee /opt/pneuma-step7b/output/bootstrap.log) 2>&1
 
 fail() {

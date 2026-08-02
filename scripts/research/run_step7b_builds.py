@@ -35,8 +35,13 @@ def plan_digest(plan: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_bytes(body)).hexdigest()
 
 
-def run(arguments: list[str], *, capture: bool = False) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(arguments, check=True, text=True, capture_output=capture)
+def run(
+    arguments: list[str],
+    *,
+    capture: bool = False,
+    environment: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(arguments, check=True, text=True, capture_output=capture, env=environment)
 
 
 def image_id(tag: str) -> str:
@@ -102,8 +107,29 @@ def build_role(plan: dict[str, Any], root: Path, output: Path, role: str) -> dic
     harness_digest = sha256_file(harness)
     tags = [f"pneuma-step7b-{role}:build-{index}" for index in (1, 2)]
     digests: list[str] = []
+    build_environment = dict(os.environ)
+    build_environment["SOURCE_DATE_EPOCH"] = str(plan["source_date_epoch"])
     for tag in tags:
-        run(["docker", "build", "--no-cache", "--pull=false", "--provenance=false", "--sbom=false", "--build-arg", f"SOURCE_DATE_EPOCH={plan['source_date_epoch']}", "--file", str(dockerfile), "--tag", tag, str(root)])
+        run(
+            [
+                "docker",
+                "build",
+                "--no-cache",
+                "--pull=false",
+                "--provenance=false",
+                "--sbom=false",
+                "--build-arg",
+                f"SOURCE_DATE_EPOCH={plan['source_date_epoch']}",
+                "--build-arg",
+                "BUILDKIT_MULTI_PLATFORM=1",
+                "--file",
+                str(dockerfile),
+                "--tag",
+                tag,
+                str(root),
+            ],
+            environment=build_environment,
+        )
         digests.append(image_id(tag))
     if digests[0] != digests[1]:
         raise ValueError(f"{role} double-build image config digests differ")

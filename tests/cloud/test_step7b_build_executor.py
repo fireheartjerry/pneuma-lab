@@ -91,6 +91,8 @@ def test_executor_uses_root_backed_syft_staging() -> None:
     source = Path(run_step7b_builds.__file__).read_text(encoding="utf-8")
     assert 'syft_tmp = output.parent / "syft-tmp"' in source
     assert 'syft_env = dict(os.environ, TMPDIR=str(syft_tmp))' in source
+    assert 'build_environment["SOURCE_DATE_EPOCH"]' in source
+    assert '"BUILDKIT_MULTI_PLATFORM=1"' in source
 
 
 def test_role_dockerfiles_use_the_repository_build_context() -> None:
