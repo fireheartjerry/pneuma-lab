@@ -5420,3 +5420,20 @@ The next event after the archived migration boundary is appended below.
   `InvalidGroup.NotFound` on the post-delete read. No action-024 resource
   remains. The versioned S3 input/output objects are retained as immutable
   qualification provenance.
+
+### EJ-20260802-interruption-qualification-plan-correction
+
+- **Preflight correction:** The prepared interruption plan 001 was not signed
+  or executed because it omitted the preparation `action_class` required by
+  the two-layer admission contract. No provider call, lease write, IAM
+  mutation, instance, or cost resulted. A fresh successor plan 002 adds only
+  `action_class=qualification_audit`, a new action/prefix/profile identity,
+  and the same source/template, input lock, lease, resource, and forbidden-
+  workload bindings. Its canonical plan digest is
+  `a06c4e5771cc18fe2dc4e1af76dbad7f4f7521e8648d2d7d5e52d275a9fcddd4`.
+- **Admission:** The KMS-signed package
+  `9bdcaa3daa44d2f6c04379856f7abe483303ea6e6cc127c127da42e5e83ca641`
+  binds the current ledger rows CL-180/CL-181, the active registered
+  approver key, the exact plan digest, input-lock digest, USD 0.05 projection,
+  zero retries, and expiry `2026-08-03T06:30:00Z`. Offline admission
+  verification passed. No interruption provider action has started yet.
