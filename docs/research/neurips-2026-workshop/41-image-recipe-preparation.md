@@ -139,12 +139,15 @@ deleted. Action 019 is exhausted with zero retries. The next successor must
 bind a fresh group and prove a consistency-gated group-readback before its
 single launch call; no action-019 resource or authorization may be reused.
 
-Action 020 is the fresh admitted successor. It creates and configures its
-security group through the same CLI path used for launch, proves the exact
-readback gate, and has launched once as `i-0f9fa01a181cccca2`. The healthy
-instance has completed its first controller export but has not yet published
-the final receipt set. No production-surface E2E or scientific result may be
-claimed until the versioned output inventory and handshake receipt pass.
+Action 020 was the fresh admitted successor. It created and configured its
+security group through the same CLI path used for launch, proved the exact
+readback gate, and launched once as `i-0f9fa01a181cccca2`. All three image
+builds, probes, and SBOMs passed, but the cloud image-bound production-surface
+subprocess failed closed before a handshake receipt. The complete 21-object
+inventory and independent teardown are sealed in
+`evidence/step7b-aws-builder-failure-020-20260802.json`; no production-surface
+or scientific result may be claimed. Successor action 021 must preserve the
+child stderr and first-role diagnostics before another bounded qualification.
 
 ## Immutable base candidates (metadata only)
 

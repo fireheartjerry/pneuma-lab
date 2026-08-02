@@ -1,0 +1,95 @@
+{
+  "record_kind": "step7b_aws_builder_failure_receipt",
+  "schema_version": "0.1.0",
+  "state": "FAILED_NO_RETRY",
+  "action_id": "step7b-aws-builder-020",
+  "admission_package_sha256": "0a9f6a8db70f9ee1969ffa3798b3b02c28f68eb3cafe2ae3162cf4a65d9f3153",
+  "plan_sha256": "9ba8d301f38c011ec79a3dbd1b4dfa8ddb274e4bf498df472bf2cc05d2f58aee",
+  "source_commit": "627d5ae98ec3681b53e5b211fc8a7a8ccd03a457",
+  "failure_reason": "All three roles completed reproducible double-builds, positive probes, wrong-hash fail-closed probes, and non-empty SPDX SBOMs. The image-bound production-surface subprocess then exited nonzero before writing any production-surface receipt. The outer bootstrap preserved only CalledProcessError and not the child stderr, so the cloud-specific child failure remains unresolved. No production-surface handshake, model, benchmark, pilot, experiment, or scientific result occurred.",
+  "diagnosis": {
+    "executor_trace": "bootstrap.log ends with CalledProcessError from run_step7b_builds.py while invoking run_production_surface_e2e.py; the child stderr was not preserved and no production-surface directory objects were uploaded.",
+    "cloud_observation": "bootstrap-status.json is FAILED/bootstrap_error; the 21-object inventory contains the production-surface harness but no controller/model-server/benchmark-worker E2E receipts, surface receipt, or command receipt.",
+    "local_reproduction": "The exact action-020 harness and repaired image-bound protocol passed with the existing debug images on the local Docker host, so this receipt does not promote a guessed cloud cause. The next successor must preserve child stderr and first-role invocation diagnostics before treating the surface as qualified.",
+    "repair_commit": "f5a871d",
+    "repair": "The prior strict bind-mode repair is present and all three cloud image builds, probes, and SBOMs passed; action 020 nevertheless failed at the cloud image-bound E2E boundary.",
+    "next_action": "step7b-aws-builder-021, pending a fresh zero-retry admission with diagnostic stderr preservation"
+  },
+  "input_artifacts": {
+    "plan": {
+      "key": "runs/preparation/step7b-aws-builder-020/plan.json",
+      "version_id": "VXQTB25Ly_Vdr94ALusH0K2Udn3ZUBEo",
+      "sha256": "428d2184593e86d538dd88f39ff2ac2cf9375f526e1865cfa9e6bfc9ba057c3e",
+      "size_bytes": 4378
+    },
+    "source": {
+      "key": "runs/preparation/step7b-aws-builder-020/source.tar",
+      "version_id": "nNhoecJlyTesITa.oVqvhU8_ikP1RSWt",
+      "sha256": "5c3751a23542dd40e20e1404932edc173a4360ee8ec3aa4775357b855e55bba3",
+      "size_bytes": 28979200
+    },
+    "admission_package": {
+      "key": "runs/preparation/step7b-aws-builder-020/admission-package.json",
+      "version_id": "aTB98nLWex1581wuzezmGZkQ3qxrP2Oz",
+      "sha256": "0a9f6a8db70f9ee1969ffa3798b3b02c28f68eb3cafe2ae3162cf4a65d9f3153",
+      "size_bytes": 2381
+    }
+  },
+  "instance": {
+    "account_id": "892077329800",
+    "region": "us-east-1",
+    "instance_id": "i-0f9fa01a181cccca2",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-02T09:36:53Z",
+    "terminal_state": "terminated",
+    "root_volume_id": "vol-03aa2c04d175a5e55",
+    "root_volume_state": "InvalidVolume.NotFound",
+    "security_group_id": "sg-0fafd831d4a66c8f6",
+    "security_group_state": "InvalidGroup.NotFound",
+    "termination_timestamp": null,
+    "verification_timestamp": "2026-08-02T11:04:21Z"
+  },
+  "rendered_user_data_sha256": "87bd5625fa8bc2f50446f4c319890a50e37e5c9f9a4287fabcb784fda18e99d4",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/step7b-aws-builder-020/outputs/",
+  "output_artifacts": {
+    "benchmark_worker_harness": {"key": "runs/preparation/step7b-aws-builder-020/outputs/benchmark-worker-harness.json", "version_id": "tvJ_lzpwb8SrosXoi75j9A41n8s2RZTB", "size_bytes": 152, "sha256": "7e8c1624d322c025c1f5d5874783c13a04195d2c2c67f996cd6978826619bfd9"},
+    "benchmark_worker_positive": {"key": "runs/preparation/step7b-aws-builder-020/outputs/benchmark-worker-positive.json", "version_id": "8vXQpRbwLWLXf4tyQkY.JT2Np5OlAJnj", "size_bytes": 148, "sha256": "afba4cdf5886c349fcaec503db1d7fd34c6be73a9e75c75accc27f5ac0241405"},
+    "benchmark_worker_wrong_hash": {"key": "runs/preparation/step7b-aws-builder-020/outputs/benchmark-worker-wrong-hash.json", "version_id": "gDJUhWflBmZ91JbKzjoTn4hpaLMnF4Yl", "size_bytes": 80, "sha256": "2f90830aa8afef34bdfcbaae655dd5a90c353f57c1daa8d675cc748b06a067d4"},
+    "benchmark_worker_sbom": {"key": "runs/preparation/step7b-aws-builder-020/outputs/benchmark-worker.spdx.json", "version_id": "HoVAO0HskeJI9qEEMnQ.vwTNk9SAaURP", "size_bytes": 25307677, "sha256": "4a39934092fc91e90a2cba7c6030078c538c46edca0f53d051f2687b73c92944"},
+    "bootstrap_status": {"key": "runs/preparation/step7b-aws-builder-020/outputs/bootstrap-status.json", "version_id": "KYC5AcDU.YAz7xkxKpmVh8cOm5eZrQyn", "size_bytes": 46, "sha256": "f64d6f3e5daca6f36022798a81113d1df04f8b5732f9063ae5e145b1ff7216e7"},
+    "bootstrap_log": {"key": "runs/preparation/step7b-aws-builder-020/outputs/bootstrap.log", "version_id": "16XEqcrwpRcld58Y1JB4EfwG6XJEQjZm", "size_bytes": 47657, "sha256": "39c772f814d3fccd41d884546c480993ecbbc311f6340f285d0d0376079e98ea"},
+    "buildx_builder_stderr": {"key": "runs/preparation/step7b-aws-builder-020/outputs/buildx-builder-stderr.txt", "version_id": "dvp56h1u312j5zSM5y6gqd1GEerTrUku", "size_bytes": 0, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    "buildx_builder": {"key": "runs/preparation/step7b-aws-builder-020/outputs/buildx-builder.txt", "version_id": "PtTY567ZjNFWrGKzzyIOzaeiRVzMIsKW", "size_bytes": 1335, "sha256": "78228155df304f0ef4ea273f3ea7255e96a841ee080a22da318624448218358d"},
+    "buildx_version": {"key": "runs/preparation/step7b-aws-builder-020/outputs/buildx-version.txt", "version_id": "tCLLkbD1I5gXH8rtYQDRrm_P8NEcSELk", "size_bytes": 74, "sha256": "b4bf86bfe454ff406daca442a45f72b3070388bff27ecf83fcb58643e52635a9"},
+    "controller_harness": {"key": "runs/preparation/step7b-aws-builder-020/outputs/controller-harness.json", "version_id": "7S5dCldgLSPRHXEX00LJhz2OMJjMvW3U", "size_bytes": 146, "sha256": "a74811a7db40688f8f0d68589779134d44e40fbd0f4b290fa0bc970043568907"},
+    "controller_positive": {"key": "runs/preparation/step7b-aws-builder-020/outputs/controller-positive.json", "version_id": "ffNIujmAbgpQeSnZGYoEa1j0ZxwWB5qo", "size_bytes": 142, "sha256": "c9243d9bff75e02d9a76a910c43c84ce736b37a7682216340e00d1a6570a128e"},
+    "controller_wrong_hash": {"key": "runs/preparation/step7b-aws-builder-020/outputs/controller-wrong-hash.json", "version_id": "3T6kRznTtgBGJSTksB9XEfFjqYw0ShWs", "size_bytes": 74, "sha256": "465d1798a7354fa208d6dcecf59e941620bef6d9d5bf70345fcee4c365accc9e"},
+    "controller_sbom": {"key": "runs/preparation/step7b-aws-builder-020/outputs/controller.spdx.json", "version_id": "sBFe_S5J5w6vAHYGX9qLJn.BhPv9xn88", "size_bytes": 25296943, "sha256": "a262b133aff91a2217123e53b93716b4597dc8b4a13f686b200b45521f12568f"},
+    "docker_info_before_build": {"key": "runs/preparation/step7b-aws-builder-020/outputs/docker-info-before-build.json", "version_id": "mepDtTiaK4qYdybNi44LA6aTH8cTuShh", "size_bytes": 1318, "sha256": "a97006e72a87922f49030fbeec153d05bb1101345b7c6ccf63501a7af180c442"},
+    "instance_identity": {"key": "runs/preparation/step7b-aws-builder-020/outputs/instance-identity.json", "version_id": "7WfNO9QDf1IogvtJHFHHoF.UnnCnaUDJ", "size_bytes": 185, "sha256": "3980dacf51d7259e45e8ecfca735e14c4b3c41895ceae87a3aaac2214878d54a"},
+    "model_server_harness": {"key": "runs/preparation/step7b-aws-builder-020/outputs/model-server-harness.json", "version_id": "bJhijNEJlj3eNA58jjbJBeG7_DkrnDjC", "size_bytes": 148, "sha256": "a660f6d25f38a2b5649e5fc264ef8ae8aaecba28fbb8da7979b271f1921aa8e2"},
+    "model_server_positive": {"key": "runs/preparation/step7b-aws-builder-020/outputs/model-server-positive.json", "version_id": "iu8AJqZskS0Io3MgAl08XGXPtL4wcwUM", "size_bytes": 144, "sha256": "ee4e030d28caaf32d8b91b91859f6f70984ef7c22b15607e0196529e63eae03e"},
+    "model_server_wrong_hash": {"key": "runs/preparation/step7b-aws-builder-020/outputs/model-server-wrong-hash.json", "version_id": "QHjstb79wUOUMkSLyBssAKjb3AYm8wUg", "size_bytes": 76, "sha256": "f5af82608e5fa36fa66b05d00d91a94ff0b857b23c764c52d5f87db8430f1189"},
+    "model_server_sbom": {"key": "runs/preparation/step7b-aws-builder-020/outputs/model-server.spdx.json", "version_id": "QLBxpz9yNa1u1hRsSexdbrXJW0L3gdyH", "size_bytes": 25300521, "sha256": "7d896c70810e725aeb757e0128eff023f68fa8cedce68c5292d6f8d2ef8d430d"},
+    "production_surface_harness": {"key": "runs/preparation/step7b-aws-builder-020/outputs/production-surface-harness.json", "version_id": "H0UDu_DKgGYR8EBbOJtSvG042H94T6DS", "size_bytes": 350, "sha256": "221ae3b1160b75407e88323a7c4545141aebada4cc5e178ad656fceca857e626"},
+    "step7b_build_receipts": {"key": "runs/preparation/step7b-aws-builder-020/outputs/step7b-build-receipts.json", "version_id": "AGoohMwZ1zvD.T8Mo9o0.pu9.ZgZyhV0", "size_bytes": 3232, "sha256": "a9ecb5148ac57c6ae2ac19673519db05b7587c07e43ecf0ea8d5e268c4889e00"}
+  },
+  "partial_results": {
+    "bootstrap": "ROLE_BUILDS_AND_SBOMS_COMPLETE",
+    "buildx": "v0.13.1_VERIFIED",
+    "buildkit": "v0.13.2_VERIFIED",
+    "controller": "REPRODUCIBLE_AND_PROBED",
+    "model-server": "REPRODUCIBLE_AND_PROBED",
+    "benchmark-worker": "REPRODUCIBLE_AND_PROBED",
+    "production_surface": "FAILED_IMAGE_BOUND_E2E_CHILD_ERROR_UNRESOLVED",
+    "scientific_execution": "NOT_RUN"
+  },
+  "teardown": {
+    "instance_termination_verified": true,
+    "root_volume_absence_verified": true,
+    "security_group_no_eni_verified": true,
+    "security_group_deletion_verified": true,
+    "verification_timestamp": "2026-08-02T11:04:21Z",
+    "method": "AWS root DescribeInstances found the instance terminated by shutdown; DescribeVolumes and DescribeNetworkInterfaces returned not-found; a fresh no-ENI read preceded one DeleteSecurityGroup call, and the post-query returned InvalidGroup.NotFound."
+  }
+}

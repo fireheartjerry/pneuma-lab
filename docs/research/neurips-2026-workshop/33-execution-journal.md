@@ -5234,3 +5234,32 @@ The next event after the archived migration boundary is appended below.
   locked base transfer and first controller export completed; the remainder
   is captured by the executor and will publish only on failure or completion.
   No model, benchmark, pilot, experiment, or scientific result is being run.
+
+### EJ-20260802-step7b-aws-builder-020-failure
+
+- **Terminal evidence:** The host published exactly 21 versioned output
+  objects, including all three double-build/probe/SBOM receipts and the
+  production-surface harness. `bootstrap-status.json` is
+  `{"state":"FAILED","reason":"bootstrap_error"}`. The outer executor
+  traceback is a `CalledProcessError` from `run_production_surface_e2e.py`;
+  no production-surface role receipt, surface receipt, or command receipt was
+  written, and the child stderr was not preserved.
+- **Classification:** The three image roles are
+  `REPRODUCIBLE_AND_PROBED`; the production surface is
+  `FAILED_IMAGE_BOUND_E2E_CHILD_ERROR_UNRESOLVED`. A local exact-harness run
+  with the existing debug images passed, so no cloud cause is promoted beyond
+  the observed fail-closed boundary. A fresh diagnostic action 021 must retain
+  child stderr and first-role invocation diagnostics. No model, benchmark,
+  pilot, experiment, or scientific result occurred.
+- **Receipt:** The complete object sizes, hashes, S3 versions, input bindings,
+  instance state, and teardown are sealed in
+  `evidence/step7b-aws-builder-failure-020-20260802.json`.
+
+### EJ-20260802-step7b-aws-builder-020-teardown
+
+- Fresh AWS root reads found the instance `i-0f9fa01a181cccca2` terminated by
+  shutdown, encrypted root `vol-03aa2c04d175a5e55` absent, and ENI
+  `eni-0494cd4ccf5ec48f9` absent. The temporary SG
+  `sg-0fafd831d4a66c8f6` had no ENI dependencies, was deleted once, and the
+  post-query returned `InvalidGroup.NotFound`. The projected USD 2.25 remains
+  pending billing settlement under CL-162/CL-163.

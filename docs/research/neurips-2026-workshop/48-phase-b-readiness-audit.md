@@ -148,12 +148,15 @@ bootstrap, image, SBOM, production surface, model, benchmark, pilot, or
 experiment ran. Action 019 is exhausted with zero retries; a fresh action 020
 must add a consistency-gated SG launch path.
 
-Action 020 is now the sole active qualification attempt. Its fresh SG was
-created and read back through the same CLI channel used for the launch; the
-one permitted launch succeeded for `i-0f9fa01a181cccca2`. The host is healthy,
-has completed its first controller export, and has not yet published the final
-receipt set. The production-surface gate remains open until the sealed output
-inventory and handshake receipt are independently verified.
+Action 020 was the sole admitted successor after the consistency race repair.
+Its fresh SG was created and read back through the same CLI channel used for
+the launch, and the one permitted launch succeeded for
+`i-0f9fa01a181cccca2`. All three image/SBOM gates passed, but the cloud
+image-bound production-surface subprocess failed closed before any handshake
+receipt. The 21-object output inventory and independent teardown are sealed in
+`evidence/step7b-aws-builder-failure-020-20260802.json`; the local exact-harness
+replay passes, while the cloud child stderr remains unpreserved. A fresh
+diagnostic action 021 is required; the production-surface gate remains open.
 
 Corrected successor action 015 is prepared but remains an unsigned candidate.
 It binds the repaired curl-minimal-safe bootstrap, source commit

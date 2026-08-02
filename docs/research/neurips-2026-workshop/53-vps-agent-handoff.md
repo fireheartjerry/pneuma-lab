@@ -186,13 +186,18 @@ created. The next action must bind the corrected bootstrap bytes afresh.
   exhausted with zero retries and its SG is deleted. Action 020 must bind a
   fresh SG and a consistency-gated creation/launch path; action 019's launch
   cannot be replayed.
-- Action 020 is now signed, uploaded, and launched once through that
-  consistency-gated CLI path. Instance `i-0f9fa01a181cccca2` is healthy and
-  running; the executor has completed the first controller export but has not
-  yet published its final output prefix. Continue monitoring the instance and
-  S3 receipt set; do not claim production-surface E2E until the sealed success
-  receipt verifies the handshake and all artifact hashes, then perform the
-  independent teardown.
+- Action 020 was signed, uploaded, and launched once through that
+  consistency-gated CLI path. It completed all three reproducible image
+  builds, positive/wrong-hash probes, and non-empty SBOMs, then failed closed
+  at the cloud image-bound production-surface subprocess before writing a
+  handshake receipt. The 21-object failure inventory and full cleanup are
+  sealed in `evidence/step7b-aws-builder-failure-020-20260802.json`; the
+  instance self-terminated, its encrypted root and ENI disappeared, and its
+  temporary SG was deleted once and verified absent. A local replay with the
+  exact harness and debug images passes, but the cloud child stderr was not
+  preserved, so a fresh action 021 must add diagnostic stderr/first-role
+  capture before any production-surface claim. No model, benchmark, pilot, or
+  experiment ran.
 - Step 14 now requires eight receipt classes: input lock, G-ROSTER, Step 7B,
   production surface, AWS account, one-GPU admission, interruption/recovery,
   and Windows/Linux portability.
