@@ -1,0 +1,115 @@
+{
+  "record_kind": "cloud_qualification_image_build_plan",
+  "schema_version": "0.1.0",
+  "action_id": "qualification-image-build-003",
+  "action_class": "image_build",
+  "provider": "aws",
+  "region": "us-east-1",
+  "frozen_timestamp": "2026-08-03T05:28:00Z",
+  "expires_timestamp": "2026-08-03T10:00:00Z",
+  "input_lock_sha256": null,
+  "projected_cost_usd": 6.0,
+  "cost_ceiling_usd": 25.0,
+  "max_retries": 0,
+  "source": {
+    "commit": "47f18e52f38aa66f689bae0bfc1adf9d62e6b313",
+    "archive": {
+      "s3_uri": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-003/source.tar",
+      "sha256": "f60202d77cc08a7c9b7086681491d2ff867fdf30942a48b3ff32d56a8d8cdb27",
+      "size_bytes": 29839360
+    },
+    "dockerfile": {
+      "path": "infra/docker/qualification-worker/Dockerfile",
+      "sha256": "ac1f24d9b0254c27606adec25e386731aae63ff65e03da28136afcc829902650"
+    },
+    "base_digest": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90"
+  },
+  "bootstrap": {
+    "template_path": "infra/aws/qualification-image-build-user-data.sh",
+    "template_sha256": "422387b263da942e3b4bd685edfaf31586faaee5e16416feaad0ce75b225391a",
+    "rendered_sha256": "8321fd8c33ae6eaf711a2c104b017505887c35d49389e8e3c183f13db44b4f5c",
+    "negative_check": {
+      "network": "none",
+      "qualification_code_supplied": false,
+      "expected_stderr_marker": "QUALIFICATION_CODE",
+      "expected_post_check_sentinel": true
+    }
+  },
+  "target": {
+    "repository_name": "pneuma-c160-worker",
+    "repository_uri": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker",
+    "image_tag": "qualification-image-build-003-47f18e5",
+    "platform": "linux/amd64",
+    "tag_mutability_required": "IMMUTABLE",
+    "scan_on_push_required": true
+  },
+  "builder": {
+    "ami_id": "ami-08bc385c9fc5afc94",
+    "instance_type": "m7i.xlarge",
+    "subnet_id": "subnet-0da0658f2703d3e58",
+    "vpc_id": "vpc-0baeaefeb8b57c19b",
+    "public_ip_required": true,
+    "root_device": "/dev/xvda",
+    "root_volume": {
+      "type": "gp3",
+      "size_gib": 650,
+      "encrypted": true,
+      "delete_on_termination": true
+    },
+    "imds": {
+      "http_tokens": "required",
+      "http_endpoint": "enabled",
+      "http_put_response_hop_limit": 2
+    },
+    "security_group": {
+      "name": "pneuma-qualification-image-build-003",
+      "description": "Pneuma qualification image build 003; no ingress",
+      "ingress": [],
+      "egress": [
+        {"protocol": "tcp", "from_port": 443, "to_port": 443, "cidr": "0.0.0.0/0"},
+        {"protocol": "tcp", "from_port": 53, "to_port": 53, "cidr": "172.31.0.2/32"},
+        {"protocol": "udp", "from_port": 53, "to_port": 53, "cidr": "172.31.0.2/32"}
+      ]
+    },
+    "instance_profile": {
+      "name": "pneuma-qualification-image-build-003",
+      "role_name": "pneuma-qualification-image-build-003",
+      "trust_policy_sha256": "eb54f2b2232042bad0389be2946bcd624bb46f470f9a1fd9e24d12cde08d72d6",
+      "permission_policy_sha256": "80a63586dd60fd09dcbbf802e7d2757ffa970b7d43ecae66f857d4c728fa183c"
+    },
+    "bootstrap_sha256": "8321fd8c33ae6eaf711a2c104b017505887c35d49389e8e3c183f13db44b4f5c",
+    "max_runtime_seconds": 7200,
+    "build_timeout_seconds": 6600,
+    "max_retries": 0
+  },
+  "cost": {
+    "projected_usd": 6.0,
+    "hard_ceiling_usd": 25.0,
+    "stop_if_projection_at_or_above_ceiling": true
+  },
+  "authority": {
+    "envelope_ledger_row_id": "CL-249",
+    "admission_ledger_row_id": "CL-250",
+    "expires_timestamp": "2026-08-03T10:00:00Z"
+  },
+  "constraints": {
+    "no_terraform": true,
+    "no_batch": true,
+    "no_gpu": true,
+    "no_spot": true,
+    "no_model_download": true,
+    "no_benchmark": true,
+    "no_pilot": true,
+    "no_experiment": true,
+    "no_qualification_run": true
+  },
+  "teardown": {
+    "terminate_builder": true,
+    "delete_root_volume": true,
+    "delete_security_group": true,
+    "delete_instance_profile": true,
+    "delete_builder_role": true,
+    "fresh_provider_absence_required": true
+  },
+  "plan_sha256": "13ee5c7f2c78b133174c0d6409e8d814b633b0034fd220d3888ef3d606e07e94"
+}
