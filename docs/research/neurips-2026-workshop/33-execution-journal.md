@@ -6292,3 +6292,35 @@ The next event after the archived migration boundary is appended below.
   Step 4B authority receipts that remain. Task 6–10 remain
   `implementation_complete; E2E_pending`; Step 14 remains `launch_blocked`.
   No scientific result or claim promotion exists.
+
+### EJ-20260803-qualification-image-build-008-complete
+
+- **Authority and build:** Fresh image-build action `qualification-image-build-008`
+  bound plan SHA-256
+  `534db19835984ea93b4844171117ed2f8d4b2280f647c048ceff9498bcfde048`, source
+  commit `e36dd15ac2524c29d0fb02a8705ec7fcc48fb34a`, source archive SHA-256
+  `1b1b927c1028bc4239157d2c00f0aaf677b29cd37a60ea1027b4c0215659e290`, and
+  signed package SHA-256
+  `af7d98ccc808589b4c94777131eb3b6cf22a6dc7a25d8efe0d3e2b63e62a49c0`.
+  KMS signing and direct KMS verification both returned valid
+  `ED25519_SHA_512` results.
+- **Runtime gate:** One fresh CPU-only `m7i.xlarge` built the exact
+  linux/amd64 image in 445 seconds. The image has the fixed
+  `/opt/pneuma/fixed_admission_entrypoint.sh` entrypoint, no CMD override,
+  matching source/base labels, executable AWS CLI v2 (`2.36.14`), importable
+  `pneuma_lab`, vLLM metadata `0.19.0`, and the worker-admission schema tree.
+  The network-none no-code check returned 2 with the required
+  `QUALIFICATION_CODE` marker. The new network-none CPU fake-transport check
+  materialized all five inputs, used only the `fixture-only-cuda` binding, and
+  published/retrieved one byte-identical immutable worker-0 raw object with
+  `model_loaded=false`.
+- **Image:** Fresh ECR reads agree on immutable reference
+  `892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:5433527fb588c009d6cf16a5ac4278c463bbb5fab0c0a6826147b4c98f2e83ff`.
+  The sanitized receipt is
+  `evidence/qualification-image-build-008-receipt-20260803.json` with
+  SHA-256 `0329b39be4caace7b5cb415cb49ecbd0fb19fa3e8e6a5ea99c07ef3f6e12a05a`.
+- **Teardown:** Builder `i-048f7b5f782c03563`, its root volume, action SG
+  `sg-0783798e008812e7c`, temporary profile/role, and action-tagged ENIs are
+  absent on fresh provider reads. No Terraform, Batch, GPU, Spot, model,
+  benchmark, pilot, experiment, unblind, analysis, or scientific result
+  occurred.
