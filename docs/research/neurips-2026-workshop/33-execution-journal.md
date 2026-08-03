@@ -7147,3 +7147,49 @@ post-launch terminal no-go. Tasks 6–10 remain
   mandatory teardown. No source upload, IAM/EC2 mutation, ECR push, Terraform,
   Batch, GPU, Spot, model, benchmark, pilot, official experiment, unblind,
   analysis, or claim promotion has occurred for action-013.
+
+### EJ-20260803-qualification-image-build-013-complete-and-teardown
+
+- **Exact result:** One fresh `m7i.xlarge` builder, instance
+  `i-0255a7f92583e9d7f`, launched exactly once and produced the immutable
+  linux/amd64 image digest
+  `sha256:6c256efdfbac62dc805465721e43295d2600d8dedb43486242a550a615c62d2f`.
+  The fixed entrypoint/CMD, AWS CLI v2, package import, network-none negative
+  admission check, CPU-only two-worker fixture, immutable pull/inspect, and
+  fail-closed self-bound post-push sidecar all passed. The retained raw S3
+  evidence contains 20 objects; both fixture worker records published 8,250
+  bytes with `model_loaded=false`.
+- **Bound timing and authority:** CloudTrail's first builder-role assumption
+  was `2026-08-03T20:40:46Z`; the final output object was written at
+  `2026-08-03T20:48:16Z`, an observed 450-second interval. The exact plan
+  binding is `4a23d3c5a8f9bc7f58664c8a01b2cc7af48577a82015081f4d41ff2517dbc15a`,
+  the signed package is
+  `7888c5cddc3c2332a3e9280c62b3960f5b57cab104f3549f6df51842c2925200`, and
+  the completed receipt is
+  `d6b7a7d903dea8ecb7a0a46a032341b9c26451b2dbeb867e3ddc1d290fa1085`.
+  KMS `ED25519_SHA_512` verification passed for both envelope and admission.
+- **Teardown and boundary:** The builder self-terminated; fresh reads prove
+  zero live action instances, tagged volumes, and ENIs, with the temporary
+  role/profile and SG absent. The qualified ECR digest/tag and 20-object S3
+  prefix remain as retained evidence. This is an image-build qualification
+  pass only; no Terraform qualification stack, Batch array, GPU/Spot worker,
+  model, benchmark, pilot, official P0/Step-4B experiment, unblind, analysis,
+  or claim promotion occurred.
+
+### EJ-20260803-dual-l40s-qualification-011-cloudtrail-reconciliation
+
+- **Forensic correction:** Read-only CloudTrail reconciliation found the exact
+  action-011 sequence: one `SubmitJob` at `2026-08-03T09:34:48Z`, the live
+  CloudTrail request document omitted the `timeout` field even though Batch
+  job readback retained `attemptDurationSeconds=3600`, then the teardown path
+  disabled the queue and Terraform deleted it at `2026-08-03T09:35:29Z`.
+  CloudTrail also records one Batch `RunTask` attempt before teardown. The
+  retained action receipt remains a no-go: no two-worker success, raw-artifact
+  pair, recovery receipt, or qualification pass exists.
+- **Repair:** The concrete runner now accepts the documented CloudTrail
+  omission only when the submitted parent job's live Batch timeout readback is
+  exactly 3,600 seconds; any present contradictory timeout still fails closed.
+  The focused runner suite passes 78 tests. This repair was made before any
+  successor Batch launch; action-011 was not retried.
+- **Boundary:** No scientific workload, model load, benchmark, pilot, official
+  P0/Step-4B experiment, unblind, analysis, or claim promotion occurred.

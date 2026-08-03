@@ -1304,13 +1304,35 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         timeout = request.get("timeout") or request.get("attemptDurationSeconds")
         if not isinstance(array_properties, Mapping) or not isinstance(retry_strategy, Mapping):
             raise CloudManifestError("CloudTrail SubmitJob event lacks fixed array bindings")
-        if (
-            array_properties.get("size") != 2
-            or retry_strategy.get("attempts") != 1
-            or not isinstance(timeout, Mapping)
+        if array_properties.get("size") != 2 or retry_strategy.get("attempts") != 1:
+            raise CloudManifestError("CloudTrail SubmitJob event differs from the fixed retry contract")
+        if timeout is not None and (
+            not isinstance(timeout, Mapping)
             or timeout.get("attemptDurationSeconds") != 3600
         ):
-            raise CloudManifestError("CloudTrail SubmitJob event differs from the fixed retry contract")
+            raise CloudManifestError("CloudTrail SubmitJob event differs from the fixed timeout contract")
+        if timeout is None:
+            # CloudTrail's Batch event shape may omit the timeout even though
+            # SubmitJob accepted it and the job record carries it.  Read the
+            # provider's authoritative job detail instead of converting that
+            # telemetry omission into an early teardown/no-go.
+            detail_response = self._call(
+                "batch", "describe-jobs", "--jobs", parent_job_id
+            )
+            detail_rows = detail_response.get("jobs", [])
+            if not isinstance(detail_rows, list) or len(detail_rows) != 1:
+                raise CloudManifestError(
+                    "Batch timeout readback did not return exactly one submitted parent"
+                )
+            detail_row = detail_rows[0]
+            observed_timeout = detail_row.get("timeout") if isinstance(detail_row, Mapping) else None
+            if (
+                not isinstance(observed_timeout, Mapping)
+                or observed_timeout.get("attemptDurationSeconds") != 3600
+            ):
+                raise CloudManifestError(
+                    "Batch timeout readback differs from the fixed timeout contract"
+                )
 
         def batch_identifier_matches(
             observed: Any, expected: str, *, job_definition: bool = False

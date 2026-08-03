@@ -2038,6 +2038,65 @@ def test_concrete_cli_captures_exact_cloudtrail_submit_event() -> None:
     assert evidence["submit_event_time_utc"] == "2026-08-03T09:34:48Z"
 
 
+def test_concrete_cli_uses_batch_timeout_readback_when_cloudtrail_omits_timeout() -> None:
+    tags = {
+        "QualificationPurpose": "dual-l40s-admission-only",
+        "QualificationTopology": "two-g6e-2xlarge-l40s",
+        "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
+        "QualificationAction": "qual-1",
+        "QualificationActionId": "qual-1",
+        "QualificationCode": "fixture-only-qualification-code",
+    }
+    event = {
+        "EventId": "event-omits-timeout",
+        "EventTime": "2026-08-03T09:34:48Z",
+        "CloudTrailEvent": json.dumps(
+            {
+                "eventName": "SubmitJob",
+                "responseElements": {"jobId": "parent"},
+                "requestParameters": {
+                    "jobName": "qual-1",
+                    "jobQueue": "qual-1",
+                    "jobDefinition": "qual-1-worker:1",
+                    "arrayProperties": {"size": 2},
+                    "retryStrategy": {"attempts": 1},
+                    "tags": tags,
+                },
+            }
+        ),
+    }
+
+    def run(argv, **kwargs):
+        if "submit-job" in argv:
+            return subprocess.CompletedProcess(
+                argv, 0, b'{"jobId":"parent"}', b""
+            )
+        if "cloudtrail" in argv:
+            return subprocess.CompletedProcess(
+                argv, 0, json.dumps({"Events": [event]}).encode(), b""
+            )
+        assert argv[0:3] == ["aws", "batch", "describe-jobs"]
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            json.dumps(
+                {"jobs": [{"jobId": "parent", "timeout": {"attemptDurationSeconds": 3600}}]}
+            ).encode(),
+            b"",
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    adapter.submit_array(size=2, timeout_seconds=3600, attempts=1, tags=tags)
+    evidence = adapter.capture_submit_evidence("parent")
+    assert evidence["submit_count_proven"] == 1
+
+
 def test_concrete_cli_rejects_same_name_cloudtrail_event_for_wrong_parent() -> None:
     tags = {
         "QualificationPurpose": "dual-l40s-admission-only",
