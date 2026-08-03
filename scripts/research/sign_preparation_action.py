@@ -24,6 +24,10 @@ from pneuma_lab.cloud.authorization_keys import (
     validate_key_registry,
 )
 from pneuma_lab.cloud.preparation_admission import envelope_digest, require_preparation_admission
+from pneuma_lab.cloud.qualification_execution import (
+    parse_terraform_show_json,
+    terraform_plan_binding_digest,
+)
 try:
     from scripts.research.sign_step5b_inventory_admission import _private_key
 except ModuleNotFoundError:
@@ -34,6 +38,52 @@ def plan_digest(plan: dict[str, Any]) -> str:
     body = dict(plan)
     body.pop("plan_sha256", None)
     return hashlib.sha256(canonical_bytes(body)).hexdigest()
+
+
+def execution_manifest_digest(plan: dict[str, Any]) -> str:
+    """Bind the exact saved Terraform plan and show bytes for execution."""
+
+    saved_sha = plan.get("saved_plan_sha256")
+    show_sha = plan.get("terraform_show_sha256")
+    if saved_sha is None and show_sha is None:
+        return plan_digest(plan)
+    if not isinstance(saved_sha, str) or not isinstance(show_sha, str):
+        raise ValueError(
+            "Terraform execution binding requires saved_plan_sha256 and "
+            "terraform_show_sha256 together"
+        )
+    saved_path_value = plan.get("saved_plan_path")
+    if not isinstance(saved_path_value, str) or not saved_path_value:
+        raise ValueError("Terraform execution binding lacks saved_plan_path")
+    saved_path = Path(saved_path_value)
+    observed_saved_sha = hashlib.sha256(saved_path.read_bytes()).hexdigest()
+    if observed_saved_sha != saved_sha:
+        raise ValueError("saved Terraform plan bytes do not match the signing plan")
+    directory = plan.get(
+        "terraform_directory", "infra/terraform/qualification"
+    )
+    if not isinstance(directory, str) or not directory:
+        raise ValueError("Terraform execution binding has an invalid directory")
+    result = subprocess.run(
+        [
+            "terraform",
+            f"-chdir={directory}",
+            "show",
+            "-json",
+            str(saved_path),
+        ],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        raise ValueError("terraform show failed while binding the signing plan")
+    observed_show_sha = parse_terraform_show_json(result.stdout)[
+        "terraform_show_sha256"
+    ]
+    if observed_show_sha != show_sha:
+        raise ValueError("Terraform show bytes do not match the signing plan")
+    return terraform_plan_binding_digest(saved_sha, show_sha)
 
 
 def _aws_json(arguments: list[str]) -> dict[str, Any]:
@@ -109,6 +159,7 @@ def main() -> int:
     digest = plan_digest(plan)
     if digest != plan["plan_sha256"]:
         raise ValueError("plan_sha256 does not match canonical plan bytes with that field removed")
+    manifest_sha256 = execution_manifest_digest(plan)
     granted = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     registry = validate_key_registry(json.loads(args.key_registry.read_text(encoding="utf-8")))
     registered = next((key for key in registry["keys"] if key["key_id"] == args.registry_key_id), None)
@@ -153,11 +204,15 @@ def main() -> int:
         envelope, admission, key_registry=registry, ledger_path=args.ledger,
         expected_action_id=plan["action_id"], expected_action_class=plan["action_class"],
         expected_provider=plan["provider"], expected_region=plan["region"],
-        expected_manifest_sha256=digest, expected_input_lock_sha256=plan["input_lock_sha256"],
+        expected_manifest_sha256=manifest_sha256,
+        expected_input_lock_sha256=plan["input_lock_sha256"],
         expected_projected_cost_usd=plan["projected_cost_usd"], expected_max_retries=plan["max_retries"],
         spend_history_sha256=canonical_ledger_digest(args.ledger),
     )
     package = {"record_kind": "cloud_preparation_signing_package", "plan_sha256": digest,
+               "saved_plan_sha256": plan.get("saved_plan_sha256"),
+               "terraform_show_sha256": plan.get("terraform_show_sha256"),
+               "terraform_plan_binding_sha256": manifest_sha256,
                "envelope_body_sha256": authorization_body_digest(envelope),
                "admission_body_sha256": authorization_body_digest(admission),
                "envelope": envelope, "admission": admission}

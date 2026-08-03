@@ -12,6 +12,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import time
 from typing import Any, Protocol
 
 from .ephemeral_qualification import (
@@ -30,6 +31,7 @@ from .qualification_execution import (
     parse_terraform_show,
     require_two_succeeded_children,
     retrieve_raw_measurement,
+    terraform_plan_binding_digest,
     verify_provider_bindings,
 )
 
@@ -50,6 +52,8 @@ EXPECTED_RESOURCE_ADDRESSES = frozenset(
 
 class QualificationProvider(Protocol):
     def preflight(self, tags: Mapping[str, str]) -> Mapping[str, Any]: ...
+
+    def wait_ready(self, tags: Mapping[str, str]) -> Mapping[str, Any]: ...
 
     def submit_array(
         self, *, size: int, timeout_seconds: int, attempts: int, tags: Mapping[str, str]
@@ -94,6 +98,7 @@ class TerraformAdapter:
         self.directory = directory
         self.plan_path: Path | None = None
         self.saved_plan_sha256: str | None = None
+        self.terraform_show_sha256: str | None = None
 
     def load_account_plan(self, plan_path: Path) -> dict[str, Any]:
         saved_plan = plan_path.read_bytes()
@@ -111,9 +116,17 @@ class TerraformAdapter:
         _require_resource_contract(plan)
         plan["terraform_show_sha256"] = parsed["terraform_show_sha256"]
         plan["saved_plan_sha256"] = saved_plan_sha256
+        plan["terraform_plan_binding_sha256"] = terraform_plan_binding_digest(
+            saved_plan_sha256, parsed["terraform_show_sha256"]
+        )
+        parsed["saved_plan_sha256"] = saved_plan_sha256
+        parsed["terraform_plan_binding_sha256"] = plan[
+            "terraform_plan_binding_sha256"
+        ]
         plan["_qualification"] = parsed
         self.plan_path = plan_path
         self.saved_plan_sha256 = saved_plan_sha256
+        self.terraform_show_sha256 = parsed["terraform_show_sha256"]
         return plan
 
     def apply(self, *, lock_timeout: str, tags: Mapping[str, str]) -> None:
@@ -123,6 +136,25 @@ class TerraformAdapter:
         if current_plan_sha256 != self.saved_plan_sha256:
             raise CloudManifestError(
                 "saved Terraform plan bytes changed after plan review"
+            )
+        if self.terraform_show_sha256 is None:
+            raise CloudManifestError("no exact Terraform show binding loaded")
+        show_result = self.run(
+            [
+                "terraform",
+                f"-chdir={self.directory}",
+                "show",
+                "-json",
+                str(self.plan_path),
+            ],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        current_show = _json_result(show_result)
+        if parse_terraform_show(current_show)["terraform_show_sha256"] != self.terraform_show_sha256:
+            raise CloudManifestError(
+                "Terraform show bytes changed after plan review"
             )
         result = self.run(
             [
@@ -229,6 +261,50 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
     def preflight(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
         return self._call("batch", "describe-job-queues", "--job-queues", self.queue)
 
+    def wait_ready(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
+        deadline = time.monotonic() + 600
+        while True:
+            environment_response = self._call(
+                "batch",
+                "describe-compute-environments",
+                "--compute-environments",
+                self.compute_environment,
+            )
+            queue_response = self._call(
+                "batch", "describe-job-queues", "--job-queues", self.queue
+            )
+            environments = environment_response.get("computeEnvironments", [])
+            queues = queue_response.get("jobQueues", [])
+            if (
+                isinstance(environments, list)
+                and len(environments) == 1
+                and isinstance(queues, list)
+                and len(queues) == 1
+            ):
+                environment = environments[0]
+                queue = queues[0]
+                environment_status = environment.get("status")
+                queue_status = queue.get("status")
+                if environment_status == "VALID" and queue_status == "VALID":
+                    return {
+                        "compute_environment_status": environment_status,
+                        "queue_status": queue_status,
+                    }
+                if environment_status in {"INVALID", "DELETING", "DELETED"}:
+                    raise CloudManifestError(
+                        "qualification compute environment is not usable: "
+                        f"{environment_status}"
+                    )
+                if queue_status in {"INVALID", "DELETING", "DELETED"}:
+                    raise CloudManifestError(
+                        f"qualification queue is not usable: {queue_status}"
+                    )
+            if time.monotonic() >= deadline:
+                raise CloudManifestError(
+                    "qualification environment and queue did not become VALID"
+                )
+            time.sleep(5)
+
     def pricing_projection(self, *, worker_seconds: int) -> float:
         data = self._call(
             "ec2",
@@ -278,24 +354,43 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         return self.parent_job_id
 
     def collect_admission(self, parent_job_id: str) -> Mapping[str, Any]:
-        parent_response = self._call("batch", "describe-jobs", "--jobs", parent_job_id)
-        parent_rows = parent_response.get("jobs", [])
-        if not isinstance(parent_rows, list) or len(parent_rows) != 1:
-            raise CloudManifestError(
-                "Batch describe-jobs did not return exactly one array parent"
+        deadline = time.monotonic() + 3600
+        while True:
+            parent_response = self._call(
+                "batch", "describe-jobs", "--jobs", parent_job_id
             )
-        parent = parent_rows[0]
-        children: list[dict[str, Any]] = []
-        for index in (0, 1):
-            detail = self._call(
-                "batch", "describe-jobs", "--jobs", f"{parent_job_id}:{index}"
-            )
-            rows = detail.get("jobs", [])
-            if not isinstance(rows, list) or len(rows) != 1:
+            parent_rows = parent_response.get("jobs", [])
+            if not isinstance(parent_rows, list) or len(parent_rows) != 1:
                 raise CloudManifestError(
-                    "Batch describe-jobs did not return exactly one array child"
+                    "Batch describe-jobs did not return exactly one array parent"
                 )
-            children.append(dict(rows[0]))
+            parent = dict(parent_rows[0])
+            children: list[dict[str, Any]] = []
+            for index in (0, 1):
+                detail = self._call(
+                    "batch", "describe-jobs", "--jobs", f"{parent_job_id}:{index}"
+                )
+                rows = detail.get("jobs", [])
+                if not isinstance(rows, list) or len(rows) != 1:
+                    raise CloudManifestError(
+                        "Batch describe-jobs did not return exactly one array child"
+                    )
+                children.append(dict(rows[0]))
+            if parent.get("status") == "FAILED" or any(
+                child.get("status") == "FAILED" for child in children
+            ):
+                require_two_succeeded_children(
+                    children, parent_status=parent.get("status")
+                )
+            if parent.get("status") == "SUCCEEDED" and all(
+                child.get("status") == "SUCCEEDED" for child in children
+            ):
+                break
+            if time.monotonic() >= deadline:
+                raise CloudManifestError(
+                    "qualification array did not reach terminal success"
+                )
+            time.sleep(5)
         first, second = require_two_succeeded_children(
             children, parent_status=parent.get("status")
         )
@@ -456,6 +551,15 @@ def require_account_plan(
     verify_provider_bindings(provider, parsed)
     if ledger_path is not None:
         derive_spend_history_binding(ledger_path)
+    saved_plan_sha256 = plan.get("saved_plan_sha256")
+    if not isinstance(saved_plan_sha256, str) or len(saved_plan_sha256) != 64:
+        raise CloudManifestError(
+            "account plan lacks the exact saved Terraform plan SHA-256"
+        )
+    parsed["saved_plan_sha256"] = saved_plan_sha256
+    parsed["terraform_plan_binding_sha256"] = terraform_plan_binding_digest(
+        saved_plan_sha256, parsed["terraform_show_sha256"]
+    )
     return parsed
 
 
@@ -540,7 +644,7 @@ def execute(
         expected_action_class="qualification_audit",
         expected_provider="aws",
         expected_region=config.region,
-        expected_manifest_sha256=parsed_plan["terraform_show_sha256"],
+        expected_manifest_sha256=parsed_plan["terraform_plan_binding_sha256"],
         expected_input_lock_sha256=parsed_plan.get("input_lock_sha256"),
         expected_projected_cost_usd=projected,
         expected_max_retries=MAX_RETRIES,
@@ -551,12 +655,16 @@ def execute(
     tags["QualificationAction"] = config.action_id
     tags["QualificationActionId"] = config.action_id
     tags["QualificationCode"] = str(parsed_plan["qualification_code"])
-    provider.preflight(tags)
+    preflight = provider.preflight(tags)
+    ready: Mapping[str, Any] | None = None
     parent_job_id: str | None = None
+    evidence: Mapping[str, Any] | None = None
+    recovery: Mapping[str, Any] | None = None
     failure: Exception | None = None
     cleanup_failure: Exception | None = None
     try:
         terraform.apply(lock_timeout=config.lock_timeout, tags=tags)
+        ready = provider.wait_ready(tags)
         parent_job_id = provider.submit_array(
             size=2,
             timeout_seconds=MAX_WORKER_RUNTIME_MINUTES * 60,
@@ -611,4 +719,14 @@ def execute(
         ) from cleanup_failure
     if failure is not None:
         raise CloudManifestError("qualification failed closed") from failure
-    return {"parent_job_id": parent_job_id, "tags": tags, "qualification_only": True}
+    return {
+        "parent_job_id": parent_job_id,
+        "tags": tags,
+        "qualification_only": True,
+        "projected_cost_usd": projected,
+        "preflight": preflight,
+        "ready": ready,
+        "evidence": evidence,
+        "recovery": recovery,
+        "absence": dict(absence),
+    }

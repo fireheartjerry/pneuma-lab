@@ -21,6 +21,10 @@ from pneuma_lab.cloud.ephemeral_runner import (
 from pneuma_lab.cloud.errors import CloudManifestError
 from pneuma_lab.cloud.fixed_admission_probe import build_raw_measurement
 from pneuma_lab.cloud.qualification_execution import worker_artifact_uri
+from pneuma_lab.cloud.qualification_execution import (
+    parse_terraform_show,
+    terraform_plan_binding_digest,
+)
 
 from .test_qualification_execution import _rungs
 
@@ -123,6 +127,7 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                 "change": {"actions": ["create"]},
             },
         ],
+        "saved_plan_sha256": hashlib.sha256(b"fixture-saved-plan").hexdigest(),
     }
 
 
@@ -155,6 +160,10 @@ class FakeProvider(ReadOnlyProvider):
     def preflight(self, tags):
         self.calls.append("preflight")
         return {"ok": True}
+
+    def wait_ready(self, tags):
+        self.calls.append("ready")
+        return {"compute_environment_status": "VALID", "queue_status": "VALID"}
 
     def pricing_projection(self, *, worker_seconds):
         self.calls.append("pricing")
@@ -226,7 +235,10 @@ class FakeTerraform:
 
 
 def authority(*args, **kwargs):
-    assert kwargs["expected_manifest_sha256"]
+    assert kwargs["expected_manifest_sha256"] == terraform_plan_binding_digest(
+        hashlib.sha256(b"fixture-saved-plan").hexdigest(),
+        parse_terraform_show(terraform_show())["terraform_show_sha256"],
+    )
     assert kwargs["spend_history_sha256"] == canonical_ledger_digest(LEDGER)
     return {"authorized": True}
 
@@ -248,6 +260,7 @@ def test_runner_verifies_real_plan_and_executes_exact_two_children() -> None:
     assert provider.calls == [
         "pricing",
         "preflight",
+        "ready",
         "submit:2:3600:1",
         "collect",
         "recovery",
@@ -371,11 +384,13 @@ def test_terraform_adapter_parses_show_json_before_future_apply() -> None:
         adapter.apply(lock_timeout="60s", tags={})
         assert calls[0][2:4] == ["show", "-json"]
         assert str(plan_path) in calls[1]
-        assert "-lock=false" not in calls[1]
+        assert calls[1][2:4] == ["show", "-json"]
+        assert str(plan_path) in calls[2]
+        assert "-lock=false" not in calls[2]
         plan_path.write_bytes(b"tampered-plan-bytes")
         with pytest.raises(CloudManifestError, match="plan bytes"):
             adapter.apply(lock_timeout="60s", tags={})
-        assert len(calls) == 2
+        assert len(calls) == 3
     finally:
         plan_path.unlink(missing_ok=True)
 
@@ -408,6 +423,33 @@ def test_aws_adapter_submission_is_one_tagged_size_two_array_without_command() -
     assert '--retry-strategy {"attempts":1}' in command
     assert "qual-1" in command
     assert "command" not in command
+
+
+def test_concrete_cli_waits_for_valid_environment_and_queue() -> None:
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        if "describe-compute-environments" in argv:
+            payload = {"computeEnvironments": [{"status": "VALID"}]}
+        else:
+            payload = {"jobQueues": [{"status": "VALID"}]}
+        return subprocess.CompletedProcess(argv, 0, json.dumps(payload).encode(), b"")
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="q",
+        job_definition="d",
+        output_root="s3://bucket/runs/qual-1",
+        compute_environment="ce",
+    )
+    assert adapter.wait_ready({}) == {
+        "compute_environment_status": "VALID",
+        "queue_status": "VALID",
+    }
+    assert any("describe-compute-environments" in call for call in calls)
+    assert any("describe-job-queues" in call for call in calls)
 
 
 def test_concrete_cli_adapter_accepts_only_two_succeeded_first_attempt_children(

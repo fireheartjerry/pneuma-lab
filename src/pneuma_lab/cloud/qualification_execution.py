@@ -36,6 +36,34 @@ from .retrieval import require_authorized
 QUALIFICATION_CODE_ENV = "QUALIFICATION_CODE"
 QUALIFICATION_ACTION_ID_ENV = "QUALIFICATION_ACTION_ID"
 RAW_MEASUREMENT_NAME = "raw-measurement.json"
+_TERRAFORM_RUNNER_METADATA_KEYS = frozenset(
+    {
+        "_qualification",
+        "saved_plan_sha256",
+        "terraform_plan_binding_sha256",
+        "terraform_show_sha256",
+    }
+)
+
+
+def terraform_plan_binding_digest(
+    saved_plan_sha256: str, terraform_show_sha256: str
+) -> str:
+    """Bind the exact saved plan bytes and parsed Terraform show bytes together."""
+
+    if not all(
+        isinstance(value, str) and len(value) == 64
+        for value in (saved_plan_sha256, terraform_show_sha256)
+    ):
+        raise CloudManifestError("Terraform plan binding requires two SHA-256 digests")
+    return hashlib.sha256(
+        canonical_bytes(
+            {
+                "saved_plan_sha256": saved_plan_sha256,
+                "terraform_show_sha256": terraform_show_sha256,
+            }
+        )
+    ).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -1199,6 +1227,11 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
             role_arns.append(candidate)
     vpc_id = variable("vpc_id")
     region = variable("region")
+    show_document = {
+        key: value
+        for key, value in document.items()
+        if key not in _TERRAFORM_RUNNER_METADATA_KEYS
+    }
     return {
         "action_id": action_id,
         "qualification_code": code,
@@ -1211,7 +1244,9 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         "region": region if isinstance(region, str) and region else None,
         "compute_resources": resources,
         "job_definition": container,
-        "terraform_show_sha256": hashlib.sha256(canonical_bytes(document)).hexdigest(),
+        "terraform_show_sha256": hashlib.sha256(
+            canonical_bytes(show_document)
+        ).hexdigest(),
     }
 
 
