@@ -1227,3 +1227,12 @@ acceptable substitute. Both artifacts are currently absent, so generation
 fails closed; the hostile review remains `launch_blocked`. A direct synthetic
 regression now covers complete authority-package validation and tamper
 rejection. No P0/Step 4B work or provider action occurred.
+
+The latest runner seam pass now requires complete empty output-prefix proof at
+both preflight and teardown, exact action-token freshness matching across
+nested evidence paths, and an explicit regular mode-600 `.tfvars` file for
+`--execute`. Its bytes are hash-checked through plan load, apply, and destroy,
+and the exact file is passed to locked destroy. Focused negative regressions,
+the CPU-only fixture check, Ruff, and status validation pass. These repairs are
+source-only; action-011 remains exhausted and no qualification or scientific
+launch was retried.

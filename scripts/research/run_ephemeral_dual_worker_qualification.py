@@ -46,6 +46,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--plan", type=Path)
+    parser.add_argument("--tfvars", type=Path)
     parser.add_argument("--action-id")
     parser.add_argument("--envelope", type=Path)
     parser.add_argument("--admission", type=Path)
@@ -72,6 +73,7 @@ def main() -> int:
         return 0
     required = (
         args.plan,
+        args.tfvars,
         args.action_id,
         args.envelope,
         args.admission,
@@ -101,7 +103,7 @@ def main() -> int:
             receipt_path=args.receipt,
             ledger_path=args.ledger,
         )
-        terraform = TerraformAdapter(subprocess.run)
+        terraform = TerraformAdapter(subprocess.run, variable_file=args.tfvars)
         terraform.initialize()
         account_plan = terraform.load_account_plan(args.plan)
         envelope = _json_file(args.envelope)

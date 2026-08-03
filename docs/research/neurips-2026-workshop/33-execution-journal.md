@@ -6663,3 +6663,26 @@ post-launch terminal no-go. Tasks 6–10 remain
   focused release checks. These remain implementation-path receipts only:
   they do not create P0 authority, an official experiment, unblind, analysis,
   or a scientific claim.
+
+### EJ-20260803-runner-absence-freshness-and-tfvars-binding-hardening
+
+- **Teardown proof repair:** The concrete runner now validates the complete
+  provider-absence object, including `artifact_prefix.empty == true` and an
+  exact zero object count, both before apply and after destroy. A provider
+  implementation that returned only truthy resource flags, or left an
+  action-scoped output object behind, can no longer pass the lifecycle path
+  before receipt construction.
+- **Action freshness repair:** Retained evidence is searched across each
+  relative path with exact action-token boundaries. A shorter action such as
+  `qual-1` no longer collides with `qual-10`, while receipts nested under an
+  action-named directory are now found.
+- **Terraform binding repair:** The concrete runner now requires an explicit
+  regular `.tfvars` file with mode `0600` under `--execute`, hashes it when
+  loading the exact saved plan, rechecks it before apply and destroy, and
+  passes that same immutable file to the locked destroy command. The stale
+  ignored `qualification.auto.tfvars` file can no longer silently select
+  teardown variables.
+- **Verification:** Focused runner/qualification tests and Ruff pass; the
+  CPU-only fixture check passes. Graphify was refreshed. No AWS mutation,
+  action-011 retry, new launch, scientific workload, unblind, analysis, or
+  claim promotion occurred.

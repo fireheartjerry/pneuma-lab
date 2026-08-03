@@ -259,6 +259,21 @@ A complete synthetic regression now exercises `validate_authority_evidence`
 and rejects tampered Terraform-show authority bytes. No scientific authority,
 P0 lineage, or provider action was created.
 
+## Runner absence, action-freshness, and tfvars binding repair
+
+The concrete runner now requires complete provider absence evidence at both
+preflight and post-destroy boundaries, including an empty action-scoped output
+prefix with exactly zero objects. It also searches retained evidence by exact
+action-token boundaries across nested relative paths, preventing both
+`qual-1`/`qual-10` collisions and directory-based freshness bypasses.
+
+The `--execute` path now requires an explicit regular mode-600 `.tfvars` file,
+hashes its bytes when loading the saved plan, rejects changes before apply or
+destroy, and passes that exact file to the locked destroy command. Focused
+negative regressions pass. These are source-only repairs; the stale action-011
+image, plan, authority package, and provider outcome remain historical and no
+relaunch occurred.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any

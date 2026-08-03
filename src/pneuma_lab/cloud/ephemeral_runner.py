@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import stat
 import time
 from typing import Any, Protocol
 from urllib.parse import unquote
@@ -103,6 +104,32 @@ ABSENT_PROVIDER_ERROR_CODES = frozenset(
 )
 
 
+def _require_complete_provider_absence(
+    absence: Mapping[str, Any], *, phase: str
+) -> dict[str, Any]:
+    """Require resource and output-prefix absence at every lifecycle boundary."""
+
+    if not isinstance(absence, Mapping):
+        raise CloudManifestError(f"qualification {phase} absence proof is not an object")
+    if not REQUIRED_ABSENCE_KEYS <= set(absence) or not all(
+        absence[key] is True for key in REQUIRED_ABSENCE_KEYS
+    ):
+        raise CloudManifestError(
+            f"qualification {phase} found residual action-scoped provider resources"
+        )
+    artifact = absence.get("artifact_prefix")
+    if not isinstance(artifact, Mapping):
+        raise CloudManifestError(
+            f"qualification {phase} absence proof lacks an output-prefix record"
+        )
+    object_count = artifact.get("object_count")
+    if artifact.get("empty") is not True or type(object_count) is not int or object_count != 0:
+        raise CloudManifestError(
+            f"qualification {phase} output prefix is not empty"
+        )
+    return dict(absence)
+
+
 class QualificationExecutionError(CloudManifestError):
     """A post-lifecycle failure carrying sanitized-receipt source evidence."""
 
@@ -123,10 +150,14 @@ def require_fresh_qualification_action(
     if not isinstance(action_id, str) or not action_id:
         raise CloudManifestError("qualification action id must be nonempty")
     if evidence_root.exists():
+        action_pattern = re.compile(
+            rf"(?<![a-z0-9]){re.escape(action_id)}(?![a-z0-9])"
+        )
         matches = sorted(
             path
             for path in evidence_root.rglob("*")
-            if path.is_file() and action_id in path.name
+            if path.is_file()
+            and action_pattern.search(path.relative_to(evidence_root).as_posix())
         )
         if matches:
             raise CloudManifestError(
@@ -242,15 +273,56 @@ class TerraformAdapter:
     """Terraform adapter whose subprocess is injectable and never retries."""
 
     def __init__(
-        self, run: CommandRunner, *, directory: str = "infra/terraform/qualification"
+        self,
+        run: CommandRunner,
+        *,
+        directory: str = "infra/terraform/qualification",
+        variable_file: Path | None = None,
     ) -> None:
         self.run = run
         self.directory = directory
+        self.variable_file = variable_file.resolve() if variable_file is not None else None
         self.plan_path: Path | None = None
         self.saved_plan_sha256: str | None = None
         self.terraform_show_sha256: str | None = None
         self.terraform_plan_binding_sha256: str | None = None
+        self.variable_file_sha256: str | None = None
         self.backend_initialized = False
+
+    def _capture_variable_file(self) -> str | None:
+        if self.variable_file is None:
+            return None
+        if self.variable_file.suffix != ".tfvars" or self.variable_file.is_symlink():
+            raise CloudManifestError(
+                "qualification Terraform variable file must be a regular .tfvars file"
+            )
+        try:
+            mode = stat.S_IMODE(self.variable_file.stat().st_mode)
+            payload = self.variable_file.read_bytes()
+        except OSError as exc:
+            raise CloudManifestError(
+                "qualification Terraform variable file is not readable"
+            ) from exc
+        if mode != 0o600:
+            raise CloudManifestError(
+                "qualification Terraform variable file must have mode 0600"
+            )
+        if not payload:
+            raise CloudManifestError("qualification Terraform variable file is empty")
+        return hashlib.sha256(payload).hexdigest()
+
+    def _require_variable_file_unchanged(self, phase: str) -> None:
+        if self.variable_file is None:
+            return
+        if self.variable_file_sha256 is None:
+            raise CloudManifestError(
+                f"qualification Terraform variable file was not bound before {phase}"
+            )
+        current = self._capture_variable_file()
+        if current != self.variable_file_sha256:
+            raise CloudManifestError(
+                f"qualification Terraform variable file changed before {phase}"
+            )
 
     def initialize(self) -> None:
         """Initialize the committed shared backend before reading or mutating state."""
@@ -279,6 +351,7 @@ class TerraformAdapter:
             raise CloudManifestError(
                 "terraform shared backend must be initialized before loading a plan"
             )
+        self.variable_file_sha256 = self._capture_variable_file()
         saved_plan = plan_path.read_bytes()
         saved_plan_sha256 = hashlib.sha256(saved_plan).hexdigest()
         result = self.run(
@@ -315,6 +388,7 @@ class TerraformAdapter:
             )
         if self.plan_path is None or self.saved_plan_sha256 is None:
             raise CloudManifestError("no exact saved account plan loaded")
+        self._require_variable_file_unchanged("apply")
         current_plan_sha256 = hashlib.sha256(self.plan_path.read_bytes()).hexdigest()
         if current_plan_sha256 != self.saved_plan_sha256:
             raise CloudManifestError(
@@ -381,15 +455,19 @@ class TerraformAdapter:
             raise CloudManifestError(
                 "terraform shared backend must be initialized before destroy"
             )
+        self._require_variable_file_unchanged("destroy")
+        arguments = [
+            "terraform",
+            f"-chdir={self.directory}",
+            "destroy",
+            "-input=false",
+            "-auto-approve",
+            f"-lock-timeout={lock_timeout}",
+        ]
+        if self.variable_file is not None:
+            arguments.append(f"-var-file={self.variable_file}")
         result = self.run(
-            [
-                "terraform",
-                f"-chdir={self.directory}",
-                "destroy",
-                "-input=false",
-                "-auto-approve",
-                f"-lock-timeout={lock_timeout}",
-            ],
+            arguments,
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -817,13 +895,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
 
     def preflight(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
         absence = self.verify_absence(tags)
-        if not REQUIRED_ABSENCE_KEYS <= set(absence) or not all(
-            bool(absence[key]) for key in REQUIRED_ABSENCE_KEYS
-        ):
-            raise CloudManifestError(
-                "qualification preflight found residual action-scoped provider resources"
-            )
-        return {"provider_absence": dict(absence)}
+        return {"provider_absence": _require_complete_provider_absence(absence, phase="preflight")}
 
     def wait_ready(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
         deadline = time.monotonic() + 600
@@ -1628,6 +1700,11 @@ def execute(
     tags["QualificationActionId"] = config.action_id
     tags["QualificationCode"] = str(parsed_plan["qualification_code"])
     preflight = provider.preflight(tags)
+    if not isinstance(preflight, Mapping):
+        raise CloudManifestError("qualification preflight evidence is not an object")
+    _require_complete_provider_absence(
+        preflight.get("provider_absence"), phase="preflight"
+    )
     ready: Mapping[str, Any] | None = None
     parent_job_id: str | None = None
     evidence: Mapping[str, Any] | None = None
@@ -1777,12 +1854,7 @@ def execute(
         raise QualificationExecutionError(
             "qualification teardown absence failed closed", context=context
         ) from exc
-    if not REQUIRED_ABSENCE_KEYS <= set(absence) or not all(
-        bool(absence[key]) for key in REQUIRED_ABSENCE_KEYS
-    ):
-        raise CloudManifestError(
-            "provider-side qualification teardown absence is incomplete"
-        )
+    _require_complete_provider_absence(absence, phase="teardown")
     context = {
         "plan": dict(parsed_plan),
         "authority": authority_result,

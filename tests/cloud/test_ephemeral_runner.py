@@ -20,6 +20,7 @@ from pneuma_lab.cloud.ephemeral_runner import (
     TerraformAdapter,
     execute,
     require_account_plan,
+    require_fresh_qualification_action,
     terraform_mutation_commands,
 )
 from pneuma_lab.cloud.errors import CloudManifestError
@@ -305,7 +306,7 @@ class FakeProvider(ReadOnlyProvider):
 
     def preflight(self, tags):
         self.calls.append("preflight")
-        return {"ok": True}
+        return {"provider_absence": self._absence_evidence()}
 
     def wait_ready(self, tags):
         self.calls.append("ready")
@@ -373,6 +374,10 @@ class FakeProvider(ReadOnlyProvider):
 
     def verify_absence(self, tags):
         self.calls.append("absence")
+        return self._absence_evidence()
+
+    @staticmethod
+    def _absence_evidence():
         return {
             key: True
             for key in (
@@ -386,6 +391,12 @@ class FakeProvider(ReadOnlyProvider):
                 "queue",
                 "compute_environment",
             )
+        } | {
+            "provider_history": {
+                "inactive_job_definition_history_retained_by_aws": False,
+                "inactive_job_definition_arn_sha256": None,
+            },
+            "artifact_prefix": {"empty": True, "object_count": 0},
         }
 
 
@@ -444,6 +455,49 @@ def test_runner_verifies_real_plan_and_executes_exact_two_children() -> None:
     assert provider.calls[-2:] == ["disable-drain", "absence"]
 
 
+def test_runner_requires_complete_preflight_absence_before_apply() -> None:
+    provider, terraform = FakeProvider(), FakeTerraform()
+    provider.preflight = lambda tags: {"ok": True}  # type: ignore[method-assign]
+    with pytest.raises(CloudManifestError, match="absence proof"):
+        execute(
+            RunnerConfig("qual-1", "us-east-1"),
+            envelope={},
+            admission={},
+            key_registry={},
+            ledger_path=LEDGER,
+            account_plan=terraform_show(),
+            provider=provider,
+            terraform=terraform,
+            verify_authority=authority,
+        )
+    assert terraform.calls == []
+
+
+def test_runner_rejects_nonempty_output_prefix_after_teardown() -> None:
+    provider, terraform = FakeProvider(), FakeTerraform()
+
+    def nonempty_absence(tags):
+        provider.calls.append("absence")
+        proof = provider._absence_evidence()
+        proof["artifact_prefix"] = {"empty": False, "object_count": 1}
+        return proof
+
+    provider.verify_absence = nonempty_absence  # type: ignore[method-assign]
+    with pytest.raises(CloudManifestError, match="output prefix is not empty"):
+        execute(
+            RunnerConfig("qual-1", "us-east-1"),
+            envelope={},
+            admission={},
+            key_registry={},
+            ledger_path=LEDGER,
+            account_plan=terraform_show(),
+            provider=provider,
+            terraform=terraform,
+            verify_authority=authority,
+        )
+    assert terraform.calls == ["apply:60s", "destroy:60s"]
+
+
 def test_receipt_runner_captures_and_validates_live_iam_before_apply() -> None:
     provider, terraform = FakeProvider(), FakeTerraform()
     result = execute(
@@ -484,6 +538,22 @@ def test_exhausted_action_id_is_rejected_before_provider_calls(tmp_path: Path) -
             verify_authority=authority,
         )
     assert provider.calls == [] and terraform.calls == []
+
+
+def test_fresh_action_id_does_not_match_a_longer_retained_action(tmp_path: Path) -> None:
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    (evidence_root / "qual-10-terminal-receipt.json").write_text("{}", encoding="utf-8")
+    require_fresh_qualification_action("qual-1", evidence_root=evidence_root)
+
+
+def test_exhausted_action_id_is_found_in_nested_evidence_path(tmp_path: Path) -> None:
+    evidence_root = tmp_path / "evidence"
+    nested = evidence_root / "qual-1" / "receipt"
+    nested.mkdir(parents=True)
+    (nested / "terminal.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(CloudManifestError, match="already represented"):
+        require_fresh_qualification_action("qual-1", evidence_root=evidence_root)
 
 
 def test_default_action_freshness_is_checked_before_provider_calls() -> None:
@@ -1024,8 +1094,11 @@ def test_concrete_cli_kms_verification_checks_registry_and_both_signatures() -> 
     assert record["registry_key_id"] == registry_key_id
 
 
-def test_terraform_adapter_parses_show_json_before_future_apply() -> None:
-    plan_path = Path("saved.tfplan")
+def test_terraform_adapter_parses_show_json_before_future_apply(tmp_path: Path) -> None:
+    plan_path = tmp_path / "saved.tfplan"
+    variable_file = tmp_path / "qualification.tfvars"
+    variable_file.write_text('qualification_action_id = "qual-1"\n', encoding="utf-8")
+    variable_file.chmod(0o600)
     calls = []
 
     def run(argv, **kwargs):
@@ -1038,7 +1111,7 @@ def test_terraform_adapter_parses_show_json_before_future_apply() -> None:
 
     try:
         plan_path.write_bytes(b"exact-plan-bytes")
-        adapter = TerraformAdapter(run)
+        adapter = TerraformAdapter(run, variable_file=variable_file)
         with pytest.raises(CloudManifestError, match="backend must be initialized"):
             adapter.load_account_plan(plan_path)
         adapter.initialize()
@@ -1062,12 +1135,54 @@ def test_terraform_adapter_parses_show_json_before_future_apply() -> None:
         adapter.destroy(lock_timeout="60s", tags={})
         assert calls[4][2:4] == ["destroy", "-input=false"]
         assert "-lock-timeout=60s" in calls[4]
+        assert f"-var-file={variable_file.resolve()}" in calls[4]
         plan_path.write_bytes(b"tampered-plan-bytes")
         with pytest.raises(CloudManifestError, match="plan bytes"):
             adapter.apply(lock_timeout="60s", tags={})
         assert len(calls) == 5
     finally:
         plan_path.unlink(missing_ok=True)
+
+
+def test_terraform_adapter_rejects_changed_variable_file_before_destroy(tmp_path: Path) -> None:
+    plan_path = tmp_path / "saved.tfplan"
+    variable_file = tmp_path / "qualification.tfvars"
+    variable_file.write_text('qualification_action_id = "qual-1"\n', encoding="utf-8")
+    variable_file.chmod(0o600)
+
+    def run(argv, **kwargs):
+        if argv[2] == "show":
+            return subprocess.CompletedProcess(
+                argv, 0, json.dumps(terraform_show()).encode(), b""
+            )
+        return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+    plan_path.write_bytes(b"exact-plan-bytes")
+    adapter = TerraformAdapter(run, variable_file=variable_file)
+    adapter.initialize()
+    adapter.load_account_plan(plan_path)
+    variable_file.write_text('qualification_action_id = "tampered"\n', encoding="utf-8")
+    variable_file.chmod(0o600)
+    with pytest.raises(CloudManifestError, match="variable file changed"):
+        adapter.destroy(lock_timeout="60s", tags={})
+
+
+def test_terraform_adapter_requires_mode_600_variable_file(tmp_path: Path) -> None:
+    plan_path = tmp_path / "saved.tfplan"
+    variable_file = tmp_path / "qualification.tfvars"
+    plan_path.write_bytes(b"exact-plan-bytes")
+    variable_file.write_text('qualification_action_id = "qual-1"\n', encoding="utf-8")
+    variable_file.chmod(0o644)
+
+    def run(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            argv, 0, json.dumps(terraform_show()).encode(), b""
+        )
+
+    adapter = TerraformAdapter(run, variable_file=variable_file)
+    adapter.initialize()
+    with pytest.raises(CloudManifestError, match="mode 0600"):
+        adapter.load_account_plan(plan_path)
 
 
 def test_aws_adapter_submission_is_one_tagged_size_two_array_without_command() -> None:

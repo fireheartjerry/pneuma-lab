@@ -151,3 +151,10 @@ created.
 
 No scientific result, benchmark/model result, pilot, unblind, analysis, or
 claim promotion exists.
+
+The current source-only runner hardening additionally requires complete empty
+output-prefix proof at preflight and teardown, exact action-token freshness
+matching across nested evidence paths, and an explicit mode-600 `.tfvars` file
+whose bytes remain unchanged through locked apply and destroy. These checks
+are covered by focused regressions; they do not alter the terminal action-011
+no-go or authorize another launch.
