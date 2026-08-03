@@ -55,6 +55,13 @@ run_pre_push_checks() {
     local image_ref="$1"
     local output_dir="$2"
     run_negative_entrypoint_check "$image_ref" "$output_dir"
+    if [[ "${3:-}" != "" ]]; then
+        docker run --rm --network none --read-only --tmpfs /tmp \
+            --entrypoint python3 \
+            --volume "$3:/work/qualification_image_fixture_check.py:ro" \
+            "$image_ref" /work/qualification_image_fixture_check.py \
+            > "$output_dir/fixture-runtime.json"
+    fi
     printf '{"stage":"post-negative-check","reached":true}\n' \
         > "$output_dir/post-negative-check-sentinel.json"
 }
@@ -101,7 +108,8 @@ if labels.get("org.opencontainers.image.base.digest") != sys.argv[3]:
 PY
     docker run --rm --network none --read-only --tmpfs /tmp --entrypoint /bin/sh "$IMAGE_REF" \
         -c 'test -d /opt/pneuma/pneuma_lab'
-    run_pre_push_checks "$IMAGE_REF" "$OUTPUT_DIR"
+    run_pre_push_checks "$IMAGE_REF" "$OUTPUT_DIR" \
+        "$SOURCE_ROOT/scripts/research/qualification_image_fixture_check.py"
     aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$REPOSITORY_URI" \
         > "$OUTPUT_DIR/ecr-login.txt"
     docker push "$IMAGE_REF" > "$OUTPUT_DIR/docker-push.log"

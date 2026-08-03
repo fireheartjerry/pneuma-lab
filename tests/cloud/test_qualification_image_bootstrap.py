@@ -59,3 +59,10 @@ def test_negative_check_expected_failure_reaches_post_check_sentinel(
     assert "if docker run" in BOOTSTRAP.read_text(encoding="utf-8")
     assert "set +e" not in BOOTSTRAP.read_text(encoding="utf-8")
     assert "trap - ERR" not in BOOTSTRAP.read_text(encoding="utf-8")
+
+
+def test_fixture_runtime_check_is_bound_after_the_negative_entrypoint_check() -> None:
+    text = BOOTSTRAP.read_text(encoding="utf-8")
+    assert "qualification_image_fixture_check.py" in text
+    assert "--network none" in text
+    assert 'run_pre_push_checks "$IMAGE_REF" "$OUTPUT_DIR"' in text
