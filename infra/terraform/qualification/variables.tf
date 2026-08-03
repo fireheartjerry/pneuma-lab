@@ -62,10 +62,18 @@ variable "subnet_ids" {
 
 variable "qualification_model" {
   type = string
+  validation {
+    condition     = var.qualification_model == "fixture-only-cuda"
+    error_message = "qualification_model must be the fixed fixture-only-cuda probe; subject-model execution is excluded."
+  }
 }
 
 variable "qualification_model_revision" {
   type = string
+  validation {
+    condition     = var.qualification_model_revision == "fixture-only-v1"
+    error_message = "qualification_model_revision must be the fixed fixture-only-v1 probe revision."
+  }
 }
 
 variable "protocol_path" {
