@@ -3,6 +3,14 @@ variable "region" {
   default = "us-east-1"
 }
 
+variable "vpc_id" {
+  type = string
+  validation {
+    condition     = can(regex("^vpc-[0-9a-f]+$", var.vpc_id))
+    error_message = "vpc_id must be a concrete VPC identifier bound to the verified subnets and security group."
+  }
+}
+
 variable "name_prefix" {
   type = string
 }

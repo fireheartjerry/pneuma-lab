@@ -1645,9 +1645,11 @@ def verify_provider_bindings(
         )
     if any(row.get("State") != "available" for row in subnets):
         raise CloudManifestError("a planned qualification subnet is not available")
-    if plan.get("vpc_id") is not None and any(
-        row.get("VpcId") != plan["vpc_id"] for row in subnets
-    ):
+    subnet_vpcs = {row.get("VpcId") for row in subnets}
+    if len(subnet_vpcs) != 1 or None in subnet_vpcs:
+        raise CloudManifestError("verified qualification subnets do not share one VPC")
+    observed_vpc = next(iter(subnet_vpcs))
+    if plan.get("vpc_id") is not None and observed_vpc != plan["vpc_id"]:
         raise CloudManifestError("verified subnet VPC differs from the Terraform plan")
     groups = adapter.describe_security_groups(tuple(plan["security_group_ids"]))
     if len(plan["security_group_ids"]) != 1 or len(groups) != 1:
@@ -1656,11 +1658,10 @@ def verify_provider_bindings(
         raise CloudManifestError(
             "planned security-group ids were not explicitly verified"
         )
-    if plan.get("vpc_id") is not None and any(
-        row.get("VpcId") != plan["vpc_id"] for row in groups
-    ):
+    group_vpcs = {row.get("VpcId") for row in groups}
+    if group_vpcs != {observed_vpc}:
         raise CloudManifestError(
-            "verified security-group VPC differs from the Terraform plan"
+            "verified security-group VPC differs from the verified subnet VPC"
         )
     if any(
         not isinstance(group.get("IpPermissions"), list)
@@ -1673,6 +1674,7 @@ def verify_provider_bindings(
         "role": dict(role),
         "roles": [dict(role), service_role, *([spot_role] if spot_role else [])],
         "instance_profile": dict(profile),
+        "vpc_id": observed_vpc,
         "service_role": service_role,
         "spot_fleet_role": spot_role,
         "subnets": subnets,

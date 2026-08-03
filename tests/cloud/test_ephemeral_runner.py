@@ -405,6 +405,22 @@ def test_instance_profile_requires_exactly_one_attached_role(role_count: int) ->
         verify_provider_bindings(provider, plan)
 
 
+def test_subnets_and_security_group_must_share_the_verified_vpc() -> None:
+    plan = parse_terraform_show(terraform_show())
+    provider = ReadOnlyProvider()
+    original = provider.describe_security_groups
+
+    def groups_in_wrong_vpc(group_ids):
+        rows = original(group_ids)
+        for row in rows:
+            row["VpcId"] = "vpc-wrong"
+        return rows
+
+    provider.describe_security_groups = groups_in_wrong_vpc  # type: ignore[method-assign]
+    with pytest.raises(CloudManifestError, match="security-group VPC"):
+        verify_provider_bindings(provider, plan)
+
+
 def test_ephemeral_plan_guard_rejects_a_plan_without_its_launch_template() -> None:
     candidate = terraform_show()
     candidate["resource_changes"] = [

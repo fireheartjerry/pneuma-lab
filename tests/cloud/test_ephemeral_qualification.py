@@ -84,6 +84,7 @@ def test_ephemeral_stack_has_destroyable_watchdog_and_no_retry_contract() -> Non
     assert "attempts = 1" in text
     assert not re.search(r"^\s*image_id\s*=", text, re.MULTILINE)
     assert 'variable "ami_id"' not in variables
+    assert 'variable "vpc_id"' in variables
     assert 'condition     = var.qualification_model == "fixture-only-cuda"' in variables
     assert 'condition     = var.qualification_model_revision == "fixture-only-v1"' in variables
     assert "AWS Batch-managed GPU/ECS AMI" in documentation
