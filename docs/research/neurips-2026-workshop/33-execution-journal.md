@@ -6650,3 +6650,16 @@ post-launch terminal no-go. Tasks 6–10 remain
 - **Boundary:** Focused Step 14/receipt tests and Ruff pass. This is source-only
   hardening: no AWS mutation, qualification relaunch, official P0/Step 4B
   workload, unblind, analysis, or claim promotion occurred.
+
+### EJ-20260803-current-checkout-continuity-rerun
+
+- **Task 6:** `task6_step4a_continuity.py` passed graph/pre-unblind binding,
+  frozen-input rehashing, blinded projection recomputation, gated unblind,
+  durable taint, task-block closure, and read-only run-root integrity.
+- **Task 7:** `task7_step4a_continuity.py` passed implementation-only power-final
+  schedulability, frozen config/seed/roster ancestry, live gate vocabulary,
+  verdict totality, gate recomputation, and row-count bounds.
+- **Task 10:** `tests/resampling_null/test_release.py -q` passed all five
+  focused release checks. These remain implementation-path receipts only:
+  they do not create P0 authority, an official experiment, unblind, analysis,
+  or a scientific claim.
