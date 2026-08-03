@@ -105,6 +105,8 @@ ABSENT_PROVIDER_ERROR_CODES = frozenset(
         "NoSuchEntity",
     }
 )
+CLOUDTRAIL_SUBMIT_EVIDENCE_TIMEOUT_SECONDS = 300
+CLOUDTRAIL_SUBMIT_EVIDENCE_POLL_SECONDS = 5
 
 
 def _require_complete_provider_absence(
@@ -1247,66 +1249,77 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                 "CloudTrail SubmitJob evidence was requested without the concrete submission"
             )
         expected_job_name = self._last_submit_tags["QualificationAction"]
+        deadline = time.monotonic() + CLOUDTRAIL_SUBMIT_EVIDENCE_TIMEOUT_SECONDS
         events: list[tuple[Mapping[str, Any], Mapping[str, Any]]] = []
-        next_token: str | None = None
-        seen_tokens: set[str] = set()
         while True:
-            arguments = [
-                "cloudtrail",
-                "lookup-events",
-                "--lookup-attributes",
-                "AttributeKey=EventName,AttributeValue=SubmitJob",
-                "--max-results",
-                "50",
-            ]
-            if next_token is not None:
-                arguments.extend(("--next-token", next_token))
-            response = self._call(*arguments)
-            page = response.get("Events", [])
-            if not isinstance(page, list):
-                raise CloudManifestError("CloudTrail lookup returned invalid Events")
-            for event in page:
-                if isinstance(event, Mapping):
-                    raw = event.get("CloudTrailEvent")
-                    if not isinstance(raw, str):
-                        continue
-                    try:
-                        detail = json.loads(raw)
-                    except json.JSONDecodeError as exc:
-                        raise CloudManifestError(
-                            "CloudTrail SubmitJob event was not valid JSON"
-                        ) from exc
-                    if not isinstance(detail, Mapping):
-                        continue
-                    response_elements = detail.get("responseElements") or {}
-                    request_parameters = detail.get("requestParameters") or {}
-                    observed_job_name = (
-                        request_parameters.get("jobName")
-                        if isinstance(request_parameters, Mapping)
-                        else None
-                    )
-                    observed_parent = (
-                        response_elements.get("jobId")
-                        if isinstance(response_elements, Mapping)
-                        else None
-                    )
-                    if detail.get("eventName") != "SubmitJob":
-                        continue
-                    if observed_parent == parent_job_id or observed_job_name == expected_job_name:
-                        if isinstance(observed_parent, str) and observed_parent:
-                            self._observed_action_job_ids.add(observed_parent)
-                        events.append((event, detail))
-            candidate = response.get("NextToken")
-            if not isinstance(candidate, str) or not candidate:
+            events = []
+            next_token: str | None = None
+            seen_tokens: set[str] = set()
+            while True:
+                arguments = [
+                    "cloudtrail",
+                    "lookup-events",
+                    "--lookup-attributes",
+                    "AttributeKey=EventName,AttributeValue=SubmitJob",
+                    "--max-results",
+                    "50",
+                ]
+                if next_token is not None:
+                    arguments.extend(("--next-token", next_token))
+                response = self._call(*arguments)
+                page = response.get("Events", [])
+                if not isinstance(page, list):
+                    raise CloudManifestError("CloudTrail lookup returned invalid Events")
+                for event in page:
+                    if isinstance(event, Mapping):
+                        raw = event.get("CloudTrailEvent")
+                        if not isinstance(raw, str):
+                            continue
+                        try:
+                            detail = json.loads(raw)
+                        except json.JSONDecodeError as exc:
+                            raise CloudManifestError(
+                                "CloudTrail SubmitJob event was not valid JSON"
+                            ) from exc
+                        if not isinstance(detail, Mapping):
+                            continue
+                        response_elements = detail.get("responseElements") or {}
+                        request_parameters = detail.get("requestParameters") or {}
+                        observed_job_name = (
+                            request_parameters.get("jobName")
+                            if isinstance(request_parameters, Mapping)
+                            else None
+                        )
+                        observed_parent = (
+                            response_elements.get("jobId")
+                            if isinstance(response_elements, Mapping)
+                            else None
+                        )
+                        if detail.get("eventName") != "SubmitJob":
+                            continue
+                        if observed_parent == parent_job_id or observed_job_name == expected_job_name:
+                            if isinstance(observed_parent, str) and observed_parent:
+                                self._observed_action_job_ids.add(observed_parent)
+                            events.append((event, detail))
+                candidate = response.get("NextToken")
+                if not isinstance(candidate, str) or not candidate:
+                    break
+                if candidate in seen_tokens:
+                    raise CloudManifestError("CloudTrail lookup pagination repeated a token")
+                seen_tokens.add(candidate)
+                next_token = candidate
+            if len(events) > 1:
+                raise CloudManifestError(
+                    "CloudTrail must contain exactly one SubmitJob event for the qualification action"
+                )
+            if events:
                 break
-            if candidate in seen_tokens:
-                raise CloudManifestError("CloudTrail lookup pagination repeated a token")
-            seen_tokens.add(candidate)
-            next_token = candidate
-        if len(events) != 1:
-            raise CloudManifestError(
-                "CloudTrail must contain exactly one SubmitJob event for the qualification action"
-            )
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise CloudManifestError(
+                    "CloudTrail SubmitJob evidence was not indexed before the bounded lookup deadline"
+                )
+            time.sleep(min(CLOUDTRAIL_SUBMIT_EVIDENCE_POLL_SECONDS, remaining))
         event, detail = events[0]
         response_elements = detail.get("responseElements")
         if (
@@ -1648,6 +1661,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                     raise CloudManifestError("Batch list-jobs pagination repeated a token")
                 seen_tokens.add(candidate)
                 next_token = candidate
+        return found
 
     def _list_cloudtrail_action_job_ids(self, action_id: str) -> set[str]:
         """Find every SubmitJob parent recorded for this exact action name."""

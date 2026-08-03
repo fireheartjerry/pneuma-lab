@@ -1743,6 +1743,43 @@ def test_concrete_cli_disables_and_drains_every_submitted_job(monkeypatch) -> No
     assert not any("terminate-job" in call for call in calls)
 
 
+def test_concrete_cli_cleanup_handles_empty_action_job_listing() -> None:
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        if "list-jobs" in argv:
+            return subprocess.CompletedProcess(
+                argv, 0, b'{"jobSummaryList":[]}', b""
+            )
+        if "describe-jobs" in argv:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                b'{"jobs":[{"jobId":"parent","status":"FAILED"},{"jobId":"parent:0","status":"FAILED"},{"jobId":"parent:1","status":"FAILED"}]}',
+                b"",
+            )
+        return subprocess.CompletedProcess(argv, 0, b"{}", b"")
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="q",
+        job_definition="d",
+        output_root="s3://bucket/runs/qual-1",
+        compute_environment="ce",
+    )
+    adapter.parent_job_id = "parent"
+    adapter.disable_and_drain({"QualificationActionId": "qual-1"})
+
+    assert sum("list-jobs" in call for call in calls) == 7
+    assert adapter._drained_action_job_ids == {
+        "parent",
+        "parent:0",
+        "parent:1",
+    }
+
+
 def test_concrete_cli_rejects_partial_drain_describe_results() -> None:
     def run(argv, **kwargs):
         if "describe-jobs" in argv:
@@ -2108,6 +2145,100 @@ def test_concrete_cli_captures_exact_cloudtrail_submit_event() -> None:
     assert evidence["array_size"] == 2
     assert evidence["retry_attempts"] == 1
     assert evidence["submit_event_time_utc"] == "2026-08-03T09:34:48Z"
+
+
+def test_concrete_cli_polls_empty_cloudtrail_until_submit_event_is_indexed(
+    monkeypatch,
+) -> None:
+    tags = {
+        "QualificationPurpose": "dual-l40s-admission-only",
+        "QualificationTopology": "two-g6e-2xlarge-l40s",
+        "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
+        "QualificationAction": "qual-1",
+        "QualificationActionId": "qual-1",
+        "QualificationCode": "fixture-only-qualification-code",
+    }
+    event = {
+        "EventId": "event-delayed",
+        "EventTime": "2026-08-03T09:34:48Z",
+        "CloudTrailEvent": json.dumps(
+            {
+                "eventName": "SubmitJob",
+                "responseElements": {"jobId": "parent"},
+                "requestParameters": {
+                    "jobName": "qual-1",
+                    "jobQueue": "qual-1",
+                    "jobDefinition": "qual-1-worker:1",
+                    "arrayProperties": {"size": 2},
+                    "retryStrategy": {"attempts": 1},
+                    "timeout": {"attemptDurationSeconds": 3600},
+                    "tags": tags,
+                },
+            }
+        ),
+    }
+    cloudtrail_responses = iter(
+        ({"Events": []}, {"Events": [event]})
+    )
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        if "submit-job" in argv:
+            return subprocess.CompletedProcess(argv, 0, b'{"jobId":"parent"}', b"")
+        assert "cloudtrail" in argv
+        return subprocess.CompletedProcess(
+            argv, 0, json.dumps(next(cloudtrail_responses)).encode(), b""
+        )
+
+    monkeypatch.setattr(
+        "pneuma_lab.cloud.ephemeral_runner.time.sleep", lambda _: None
+    )
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    adapter.submit_array(size=2, timeout_seconds=3600, attempts=1, tags=tags)
+    evidence = adapter.capture_submit_evidence("parent")
+
+    assert evidence["submit_count_proven"] == 1
+    assert sum("lookup-events" in call for call in calls) == 2
+
+
+def test_concrete_cli_cloudtrail_empty_result_has_a_bounded_fail_closed_deadline(
+    monkeypatch,
+) -> None:
+    tags = {
+        "QualificationPurpose": "dual-l40s-admission-only",
+        "QualificationTopology": "two-g6e-2xlarge-l40s",
+        "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
+        "QualificationAction": "qual-1",
+        "QualificationActionId": "qual-1",
+        "QualificationCode": "fixture-only-qualification-code",
+    }
+
+    def run(argv, **kwargs):
+        if "submit-job" in argv:
+            return subprocess.CompletedProcess(argv, 0, b'{"jobId":"parent"}', b"")
+        return subprocess.CompletedProcess(argv, 0, b'{"Events":[]}', b"")
+
+    monkeypatch.setattr(
+        "pneuma_lab.cloud.ephemeral_runner.CLOUDTRAIL_SUBMIT_EVIDENCE_TIMEOUT_SECONDS",
+        0,
+    )
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    adapter.submit_array(size=2, timeout_seconds=3600, attempts=1, tags=tags)
+    with pytest.raises(CloudManifestError, match="bounded lookup deadline"):
+        adapter.capture_submit_evidence("parent")
 
 
 def test_concrete_cli_uses_batch_timeout_readback_when_cloudtrail_omits_timeout() -> None:
