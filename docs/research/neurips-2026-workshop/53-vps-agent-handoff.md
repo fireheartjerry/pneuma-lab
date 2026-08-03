@@ -394,9 +394,11 @@ successor action from this handoff.
 
 The immutable fixture-only image was
 `sha256:5433527fb588c009d6cf16a5ac4278c463bbb5fab0c0a6826147b4c98f2e83ff`;
-the projection was USD 4.4842. IAM simulation was green for the five exact
-input reads and two exact worker writes and denied output reads, wrong-worker,
-other-action, unrelated-object, list, delete, abort, decrypt, and IAM paths.
+the projection was USD 4.4842. The sealed action-011 IAM simulation was green
+for the five exact input reads and two exact worker writes and denied output
+reads, wrong-worker, other-action, unrelated-object, list, delete, and abort
+within its historical 15-case matrix. The current source contract additionally
+denies KMS decrypt and IAM policy administration (17 fixed checks total).
 All live action resources are absent after teardown. AWS retains the
 deregistered `INACTIVE` job-definition revision as provider history; that is
 not a runnable resource. The receipt and exact hashes are in

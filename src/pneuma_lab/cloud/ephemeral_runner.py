@@ -149,10 +149,10 @@ def require_fresh_qualification_action(
 
     if not isinstance(action_id, str) or not action_id:
         raise CloudManifestError("qualification action id must be nonempty")
+    action_pattern = re.compile(
+        rf"(?<![A-Za-z0-9]){re.escape(action_id)}(?![A-Za-z0-9])"
+    )
     if evidence_root.exists():
-        action_pattern = re.compile(
-            rf"(?<![a-z0-9]){re.escape(action_id)}(?![a-z0-9])"
-        )
         matches = sorted(
             path
             for path in evidence_root.rglob("*")
@@ -174,10 +174,7 @@ def require_fresh_qualification_action(
                 "qualification freshness requires the authoritative spend ledger"
             )
         ledger_text = ledger_path.read_text(encoding="utf-8")
-        if re.search(
-            rf"(?<![a-z0-9-]){re.escape(action_id)}(?![a-z0-9-])",
-            ledger_text,
-        ):
+        if action_pattern.search(ledger_text):
             raise CloudManifestError(
                 "qualification action id is already represented in the spend ledger"
             )

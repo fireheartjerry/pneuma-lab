@@ -52,13 +52,15 @@ no AWS launch or retry occurred during this repair.
 
 ## Follow-up readiness seam repair
 
-The concrete runner now performs and validates the exact 15-case live IAM
+The concrete runner now performs and validates the exact 17-case live IAM
 simulation matrix before Terraform apply. Its sanitized digest is bound to the
 parsed plan's independently verified attached worker role and action-specific
-policy hash; the old caller-supplied matrix-hash argument is gone. The runner
-also rejects reuse of action IDs already represented in retained evidence and
-refuses receipt overwrite. Focused IAM/runner/receipt/schema regressions pass.
-No AWS mutation, relaunch, or scientific workload occurred.
+policy hash; the old caller-supplied matrix-hash argument is gone. The sealed
+action-011 receipt retains the historical 15-case matrix; the current source
+contract adds denied KMS-decrypt and IAM-policy-administration checks. The
+runner also rejects reuse of action IDs already represented in retained
+evidence and refuses receipt overwrite. Focused IAM/runner/receipt/schema
+regressions pass. No AWS mutation, relaunch, or scientific workload occurred.
 
 ## Second executable-path seam repair
 
@@ -199,3 +201,11 @@ negative regressions are green. No fresh provider evidence or action was
 created because the shared AWS browser/CLI reauthentication flow reached the
 sign-in page without available operator credentials; the action-011 terminal
 no-go and teardown receipt remain authoritative.
+
+## Latest source-only freshness and role repair
+
+Evidence and spend-ledger freshness checks now use one shared alphanumeric
+action-token boundary. The Terraform and provider paths also require the Spot
+fleet role ARN and verify its account-bound role readback. Focused regressions
+pass. This does not modify the sealed action-011 receipt or create a successor
+action.

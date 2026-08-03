@@ -1579,19 +1579,12 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
 
     spot_fleet_role_arn = variable("spot_fleet_role_arn")
     planned_spot_role = resources.get("spot_iam_fleet_role")
-    if spot_fleet_role_arn is None:
-        spot_fleet_role_name = None
-        if planned_spot_role is not None:
-            raise CloudManifestError(
-                "planned spot_iam_fleet_role is not absent while its Terraform variable is null"
-            )
-    else:
-        spot_fleet_role_name = _iam_binding_name(
-            spot_fleet_role_arn,
-            kind="role",
-            field="Spot fleet role",
-        )
-    if spot_fleet_role_arn is not None and planned_spot_role != spot_fleet_role_arn:
+    spot_fleet_role_name = _iam_binding_name(
+        spot_fleet_role_arn,
+        kind="role",
+        field="Spot fleet role",
+    )
+    if planned_spot_role != spot_fleet_role_arn:
         raise CloudManifestError(
             "planned spot_iam_fleet_role does not equal its Terraform role ARN"
         )
@@ -1796,15 +1789,10 @@ def verify_provider_bindings(
         plan.get("batch_service_role_name"),
         "Batch service role",
     )
-    spot_arn = plan.get("spot_fleet_role_arn")
-    spot_role = (
-        verify_role_binding(
-            spot_arn,
-            plan.get("spot_fleet_role_name"),
-            "Spot fleet role",
-        )
-        if spot_arn is not None
-        else None
+    spot_role = verify_role_binding(
+        plan.get("spot_fleet_role_arn"),
+        plan.get("spot_fleet_role_name"),
+        "Spot fleet role",
     )
     subnets = adapter.describe_subnets(tuple(plan["subnet_ids"]))
     if len(plan["subnet_ids"]) != len(QUALIFICATION_AZS) or len(subnets) != len(QUALIFICATION_AZS):
@@ -1845,7 +1833,7 @@ def verify_provider_bindings(
     return {
         "account_id": account_id,
         "role": dict(role),
-        "roles": [dict(role), service_role, *([spot_role] if spot_role else [])],
+        "roles": [dict(role), service_role, spot_role],
         "instance_profile": dict(profile),
         "vpc_id": observed_vpc,
         "service_role": service_role,

@@ -597,6 +597,22 @@ def test_exhausted_action_id_is_found_in_nested_evidence_path(tmp_path: Path) ->
         require_fresh_qualification_action("qual-1", evidence_root=evidence_root)
 
 
+def test_exhausted_action_id_uses_the_same_token_boundary_in_the_ledger(
+    tmp_path: Path,
+) -> None:
+    ledger = tmp_path / "ledger.md"
+    ledger.write_text(
+        "| prior-dual-l40s-qualification-011 | failed |\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(CloudManifestError, match="already represented"):
+        require_fresh_qualification_action(
+            "dual-l40s-qualification-011",
+            evidence_root=tmp_path / "evidence",
+            ledger_path=ledger,
+        )
+
+
 def test_default_action_freshness_is_checked_before_provider_calls() -> None:
     provider, terraform = FakeProvider(), FakeTerraform()
     with pytest.raises(CloudManifestError, match="already represented"):
@@ -787,6 +803,13 @@ def test_ephemeral_plan_guard_rejects_unmanaged_or_custom_ami(
     else:
         compute["compute_resources"][0][field] = value
     with pytest.raises(CloudManifestError, match=message):
+        parse_terraform_show(candidate)
+
+
+def test_ephemeral_plan_guard_requires_spot_fleet_role_binding() -> None:
+    candidate = terraform_show()
+    candidate["variables"]["spot_fleet_role_arn"]["value"] = None
+    with pytest.raises(CloudManifestError, match="Spot fleet role"):
         parse_terraform_show(candidate)
 
 

@@ -135,3 +135,9 @@ the compute environment to bind exactly one declared launch template. If both
 resources expose IDs, those IDs must match. Focused negative regressions pass;
 this does not alter the sealed action-011 terminal no-go or authorize a new
 launch.
+
+Freshness matching now uses one shared alphanumeric token boundary for both
+retained evidence paths and the authoritative spend ledger. Terraform-show
+admission and provider binding also require the concrete Spot fleet role ARN;
+it cannot be omitted and silently skip role verification. These are source-only
+repairs and do not authorize another launch.

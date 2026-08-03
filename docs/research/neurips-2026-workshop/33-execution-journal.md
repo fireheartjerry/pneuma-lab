@@ -6757,3 +6757,36 @@ post-launch terminal no-go. Tasks 6–10 remain
   shared browser/CLI flow but no operator credentials were available, so no
   new image, plan, AWS mutation, action, ledger row, qualification relaunch,
   scientific workload, unblind, analysis, or claim promotion occurred.
+
+### EJ-20260803-freshness-and-spot-role-hardening
+
+- **Freshness repair:** Evidence and spend-ledger action-token matching now
+  use the same alphanumeric boundary rule. A retained action token adjacent to
+  a hyphen cannot be missed by one freshness source and found by the other.
+- **Provider-role repair:** Terraform-show parsing and provider readback now
+  require the Spot fleet role ARN and verify it as a concrete account-bound
+  role. A missing role can no longer bypass the role readback by being treated
+  as an optional configuration.
+- **Evidence correction:** Closure prose now distinguishes the sealed
+  action-011 historical 15-case IAM matrix from the current 17-check source
+  contract, which adds denied KMS-decrypt and IAM-policy-administration checks.
+- **Boundary:** Focused freshness, Terraform, receipt, and changed-file Ruff
+  checks pass. No AWS mutation, image build, action, ledger row, relaunch,
+  scientific workload, unblind, analysis, or claim promotion occurred.
+
+### EJ-20260803-task6-7-continuity-rerun-and-step14-gate-check
+
+- **Task 6 read-only continuity:** The preserved Step 4A implementation root
+  passed graph binding, frozen-input integrity, projection recomputation,
+  blinded A-D surface, durable taint, task-block chain, and unchanged-root
+  checks. The root contained 1,392 files and was unchanged byte/mtime-wise.
+- **Task 7 read-only continuity:** The preserved implementation-verification
+  root passed schedulable power-final reload, manifest-bound inference seed,
+  roster ancestry, live gate vocabulary, totality, gate recomputation, verdict
+  reconstruction, and row-count binding. Its classification remains
+  implementation-only and not a scientific result.
+- **Step 14 gate:** The campaign-spec builder failed closed with exit 2 because
+  the canonical P0 power report and P0 core artifact-root receipt are absent.
+  This is the intended `launch_blocked` result, not a software failure.
+- **Boundary:** No canonical P0/Step 4B lineage, provider action, unblind,
+  analysis, claim promotion, or scientific result was created.

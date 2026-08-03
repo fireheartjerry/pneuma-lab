@@ -1266,3 +1266,10 @@ one launch template whose concrete ID agrees with the declared launch-template
 resource. Focused mismatch regressions pass. This is source-only hardening;
 action-011 remains exhausted and no AWS mutation or scientific workload was
 run.
+
+The current source-only pass also unifies action-token freshness matching
+between retained evidence and the spend ledger, requires a concrete Spot fleet
+role in both Terraform-show admission and provider readback, and corrects the
+closure record's historical 15-case versus current 17-check IAM distinction.
+Focused regressions pass; action-011 remains sealed and no provider action was
+performed.

@@ -18,8 +18,11 @@ workload, unblind, scientific analysis, or claim promotion occurred.
   `sha256:5433527fb588c009d6cf16a5ac4278c463bbb5fab0c0a6826147b4c98f2e83ff`
 - IAM simulation: **pass**. Five exact input `GetObject` reads and two exact
   worker-indexed `PutObject` writes were allowed. Output reads, wrong-worker,
-  other-action, unrelated-object, `ListBucket`, delete, abort, decrypt, and
-  IAM administration were denied. Policy SHA-256:
+  other-action, unrelated-object, `ListBucket`, delete, and abort were denied
+  in the sealed action-011 15-case matrix. The current source contract adds
+  separate denied `kms:Decrypt` and `iam:PutRolePolicy` checks, for 17 fixed
+  checks total; those two checks were not part of the historical action-011
+  record. Policy SHA-256:
   `73666739e4e41f136fd11049715130e9b5086e6cafc21cee642ebe179fb0f24b`.
 - Plan hashes:
   - saved plan:
@@ -342,3 +345,22 @@ launch-template resource ID. Focused queue/template mismatch regressions and
 changed-file Ruff pass. AWS reauthentication did not yield operator
 credentials, so no fresh image, plan, AWS mutation, action, or relaunch was
 performed; action-011 remains the single sealed terminal no-go.
+
+## Latest freshness and provider-role hardening
+
+The runner now applies the same alphanumeric action-token boundary when
+searching retained evidence and the authoritative spend ledger. Terraform-show
+admission and provider readback now require and verify the concrete Spot fleet
+role ARN instead of allowing a missing role to skip verification. A focused
+ledger-boundary regression and Spot-role regression pass. No AWS mutation or
+qualification relaunch occurred.
+
+## Continuity and release-gate revalidation
+
+The read-only Task 6 continuity check passed graph/freeze/projection/blinding,
+taint, task-block, and unchanged-root checks over the preserved implementation
+verification root. The read-only Task 7 check passed authority reload, seed,
+roster, live vocabulary, gate, verdict, and row-count checks; both remain
+implementation verification only. The Step 14 campaign-spec builder correctly
+exited 2 and named the missing canonical P0 power report and P0 core receipt,
+so `launch_blocked` remains the honest disposition.

@@ -243,6 +243,26 @@ def test_validate_authority_evidence_rejects_kms_drift() -> None:
         )
 
 
+@pytest.mark.parametrize("field", ["envelope_signature_valid", "admission_signature_valid"])
+def test_validate_authority_evidence_rejects_missing_kms_signature_status(
+    field: str,
+) -> None:
+    authority, package_bytes, envelope, admission, plan = _authority_evidence_fixture()
+    tampered = deepcopy(authority)
+    tampered["kms"].pop(field)
+    with pytest.raises(CloudManifestError, match="KMS authority verification"):
+        validate_authority_evidence(
+            tampered,
+            package_bytes=package_bytes,
+            envelope=envelope,
+            admission=admission,
+            action_id="dual-l40s-qualification-012",
+            region="us-east-1",
+            plan=plan,
+            projected_cost_usd=4.48,
+        )
+
+
 def test_current_terminal_no_go_receipt_is_schema_bound() -> None:
     record = json.loads(RECEIPT.read_text(encoding="utf-8"))
     validated = validate_ephemeral_dual_worker_qualification_receipt(record)
