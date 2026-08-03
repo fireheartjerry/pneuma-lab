@@ -192,7 +192,7 @@ def main() -> int:
         "frozen_timestamp": granted, "status": "authorized",
         "preparation_envelope_sha256": envelope_digest(envelope), "action_id": plan["action_id"],
         "action_class": plan["action_class"], "provider": plan["provider"], "region": plan["region"],
-        "input_lock_sha256": plan["input_lock_sha256"], "manifest_sha256": digest,
+        "input_lock_sha256": plan["input_lock_sha256"], "manifest_sha256": manifest_sha256,
         "prior_envelope_spend_usd": 0.0, "projected_cost_usd": plan["projected_cost_usd"],
         "max_retries": plan["max_retries"], "spend_history_sha256": canonical_ledger_digest(args.ledger),
         "teardown_protected": True, "expires_timestamp": args.expires,
