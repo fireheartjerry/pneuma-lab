@@ -536,6 +536,8 @@ def test_terraform_and_image_contract_preserve_qualification_tags_and_entrypoint
     assert "command = []" not in main
     assert 'CMD ["inspect"]' not in dockerfile.read_text(encoding="utf-8")
     dockerfile_text = dockerfile.read_text(encoding="utf-8")
+    assert "https://archive.ubuntu.com" in dockerfile_text
+    assert "https://security.ubuntu.com" in dockerfile_text
     assert "apt-get install --yes --no-install-recommends" in dockerfile_text
     assert "awscli" in dockerfile_text
     assert (

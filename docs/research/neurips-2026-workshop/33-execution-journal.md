@@ -6113,3 +6113,31 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** CL-247 records the no-go and CL-248 records teardown closure.
   No P0, Step 4B, benchmark, pilot, model experiment, unblind, analysis, or
   claim promotion occurred.
+
+### EJ-20260803-qualification-image-build-003-no-go
+
+- **Trigger and authority:** The pinned qualification image passed its local
+  entrypoint/package checks but lacked an executable AWS CLI. Fresh action
+  `qualification-image-build-003` was authorized only to repair that runtime
+  dependency, with plan SHA-256
+  `13ee5c7f2c78b133174c0d6409e8d814b633b0034fd220d3888ef3d606e07e94`, fresh
+  source archive SHA-256
+  `f60202d77cc08a7c9b7086681491d2ff867fdf30942a48b3ff32d56a8d8cdb27`, and
+  signed package SHA-256
+  `7c73acd1f3c3538f8b13258fca08d176cf1afe28555034e2b0a1a10e16b42779`.
+  CL-249/250 bound one m7i.xlarge CPU builder, 650 GiB encrypted root,
+  HTTPS/DNS-only egress, 7,200 seconds, USD 25 ceiling, and zero retries.
+- **No-go:** The one builder `i-0fc3bfa6705aec7a3` reached the Docker build,
+  but `apt-get` could not reach the base Ubuntu HTTP repositories through the
+  no-ingress/443-only SG, so `awscli` was unavailable and the build failed
+  before image inspection, negative check, or ECR push. No Terraform, Batch,
+  GPU, Spot, model, benchmark, pilot, experiment, or qualification run
+  occurred. Action-003 is exhausted; it will not be retried.
+- **Teardown:** The builder was terminated; fresh reads prove its 650 GiB
+  root `vol-0b173f8d144cfbac7`, SG `sg-0c2cc58eaa4f4b60c`, action-tagged ENIs,
+  temporary profile/role, and unique ECR tag absent. The sanitized receipt is
+  `evidence/qualification-image-build-003-receipt-20260803.json` with
+  SHA-256 `edf823000ab2e24111d224cf2a1517dbdf9fcbe67d5c9327c018891afeeb4118`.
+- **Successor boundary:** The source-only repair rewrites the base image's
+  Ubuntu archive/security sources to HTTPS before installing `awscli`; it
+  preserves the sealed network boundary and requires a fresh successor action.

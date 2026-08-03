@@ -1,0 +1,92 @@
+{
+  "record_kind": "cloud_qualification_image_build_receipt",
+  "schema_version": "0.1.0",
+  "receipt_sha256": "edf823000ab2e24111d224cf2a1517dbdf9fcbe67d5c9327c018891afeeb4118",
+  "action_id": "qualification-image-build-003",
+  "action_class": "image_build",
+  "status": "FAILED",
+  "provider": "aws",
+  "account_id": "892077329800",
+  "region": "us-east-1",
+  "authority": {
+    "plan_sha256": "13ee5c7f2c78b133174c0d6409e8d814b633b0034fd220d3888ef3d606e07e94",
+    "signing_package_sha256": "7c73acd1f3c3538f8b13258fca08d176cf1afe28555034e2b0a1a10e16b42779",
+    "envelope_ledger_row": "CL-249",
+    "admission_ledger_row": "CL-250",
+    "max_retries": 0
+  },
+  "source": {
+    "commit": "47f18e52f38aa66f689bae0bfc1adf9d62e6b313",
+    "archive_uri": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-003/source.tar",
+    "archive_sha256": "f60202d77cc08a7c9b7086681491d2ff867fdf30942a48b3ff32d56a8d8cdb27",
+    "archive_size_bytes": 29839360,
+    "dockerfile": "infra/docker/qualification-worker/Dockerfile",
+    "dockerfile_sha256": "ac1f24d9b0254c27606adec25e386731aae63ff65e03da28136afcc829902650",
+    "base_digest": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90",
+    "bootstrap_sha256": "8321fd8c33ae6eaf711a2c104b017505887c35d49389e8e3c183f13db44b4f5c"
+  },
+  "target": {
+    "repository_uri": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker",
+    "image_tag": "qualification-image-build-003-47f18e5",
+    "platform": "linux/amd64",
+    "ecr_image_digest": null,
+    "fresh_ecr_tag_absent": true
+  },
+  "builder": {
+    "instance_id": "i-0fc3bfa6705aec7a3",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-03T05:33:30Z",
+    "bootstrap_observation_time": "2026-08-03T05:39:23Z",
+    "observed_builder_elapsed_seconds": 353,
+    "ami_id": "ami-08bc385c9fc5afc94",
+    "subnet_id": "subnet-0da0658f2703d3e58",
+    "vpc_id": "vpc-0baeaefeb8b57c19b",
+    "security_group_id": "sg-0c2cc58eaa4f4b60c",
+    "root_volume_id": "vol-0b173f8d144cfbac7",
+    "root_volume_gib": 650,
+    "root_volume_encrypted": true,
+    "root_delete_on_termination": true,
+    "imds_http_tokens": "required",
+    "instance_state": "terminated"
+  },
+  "failure": {
+    "stage": "docker_build",
+    "reason": "bootstrap_error",
+    "error_class": "apt_package_unavailable",
+    "detail": "awscli could not be located because the base Ubuntu archive/security sources used HTTP while the no-ingress builder allowed only HTTPS/DNS",
+    "no_ecr_push": true,
+    "no_negative_check": true
+  },
+  "builder_output": {
+    "s3_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-003/outputs/",
+    "status_sha256": "45e93f3dbc3042ea7983708a500d858ec71764b7ac5f3f074cc497b193c1d3b9",
+    "bootstrap_log_sha256": "e1e766fbe48a03d1aa317bc79c7b158f8526e99899a6f3ea9cb8ad0672242c5a",
+    "identity_object_present": true,
+    "docker_version_object_present": true
+  },
+  "teardown": {
+    "builder": "terminated",
+    "root_volume": "absent",
+    "security_group": "absent",
+    "instance_profile": "absent",
+    "iam_role": "absent",
+    "network_interfaces": [],
+    "fresh_provider_absence": true
+  },
+  "cost": {
+    "projected_usd": 6.0,
+    "hard_ceiling_usd": 25.0,
+    "settled_cost": "pending billing settlement"
+  },
+  "forbidden_actions": [
+    "terraform",
+    "batch",
+    "gpu",
+    "spot",
+    "model_download",
+    "benchmark",
+    "pilot",
+    "experiment",
+    "qualification_run"
+  ]
+}

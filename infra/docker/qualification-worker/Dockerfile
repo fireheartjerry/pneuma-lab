@@ -9,7 +9,11 @@ LABEL org.opencontainers.image.source="https://github.com/fireheartjerry/pneuma-
 # The upstream serving image is immutable but its Ubuntu packages age. Apply
 # every security update available at build time; the resulting ECR digest and
 # scan receipt, not this mutable package operation, are the execution pin.
-RUN apt-get update \
+RUN sed -i \
+        -e 's|http://archive.ubuntu.com|https://archive.ubuntu.com|g' \
+        -e 's|http://security.ubuntu.com|https://security.ubuntu.com|g' \
+        /etc/apt/sources.list /etc/apt/sources.list.d/*.list \
+    && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
         awscli \
     && DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade --yes \
