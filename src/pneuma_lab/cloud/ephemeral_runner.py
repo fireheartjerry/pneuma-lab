@@ -1269,8 +1269,14 @@ def require_account_plan(
     parsed["output_prefix"] = parsed["output_path"]
     if ledger_path is not None:
         derive_spend_history_binding(ledger_path)
+
+    def valid_sha256(value: Any) -> bool:
+        return isinstance(value, str) and len(value) == 64 and all(
+            character in "0123456789abcdef" for character in value
+        )
+
     saved_plan_sha256 = plan.get("saved_plan_sha256")
-    if not isinstance(saved_plan_sha256, str) or len(saved_plan_sha256) != 64:
+    if not valid_sha256(saved_plan_sha256):
         raise CloudManifestError(
             "account plan lacks the exact saved Terraform plan SHA-256"
         )
@@ -1282,11 +1288,6 @@ def require_account_plan(
         if isinstance(loaded_metadata, Mapping)
         else None
     )
-
-    def valid_sha256(value: Any) -> bool:
-        return isinstance(value, str) and len(value) == 64 and all(
-            character in "0123456789abcdef" for character in value
-        )
 
     present_sources = [
         value

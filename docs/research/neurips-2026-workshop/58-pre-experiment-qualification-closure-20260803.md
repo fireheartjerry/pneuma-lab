@@ -89,10 +89,12 @@ action ID already represented in retained evidence. Both are repaired:
 
 - `iam simulate-principal-policy` now runs the fixed 15-case matrix derived
   from the parsed action plan: five exact input reads, two worker-indexed raw
-  writes, and eight denied reads/writes/list/delete/abort cases. The retained
-  record is sanitized, bound to the independently verified attached role and
-  action-specific policy hash, and rehashed before apply and again at receipt
-  serialization.
+  writes, and eight denied reads/writes/list/delete/abort cases. The future
+  path adds two more denied checks for KMS decrypt and IAM policy
+  administration (17 fixed checks total); the sealed action-011 record remains
+  the historical 15-case matrix. Every retained record is sanitized, bound to
+  the independently verified attached role and action-specific policy hash,
+  and rehashed before apply and again at receipt serialization.
 - The attached worker role ARN returned by the profile/read-role checks is
   carried into the parsed plan for IAM simulation; the instance-profile ARN is
   never substituted. Reuse of an action ID already present in the evidence
@@ -145,6 +147,17 @@ Terraform-show digest metadata, and the locked apply re-read reports an
 explicit cloud error before mutation if its raw-show digest is unavailable or
 invalid. A focused regression covers conflicting plan/show metadata. This is
 source-only hardening; action-011 remains exhausted and unchanged.
+
+## Runtime and IAM boundary hardening
+
+The future fixed image path now requires the action ID, artifact prefix, and
+output-root environment variables to agree on the exact
+`.../<action-id>/outputs/` prefix before any fixture input is materialized or
+published. Terraform-show admission now also requires a managed Batch compute
+environment and rejects a custom AMI field nested in compute resources. The
+IAM simulation adds explicit denied checks for KMS decrypt and IAM policy
+administration. Focused probe, runner, Terraform, IAM, and image-fixture tests
+pass; this does not alter the sealed action-011 terminal no-go.
 
 ## Remaining blockers before the separately authorized official study
 

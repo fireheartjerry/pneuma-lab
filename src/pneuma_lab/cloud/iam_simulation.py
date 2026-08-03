@@ -36,6 +36,8 @@ DENIED_CHECK_IDS = (
     "bucket-list",
     "output-delete",
     "output-abort",
+    "kms-decrypt",
+    "iam-policy-admin",
 )
 ALL_CHECK_IDS = ALLOWED_CHECK_IDS + DENIED_CHECK_IDS
 QUALIFICATION_WORKER_POLICY_NAME = "bounded-experiment-access"
@@ -86,7 +88,10 @@ def policy_document_sha256(policy: Mapping[str, Any]) -> str:
 
 
 def expected_checks(
-    *, input_paths: Mapping[str, Any], output_root: str
+    *,
+    input_paths: Mapping[str, Any],
+    output_root: str,
+    iam_role_arn: str,
 ) -> tuple[dict[str, str], ...]:
     """Return the fixed action/resource matrix for one exact qualification."""
 
@@ -94,6 +99,8 @@ def expected_checks(
         raise CloudManifestError("IAM simulation requires the five fixed fixture inputs")
     if not all(isinstance(value, str) for value in input_paths.values()):
         raise CloudManifestError("IAM simulation fixture inputs must be S3 URIs")
+    if not isinstance(iam_role_arn, str) or not iam_role_arn:
+        raise CloudManifestError("IAM simulation requires a concrete role ARN")
     output_uris = tuple(worker_artifact_uri(output_root, index) for index in (0, 1))
     output_ref = parse_s3_uri(output_root.rstrip("/") + "/marker")
     output_parent = output_ref.key.rsplit("/", 1)[0]
@@ -120,6 +127,8 @@ def expected_checks(
         ("bucket-list", "s3:ListBucket", _bucket_arn(output_root), "denied"),
         ("output-delete", "s3:DeleteObject", _s3_arn(output_uris[0]), "denied"),
         ("output-abort", "s3:AbortMultipartUpload", _s3_arn(output_uris[0]), "denied"),
+        ("kms-decrypt", "kms:Decrypt", "*", "denied"),
+        ("iam-policy-admin", "iam:PutRolePolicy", iam_role_arn, "denied"),
     )
     checks = tuple(
         {
@@ -225,6 +234,7 @@ def validate_iam_simulation_matrix(
     checks = expected_checks(
         input_paths=plan.get("input_paths", {}),
         output_root=str(plan.get("output_path", "")),
+        iam_role_arn=role_arn,
     )
     rows = record.get("checks")
     if not isinstance(rows, list) or len(rows) != len(checks):
@@ -269,6 +279,7 @@ def run_iam_simulation(
     checks = expected_checks(
         input_paths=plan.get("input_paths", {}),
         output_root=str(plan.get("output_path", "")),
+        iam_role_arn=role_arn,
     )
     observed: dict[str, str] = {}
     resource_policy_json: str | None = None
@@ -292,7 +303,7 @@ def run_iam_simulation(
             "--resource-arns",
             check["resource_arn"],
         ]
-        if resource_policy_json is not None:
+        if resource_policy_json is not None and check["action"].startswith("s3:"):
             arguments.extend(("--resource-policy", resource_policy_json))
         response = call(*arguments)
         results = response.get("EvaluationResults", []) if isinstance(response, Mapping) else []

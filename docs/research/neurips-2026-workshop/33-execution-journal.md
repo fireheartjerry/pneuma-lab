@@ -6516,3 +6516,19 @@ post-launch terminal no-go. Tasks 6–10 remain
 - **Validation/boundary:** Focused runner/IAM tests pass. No AWS command was
   used for mutation, action-011 was not retried, and no scientific workload or
   claim promotion occurred.
+
+### EJ-20260803-dual-l40s-runtime-and-iam-boundary-hardening
+
+- **Repair:** The future fixed image path now requires the action ID,
+  action-scoped `.../<action-id>/outputs/` prefix, and output-root environment
+  variable to agree before input materialization or raw publication. Terraform
+  show admission now requires a managed Batch compute environment and rejects
+  a custom AMI field nested in compute resources. Saved-plan digest admission
+  now also rejects non-hex SHA-256 metadata.
+- **IAM repair:** The future fixed simulation matrix adds explicit denied
+  checks for `kms:Decrypt` and `iam:PutRolePolicy`; the historical action-011
+  receipt remains the sealed 15-check matrix. Only sanitized digests and
+  decisions are retained.
+- **Validation/boundary:** Focused probe, runner, Terraform, IAM, receipt, and
+  image-fixture regressions pass. No AWS mutation, action retry, official
+  scientific workload, unblind, analysis, or claim promotion occurred.

@@ -389,15 +389,16 @@ def test_fixed_entrypoint_materializes_bound_files_and_publishes_once(
 ) -> None:
     transport = FakeAwsTransport()
     client = adapter(transport)
-    prefix = "s3://bucket/runs/action"
-    code_uri = f"{prefix}/qualification.py"
+    prefix = "s3://bucket/runs/qualification/action/outputs/"
+    input_prefix = prefix.rstrip("/")
+    code_uri = f"{input_prefix}/qualification.py"
     bindings = {
         "QUALIFICATION_CODE": code_uri,
-        "QUALIFICATION_PROTOCOL": f"{prefix}/protocol.json",
-        "QUALIFICATION_ARCHITECTURE": f"{prefix}/architecture.json",
-        "QUALIFICATION_AUTHORIZATION": f"{prefix}/authorization.json",
-        "QUALIFICATION_IMAGE": f"{prefix}/image.json",
-        "QUALIFICATION_INPUT_LOCK": f"{prefix}/input-lock.json",
+        "QUALIFICATION_PROTOCOL": f"{input_prefix}/protocol.json",
+        "QUALIFICATION_ARCHITECTURE": f"{input_prefix}/architecture.json",
+        "QUALIFICATION_AUTHORIZATION": f"{input_prefix}/authorization.json",
+        "QUALIFICATION_IMAGE": f"{input_prefix}/image.json",
+        "QUALIFICATION_INPUT_LOCK": f"{input_prefix}/input-lock.json",
     }
     payloads = {
         code_uri: b"signed qualification fixture\n",
@@ -415,6 +416,8 @@ def test_fixed_entrypoint_materializes_bound_files_and_publishes_once(
         **bindings,
         "AWS_BATCH_JOB_ARRAY_INDEX": "1",
         "QUALIFICATION_ARTIFACT_PREFIX": prefix,
+        "QUALIFICATION_ACTION_ID": "action",
+        "QUALIFICATION_OUTPUT_ROOT": prefix,
         "QUALIFICATION_MODEL": "fixture-only-cuda",
         "QUALIFICATION_MODEL_REVISION": "fixture-only-v1",
     }
@@ -472,7 +475,45 @@ def test_fixed_entrypoint_materializes_bound_files_and_publishes_once(
     )
     assert json.loads(retrieved)["worker_index"] == 1
     assert len(transport.put_calls) == 1
-    assert transport.put_calls[0][1] == "runs/action/worker-1/raw-measurement.json"
+    assert (
+        transport.put_calls[0][1]
+        == "runs/qualification/action/outputs/worker-1/raw-measurement.json"
+    )
+
+
+def test_fixed_entrypoint_rejects_mismatched_action_and_output_bindings(
+    tmp_path: Path,
+) -> None:
+    environment = {
+        "AWS_BATCH_JOB_ARRAY_INDEX": "0",
+        "QUALIFICATION_ACTION_ID": "action-one",
+        "QUALIFICATION_ARTIFACT_PREFIX": (
+            "s3://bucket/runs/qualification/action-one/outputs/"
+        ),
+        "QUALIFICATION_OUTPUT_ROOT": (
+            "s3://bucket/runs/qualification/action-two/outputs/"
+        ),
+        "QUALIFICATION_MODEL": "fixture-only-cuda",
+        "QUALIFICATION_MODEL_REVISION": "fixture-only-v1",
+    }
+    with pytest.raises(CloudManifestError, match="output root"):
+        fixed_admission_probe._runtime_argv(
+            "fixture-code",
+            root=tmp_path,
+            adapter=adapter(FakeAwsTransport()),
+            env=environment,
+        )
+    environment["QUALIFICATION_OUTPUT_ROOT"] = environment[
+        "QUALIFICATION_ARTIFACT_PREFIX"
+    ]
+    environment["QUALIFICATION_ACTION_ID"] = "different-action"
+    with pytest.raises(CloudManifestError, match="action id"):
+        fixed_admission_probe._runtime_argv(
+            "fixture-code",
+            root=tmp_path,
+            adapter=adapter(FakeAwsTransport()),
+            env=environment,
+        )
 
 
 def test_submit_and_children_are_exactly_two_successful_first_attempts() -> None:
@@ -615,6 +656,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                     {
                         "address": "aws_batch_compute_environment.worker[0]",
                         "values": {
+                            "type": "MANAGED",
                             "compute_resources": [
                                 {
                                     "type": "SPOT",

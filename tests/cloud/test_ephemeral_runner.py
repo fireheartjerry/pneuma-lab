@@ -99,6 +99,7 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                         "address": "aws_batch_compute_environment.qualification",
                         "values": {
                             "compute_environment_name": action_id,
+                            "type": "MANAGED",
                             "tags": tags,
                             "compute_resources": [
                                 {
@@ -250,7 +251,9 @@ class FakeProvider(ReadOnlyProvider):
     def capture_iam_simulation(self, *, plan, action_id, expected_policy_sha256):
         self.calls.append("iam")
         checks = expected_checks(
-            input_paths=plan["input_paths"], output_root=plan["output_path"]
+            input_paths=plan["input_paths"],
+            output_root=plan["output_path"],
+            iam_role_arn=plan["worker_role_arn"],
         )
 
         def call(*args):
@@ -492,6 +495,13 @@ def test_loaded_account_plan_preserves_raw_show_binding() -> None:
     )
 
 
+def test_loaded_account_plan_rejects_nonhex_saved_plan_binding() -> None:
+    candidate = terraform_show()
+    candidate["saved_plan_sha256"] = "g" * 64
+    with pytest.raises(CloudManifestError, match="saved Terraform plan SHA-256"):
+        require_account_plan(candidate, provider=ReadOnlyProvider())
+
+
 def test_missing_show_binding_fails_closed_with_cloud_error() -> None:
     candidate = terraform_show()
     candidate["terraform_show_sha256"] = "not-a-digest"
@@ -578,6 +588,28 @@ def test_ephemeral_plan_guard_rejects_a_plan_without_its_launch_template() -> No
     ]
     with pytest.raises(CloudManifestError, match="exactly four creates"):
         require_account_plan(candidate, provider=ReadOnlyProvider())
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("type", "UNMANAGED", "AWS Batch managed"),
+        ("image_id", "ami-custom", "managed GPU AMI"),
+    ],
+)
+def test_ephemeral_plan_guard_rejects_unmanaged_or_custom_ami(
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    candidate = terraform_show()
+    compute = candidate["planned_values"]["root_module"]["resources"][0]["values"]
+    if field == "type":
+        compute[field] = value
+    else:
+        compute["compute_resources"][0][field] = value
+    with pytest.raises(CloudManifestError, match=message):
+        parse_terraform_show(candidate)
 
 
 def test_action_mismatch_is_read_before_any_mutation() -> None:
@@ -719,7 +751,9 @@ def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
         canonical_bytes(worker_policy)
     ).hexdigest()
     checks = expected_checks(
-        input_paths=plan["input_paths"], output_root=plan["output_path"]
+        input_paths=plan["input_paths"],
+        output_root=plan["output_path"],
+        iam_role_arn=plan["worker_role_arn"],
     )
     calls: list[list[str]] = []
 
@@ -782,8 +816,12 @@ def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
     ).hexdigest()
     assert any("get-role-policy" in argv for argv in calls)
     iam_calls = [argv for argv in calls if "simulate-principal-policy" in argv]
-    assert len(iam_calls) == 15
-    assert all("--resource-policy" in argv for argv in iam_calls)
+    assert len(iam_calls) == 17
+    assert all(
+        ("--resource-policy" in argv)
+        == argv[argv.index("--action-names") + 1].startswith("s3:")
+        for argv in iam_calls
+    )
     assert "arn:aws" not in json.dumps(record)
     with pytest.raises(CloudManifestError, match="differs from authority"):
         adapter.capture_iam_simulation(

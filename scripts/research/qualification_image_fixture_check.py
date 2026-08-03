@@ -117,9 +117,11 @@ def main() -> int:
     adapter = AwsCliAdapter(transport=transport)
     env = {
         "AWS_BATCH_JOB_ARRAY_INDEX": "0",
+        "QUALIFICATION_ACTION_ID": ACTION_ID,
         "QUALIFICATION_MODEL": MODEL,
         "QUALIFICATION_MODEL_REVISION": REVISION,
         "QUALIFICATION_ARTIFACT_PREFIX": PREFIX,
+        "QUALIFICATION_OUTPUT_ROOT": PREFIX,
         "QUALIFICATION_PROTOCOL": "s3://fixture-bucket/qualification-image-fixture-check/inputs/protocol.json",
         "QUALIFICATION_ARCHITECTURE": "s3://fixture-bucket/qualification-image-fixture-check/inputs/architecture.json",
         "QUALIFICATION_AUTHORIZATION": "s3://fixture-bucket/qualification-image-fixture-check/inputs/authorization.json",

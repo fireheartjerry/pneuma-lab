@@ -31,7 +31,9 @@ def _plan() -> dict[str, object]:
 def test_live_matrix_is_exactly_bound_and_sanitized() -> None:
     plan = _plan()
     checks = expected_checks(
-        input_paths=plan["input_paths"], output_root=plan["output_path"]
+        input_paths=plan["input_paths"],
+        output_root=plan["output_path"],
+        iam_role_arn=plan["worker_role_arn"],
     )
     calls: list[tuple[str, str]] = []
 
@@ -63,7 +65,7 @@ def test_live_matrix_is_exactly_bound_and_sanitized() -> None:
         expected_policy_sha256="a" * 64,
     )
 
-    assert len(calls) == len(ALL_CHECK_IDS) == 15
+    assert len(calls) == len(ALL_CHECK_IDS) == 17
     assert [row["id"] for row in record["checks"]] == list(ALL_CHECK_IDS)
     assert all("resource_arn" not in row for row in record["checks"])
     assert "arn:aws" not in json.dumps(record)
@@ -83,7 +85,9 @@ def test_live_matrix_is_exactly_bound_and_sanitized() -> None:
 def test_live_matrix_can_include_a_canonical_bucket_policy_without_leaking_it() -> None:
     plan = _plan()
     checks = expected_checks(
-        input_paths=plan["input_paths"], output_root=plan["output_path"]
+        input_paths=plan["input_paths"],
+        output_root=plan["output_path"],
+        iam_role_arn=plan["worker_role_arn"],
     )
     policy = {
         "Version": "2012-10-17",
@@ -100,8 +104,11 @@ def test_live_matrix_can_include_a_canonical_bucket_policy_without_leaking_it() 
             for row in checks
             if row["action"] == action and row["resource_arn"] == resource
         )
-        assert "--resource-policy" in args
-        assert json.loads(args[args.index("--resource-policy") + 1]) == policy
+        if action.startswith("s3:"):
+            assert "--resource-policy" in args
+            assert json.loads(args[args.index("--resource-policy") + 1]) == policy
+        else:
+            assert "--resource-policy" not in args
         return {
             "EvaluationResults": [
                 {

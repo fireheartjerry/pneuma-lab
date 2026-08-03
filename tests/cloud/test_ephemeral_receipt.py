@@ -76,7 +76,9 @@ def test_runner_receipt_builder_preserves_terminal_child_failure_evidence() -> N
         "output_path": "s3://bucket/runs/qualification/qual-1/outputs/",
     }
     checks = expected_checks(
-        input_paths=plan["input_paths"], output_root=plan["output_path"]
+        input_paths=plan["input_paths"],
+        output_root=plan["output_path"],
+        iam_role_arn=plan["worker_role_arn"],
     )
 
     def simulate(*args: str) -> dict[str, list[dict[str, str]]]:

@@ -92,6 +92,17 @@ explicit typed failure if the reread raw-show digest is unavailable or invalid,
 before any mutation. The focused conflict regression is green. This is
 source-only hardening; action-011 remains exhausted and unchanged.
 
+## Runtime, managed-AMI, and IAM boundary hardening
+
+The future fixed image path now checks that the action ID, artifact prefix, and
+output-root environment variables identify the same exact action-scoped output
+prefix before materialization or publication. Terraform-show admission now
+requires an AWS Batch managed compute environment and rejects a custom AMI
+field nested in compute resources. Future IAM simulation adds explicit denied
+checks for KMS decrypt and IAM policy administration. Focused probe, runner,
+Terraform, IAM, and image-fixture tests pass; the sealed action-011 receipt is
+unchanged and was not retried.
+
 ## Remaining gates before official P0 / Step 4B
 
 1. The dual-L40S qualification is not passed; action-011 is exhausted. No

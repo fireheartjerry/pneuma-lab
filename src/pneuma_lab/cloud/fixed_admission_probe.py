@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 import sys
@@ -25,6 +26,7 @@ from .manifests import validate_worker_admission_measurement
 from .qualification_execution import (
     AwsCliAdapter,
     materialize_authenticated_inputs,
+    parse_s3_uri,
     publish_raw_measurement,
     retrieve_raw_measurement,
     worker_artifact_uri,
@@ -33,6 +35,38 @@ from .qualification_execution import (
 
 FIXTURE_MODEL = "fixture-only-cuda"
 FIXTURE_REVISION = "fixture-only-v1"
+_ACTION_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
+
+
+def _require_runtime_artifact_binding(bindings: Mapping[str, str]) -> str:
+    """Require action, output-prefix, and output-root bindings to agree."""
+
+    action_id = bindings.get("QUALIFICATION_ACTION_ID")
+    prefix = bindings.get("QUALIFICATION_ARTIFACT_PREFIX")
+    output_root = bindings.get("QUALIFICATION_OUTPUT_ROOT")
+    if not isinstance(action_id, str) or not _ACTION_ID_RE.fullmatch(action_id):
+        raise CloudManifestError(
+            "fixed admission worker lacks a valid qualification action id"
+        )
+    if not isinstance(prefix, str) or not prefix:
+        raise CloudManifestError(
+            "fixed admission worker lacks its qualification artifact prefix"
+        )
+    if not isinstance(output_root, str) or not output_root:
+        raise CloudManifestError(
+            "fixed admission worker lacks its qualification output root"
+        )
+    if prefix.rstrip("/") != output_root.rstrip("/"):
+        raise CloudManifestError(
+            "qualification artifact prefix differs from its output root"
+        )
+    marker = parse_s3_uri(prefix.rstrip("/") + "/marker")
+    parts = marker.key.split("/")
+    if len(parts) < 3 or parts[-2] != "outputs" or parts[-3] != action_id:
+        raise CloudManifestError(
+            "qualification artifact prefix is not bound to its action id"
+        )
+    return prefix
 
 
 def validate_local_probe_inputs(input_paths: Sequence[str | Path]) -> tuple[Path, ...]:
@@ -315,6 +349,7 @@ def _runtime_argv(
     raw_index = bindings.get("AWS_BATCH_JOB_ARRAY_INDEX")
     if raw_index not in {"0", "1"}:
         raise SystemExit("AWS_BATCH_JOB_ARRAY_INDEX must be exactly 0 or 1")
+    _require_runtime_artifact_binding(bindings)
     model = bindings.get("QUALIFICATION_MODEL")
     revision = bindings.get("QUALIFICATION_MODEL_REVISION")
     if not model or not revision:
@@ -403,6 +438,7 @@ def run_fixed_worker(
         raise CloudManifestError(
             "fixed admission worker lacks its array index or artifact prefix"
         )
+    _require_runtime_artifact_binding(env)
     publish_raw_measurement(
         adapter,
         artifact_prefix=prefix,

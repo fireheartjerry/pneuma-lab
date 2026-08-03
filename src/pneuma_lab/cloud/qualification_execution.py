@@ -1145,6 +1145,10 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         "aws_batch_compute_environment.worker",
         "aws_batch_compute_environment.qualification",
     )
+    if compute.get("type") != "MANAGED":
+        raise CloudManifestError(
+            "planned qualification compute environment must be AWS Batch managed"
+        )
     job_definition = _resource_any(
         rows,
         "aws_batch_job_definition.gpu_worker",
@@ -1381,6 +1385,10 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
     if resources.get("max_vcpus") != 16:
         raise CloudManifestError(
             "planned compute resources do not preserve the 16-vCPU ceiling"
+        )
+    if resources.get("image_id") not in (None, ""):
+        raise CloudManifestError(
+            "planned compute resources must use the Batch-managed GPU AMI path"
         )
     if launch_template.get("image_id") not in (None, ""):
         raise CloudManifestError(

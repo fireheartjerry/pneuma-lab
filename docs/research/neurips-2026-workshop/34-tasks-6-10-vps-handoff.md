@@ -1175,3 +1175,10 @@ only the deregistered `INACTIVE` job-definition revision as provider history;
 the teardown verifier and its focused regression now model that semantics.
 Tasks 6–10 remain `implementation_complete; E2E_pending`; this infrastructure
 no-go does not create a scientific result or close Step 14.
+
+Subsequent source-only readiness hardening now binds the runtime action ID to
+the exact output prefix and output-root environment, requires a managed Batch
+compute environment with no nested custom AMI, rejects malformed saved-plan
+digests, and adds future denied IAM checks for KMS decrypt and IAM policy
+administration. These repairs do not change the sealed action-011 receipt or
+authorize a relaunch.
