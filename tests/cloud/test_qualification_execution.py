@@ -677,6 +677,9 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                                         "subnet-0123456789abcdef3",
                                     ],
                                     "security_group_ids": ["sg-0123456789abcdef0"],
+                                    "launch_template": [
+                                        {"id": "lt-worker", "version": "1"}
+                                    ],
                                     "tags": {
                                         "QualificationCode": "signed-code",
                                         "QualificationAction": "fixed-admission-001",
@@ -738,6 +741,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                     {
                         "address": "aws_launch_template.worker",
                         "values": {
+                            "id": "lt-worker",
                             "image_id": None,
                             "tag_specifications": [
                                 {

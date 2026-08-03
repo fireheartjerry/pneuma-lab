@@ -6740,3 +6740,20 @@ post-launch terminal no-go. Tasks 6–10 remain
   CPU-only fixture check, and graph refresh pass. No AWS mutation, action
   relaunch, new ledger row, scientific workload, unblind, analysis, or claim
   promotion occurred.
+
+### EJ-20260803-terraform-cross-resource-binding-hardening
+
+- **Queue binding repair:** Terraform-show admission now compares a concrete
+  queue `compute_environment` ARN with the planned compute-environment ARN.
+  A queue pointing at a different environment cannot pass merely because the
+  queue order and resource names look correct.
+- **Launch-template binding repair:** Admission now requires exactly one
+  compute-environment launch-template binding and, when Terraform renders
+  concrete IDs, compares that ID with the declared launch-template resource.
+  A tagged launch template that is not the template used by the compute
+  environment cannot satisfy the four-resource contract.
+- **Verification/boundary:** Focused queue/template mismatch regressions and
+  changed-file Ruff pass. AWS authentication was attempted through the
+  shared browser/CLI flow but no operator credentials were available, so no
+  new image, plan, AWS mutation, action, ledger row, qualification relaunch,
+  scientific workload, unblind, analysis, or claim promotion occurred.

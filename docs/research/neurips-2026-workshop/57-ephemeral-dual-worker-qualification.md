@@ -128,3 +128,10 @@ be a `container` job with `platform_capabilities == ["EC2"]`. Focused cloud,
 receipt, Terraform, status, fixture, and graph checks pass. This is source-only
 repair: no AWS resource, action, ledger row, qualification relaunch, or
 scientific workload was created.
+
+The Terraform-show guard now also requires the queue's concrete
+compute-environment ARN to match the planned compute resource and requires
+the compute environment to bind exactly one declared launch template. If both
+resources expose IDs, those IDs must match. Focused negative regressions pass;
+this does not alter the sealed action-011 terminal no-go or authorize a new
+launch.

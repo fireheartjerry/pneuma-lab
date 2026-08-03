@@ -180,6 +180,7 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                     {
                         "address": "aws_launch_template.qualification",
                         "values": {
+                            "id": "lt-qualification",
                             "image_id": None,
                             "tag_specifications": [
                                 {"resource_type": "instance", "tags": tags},
@@ -803,6 +804,45 @@ def test_ephemeral_plan_guard_rejects_ambiguous_batch_job_definition(
     values = candidate["planned_values"]["root_module"]["resources"][1]["values"]
     values[field] = value
     with pytest.raises(CloudManifestError, match=message):
+        parse_terraform_show(candidate)
+
+
+def test_ephemeral_plan_guard_rejects_queue_compute_environment_arn_mismatch() -> None:
+    candidate = terraform_show()
+    resources = candidate["planned_values"]["root_module"]["resources"]
+    compute = next(
+        resource
+        for resource in resources
+        if resource["address"] == "aws_batch_compute_environment.qualification"
+    )
+    queue = next(
+        resource
+        for resource in resources
+        if resource["address"] == "aws_batch_job_queue.qualification"
+    )
+    compute["values"]["arn"] = (
+        "arn:aws:batch:us-east-1:123456789012:compute-environment/qual-1"
+    )
+    queue["values"]["compute_environment_order"][0]["compute_environment"] = (
+        "arn:aws:batch:us-east-1:123456789012:compute-environment/wrong"
+    )
+    with pytest.raises(CloudManifestError, match="compute-environment binding"):
+        parse_terraform_show(candidate)
+
+
+def test_ephemeral_plan_guard_requires_compute_launch_template_binding() -> None:
+    candidate = terraform_show()
+    compute = candidate["planned_values"]["root_module"]["resources"][0]["values"]
+    compute["compute_resources"][0].pop("launch_template")
+    with pytest.raises(CloudManifestError, match="bind exactly one launch template"):
+        parse_terraform_show(candidate)
+
+
+def test_ephemeral_plan_guard_rejects_launch_template_id_mismatch() -> None:
+    candidate = terraform_show()
+    compute = candidate["planned_values"]["root_module"]["resources"][0]["values"]
+    compute["compute_resources"][0]["launch_template"][0]["id"] = "lt-wrong"
+    with pytest.raises(CloudManifestError, match="launch-template binding differs"):
         parse_terraform_show(candidate)
 
 

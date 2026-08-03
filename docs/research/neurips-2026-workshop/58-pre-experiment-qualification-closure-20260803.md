@@ -331,3 +331,14 @@ Focused cloud/receipt/provider tests, changed-file Ruff, Terraform checks,
 status validation, the CPU-only fixture check, and graph refresh pass. This
 was source-only closure work: action-011 remains exhausted, no AWS mutation or
 new ledger row occurred, and no official scientific work was run.
+
+## Latest Terraform cross-resource binding repair
+
+Terraform-show admission now compares a concrete queue
+`compute_environment` ARN to the planned compute-environment ARN and requires
+exactly one compute-environment launch-template binding. When Terraform
+renders concrete IDs, the bound launch-template ID must equal the declared
+launch-template resource ID. Focused queue/template mismatch regressions and
+changed-file Ruff pass. AWS reauthentication did not yield operator
+credentials, so no fresh image, plan, AWS mutation, action, or relaunch was
+performed; action-011 remains the single sealed terminal no-go.

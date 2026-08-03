@@ -188,3 +188,14 @@ Focused cloud/receipt/provider tests, changed-file Ruff, Terraform checks,
 status validation, the CPU-only fixture check, and graph refresh pass. This
 was source-only closure work: action-011 remains exhausted, no AWS mutation or
 new ledger row occurred, and no official scientific work was run.
+
+## Latest Terraform cross-resource binding repair
+
+The future qualification parser now rejects a queue whose concrete
+compute-environment ARN differs from the planned compute environment. It also
+requires exactly one compute-environment launch-template binding and rejects a
+concrete ID mismatch with the declared launch-template resource. Focused
+negative regressions are green. No fresh provider evidence or action was
+created because the shared AWS browser/CLI reauthentication flow reached the
+sign-in page without available operator credentials; the action-011 terminal
+no-go and teardown receipt remain authoritative.

@@ -1258,3 +1258,11 @@ with EC2-only platform capabilities. Focused cloud/receipt tests, changed-file
 Ruff, Terraform format/validation, status, fixture, and graph checks pass.
 No AWS mutation, new action, ledger row, qualification relaunch, or scientific
 workload occurred; action-011 remains the sealed terminal no-go.
+
+The latest Terraform admission repair closes two remaining cross-resource
+binding seams: a concrete queue compute-environment ARN must equal the
+planned compute-environment ARN, and the compute environment must bind exactly
+one launch template whose concrete ID agrees with the declared launch-template
+resource. Focused mismatch regressions pass. This is source-only hardening;
+action-011 remains exhausted and no AWS mutation or scientific workload was
+run.

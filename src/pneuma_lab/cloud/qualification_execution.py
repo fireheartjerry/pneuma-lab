@@ -1438,6 +1438,31 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         raise CloudManifestError(
             "planned compute resources do not contain concrete security-group ids"
         )
+    compute_launch_template = resources.get("launch_template")
+    if (
+        not isinstance(compute_launch_template, list)
+        or len(compute_launch_template) != 1
+        or not isinstance(compute_launch_template[0], Mapping)
+    ):
+        raise CloudManifestError(
+            "planned compute resources must bind exactly one launch template"
+        )
+    launch_template_binding_id = compute_launch_template[0].get("id")
+    launch_template_resource_id = launch_template.get("id")
+    if launch_template_binding_id not in (None, "") or launch_template_resource_id not in (
+        None,
+        "",
+    ):
+        if not isinstance(launch_template_binding_id, str) or not isinstance(
+            launch_template_resource_id, str
+        ):
+            raise CloudManifestError(
+                "planned compute launch-template binding is not concrete"
+            )
+        if launch_template_binding_id != launch_template_resource_id:
+            raise CloudManifestError(
+                "planned compute launch-template binding differs from the launch-template resource"
+            )
 
     instance_types = resources.get("instance_type")
     if instance_types != ["g6e.2xlarge"]:
@@ -1467,6 +1492,24 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         raise CloudManifestError(
             "planned qualification queue must bind exactly one compute environment"
         )
+    queue_compute_environment_arn = compute_environment_order[0].get(
+        "compute_environment"
+    )
+    planned_compute_environment_arn = compute.get("arn")
+    if queue_compute_environment_arn not in (None, "") or planned_compute_environment_arn not in (
+        None,
+        "",
+    ):
+        if not isinstance(queue_compute_environment_arn, str) or not isinstance(
+            planned_compute_environment_arn, str
+        ):
+            raise CloudManifestError(
+                "planned queue/compute-environment binding is not concrete"
+            )
+        if queue_compute_environment_arn != planned_compute_environment_arn:
+            raise CloudManifestError(
+                "planned job queue compute-environment binding differs from the compute resource"
+            )
     name_prefix = variable("name_prefix")
     planned_names = {
         "compute environment": compute.get("compute_environment_name"),
