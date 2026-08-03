@@ -516,7 +516,10 @@
                 "infra/terraform/iam.tf",
                 "tests/cloud/test_architecture.py",
                 "tests/cloud/test_worker_allocation.py",
-                "tests/cloud/test_iac_plan.py"
+                "tests/cloud/test_iac_plan.py",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-011-execution-receipt-20260803.json",
+                "docs/research/neurips-2026-workshop/58-pre-experiment-qualification-closure-20260803.md",
+                "docs/research/neurips-2026-workshop/59-unsigned-p0-step14-checklist-20260803.md"
             ],
             "blockers": [
                 "B-NEURIPS-DUAL-L40S-QUALIFICATION",

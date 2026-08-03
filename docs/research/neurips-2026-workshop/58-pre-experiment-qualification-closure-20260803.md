@@ -79,3 +79,6 @@ reason and invents no root cause.
 4. The official P0/Step 4B authority, canonical lineage, execution, unblind,
    analysis, and claim-promotion gates remain separately authorized work and
    were not performed here.
+
+The precise unsigned handoff checklist is
+`59-unsigned-p0-step14-checklist-20260803.md`.

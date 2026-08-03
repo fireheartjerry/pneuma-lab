@@ -6373,5 +6373,28 @@ The next event after the archived migration boundary is appended below.
   cause of the queue deletion is not proven by the retained receipt; this
   journal therefore records only the provider's observed status reason and
   does not invent an AWS root cause. The action is exhausted with a
-  post-launch terminal no-go. Tasks 6–10 remain
-  `implementation_complete; E2E_pending`; Step 14 remains `launch_blocked`.
+post-launch terminal no-go. Tasks 6–10 remain
+`implementation_complete; E2E_pending`; Step 14 remains `launch_blocked`.
+
+### EJ-20260803-task6-10-continuity-and-release-closure
+
+- **Task 6 continuity:** `timeout 55s .venv/bin/python
+  scripts/research/task6_step4a_continuity.py` passed. It rechecked graph and
+  pre-unblind graph binding, frozen-input integrity, blinded projection
+  recomputation, gated unblind ancestry, durable taint, task-block closure,
+  and read-only run-root integrity.
+- **Task 7 continuity:** `timeout 55s .venv/bin/python
+  scripts/research/task7_step4a_continuity.py` passed. It rechecked the
+  implementation-only power-final binding, frozen config, manifest-owned
+  inference seed, roster ancestry, live gate vocabulary, verdict totality,
+  gate recomputation, and row-count bounds.
+- **Task 10 release preparation:** `timeout 55s .venv/bin/python -m pytest
+  tests/resampling_null/test_release.py -q` passed all five focused release
+  checks, including implementation-authority claim boundaries, canonical
+  no-go classification, independent byte verification, and content-addressed
+  package non-overwrite.
+- **Disposition:** These are implementation-path continuity receipts only. They
+  do not create a P0 lineage, scientific result, unblind, or release
+  authorization. Tasks 6–10 remain `implementation_complete; E2E_pending` and
+  the unsigned remaining-gate checklist is
+  `59-unsigned-p0-step14-checklist-20260803.md`.
