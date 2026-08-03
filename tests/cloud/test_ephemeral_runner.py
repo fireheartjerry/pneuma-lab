@@ -1185,6 +1185,26 @@ def test_terraform_adapter_requires_mode_600_variable_file(tmp_path: Path) -> No
         adapter.load_account_plan(plan_path)
 
 
+def test_terraform_adapter_resolves_saved_plan_before_chdir(tmp_path: Path, monkeypatch) -> None:
+    plan_path = tmp_path / "saved.tfplan"
+    plan_path.write_bytes(b"exact-plan-bytes")
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        if argv[2] == "show":
+            return subprocess.CompletedProcess(
+                argv, 0, json.dumps(terraform_show()).encode(), b""
+            )
+        return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+    monkeypatch.chdir(tmp_path)
+    adapter = TerraformAdapter(run)
+    adapter.initialize()
+    adapter.load_account_plan(Path("saved.tfplan"))
+    assert Path(calls[1][-1]).is_absolute()
+
+
 def test_aws_adapter_submission_is_one_tagged_size_two_array_without_command() -> None:
     calls = []
 

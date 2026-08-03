@@ -351,6 +351,11 @@ class TerraformAdapter:
             raise CloudManifestError(
                 "terraform shared backend must be initialized before loading a plan"
             )
+        if plan_path.is_symlink() or not plan_path.is_file():
+            raise CloudManifestError(
+                "saved Terraform plan must be a regular file"
+            )
+        plan_path = plan_path.resolve()
         self.variable_file_sha256 = self._capture_variable_file()
         saved_plan = plan_path.read_bytes()
         saved_plan_sha256 = hashlib.sha256(saved_plan).hexdigest()

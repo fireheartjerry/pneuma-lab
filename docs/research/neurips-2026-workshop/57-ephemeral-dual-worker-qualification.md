@@ -64,6 +64,9 @@ and passed explicitly to the locked destroy command. Teardown therefore
 cannot silently fall back to a stale checkout-local `qualification.auto.tfvars`
 from another action.
 
+Saved plans must likewise be regular files and are resolved to absolute paths
+before Terraform's `-chdir` commands consume them.
+
 Future Terraform mutations must use state locking with a bounded lock timeout;
 `-lock=false` is forbidden. The runner verifies the signed preparation
 envelope/action admission and the four-resource account plan before calling

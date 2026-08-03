@@ -6682,6 +6682,10 @@ post-launch terminal no-go. Tasks 6–10 remain
   passes that same immutable file to the locked destroy command. The stale
   ignored `qualification.auto.tfvars` file can no longer silently select
   teardown variables.
+- **Path repair:** Saved plans must be regular files and are resolved to
+  absolute paths before Terraform's `-chdir` command is invoked, preventing a
+  relative plan argument from being interpreted under the qualification
+  directory instead of the operator checkout.
 - **Verification:** Focused runner/qualification tests and Ruff pass; the
   CPU-only fixture check passes. Graphify was refreshed. No AWS mutation,
   action-011 retry, new launch, scientific workload, unblind, analysis, or

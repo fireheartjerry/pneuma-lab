@@ -274,6 +274,10 @@ negative regressions pass. These are source-only repairs; the stale action-011
 image, plan, authority package, and provider outcome remain historical and no
 relaunch occurred.
 
+The adapter also rejects symlink/non-regular saved plans and resolves accepted
+plan paths before invoking Terraform with `-chdir`, closing a relative-path
+interpretation seam.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any
