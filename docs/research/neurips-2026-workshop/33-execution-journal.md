@@ -6630,3 +6630,23 @@ post-launch terminal no-go. Tasks 6–10 remain
   plan, and the adapter refuses plan load, apply, or destroy unless that shared
   backend initialization succeeded. The mutation commands retain the signed
   `-lock-timeout=60s` requirement.
+
+### EJ-20260803-step14-real-power-input-and-authority-gate-hardening
+
+- **Gate defect:** The Step 14 campaign-spec builder declared the prose design
+  brief as its `power_report` input. That allowed a prepared review to carry a
+  report-shaped slot without the real authority-bound P0 power/tier artifact.
+- **Repair:** The builder now requires the canonical Task-10 paths
+  `build/research/neurips-2026-workshop/p0-canonical/power/p0-power-report.json`
+  and `build/research/neurips-2026-workshop/p0-canonical/p0-core-receipt.json`
+  as digest-bound `power_report` and `artifact_root` receipts. The current
+  checkout lacks both, so the builder exits nonzero and names both missing
+  paths; Step 14 remains fail-closed.
+- **Authority regression:** Added a complete synthetic package-binding test
+  for `validate_authority_evidence`, including saved-plan/show/composite,
+  image, subnet map, output, projection, retry ceiling, envelope/admission
+  body and signature digests, KMS status, and a tamper rejection. No real
+  authority or scientific receipt was manufactured.
+- **Boundary:** Focused Step 14/receipt tests and Ruff pass. This is source-only
+  hardening: no AWS mutation, qualification relaunch, official P0/Step 4B
+  workload, unblind, analysis, or claim promotion occurred.

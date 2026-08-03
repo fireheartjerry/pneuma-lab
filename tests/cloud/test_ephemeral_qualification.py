@@ -80,6 +80,10 @@ def test_ephemeral_stack_has_destroyable_watchdog_and_no_retry_contract() -> Non
     ).read_text()
     assert re.search(r"max_vcpus\s*=\s*16", text)
     assert 'allocation_strategy = "SPOT_PRICE_CAPACITY_OPTIMIZED"' in text
+    assert re.search(
+        r"compute_environment\s*=\s*aws_batch_compute_environment\.qualification\.arn",
+        text,
+    )
     assert "attempt_duration_seconds = 3600" in text
     assert "attempts = 1" in text
     assert not re.search(r"^\s*image_id\s*=", text, re.MULTILINE)

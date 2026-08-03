@@ -57,12 +57,6 @@ INPUTS: tuple[tuple[str, str, str], ...] = (
         "docs/research/neurips-2026-workshop/32-cloud-spend-ledger.md",
         "cloud spend ledger",
     ),
-    (
-        "power_report",
-        "docs/research/placebo-paper/02-design-brief.md",
-        "condensed power and roster brief; replace with the real power report "
-        "receipt once one exists",
-    ),
     ("manuscript", "paper/placebo_protocol.tex", "the pre-results manuscript"),
     ("bibliography", "paper/placebo/refs-placebo.bib", "new references"),
     ("citation_queue", "paper/placebo/citation-queue.json", "citation verification state"),
@@ -74,6 +68,18 @@ INPUTS: tuple[tuple[str, str, str], ...] = (
 #: Step 14 may review only real, validated evidence. Contract prose is never a
 #: stand-in for one of these receipts.
 REQUIRED_RECEIPTS: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "p0-power-report",
+        "power_report",
+        "build/research/neurips-2026-workshop/p0-canonical/power/p0-power-report.json",
+        "sealed authority-bound P0 power/tier report from the canonical run root",
+    ),
+    (
+        "p0-core-artifact-root",
+        "artifact_root",
+        "build/research/neurips-2026-workshop/p0-canonical/p0-core-receipt.json",
+        "independently verified canonical P0 artifact-root receipt",
+    ),
     (
         "step5b-input-lock",
         "input_lock",

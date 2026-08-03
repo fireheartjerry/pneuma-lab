@@ -1218,3 +1218,12 @@ The concrete qualification script now initializes and reconfigures that shared
 backend before loading the saved plan; the Terraform adapter refuses every
 load/apply/destroy path without a successful initialization. No AWS backend
 initialization or provider mutation occurred in this source-only repair.
+
+The Step 14 builder is now stricter about the scientific gate: its
+`power_report` slot requires the canonical sealed
+`p0-canonical/power/p0-power-report.json`, and its artifact-root slot requires
+`p0-canonical/p0-core-receipt.json`. The prose design brief is no longer an
+acceptable substitute. Both artifacts are currently absent, so generation
+fails closed; the hostile review remains `launch_blocked`. A direct synthetic
+regression now covers complete authority-package validation and tamper
+rejection. No P0/Step 4B work or provider action occurred.

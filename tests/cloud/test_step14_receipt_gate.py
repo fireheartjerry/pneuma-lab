@@ -19,6 +19,12 @@ def _load_script():
 def test_step14_requires_production_execution_surface_receipt() -> None:
     module = _load_script()
     receipts = {receipt_id: relative for receipt_id, _, relative, _ in module.REQUIRED_RECEIPTS}
+    assert receipts["p0-power-report"] == (
+        "build/research/neurips-2026-workshop/p0-canonical/power/p0-power-report.json"
+    )
+    assert receipts["p0-core-artifact-root"] == (
+        "build/research/neurips-2026-workshop/p0-canonical/p0-core-receipt.json"
+    )
     assert receipts["production-execution-surface"] == (
         "build/research/neurips-2026-workshop/phase-b-evidence/production-execution-surface.json"
     )
@@ -26,7 +32,7 @@ def test_step14_requires_production_execution_surface_receipt() -> None:
     assert receipts["cross-platform-portability"].endswith(
         "/cross-platform-portability.json"
     )
-    assert len(receipts) == 8
+    assert len(receipts) == 10
 
 
 def test_step14_spec_builder_fails_closed_when_a_receipt_is_missing(

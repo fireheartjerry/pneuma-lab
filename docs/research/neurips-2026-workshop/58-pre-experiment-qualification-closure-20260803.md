@@ -246,6 +246,19 @@ and refuses plan load, apply, or destroy if initialization did not succeed.
 The corresponding adapter regression passes. No AWS backend initialization or
 resource mutation occurred.
 
+## Step 14 real-power input and authority-gate repair
+
+The Step 14 campaign builder no longer uses the prose power/design brief as
+the `power_report` input. It now requires the canonical Task-10 sealed
+`p0-power-report.json` and independently verified `p0-core-receipt.json` under
+the canonical run root as digest-bound receipts. Both are absent in the
+current checkout, and the builder exits nonzero naming both paths; the gate
+therefore remains honestly `launch_blocked`.
+
+A complete synthetic regression now exercises `validate_authority_evidence`
+and rejects tampered Terraform-show authority bytes. No scientific authority,
+P0 lineage, or provider action was created.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any

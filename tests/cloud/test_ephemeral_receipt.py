@@ -8,15 +8,22 @@ from pathlib import Path
 import pytest
 
 from pneuma_lab.cloud.errors import CloudManifestError
-from pneuma_lab.cloud.authorization_keys import canonical_bytes
+from pneuma_lab.cloud.authorization_keys import (
+    authorization_body_digest,
+    canonical_bytes,
+)
 from pneuma_lab.cloud.ephemeral_receipt import (
     build_ephemeral_qualification_receipt,
+    validate_authority_evidence,
 )
 from pneuma_lab.cloud.iam_simulation import expected_checks, run_iam_simulation
 from pneuma_lab.cloud.manifests import (
     validate_ephemeral_dual_worker_qualification_receipt,
 )
-from pneuma_lab.cloud.qualification_execution import BatchAdmissionError
+from pneuma_lab.cloud.qualification_execution import (
+    BatchAdmissionError,
+    terraform_plan_binding_digest,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -38,6 +45,138 @@ def kms_verification_record() -> dict[str, object]:
     }
     record["verification_sha256"] = hashlib.sha256(canonical_bytes(record)).hexdigest()
     return record
+
+
+def _authority_evidence_fixture() -> tuple[
+    dict[str, object], bytes, dict[str, object], dict[str, object], dict[str, object]
+]:
+    action_id = "dual-l40s-qualification-012"
+    saved_plan_sha256 = "1" * 64
+    terraform_show_sha256 = "2" * 64
+    plan_binding_sha256 = terraform_plan_binding_digest(
+        saved_plan_sha256, terraform_show_sha256
+    )
+    plan: dict[str, object] = {
+        "saved_plan_sha256": saved_plan_sha256,
+        "terraform_show_sha256": terraform_show_sha256,
+        "terraform_plan_binding_sha256": plan_binding_sha256,
+        "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/worker@sha256:"
+        + "4" * 64,
+        "output_prefix": (
+            "s3://pneuma-artifacts/runs/qualification/"
+            f"{action_id}/outputs/"
+        ),
+        "subnet_az_map": [
+            {"availability_zone": f"us-east-1{letter}", "subnet_id": f"subnet-{letter}"}
+            for letter in ("a", "b", "c", "d")
+        ],
+    }
+
+    def authorization_record(label: str) -> dict[str, object]:
+        record: dict[str, object] = {
+            "record_kind": f"cloud_{label}_authorization",
+            "action_id": action_id,
+            "human_authorization": {
+                "approver_id": "operator",
+                "key_id": "test-key",
+                "granted_timestamp": "2026-08-03T00:00:00Z",
+                "expires_timestamp": "2026-08-04T00:00:00Z",
+                "signature_ed25519": "00" * 64,
+            },
+        }
+        approval = record["human_authorization"]
+        assert isinstance(approval, dict)
+        approval["body_sha256"] = authorization_body_digest(record)
+        return record
+
+    envelope = authorization_record("preparation_envelope")
+    admission = authorization_record("preparation_admission")
+    package: dict[str, object] = {
+        "record_kind": "cloud_preparation_signing_package",
+        "plan_sha256": saved_plan_sha256,
+        "saved_plan_sha256": saved_plan_sha256,
+        "terraform_show_sha256": terraform_show_sha256,
+        "terraform_plan_binding_sha256": plan_binding_sha256,
+        "envelope": envelope,
+        "admission": admission,
+        "envelope_body_sha256": authorization_body_digest(envelope),
+        "admission_body_sha256": authorization_body_digest(admission),
+        "qualification_binding": {
+            "action_id": action_id,
+            "iam_policy_sha256": "a" * 64,
+            "image_digest": "sha256:" + "4" * 64,
+            "subnet_az_map": plan["subnet_az_map"],
+            "output_prefix": plan["output_prefix"],
+            "projected_cost_usd": 4.48,
+            "max_retries": 0,
+        },
+    }
+    package_bytes = canonical_bytes(package)
+
+    def evidence(record: dict[str, object]) -> dict[str, str]:
+        approval = record["human_authorization"]
+        assert isinstance(approval, dict)
+        signature = approval["signature_ed25519"]
+        assert isinstance(signature, str)
+        return {
+            "body_sha256": authorization_body_digest(record),
+            "signature_sha256": hashlib.sha256(bytes.fromhex(signature)).hexdigest(),
+        }
+
+    authority: dict[str, object] = {
+        "status": "authorized_and_verified",
+        "qualification_only": True,
+        "action_id": action_id,
+        "provider": "aws",
+        "region": "us-east-1",
+        "action_class": "qualification_audit",
+        "signed_package_sha256": hashlib.sha256(package_bytes).hexdigest(),
+        "plan_sha256": saved_plan_sha256,
+        "saved_plan_sha256": saved_plan_sha256,
+        "terraform_show_sha256": terraform_show_sha256,
+        "terraform_plan_binding_sha256": plan_binding_sha256,
+        "image_digest": "sha256:" + "4" * 64,
+        "projected_cost_usd": 4.48,
+        "max_retries": 0,
+        "iam_policy_sha256": "a" * 64,
+        "envelope": evidence(envelope),
+        "admission": evidence(admission),
+        "kms": {
+            "signing_algorithm": "ED25519_SHA_512",
+            "envelope_signature_valid": True,
+            "admission_signature_valid": True,
+        },
+    }
+    return authority, package_bytes, envelope, admission, plan
+
+
+def test_validate_authority_evidence_rechecks_complete_package_binding() -> None:
+    authority, package_bytes, envelope, admission, plan = _authority_evidence_fixture()
+    validated = validate_authority_evidence(
+        authority,
+        package_bytes=package_bytes,
+        envelope=envelope,
+        admission=admission,
+        action_id="dual-l40s-qualification-012",
+        region="us-east-1",
+        plan=plan,
+        projected_cost_usd=4.48,
+    )
+    assert validated["status"] == "authorized_and_verified"
+
+    tampered = deepcopy(authority)
+    tampered["terraform_show_sha256"] = "9" * 64
+    with pytest.raises(CloudManifestError, match="authority terraform_show_sha256"):
+        validate_authority_evidence(
+            tampered,
+            package_bytes=package_bytes,
+            envelope=envelope,
+            admission=admission,
+            action_id="dual-l40s-qualification-012",
+            region="us-east-1",
+            plan=plan,
+            projected_cost_usd=4.48,
+        )
 
 
 def test_current_terminal_no_go_receipt_is_schema_bound() -> None:

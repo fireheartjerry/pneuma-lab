@@ -1043,7 +1043,7 @@
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
-            "summary": "The required pre-experiment hostile launch review ran against ten digest-bound reviewer transcripts and failed closed with verdict launch_blocked. The citation repair and primary-source verification removed the citation blockers; three grounded blockers remain: no real authority-backed power report/tier receipt, and missing packet/assignment/detectability/unblind receipts from the Step 14 index. The compact receipt is docs/research/neurips-2026-workshop/evidence/step14-launch-review-20260802.json. No experiment or provider action is authorized."
+            "summary": "The required pre-experiment hostile launch review ran against ten digest-bound reviewer transcripts and failed closed with verdict launch_blocked. The citation repair and primary-source verification removed the citation blockers; three grounded blockers remain: no real authority-backed power report/tier receipt, and missing packet/assignment/detectability/unblind receipts from the Step 14 index. The campaign-spec builder now requires the canonical p0-power-report.json and p0-core-receipt.json paths rather than treating the prose design brief as power evidence, and currently fails closed because both are absent. The compact receipt is docs/research/neurips-2026-workshop/evidence/step14-launch-review-20260802.json. No experiment or provider action is authorized."
         },
         {
             "id": "B-NEURIPS-DUAL-L40S-QUALIFICATION",

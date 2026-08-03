@@ -125,6 +125,17 @@ The concrete runner now initializes the committed backend with
 and the adapter rejects load/apply/destroy without that successful state. The
 lock-timeout mutation contract remains intact.
 
+## Step 14 real-power input and authority-gate repair
+
+The Step 14 builder now requires the canonical sealed P0 power/tier report and
+independent canonical artifact-root receipt at
+`build/research/neurips-2026-workshop/p0-canonical/power/p0-power-report.json`
+and `build/research/neurips-2026-workshop/p0-canonical/p0-core-receipt.json`.
+The current checkout lacks both, so generation exits nonzero instead of using
+the prose design brief as a power-report substitute. A complete synthetic
+authority-binding regression is green; no P0 authority or scientific work was
+created.
+
 ## Remaining gates before official P0 / Step 4B
 
 1. The dual-L40S qualification is not passed; action-011 is exhausted. No
