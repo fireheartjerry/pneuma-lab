@@ -2,7 +2,8 @@
 
 This command is intentionally inert until a human supplies a GPU, immutable
 inputs, and explicit execution authority. It never calls AWS, creates cloud
-resources, selects scientific work, or compiles an admission receipt.
+resources, loads a model, selects scientific work, or compiles an admission
+receipt.
 """
 
 from __future__ import annotations
@@ -15,14 +16,13 @@ import signal
 import tempfile
 import time
 import urllib.request
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
 from pneuma_lab.cloud.admission_measurement import (
     OUTPUT_PARITY_FIXTURE_IDS,
     TOOL_CALL_FIXTURES,
-    canonical_tool_call,
-    parse_tool_call_text,
 )
 from pneuma_lab.cloud.authorization_keys import canonical_bytes
 from pneuma_lab.cloud.pilot import RUNG_NAMES, protocol_digest
@@ -30,6 +30,8 @@ from pneuma_lab.cloud.pilot import RUNG_NAMES, protocol_digest
 
 _RUNG_LENGTHS = {"l40s-tp1-32768": 32768, "l40s-tp1-65536": 65536}
 _WATCHDOG_SECONDS = 3500
+FIXTURE_MODEL = "fixture-only-cuda"
+FIXTURE_REVISION = "fixture-only-v1"
 
 
 def _watchdog(_: int, __: Any) -> None:
@@ -67,163 +69,89 @@ def _token_ids_sha256(token_ids: list[int]) -> str:
     ).hexdigest()
 
 
-def _tool_schema(name: str, arguments: dict[str, object]) -> dict[str, object]:
-    properties: dict[str, object] = {}
-    for key, value in arguments.items():
-        json_type = (
-            "integer"
-            if isinstance(value, int) and not isinstance(value, bool)
-            else "string"
+def require_fixture_binding(model: str, revision: str) -> None:
+    """Refuse every model-backed execution path in the qualification image."""
+
+    if (model, revision) != (FIXTURE_MODEL, FIXTURE_REVISION):
+        raise RuntimeError(
+            "qualification worker accepts only the CUDA fixture binding; "
+            "subject-model execution is excluded"
         )
-        properties[key] = {"type": json_type, "const": value}
-    return {
-        "type": "function",
-        "function": {
+
+
+def _fixture_tool_call_observations() -> list[dict[str, object]]:
+    return [
+        {
+            "fixture_id": fixture_id,
+            "raw_response_text": json.dumps(
+                {"name": name, "arguments": arguments},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
             "name": name,
-            "description": "Return one sealed infrastructure qualification call.",
-            "parameters": {
-                "type": "object",
-                "properties": properties,
-                "required": list(arguments),
-                "additionalProperties": False,
-            },
-        },
-    }
+            "arguments": arguments,
+        }
+        for fixture_id, (name, arguments) in TOOL_CALL_FIXTURES.items()
+    ]
 
 
-def _sampling_params(vllm: Any, *, tokens: int) -> Any:
-    return vllm.SamplingParams(
-        temperature=0.0,
-        seed=0,
-        max_tokens=tokens,
-        min_tokens=tokens,
-        ignore_eos=True,
-    )
+def _fixture_output_parity_observations() -> list[dict[str, object]]:
+    return [
+        {
+            "fixture_id": fixture_id,
+            "first_output_token_ids": [index] * 32,
+            "second_output_token_ids": [index] * 32,
+        }
+        for index, fixture_id in enumerate(OUTPUT_PARITY_FIXTURE_IDS)
+    ]
 
 
-def _one_output(engine: Any, prompt: str, params: Any) -> Any:
-    return engine.generate([prompt], params, use_tqdm=False)[0].outputs[0]
+def _fixture_rung(*, rung: str, torch: Any) -> dict[str, object]:
+    """Exercise CUDA with deterministic tensors and no model or network."""
 
-
-def _throughput_observation(engine: Any, vllm: Any, *, rung: str) -> dict[str, object]:
-    params = _sampling_params(vllm, tokens=128)
-    _one_output(
-        engine,
-        "This is an excluded infrastructure warmup. Return a short neutral sentence.",
-        params,
-    )
-    samples = []
-    for index in range(10):
-        started = time.monotonic_ns()
-        output = _one_output(
-            engine,
-            f"Infrastructure throughput fixture {rung}:{index}. Return a neutral sentence.",
-            params,
-        )
-        elapsed = (time.monotonic_ns() - started) / 1_000_000_000
-        token_ids = list(output.token_ids)
-        if len(token_ids) != 128:
-            raise RuntimeError(
-                f"throughput fixture {index} returned {len(token_ids)} tokens, expected 128"
-            )
-        samples.append(
-            {
-                "index": index,
-                "elapsed_seconds": elapsed,
-                "generated_tokens": len(token_ids),
-                "output_token_ids_sha256": _token_ids_sha256(token_ids),
-            }
-        )
-    return {
-        "p10_method": "nearest_rank",
-        "warmup_samples": 1,
-        "output_tokens_per_sample": 128,
-        "samples": samples,
-    }
-
-
-def _tool_call_observations(engine: Any, vllm: Any) -> list[dict[str, object]]:
-    observations = []
-    params = _sampling_params(vllm, tokens=128)
-    for fixture_id, (name, arguments) in TOOL_CALL_FIXTURES.items():
-        output = engine.chat(
-            [
-                {
-                    "role": "user",
-                    "content": (
-                        "Run the provided qualification function exactly once. "
-                        "Do not explain the call or produce a benchmark answer."
-                    ),
-                }
-            ],
-            sampling_params=params,
-            tools=[_tool_schema(name, arguments)],
-        )[0].outputs[0]
-        raw_response_text = output.text
-        parsed = parse_tool_call_text(raw_response_text)
-        observations.append(
-            {
-                "fixture_id": fixture_id,
-                "raw_response_text": raw_response_text,
-                **canonical_tool_call(parsed["name"], parsed["arguments"]),
-            }
-        )
-    return observations
-
-
-def _output_parity_observations(engine: Any, vllm: Any) -> list[dict[str, object]]:
-    params = _sampling_params(vllm, tokens=32)
-    observations = []
-    for fixture_id in OUTPUT_PARITY_FIXTURE_IDS:
-        prompt = (
-            "This is a deterministic infrastructure parity fixture named "
-            f"{fixture_id}. Return a neutral sequence and no tool call."
-        )
-        first = list(_one_output(engine, prompt, params).token_ids)
-        second = list(_one_output(engine, prompt, params).token_ids)
-        if len(first) != 32 or len(second) != 32:
-            raise RuntimeError(
-                "output-parity fixture did not produce exactly 32 token IDs"
-            )
-        observations.append(
-            {
-                "fixture_id": fixture_id,
-                "first_output_token_ids": first,
-                "second_output_token_ids": second,
-            }
-        )
-    return observations
-
-
-def _measure_rung(
-    *, model: str, revision: str, rung: str, torch: Any, vllm: Any
-) -> dict[str, object]:
+    tokens = _RUNG_LENGTHS[rung]
+    device = torch.device("cuda:0")
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
-    engine = vllm.LLM(
-        model=model,
-        revision=revision,
-        tokenizer=model,
-        tokenizer_revision=revision,
-        trust_remote_code=False,
-        max_model_len=_RUNG_LENGTHS[rung],
-        max_num_seqs=1,
-        gpu_memory_utilization=0.90,
-        enforce_eager=True,
-        tensor_parallel_size=1,
-    )
-    try:
-        result = {
-            "peak_allocated_bytes": torch.cuda.max_memory_allocated(),
-            "throughput": _throughput_observation(engine, vllm, rung=rung),
-            "tool_calls": _tool_call_observations(engine, vllm),
-            "output_parity": _output_parity_observations(engine, vllm),
+    # The rung size is real input to a CUDA allocation, but the fixture is
+    # deliberately tiny relative to the 44 GiB usable-device boundary.
+    working_set = torch.zeros((tokens, 8), device=device, dtype=torch.float16)
+    working_set.add_(1)
+    torch.cuda.synchronize()
+
+    def sample(index: int) -> dict[str, object]:
+        started = time.monotonic_ns()
+        token_ids = torch.arange(128, device=device, dtype=torch.int32)
+        token_ids = (token_ids + tokens + index) % 32000
+        token_ids = token_ids.cpu().tolist()
+        torch.cuda.synchronize()
+        elapsed = (time.monotonic_ns() - started) / 1_000_000_000
+        if len(token_ids) != 128:
+            raise RuntimeError("CUDA fixture did not produce exactly 128 token IDs")
+        return {
+            "index": index,
+            "elapsed_seconds": max(elapsed, 1e-9),
+            "generated_tokens": 128,
+            "output_token_ids_sha256": _token_ids_sha256(token_ids),
         }
-        result["peak_allocated_bytes"] = torch.cuda.max_memory_allocated()
-        return result
-    finally:
-        del engine
-        torch.cuda.empty_cache()
+
+    sample(0)
+    samples = [sample(index) for index in range(10)]
+    peak_allocated_bytes = int(torch.cuda.max_memory_allocated())
+    del working_set
+    torch.cuda.synchronize()
+    torch.cuda.empty_cache()
+    return {
+        "peak_allocated_bytes": peak_allocated_bytes,
+        "throughput": {
+            "p10_method": "nearest_rank",
+            "warmup_samples": 1,
+            "output_tokens_per_sample": 128,
+            "samples": samples,
+        },
+        "tool_calls": _fixture_tool_call_observations(),
+        "output_parity": _fixture_output_parity_observations(),
+    }
 
 
 def _write_new(path: Path, payload: bytes) -> None:
@@ -257,6 +185,7 @@ def main() -> int:
     parser.add_argument("--rung", action="append", choices=RUNG_NAMES, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    require_fixture_binding(args.model, args.revision)
 
     signal.signal(signal.SIGALRM, _watchdog)
     signal.alarm(_WATCHDOG_SECONDS)
@@ -297,7 +226,6 @@ def main() -> int:
         instance_id = _aws_instance_id()
 
         import torch
-        import vllm
 
         if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
             raise RuntimeError("admission probe requires exactly one CUDA device")
@@ -321,16 +249,13 @@ def main() -> int:
                 "cuda_name": properties.name,
                 "cuda_total_memory_bytes": properties.total_memory,
                 "torch_version": torch.__version__,
-                "vllm_version": vllm.__version__,
+                # The image contains vLLM for the separate production
+                # surface, but this qualification worker never imports it or
+                # loads a model.
+                "vllm_version": version("vllm"),
             },
             "rungs": {
-                rung: _measure_rung(
-                    model=args.model,
-                    revision=args.revision,
-                    rung=rung,
-                    torch=torch,
-                    vllm=vllm,
-                )
+                rung: _fixture_rung(rung=rung, torch=torch)
                 for rung in args.rung
             },
         }

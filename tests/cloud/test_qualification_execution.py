@@ -415,8 +415,8 @@ def test_fixed_entrypoint_materializes_bound_files_and_publishes_once(
         **bindings,
         "AWS_BATCH_JOB_ARRAY_INDEX": "1",
         "QUALIFICATION_ARTIFACT_PREFIX": prefix,
-        "QUALIFICATION_MODEL": "fixture-model",
-        "QUALIFICATION_MODEL_REVISION": "fixture-revision",
+        "QUALIFICATION_MODEL": "fixture-only-cuda",
+        "QUALIFICATION_MODEL_REVISION": "fixture-only-v1",
     }
     for name, value in environment.items():
         monkeypatch.setenv(name, value)
@@ -579,8 +579,8 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
             "gpu_worker_image": {
                 "value": "registry.example.invalid/worker@sha256:" + "a" * 64
             },
-            "qualification_model": {"value": "fixture"},
-            "qualification_model_revision": {"value": "fixture"},
+            "qualification_model": {"value": "fixture-only-cuda"},
+            "qualification_model_revision": {"value": "fixture-only-v1"},
             "protocol_path": {
                 "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/protocol.json"
             },
@@ -672,8 +672,8 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                                             "name": "QUALIFICATION_ARTIFACT_PREFIX",
                                             "value": "s3://bucket/runs/qualification/fixed-admission-001/outputs/",
                                         },
-                                        {"name": "QUALIFICATION_MODEL", "value": "fixture"},
-                                        {"name": "QUALIFICATION_MODEL_REVISION", "value": "fixture"},
+                                        {"name": "QUALIFICATION_MODEL", "value": "fixture-only-cuda"},
+                                        {"name": "QUALIFICATION_MODEL_REVISION", "value": "fixture-only-v1"},
                                         {"name": "QUALIFICATION_PROTOCOL", "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/protocol.json"},
                                         {"name": "QUALIFICATION_ARCHITECTURE", "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/architecture.json"},
                                         {"name": "QUALIFICATION_AUTHORIZATION", "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/authorization.json"},

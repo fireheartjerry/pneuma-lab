@@ -13,6 +13,11 @@ from pneuma_lab.cloud.worker_admission import (
     compile_worker_admission,
     measurement_evidence_digest,
 )
+from pneuma_lab.cloud.dual_worker_admission_probe import (
+    FIXTURE_MODEL,
+    FIXTURE_REVISION,
+    require_fixture_binding,
+)
 
 
 def protocol() -> dict:
@@ -161,3 +166,9 @@ def test_compiler_rejects_a_non_l40s_raw_runtime() -> None:
     raw["runtime"]["cuda_name"] = "NVIDIA H100"
     with pytest.raises(CloudManifestError, match="not from an L40S runtime"):
         compile_worker_admission(raw, protocol(), evidence_sha256="1" * 64)
+
+
+def test_qualification_probe_accepts_only_the_non_model_cuda_fixture() -> None:
+    require_fixture_binding(FIXTURE_MODEL, FIXTURE_REVISION)
+    with pytest.raises(RuntimeError, match="subject-model execution is excluded"):
+        require_fixture_binding("Qwen/Qwen3.6-35B-A3B-FP8", "95a723d0")

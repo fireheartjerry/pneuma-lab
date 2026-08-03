@@ -36,6 +36,8 @@ from .retrieval import require_authorized
 
 QUALIFICATION_CODE_ENV = "QUALIFICATION_CODE"
 QUALIFICATION_ACTION_ID_ENV = "QUALIFICATION_ACTION_ID"
+QUALIFICATION_FIXTURE_MODEL = "fixture-only-cuda"
+QUALIFICATION_FIXTURE_REVISION = "fixture-only-v1"
 RAW_MEASUREMENT_NAME = "raw-measurement.json"
 _TERRAFORM_RUNNER_METADATA_KEYS = frozenset(
     {
@@ -1216,6 +1218,17 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         "QUALIFICATION_INPUT_LOCK": input_paths["input_lock"],
         "QUALIFICATION_OUTPUT_ROOT": output_path,
     }
+    if expected_environment["QUALIFICATION_MODEL"] != QUALIFICATION_FIXTURE_MODEL:
+        raise CloudManifestError(
+            "planned qualification must bind the non-model CUDA fixture"
+        )
+    if (
+        expected_environment["QUALIFICATION_MODEL_REVISION"]
+        != QUALIFICATION_FIXTURE_REVISION
+    ):
+        raise CloudManifestError(
+            "planned qualification must bind the registered fixture revision"
+        )
     if (
             not output_path.startswith("s3://")
         or not output_path.rstrip("/").endswith(f"/{action_id}/outputs")

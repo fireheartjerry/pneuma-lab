@@ -33,6 +33,13 @@ any capacity/image/runtime/receipt/teardown failure, and execute destroy plus
 fresh absence verification. It must not run P0, Step 4B, a pilot, benchmark,
 shard, unblind, analysis, or claim promotion.
 
+The worker fixture is explicitly CUDA-only: it checks one real L40S, exercises
+the two registered tensor-allocation rungs, and emits deterministic tool/parity
+records. It does not import vLLM, download weights, load a model, or execute a
+subject workload. The `QUALIFICATION_MODEL` and revision environment names are
+legacy binding fields retained for exact plan/action hashing; only
+`fixture-only-cuda` / `fixture-only-v1` are accepted.
+
 This document records code contracts only. It is not a provider receipt and
 does not claim that a worker, GPU, model, benchmark, or experiment ran.
 

@@ -31,6 +31,10 @@ from .qualification_execution import (
 )
 
 
+FIXTURE_MODEL = "fixture-only-cuda"
+FIXTURE_REVISION = "fixture-only-v1"
+
+
 def validate_local_probe_inputs(input_paths: Sequence[str | Path]) -> tuple[Path, ...]:
     """Require distinct readable local files and reject remote locators."""
 
@@ -311,14 +315,12 @@ def _runtime_argv(
     raw_index = bindings.get("AWS_BATCH_JOB_ARRAY_INDEX")
     if raw_index not in {"0", "1"}:
         raise SystemExit("AWS_BATCH_JOB_ARRAY_INDEX must be exactly 0 or 1")
-    model = bindings.get(
-        "QUALIFICATION_MODEL", bindings.get("PNEUMA_SUBJECT_MODEL")
-    )
-    revision = bindings.get(
-        "QUALIFICATION_MODEL_REVISION", bindings.get("PNEUMA_SUBJECT_REVISION")
-    )
+    model = bindings.get("QUALIFICATION_MODEL")
+    revision = bindings.get("QUALIFICATION_MODEL_REVISION")
     if not model or not revision:
-        raise SystemExit("qualification image lacks model and revision bindings")
+        raise SystemExit("qualification image lacks fixed fixture bindings")
+    if (model, revision) != (FIXTURE_MODEL, FIXTURE_REVISION):
+        raise SystemExit("qualification image refuses non-fixture model execution")
     argv = [
         "dual_worker_admission_probe.py",
         "--model",
