@@ -1,0 +1,123 @@
+#!/bin/bash
+set -Eeuo pipefail
+
+# Action-specific values are rendered into this content-addressed template
+# immediately before the one-use EC2 launch. The template itself is sealed in
+# the source commit and its hash is bound by the preparation plan.
+readonly ACTION_ID="__ACTION_ID__"
+readonly SOURCE_ARCHIVE_URI="__SOURCE_ARCHIVE_URI__"
+readonly SOURCE_ARCHIVE_SHA256="__SOURCE_ARCHIVE_SHA256__"
+readonly SOURCE_COMMIT="__SOURCE_COMMIT__"
+readonly DOCKERFILE_SHA256="__DOCKERFILE_SHA256__"
+readonly BASE_DIGEST="__BASE_DIGEST__"
+readonly REPOSITORY_URI="__REPOSITORY_URI__"
+readonly IMAGE_TAG="__IMAGE_TAG__"
+readonly OUTPUT_URI="__OUTPUT_URI__"
+readonly ROOT="/opt/pneuma-qualification-build"
+readonly OUTPUT_DIR="$ROOT/output"
+readonly SOURCE_ROOT="$ROOT/source"
+readonly IMAGE_REF="$REPOSITORY_URI:$IMAGE_TAG"
+
+fail() {
+    local reason="$1"
+    printf '{"action_id":"%s","reason":"%s","state":"FAILED"}\n' \
+        "$ACTION_ID" "$reason" > "$OUTPUT_DIR/bootstrap-status.json"
+    aws s3 cp "$OUTPUT_DIR" "$OUTPUT_URI" --recursive --only-show-errors || true
+    shutdown -h now || true
+    exit 1
+}
+
+trap 'fail bootstrap_error' ERR
+
+run_negative_entrypoint_check() {
+    local image_ref="$1"
+    local output_dir="$2"
+    local stdout_path="$output_dir/entrypoint-negative.stdout"
+    local stderr_path="$output_dir/entrypoint-negative.stderr"
+    local receipt_path="$output_dir/entrypoint-negative.json"
+    local negative_status
+
+    # An expected nonzero result is the condition being tested. Keeping the
+    # command in an if condition suppresses ERR-trap handling for this branch
+    # only; the trap remains active for every unexpected failure.
+    if docker run --rm --network none --read-only --tmpfs /tmp "$image_ref" \
+        > "$stdout_path" 2> "$stderr_path"; then
+        fail entrypoint_negative_check_succeeded
+    else
+        negative_status=$?
+    fi
+    grep -Fq 'QUALIFICATION_CODE' "$stderr_path" || fail entrypoint_negative_check_missing_code_error
+    printf '{"command":"docker run --rm --network none --read-only --tmpfs /tmp %s","returncode":%s,"qualification_code_required":true}\n' \
+        "$image_ref" "$negative_status" > "$receipt_path"
+}
+
+run_pre_push_checks() {
+    local image_ref="$1"
+    local output_dir="$2"
+    run_negative_entrypoint_check "$image_ref" "$output_dir"
+    printf '{"stage":"post-negative-check","reached":true}\n' \
+        > "$output_dir/post-negative-check-sentinel.json"
+}
+
+main() {
+    mkdir -p "$OUTPUT_DIR" "$SOURCE_ROOT"
+    exec > >(tee "$OUTPUT_DIR/bootstrap.log") 2>&1
+
+    STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    aws sts get-caller-identity --output json --no-cli-pager > "$OUTPUT_DIR/builder-identity.json"
+    dnf install -y docker tar gzip
+    systemctl enable --now docker
+    docker version --format '{{json .}}' > "$OUTPUT_DIR/docker-version.json"
+    aws s3 cp "$SOURCE_ARCHIVE_URI" "$ROOT/source.tar" --only-show-errors
+    printf '%s  %s\n' "$SOURCE_ARCHIVE_SHA256" "$ROOT/source.tar" | sha256sum --check --status || fail source_archive_digest_mismatch
+    tar -xf "$ROOT/source.tar" -C "$SOURCE_ROOT"
+    readonly DOCKERFILE="$SOURCE_ROOT/infra/docker/qualification-worker/Dockerfile"
+    printf '%s  %s\n' "$DOCKERFILE_SHA256" "$DOCKERFILE" | sha256sum --check --status || fail dockerfile_digest_mismatch
+    grep -Fqx 'ENTRYPOINT ["/opt/pneuma/fixed_admission_entrypoint.sh"]' "$DOCKERFILE" || fail entrypoint_source_mismatch
+    grep -Fqx "      org.opencontainers.image.base.digest=\"$BASE_DIGEST\"" "$DOCKERFILE" || fail base_label_source_mismatch
+    timeout --foreground 6600 docker build \
+        --pull=false \
+        --platform linux/amd64 \
+        --build-arg "SOURCE_COMMIT=$SOURCE_COMMIT" \
+        --file "$DOCKERFILE" \
+        --tag "$IMAGE_REF" \
+        "$SOURCE_ROOT"
+    docker image inspect "$IMAGE_REF" > "$OUTPUT_DIR/image-inspect.json"
+    python3 - "$OUTPUT_DIR/image-inspect.json" "$SOURCE_COMMIT" "$BASE_DIGEST" <<'PY'
+import json
+import sys
+
+rows = json.load(open(sys.argv[1], encoding="utf-8"))
+if len(rows) != 1:
+    raise SystemExit("image inspect did not return one image")
+config = rows[0].get("Config") or {}
+if config.get("Entrypoint") != ["/opt/pneuma/fixed_admission_entrypoint.sh"]:
+    raise SystemExit("image entrypoint is not the fixed qualification entrypoint")
+labels = config.get("Labels") or {}
+if labels.get("org.opencontainers.image.revision") != sys.argv[2]:
+    raise SystemExit("image source revision label is not the sealed commit")
+if labels.get("org.opencontainers.image.base.digest") != sys.argv[3]:
+    raise SystemExit("image base digest label is not the sealed digest")
+PY
+    docker run --rm --network none --read-only --tmpfs /tmp --entrypoint /bin/sh "$IMAGE_REF" \
+        -c 'test -d /opt/pneuma/pneuma_lab'
+    run_pre_push_checks "$IMAGE_REF" "$OUTPUT_DIR"
+    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$REPOSITORY_URI" \
+        > "$OUTPUT_DIR/ecr-login.txt"
+    docker push "$IMAGE_REF" > "$OUTPUT_DIR/docker-push.log"
+    aws ecr describe-images --region us-east-1 --repository-name pneuma-c160-worker \
+        --image-ids imageTag="$IMAGE_TAG" --output json --no-cli-pager \
+        > "$OUTPUT_DIR/ecr-image-metadata.json"
+    ENDED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf '{"action_id":"%s","ended_at":"%s","image":"%s","source_commit":"%s","started_at":"%s","state":"COMPLETE"}\n' \
+        "$ACTION_ID" "$ENDED_AT" "$IMAGE_REF" "$SOURCE_COMMIT" "$STARTED_AT" \
+        > "$OUTPUT_DIR/bootstrap-status.json"
+    find "$OUTPUT_DIR" -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort > "$OUTPUT_DIR/output-files.txt"
+    sha256sum "$OUTPUT_DIR"/* > "$OUTPUT_DIR/output-sha256sums.txt"
+    aws s3 cp "$OUTPUT_DIR" "$OUTPUT_URI" --recursive --only-show-errors
+    shutdown -h now
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
