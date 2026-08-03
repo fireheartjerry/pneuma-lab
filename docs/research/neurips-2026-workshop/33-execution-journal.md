@@ -7211,3 +7211,20 @@ post-launch terminal no-go. Tasks 6–10 remain
   source-only repair made before action-012 authority or AWS mutation; no
   Batch, GPU, Spot, model, benchmark, pilot, official P0/Step-4B experiment,
   unblind, analysis, or claim promotion occurred.
+
+### EJ-20260803-qualification-image-build-014-preflight-retirement
+
+- **Repair-driven retirement:** Fresh image-build action-014 was prepared but
+  retired before KMS signing because its source/archive binding was no longer
+  the right repair boundary: the retained image-013 digest already passed all
+  fixture, CLI, entrypoint, immutable-ECR, and teardown checks, while the
+  subsequent checkout changes were host-side orchestration only.
+- **Binding repair:** The image gate now accepts an ancestor build commit only
+  when the image-runtime tree is unchanged; `ephemeral_runner.py` and
+  `images.py` are explicitly host-side orchestration code outside the fixed
+  container entrypoint. Focused image and runner tests pass, and the retained
+  image-013 digest binds successfully at checkout `08d5894`.
+- **Boundary:** Action-014 was never KMS-signed, launched, or retried. No AWS
+  provider mutation, image push, Terraform, Batch, GPU, Spot, model,
+  benchmark, pilot, official P0/Step-4B experiment, unblind, analysis, or claim
+  promotion occurred.

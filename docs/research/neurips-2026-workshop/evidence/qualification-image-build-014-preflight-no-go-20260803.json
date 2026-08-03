@@ -1,0 +1,20 @@
+{
+  "action_class": "image_build",
+  "action_id": "qualification-image-build-014",
+  "observed_at": "2026-08-03T21:24:12Z",
+  "official_study_boundary": "preserved",
+  "plan_sha256": "c8cdcba94f17b3aeb91cc0226e96534483d61f0d78ba48b491466f840bdcbc19",
+  "provider": "aws",
+  "provider_mutation": "none",
+  "reason": "superseded before KMS signing after the host-side image binding contract was repaired to accept an ancestor build commit with an unchanged image-runtime tree",
+  "receipt_sha256": "dcc5c5f96a547eda174de5476d10a2445296bda20b68df881545e3ffa768daf4",
+  "record_kind": "cloud_qualification_preflight_no_go",
+  "region": "us-east-1",
+  "repaired_checkout_commit": "08d5894c4c00e1bba59b4e7d06aa1ef3195019fc",
+  "retained_image_digest": "sha256:6c256efdfbac62dc805465721e43295d2600d8dedb43486242a550a615c62d2f",
+  "retry": "none",
+  "schema_version": "0.1.0",
+  "scientific_workload": "none",
+  "source_build_commit": "5dfbc47a1139f0b2acf1feafb0bd2e9fc76d7431",
+  "status": "RETIRED_BEFORE_ADMISSION"
+}
