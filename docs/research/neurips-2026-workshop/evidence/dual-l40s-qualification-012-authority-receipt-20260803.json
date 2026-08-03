@@ -1,0 +1,58 @@
+{
+  "record_kind": "cloud_qualification_authority_receipt",
+  "schema_version": "0.1.0",
+  "status": "authorized_and_verified",
+  "observed_at": "2026-08-03T21:55:47Z",
+  "qualification_only": true,
+  "action_id": "dual-l40s-qualification-012",
+  "action_class": "qualification_audit",
+  "provider": "aws",
+  "region": "us-east-1",
+  "plan_sha256": "11c3dd1a61d8a1dd040b1ac7a560d0d44db0de604e666d652b3b7c705df8db9c",
+  "saved_plan_sha256": "c1754fb18e27c845377bd3f4b7e49925e108f68d4931f0e2d4db45cbd78e850f",
+  "terraform_show_sha256": "6eab97765dc117eadf8c2a10f885a21e7102f903527147e4aa45077e772a34f5",
+  "terraform_plan_binding_sha256": "d8b16bd4014437a9229a9e0306353955fbe505122168755012fb6ad202ced961",
+  "input_lock_sha256": "767ad3f4c29c0e3f5e526673063d3a7f6d6169139361db979de642b6a9e697af",
+  "iam_policy_sha256": "3f2970ac68e594ec76f45af57fcc0f6044e6fc305453656bb09bb0fc1d369ada",
+  "iam_simulation_matrix_sha256": "83b19ebe900c040378d39ca050c3b8c7b6c43af3bca1f5bdf69ee6f9eb98755b",
+  "iam_policy_inventory_sha256": "e89c8681a636c3d05f02d252b09309a5319c4f98836809ee86cbaad7715fae58",
+  "image_digest": "sha256:6c256efdfbac62dc805465721e43295d2600d8dedb43486242a550a615c62d2f",
+  "image_build_receipt_sha256": "d6b7a7d903dea8ecb7a0a46a032341b9c26451b2dbeb867e3ddc1d290fa1085",
+  "projected_cost_usd": 4.4842,
+  "max_retries": 0,
+  "four_az_map_sha256": "2ed7bef4c572de3db37ec73ed06605f554e3df4ee2305776fce2b6374a3f5687",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-012/outputs/",
+  "envelope": {
+    "ledger_row_id": "CL-310",
+    "ledger_row_sha256": "73bc5bfbf3628ca3e77a5084df7b824be479243ac4cf176025510bb67651e82c",
+    "body_sha256": "d5fe6669e399fcaf3a9d77f4c5c44d5bdc8cdf9f077e43602d7f8fbac3c638fb",
+    "signature_sha256": "bda6183bfd9052c719248d1deb65f8d394b590cdc55dbaded5c884a0519cea1c",
+    "expires_timestamp": "2026-08-04T05:55:41Z"
+  },
+  "admission": {
+    "ledger_row_id": "CL-311",
+    "ledger_row_sha256": "e4a9eaa7ba4031d961d70fa5a2bd8b6d887420081da561d904d64eb63a0c6e8c",
+    "body_sha256": "3543e4a5984820f46467aba891aafc8cb25183681850995cee8a091af090930e",
+    "signature_sha256": "7bb3275c7ea9a4c5448b53a9c0322d58ca060bcca8178bb806e388900b6810cc",
+    "expires_timestamp": "2026-08-04T05:55:41Z"
+  },
+  "signed_package_sha256": "17596edc8d6bb5806db39315ceb441121a75d47606b9db9f8654ced221c3be17",
+  "kms": {
+    "key_alias": "alias/pneuma-approver",
+    "registry_key_id": "pneuma-kms-20260801-r1",
+    "signing_algorithm": "ED25519_SHA_512",
+    "envelope_signature_valid": true,
+    "admission_signature_valid": true
+  },
+  "scientific_boundary": {
+    "fixture_only": true,
+    "no_p0": true,
+    "no_step_4b": true,
+    "no_model_load": true,
+    "no_benchmark": true,
+    "no_pilot": true,
+    "no_unblind": true,
+    "no_analysis": true,
+    "no_claim_promotion": true
+  }
+}

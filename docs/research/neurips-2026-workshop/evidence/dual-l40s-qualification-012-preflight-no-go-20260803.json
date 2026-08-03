@@ -1,0 +1,43 @@
+{
+  "record_kind": "cloud_qualification_preflight_no_go",
+  "schema_version": "0.1.0",
+  "status": "pre_launch_no_go",
+  "observed_at": "2026-08-03T22:00:00Z",
+  "qualification_only": true,
+  "action_id": "dual-l40s-qualification-012",
+  "action_class": "qualification_audit",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "plan_sha256": "11c3dd1a61d8a1dd040b1ac7a560d0d44db0de604e666d652b3b7c705df8db9c",
+  "signed_package_sha256": "17596edc8d6bb5806db39315ceb441121a75d47606b9db9f8654ced221c3be17",
+  "authority_receipt_sha256": "acd03b15be9b29f7894980e05d6e2c5572fc2f172342a6d0e7f7b9e36b25514e",
+  "provider_mutation": "none",
+  "reason": "The signed action-012 package passed its plan, IAM, and KMS signing checks, but the execution-time immutable-image binding rejected image-013 because src/pneuma_lab/cloud/qualification_execution.py changed after its source build commit. The fixed image ENTRYPOINT imports that module, so the retained image cannot be used for this repaired runtime tree.",
+  "repair": "Advance to fresh dual-l40s-qualification-013 after rebuilding the immutable qualification image from the current committed runtime tree.",
+  "retry": "none",
+  "scientific_workload": "none",
+  "teardown": {
+    "jobs_absent": true,
+    "instances_absent": true,
+    "volumes_absent": true,
+    "launch_template_absent": true,
+    "network_interfaces_absent": true,
+    "security_group_absent": true,
+    "job_definition_absent": true,
+    "queue_absent": true,
+    "compute_environment_absent": true,
+    "output_prefix_empty": true,
+    "complete": true
+  },
+  "scientific_boundary": {
+    "no_p0": true,
+    "no_step_4b": true,
+    "no_model_load": true,
+    "no_benchmark": true,
+    "no_pilot": true,
+    "no_unblind": true,
+    "no_analysis": true,
+    "no_claim_promotion": true
+  }
+}

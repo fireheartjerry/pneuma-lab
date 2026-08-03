@@ -1,0 +1,132 @@
+{
+  "record_kind": "cloud_qualification_image_build_plan",
+  "schema_version": "0.1.0",
+  "action_class": "image_build",
+  "action_id": "qualification-image-build-015",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "frozen_timestamp": "2026-08-03T22:02:30Z",
+  "expires_timestamp": "2026-08-04T10:02:30Z",
+  "cost_ceiling_usd": 25.0,
+  "projected_cost_usd": 6.0,
+  "max_retries": 0,
+  "authority": {
+    "envelope_ledger_row_id": "CL-314",
+    "admission_ledger_row_id": "CL-315",
+    "expires_timestamp": "2026-08-04T10:02:30Z"
+  },
+  "source": {
+    "commit": "4dde732fca3a9a579270459e72822e57e5814975",
+    "archive": {
+      "s3_uri": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-015/source.tar",
+      "sha256": "f8ed7ead94ba9511106947c2d8810552a70c84e92c791a2068da5bc9ba7ceee0",
+      "size_bytes": 30576640
+    },
+    "dockerfile": {
+      "path": "infra/docker/qualification-worker/Dockerfile",
+      "sha256": "3b970d926d34acd8225280a6cd0c520ce74f49a366030a71dfdfdda68cf56662"
+    },
+    "base_digest": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90"
+  },
+  "bootstrap": {
+    "template_path": "infra/aws/qualification-image-build-user-data.sh",
+    "template_sha256": "055e1949fc4c4a02eddf6e1b4b6f95cc9030dcb2e1f9ee8e631b2e3d541b07c5",
+    "rendered_sha256": "0c02d8bd659dc399bb103ba2dc0c2c3128b27e98ffe7cff7915c3f53a17e97c8",
+    "fixture_runtime_check_path": "scripts/research/qualification_image_fixture_check.py",
+    "fixture_check": {
+      "model_loaded": false,
+      "network": "none",
+      "worker_indices": [0, 1],
+      "raw_publication": "two immutable worker-indexed objects"
+    },
+    "negative_check": {
+      "network": "none",
+      "qualification_code_supplied": false,
+      "expected_stderr_marker": "QUALIFICATION_CODE",
+      "expected_post_check_sentinel": true
+    }
+  },
+  "builder": {
+    "ami_id": "ami-08bc385c9fc5afc94",
+    "instance_type": "m7i.xlarge",
+    "subnet_id": "subnet-0da0658f2703d3e58",
+    "vpc_id": "vpc-0baeaefeb8b57c19b",
+    "public_ip_required": true,
+    "root_device": "/dev/xvda",
+    "root_volume": {
+      "type": "gp3",
+      "size_gib": 650,
+      "encrypted": true,
+      "delete_on_termination": true
+    },
+    "imds": {
+      "http_endpoint": "enabled",
+      "http_tokens": "required",
+      "http_put_response_hop_limit": 2
+    },
+    "max_runtime_seconds": 7200,
+    "build_timeout_seconds": 6600,
+    "max_retries": 0,
+    "instance_profile": {
+      "name": "qualification-image-build-015",
+      "role_name": "qualification-image-build-015",
+      "permission_policy_sha256": "0ac10a018792c4e964c85245375ffcc22d1feff5d70bf09eb257d487bdc9084a",
+      "trust_policy_sha256": "76fd167b1889163859412a7106ff88c49cbeb0fd5ea3a0e2dc52c10f0470afaf"
+    },
+    "security_group": {
+      "name": "qualification-image-build-015",
+      "description": "Pneuma qualification image build 015; no ingress",
+      "ingress": [],
+      "egress": [
+        {
+          "protocol": "tcp",
+          "from_port": 443,
+          "to_port": 443,
+          "cidr": "0.0.0.0/0"
+        },
+        {
+          "protocol": "tcp",
+          "from_port": 53,
+          "to_port": 53,
+          "cidr": "172.31.0.2/32"
+        },
+        {
+          "protocol": "udp",
+          "from_port": 53,
+          "to_port": 53,
+          "cidr": "172.31.0.2/32"
+        }
+      ]
+    }
+  },
+  "target": {
+    "repository_name": "pneuma-c160-worker",
+    "repository_uri": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker",
+    "image_tag": "qualification-image-build-015-4dde732",
+    "platform": "linux/amd64",
+    "scan_on_push_required": true,
+    "tag_mutability_required": "IMMUTABLE"
+  },
+  "constraints": {
+    "no_batch": true,
+    "no_terraform": true,
+    "no_gpu": true,
+    "no_spot": true,
+    "no_model_download": true,
+    "no_model_load": true,
+    "no_benchmark": true,
+    "no_pilot": true,
+    "no_experiment": true,
+    "no_qualification_run": true
+  },
+  "teardown": {
+    "terminate_builder": true,
+    "delete_root_volume": true,
+    "delete_security_group": true,
+    "delete_instance_profile": true,
+    "delete_builder_role": true,
+    "fresh_provider_absence_required": true
+  },
+  "plan_sha256": "4399103974b03d4a12cb54919a38d607dd847f8aec02488caf2f9dc040c8aae1"
+}
