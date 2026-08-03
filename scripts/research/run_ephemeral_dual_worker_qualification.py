@@ -1,113 +1,43 @@
-"""Concrete future AWS qualification runner; inert unless ``--execute`` is set."""
+"""Concrete AWS qualification runner; inert unless ``--execute`` is set."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from pathlib import Path
 import subprocess
+from typing import Any, Mapping
 
+from pneuma_lab.cloud.ephemeral_receipt import (
+    build_ephemeral_qualification_receipt,
+    validate_authority_evidence,
+)
 from pneuma_lab.cloud.ephemeral_runner import (
     AwsCliAdapter,
+    QualificationExecutionError,
     RunnerConfig,
     TerraformAdapter,
     execute,
 )
-from pneuma_lab.cloud.qualification_execution import worker_artifact_uri
 
 
-def _digest_text(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+def _json_file(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return value
 
 
-def _sanitized_receipt(
-    result: dict, *, account_plan: dict, action_id: str, region: str, output_root: str
-) -> dict:
-    evidence = result.get("evidence") or {}
-    children = evidence.get("children") or ()
-    child_rows = []
-    observed_durations = []
-    for child in children:
-        started_at = child.get("startedAt")
-        stopped_at = child.get("stoppedAt")
-        duration_seconds = None
-        if isinstance(started_at, (int, float)) and isinstance(stopped_at, (int, float)):
-            duration_seconds = (stopped_at - started_at) / 1000.0
-            observed_durations.append(duration_seconds)
-        child_rows.append(
-            {
-                "job_id_sha256": _digest_text(str(child.get("jobId", ""))),
-                "array_index": (child.get("arrayProperties") or {}).get("index"),
-                "status": child.get("status"),
-                "attempt_count": len(child.get("attempts") or []),
-                "started_at_epoch_ms": started_at,
-                "stopped_at_epoch_ms": stopped_at,
-                "observed_duration_seconds": duration_seconds,
-            }
-        )
-    raw_rows = []
-    raw_evidence = evidence.get("raw_evidence") or {}
-    for index in (0, 1):
-        payload = raw_evidence.get(index)
-        if not isinstance(payload, (bytes, bytearray)) or not payload:
-            continue
-        raw_rows.append(
-            {
-                "worker_index": index,
-                "uri": worker_artifact_uri(output_root, index),
-                "sha256": hashlib.sha256(payload).hexdigest(),
-                "size_bytes": len(payload),
-            }
-        )
-    fixture_rows = []
-    fixture_admissions = evidence.get("fixture_admissions") or {}
-    for index in (0, 1):
-        admission = fixture_admissions.get(index) or fixture_admissions.get(str(index))
-        if isinstance(admission, dict):
-            fixture_rows.append(
-                {
-                    "worker_index": index,
-                    "rung": admission.get("rung"),
-                    "gates": admission.get("gates"),
-                    "measurement_evidence_sha256": admission.get(
-                        "measurement_evidence_sha256"
-                    ),
-                }
-            )
+def _prelaunch_output(action_id: str, exc: Exception) -> dict[str, str]:
     return {
-        "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt",
-        "schema_version": "0.1.0",
-        "status": "passed",
-        "qualification_only": True,
+        "record_kind": "cloud_ephemeral_dual_worker_qualification_preflight_no_go",
+        "status": "pre_launch_no_go",
+        "qualification_only": "true",
         "action_id": action_id,
-        "provider": "aws",
-        "region": region,
-        "plan": {
-            "saved_plan_sha256": account_plan.get("saved_plan_sha256"),
-            "terraform_show_sha256": account_plan.get("terraform_show_sha256"),
-            "terraform_plan_binding_sha256": account_plan.get(
-                "terraform_plan_binding_sha256"
-            ),
-        },
-        "projected_cost_usd": result.get("projected_cost_usd"),
-        "ready": result.get("ready"),
-        "parent_job_id_sha256": _digest_text(str(result.get("parent_job_id", ""))),
-        "children": child_rows,
-        "observed_worker_duration_seconds": observed_durations,
-        "worker_identity_sha256": [
-            _digest_text(str(value)) for value in evidence.get("instance_ids", ())
-        ],
-        "raw_artifacts": raw_rows,
-        "fixture_admissions": fixture_rows,
-        "recovery": result.get("recovery"),
-        "teardown_absence": result.get("absence"),
+        "error_type": type(exc).__name__,
+        "error": str(exc),
+        "receipt_written": "false",
     }
-
-
-def _write_receipt(path: Path | None, receipt: dict) -> None:
-    if path is not None:
-        path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def main() -> int:
@@ -118,6 +48,9 @@ def main() -> int:
     parser.add_argument("--envelope", type=Path)
     parser.add_argument("--admission", type=Path)
     parser.add_argument("--key-registry", type=Path)
+    parser.add_argument("--signed-package", type=Path)
+    parser.add_argument("--authority-receipt", type=Path)
+    parser.add_argument("--iam-simulation-matrix-sha256")
     parser.add_argument("--ledger", type=Path)
     parser.add_argument("--region", default="us-east-1")
     parser.add_argument("--queue")
@@ -142,6 +75,9 @@ def main() -> int:
         args.envelope,
         args.admission,
         args.key_registry,
+        args.signed_package,
+        args.authority_receipt,
+        args.iam_simulation_matrix_sha256,
         args.ledger,
         args.queue,
         args.job_definition,
@@ -150,24 +86,46 @@ def main() -> int:
     )
     if any(value is None for value in required):
         parser.error(
-            "--execute requires the signed package, exact saved plan, queue, definition, and output root"
+            "--execute requires the exact plan, signed authority package and receipt evidence, queue, definition, and output root"
         )
-    terraform = TerraformAdapter(subprocess.run)
-    account_plan = terraform.load_account_plan(args.plan)
-    provider = AwsCliAdapter(
-        subprocess.run,
-        region=args.region,
-        queue=args.queue,
-        job_definition=args.job_definition,
-        compute_environment=args.compute_environment,
-        output_root=args.output_root,
-    )
-    envelope = json.loads(args.envelope.read_text(encoding="utf-8"))
-    admission = json.loads(args.admission.read_text(encoding="utf-8"))
-    registry = json.loads(args.key_registry.read_text(encoding="utf-8"))
+
+    authority: dict[str, Any] | None = None
     try:
+        terraform = TerraformAdapter(subprocess.run)
+        account_plan = terraform.load_account_plan(args.plan)
+        envelope = _json_file(args.envelope)
+        admission = _json_file(args.admission)
+        registry = _json_file(args.key_registry)
+        authority_record = _json_file(args.authority_receipt)
+        package_bytes = args.signed_package.read_bytes()
+        plan_for_binding = account_plan.get("_qualification")
+        if not isinstance(plan_for_binding, Mapping):
+            raise ValueError("loaded Terraform plan lacks its parsed qualification binding")
+        authority = validate_authority_evidence(
+            authority_record,
+            package_bytes=package_bytes,
+            envelope=envelope,
+            admission=admission,
+            action_id=args.action_id,
+            region=args.region,
+            plan=plan_for_binding,
+            projected_cost_usd=float(authority_record["projected_cost_usd"]),
+            iam_simulation_matrix_sha256=args.iam_simulation_matrix_sha256,
+        )
+        provider = AwsCliAdapter(
+            subprocess.run,
+            region=args.region,
+            queue=args.queue,
+            job_definition=args.job_definition,
+            compute_environment=args.compute_environment,
+            output_root=args.output_root,
+        )
         result = execute(
-            RunnerConfig(args.action_id, args.region),
+            RunnerConfig(
+                args.action_id,
+                args.region,
+                require_receipt_evidence=True,
+            ),
             envelope=envelope,
             admission=admission,
             key_registry=registry,
@@ -176,31 +134,51 @@ def main() -> int:
             provider=provider,
             terraform=terraform,
         )
-    except Exception as exc:
-        receipt = {
-            "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt",
-            "schema_version": "0.1.0",
-            "status": "no_go",
-            "qualification_only": True,
-            "action_id": args.action_id,
-            "provider": "aws",
-            "region": args.region,
-            "error_type": type(exc).__name__,
-            "error": str(exc),
-        }
-        _write_receipt(args.receipt, receipt)
+        receipt = build_ephemeral_qualification_receipt(
+            result,
+            action_id=args.action_id,
+            region=args.region,
+            authority=authority,
+            iam_simulation_matrix_sha256=args.iam_simulation_matrix_sha256,
+            output_root=args.output_root,
+        )
+        if args.receipt is not None:
+            args.receipt.write_text(
+                json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        print(json.dumps(receipt, sort_keys=True))
+        return 0
+    except QualificationExecutionError as exc:
+        context = exc.context
+        if not context.get("parent_job_id"):
+            print(json.dumps(_prelaunch_output(args.action_id, exc), sort_keys=True))
+            return 1
+        if authority is None:
+            print(json.dumps(_prelaunch_output(args.action_id, exc), sort_keys=True))
+            return 1
+        try:
+            receipt = build_ephemeral_qualification_receipt(
+                context,
+                action_id=args.action_id,
+                region=args.region,
+                authority=authority,
+                iam_simulation_matrix_sha256=args.iam_simulation_matrix_sha256,
+                output_root=args.output_root,
+            )
+        except Exception as receipt_exc:
+            print(json.dumps(_prelaunch_output(args.action_id, receipt_exc), sort_keys=True))
+            return 1
+        if args.receipt is not None:
+            args.receipt.write_text(
+                json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
         print(json.dumps(receipt, sort_keys=True))
         return 1
-    receipt = _sanitized_receipt(
-        result,
-        account_plan=account_plan,
-        action_id=args.action_id,
-        region=args.region,
-        output_root=args.output_root,
-    )
-    _write_receipt(args.receipt, receipt)
-    print(json.dumps(receipt, sort_keys=True))
-    return 0
+    except Exception as exc:
+        print(json.dumps(_prelaunch_output(args.action_id, exc), sort_keys=True))
+        return 1
 
 
 if __name__ == "__main__":

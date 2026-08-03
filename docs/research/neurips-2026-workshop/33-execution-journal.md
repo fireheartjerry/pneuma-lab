@@ -6407,3 +6407,24 @@ post-launch terminal no-go. Tasks 6–10 remain
   authorization. Tasks 6–10 remain `implementation_complete; E2E_pending` and
   the unsigned remaining-gate checklist is
   `59-unsigned-p0-step14-checklist-20260803.md`.
+
+### EJ-20260803-dual-l40s-concrete-runner-hardening
+
+- **Adversarial finding:** A read-only agent-session audit found that the
+  concrete `run_ephemeral_dual_worker_qualification.py` path still emitted a
+  legacy flat receipt and that the runner discarded terminal child details on
+  `Batch` admission failure. The retained action-011 receipt was valid only
+  because it had been sealed by the earlier execution workflow, not because the
+  current CLI could produce that schema.
+- **Repair:** The runner now captures exactly one CloudTrail `SubmitJob` event,
+  carries parent/child provider observations through teardown failures, proves
+  action-prefix emptiness and inactive job-definition history, and emits the
+  registered schema-bound receipt only after a submitted lifecycle has complete
+  absence evidence. Pre-launch failures produce a clearly separate preflight
+  no-go diagnostic and never a malformed execution receipt.
+- **Validation:** `timeout 55s .venv/bin/python -m pytest
+  tests/cloud/test_ephemeral_receipt.py tests/cloud/test_ephemeral_runner.py
+  tests/test_schema_loads.py -q` passed. No AWS resource was created and the
+  exhausted action-011 launch was not retried. The scientific boundary is
+  unchanged: no P0/Step 4B experiment, benchmark/model workload, pilot,
+  unblind, analysis, or claim promotion occurred.

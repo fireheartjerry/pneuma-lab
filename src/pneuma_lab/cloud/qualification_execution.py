@@ -59,6 +59,21 @@ QUALIFICATION_RESOURCE_REQUIREMENTS = frozenset(
 )
 
 
+class BatchAdmissionError(CloudManifestError):
+    """A terminal Batch admission failure retaining provider observations."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        parent: Mapping[str, Any],
+        children: Sequence[Mapping[str, Any]],
+    ) -> None:
+        super().__init__(message)
+        self.parent = dict(parent)
+        self.children = tuple(dict(child) for child in children)
+
+
 def terraform_plan_binding_digest(
     saved_plan_sha256: str, terraform_show_sha256: str
 ) -> str:

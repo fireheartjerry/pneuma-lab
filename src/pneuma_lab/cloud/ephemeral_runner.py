@@ -27,7 +27,9 @@ from .preparation_admission import require_preparation_admission
 from .authorization_keys import canonical_bytes
 from .qualification_execution import (
     AwsCliAdapter as ObjectAwsCliAdapter,
+    BatchAdmissionError,
     derive_spend_history_binding,
+    parse_s3_uri,
     parse_terraform_show,
     parse_terraform_show_json,
     require_two_succeeded_children,
@@ -63,6 +65,14 @@ REQUIRED_ABSENCE_KEYS = frozenset(
     }
 )
 TERMINAL_BATCH_JOB_STATUSES = frozenset({"SUCCEEDED", "FAILED"})
+
+
+class QualificationExecutionError(CloudManifestError):
+    """A post-lifecycle failure carrying sanitized-receipt source evidence."""
+
+    def __init__(self, message: str, *, context: Mapping[str, Any]) -> None:
+        super().__init__(message)
+        self.context = dict(context)
 
 
 class QualificationProvider(Protocol):
@@ -566,6 +576,84 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             raise CloudManifestError("Batch submit omitted parent job id")
         return self.parent_job_id
 
+    def capture_submit_evidence(self, parent_job_id: str) -> Mapping[str, Any]:
+        """Capture exactly one CloudTrail SubmitJob event for this parent."""
+
+        events: list[Mapping[str, Any]] = []
+        next_token: str | None = None
+        seen_tokens: set[str] = set()
+        while True:
+            arguments = [
+                "cloudtrail",
+                "lookup-events",
+                "--lookup-attributes",
+                "AttributeKey=EventName,AttributeValue=SubmitJob",
+                "--max-results",
+                "50",
+            ]
+            if next_token is not None:
+                arguments.extend(("--next-token", next_token))
+            response = self._call(*arguments)
+            page = response.get("Events", [])
+            if not isinstance(page, list):
+                raise CloudManifestError("CloudTrail lookup returned invalid Events")
+            for event in page:
+                if isinstance(event, Mapping):
+                    raw = event.get("CloudTrailEvent")
+                    if not isinstance(raw, str):
+                        continue
+                    try:
+                        detail = json.loads(raw)
+                    except json.JSONDecodeError as exc:
+                        raise CloudManifestError(
+                            "CloudTrail SubmitJob event was not valid JSON"
+                        ) from exc
+                    if not isinstance(detail, Mapping):
+                        continue
+                    response_elements = detail.get("responseElements") or {}
+                    if (
+                        isinstance(response_elements, Mapping)
+                        and response_elements.get("jobId") == parent_job_id
+                    ):
+                        events.append(event)
+            candidate = response.get("NextToken")
+            if not isinstance(candidate, str) or not candidate:
+                break
+            if candidate in seen_tokens:
+                raise CloudManifestError("CloudTrail lookup pagination repeated a token")
+            seen_tokens.add(candidate)
+            next_token = candidate
+        if len(events) != 1:
+            raise CloudManifestError(
+                "CloudTrail must contain exactly one SubmitJob event for the parent"
+            )
+        event = events[0]
+        raw = event.get("CloudTrailEvent")
+        detail = json.loads(raw) if isinstance(raw, str) else {}
+        request = detail.get("requestParameters") if isinstance(detail, Mapping) else {}
+        request = request if isinstance(request, Mapping) else {}
+        array_properties = request.get("arrayProperties") or {}
+        retry_strategy = request.get("retryStrategy") or request.get("retry_strategy") or {}
+        if not isinstance(array_properties, Mapping) or not isinstance(retry_strategy, Mapping):
+            raise CloudManifestError("CloudTrail SubmitJob event lacks fixed array bindings")
+        if array_properties.get("size") != 2 or retry_strategy.get("attempts") != 1:
+            raise CloudManifestError("CloudTrail SubmitJob event differs from the fixed retry contract")
+        event_id = event.get("EventId")
+        event_time = event.get("EventTime")
+        if not isinstance(event_id, str) or not event_id:
+            raise CloudManifestError("CloudTrail SubmitJob event has no event id")
+        if not isinstance(event_time, str) or not event_time:
+            raise CloudManifestError("CloudTrail SubmitJob event has no event time")
+        return {
+            "cloudtrail_submit_job_event_id_sha256": hashlib.sha256(
+                event_id.encode("utf-8")
+            ).hexdigest(),
+            "submit_event_time_utc": event_time,
+            "submit_count_proven": 1,
+            "array_size": 2,
+            "retry_attempts": 1,
+        }
+
     def collect_admission(self, parent_job_id: str) -> Mapping[str, Any]:
         deadline = time.monotonic() + 3600
         while True:
@@ -592,9 +680,14 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             if parent.get("status") == "FAILED" or any(
                 child.get("status") == "FAILED" for child in children
             ):
-                require_two_succeeded_children(
-                    children, parent_status=parent.get("status")
-                )
+                try:
+                    require_two_succeeded_children(
+                        children, parent_status=parent.get("status")
+                    )
+                except CloudManifestError as exc:
+                    raise BatchAdmissionError(
+                        str(exc), parent=parent, children=children
+                    ) from exc
             if parent.get("status") == "SUCCEEDED" and all(
                 child.get("status") == "SUCCEEDED" for child in children
             ):
@@ -685,7 +778,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "DISABLED",
         )
 
-    def verify_absence(self, tags: Mapping[str, str]) -> Mapping[str, bool]:
+    def verify_absence(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
         queue = self._call_absence(
             "batch", "describe-job-queues", "--job-queues", self.queue
         )
@@ -741,6 +834,32 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "--filters",
             f"Name=tag:QualificationActionId,Values={tags['QualificationActionId']}",
         )
+        output = parse_s3_uri(self.output_root.rstrip("/") + "/marker")
+        output_listing = self._call_absence(
+            "s3api",
+            "list-objects-v2",
+            "--bucket",
+            output.bucket,
+            "--prefix",
+            output.key.rsplit("/", 1)[0] + "/",
+        )
+        output_objects = output_listing.get("Contents", [])
+        if not isinstance(output_objects, list):
+            raise CloudManifestError("qualification output listing was not an object collection")
+        inactive_rows = inactive_definition.get("jobDefinitions", [])
+        if not isinstance(inactive_rows, list):
+            raise CloudManifestError("inactive job-definition listing was not an object collection")
+        inactive_arns = [
+            row.get("jobDefinitionArn")
+            for row in inactive_rows
+            if isinstance(row, Mapping)
+        ]
+        if any(not isinstance(arn, str) or not arn for arn in inactive_arns):
+            raise CloudManifestError("inactive job-definition history has an invalid ARN")
+        if len(inactive_arns) > 1:
+            raise CloudManifestError(
+                "fresh qualification action has multiple inactive job-definition revisions"
+            )
         jobs = True
         if self.parent_job_id is not None:
             job_rows = self._call_absence(
@@ -772,6 +891,18 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "job_definition": not active_definition.get("jobDefinitions"),
             "queue": not queue.get("jobQueues"),
             "compute_environment": not env.get("computeEnvironments"),
+            "provider_history": {
+                "inactive_job_definition_history_retained_by_aws": bool(inactive_arns),
+                "inactive_job_definition_arn_sha256": (
+                    hashlib.sha256(inactive_arns[0].encode("utf-8")).hexdigest()
+                    if inactive_arns
+                    else None
+                ),
+            },
+            "artifact_prefix": {
+                "empty": not output_objects,
+                "object_count": len(output_objects),
+            },
         }
 
 
@@ -782,6 +913,7 @@ class RunnerConfig:
     expected_projected_cost_usd: float | None = None
     expected_max_retries: int = MAX_RETRIES
     lock_timeout: str = "60s"
+    require_receipt_evidence: bool = False
 
 
 def require_account_plan(
@@ -926,7 +1058,7 @@ def execute(
             "qualification projection must be strictly below USD 100"
         )
     require_cost_ceiling(projected_cost_usd=projected)
-    verify_authority(
+    authority_result = verify_authority(
         envelope,
         admission,
         key_registry=key_registry,
@@ -951,6 +1083,11 @@ def execute(
     parent_job_id: str | None = None
     evidence: Mapping[str, Any] | None = None
     recovery: Mapping[str, Any] | None = None
+    launch: dict[str, Any] = {
+        "submit_count_proven": 1,
+        "array_size": 2,
+        "retry_attempts": 1,
+    }
     failure: Exception | None = None
     cleanup_failure: Exception | None = None
     try:
@@ -962,6 +1099,24 @@ def execute(
             attempts=1,
             tags=tags,
         )
+        if config.require_receipt_evidence:
+            capture = getattr(provider, "capture_submit_evidence", None)
+            if not callable(capture):
+                raise CloudManifestError(
+                    "concrete qualification provider lacks CloudTrail submit evidence"
+                )
+            observed_launch = capture(parent_job_id)
+            if not isinstance(observed_launch, Mapping):
+                raise CloudManifestError("CloudTrail submit evidence is not an object")
+            launch.update(dict(observed_launch))
+            if (
+                launch.get("submit_count_proven") != 1
+                or launch.get("array_size") != 2
+                or launch.get("retry_attempts") != 1
+            ):
+                raise CloudManifestError(
+                    "CloudTrail submit evidence differs from the fixed launch contract"
+                )
         evidence = provider.collect_admission(parent_job_id)
         _require_evidence(evidence)
         compile_fixture = getattr(provider, "compile_fixture_evidence", None)
@@ -994,6 +1149,14 @@ def execute(
             )
     except Exception as exc:
         failure = exc
+        if isinstance(exc, BatchAdmissionError):
+            evidence = {
+                "parent_status": exc.parent.get("status"),
+                "parent": exc.parent,
+                "children": exc.children,
+                "instance_ids": (),
+                "raw_evidence": {},
+            }
     finally:
         try:
             provider.disable_and_drain(tags)
@@ -1003,19 +1166,54 @@ def execute(
             terraform.destroy(lock_timeout=config.lock_timeout, tags=tags)
         except Exception as exc:
             cleanup_failure = cleanup_failure or exc
-    absence = provider.verify_absence(tags)
+    try:
+        absence = provider.verify_absence(tags)
+    except Exception as exc:
+        context = {
+            "plan": dict(parsed_plan),
+            "authority": authority_result,
+            "projected_cost_usd": projected,
+            "preflight": preflight,
+            "ready": ready,
+            "parent_job_id": parent_job_id,
+            "evidence": evidence,
+            "recovery": recovery,
+            "launch": launch,
+            "failure": failure,
+            "cleanup_failure": cleanup_failure,
+            "absence": None,
+        }
+        raise QualificationExecutionError(
+            "qualification teardown absence failed closed", context=context
+        ) from exc
     if not REQUIRED_ABSENCE_KEYS <= set(absence) or not all(
         bool(absence[key]) for key in REQUIRED_ABSENCE_KEYS
     ):
         raise CloudManifestError(
             "provider-side qualification teardown absence is incomplete"
         )
+    context = {
+        "plan": dict(parsed_plan),
+        "authority": authority_result,
+        "projected_cost_usd": projected,
+        "preflight": preflight,
+        "ready": ready,
+        "parent_job_id": parent_job_id,
+        "evidence": evidence,
+        "recovery": recovery,
+        "launch": launch,
+        "failure": failure,
+        "cleanup_failure": cleanup_failure,
+        "absence": dict(absence),
+    }
     if cleanup_failure is not None:
-        raise CloudManifestError(
-            "qualification teardown failed closed"
+        raise QualificationExecutionError(
+            "qualification teardown failed closed", context=context
         ) from cleanup_failure
     if failure is not None:
-        raise CloudManifestError("qualification failed closed") from failure
+        raise QualificationExecutionError(
+            "qualification failed closed", context=context
+        ) from failure
     return {
         "parent_job_id": parent_job_id,
         "tags": tags,
@@ -1026,4 +1224,7 @@ def execute(
         "evidence": evidence,
         "recovery": recovery,
         "absence": dict(absence),
+        "plan": dict(parsed_plan),
+        "authority": authority_result,
+        "launch": dict(launch),
     }

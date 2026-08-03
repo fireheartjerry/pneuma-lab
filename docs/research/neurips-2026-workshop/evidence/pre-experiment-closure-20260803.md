@@ -41,6 +41,15 @@ absent; the action output prefix is empty. AWS retains only the deregistered
 `INACTIVE` job-definition revision as provider history. The teardown verifier
 repair and focused regression are committed.
 
+## Post-closure runner hardening
+
+The concrete qualification CLI was adversarially audited after action-011. It
+now preserves terminal Batch parent/child observations, captures the exact
+single-launch CloudTrail evidence, proves the empty action output prefix, and
+builds the registered schema-bound receipt. It refuses to write an execution
+receipt for pre-launch failures. Focused provider-free cloud/schema tests pass;
+no AWS launch or retry occurred during this repair.
+
 ## Remaining gates before official P0 / Step 4B
 
 1. The dual-L40S qualification is not passed; action-011 is exhausted. No

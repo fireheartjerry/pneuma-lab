@@ -12,6 +12,7 @@ from pneuma_lab.cloud.authorization_keys import canonical_ledger_digest
 from pneuma_lab.cloud.authorization_keys import canonical_bytes
 from pneuma_lab.cloud.ephemeral_runner import (
     AwsCliAdapter,
+    QualificationExecutionError,
     RunnerConfig,
     TerraformAdapter,
     execute,
@@ -22,6 +23,7 @@ from pneuma_lab.cloud.errors import CloudManifestError
 from pneuma_lab.cloud.fixed_admission_probe import build_raw_measurement
 from pneuma_lab.cloud.qualification_execution import worker_artifact_uri
 from pneuma_lab.cloud.qualification_execution import (
+    BatchAdmissionError,
     parse_terraform_show,
     terraform_plan_binding_digest,
     verify_provider_bindings,
@@ -505,6 +507,47 @@ def test_apply_failure_still_attempts_destroy_and_absence_readback() -> None:
     assert terraform.calls == ["apply:60s", "destroy:60s"]
 
 
+def test_terminal_batch_failure_retains_child_observations_for_receipt() -> None:
+    provider, terraform = FakeProvider(), FakeTerraform()
+
+    def fail_collect(parent_job_id):
+        children = tuple(
+            {
+                "jobId": f"child-{index}",
+                "status": "FAILED",
+                "statusReason": "JobQueue deleted",
+                "arrayProperties": {"index": index},
+                "attempts": [],
+            }
+            for index in (0, 1)
+        )
+        raise BatchAdmissionError(
+            "both fixed admission children must have status SUCCEEDED",
+            parent={"jobId": parent_job_id, "status": "FAILED", "statusReason": "Array Child Job failed"},
+            children=children,
+        )
+
+    provider.collect_admission = fail_collect  # type: ignore[method-assign]
+    with pytest.raises(QualificationExecutionError) as raised:
+        execute(
+            RunnerConfig("qual-1", "us-east-1"),
+            envelope={},
+            admission={},
+            key_registry={},
+            ledger_path=LEDGER,
+            account_plan=terraform_show(),
+            provider=provider,
+            terraform=terraform,
+            verify_authority=authority,
+        )
+    context = raised.value.context
+    assert context["parent_job_id"] == "parent"
+    assert [row["statusReason"] for row in context["evidence"]["children"]] == [
+        "JobQueue deleted",
+        "JobQueue deleted",
+    ]
+
+
 def test_concrete_provider_arguments_are_bound_to_the_saved_plan() -> None:
     plan = parse_terraform_show(terraform_show())
     provider = AwsCliAdapter(
@@ -625,6 +668,7 @@ def test_concrete_cli_absence_checks_all_ephemeral_resource_classes() -> None:
             "describe-job-queues": {"jobQueues": []},
             "describe-compute-environments": {"computeEnvironments": []},
             "describe-job-definitions": {"jobDefinitions": []},
+            "list-objects-v2": {},
             "describe-instances": {"Reservations": []},
             "describe-volumes": {"Volumes": []},
             "describe-launch-templates": {"LaunchTemplates": []},
@@ -653,6 +697,11 @@ def test_concrete_cli_absence_checks_all_ephemeral_resource_classes() -> None:
         "job_definition": True,
         "queue": True,
         "compute_environment": True,
+        "provider_history": {
+            "inactive_job_definition_history_retained_by_aws": False,
+            "inactive_job_definition_arn_sha256": None,
+        },
+        "artifact_prefix": {"empty": True, "object_count": 0},
     }
     assert any(
         "Name=launch-template-name,Values=qual-1-worker-*" in call
@@ -674,6 +723,7 @@ def test_concrete_cli_absence_accepts_deleted_queue_and_environment() -> None:
             command
             for command in (
                 "describe-job-definitions",
+                "list-objects-v2",
                 "describe-instances",
                 "describe-volumes",
                 "describe-launch-templates",
@@ -684,6 +734,7 @@ def test_concrete_cli_absence_accepts_deleted_queue_and_environment() -> None:
         )
         collection = {
             "describe-job-definitions": "jobDefinitions",
+            "list-objects-v2": "Contents",
             "describe-instances": "Reservations",
             "describe-volumes": "Volumes",
             "describe-launch-templates": "LaunchTemplates",
@@ -742,6 +793,7 @@ def test_concrete_cli_absence_accepts_terminal_job_history_and_inactive_definiti
         command = next(
             command
             for command in (
+                "list-objects-v2",
                 "describe-instances",
                 "describe-volumes",
                 "describe-launch-templates",
@@ -751,6 +803,7 @@ def test_concrete_cli_absence_accepts_terminal_job_history_and_inactive_definiti
             if command in argv
         )
         collection = {
+            "list-objects-v2": "Contents",
             "describe-instances": "Reservations",
             "describe-volumes": "Volumes",
             "describe-launch-templates": "LaunchTemplates",
@@ -793,6 +846,42 @@ def test_concrete_cli_absence_does_not_swallow_unrelated_provider_errors() -> No
     )
     with pytest.raises(CloudManifestError, match="absence read failed"):
         adapter.verify_absence({"QualificationActionId": "qual-1"})
+
+
+def test_concrete_cli_captures_exact_cloudtrail_submit_event() -> None:
+    event = {
+        "EventId": "event-1",
+        "EventTime": "2026-08-03T09:34:48Z",
+        "CloudTrailEvent": json.dumps(
+            {
+                "eventName": "SubmitJob",
+                "responseElements": {"jobId": "parent"},
+                "requestParameters": {
+                    "arrayProperties": {"size": 2},
+                    "retryStrategy": {"attempts": 1},
+                },
+            }
+        ),
+    }
+
+    def run(argv, **kwargs):
+        assert "cloudtrail" in argv
+        return subprocess.CompletedProcess(
+            argv, 0, json.dumps({"Events": [event]}).encode(), b""
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    evidence = adapter.capture_submit_evidence("parent")
+    assert evidence["submit_count_proven"] == 1
+    assert evidence["array_size"] == 2
+    assert evidence["retry_attempts"] == 1
+    assert evidence["submit_event_time_utc"] == "2026-08-03T09:34:48Z"
 
 
 def test_concrete_cli_adapter_accepts_only_two_succeeded_first_attempt_children(

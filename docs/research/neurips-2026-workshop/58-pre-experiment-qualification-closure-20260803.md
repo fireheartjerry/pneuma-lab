@@ -60,6 +60,17 @@ The receipt is now bound to
 `cloud-ephemeral-dual-worker-qualification-receipt.schema.json`; direct
 validation and the focused retry-drift regression pass.
 
+## Concrete runner repair after hostile audit
+
+The concrete runner previously emitted a legacy flat receipt shape and discarded
+Batch child observations when admission failed. The repair now captures the
+single CloudTrail `SubmitJob` evidence, preserves the parent and both child
+status records through teardown, proves the output-prefix object count and
+inactive job-definition history, and emits only the registered schema-bound
+receipt after a submitted lifecycle. Pre-launch failures do not write a fake
+execution receipt. Focused provider-free cloud/schema regressions pass; no AWS
+resource was created and action-011 was not retried.
+
 ## Hostile closure review
 
 The focused hostile review checked the actual receipt, ledger rows, runner,
