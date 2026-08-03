@@ -6853,3 +6853,22 @@ post-launch terminal no-go. Tasks 6–10 remain
 - **Boundary:** This was a local binding repair only. AWS credentials remain
   expired; no image build, provider mutation, qualification relaunch, or
   scientific work occurred.
+
+### EJ-20260803-qualification-image-build-009-preparation
+
+- **Fresh binding:** After the AWS login session was restored, a new unsigned
+  image-build plan was generated for `qualification-image-build-009`. It binds
+  current source commit `6d6114b2beb0c8de0f9bce5fb107964be41dd712`, source
+  archive SHA-256
+  `c1e345337d3e79433868ccf533933758eef7b448772123561d5089b0b79c9ab0`, the
+  current bootstrap/template, official AWS CLI v2, and the two-worker fixture
+  sidecars. Plan SHA-256 is
+  `eda16bf49022c6cfe3c6cbc375a6757245671c344b069c3cde7df953d1dd9aff`.
+- **Scope:** The plan is CPU-only, one `m7i.xlarge`, zero retries, USD 6.00
+  projected under a USD 25.00 ceiling, with exact no-ingress/HTTPS-DNS-only
+  egress, action-scoped S3 source/output paths, and mandatory builder teardown.
+  It authorizes no Terraform, Batch, GPU, model, benchmark, pilot, experiment,
+  or qualification launch.
+- **Boundary:** CL-286/CL-287 were recorded before KMS signing. No builder,
+  IAM role/profile, security group, ECR push, Batch resource, or scientific
+  workload exists for action-009 yet.
