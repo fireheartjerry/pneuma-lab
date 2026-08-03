@@ -6962,3 +6962,23 @@ post-launch terminal no-go. Tasks 6–10 remain
   official P0/Step-4B experiment, unblind, analysis, or claim promotion
   occurred. The source repair for the next fresh action changes the sidecar
   binding to `PYTHONPATH="$SOURCE_ROOT/src"` and adds a focused regression.
+
+### EJ-20260803-qualification-image-build-011-preparation
+
+- **Fresh successor binding:** A new unsigned CPU-only image-build plan was
+  generated from pushed commit `61699c04ae336d6752be06ec646bd9de2fbe06f6`.
+  The source archive SHA-256 is
+  `daf24ae47a67d190f361088c6605988529268c77313907531ca53c134f357297`, the
+  rendered bootstrap SHA-256 is
+  `16fd3889c441a6554ceeaa639d7213460e70e2ffad8020ddfeb1e9311785de37`, and
+  the plan SHA-256 is
+  `d57e761bbb6347dedbfb07e27b3b68b40175701482d9528ac55855745b232bea`.
+- **Scope:** The new builder policy SHA-256 is
+  `0b2fc49104bddc1c50b4ce737cb503cfad2563f7d74176262e6faeaa3f52d2ac` and
+  retains exact action-scoped S3 plus repository-scoped ECR push/readback
+  permissions. The source-root repair binds the host sidecar to `source/src`.
+  The plan remains one m7i.xlarge, zero retries, USD 6.00 projected under a
+  USD 25.00 ceiling, with mandatory teardown.
+- **Boundary:** CL-294/CL-295 are preparation and admission rows only. No
+  Terraform, Batch, GPU, Spot, model, benchmark, pilot, official P0/Step-4B
+  experiment, unblind, analysis, or claim-promotion action is authorized.
