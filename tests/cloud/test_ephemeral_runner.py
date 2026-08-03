@@ -80,6 +80,7 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
         "variables": {
             "region": {"value": "us-east-1"},
             "vpc_id": {"value": "vpc-12345678"},
+            "name_prefix": {"value": action_id},
             "qualification_code": {"value": code},
             "qualification_action_id": {"value": action_id},
             "instance_role_arn": {"value": PROFILE_ARNS["pneuma-worker"]},
@@ -207,8 +208,13 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
         "saved_plan_sha256": hashlib.sha256(b"fixture-saved-plan").hexdigest(),
     }
     plan["terraform_show_sha256"] = parse_terraform_show(plan)["terraform_show_sha256"]
+    plan["terraform_plan_binding_sha256"] = terraform_plan_binding_digest(
+        plan["saved_plan_sha256"], plan["terraform_show_sha256"]
+    )
     plan["_qualification"] = {
-        "terraform_show_sha256": plan["terraform_show_sha256"]
+        "saved_plan_sha256": plan["saved_plan_sha256"],
+        "terraform_show_sha256": plan["terraform_show_sha256"],
+        "terraform_plan_binding_sha256": plan["terraform_plan_binding_sha256"],
     }
     return plan
 
@@ -518,6 +524,13 @@ def test_loaded_account_plan_preserves_raw_show_binding() -> None:
     candidate["saved_plan_sha256"] = "a" * 64
     candidate["terraform_show_sha256"] = "b" * 64
     candidate["_qualification"]["terraform_show_sha256"] = "b" * 64
+    candidate["_qualification"]["saved_plan_sha256"] = "a" * 64
+    candidate["terraform_plan_binding_sha256"] = terraform_plan_binding_digest(
+        "a" * 64, "b" * 64
+    )
+    candidate["_qualification"]["terraform_plan_binding_sha256"] = candidate[
+        "terraform_plan_binding_sha256"
+    ]
     parsed = require_account_plan(candidate, provider=ReadOnlyProvider())
     assert parsed["terraform_show_sha256"] == "b" * 64
     assert parsed["terraform_plan_binding_sha256"] == terraform_plan_binding_digest(
@@ -532,6 +545,20 @@ def test_loaded_account_plan_rejects_nonhex_saved_plan_binding() -> None:
         require_account_plan(candidate, provider=ReadOnlyProvider())
 
 
+def test_loaded_account_plan_rejects_conflicting_nested_saved_plan_binding() -> None:
+    candidate = terraform_show()
+    candidate["_qualification"]["saved_plan_sha256"] = "b" * 64
+    with pytest.raises(CloudManifestError, match="conflicting saved"):
+        require_account_plan(candidate, provider=ReadOnlyProvider())
+
+
+def test_loaded_account_plan_rejects_conflicting_composite_binding() -> None:
+    candidate = terraform_show()
+    candidate["_qualification"]["terraform_plan_binding_sha256"] = "b" * 64
+    with pytest.raises(CloudManifestError, match="conflicting composite"):
+        require_account_plan(candidate, provider=ReadOnlyProvider())
+
+
 def test_missing_show_binding_fails_closed_with_cloud_error() -> None:
     candidate = terraform_show()
     candidate["terraform_show_sha256"] = "not-a-digest"
@@ -543,6 +570,9 @@ def test_missing_show_binding_fails_closed_with_cloud_error() -> None:
 def test_conflicting_show_bindings_fail_closed_with_cloud_error() -> None:
     candidate = terraform_show()
     candidate["_qualification"] = {"terraform_show_sha256": "b" * 64}
+    candidate["_qualification"]["saved_plan_sha256"] = candidate[
+        "saved_plan_sha256"
+    ]
     with pytest.raises(
         CloudManifestError,
         match="conflicting Terraform show SHA-256",
@@ -787,6 +817,13 @@ def test_concrete_provider_arguments_are_bound_to_the_saved_plan() -> None:
     )
     with pytest.raises(CloudManifestError, match="queue"):
         provider.bind_qualification_plan(plan)
+
+
+def test_qualification_resource_names_must_bind_the_action_id() -> None:
+    candidate = terraform_show()
+    candidate["variables"]["name_prefix"]["value"] = "different-action"
+    with pytest.raises(CloudManifestError, match="name_prefix"):
+        parse_terraform_show(candidate)
 
 
 def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
@@ -1035,7 +1072,14 @@ def test_aws_adapter_submission_is_one_tagged_size_two_array_without_command() -
             size=2,
             timeout_seconds=3600,
             attempts=1,
-            tags={"QualificationAction": "qual-1", "QualificationActionId": "qual-1"},
+            tags={
+                "QualificationPurpose": "dual-l40s-admission-only",
+                "QualificationTopology": "two-g6e-2xlarge-l40s",
+                "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
+                "QualificationAction": "qual-1",
+                "QualificationActionId": "qual-1",
+                "QualificationCode": "fixture-only-qualification-code",
+            },
         )
         == "parent"
     )
@@ -1099,9 +1143,28 @@ def test_concrete_cli_waits_for_valid_environment_and_queue() -> None:
     def run(argv, **kwargs):
         calls.append(argv)
         if "describe-compute-environments" in argv:
-            payload = {"computeEnvironments": [{"status": "VALID"}]}
+            payload = {
+                "computeEnvironments": [
+                    {
+                        "status": "VALID",
+                        "computeEnvironmentArn": "arn:aws:batch:us-east-1:123456789012:compute-environment/ce",
+                    }
+                ]
+            }
         else:
-            payload = {"jobQueues": [{"status": "VALID"}]}
+            payload = {
+                "jobQueues": [
+                    {
+                        "status": "VALID",
+                        "computeEnvironmentOrder": [
+                            {
+                                "order": 1,
+                                "computeEnvironment": "arn:aws:batch:us-east-1:123456789012:compute-environment/ce",
+                            }
+                        ],
+                    }
+                ]
+            }
         return subprocess.CompletedProcess(argv, 0, json.dumps(payload).encode(), b"")
 
     adapter = AwsCliAdapter(
@@ -1118,6 +1181,45 @@ def test_concrete_cli_waits_for_valid_environment_and_queue() -> None:
     }
     assert any("describe-compute-environments" in call for call in calls)
     assert any("describe-job-queues" in call for call in calls)
+
+
+def test_concrete_cli_rejects_a_queue_bound_to_another_environment() -> None:
+    def run(argv, **kwargs):
+        if "describe-compute-environments" in argv:
+            payload = {
+                "computeEnvironments": [
+                    {
+                        "status": "VALID",
+                        "computeEnvironmentArn": "arn:aws:batch:us-east-1:123456789012:compute-environment/ce",
+                    }
+                ]
+            }
+        else:
+            payload = {
+                "jobQueues": [
+                    {
+                        "status": "VALID",
+                        "computeEnvironmentOrder": [
+                            {
+                                "order": 1,
+                                "computeEnvironment": "arn:aws:batch:us-east-1:123456789012:compute-environment/other",
+                            }
+                        ],
+                    }
+                ]
+            }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(payload).encode(), b"")
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="q",
+        job_definition="d",
+        output_root="s3://bucket/runs/qual-1",
+        compute_environment="ce",
+    )
+    with pytest.raises(CloudManifestError, match="bound to the verified compute environment"):
+        adapter.wait_ready({})
 
 
 def test_concrete_cli_absence_checks_all_ephemeral_resource_classes() -> None:
@@ -1310,6 +1412,14 @@ def test_concrete_cli_absence_does_not_swallow_unrelated_provider_errors() -> No
 
 
 def test_concrete_cli_captures_exact_cloudtrail_submit_event() -> None:
+    tags = {
+        "QualificationPurpose": "dual-l40s-admission-only",
+        "QualificationTopology": "two-g6e-2xlarge-l40s",
+        "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
+        "QualificationAction": "qual-1",
+        "QualificationActionId": "qual-1",
+        "QualificationCode": "fixture-only-qualification-code",
+    }
     event = {
         "EventId": "event-1",
         "EventTime": "2026-08-03T09:34:48Z",
@@ -1318,15 +1428,23 @@ def test_concrete_cli_captures_exact_cloudtrail_submit_event() -> None:
                 "eventName": "SubmitJob",
                 "responseElements": {"jobId": "parent"},
                 "requestParameters": {
+                    "jobName": "qual-1",
+                    "jobQueue": "qual-1",
+                    "jobDefinition": "qual-1-worker:1",
                     "arrayProperties": {"size": 2},
                     "retryStrategy": {"attempts": 1},
                     "timeout": {"attemptDurationSeconds": 3600},
+                    "tags": tags,
                 },
             }
         ),
     }
 
     def run(argv, **kwargs):
+        if "submit-job" in argv:
+            return subprocess.CompletedProcess(
+                argv, 0, b'{"jobId":"parent"}', b""
+            )
         assert "cloudtrail" in argv
         return subprocess.CompletedProcess(
             argv, 0, json.dumps({"Events": [event]}).encode(), b""
@@ -1339,11 +1457,75 @@ def test_concrete_cli_captures_exact_cloudtrail_submit_event() -> None:
         job_definition="qual-1-worker",
         output_root="s3://bucket/runs/qual-1",
     )
+    adapter.submit_array(size=2, timeout_seconds=3600, attempts=1, tags=tags)
     evidence = adapter.capture_submit_evidence("parent")
     assert evidence["submit_count_proven"] == 1
     assert evidence["array_size"] == 2
     assert evidence["retry_attempts"] == 1
     assert evidence["submit_event_time_utc"] == "2026-08-03T09:34:48Z"
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("jobName", "wrong-action", "wrong qualification job name"),
+        ("jobQueue", "wrong-queue", "wrong job queue"),
+        ("jobDefinition", "wrong-worker:1", "wrong job definition"),
+        ("tags", {"QualificationAction": "wrong-action"}, "tags differ"),
+    ],
+)
+def test_concrete_cli_rejects_submit_event_binding_drift(
+    field: str, value: object, message: str
+) -> None:
+    tags = {
+        "QualificationPurpose": "dual-l40s-admission-only",
+        "QualificationTopology": "two-g6e-2xlarge-l40s",
+        "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
+        "QualificationAction": "qual-1",
+        "QualificationActionId": "qual-1",
+        "QualificationCode": "fixture-only-qualification-code",
+    }
+    request: dict[str, object] = {
+        "jobName": "qual-1",
+        "jobQueue": "qual-1",
+        "jobDefinition": "qual-1-worker:1",
+        "arrayProperties": {"size": 2},
+        "retryStrategy": {"attempts": 1},
+        "timeout": {"attemptDurationSeconds": 3600},
+        "tags": tags,
+    }
+    request[field] = value
+    event = {
+        "EventId": "event-drift",
+        "EventTime": "2026-08-03T09:34:48Z",
+        "CloudTrailEvent": json.dumps(
+            {
+                "eventName": "SubmitJob",
+                "responseElements": {"jobId": "parent"},
+                "requestParameters": request,
+            }
+        ),
+    }
+
+    def run(argv, **kwargs):
+        if "submit-job" in argv:
+            return subprocess.CompletedProcess(
+                argv, 0, b'{"jobId":"parent"}', b""
+            )
+        return subprocess.CompletedProcess(
+            argv, 0, json.dumps({"Events": [event]}).encode(), b""
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    adapter.submit_array(size=2, timeout_seconds=3600, attempts=1, tags=tags)
+    with pytest.raises(CloudManifestError, match=message):
+        adapter.capture_submit_evidence("parent")
 
 
 def test_concrete_cli_adapter_accepts_only_two_succeeded_first_attempt_children(

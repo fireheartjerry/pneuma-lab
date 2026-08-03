@@ -16,6 +16,7 @@ from .qualification_execution import (
     BatchAdmissionError,
     QUALIFICATION_FIXTURE_MODEL,
     QUALIFICATION_FIXTURE_REVISION,
+    terraform_plan_binding_digest,
     worker_artifact_uri,
 )
 
@@ -176,6 +177,10 @@ def validate_authority_evidence(
     binding_sha = _digest(
         plan.get("terraform_plan_binding_sha256"), field="Terraform plan binding"
     )
+    if binding_sha != terraform_plan_binding_digest(saved_plan_sha, show_sha):
+        raise CloudManifestError(
+            "execution Terraform plan binding is not derived from its exact components"
+        )
     for field, value in (
         ("saved_plan_sha256", saved_plan_sha),
         ("terraform_show_sha256", show_sha),

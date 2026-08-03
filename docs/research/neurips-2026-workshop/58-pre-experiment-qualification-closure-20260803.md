@@ -201,6 +201,24 @@ checks pass. This was source-only closure work: action 011 remains exhausted,
 there was no AWS mutation or retry, and the official scientific boundary is
 unchanged.
 
+## Plan/resource and submit-binding closure repair
+
+The final executable-path audit closed four additional fail-closed seams. The
+loaded Terraform plan now requires matching top-level and parsed saved-plan,
+raw-show, and derived composite digests; the locked apply rehashes all three
+immediately before mutation. Resource names must be concrete and bind
+`name_prefix` to the action id and worker suffix. The live queue readback must
+point at the exact live compute-environment ARN before submission.
+
+The concrete Batch submit path now sends exactly the six qualification tags,
+and the sole CloudTrail `SubmitJob` event must match the action job name,
+queue, job-definition name/revision, fixed array/retry/timeout contract, and
+full tag map. Authority receipt validation independently recomputes the
+Terraform composite binding. Focused negative regressions, Ruff, Terraform
+format/validation, project status, image fixture, graph refresh, and diff
+checks pass. These are source-only repairs; action-011 remains the single
+sealed terminal no-go and was not retried or relaunched.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any

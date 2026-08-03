@@ -249,6 +249,7 @@ class TerraformAdapter:
         self.plan_path: Path | None = None
         self.saved_plan_sha256: str | None = None
         self.terraform_show_sha256: str | None = None
+        self.terraform_plan_binding_sha256: str | None = None
 
     def load_account_plan(self, plan_path: Path) -> dict[str, Any]:
         saved_plan = plan_path.read_bytes()
@@ -277,6 +278,7 @@ class TerraformAdapter:
         self.plan_path = plan_path
         self.saved_plan_sha256 = saved_plan_sha256
         self.terraform_show_sha256 = parsed["terraform_show_sha256"]
+        self.terraform_plan_binding_sha256 = plan["terraform_plan_binding_sha256"]
         return plan
 
     def apply(self, *, lock_timeout: str, tags: Mapping[str, str]) -> None:
@@ -316,6 +318,15 @@ class TerraformAdapter:
         ):
             raise CloudManifestError(
                 "Terraform show bytes changed after plan review"
+            )
+        if self.terraform_plan_binding_sha256 is None:
+            raise CloudManifestError("no exact composite Terraform binding loaded")
+        current_binding_sha256 = terraform_plan_binding_digest(
+            current_plan_sha256, current_show_sha256
+        )
+        if current_binding_sha256 != self.terraform_plan_binding_sha256:
+            raise CloudManifestError(
+                "Terraform composite plan binding changed after plan review"
             )
         result = self.run(
             [
@@ -414,6 +425,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         )
         self.compute_environment = compute_environment or queue
         self.parent_job_id: str | None = None
+        self._last_submit_tags: dict[str, str] | None = None
         self._fixture_protocol: dict[str, Any] | None = None
         self._fixture_binding: dict[str, Any] | None = None
 
@@ -431,7 +443,11 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "compute environment": self.compute_environment,
         }
         for label, planned in planned_names.items():
-            if planned is not None and planned != supplied_names[label]:
+            if not isinstance(planned, str) or not planned:
+                raise CloudManifestError(
+                    f"provider {label} is not bound to a concrete Terraform name"
+                )
+            if planned != supplied_names[label]:
                 raise CloudManifestError(
                     f"provider {label} differs from the exact Terraform plan"
                 )
@@ -799,6 +815,22 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                 environment_status = environment.get("status")
                 queue_status = queue.get("status")
                 if environment_status == "VALID" and queue_status == "VALID":
+                    environment_arn = environment.get("computeEnvironmentArn")
+                    queue_order = queue.get("computeEnvironmentOrder")
+                    if not isinstance(environment_arn, str) or not environment_arn:
+                        raise CloudManifestError(
+                            "qualification compute environment readback lacks its ARN"
+                        )
+                    if (
+                        not isinstance(queue_order, list)
+                        or len(queue_order) != 1
+                        or not isinstance(queue_order[0], Mapping)
+                        or queue_order[0].get("order") != 1
+                        or queue_order[0].get("computeEnvironment") != environment_arn
+                    ):
+                        raise CloudManifestError(
+                            "qualification queue is not bound to the verified compute environment"
+                        )
                     return {
                         "compute_environment_status": environment_status,
                         "queue_status": queue_status,
@@ -845,6 +877,21 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             raise CloudManifestError(
                 "Batch submission is not the fixed two-worker contract"
             )
+        expected_tag_keys = set(QUALIFICATION_TAGS) | {
+            "QualificationAction",
+            "QualificationActionId",
+            "QualificationCode",
+        }
+        if set(tags) != expected_tag_keys or any(
+            not isinstance(value, str) or not value for value in tags.values()
+        ):
+            raise CloudManifestError(
+                "Batch submission tags are not the exact qualification tag set"
+            )
+        if tags["QualificationActionId"] != tags["QualificationAction"]:
+            raise CloudManifestError(
+                "Batch submission action and action-id tags differ"
+            )
         data = self._call(
             "batch",
             "submit-job",
@@ -870,6 +917,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         self.parent_job_id = data.get("jobId")
         if not self.parent_job_id:
             raise CloudManifestError("Batch submit omitted parent job id")
+        self._last_submit_tags = dict(tags)
         return self.parent_job_id
 
     def capture_submit_evidence(self, parent_job_id: str) -> Mapping[str, Any]:
@@ -923,6 +971,10 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             raise CloudManifestError(
                 "CloudTrail must contain exactly one SubmitJob event for the parent"
             )
+        if self._last_submit_tags is None:
+            raise CloudManifestError(
+                "CloudTrail SubmitJob evidence was requested without the concrete submission"
+            )
         event = events[0]
         raw = event.get("CloudTrailEvent")
         detail = json.loads(raw) if isinstance(raw, str) else {}
@@ -940,6 +992,43 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             or timeout.get("attemptDurationSeconds") != 3600
         ):
             raise CloudManifestError("CloudTrail SubmitJob event differs from the fixed retry contract")
+
+        def batch_identifier_matches(
+            observed: Any, expected: str, *, job_definition: bool = False
+        ) -> bool:
+            if not isinstance(observed, str) or not observed:
+                return False
+            if observed == expected:
+                return True
+            leaf = observed.rsplit("/", 1)[-1]
+            if leaf == expected:
+                return True
+            if job_definition and re.fullmatch(
+                re.escape(expected) + r":[0-9]+", leaf
+            ):
+                return True
+            return False
+
+        expected_job_name = self._last_submit_tags["QualificationAction"]
+        if request.get("jobName") != expected_job_name:
+            raise CloudManifestError(
+                "CloudTrail SubmitJob event has the wrong qualification job name"
+            )
+        if not batch_identifier_matches(request.get("jobQueue"), self.queue):
+            raise CloudManifestError(
+                "CloudTrail SubmitJob event is bound to the wrong job queue"
+            )
+        if not batch_identifier_matches(
+            request.get("jobDefinition"), self.job_definition, job_definition=True
+        ):
+            raise CloudManifestError(
+                "CloudTrail SubmitJob event is bound to the wrong job definition"
+            )
+        request_tags = request.get("tags")
+        if not isinstance(request_tags, Mapping) or dict(request_tags) != self._last_submit_tags:
+            raise CloudManifestError(
+                "CloudTrail SubmitJob event tags differ from the exact qualification tags"
+            )
         event_id = event.get("EventId")
         event_time = event.get("EventTime")
         if not isinstance(event_id, str) or not event_id:
@@ -1335,10 +1424,23 @@ def require_account_plan(
         if isinstance(loaded_metadata, Mapping)
         else None
     )
+    nested_saved_plan_sha256 = (
+        loaded_metadata.get("saved_plan_sha256")
+        if isinstance(loaded_metadata, Mapping)
+        else None
+    )
 
-    if not valid_sha256(top_level_show_sha256) or not valid_sha256(
-        nested_show_sha256
+    if not valid_sha256(saved_plan_sha256) or not valid_sha256(
+        nested_saved_plan_sha256
     ):
+        raise CloudManifestError(
+            "qualification plan requires both exact saved Terraform plan SHA-256 bindings"
+        )
+    if saved_plan_sha256 != nested_saved_plan_sha256:
+        raise CloudManifestError(
+            "qualification plan contains conflicting saved Terraform plan SHA-256 bindings"
+        )
+    if not valid_sha256(top_level_show_sha256) or not valid_sha256(nested_show_sha256):
         raise CloudManifestError(
             "qualification plan requires both exact Terraform show SHA-256 bindings"
         )
@@ -1348,9 +1450,30 @@ def require_account_plan(
             "bindings"
         )
     parsed["terraform_show_sha256"] = top_level_show_sha256
-    parsed["terraform_plan_binding_sha256"] = terraform_plan_binding_digest(
+    expected_plan_binding_sha256 = terraform_plan_binding_digest(
         saved_plan_sha256, parsed["terraform_show_sha256"]
     )
+    top_level_plan_binding_sha256 = plan.get("terraform_plan_binding_sha256")
+    nested_plan_binding_sha256 = (
+        loaded_metadata.get("terraform_plan_binding_sha256")
+        if isinstance(loaded_metadata, Mapping)
+        else None
+    )
+    if not valid_sha256(top_level_plan_binding_sha256) or not valid_sha256(
+        nested_plan_binding_sha256
+    ):
+        raise CloudManifestError(
+            "qualification plan requires both exact composite Terraform bindings"
+        )
+    if (
+        top_level_plan_binding_sha256 != nested_plan_binding_sha256
+        or top_level_plan_binding_sha256 != expected_plan_binding_sha256
+    ):
+        raise CloudManifestError(
+            "qualification plan contains a conflicting composite Terraform binding"
+        )
+    parsed["saved_plan_sha256"] = saved_plan_sha256
+    parsed["terraform_plan_binding_sha256"] = expected_plan_binding_sha256
     return parsed
 
 

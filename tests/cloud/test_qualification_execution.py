@@ -607,6 +607,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
         "variables": {
             "region": {"value": "us-east-1"},
             "vpc_id": {"value": "vpc-12345678"},
+            "name_prefix": {"value": "fixed-admission-001"},
             "qualification_code": {"value": "signed-code"},
             "qualification_action_id": {"value": "fixed-admission-001"},
             "instance_role_arn": {
@@ -658,6 +659,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                         "address": "aws_batch_compute_environment.worker[0]",
                         "values": {
                             "type": "MANAGED",
+                            "compute_environment_name": "fixed-admission-001",
                             "compute_resources": [
                                 {
                                     "type": "SPOT",
@@ -688,6 +690,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                     {
                         "address": "aws_batch_job_definition.gpu_worker",
                         "values": {
+                            "name": "fixed-admission-001-worker",
                             "tags": {
                                 "QualificationCode": "signed-code",
                                 "QualificationAction": "fixed-admission-001",
@@ -757,6 +760,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                     {
                         "address": "aws_batch_job_queue.qualification",
                         "values": {
+                            "name": "fixed-admission-001",
                             "compute_environment_order": [{"order": 1}],
                             "tags": {
                                 "QualificationCode": "signed-code",

@@ -6575,3 +6575,23 @@ post-launch terminal no-go. Tasks 6–10 remain
   account, and signer regressions plus Ruff pass. Graphify was updated. No AWS
   mutation, action-011 retry, new qualification launch, scientific workload,
   unblind, analysis, or claim promotion occurred.
+
+### EJ-20260803-dual-l40s-plan-resource-and-submit-binding-hardening
+
+- **Terraform repair:** The loaded plan now requires matching top-level and
+  parsed metadata for the saved-plan digest, raw Terraform-show digest, and
+  derived composite binding. The locked apply rehashes all three immediately
+  before mutation. Qualification resource names must be concrete and bind
+  `name_prefix` exactly to the action id and the worker suffix.
+- **Batch repair:** The concrete provider now verifies that the live queue's
+  single order-1 compute-environment ARN equals the live environment ARN
+  before submission. Submission tags are the exact six-field qualification
+  set, and the sole CloudTrail `SubmitJob` event must match the action job
+  name, queue, job-definition revision/name, and full tag map.
+- **Receipt repair:** Authority evidence rejects a Terraform composite digest
+  that is not derived from its exact saved-plan and raw-show components.
+- **Validation/boundary:** Focused cloud tests, including negative binding
+  regressions, Ruff, Terraform format/validation, status validation, the
+  fixture-only image check, graph refresh, and `git diff --check` pass. No AWS
+  mutation, action-011 retry, new qualification launch, scientific workload,
+  unblind, analysis, or claim promotion occurred.

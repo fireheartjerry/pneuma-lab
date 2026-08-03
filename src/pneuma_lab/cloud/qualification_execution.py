@@ -81,6 +81,7 @@ _PARSED_QUALIFICATION_FIELDS = frozenset(
         "compute_environment_name",
         "job_queue_name",
         "job_definition_name",
+        "name_prefix",
         "terraform_show_sha256",
     }
 )
@@ -1446,6 +1447,34 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         raise CloudManifestError(
             "planned qualification queue must bind exactly one compute environment"
         )
+    name_prefix = variable("name_prefix")
+    planned_names = {
+        "compute environment": compute.get("compute_environment_name"),
+        "job queue": queue.get("name"),
+        "job definition": job_definition.get("name"),
+    }
+    if not isinstance(name_prefix, str) or not name_prefix:
+        raise CloudManifestError(
+            "planned qualification lacks a concrete name_prefix"
+        )
+    if name_prefix != action_id:
+        raise CloudManifestError(
+            "planned qualification name_prefix differs from the action id"
+        )
+    expected_names = {
+        "compute environment": name_prefix,
+        "job queue": name_prefix,
+        "job definition": f"{name_prefix}-worker",
+    }
+    for label, observed in planned_names.items():
+        if not isinstance(observed, str) or not observed:
+            raise CloudManifestError(
+                f"planned qualification {label} name is not concrete"
+            )
+        if observed != expected_names[label]:
+            raise CloudManifestError(
+                f"planned qualification {label} name differs from the action binding"
+            )
     for label, row in (
         ("job queue", queue),
         ("job definition", job_definition),
@@ -1552,6 +1581,7 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         "compute_environment_name": compute.get("compute_environment_name"),
         "job_queue_name": queue.get("name"),
         "job_definition_name": job_definition.get("name"),
+        "name_prefix": name_prefix,
         "terraform_show_sha256": hashlib.sha256(
             canonical_bytes(show_document)
         ).hexdigest(),

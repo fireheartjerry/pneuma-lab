@@ -1191,3 +1191,12 @@ the exact current checkout commit. The sealed action-011 image remains bound
 to source commit `e36dd15ac2524c29d0fb02a8705ec7fcc48fb34a`; it is retained as
 historical evidence but cannot silently be reused after these newer source
 repairs. No relaunch or AWS mutation occurred.
+
+The final readiness pass also requires matching top-level and parsed
+saved-plan, raw-show, and composite Terraform digests, concrete action-bound
+resource names, live queue-to-compute-environment ARN readback, exact
+qualification submission tags, and CloudTrail verification of the action job,
+queue, job definition, and tags. Focused negative regressions and all static
+closure checks pass. This strengthens the future qualification path only; it
+does not change the terminal action-011 no-go or advance Tasks 6–10 beyond
+`implementation_complete; E2E_pending`.
