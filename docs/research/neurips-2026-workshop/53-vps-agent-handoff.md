@@ -16,6 +16,17 @@ This document transfers orchestration from the Windows Codex session to a
 persistent Linux VPS session. It is an operational handoff, not scientific
 authority and not permission to weaken any fail-closed contract.
 
+**Standing qualification authority (2026-08-03):** For the bounded
+pre-experiment AWS qualification lane only, the human operator authorizes all
+necessary IAM/KMS policy changes, ECR/image rebuilds, S3 permissions, Terraform
+replans/applies/destroys, Batch resources, two-L40S fixture execution, bounded
+spend, evidence, commits, and pushes. Do not pause for another authorization or
+routine semantic repair; fix and continue. Stop only for an actual external
+AWS/provider/capacity failure or a post-launch terminal no-go, with teardown.
+The official scientific P0/Step-4B experiment, benchmark/pilot, subject-model
+workload, unblind, analysis, and claim promotion remain excluded and separately
+authorized.
+
 ## First actions on the VPS
 
 1. Clone or update the repository and check out

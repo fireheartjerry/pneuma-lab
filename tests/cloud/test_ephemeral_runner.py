@@ -44,6 +44,14 @@ PROFILE_ARNS = {
 
 def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict:
     tags = {"QualificationCode": code, "QualificationActionId": action_id}
+    subnets = [
+        "subnet-0123456789abcdef0",
+        "subnet-0123456789abcdef1",
+        "subnet-0123456789abcdef2",
+        "subnet-0123456789abcdef3",
+    ]
+    output_path = f"s3://bucket/runs/qualification/{action_id}/outputs/"
+    image = "registry.example.invalid/worker@sha256:" + "a" * 64
     return {
         "format_version": "1.0",
         "variables": {
@@ -53,7 +61,16 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
             "instance_role_arn": {"value": PROFILE_ARNS["pneuma-worker"]},
             "batch_service_role_arn": {"value": ROLE_ARNS["pneuma-batch"]},
             "spot_fleet_role_arn": {"value": ROLE_ARNS["pneuma-spot"]},
-            "subnet_ids": {"value": ["subnet-0123456789abcdef0"]},
+            "gpu_worker_image": {"value": image},
+            "qualification_model": {"value": "fixture"},
+            "qualification_model_revision": {"value": "fixture"},
+            "protocol_path": {"value": output_path.replace("outputs/", "inputs/protocol.json")},
+            "architecture_path": {"value": output_path.replace("outputs/", "inputs/architecture.json")},
+            "authorization_path": {"value": output_path.replace("outputs/", "inputs/authorization.json")},
+            "image_path": {"value": output_path.replace("outputs/", "inputs/image.json")},
+            "input_lock_path": {"value": output_path.replace("outputs/", "inputs/input-lock.json")},
+            "output_path": {"value": output_path},
+            "subnet_ids": {"value": subnets},
             "security_group_ids": {"value": ["sg-0123456789abcdef0"]},
         },
         "planned_values": {
@@ -62,14 +79,19 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                     {
                         "address": "aws_batch_compute_environment.qualification",
                         "values": {
+                            "compute_environment_name": action_id,
                             "tags": tags,
                             "compute_resources": [
                                 {
+                                    "type": "SPOT",
+                                    "allocation_strategy": "SPOT_PRICE_CAPACITY_OPTIMIZED",
+                                    "min_vcpus": 0,
+                                    "desired_vcpus": 0,
                                     "instance_type": ["g6e.2xlarge"],
                                     "max_vcpus": 16,
                                     "instance_role": PROFILE_ARNS["pneuma-worker"],
                                     "spot_iam_fleet_role": ROLE_ARNS["pneuma-spot"],
-                                    "subnets": ["subnet-0123456789abcdef0"],
+                                    "subnets": subnets,
                                     "security_group_ids": ["sg-0123456789abcdef0"],
                                     "tags": tags,
                                     "launch_template": [
@@ -83,8 +105,18 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                     {
                         "address": "aws_batch_job_definition.worker",
                         "values": {
+                            "name": f"{action_id}-worker",
+                            "tags": tags,
+                            "timeout": [{"attempt_duration_seconds": 3600}],
+                            "retry_strategy": [{"attempts": 1}],
                             "container_properties": json.dumps(
                                 {
+                                    "image": image,
+                                    "resourceRequirements": [
+                                        {"type": "GPU", "value": "1"},
+                                        {"type": "VCPU", "value": "8"},
+                                        {"type": "MEMORY", "value": "60000"},
+                                    ],
                                     "environment": [
                                         {"name": "QUALIFICATION_CODE", "value": code},
                                         {
@@ -93,8 +125,16 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                                         },
                                         {
                                             "name": "QUALIFICATION_ARTIFACT_PREFIX",
-                                            "value": "s3://bucket/runs/qual-1",
+                                            "value": output_path,
                                         },
+                                        {"name": "QUALIFICATION_MODEL", "value": "fixture"},
+                                        {"name": "QUALIFICATION_MODEL_REVISION", "value": "fixture"},
+                                        {"name": "QUALIFICATION_PROTOCOL", "value": output_path.replace("outputs/", "inputs/protocol.json")},
+                                        {"name": "QUALIFICATION_ARCHITECTURE", "value": output_path.replace("outputs/", "inputs/architecture.json")},
+                                        {"name": "QUALIFICATION_AUTHORIZATION", "value": output_path.replace("outputs/", "inputs/authorization.json")},
+                                        {"name": "QUALIFICATION_IMAGE", "value": output_path.replace("outputs/", "inputs/image.json")},
+                                        {"name": "QUALIFICATION_INPUT_LOCK", "value": output_path.replace("outputs/", "inputs/input-lock.json")},
+                                        {"name": "QUALIFICATION_OUTPUT_ROOT", "value": output_path},
                                     ]
                                 }
                             )
@@ -102,11 +142,12 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                     },
                     {
                         "address": "aws_batch_job_queue.qualification",
-                        "values": {"tags": tags},
+                        "values": {"name": action_id, "tags": tags},
                     },
                     {
                         "address": "aws_launch_template.qualification",
                         "values": {
+                            "image_id": None,
                             "tag_specifications": [
                                 {"resource_type": "instance", "tags": tags},
                                 {"resource_type": "volume", "tags": tags},
@@ -164,12 +205,19 @@ class ReadOnlyProvider:
 
     def describe_subnets(self, subnet_ids):
         return [
-            {"SubnetId": subnet_id, "VpcId": "vpc-12345678"} for subnet_id in subnet_ids
+            {
+                "SubnetId": subnet_id,
+                "VpcId": "vpc-12345678",
+                "AvailabilityZone": f"us-east-1{chr(ord('a') + index)}",
+                "State": "available",
+            }
+            for index, subnet_id in enumerate(subnet_ids)
         ]
 
     def describe_security_groups(self, group_ids):
         return [
-            {"GroupId": group_id, "VpcId": "vpc-12345678"} for group_id in group_ids
+            {"GroupId": group_id, "VpcId": "vpc-12345678", "IpPermissions": []}
+            for group_id in group_ids
         ]
 
 
@@ -189,6 +237,9 @@ class FakeProvider(ReadOnlyProvider):
     def pricing_projection(self, *, worker_seconds):
         self.calls.append("pricing")
         return self.projection
+
+    def compile_fixture_evidence(self, evidence):
+        return {0: {"worker_index": 0}, 1: {"worker_index": 1}}
 
     def submit_array(self, *, size, timeout_seconds, attempts, tags):
         self.calls.append(f"submit:{size}:{timeout_seconds}:{attempts}")
@@ -292,6 +343,7 @@ def test_runner_verifies_real_plan_and_executes_exact_two_children() -> None:
         "absence",
     ]
     assert terraform.calls == ["apply:60s", "destroy:60s"]
+    assert provider.calls[-2:] == ["disable-drain", "absence"]
 
 
 def test_invented_account_plan_fields_are_not_accepted() -> None:
@@ -360,7 +412,7 @@ def test_ephemeral_plan_guard_rejects_a_plan_without_its_launch_template() -> No
         for change in candidate["resource_changes"]
         if change["address"] != "aws_launch_template.qualification"
     ]
-    with pytest.raises(CloudManifestError, match="exactly.*launch template"):
+    with pytest.raises(CloudManifestError, match="exactly four creates"):
         require_account_plan(candidate, provider=ReadOnlyProvider())
 
 
@@ -424,7 +476,20 @@ def test_apply_failure_still_attempts_destroy_and_absence_readback() -> None:
             verify_authority=authority,
         )
     assert terraform.calls == ["apply:60s", "destroy:60s"]
-    assert provider.calls[-2:] == ["disable-drain", "absence"]
+
+
+def test_concrete_provider_arguments_are_bound_to_the_saved_plan() -> None:
+    plan = parse_terraform_show(terraform_show())
+    provider = AwsCliAdapter(
+        lambda argv, **kwargs: subprocess.CompletedProcess(argv, 0, b"{}", b""),
+        region="us-east-1",
+        queue="wrong-queue",
+        job_definition="qual-1-worker",
+        compute_environment="qual-1",
+        output_root=plan["output_path"],
+    )
+    with pytest.raises(CloudManifestError, match="queue"):
+        provider.bind_qualification_plan(plan)
 
 
 def test_terraform_adapter_parses_show_json_before_future_apply() -> None:
@@ -489,6 +554,8 @@ def test_aws_adapter_submission_is_one_tagged_size_two_array_without_command() -
         == "parent"
     )
     command = " ".join(calls[0])
+    assert calls[0][:2] == ["aws", "batch"]
+    assert calls[0].count("aws") == 1
     assert '--array-properties {"size":2}' in command
     assert '--retry-strategy {"attempts":1}' in command
     assert "qual-1" in command

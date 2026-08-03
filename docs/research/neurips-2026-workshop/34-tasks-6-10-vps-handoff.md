@@ -24,6 +24,15 @@ Read `55-dual-l40s-spot-topology-reconciliation.md` before changing cloud,
 pilot, or execution behavior. This amendment authorizes no provider action,
 experiment, or claim.
 
+**Qualification-lane authority (2026-08-03):** The human operator separately
+grants blanket authorization for the entire bounded pre-experiment lane,
+including IAM/KMS policy repair, ECR/image and S3 work, Terraform and Batch
+qualification resources, two-L40S fixture execution, bounded spend, evidence,
+commits, and pushes. Routine semantic or policy repairs must be completed
+without pausing for another authorization. This does not authorize the official
+scientific P0/Step-4B experiment, benchmark/pilot, subject-model workload,
+unblind, analysis, or claim promotion; those remain separately authorized.
+
 Paper-facing artifacts for this lineage live alongside the core:
 `paper/placebo_protocol.tex`, `src/pneuma_lab/placebo_paper/`, and
 `src/pneuma_lab/adversarial_review/`. Task 10 release preparation must produce

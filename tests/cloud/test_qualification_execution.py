@@ -113,10 +113,21 @@ class FakeAwsTransport:
         }
 
     def describe_subnets(self, subnet_ids):
-        return [{"SubnetId": value, "VpcId": "vpc-12345678"} for value in subnet_ids]
+        return [
+            {
+                "SubnetId": value,
+                "VpcId": "vpc-12345678",
+                "AvailabilityZone": f"us-east-1{chr(ord('a') + index)}",
+                "State": "available",
+            }
+            for index, value in enumerate(subnet_ids)
+        ]
 
     def describe_security_groups(self, group_ids):
-        return [{"GroupId": value, "VpcId": "vpc-12345678"} for value in group_ids]
+        return [
+            {"GroupId": value, "VpcId": "vpc-12345678", "IpPermissions": []}
+            for value in group_ids
+        ]
 
     def freeze(self, *, job_ids, boundary):
         self.freeze_calls += 1
@@ -565,6 +576,38 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
             "spot_fleet_role_arn": {
                 "value": "arn:aws:iam::123456789012:role/pneuma-spot"
             },
+            "gpu_worker_image": {
+                "value": "registry.example.invalid/worker@sha256:" + "a" * 64
+            },
+            "qualification_model": {"value": "fixture"},
+            "qualification_model_revision": {"value": "fixture"},
+            "protocol_path": {
+                "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/protocol.json"
+            },
+            "architecture_path": {
+                "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/architecture.json"
+            },
+            "authorization_path": {
+                "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/authorization.json"
+            },
+            "image_path": {
+                "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/image.json"
+            },
+            "input_lock_path": {
+                "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/input-lock.json"
+            },
+            "output_path": {
+                "value": "s3://bucket/runs/qualification/fixed-admission-001/outputs/"
+            },
+            "subnet_ids": {
+                "value": [
+                    "subnet-0123456789abcdef0",
+                    "subnet-0123456789abcdef1",
+                    "subnet-0123456789abcdef2",
+                    "subnet-0123456789abcdef3",
+                ]
+            },
+            "security_group_ids": {"value": ["sg-0123456789abcdef0"]},
         },
         "planned_values": {
             "root_module": {
@@ -574,11 +617,20 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                         "values": {
                             "compute_resources": [
                                 {
+                                    "type": "SPOT",
+                                    "allocation_strategy": "SPOT_PRICE_CAPACITY_OPTIMIZED",
+                                    "min_vcpus": 0,
+                                    "desired_vcpus": 0,
                                     "instance_type": ["g6e.2xlarge"],
                                     "max_vcpus": 16,
                                     "instance_role": "arn:aws:iam::123456789012:instance-profile/pneuma-worker",
                                     "spot_iam_fleet_role": "arn:aws:iam::123456789012:role/pneuma-spot",
-                                    "subnets": ["subnet-0123456789abcdef0"],
+                                    "subnets": [
+                                        "subnet-0123456789abcdef0",
+                                        "subnet-0123456789abcdef1",
+                                        "subnet-0123456789abcdef2",
+                                        "subnet-0123456789abcdef3",
+                                    ],
                                     "security_group_ids": ["sg-0123456789abcdef0"],
                                     "tags": {
                                         "QualificationCode": "signed-code",
@@ -592,10 +644,21 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                     {
                         "address": "aws_batch_job_definition.gpu_worker",
                         "values": {
+                            "tags": {
+                                "QualificationCode": "signed-code",
+                                "QualificationActionId": "fixed-admission-001",
+                            },
+                            "timeout": [{"attempt_duration_seconds": 3600}],
+                            "retry_strategy": [{"attempts": 1}],
                             "container_properties": json.dumps(
                                 {
                                     "image": "registry.example.invalid/worker@sha256:"
                                     + "a" * 64,
+                                    "resourceRequirements": [
+                                        {"type": "GPU", "value": "1"},
+                                        {"type": "VCPU", "value": "8"},
+                                        {"type": "MEMORY", "value": "60000"},
+                                    ],
                                     "environment": [
                                         {
                                             "name": "QUALIFICATION_CODE",
@@ -605,6 +668,18 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                                             "name": "QUALIFICATION_ACTION_ID",
                                             "value": "fixed-admission-001",
                                         },
+                                        {
+                                            "name": "QUALIFICATION_ARTIFACT_PREFIX",
+                                            "value": "s3://bucket/runs/qualification/fixed-admission-001/outputs/",
+                                        },
+                                        {"name": "QUALIFICATION_MODEL", "value": "fixture"},
+                                        {"name": "QUALIFICATION_MODEL_REVISION", "value": "fixture"},
+                                        {"name": "QUALIFICATION_PROTOCOL", "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/protocol.json"},
+                                        {"name": "QUALIFICATION_ARCHITECTURE", "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/architecture.json"},
+                                        {"name": "QUALIFICATION_AUTHORIZATION", "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/authorization.json"},
+                                        {"name": "QUALIFICATION_IMAGE", "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/image.json"},
+                                        {"name": "QUALIFICATION_INPUT_LOCK", "value": "s3://bucket/runs/qualification/fixed-admission-001/inputs/input-lock.json"},
+                                        {"name": "QUALIFICATION_OUTPUT_ROOT", "value": "s3://bucket/runs/qualification/fixed-admission-001/outputs/"},
                                     ],
                                 }
                             ),
@@ -613,6 +688,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                     {
                         "address": "aws_launch_template.worker",
                         "values": {
+                            "image_id": None,
                             "tag_specifications": [
                                 {
                                     "resource_type": "instance",
@@ -629,6 +705,15 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                                     },
                                 },
                             ]
+                        },
+                    },
+                    {
+                        "address": "aws_batch_job_queue.qualification",
+                        "values": {
+                            "tags": {
+                                "QualificationCode": "signed-code",
+                                "QualificationActionId": "fixed-admission-001",
+                            }
                         },
                     },
                     {
@@ -659,11 +744,15 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
     verified = verify_provider_bindings(adapter(transport), plan)
     assert verified["role"]["RoleName"] == "pneuma-worker"
     tampered = copy.deepcopy(document)
+    tampered_container = json.loads(
+        tampered["planned_values"]["root_module"]["resources"][1]["values"][
+            "container_properties"
+        ]
+    )
+    tampered_container["environment"][0]["value"] = "different"
     tampered["planned_values"]["root_module"]["resources"][1]["values"][
         "container_properties"
-    ] = json.dumps(
-        {"environment": [{"name": "QUALIFICATION_CODE", "value": "different"}]}
-    )
+    ] = json.dumps(tampered_container)
     with pytest.raises(CloudManifestError, match="QUALIFICATION_"):
         parse_terraform_show(tampered)
 

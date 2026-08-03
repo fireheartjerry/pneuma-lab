@@ -46,10 +46,18 @@ variable "spot_fleet_role_arn" {
 
 variable "security_group_ids" {
   type = list(string)
+  validation {
+    condition     = length(var.security_group_ids) == 1
+    error_message = "qualification requires exactly one zero-ingress security group."
+  }
 }
 
 variable "subnet_ids" {
   type = list(string)
+  validation {
+    condition     = length(var.subnet_ids) == 4 && length(distinct(var.subnet_ids)) == 4
+    error_message = "qualification requires four distinct existing subnets; provider validation checks their AZs."
+  }
 }
 
 variable "qualification_model" {

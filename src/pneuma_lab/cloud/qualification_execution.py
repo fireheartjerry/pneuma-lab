@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
@@ -43,6 +44,16 @@ _TERRAFORM_RUNNER_METADATA_KEYS = frozenset(
         "terraform_plan_binding_sha256",
         "terraform_show_sha256",
     }
+)
+QUALIFICATION_AZS = (
+    "us-east-1a",
+    "us-east-1b",
+    "us-east-1c",
+    "us-east-1d",
+)
+QUALIFICATION_IMAGE_DIGEST_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
+QUALIFICATION_RESOURCE_REQUIREMENTS = frozenset(
+    {("GPU", "1"), ("VCPU", "8"), ("MEMORY", "60000")}
 )
 
 
@@ -1125,14 +1136,26 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
     container = _json_object(
         job_definition.get("container_properties"), field="container_properties"
     )
+    image = variable("gpu_worker_image")
+    if not isinstance(image, str) or not QUALIFICATION_IMAGE_DIGEST_RE.search(image):
+        raise CloudManifestError(
+            "planned qualification image must be an immutable sha256 digest"
+        )
+    if container.get("image") != image:
+        raise CloudManifestError(
+            "planned job definition image differs from the pinned Terraform image"
+        )
     environment = container.get("environment")
     if not isinstance(environment, list):
         raise CloudManifestError("planned job definition has no environment list")
-    environment_values = {
-        item.get("name"): item.get("value")
-        for item in environment
-        if isinstance(item, Mapping) and isinstance(item.get("name"), str)
-    }
+    environment_values: dict[str, Any] = {}
+    for item in environment:
+        if not isinstance(item, Mapping) or not isinstance(item.get("name"), str):
+            raise CloudManifestError("planned job definition has an invalid environment entry")
+        name = item["name"]
+        if name in environment_values:
+            raise CloudManifestError(f"planned job definition repeats {name}")
+        environment_values[name] = item.get("value")
     if (
         sum(
             item.get("name") == QUALIFICATION_CODE_ENV
@@ -1163,9 +1186,76 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         raise CloudManifestError(
             "planned qualification action id differs from the Terraform variable"
         )
+    output_path = variable("output_path")
+    input_paths = {
+        "protocol": variable("protocol_path"),
+        "architecture": variable("architecture_path"),
+        "authorization": variable("authorization_path"),
+        "image": variable("image_path"),
+        "input_lock": variable("input_lock_path"),
+    }
+    if not isinstance(output_path, str):
+        raise CloudManifestError("planned qualification output path is not concrete")
+    input_prefix = output_path.rstrip("/").rsplit("/", 1)[0] + "/inputs"
+    for name, value in input_paths.items():
+        expected_path = f"{input_prefix}/{name.replace('_', '-')}.json"
+        if value != expected_path:
+            raise CloudManifestError(
+                f"planned qualification {name} input is not action-scoped"
+            )
+    expected_environment = {
+        "QUALIFICATION_CODE": code,
+        "QUALIFICATION_ACTION_ID": action_id,
+        "QUALIFICATION_ARTIFACT_PREFIX": output_path,
+        "QUALIFICATION_MODEL": variable("qualification_model"),
+        "QUALIFICATION_MODEL_REVISION": variable("qualification_model_revision"),
+        "QUALIFICATION_PROTOCOL": input_paths["protocol"],
+        "QUALIFICATION_ARCHITECTURE": input_paths["architecture"],
+        "QUALIFICATION_AUTHORIZATION": input_paths["authorization"],
+        "QUALIFICATION_IMAGE": input_paths["image"],
+        "QUALIFICATION_INPUT_LOCK": input_paths["input_lock"],
+        "QUALIFICATION_OUTPUT_ROOT": output_path,
+    }
+    if (
+            not output_path.startswith("s3://")
+        or not output_path.rstrip("/").endswith(f"/{action_id}/outputs")
+    ):
+        raise CloudManifestError(
+            "planned qualification output path must be an action-scoped S3 output prefix"
+        )
+    if environment_values != expected_environment:
+        raise CloudManifestError(
+            "planned qualification environment does not exactly match its Terraform bindings"
+        )
     if "command" in container:
         raise CloudManifestError(
             "planned fixed qualification image must inherit its ENTRYPOINT"
+        )
+    resource_requirements = container.get("resourceRequirements")
+    if not isinstance(resource_requirements, list) or len(resource_requirements) != 3:
+        raise CloudManifestError(
+            "planned job definition must request exactly one GPU, 8 vCPUs, and 60000 MiB"
+        )
+    observed_requirements = {
+        (item.get("type"), item.get("value"))
+        for item in resource_requirements
+        if isinstance(item, Mapping)
+    }
+    if observed_requirements != QUALIFICATION_RESOURCE_REQUIREMENTS:
+        raise CloudManifestError(
+            "planned job definition resource requirements differ from the fixed worker contract"
+        )
+    if container.get("platformCapabilities") not in (None, ["EC2"]):
+        raise CloudManifestError("planned qualification job is not EC2-only")
+    timeout = job_definition.get("timeout")
+    if timeout != [{"attempt_duration_seconds": 3600}]:
+        raise CloudManifestError(
+            "planned qualification job must have a 3600-second attempt timeout"
+        )
+    retry_strategy = job_definition.get("retry_strategy")
+    if retry_strategy != [{"attempts": 1}]:
+        raise CloudManifestError(
+            "planned qualification job must have exactly one attempt"
         )
 
     compute_resources = compute.get("compute_resources")
@@ -1178,6 +1268,16 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
             "planned compute environment has no unambiguous compute_resources block"
         )
     resources = dict(compute_resources[0])
+    if resources.get("type") != "SPOT":
+        raise CloudManifestError("planned compute environment must use Spot capacity")
+    if resources.get("allocation_strategy") != "SPOT_PRICE_CAPACITY_OPTIMIZED":
+        raise CloudManifestError(
+            "planned compute environment must use Spot price-capacity optimization"
+        )
+    if resources.get("min_vcpus") != 0 or resources.get("desired_vcpus") != 0:
+        raise CloudManifestError(
+            "planned compute environment must start with zero requested vCPUs"
+        )
     tags: dict[str, str] = {}
     for tag_map in _tag_maps(compute) + _tag_maps(resources):
         tags.update(tag_map)
@@ -1223,15 +1323,16 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
     )
     if (
         not isinstance(subnets, list)
-        or not subnets
+        or len(subnets) != len(QUALIFICATION_AZS)
         or not all(isinstance(item, str) and item for item in subnets)
+        or len(set(subnets)) != len(QUALIFICATION_AZS)
     ):
         raise CloudManifestError(
             "planned compute resources do not contain concrete subnet ids"
         )
     if (
         not isinstance(security_groups, list)
-        or not security_groups
+        or len(security_groups) != 1
         or not all(isinstance(item, str) and item for item in security_groups)
     ):
         raise CloudManifestError(
@@ -1247,6 +1348,24 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         raise CloudManifestError(
             "planned compute resources do not preserve the 16-vCPU ceiling"
         )
+    if launch_template.get("image_id") not in (None, ""):
+        raise CloudManifestError(
+            "qualification launch template must use the Batch-managed GPU AMI path"
+        )
+    queue = _resource_any(rows, "aws_batch_job_queue.qualification")
+    for label, row in (
+        ("job queue", queue),
+        ("job definition", job_definition),
+    ):
+        row_tags = _tag_maps(row)
+        if not any(
+            tags.get("QualificationCode") == code
+            and tags.get("QualificationActionId") == action_id
+            for tags in row_tags
+        ):
+            raise CloudManifestError(
+                f"planned {label} tags do not bind the qualification action"
+            )
 
     instance_profile_arn = variable("instance_role_arn")
     instance_profile_name = _iam_binding_name(
@@ -1335,6 +1454,12 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         "region": region if isinstance(region, str) and region else None,
         "compute_resources": resources,
         "job_definition": container,
+        "image": image,
+        "output_path": output_path,
+        "input_paths": input_paths,
+        "compute_environment_name": compute.get("compute_environment_name"),
+        "job_queue_name": queue.get("name"),
+        "job_definition_name": job_definition.get("name"),
         "terraform_show_sha256": hashlib.sha256(
             canonical_bytes(show_document)
         ).hexdigest(),
@@ -1384,6 +1509,10 @@ def verify_provider_bindings(
         or len(account_id) != 12
     ):
         raise CloudManifestError("provider identity did not return a concrete account")
+    planned_region = plan.get("region")
+    provider_region = getattr(adapter, "region", None)
+    if planned_region is not None and provider_region is not None and planned_region != provider_region:
+        raise CloudManifestError("provider region differs from the Terraform plan")
 
     def account_arn(value: Any, *, kind: str, label: str) -> str:
         name = _iam_binding_name(value, kind=kind, field=label)
@@ -1486,13 +1615,24 @@ def verify_provider_bindings(
         else None
     )
     subnets = adapter.describe_subnets(tuple(plan["subnet_ids"]))
+    if len(plan["subnet_ids"]) != len(QUALIFICATION_AZS) or len(subnets) != len(QUALIFICATION_AZS):
+        raise CloudManifestError("qualification must use exactly four subnets")
     if {row.get("SubnetId") for row in subnets} != set(plan["subnet_ids"]):
         raise CloudManifestError("planned subnet ids were not explicitly verified")
+    observed_azs = {row.get("AvailabilityZone") for row in subnets}
+    if observed_azs != set(QUALIFICATION_AZS):
+        raise CloudManifestError(
+            "verified subnets do not cover us-east-1a through us-east-1d"
+        )
+    if any(row.get("State") != "available" for row in subnets):
+        raise CloudManifestError("a planned qualification subnet is not available")
     if plan.get("vpc_id") is not None and any(
         row.get("VpcId") != plan["vpc_id"] for row in subnets
     ):
         raise CloudManifestError("verified subnet VPC differs from the Terraform plan")
     groups = adapter.describe_security_groups(tuple(plan["security_group_ids"]))
+    if len(plan["security_group_ids"]) != 1 or len(groups) != 1:
+        raise CloudManifestError("qualification must use exactly one security group")
     if {row.get("GroupId") for row in groups} != set(plan["security_group_ids"]):
         raise CloudManifestError(
             "planned security-group ids were not explicitly verified"
@@ -1503,6 +1643,12 @@ def verify_provider_bindings(
         raise CloudManifestError(
             "verified security-group VPC differs from the Terraform plan"
         )
+    if any(
+        not isinstance(group.get("IpPermissions"), list)
+        or group.get("IpPermissions")
+        for group in groups
+    ):
+        raise CloudManifestError("qualification security group must have zero ingress")
     return {
         "account_id": account_id,
         "role": dict(role),

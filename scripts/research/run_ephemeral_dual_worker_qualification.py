@@ -27,13 +27,23 @@ def _sanitized_receipt(
     evidence = result.get("evidence") or {}
     children = evidence.get("children") or ()
     child_rows = []
+    observed_durations = []
     for child in children:
+        started_at = child.get("startedAt")
+        stopped_at = child.get("stoppedAt")
+        duration_seconds = None
+        if isinstance(started_at, (int, float)) and isinstance(stopped_at, (int, float)):
+            duration_seconds = (stopped_at - started_at) / 1000.0
+            observed_durations.append(duration_seconds)
         child_rows.append(
             {
                 "job_id_sha256": _digest_text(str(child.get("jobId", ""))),
                 "array_index": (child.get("arrayProperties") or {}).get("index"),
                 "status": child.get("status"),
                 "attempt_count": len(child.get("attempts") or []),
+                "started_at_epoch_ms": started_at,
+                "stopped_at_epoch_ms": stopped_at,
+                "observed_duration_seconds": duration_seconds,
             }
         )
     raw_rows = []
@@ -50,6 +60,21 @@ def _sanitized_receipt(
                 "size_bytes": len(payload),
             }
         )
+    fixture_rows = []
+    fixture_admissions = evidence.get("fixture_admissions") or {}
+    for index in (0, 1):
+        admission = fixture_admissions.get(index) or fixture_admissions.get(str(index))
+        if isinstance(admission, dict):
+            fixture_rows.append(
+                {
+                    "worker_index": index,
+                    "rung": admission.get("rung"),
+                    "gates": admission.get("gates"),
+                    "measurement_evidence_sha256": admission.get(
+                        "measurement_evidence_sha256"
+                    ),
+                }
+            )
     return {
         "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt",
         "schema_version": "0.1.0",
@@ -69,10 +94,12 @@ def _sanitized_receipt(
         "ready": result.get("ready"),
         "parent_job_id_sha256": _digest_text(str(result.get("parent_job_id", ""))),
         "children": child_rows,
+        "observed_worker_duration_seconds": observed_durations,
         "worker_identity_sha256": [
             _digest_text(str(value)) for value in evidence.get("instance_ids", ())
         ],
         "raw_artifacts": raw_rows,
+        "fixture_admissions": fixture_rows,
         "recovery": result.get("recovery"),
         "teardown_absence": result.get("absence"),
     }

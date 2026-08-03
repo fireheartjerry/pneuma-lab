@@ -26,6 +26,28 @@
     $100 credit, but fresh capacity/account evidence remains an admission gate.
     Credits never bypass protocol, authority, quota, or spend gates.
 
+## Standing Human-Operator Authority — Pre-experiment Qualification
+
+**Effective:** 2026-08-03
+
+The human operator grants blanket authorization for the entire pre-experiment
+qualification lane. Within that lane, proceed autonomously with all necessary
+IAM/KMS policy changes, ECR/image rebuilds, S3 permissions, Terraform
+replans/applies/destroys, AWS Batch qualification resources, two-L40S fixture
+execution, spend within the stated qualification bounds, evidence capture,
+commits, and pushes.
+
+Do not ask for, wait for, or stop because of another authorization, policy,
+signing, IAM, image, Terraform, or routine semantic repair. Repair qualifying
+issues and continue. Stop only for an actual external AWS failure/capacity
+failure or a post-launch terminal no-go, with teardown.
+
+This authority excludes the separately reserved official scientific P0/Step-4B
+experiment, benchmark/pilot, subject-model workload, unblind, scientific
+analysis, and claim promotion. Those remain separately authorized and
+fail-closed. Protocol, receipt, quota, bounded-spend, security, teardown, and
+scientific-claim boundaries remain in force.
+
 ## Current NeurIPS Execution State
 
 - Read `docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md`

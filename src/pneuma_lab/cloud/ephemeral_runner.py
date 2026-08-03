@@ -200,6 +200,10 @@ def _require_resource_contract(plan: Mapping[str, Any]) -> None:
         raise CloudManifestError(
             "ephemeral qualification plan lacks resource_changes"
         )
+    if len(changes) != len(EXPECTED_RESOURCE_ADDRESSES):
+        raise CloudManifestError(
+            "ephemeral qualification plan must contain exactly four creates"
+        )
     addresses = {
         change.get("address")
         for change in changes
@@ -209,6 +213,15 @@ def _require_resource_contract(plan: Mapping[str, Any]) -> None:
         raise CloudManifestError(
             "ephemeral qualification plan must contain exactly the compute "
             "environment, launch template, queue, and job definition"
+        )
+    if any(
+        not isinstance(change, Mapping)
+        or not isinstance(change.get("change"), Mapping)
+        or change["change"].get("actions") != ["create"]
+        for change in changes
+    ):
+        raise CloudManifestError(
+            "ephemeral qualification plan must contain only approved creates"
         )
 
 
@@ -243,6 +256,148 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         )
         self.compute_environment = compute_environment or queue
         self.parent_job_id: str | None = None
+        self._fixture_protocol: dict[str, Any] | None = None
+        self._fixture_binding: dict[str, Any] | None = None
+
+    def bind_qualification_plan(self, plan: Mapping[str, Any]) -> Mapping[str, Any]:
+        """Bind provider arguments and the live fixture bytes to the plan."""
+
+        planned_names = {
+            "queue": plan.get("job_queue_name"),
+            "job definition": plan.get("job_definition_name"),
+            "compute environment": plan.get("compute_environment_name"),
+        }
+        supplied_names = {
+            "queue": self.queue,
+            "job definition": self.job_definition,
+            "compute environment": self.compute_environment,
+        }
+        for label, planned in planned_names.items():
+            if planned is not None and planned != supplied_names[label]:
+                raise CloudManifestError(
+                    f"provider {label} differs from the exact Terraform plan"
+                )
+        if plan.get("output_path") != self.output_root:
+            raise CloudManifestError(
+                "provider output root differs from the exact Terraform plan"
+            )
+        input_paths = plan.get("input_paths")
+        if not isinstance(input_paths, Mapping) or set(input_paths) != {
+            "protocol",
+            "architecture",
+            "authorization",
+            "image",
+            "input_lock",
+        }:
+            raise CloudManifestError("Terraform plan lacks the five fixed fixture inputs")
+        payloads: dict[str, bytes] = {}
+        for name, uri in input_paths.items():
+            if not isinstance(uri, str):
+                raise CloudManifestError(f"planned {name} fixture input is not an S3 URI")
+            payloads[name] = self.get_object(uri)
+        hashes = {
+            name: hashlib.sha256(payload).hexdigest()
+            for name, payload in payloads.items()
+        }
+        code = plan.get("qualification_code")
+        image = plan.get("image")
+        if not isinstance(code, str) or not isinstance(image, str):
+            raise CloudManifestError("qualification plan lacks code or immutable image bindings")
+        hashes["code"] = hashlib.sha256(code.encode("utf-8")).hexdigest()
+        try:
+            protocol = json.loads(payloads["protocol"].decode("utf-8"))
+            image_record = json.loads(payloads["image"].decode("utf-8"))
+            input_lock = json.loads(payloads["input_lock"].decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise CloudManifestError("qualification fixture inputs are not valid UTF-8 JSON") from exc
+        if not isinstance(protocol, Mapping) or not isinstance(image_record, Mapping) or not isinstance(input_lock, Mapping):
+            raise CloudManifestError("qualification fixture inputs must be JSON objects")
+        from .pilot import validate_protocol
+
+        validate_protocol(protocol)
+        expected_hashes = {
+            "architecture": hashes["architecture"],
+            "authorization": hashes["authorization"],
+            "image": hashes["image"],
+            "input_lock": hashes["input_lock"],
+            "code": hashes["code"],
+        }
+        if dict(protocol.get("bound_hashes", {})) != expected_hashes:
+            raise CloudManifestError(
+                "protocol bound hashes differ from the exact action fixture bytes"
+            )
+        if image_record.get("image") != image or image_record.get("action_id") != plan.get("action_id"):
+            raise CloudManifestError("image fixture does not bind the exact qualification action")
+        if image_record.get("command_override") is not False:
+            raise CloudManifestError("image fixture permits a command override")
+        if input_lock.get("action_id") != plan.get("action_id"):
+            raise CloudManifestError("input lock does not bind the exact qualification action")
+        image_ref, digest = image.rsplit("@", 1)
+        host, separator, repository = image_ref.partition("/")
+        identity = self._call("sts", "get-caller-identity")
+        account_id = identity.get("Account") if isinstance(identity, Mapping) else None
+        expected_host = (
+            f"{account_id}.dkr.ecr.{self.region}.amazonaws.com"
+            if isinstance(account_id, str)
+            else None
+        )
+        if not separator or not repository or host != expected_host:
+            raise CloudManifestError("qualification image is not in the bound regional ECR registry")
+        image_response = self._call(
+            "ecr",
+            "describe-images",
+            "--repository-name",
+            repository,
+            "--image-ids",
+            f"imageDigest={digest}",
+        )
+        image_details = image_response.get("imageDetails", [])
+        if (
+            not isinstance(image_details, list)
+            or len(image_details) != 1
+            or image_details[0].get("imageDigest") != digest
+        ):
+            raise CloudManifestError("active immutable qualification image digest was not verified")
+        self._fixture_protocol = dict(protocol)
+        self._fixture_binding = {
+            "input_hashes": hashes,
+            "input_paths": dict(input_paths),
+            "image": image,
+        }
+        return {
+            "input_lock_sha256": hashes["input_lock"],
+            "input_hashes": hashes,
+            "image": image,
+        }
+
+    def compile_fixture_evidence(
+        self, evidence: Mapping[str, Any]
+    ) -> Mapping[int, Mapping[str, Any]]:
+        """Compile both immutable raw worker records against the live protocol."""
+
+        if self._fixture_protocol is None:
+            raise CloudManifestError("fixture evidence was collected before plan binding")
+        raw_evidence = evidence.get("raw_evidence")
+        if not isinstance(raw_evidence, Mapping) or set(raw_evidence) != {0, 1}:
+            raise CloudManifestError("fixture compilation requires raw evidence for both workers")
+        measurements: dict[int, tuple[Mapping[str, Any], str]] = {}
+        for index in (0, 1):
+            payload = raw_evidence[index]
+            if not isinstance(payload, (bytes, bytearray)) or not payload:
+                raise CloudManifestError("fixture raw evidence must be nonempty bytes")
+            try:
+                record = json.loads(bytes(payload).decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise CloudManifestError("fixture raw evidence is not UTF-8 JSON") from exc
+            if not isinstance(record, Mapping):
+                raise CloudManifestError("fixture raw evidence is not an object")
+            measurements[index] = (
+                record,
+                hashlib.sha256(bytes(payload)).hexdigest(),
+            )
+        from .worker_admission import compile_dual_worker_admissions
+
+        return compile_dual_worker_admissions(measurements, self._fixture_protocol)
 
     def _call(self, *args: str) -> Any:
         result = self.run(
@@ -525,7 +680,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "--job-definition-name",
             self.job_definition,
             "--status",
-            "ACTIVE",
+            "ALL",
         )
         instances = self._call_absence(
             "ec2",
@@ -693,6 +848,15 @@ def execute(
         ledger_path=ledger_path,
     )
     spend_history_sha256 = derive_spend_history_binding(ledger_path)
+    bind_plan = getattr(provider, "bind_qualification_plan", None)
+    if callable(bind_plan):
+        binding = bind_plan(parsed_plan)
+        if not isinstance(binding, Mapping):
+            raise CloudManifestError("qualification provider returned an invalid fixture binding")
+        input_lock_sha256 = binding.get("input_lock_sha256")
+        if not isinstance(input_lock_sha256, str) or len(input_lock_sha256) != 64:
+            raise CloudManifestError("qualification provider did not bind the live input lock")
+        parsed_plan["input_lock_sha256"] = input_lock_sha256
     if config.expected_max_retries != MAX_RETRIES:
         raise CloudManifestError("qualification runner permits zero retries only")
     projected = provider.pricing_projection(
@@ -741,6 +905,18 @@ def execute(
         )
         evidence = provider.collect_admission(parent_job_id)
         _require_evidence(evidence)
+        compile_fixture = getattr(provider, "compile_fixture_evidence", None)
+        if not callable(compile_fixture):
+            raise CloudManifestError(
+                "concrete qualification provider lacks fixture admission compilation"
+            )
+        compiled = compile_fixture(evidence)
+        if not isinstance(compiled, Mapping) or set(compiled) != {0, 1}:
+            raise CloudManifestError(
+                "fixture admission compilation did not produce exactly two worker receipts"
+            )
+        evidence = dict(evidence)
+        evidence["fixture_admissions"] = compiled
         recovery = provider.run_partition_recovery(parent_job_id)
         if (
             recovery.get("restored_completed_boundary") is not True

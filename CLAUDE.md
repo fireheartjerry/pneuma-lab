@@ -42,6 +42,20 @@ append-only forensic trail.
   only its matching G/VT quota may satisfy the AWS admission gate. Azure remains
   separately authorized and separately governed.
 
+## Standing Human-Operator Authority — Pre-experiment Qualification
+
+For the bounded pre-experiment qualification lane, the human operator grants
+blanket authorization for all necessary IAM/KMS policy changes, ECR/image
+rebuilds, S3 permissions, Terraform replans/applies/destroys, AWS Batch
+qualification resources, two-L40S fixture execution, bounded spend, evidence,
+commits, and pushes. Repair routine authorization, policy, signing, IAM,
+image, Terraform, and semantic issues autonomously; do not pause for another
+authorization. Stop only for an actual external AWS/provider/capacity failure
+or a post-launch terminal no-go, with teardown. The official scientific
+P0/Step-4B experiment, benchmark/pilot, subject-model workload, unblind,
+scientific analysis, and claim promotion remain excluded and separately
+authorized.
+
 The public methodology name is **the PLACEBO Protocol** and the registered
 experiment is **the PLACEBO Trial** (DL-160,
 `docs/research/placebo-paper/01-terminology.md`). Internal `resampling_null`
