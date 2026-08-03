@@ -155,16 +155,29 @@ def require_fresh_qualification_action(
     action_pattern = re.compile(
         rf"(?<![A-Za-z0-9]){re.escape(action_id)}(?![A-Za-z0-9])"
     )
+    terminal_evidence_markers = (
+        "execution-receipt",
+        "preflight-no-go",
+        "terminal-no-go",
+        "terminal",
+        "no-go",
+        "completion",
+        "teardown",
+    )
     if evidence_root.exists():
         matches = sorted(
             path
             for path in evidence_root.rglob("*")
             if path.is_file()
             and action_pattern.search(path.relative_to(evidence_root).as_posix())
+            and any(
+                marker in path.relative_to(evidence_root).as_posix()
+                for marker in terminal_evidence_markers
+            )
         )
         if matches:
             raise CloudManifestError(
-                "qualification action id is already represented in retained evidence: "
+                "qualification action id is already represented in terminal retained evidence: "
                 + matches[0].as_posix()
             )
     if receipt_path is not None and receipt_path.exists():
@@ -177,10 +190,19 @@ def require_fresh_qualification_action(
                 "qualification freshness requires the authoritative spend ledger"
             )
         ledger_text = ledger_path.read_text(encoding="utf-8")
-        if action_pattern.search(ledger_text):
-            raise CloudManifestError(
-                "qualification action id is already represented in the spend ledger"
-            )
+        active_ledger_markers = (
+            "read-only account-plan validation",
+            "fresh qualification preparation envelope",
+            "fresh preparation envelope",
+            "exact one-use qualification admission",
+        )
+        for line in ledger_text.splitlines():
+            if action_pattern.search(line) and not any(
+                marker in line.lower() for marker in active_ledger_markers
+            ):
+                raise CloudManifestError(
+                    "qualification action id is already represented in terminal spend-ledger history"
+                )
 
 
 class QualificationProvider(Protocol):

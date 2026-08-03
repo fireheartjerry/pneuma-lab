@@ -7193,3 +7193,21 @@ post-launch terminal no-go. Tasks 6–10 remain
   successor Batch launch; action-011 was not retried.
 - **Boundary:** No scientific workload, model load, benchmark, pilot, official
   P0/Step-4B experiment, unblind, analysis, or claim promotion occurred.
+
+### EJ-20260803-dual-l40s-freshness-active-record-repair
+
+- **Concrete mismatch:** The newly hardened freshness gate treated any mention
+  of an action ID in the authoritative ledger or evidence directory as
+  exhaustion. That would reject a fresh action's own nonterminal plan,
+  preparation-envelope, and exact-admission records before the concrete runner
+  could consume them.
+- **Repair:** Freshness now permits only the named nonterminal plan/envelope/
+  admission ledger operations and preparation evidence; any terminal receipt,
+  no-go, completion, teardown, or unknown ledger record still rejects the
+  action before provider calls. The action-specific receipt path remains
+  non-overwritable.
+- **Validation and boundary:** The focused `test_ephemeral_runner.py` suite
+  passes, including active-record and terminal-history regressions. This was a
+  source-only repair made before action-012 authority or AWS mutation; no
+  Batch, GPU, Spot, model, benchmark, pilot, official P0/Step-4B experiment,
+  unblind, analysis, or claim promotion occurred.

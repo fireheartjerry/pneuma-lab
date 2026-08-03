@@ -703,6 +703,50 @@ def test_exhausted_action_id_uses_the_same_token_boundary_in_the_ledger(
         )
 
 
+def test_fresh_action_allows_its_nonterminal_plan_and_authority_records(
+    tmp_path: Path,
+) -> None:
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    action_id = "dual-l40s-qualification-012"
+    (evidence_root / f"{action_id}-read-only-plan.json").write_text("{}", encoding="utf-8")
+    (evidence_root / f"{action_id}-authority-receipt.json").write_text("{}", encoding="utf-8")
+    ledger = tmp_path / "ledger.md"
+    ledger.write_text(
+        f"| CL-1 | now | AWS | Read-only account-plan validation for `{action_id}` | x | y |\n"
+        f"| CL-2 | now | AWS | Exact one-use qualification admission for `{action_id}` | x | y |\n",
+        encoding="utf-8",
+    )
+    require_fresh_qualification_action(
+        action_id,
+        evidence_root=evidence_root,
+        ledger_path=ledger,
+    )
+
+
+def test_fresh_action_rejects_terminal_evidence_and_ledger_records(tmp_path: Path) -> None:
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    action_id = "dual-l40s-qualification-012"
+    (evidence_root / f"{action_id}-execution-receipt.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(CloudManifestError, match="already represented"):
+        require_fresh_qualification_action(action_id, evidence_root=evidence_root)
+
+    evidence_root = tmp_path / "other-evidence"
+    evidence_root.mkdir()
+    ledger = tmp_path / "terminal-ledger.md"
+    ledger.write_text(
+        f"| CL-3 | now | AWS | Failed exact action `{action_id}` | x | y |\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(CloudManifestError, match="already represented"):
+        require_fresh_qualification_action(
+            action_id,
+            evidence_root=evidence_root,
+            ledger_path=ledger,
+        )
+
+
 def test_default_action_freshness_is_checked_before_provider_calls() -> None:
     provider, terraform = FakeProvider(), FakeTerraform()
     with pytest.raises(CloudManifestError, match="already represented"):
