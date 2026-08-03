@@ -7103,5 +7103,25 @@ post-launch terminal no-go. Tasks 6–10 remain
   instance profile, role, and SG are absent. Action-012 is exhausted and was
   not retried after launch. No Terraform, Batch, GPU, Spot, model,
   benchmark, pilot, official P0/Step-4B experiment, unblind, analysis, or
-  claim promotion occurred. The pre-experiment lane therefore has a terminal
-  post-launch no-go, not a qualification pass.
+ claim promotion occurred. The pre-experiment lane therefore has a terminal
+ post-launch no-go, not a qualification pass.
+
+### EJ-20260803-qualification-image-build-013-preparation
+
+- **Fresh successor:** The action-012 post-push sidecar failure was repaired
+  in pushed commit `b92a88b4352c2e188b9554d258739ca889b66250`. The bootstrap now
+  attaches stdin to the immutable-image sidecar and independently rejects an
+  empty, malformed, or incorrectly self-hashed sidecar before recording
+  `COMPLETE`. Focused bootstrap/image tests pass and the source archive for the
+  fresh action hashes to
+  `6a95681c50a2dea195938b2a667c780d0d7a7570d8f4eb7ccf73539a78205a2b`.
+- **Plan:** Fresh action `qualification-image-build-013` binds plan SHA-256
+  `4a23d3c5a8f9bc7f58664c8a01b2cc7af48577a82015081f4d41ff2517dbc15a`,
+  rendered bootstrap SHA-256
+  `94fb98b34bfb65a09ecfeca704e9f726edd86cd0d4b66e0e5642aca087b645ce`,
+  builder policy SHA-256
+  `dbb4bb7d2377082988790a24e19b2e3001e19db81a2137b623a2970c15828934`,
+  one m7i.xlarge CPU builder, USD 6.00 projection under the USD 25.00
+  ceiling, zero retries, and fresh provider-absence teardown. The plan and
+  CL-302/CL-303 ledger rows are committed before KMS signing; no provider
+  mutation has occurred for action-013.
