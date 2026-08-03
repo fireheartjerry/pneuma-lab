@@ -10,6 +10,8 @@ LABEL org.opencontainers.image.source="https://github.com/fireheartjerry/pneuma-
 # every security update available at build time; the resulting ECR digest and
 # scan receipt, not this mutable package operation, are the execution pin.
 RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+        awscli \
     && DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade --yes \
     && DEBIAN_FRONTEND=noninteractive apt-get purge --yes --auto-remove \
         ffmpeg \
