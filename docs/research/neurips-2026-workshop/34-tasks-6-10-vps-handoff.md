@@ -1182,3 +1182,12 @@ compute environment with no nested custom AMI, rejects malformed saved-plan
 digests, and adds future denied IAM checks for KMS decrypt and IAM policy
 administration. These repairs do not change the sealed action-011 receipt or
 authorize a relaunch.
+
+The final source-only seam pass also rejects conflicting IAM policy-hash
+representations, requires the qualification plan to bind `us-east-1` and a
+concrete VPC, rejects Batch `command`/ENTRYPOINT overrides, and makes the
+concrete runner require one complete immutable fixture-image receipt bound to
+the exact current checkout commit. The sealed action-011 image remains bound
+to source commit `e36dd15ac2524c29d0fb02a8705ec7fcc48fb34a`; it is retained as
+historical evidence but cannot silently be reused after these newer source
+repairs. No relaunch or AWS mutation occurred.

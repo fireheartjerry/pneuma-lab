@@ -6532,3 +6532,24 @@ post-launch terminal no-go. Tasks 6–10 remain
 - **Validation/boundary:** Focused probe, runner, Terraform, IAM, receipt, and
   image-fixture regressions pass. No AWS mutation, action retry, official
   scientific workload, unblind, analysis, or claim promotion occurred.
+
+### EJ-20260803-dual-l40s-source-image-and-plan-semantics-closure
+
+- **Fail-closed signing repair:** Future qualification signing rejects
+  conflicting IAM policy-hash sources instead of selecting the first truthy
+  representation.
+- **Terraform/Batch repair:** Plan admission now requires the concrete
+  `us-east-1` region and VPC binding, and rejects `command`, `entrypoint`, and
+  `entryPoint` container overrides that could erase the fixed image
+  ENTRYPOINT.
+- **Image/runtime repair:** The concrete runner now requires exactly one
+  complete immutable fixture-image receipt matching the pinned digest and the
+  current checkout commit. The receipt checks the fixed ENTRYPOINT, AWS CLI
+  v2, package/schema import, network-none/no-model fixture, five-input
+  materialization, and immutable worker-indexed publication.
+- **Disposition:** The sealed action-011 image was built from
+  `e36dd15ac2524c29d0fb02a8705ec7fcc48fb34a`, before these newer source
+  repairs. It remains historical evidence but is not silently rebound. No
+  rebuild, AWS mutation, relaunch, retry, scientific workload, unblind,
+  analysis, or claim promotion occurred. Focused image, signer, plan, runner,
+  qualification, and account-verification regressions passed.

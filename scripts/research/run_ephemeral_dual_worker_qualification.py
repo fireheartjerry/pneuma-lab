@@ -12,6 +12,7 @@ from pneuma_lab.cloud.ephemeral_receipt import (
     build_ephemeral_qualification_receipt,
     validate_authority_evidence,
 )
+from pneuma_lab.cloud.images import require_qualification_image_binding
 from pneuma_lab.cloud.ephemeral_runner import (
     AwsCliAdapter,
     QualificationExecutionError,
@@ -110,6 +111,18 @@ def main() -> int:
         plan_for_binding = account_plan.get("_qualification")
         if not isinstance(plan_for_binding, Mapping):
             raise ValueError("loaded Terraform plan lacks its parsed qualification binding")
+        source_revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ).stdout.strip()
+        require_qualification_image_binding(
+            evidence_root,
+            image_digest=str(plan_for_binding.get("image_digest", "")),
+            source_commit=source_revision,
+        )
         authority = validate_authority_evidence(
             authority_record,
             package_bytes=package_bytes,

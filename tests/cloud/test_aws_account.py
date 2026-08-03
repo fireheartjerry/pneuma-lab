@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -12,6 +11,8 @@ from pneuma_lab.cloud.aws_account import (
     build_account_verification,
 )
 from pneuma_lab.cloud.errors import CloudManifestError
+
+from .test_ephemeral_runner import terraform_show as qualification_terraform_show
 
 
 LEDGER = (
@@ -55,114 +56,31 @@ class Provider:
         }
 
     def describe_subnets(self, subnet_ids):
-        return [{"SubnetId": subnet_id} for subnet_id in subnet_ids]
+        return [
+            {
+                "SubnetId": subnet_id,
+                "VpcId": "vpc-12345678",
+                "AvailabilityZone": f"us-east-1{chr(ord('a') + index)}",
+                "State": "available",
+            }
+            for index, subnet_id in enumerate(subnet_ids)
+        ]
 
     def describe_security_groups(self, group_ids):
-        return [{"GroupId": group_id} for group_id in group_ids]
+        return [
+            {
+                "GroupId": group_id,
+                "VpcId": "vpc-12345678",
+                "IpPermissions": [],
+            }
+            for group_id in group_ids
+        ]
 
 
 def _show() -> dict:
-    return {
-        "format_version": "1.0",
-        "variables": {
-            "region": {"value": "us-east-1"},
-            "qualification_code": {"value": "signed-code"},
-            "qualification_action_id": {"value": "fixed-admission-001"},
-            "instance_role_arn": {
-                "value": "arn:aws:iam::123456789012:instance-profile/pneuma-worker"
-            },
-            "batch_service_role_arn": {
-                "value": "arn:aws:iam::123456789012:role/pneuma-batch"
-            },
-            "spot_fleet_role_arn": {
-                "value": "arn:aws:iam::123456789012:role/pneuma-spot"
-            },
-        },
-        "planned_values": {
-            "root_module": {
-                "resources": [
-                    {
-                        "address": "aws_batch_compute_environment.worker[0]",
-                        "values": {
-                            "compute_resources": [
-                                {
-                                    "instance_type": ["g6e.2xlarge"],
-                                    "max_vcpus": 16,
-                                    "instance_role": "arn:aws:iam::123456789012:instance-profile/pneuma-worker",
-                                    "spot_iam_fleet_role": "arn:aws:iam::123456789012:role/pneuma-spot",
-                                    "subnets": ["subnet-0123456789abcdef0"],
-                                    "security_group_ids": ["sg-0123456789abcdef0"],
-                                    "tags": {
-                                        "QualificationCode": "signed-code",
-                                        "QualificationActionId": "fixed-admission-001",
-                                    },
-                                }
-                            ],
-                            "service_role": "arn:aws:iam::123456789012:role/pneuma-batch",
-                        },
-                    },
-                    {
-                        "address": "aws_batch_job_definition.gpu_worker",
-                        "values": {
-                            "container_properties": json.dumps(
-                                {
-                                    "environment": [
-                                        {
-                                            "name": "QUALIFICATION_CODE",
-                                            "value": "signed-code",
-                                        },
-                                        {
-                                            "name": "QUALIFICATION_ACTION_ID",
-                                            "value": "fixed-admission-001",
-                                        },
-                                    ]
-                                }
-                            )
-                        },
-                    },
-                    {
-                        "address": "aws_launch_template.worker",
-                        "values": {
-                            "tag_specifications": [
-                                {
-                                    "resource_type": "instance",
-                                    "tags": {
-                                        "QualificationCode": "signed-code",
-                                        "QualificationActionId": "fixed-admission-001",
-                                    },
-                                },
-                                {
-                                    "resource_type": "volume",
-                                    "tags": {
-                                        "QualificationCode": "signed-code",
-                                        "QualificationActionId": "fixed-admission-001",
-                                    },
-                                },
-                            ]
-                        },
-                    },
-                    {
-                        "address": "aws_iam_role.worker",
-                        "values": {"name": "pneuma-worker", "arn": None},
-                    },
-                ]
-            }
-        },
-        "resource_changes": [
-            {
-                "address": "aws_batch_compute_environment.worker[0]",
-                "change": {"actions": ["create"]},
-            },
-            {
-                "address": "aws_batch_job_definition.gpu_worker[0]",
-                "change": {"actions": ["create"]},
-            },
-            {
-                "address": "aws_launch_template.worker",
-                "change": {"actions": ["create"]},
-            },
-        ],
-    }
+    return qualification_terraform_show(
+        action_id="fixed-admission-001", code="signed-code"
+    )
 
 
 def _quotas(on_demand: float = 8.0, spot: float = 16.0) -> list[dict]:

@@ -143,3 +143,14 @@ def test_qualification_signing_binding_covers_policy_image_az_projection_and_out
     plan["max_retries"] = 1
     with pytest.raises(ValueError, match="zero retries"):
         sign_preparation_action.build_qualification_binding(plan)
+
+
+def test_qualification_signing_binding_rejects_conflicting_policy_hash_sources() -> None:
+    plan = {
+        "action_class": "qualification_audit",
+        "action_id": "dual-l40s-qualification-012",
+        "iam_policy_sha256": "a" * 64,
+        "bindings": {"iam_policy_sha256": "b" * 64},
+    }
+    with pytest.raises(ValueError, match="conflicting IAM policy hashes"):
+        sign_preparation_action.build_qualification_binding(plan)

@@ -75,6 +75,7 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
         "format_version": "1.0",
         "variables": {
             "region": {"value": "us-east-1"},
+            "vpc_id": {"value": "vpc-12345678"},
             "qualification_code": {"value": code},
             "qualification_action_id": {"value": action_id},
             "instance_role_arn": {"value": PROFILE_ARNS["pneuma-worker"]},
@@ -609,6 +610,29 @@ def test_ephemeral_plan_guard_rejects_unmanaged_or_custom_ami(
     else:
         compute["compute_resources"][0][field] = value
     with pytest.raises(CloudManifestError, match=message):
+        parse_terraform_show(candidate)
+
+
+def test_terraform_show_requires_us_east_1_and_a_concrete_vpc() -> None:
+    candidate = terraform_show()
+    candidate["variables"]["region"]["value"] = "us-west-2"
+    with pytest.raises(CloudManifestError, match="us-east-1"):
+        parse_terraform_show(candidate)
+
+    candidate = terraform_show()
+    candidate["variables"].pop("vpc_id")
+    with pytest.raises(CloudManifestError, match="concrete us-east-1 VPC"):
+        parse_terraform_show(candidate)
+
+
+@pytest.mark.parametrize("override", ["command", "entrypoint", "entryPoint"])
+def test_terraform_show_rejects_fixed_image_overrides(override: str) -> None:
+    candidate = terraform_show()
+    job = candidate["planned_values"]["root_module"]["resources"][1]["values"]
+    container = json.loads(job["container_properties"])
+    container[override] = ["/bin/sh"]
+    job["container_properties"] = json.dumps(container)
+    with pytest.raises(CloudManifestError, match="ENTRYPOINT"):
         parse_terraform_show(candidate)
 
 

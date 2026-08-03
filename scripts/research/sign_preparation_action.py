@@ -88,6 +88,29 @@ def execution_manifest_digest(plan: dict[str, Any]) -> str:
     return terraform_plan_binding_digest(saved_sha, show_sha)
 
 
+def _consistent_policy_sha256(
+    sources: Sequence[tuple[str, Any]],
+) -> str | None:
+    """Return one IAM policy digest, rejecting conflicting representations."""
+
+    present = [(label, value) for label, value in sources if value is not None]
+    if not present:
+        return None
+    invalid = [label for label, value in present if not isinstance(value, str)]
+    if invalid:
+        raise ValueError(
+            "qualification signing plan contains a non-string IAM policy hash: "
+            + ", ".join(invalid)
+        )
+    values = {value for _, value in present}
+    if len(values) != 1:
+        raise ValueError(
+            "qualification signing plan contains conflicting IAM policy hashes: "
+            + ", ".join(label for label, _ in present)
+        )
+    return present[0][1]
+
+
 def build_qualification_binding(plan: Mapping[str, Any]) -> dict[str, Any] | None:
     """Bind every high-risk qualification input into the signed package."""
 
@@ -100,11 +123,13 @@ def build_qualification_binding(plan: Mapping[str, Any]) -> dict[str, Any] | Non
     iam = plan.get("iam")
     iam = iam if isinstance(iam, Mapping) else {}
     action_id = plan.get("action_id")
-    policy_sha256 = (
-        plan.get("iam_policy_sha256")
-        or nested.get("iam_policy_sha256")
-        or iam.get("policy_sha256")
-        or iam.get("effective_policy_sha256")
+    policy_sha256 = _consistent_policy_sha256(
+        (
+            ("plan.iam_policy_sha256", plan.get("iam_policy_sha256")),
+            ("plan.bindings.iam_policy_sha256", nested.get("iam_policy_sha256")),
+            ("plan.iam.policy_sha256", iam.get("policy_sha256")),
+            ("plan.iam.effective_policy_sha256", iam.get("effective_policy_sha256")),
+        )
     )
     image_digest = plan.get("image_digest") or nested.get("image_digest")
     if image_digest is None:

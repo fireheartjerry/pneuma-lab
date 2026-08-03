@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from pneuma_lab.cloud.errors import CloudManifestError
 from pneuma_lab.cloud.images import (
     inspect_dockerfile,
+    require_qualification_image_binding,
     validate_image_build_receipt,
     validate_image_build_set,
     validate_image_manifest,
@@ -82,3 +84,55 @@ def test_step7b_refuses_builds_bound_to_different_input_locks() -> None:
     records[2]["input_lock_sha256"] = "8" * 64
     with pytest.raises(CloudManifestError, match="one exact Step 5B input lock"):
         validate_image_build_set(records)
+
+
+def qualification_receipt(source_commit: str = "a" * 40) -> dict:
+    return {
+        "record_kind": "cloud_qualification_image_build_receipt",
+        "status": "COMPLETE",
+        "provider": "aws",
+        "source": {"commit": source_commit},
+        "target": {
+            "ecr_image_digest": "sha256:" + "b" * 64,
+            "fresh_read_digest_match": True,
+            "repository_tag_mutability": "IMMUTABLE",
+        },
+        "local_checks": {
+            "source_revision_label": source_commit,
+            "image_entrypoint": "/opt/pneuma/fixed_admission_entrypoint.sh",
+            "image_entrypoint_check": "pass",
+            "image_cmd_override": "absent",
+            "fresh_ecr_read": "pass",
+            "runtime_schema": "/opt/schemas/cloud-worker-admission-measurement.schema.json present",
+            "aws_cli": {"check": "pass"},
+            "package_import": {"pneuma_lab": "pass"},
+            "fixture_runtime": {
+                "network": "none",
+                "gpu": False,
+                "model_download": False,
+                "model_loaded": False,
+                "immutable_worker_indexed_artifact": "worker-0",
+                "all_five_inputs_materialized_as_readable_local_files": True,
+                "retrieved_bytes_match": True,
+            },
+        },
+    }
+
+
+def test_qualification_image_binding_requires_current_source_revision(tmp_path: Path) -> None:
+    receipt = qualification_receipt()
+    (tmp_path / "qualification-image-build-001-receipt-20260803.json").write_text(
+        json.dumps(receipt), encoding="utf-8"
+    )
+    bound = require_qualification_image_binding(
+        tmp_path,
+        image_digest="sha256:" + "b" * 64,
+        source_commit="a" * 40,
+    )
+    assert bound["source"]["commit"] == "a" * 40
+    with pytest.raises(CloudManifestError, match="different source revision"):
+        require_qualification_image_binding(
+            tmp_path,
+            image_digest="sha256:" + "b" * 64,
+            source_commit="c" * 40,
+        )

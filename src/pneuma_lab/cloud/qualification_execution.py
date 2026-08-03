@@ -1111,6 +1111,16 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         raise CloudManifestError(
             "Terraform planned variables do not contain a qualification action id"
         )
+    region = variable("region")
+    if region != "us-east-1":
+        raise CloudManifestError(
+            "planned qualification Terraform region must be us-east-1"
+        )
+    vpc_id = variable("vpc_id")
+    if not isinstance(vpc_id, str) or not re.fullmatch(r"vpc-[0-9a-f]+", vpc_id):
+        raise CloudManifestError(
+            "planned qualification must bind a concrete us-east-1 VPC id"
+        )
 
     rows = _resource_rows(document)
     changes = document.get("resource_changes")
@@ -1259,9 +1269,9 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         raise CloudManifestError(
             "planned qualification environment does not exactly match its Terraform bindings"
         )
-    if "command" in container:
+    if "command" in container or "entrypoint" in container or "entryPoint" in container:
         raise CloudManifestError(
-            "planned fixed qualification image must inherit its ENTRYPOINT"
+            "planned fixed qualification image must inherit its ENTRYPOINT without an override"
         )
     resource_requirements = container.get("resourceRequirements")
     if not isinstance(resource_requirements, list) or len(resource_requirements) != 3:
@@ -1472,8 +1482,6 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
                 kind="role",
                 field="planned worker role",
             )
-    vpc_id = variable("vpc_id")
-    region = variable("region")
     show_document = {
         key: value
         for key, value in document.items()
@@ -1492,8 +1500,8 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         "spot_fleet_role_arn": spot_fleet_role_arn,
         "subnet_ids": tuple(subnets),
         "security_group_ids": tuple(security_groups),
-        "vpc_id": vpc_id if isinstance(vpc_id, str) and vpc_id else None,
-        "region": region if isinstance(region, str) and region else None,
+        "vpc_id": vpc_id,
+        "region": region,
         "compute_resources": resources,
         "job_definition": container,
         "image": image,

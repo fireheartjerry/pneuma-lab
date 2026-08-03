@@ -159,10 +159,33 @@ IAM simulation adds explicit denied checks for KMS decrypt and IAM policy
 administration. Focused probe, runner, Terraform, IAM, and image-fixture tests
 pass; this does not alter the sealed action-011 terminal no-go.
 
+## Source/image and plan-semantics closure repair
+
+The next source-only audit repaired three remaining fail-open seams. Future
+qualification signing now rejects conflicting IAM policy-hash representations
+instead of selecting the first truthy field. Terraform-show admission requires
+`us-east-1`, a concrete VPC binding, and no `command`, `entrypoint`, or
+`entryPoint` override that could erase the image ENTRYPOINT. The concrete
+ephemeral runner now requires the immutable fixture-image digest to match
+exactly one complete build receipt whose ECR immutability, AWS CLI v2, package,
+schema, fixed-entrypoint, network-none, no-model, five-input, and immutable
+worker-artifact checks pass.
+
+The sealed action-011 image digest
+`sha256:5433527fb588c009d6cf16a5ac4278c463bbb5fab0c0a6826147b4c98f2e83ff`
+was built from source commit
+`e36dd15ac2524c29d0fb02a8705ec7fcc48fb34a`, while these post-launch source
+repairs are newer. The digest and receipt remain valid historical evidence;
+the new runner will correctly refuse to reuse that source/image pair for a
+future action. No rebuild, relaunch, retry, or AWS mutation was performed.
+Focused image, signer, plan, runner, qualification, and account-verification
+tests pass.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any
-   future qualification attempt requires a fresh action and authority package.
+   future qualification attempt requires a fresh action and authority package,
+   plus a fresh immutable image receipt bound to the current source revision.
 2. Step 14 remains `launch_blocked`: the real authority-backed P0 power/tier
    receipt and packet, assignment, detectability, and unblind receipts are
    still missing from the canonical index.

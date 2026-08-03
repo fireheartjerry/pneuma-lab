@@ -606,6 +606,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
         "format_version": "1.0",
         "variables": {
             "region": {"value": "us-east-1"},
+            "vpc_id": {"value": "vpc-12345678"},
             "qualification_code": {"value": "signed-code"},
             "qualification_action_id": {"value": "fixed-admission-001"},
             "instance_role_arn": {
