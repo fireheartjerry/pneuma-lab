@@ -57,6 +57,33 @@ QUALIFICATION_IMAGE_DIGEST_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
 QUALIFICATION_RESOURCE_REQUIREMENTS = frozenset(
     {("GPU", "1"), ("VCPU", "8"), ("MEMORY", "60000")}
 )
+_PARSED_QUALIFICATION_FIELDS = frozenset(
+    {
+        "action_id",
+        "qualification_code",
+        "worker_instance_profile_name",
+        "worker_instance_profile_arn",
+        "worker_role_name",
+        "worker_role_arn",
+        "batch_service_role_name",
+        "batch_service_role_arn",
+        "spot_fleet_role_name",
+        "spot_fleet_role_arn",
+        "subnet_ids",
+        "security_group_ids",
+        "vpc_id",
+        "region",
+        "compute_resources",
+        "job_definition",
+        "image",
+        "output_path",
+        "input_paths",
+        "compute_environment_name",
+        "job_queue_name",
+        "job_definition_name",
+        "terraform_show_sha256",
+    }
+)
 
 
 class BatchAdmissionError(CloudManifestError):
@@ -1333,9 +1360,12 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         raise CloudManifestError(
             "planned compute resources do not carry the qualification code tag"
         )
-    if tags.get("QualificationActionId") != action_id:
+    if (
+        tags.get("QualificationAction") != action_id
+        or tags.get("QualificationActionId") != action_id
+    ):
         raise CloudManifestError(
-            "planned compute resources do not carry the qualification action id tag"
+            "planned compute resources do not carry the exact qualification action tags"
         )
     launch_template = _resource_any(
         rows,
@@ -1360,6 +1390,7 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         launch_tags = matching[0]["tags"]
         if (
             launch_tags.get("QualificationCode") != code
+            or launch_tags.get("QualificationAction") != action_id
             or launch_tags.get("QualificationActionId") != action_id
         ):
             raise CloudManifestError(
@@ -1405,6 +1436,16 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
             "qualification launch template must use the Batch-managed GPU AMI path"
         )
     queue = _resource_any(rows, "aws_batch_job_queue.qualification")
+    compute_environment_order = queue.get("compute_environment_order")
+    if (
+        not isinstance(compute_environment_order, list)
+        or len(compute_environment_order) != 1
+        or not isinstance(compute_environment_order[0], Mapping)
+        or compute_environment_order[0].get("order") != 1
+    ):
+        raise CloudManifestError(
+            "planned qualification queue must bind exactly one compute environment"
+        )
     for label, row in (
         ("job queue", queue),
         ("job definition", job_definition),
@@ -1412,6 +1453,7 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         row_tags = _tag_maps(row)
         if not any(
             tags.get("QualificationCode") == code
+            and tags.get("QualificationAction") == action_id
             and tags.get("QualificationActionId") == action_id
             for tags in row_tags
         ):
@@ -1487,7 +1529,7 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         for key, value in document.items()
         if key not in _TERRAFORM_RUNNER_METADATA_KEYS
     }
-    return {
+    parsed = {
         "action_id": action_id,
         "qualification_code": code,
         "worker_instance_profile_name": instance_profile_name,
@@ -1514,6 +1556,13 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
             canonical_bytes(show_document)
         ).hexdigest(),
     }
+    missing = _PARSED_QUALIFICATION_FIELDS - parsed.keys()
+    if missing:
+        raise CloudManifestError(
+            "parsed qualification plan lacks required fields: "
+            + ", ".join(sorted(missing))
+        )
+    return parsed
 
 
 def parse_terraform_show_json(

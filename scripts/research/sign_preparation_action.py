@@ -45,9 +45,17 @@ def plan_digest(plan: dict[str, Any]) -> str:
 def execution_manifest_digest(plan: dict[str, Any]) -> str:
     """Bind the exact saved Terraform plan and show bytes for execution."""
 
+    dual_l40s_qualification = (
+        plan.get("action_class") == "qualification_audit"
+        and str(plan.get("action_id", "")).startswith("dual-l40s-qualification-")
+    )
     saved_sha = plan.get("saved_plan_sha256")
     show_sha = plan.get("terraform_show_sha256")
     if saved_sha is None and show_sha is None:
+        if dual_l40s_qualification:
+            raise ValueError(
+                "dual-L40S qualification signing requires exact Terraform plan bytes"
+            )
         return plan_digest(plan)
     if not isinstance(saved_sha, str) or not isinstance(show_sha, str):
         raise ValueError(
@@ -85,7 +93,15 @@ def execution_manifest_digest(plan: dict[str, Any]) -> str:
     ]
     if observed_show_sha != show_sha:
         raise ValueError("Terraform show bytes do not match the signing plan")
-    return terraform_plan_binding_digest(saved_sha, show_sha)
+    binding_sha = terraform_plan_binding_digest(saved_sha, show_sha)
+    declared_binding = plan.get("terraform_plan_binding_sha256")
+    if dual_l40s_qualification and not isinstance(declared_binding, str):
+        raise ValueError(
+            "dual-L40S qualification signing requires the exact composite Terraform binding"
+        )
+    if declared_binding is not None and declared_binding != binding_sha:
+        raise ValueError("Terraform composite plan binding does not match its components")
+    return binding_sha
 
 
 def _consistent_policy_sha256(
@@ -111,6 +127,45 @@ def _consistent_policy_sha256(
     return present[0][1]
 
 
+def _consistent_binding_value(
+    label: str, sources: Sequence[tuple[str, Any]]
+) -> Any:
+    """Select one binding value, rejecting contradictory representations."""
+
+    present = [(source, value) for source, value in sources if value is not None]
+    if not present:
+        return None
+    try:
+        digests = {
+            hashlib.sha256(canonical_bytes(value)).hexdigest()
+            for _, value in present
+        }
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"qualification {label} binding is not canonical JSON") from exc
+    if len(digests) != 1:
+        raise ValueError(
+            f"qualification signing plan contains conflicting {label} bindings: "
+            + ", ".join(source for source, _ in present)
+        )
+    return present[0][1]
+
+
+def _normalized_subnet_map(value: Any, *, source: str) -> list[dict[str, str]]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        raise ValueError(f"qualification {source} subnet map is not a sequence")
+    normalized: list[dict[str, str]] = []
+    for row in value:
+        if not isinstance(row, Mapping):
+            raise ValueError(f"qualification {source} subnet map contains a non-object")
+        az = row.get("availability_zone")
+        subnet_id = row.get("subnet_id")
+        if not isinstance(az, str) or not isinstance(subnet_id, str) or not subnet_id:
+            raise ValueError(f"qualification {source} subnet map contains an invalid binding")
+        normalized.append({"availability_zone": az, "subnet_id": subnet_id})
+    normalized.sort(key=lambda row: row["availability_zone"])
+    return normalized
+
+
 def build_qualification_binding(plan: Mapping[str, Any]) -> dict[str, Any] | None:
     """Bind every high-risk qualification input into the signed package."""
 
@@ -131,23 +186,60 @@ def build_qualification_binding(plan: Mapping[str, Any]) -> dict[str, Any] | Non
             ("plan.iam.effective_policy_sha256", iam.get("effective_policy_sha256")),
         )
     )
-    image_digest = plan.get("image_digest") or nested.get("image_digest")
-    if image_digest is None:
-        image = plan.get("image") or plan.get("gpu_worker_image")
-        if isinstance(image, str) and "@sha256:" in image:
-            image_digest = image.rsplit("@", 1)[1]
-    subnet_az_map = (
-        plan.get("subnet_az_map")
-        or nested.get("subnet_az_map")
-        or plan.get("four_az_map")
+    image_sources: list[tuple[str, Any]] = [
+        ("plan.image_digest", plan.get("image_digest")),
+        ("plan.bindings.image_digest", nested.get("image_digest")),
+    ]
+    for source, image in (
+        ("plan.image", plan.get("image")),
+        ("plan.gpu_worker_image", plan.get("gpu_worker_image")),
+        ("plan.bindings.image", nested.get("image")),
+        ("plan.bindings.gpu_worker_image", nested.get("gpu_worker_image")),
+    ):
+        if image is not None:
+            image_sources.append(
+                (
+                    source,
+                    image.rsplit("@", 1)[1]
+                    if isinstance(image, str) and "@sha256:" in image
+                    else image,
+                )
+            )
+    image_digest = _consistent_binding_value("image", image_sources)
+    subnet_candidates: list[tuple[str, list[dict[str, str]]]] = []
+    for source, value in (
+        ("plan.subnet_az_map", plan.get("subnet_az_map")),
+        ("plan.bindings.subnet_az_map", nested.get("subnet_az_map")),
+        ("plan.four_az_map", plan.get("four_az_map")),
+    ):
+        if value is not None:
+            subnet_candidates.append(
+                (source, _normalized_subnet_map(value, source=source))
+            )
+    subnet_az_map = _consistent_binding_value("subnet map", subnet_candidates)
+    output_prefix = _consistent_binding_value(
+        "output prefix",
+        (
+            ("plan.output_prefix", plan.get("output_prefix")),
+            ("plan.bindings.output_prefix", nested.get("output_prefix")),
+            ("plan.output_path", plan.get("output_path")),
+            ("plan.bindings.output_path", nested.get("output_path")),
+        ),
     )
-    output_prefix = (
-        plan.get("output_prefix")
-        or nested.get("output_prefix")
-        or plan.get("output_path")
+    projected = _consistent_binding_value(
+        "projection",
+        (
+            ("plan.projected_cost_usd", plan.get("projected_cost_usd")),
+            ("plan.bindings.projected_cost_usd", nested.get("projected_cost_usd")),
+        ),
     )
-    projected = plan.get("projected_cost_usd")
-    max_retries = plan.get("max_retries")
+    max_retries = _consistent_binding_value(
+        "retry ceiling",
+        (
+            ("plan.max_retries", plan.get("max_retries")),
+            ("plan.bindings.max_retries", nested.get("max_retries")),
+        ),
+    )
     if not isinstance(action_id, str) or not action_id:
         raise ValueError("qualification signing plan lacks action_id")
     if (
@@ -167,16 +259,9 @@ def build_qualification_binding(plan: Mapping[str, Any]) -> dict[str, Any] | Non
         subnet_az_map, (str, bytes, bytearray)
     ):
         raise ValueError("qualification signing plan lacks its four-AZ subnet map")
-    normalized_subnets: list[dict[str, str]] = []
-    for row in subnet_az_map:
-        if not isinstance(row, Mapping):
-            raise ValueError("qualification subnet map contains a non-object")
-        az = row.get("availability_zone")
-        subnet_id = row.get("subnet_id")
-        if not isinstance(az, str) or not isinstance(subnet_id, str) or not subnet_id:
-            raise ValueError("qualification subnet map contains an invalid binding")
-        normalized_subnets.append({"availability_zone": az, "subnet_id": subnet_id})
-    normalized_subnets.sort(key=lambda row: row["availability_zone"])
+    normalized_subnets = subnet_az_map
+    if not isinstance(normalized_subnets, list):
+        raise ValueError("qualification signing plan lacks its four-AZ subnet map")
     if [row["availability_zone"] for row in normalized_subnets] != [
         "us-east-1a",
         "us-east-1b",

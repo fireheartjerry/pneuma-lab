@@ -62,7 +62,11 @@ def kms_verification_record() -> dict[str, object]:
 
 
 def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict:
-    tags = {"QualificationCode": code, "QualificationActionId": action_id}
+    tags = {
+        "QualificationCode": code,
+        "QualificationAction": action_id,
+        "QualificationActionId": action_id,
+    }
     subnets = [
         "subnet-0123456789abcdef0",
         "subnet-0123456789abcdef1",
@@ -163,7 +167,11 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                     },
                     {
                         "address": "aws_batch_job_queue.qualification",
-                        "values": {"name": action_id, "tags": tags},
+                        "values": {
+                            "name": action_id,
+                            "compute_environment_order": [{"order": 1}],
+                            "tags": tags,
+                        },
                     },
                     {
                         "address": "aws_launch_template.qualification",
@@ -199,6 +207,9 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
         "saved_plan_sha256": hashlib.sha256(b"fixture-saved-plan").hexdigest(),
     }
     plan["terraform_show_sha256"] = parse_terraform_show(plan)["terraform_show_sha256"]
+    plan["_qualification"] = {
+        "terraform_show_sha256": plan["terraform_show_sha256"]
+    }
     return plan
 
 
@@ -469,6 +480,23 @@ def test_exhausted_action_id_is_rejected_before_provider_calls(tmp_path: Path) -
     assert provider.calls == [] and terraform.calls == []
 
 
+def test_default_action_freshness_is_checked_before_provider_calls() -> None:
+    provider, terraform = FakeProvider(), FakeTerraform()
+    with pytest.raises(CloudManifestError, match="already represented"):
+        execute(
+            RunnerConfig("dual-l40s-qualification-011", "us-east-1"),
+            envelope={},
+            admission={},
+            key_registry={},
+            ledger_path=LEDGER,
+            account_plan=terraform_show("dual-l40s-qualification-011"),
+            provider=provider,
+            terraform=terraform,
+            verify_authority=authority,
+        )
+    assert provider.calls == [] and terraform.calls == []
+
+
 def test_invented_account_plan_fields_are_not_accepted() -> None:
     provider = FakeProvider()
     with pytest.raises(CloudManifestError, match="format_version"):
@@ -489,6 +517,7 @@ def test_loaded_account_plan_preserves_raw_show_binding() -> None:
     candidate = terraform_show()
     candidate["saved_plan_sha256"] = "a" * 64
     candidate["terraform_show_sha256"] = "b" * 64
+    candidate["_qualification"]["terraform_show_sha256"] = "b" * 64
     parsed = require_account_plan(candidate, provider=ReadOnlyProvider())
     assert parsed["terraform_show_sha256"] == "b" * 64
     assert parsed["terraform_plan_binding_sha256"] == terraform_plan_binding_digest(
@@ -507,7 +536,7 @@ def test_missing_show_binding_fails_closed_with_cloud_error() -> None:
     candidate = terraform_show()
     candidate["terraform_show_sha256"] = "not-a-digest"
     candidate["_qualification"] = {"terraform_show_sha256": "also-not-a-digest"}
-    with pytest.raises(CloudManifestError, match="invalid Terraform show SHA-256"):
+    with pytest.raises(CloudManifestError, match="requires both exact"):
         require_account_plan(candidate, provider=ReadOnlyProvider())
 
 
@@ -518,6 +547,13 @@ def test_conflicting_show_bindings_fail_closed_with_cloud_error() -> None:
         CloudManifestError,
         match="conflicting Terraform show SHA-256",
     ):
+        require_account_plan(candidate, provider=ReadOnlyProvider())
+
+
+def test_missing_nested_show_binding_fails_closed() -> None:
+    candidate = terraform_show()
+    candidate.pop("_qualification")
+    with pytest.raises(CloudManifestError, match="requires both exact"):
         require_account_plan(candidate, provider=ReadOnlyProvider())
 
 
@@ -1011,6 +1047,50 @@ def test_aws_adapter_submission_is_one_tagged_size_two_array_without_command() -
     assert '--timeout {"attemptDurationSeconds":3600}' in command
     assert "qual-1" in command
     assert "command" not in command
+
+
+def test_concrete_cli_disables_and_drains_every_submitted_job(monkeypatch) -> None:
+    calls = []
+    responses = iter(
+        [
+            {
+                "jobs": [
+                    {"jobId": "parent", "status": "RUNNING"},
+                    {"jobId": "parent:0", "status": "RUNNING"},
+                    {"jobId": "parent:1", "status": "RUNNING"},
+                ]
+            },
+            {
+                "jobs": [
+                    {"jobId": "parent", "status": "FAILED"},
+                    {"jobId": "parent:0", "status": "FAILED"},
+                    {"jobId": "parent:1", "status": "FAILED"},
+                ]
+            },
+        ]
+    )
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        payload = next(responses) if "describe-jobs" in argv else {}
+        return subprocess.CompletedProcess(argv, 0, json.dumps(payload).encode(), b"")
+
+    monkeypatch.setattr("pneuma_lab.cloud.ephemeral_runner.time.sleep", lambda _: None)
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="q",
+        job_definition="d",
+        output_root="s3://bucket/runs/qual-1",
+        compute_environment="ce",
+    )
+    adapter.parent_job_id = "parent"
+    adapter.disable_and_drain({})
+
+    assert any("update-job-queue" in call and "DISABLED" in call for call in calls)
+    assert any("update-compute-environment" in call and "DISABLED" in call for call in calls)
+    assert sum("describe-jobs" in call for call in calls) == 2
+    assert not any("terminate-job" in call for call in calls)
 
 
 def test_concrete_cli_waits_for_valid_environment_and_queue() -> None:

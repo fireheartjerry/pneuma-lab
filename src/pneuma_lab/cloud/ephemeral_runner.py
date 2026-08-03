@@ -60,6 +60,10 @@ QUALIFICATION_TAGS = {
     "QualificationTopology": "two-g6e-2xlarge-l40s",
     "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
 }
+DEFAULT_QUALIFICATION_EVIDENCE_ROOT = (
+    Path(__file__).resolve().parents[3]
+    / "docs/research/neurips-2026-workshop/evidence"
+)
 EXPECTED_RESOURCE_ADDRESSES = frozenset(
     {
         "aws_batch_compute_environment.qualification",
@@ -86,6 +90,7 @@ ABSENT_PROVIDER_ERROR_CODES = frozenset(
     {
         "ResourceNotFoundException",
         "JobQueueNotFoundException",
+        "JobNotFoundException",
         "ComputeEnvironmentNotFoundException",
         "InvalidLaunchTemplateName.NotFoundException",
         "InvalidGroup.NotFound",
@@ -1058,6 +1063,8 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         }
 
     def disable_and_drain(self, tags: Mapping[str, str]) -> None:
+        """Disable scheduling, then drain or terminate every submitted job."""
+
         self._call(
             "batch",
             "update-job-queue",
@@ -1074,6 +1081,46 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "--state",
             "DISABLED",
         )
+        if self.parent_job_id is not None:
+            job_ids = (
+                self.parent_job_id,
+                f"{self.parent_job_id}:0",
+                f"{self.parent_job_id}:1",
+            )
+            deadline = time.monotonic() + 600
+            termination_sent = False
+            while True:
+                response = self._call_absence(
+                    "batch", "describe-jobs", "--jobs", *job_ids
+                )
+                rows = response.get("jobs", [])
+                if not isinstance(rows, list):
+                    raise CloudManifestError(
+                        "Batch drain returned an invalid jobs collection"
+                    )
+                if not rows or all(
+                    isinstance(row, Mapping)
+                    and row.get("status") in TERMINAL_BATCH_JOB_STATUSES
+                    for row in rows
+                ):
+                    break
+                if time.monotonic() >= deadline:
+                    if termination_sent:
+                        raise CloudManifestError(
+                            "Batch jobs did not drain after the signed termination request"
+                        )
+                    self._call(
+                        "batch",
+                        "terminate-job",
+                        "--job-id",
+                        self.parent_job_id,
+                        "--reason",
+                        "signed qualification teardown drain",
+                    )
+                    termination_sent = True
+                    deadline = time.monotonic() + 300
+                    continue
+                time.sleep(5)
 
     def verify_absence(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
         queue = self._call_absence(
@@ -1289,34 +1336,18 @@ def require_account_plan(
         else None
     )
 
-    present_sources = [
-        value
-        for value in (top_level_show_sha256, nested_show_sha256)
-        if value is not None
-    ]
-    if any(not valid_sha256(value) for value in present_sources):
-        raise CloudManifestError(
-            "qualification plan contains an invalid Terraform show SHA-256"
-        )
-    if (
-        valid_sha256(top_level_show_sha256)
-        and valid_sha256(nested_show_sha256)
-        and top_level_show_sha256 != nested_show_sha256
+    if not valid_sha256(top_level_show_sha256) or not valid_sha256(
+        nested_show_sha256
     ):
+        raise CloudManifestError(
+            "qualification plan requires both exact Terraform show SHA-256 bindings"
+        )
+    if top_level_show_sha256 != nested_show_sha256:
         raise CloudManifestError(
             "qualification plan contains conflicting Terraform show SHA-256 "
             "bindings"
         )
-    raw_show_sha256 = (
-        top_level_show_sha256
-        if valid_sha256(top_level_show_sha256)
-        else nested_show_sha256
-    )
-    if not valid_sha256(raw_show_sha256):
-        raise CloudManifestError(
-            "qualification plan lacks the exact Terraform show SHA-256"
-        )
-    parsed["terraform_show_sha256"] = raw_show_sha256
+    parsed["terraform_show_sha256"] = top_level_show_sha256
     parsed["terraform_plan_binding_sha256"] = terraform_plan_binding_digest(
         saved_plan_sha256, parsed["terraform_show_sha256"]
     )
@@ -1379,13 +1410,12 @@ def execute(
         raise CloudManifestError(
             "qualification execution requires the authoritative spend ledger path"
         )
-    if config.action_evidence_root is not None:
-        require_fresh_qualification_action(
-            config.action_id,
-            evidence_root=config.action_evidence_root,
-            receipt_path=config.receipt_path,
-            ledger_path=ledger_path,
-        )
+    require_fresh_qualification_action(
+        config.action_id,
+        evidence_root=config.action_evidence_root or DEFAULT_QUALIFICATION_EVIDENCE_ROOT,
+        receipt_path=config.receipt_path,
+        ledger_path=ledger_path,
+    )
     parsed_plan = require_account_plan(
         account_plan,
         action_id=config.action_id,

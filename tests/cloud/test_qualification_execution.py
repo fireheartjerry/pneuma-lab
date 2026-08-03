@@ -677,6 +677,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                                     "security_group_ids": ["sg-0123456789abcdef0"],
                                     "tags": {
                                         "QualificationCode": "signed-code",
+                                        "QualificationAction": "fixed-admission-001",
                                         "QualificationActionId": "fixed-admission-001",
                                     },
                                 }
@@ -689,6 +690,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                         "values": {
                             "tags": {
                                 "QualificationCode": "signed-code",
+                                "QualificationAction": "fixed-admission-001",
                                 "QualificationActionId": "fixed-admission-001",
                             },
                             "timeout": [{"attempt_duration_seconds": 3600}],
@@ -737,6 +739,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                                     "resource_type": "instance",
                                     "tags": {
                                         "QualificationCode": "signed-code",
+                                        "QualificationAction": "fixed-admission-001",
                                         "QualificationActionId": "fixed-admission-001",
                                     },
                                 },
@@ -744,6 +747,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                                     "resource_type": "volume",
                                     "tags": {
                                         "QualificationCode": "signed-code",
+                                        "QualificationAction": "fixed-admission-001",
                                         "QualificationActionId": "fixed-admission-001",
                                     },
                                 },
@@ -753,8 +757,10 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                     {
                         "address": "aws_batch_job_queue.qualification",
                         "values": {
+                            "compute_environment_order": [{"order": 1}],
                             "tags": {
                                 "QualificationCode": "signed-code",
+                                "QualificationAction": "fixed-admission-001",
                                 "QualificationActionId": "fixed-admission-001",
                             }
                         },

@@ -6553,3 +6553,25 @@ post-launch terminal no-go. Tasks 6–10 remain
   rebuild, AWS mutation, relaunch, retry, scientific workload, unblind,
   analysis, or claim promotion occurred. Focused image, signer, plan, runner,
   qualification, and account-verification regressions passed.
+
+### EJ-20260803-dual-l40s-direct-api-and-binding-source-hardening
+
+- **Runner repair:** Direct callers can no longer omit action evidence and
+  bypass freshness. The default evidence root is authoritative, and concrete
+  teardown disables both the queue and compute environment before draining the
+  submitted parent and both array children. It waits for terminal states and
+  permits one bounded parent termination request if draining exceeds the
+  signed window.
+- **Plan repair:** Account-plan admission now requires both top-level and
+  nested exact raw Terraform-show SHA-256 bindings, with equality enforced.
+  The parsed contract includes all fields consumed downstream, all compute,
+  launch-template, queue, and job tags must carry the exact action, and the
+  queue must bind exactly one compute environment at order 1.
+- **Signing repair:** Dual-L40S signing requires the exact composite
+  saved-plan/show binding and rejects contradictory image, subnet-map, output,
+  projection, and retry-ceiling representations instead of selecting a first
+  truthy value.
+- **Validation/boundary:** Focused runner, parser, IAM, receipt, image, AWS
+  account, and signer regressions plus Ruff pass. Graphify was updated. No AWS
+  mutation, action-011 retry, new qualification launch, scientific workload,
+  unblind, analysis, or claim promotion occurred.

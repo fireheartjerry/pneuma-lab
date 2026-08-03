@@ -108,6 +108,16 @@ def test_execution_manifest_rejects_same_show_document_with_different_bytes(
         sign_preparation_action.execution_manifest_digest(plan)
 
 
+def test_dual_l40s_signing_requires_exact_plan_and_show_bindings() -> None:
+    with pytest.raises(ValueError, match="requires exact Terraform plan bytes"):
+        sign_preparation_action.execution_manifest_digest(
+            {
+                "action_class": "qualification_audit",
+                "action_id": "dual-l40s-qualification-012",
+            }
+        )
+
+
 def test_qualification_signing_binding_covers_policy_image_az_projection_and_output() -> None:
     action_id = "dual-l40s-qualification-012"
     plan = {
@@ -142,6 +152,27 @@ def test_qualification_signing_binding_covers_policy_image_az_projection_and_out
     }
     plan["max_retries"] = 1
     with pytest.raises(ValueError, match="zero retries"):
+        sign_preparation_action.build_qualification_binding(plan)
+
+
+def test_qualification_signing_binding_rejects_conflicting_non_policy_sources() -> None:
+    plan = {
+        "action_class": "qualification_audit",
+        "action_id": "dual-l40s-qualification-012",
+        "iam_policy_sha256": "a" * 64,
+        "image_digest": "sha256:" + "b" * 64,
+        "subnet_az_map": [
+            {"availability_zone": "us-east-1a", "subnet_id": "subnet-a"},
+            {"availability_zone": "us-east-1b", "subnet_id": "subnet-b"},
+            {"availability_zone": "us-east-1c", "subnet_id": "subnet-c"},
+            {"availability_zone": "us-east-1d", "subnet_id": "subnet-d"},
+        ],
+        "output_prefix": "s3://bucket/runs/qualification/dual-l40s-qualification-012/outputs/",
+        "projected_cost_usd": 4.4842,
+        "max_retries": 0,
+    }
+    plan["bindings"] = {"image_digest": "sha256:" + "c" * 64}
+    with pytest.raises(ValueError, match="conflicting image bindings"):
         sign_preparation_action.build_qualification_binding(plan)
 
 

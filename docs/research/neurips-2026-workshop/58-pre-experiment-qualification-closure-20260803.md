@@ -181,6 +181,26 @@ future action. No rebuild, relaunch, retry, or AWS mutation was performed.
 Focused image, signer, plan, runner, qualification, and account-verification
 tests pass.
 
+## Direct-runner and binding-source closure repair
+
+The next source-only audit closed a direct API freshness bypass: callers that
+omit an evidence directory now use the repository's authoritative evidence
+root, so an exhausted action cannot be replayed by calling `execute()`
+directly. Concrete teardown now disables the queue and compute environment
+before draining the submitted Batch parent and both array children, with one
+bounded termination request only after the drain window expires. The parser
+also requires both top-level and nested exact raw Terraform-show hashes,
+exact action tags on compute, launch-template, queue, and job resources, and a
+single order-1 queue-to-compute binding. The signing path rejects conflicting
+image, subnet, output, projection, and retry representations rather than
+choosing a first truthy source, and requires the exact composite plan binding
+for a dual-L40S qualification package.
+
+Focused runner, parser, signer, IAM, receipt, image, AWS-account, and Ruff
+checks pass. This was source-only closure work: action 011 remains exhausted,
+there was no AWS mutation or retry, and the official scientific boundary is
+unchanged.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any
