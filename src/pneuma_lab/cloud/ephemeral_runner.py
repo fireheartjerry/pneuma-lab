@@ -133,6 +133,23 @@ def _require_complete_provider_absence(
     return dict(absence)
 
 
+def _decode_iam_policy_document(value: Any, *, label: str) -> dict[str, Any]:
+    """Decode IAM policy output from either AWS CLI string or object shape."""
+
+    if isinstance(value, Mapping):
+        return dict(value)
+    if isinstance(value, str) and value:
+        try:
+            decoded = json.loads(unquote(value))
+        except json.JSONDecodeError as exc:
+            raise CloudManifestError(
+                f"IAM {label} policy document is not valid JSON"
+            ) from exc
+        if isinstance(decoded, Mapping):
+            return dict(decoded)
+    raise CloudManifestError(f"IAM {label} policy document is missing or invalid")
+
+
 class QualificationExecutionError(CloudManifestError):
     """A post-lifecycle failure carrying sanitized-receipt source evidence."""
 
@@ -823,14 +840,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                 policy_name,
             )
             encoded = response.get("PolicyDocument") if isinstance(response, Mapping) else None
-            if not isinstance(encoded, str) or not encoded:
-                raise CloudManifestError("IAM inline policy response lacks its document")
-            try:
-                document = json.loads(unquote(encoded))
-            except (TypeError, json.JSONDecodeError) as exc:
-                raise CloudManifestError("IAM inline policy document is not valid JSON") from exc
-            if not isinstance(document, Mapping):
-                raise CloudManifestError("IAM inline policy document is not an object")
+            document = _decode_iam_policy_document(encoded, label="inline")
             documents.append(("inline", policy_name, document))
             if policy_name == QUALIFICATION_WORKER_POLICY_NAME and (
                 policy_document_sha256(document) != expected_policy_sha256
@@ -869,14 +879,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                 else None
             )
             encoded = version.get("Document") if isinstance(version, Mapping) else None
-            if not isinstance(encoded, str) or not encoded:
-                raise CloudManifestError("IAM managed policy response lacks its document")
-            try:
-                document = json.loads(unquote(encoded))
-            except (TypeError, json.JSONDecodeError) as exc:
-                raise CloudManifestError("IAM managed policy document is not valid JSON") from exc
-            if not isinstance(document, Mapping):
-                raise CloudManifestError("IAM managed policy document is not an object")
+            document = _decode_iam_policy_document(encoded, label="managed")
             documents.append(("managed", policy_arn, document))
 
         inventory = validate_worker_policy_documents(
@@ -944,20 +947,10 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             if isinstance(worker_policy_response, Mapping)
             else None
         )
-        if not isinstance(encoded_document, str) or not encoded_document:
-            raise CloudManifestError(
-                "IAM response lacks the qualification worker policy document"
-            )
-        try:
-            worker_policy = json.loads(unquote(encoded_document))
-        except (TypeError, json.JSONDecodeError) as exc:
-            raise CloudManifestError(
-                "IAM qualification worker policy is not valid JSON"
-            ) from exc
-        if not isinstance(worker_policy, Mapping):
-            raise CloudManifestError(
-                "IAM qualification worker policy is not a JSON object"
-            )
+        worker_policy = _decode_iam_policy_document(
+            encoded_document,
+            label="qualification worker",
+        )
         live_policy_sha256 = policy_document_sha256(worker_policy)
         if live_policy_sha256 != expected_policy_sha256:
             raise CloudManifestError(

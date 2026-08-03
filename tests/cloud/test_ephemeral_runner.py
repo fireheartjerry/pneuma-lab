@@ -1346,7 +1346,7 @@ def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
             return subprocess.CompletedProcess(
                 argv,
                 0,
-                json.dumps({"PolicyDocument": json.dumps(worker_policy)}).encode(),
+                json.dumps({"PolicyDocument": worker_policy}).encode(),
                 b"",
             )
         if "list-role-policies" in argv:
