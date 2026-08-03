@@ -49,6 +49,20 @@ EXPECTED_RESOURCE_ADDRESSES = frozenset(
         "aws_batch_job_definition.worker",
     }
 )
+REQUIRED_ABSENCE_KEYS = frozenset(
+    {
+        "jobs",
+        "instances",
+        "volumes",
+        "launch_template",
+        "network_interfaces",
+        "security_group",
+        "job_definition",
+        "queue",
+        "compute_environment",
+    }
+)
+TERMINAL_BATCH_JOB_STATUSES = frozenset({"SUCCEEDED", "FAILED"})
 
 
 class QualificationProvider(Protocol):
@@ -66,7 +80,7 @@ class QualificationProvider(Protocol):
 
     def disable_and_drain(self, tags: Mapping[str, str]) -> None: ...
 
-    def verify_absence(self, tags: Mapping[str, str]) -> Mapping[str, bool]: ...
+    def verify_absence(self, tags: Mapping[str, str]) -> Mapping[str, Any]: ...
 
     def pricing_projection(self, *, worker_seconds: int) -> float: ...
 
@@ -452,7 +466,9 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
 
     def preflight(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
         absence = self.verify_absence(tags)
-        if not all(absence.values()):
+        if not REQUIRED_ABSENCE_KEYS <= set(absence) or not all(
+            bool(absence[key]) for key in REQUIRED_ABSENCE_KEYS
+        ):
             raise CloudManifestError(
                 "qualification preflight found residual action-scoped provider resources"
             )
@@ -735,7 +751,14 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                 f"{self.parent_job_id}:0",
                 f"{self.parent_job_id}:1",
             ).get("jobs", [])
-            jobs = not job_rows
+            # Batch retains terminal job history after completion.  Teardown
+            # proves that no submitted job remains runnable, not that the
+            # provider has erased its immutable audit history.
+            jobs = isinstance(job_rows, list) and all(
+                isinstance(row, Mapping)
+                and row.get("status") in TERMINAL_BATCH_JOB_STATUSES
+                for row in job_rows
+            )
         return {
             "jobs": jobs,
             "instances": not instances.get("Reservations"),
@@ -743,8 +766,10 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "launch_template": not launch_templates.get("LaunchTemplates"),
             "network_interfaces": not network_interfaces.get("NetworkInterfaces"),
             "security_group": not security_groups.get("SecurityGroups"),
-            "job_definition": not active_definition.get("jobDefinitions")
-            and not inactive_definition.get("jobDefinitions"),
+            # Deregistration makes the revision INACTIVE; AWS retains that
+            # revision as provider history.  Only an ACTIVE revision is a
+            # live/runnable resource for absence purposes.
+            "job_definition": not active_definition.get("jobDefinitions"),
             "queue": not queue.get("jobQueues"),
             "compute_environment": not env.get("computeEnvironments"),
         }
@@ -979,18 +1004,9 @@ def execute(
         except Exception as exc:
             cleanup_failure = cleanup_failure or exc
     absence = provider.verify_absence(tags)
-    required_absence = {
-        "jobs",
-        "instances",
-        "volumes",
-        "launch_template",
-        "network_interfaces",
-        "security_group",
-        "job_definition",
-        "queue",
-        "compute_environment",
-    }
-    if set(absence) != required_absence or not all(absence.values()):
+    if not REQUIRED_ABSENCE_KEYS <= set(absence) or not all(
+        bool(absence[key]) for key in REQUIRED_ABSENCE_KEYS
+    ):
         raise CloudManifestError(
             "provider-side qualification teardown absence is incomplete"
         )

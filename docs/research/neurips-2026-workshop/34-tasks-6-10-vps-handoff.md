@@ -1155,3 +1155,23 @@ are sealed in
 closes the production execution-surface gate only. The interruption/recovery
 drill and Step 14 hostile launch review remain blocking; no benchmark episode,
 pilot, canonical P0 lineage, experiment, or scientific claim is authorized.
+
+### Dual-L40S qualification closure — 2026-08-03
+
+The fixture-only dual-worker lane reached its one permitted real launch under
+fresh action `dual-l40s-qualification-011`. The exact plan, IAM simulation,
+ED25519 authority package, immutable image, four-AZ map, and USD 4.4842 Spot
+projection passed pre-launch. CloudTrail proves one size-two Batch submission
+with one attempt. Both children subsequently reported `FAILED` with provider
+status reason `JobQueue deleted` and zero attempts; no worker identity, raw
+artifact, or recovery receipt exists. The action is therefore a terminal
+no-go, not a qualification pass, and no retry is allowed.
+
+The final receipt is
+`evidence/dual-l40s-qualification-011-execution-receipt-20260803.json` with
+SHA-256 `2452cc4a1a531e39bf170c038c8ba56829b57ea77b58ea532b2f61acb3990854`.
+Fresh reads prove all live action-scoped AWS resources absent. AWS retains
+only the deregistered `INACTIVE` job-definition revision as provider history;
+the teardown verifier and its focused regression now model that semantics.
+Tasks 6–10 remain `implementation_complete; E2E_pending`; this infrastructure
+no-go does not create a scientific result or close Step 14.

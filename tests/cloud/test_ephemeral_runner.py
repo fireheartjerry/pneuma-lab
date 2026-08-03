@@ -706,6 +706,75 @@ def test_concrete_cli_absence_accepts_deleted_queue_and_environment() -> None:
     )
 
 
+def test_concrete_cli_absence_accepts_terminal_job_history_and_inactive_definition() -> None:
+    def run(argv, **kwargs):
+        if "describe-job-queues" in argv or "describe-compute-environments" in argv:
+            return subprocess.CompletedProcess(
+                argv,
+                254,
+                b"",
+                b"ResourceNotFoundException: deleted",
+            )
+        if "describe-jobs" in argv:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                b'{"jobs":[{"jobId":"parent","status":"FAILED"}]}',
+                b"",
+            )
+        if "describe-job-definitions" in argv:
+            status = argv[argv.index("--status") + 1]
+            payload = (
+                {"jobDefinitions": []}
+                if status == "ACTIVE"
+                else {
+                    "jobDefinitions": [
+                        {
+                            "jobDefinitionArn": "arn:aws:batch:example:job-definition/qual-1-worker:1",
+                            "status": "INACTIVE",
+                        }
+                    ]
+                }
+            )
+            return subprocess.CompletedProcess(
+                argv, 0, json.dumps(payload).encode(), b""
+            )
+        command = next(
+            command
+            for command in (
+                "describe-instances",
+                "describe-volumes",
+                "describe-launch-templates",
+                "describe-network-interfaces",
+                "describe-security-groups",
+            )
+            if command in argv
+        )
+        collection = {
+            "describe-instances": "Reservations",
+            "describe-volumes": "Volumes",
+            "describe-launch-templates": "LaunchTemplates",
+            "describe-network-interfaces": "NetworkInterfaces",
+            "describe-security-groups": "SecurityGroups",
+        }[command]
+        return subprocess.CompletedProcess(
+            argv, 0, json.dumps({collection: []}).encode(), b""
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    adapter.parent_job_id = "parent"
+    absence = adapter.verify_absence({"QualificationActionId": "qual-1"})
+    assert all(absence.values())
+    assert absence["jobs"] is True
+    assert absence["job_definition"] is True
+
+
 def test_concrete_cli_absence_does_not_swallow_unrelated_provider_errors() -> None:
     def run(argv, **kwargs):
         return subprocess.CompletedProcess(

@@ -1,6 +1,8 @@
 # 57 — Ephemeral dual-worker qualification path
 
-**Status:** implementation-only; no cloud qualification has run.
+**Status:** action `dual-l40s-qualification-011` reached a terminal no-go after
+the single permitted launch; it did not qualify two workers. The final receipt
+and teardown proof are committed below. No relaunch is permitted in this lane.
 
 The separate `infra/terraform/qualification/` stack is the only future apply
 surface for the bounded infrastructure qualification. It owns four
@@ -50,3 +52,28 @@ Terraform, submits one size-two Batch array only, and always disables/drains
 before destroy followed by tagged/name-bound absence checks for jobs, instances,
 volumes, launch template, network interfaces, security group, job definition,
 queue, and compute environment.
+
+## Action-011 terminal outcome — 2026-08-03
+
+The fresh action-011 plan and authority package bound the exact saved-plan,
+raw-show, composite, action-specific IAM policy, fixture-only image, four-AZ
+map, and zero-retry contract. The immutable image was
+`sha256:5433527fb588c009d6cf16a5ac4278c463bbb5fab0c0a6826147b4c98f2e83ff`;
+the two-worker Spot projection was USD 4.4842.
+
+CloudTrail proves exactly one `SubmitJob` with array size two and one attempt.
+Batch later reported both children `FAILED` with status reason `JobQueue
+deleted`; both had zero attempts, so no worker reached `STARTING` or `RUNNING`.
+The output prefix is empty, no worker identity or raw artifact exists, and the
+freeze/restore recovery drill did not run. This is a post-launch terminal
+no-go, not a qualification pass and not scientific evidence.
+
+Terraform destroy and fresh provider reads prove no live jobs, active job
+definition, queue, compute environment, launch template, instance, volume,
+network interface, or security group remains. AWS retains the deregistered
+`INACTIVE` job-definition revision as provider history. The verifier repair
+now treats terminal Batch history and inactive definition history as non-live,
+with a focused regression in `tests/cloud/test_ephemeral_runner.py`.
+
+Receipt: `evidence/dual-l40s-qualification-011-execution-receipt-20260803.json`
+(SHA-256 `2452cc4a1a531e39bf170c038c8ba56829b57ea77b58ea532b2f61acb3990854`).

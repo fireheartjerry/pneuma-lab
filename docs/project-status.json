@@ -519,7 +519,7 @@
                 "tests/cloud/test_iac_plan.py"
             ],
             "blockers": [
-                "B-NEURIPS-CLOUD-WORKER-LEAST-PRIVILEGE",
+                "B-NEURIPS-DUAL-L40S-QUALIFICATION",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -1036,15 +1036,15 @@
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1, and the Step 7B production surface. The dual-worker topology now treats those as per-worker evidence only: fresh two-worker Spot capacity/pricing, independent per-worker admission, canonical partition/recovery, and Step 14 receipts remain required. The independent action-007 interruption/recovery receipt proves lease expiry observation, controller-renewal denial, watcher termination, exact completed-boundary restoration, and full teardown. The real DynamoDB contention qualification produced exactly one conditional-write winner and 31 conditional losers; its failed delete and separately signed cleanup are sealed in the action-009 and cleanup-010 receipts. The real Batch action-014 receipt proves a VALID Fargate environment and queue, a size-three array with child indices 0/1/2 each SUCCEEDED exactly once, a SUCCEEDED parent, and exact IAM/Batch teardown. Benchmark/model execution, scientific lineage, and the remaining cloud parity gates are still unverified; no Batch compute environment or queue remains."
+            "summary": "Real AWS qualification has proven the pinned ECS GPU AMI, immutable zero-finding worker image, one-L40S Docker passthrough, vLLM model fit at all registered context rungs, encrypted S3 publication, C120 sandbox isolation across 33/33 pairs, the exact bounded p10 action ad69fe00f42c8eef23690c3f367cf9c16ba95211e3d9e9a7009485582692e6c1, and the Step 7B production surface. The dual-worker topology now treats those as per-worker evidence only. Fresh action-011 read-only plan, exact IAM simulation, KMS authority, fixture-only image, four-AZ mapping, Spot projection, and one real size-two Batch submission are sealed, but the single permitted launch is a terminal no-go: both children failed with provider status reason `JobQueue deleted` before any attempt, so no worker identity, raw artifact, or recovery receipt exists. The action is exhausted and the AWS resources are torn down; only the deregistered INACTIVE job-definition revision remains as provider history. Fresh two-worker Spot success, canonical partition/recovery, and Step 14 receipts therefore remain unproven. The independent action-007 interruption/recovery receipt proves lease expiry observation, controller-renewal denial, watcher termination, exact completed-boundary restoration, and full teardown. The real DynamoDB contention qualification produced exactly one conditional-write winner and 31 conditional losers; its failed delete and separately signed cleanup are sealed in the action-009 and cleanup-010 receipts. The real Batch action-014 receipt proves a VALID Fargate environment and queue, a size-three array with child indices 0/1/2 each SUCCEEDED exactly once, a SUCCEEDED parent, and exact IAM/Batch teardown. Benchmark/model execution, scientific lineage, and claim promotion remain unverified; no Batch compute environment or queue remains."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
             "summary": "The required pre-experiment hostile launch review ran against ten digest-bound reviewer transcripts and failed closed with verdict launch_blocked. The citation repair and primary-source verification removed the citation blockers; three grounded blockers remain: no real authority-backed power report/tier receipt, and missing packet/assignment/detectability/unblind receipts from the Step 14 index. The compact receipt is docs/research/neurips-2026-workshop/evidence/step14-launch-review-20260802.json. No experiment or provider action is authorized."
         },
         {
-            "id": "B-NEURIPS-CLOUD-WORKER-LEAST-PRIVILEGE",
-            "summary": "The read-only dual-worker qualification preflight stopped before authority because the planned worker role permits s3:GetObject and s3:PutObject on Resource *; IAM simulation therefore cannot prove action-scoped fixture reads and worker-indexed raw-output writes. The sanitized no-go receipt is docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-004-preflight-no-go-20260803.json. No Terraform apply, Batch submission, worker, or scientific action occurred."
+            "id": "B-NEURIPS-DUAL-L40S-QUALIFICATION",
+            "summary": "The one-use dual-L40S qualification action is exhausted without a pass: action-011 submitted exactly one size-two Batch array, both children failed before any attempt with provider status reason `JobQueue deleted`, and no worker identities, raw artifacts, or recovery receipt exist. The final no-go receipt is docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-011-execution-receipt-20260803.json. IAM simulation and teardown are green, but qualification must not be claimed or retried in this lane."
         },
         {
             "id": "B-NEURIPS-EXPERIMENT-EXECUTION",

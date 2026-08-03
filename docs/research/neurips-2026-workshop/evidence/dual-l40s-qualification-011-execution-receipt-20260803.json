@@ -1,0 +1,103 @@
+{
+  "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt",
+  "schema_version": "0.1.0",
+  "status": "no_go",
+  "qualification_only": true,
+  "action_id": "dual-l40s-qualification-011",
+  "provider": "aws",
+  "region": "us-east-1",
+  "terminal_outcome": "post_launch_terminal_no_go",
+  "no_go_reason": {
+    "kind": "batch_children_failed_before_execution",
+    "parent_status": "FAILED",
+    "parent_status_reason": "Array Child Job failed",
+    "child_statuses": [
+      {
+        "array_index": 0,
+        "status": "FAILED",
+        "status_reason": "JobQueue deleted",
+        "attempt_count": 0,
+        "worker_started": false
+      },
+      {
+        "array_index": 1,
+        "status": "FAILED",
+        "status_reason": "JobQueue deleted",
+        "attempt_count": 0,
+        "worker_started": false
+      }
+    ],
+    "qualification_pass_impossible": true,
+    "no_retry_after_launch": true
+  },
+  "launch": {
+    "cloudtrail_submit_job_event_id_sha256": "9907d7d0650130682613e974eab9154eb65e79a3260890e4644ce7693be58633",
+    "submit_event_time_utc": "2026-08-03T09:34:48Z",
+    "submit_count_proven": 1,
+    "array_size": 2,
+    "retry_attempts": 1,
+    "parent_job_id_sha256": "23477456654d8ce152b8f52fad3197aadb490d0964a72e4a41e6a7a3f51d6a9b",
+    "child_job_id_sha256": [
+      "b8849911746c770efa6fb5a686291cec5b509671fcf19d7b8977f68c30112422",
+      "749c53e6f17128b048f6a597832ee82763bfe274b68124883b9f0dfdfa620b97"
+    ],
+    "image_digest": "sha256:5433527fb588c009d6cf16a5ac4278c463bbb5fab0c0a6826147b4c98f2e83ff",
+    "qualification_model": "fixture-only-cuda",
+    "qualification_model_revision": "fixture-only-v1"
+  },
+  "plan": {
+    "saved_plan_sha256": "7c665827ed95bd4d55657e81ee9c2edf718f287cd58af325b4c714ce2b901ddc",
+    "terraform_show_sha256": "01387c775cf497046bbcc4cc6a82b08052f836a127dca214660bacf03ed70141",
+    "terraform_plan_binding_sha256": "f4b627f943a0989222fd0aab53d8d01329ccca733de12135b54777914d5d0516"
+  },
+  "authority": {
+    "package_sha256": "8b3ae0892add4452464c00b0982f2dccc24a9a5cdf8dd944e6fa8783c8eddb7e",
+    "envelope_body_sha256": "606852028e73aafb61498e4b6e47e4428c33f81032c915901ba95b4198784c82",
+    "admission_body_sha256": "5cd6042eb58687c969d21dd54d03f0ed07116785ce5285a1aa399fefa6783016",
+    "envelope_signature_sha256": "5dda715d6c67b72dbc70a00970d214e100062622f3d7bede0b00fef79fef9973",
+    "admission_signature_sha256": "a208e2382e3eb4c39d8ce0b5a84c153b7d80745fcd5c6a94f8ff350c4fc8add5",
+    "signature_algorithm": "ED25519_SHA_512",
+    "action_policy_sha256": "73666739e4e41f136fd11049715130e9b5086e6cafc21cee642ebe179fb0f24b",
+    "iam_simulation_matrix_sha256": "12301cd1b1bcaf51d8458de4d012f1a3be960a7cb589e833209d54cf52be3b2c"
+  },
+  "spot_projection": {
+    "instance_type": "g6e.2xlarge",
+    "worker_count": 2,
+    "worker_seconds_ceiling": 3600,
+    "projected_cost_usd": 4.4842,
+    "strictly_below_usd_100": true,
+    "observed_worker_duration_seconds": [],
+    "observed_worker_duration_note": "No worker reached STARTING/RUNNING; both children had zero attempts."
+  },
+  "workers": {
+    "worker_identity_sha256": [],
+    "raw_artifacts": [],
+    "raw_artifact_prefix_object_count": 0,
+    "recovery": {
+      "run": false,
+      "reason": "Admission did not reach two successful children."
+    }
+  },
+  "teardown": {
+    "live_jobs_absent": true,
+    "compute_environment_absent": true,
+    "queue_absent": true,
+    "active_job_definition_absent": true,
+    "inactive_job_definition_history_retained_by_aws": true,
+    "inactive_job_definition_arn_sha256": "41a26a6c3eeeb39b518051f7ebae7e922b1ba6fe500c406b93185c2b510db634",
+    "launch_template_absent": true,
+    "instances_absent": true,
+    "volumes_absent": true,
+    "network_interfaces_absent": true,
+    "security_group_absent": true,
+    "output_prefix_empty": true,
+    "teardown_complete_except_provider_history": true,
+    "absence_note": "AWS retains the deregistered INACTIVE Batch job-definition revision; no active or runnable qualification resource remains."
+  },
+  "software_repair_after_no_go": {
+    "scope": "teardown verifier only",
+    "repair": "terminal Batch job history and INACTIVE job-definition history are no longer mistaken for live resources",
+    "focused_regression": "tests/cloud/test_ephemeral_runner.py::test_concrete_cli_absence_accepts_terminal_job_history_and_inactive_definition",
+    "launch_retried": false
+  }
+}

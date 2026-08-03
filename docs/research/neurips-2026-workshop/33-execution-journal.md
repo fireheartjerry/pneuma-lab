@@ -6324,3 +6324,54 @@ The next event after the archived migration boundary is appended below.
   absent on fresh provider reads. No Terraform, Batch, GPU, Spot, model,
   benchmark, pilot, experiment, unblind, analysis, or scientific result
   occurred.
+
+### EJ-20260803-dual-l40s-qualification-011-terminal-no-go
+
+- **Pre-launch binding:** Fresh action `dual-l40s-qualification-011` passed
+  the four-create managed-GPU-AMI plan contract, explicit VPC/four-AZ map,
+  exact instance-profile-to-role chain, zero-ingress SG, action-scoped IAM
+  simulation, immutable fixture-only image, 16 Spot-vCPU quota/offering check,
+  and USD 4.4842 two-worker/3,600-second projection. The saved-plan SHA-256 is
+  `7c665827ed95bd4d55657e81ee9c2edf718f287cd58af325b4c714ce2b901ddc`; raw
+  Terraform-show SHA-256 is
+  `01387c775cf497046bbcc4cc6a82b08052f836a127dca214660bacf03ed70141`; the
+  composite binding is
+  `f4b627f943a0989222fd0aab53d8d01329ccca733de12135b54777914d5d0516`.
+  The immutable image is
+  `sha256:5433527fb588c009d6cf16a5ac4278c463bbb5fab0c0a6826147b4c98f2e83ff`.
+- **Authority:** The exact KMS package SHA-256 is
+  `8b3ae0892add4452464c00b0982f2dccc24a9a5cdf8dd944e6fa8783c8eddb7e`;
+  envelope and admission body hashes are
+  `606852028e73aafb61498e4b6e47e4428c33f81032c915901ba95b4198784c82` and
+  `5cd6042eb58687c969d21dd54d03f0ed07116785ce5285a1aa399fefa6783016`.
+  Both KMS signatures verified as `ED25519_SHA_512`. The action-specific
+  worker-policy hash is
+  `73666739e4e41f136fd11049715130e9b5086e6cafc21cee642ebe179fb0f24b` and
+  the IAM simulation matrix hash is
+  `12301cd1b1bcaf51d8458de4d012f1a3be960a7cb589e833209d54cf52be3b2c`.
+- **Single launch:** CloudTrail event
+  `73691761-79ae-4732-89d8-37c4221489d6` proves exactly one `SubmitJob` at
+  `2026-08-03T09:34:48Z`, array size two, and one retry attempt. Batch's parent
+  and both children are terminal `FAILED`; each child has status reason
+  `JobQueue deleted` and an empty attempts list. Neither worker reached
+  `STARTING`/`RUNNING`, so there are no worker identity hashes, raw artifacts,
+  observed worker duration, or recovery receipt. No model, benchmark, pilot,
+  experiment, unblind, analysis, or claim promotion occurred.
+- **Teardown:** Terraform destroy completed. Fresh AWS reads prove live jobs,
+  active job definition, queue, compute environment, launch template,
+  instances, volumes, network interfaces, and security group absent, and the
+  action output prefix has zero objects. AWS retains the deregistered
+  `INACTIVE` job-definition revision as provider history. The final sanitized
+  receipt is
+  `evidence/dual-l40s-qualification-011-execution-receipt-20260803.json` with
+  SHA-256
+  `2452cc4a1a531e39bf170c038c8ba56829b57ea77b58ea532b2f61acb3990854`.
+- **Review/disposition:** A focused hostile review of the actual receipt,
+  ledger rows, runner, and status blocker confirmed the single-launch/no-retry
+  boundary, the failed-child evidence, the absence proof, and the narrow
+  terminal-history verifier repair. The review also flagged that the literal
+  cause of the queue deletion is not proven by the retained receipt; this
+  journal therefore records only the provider's observed status reason and
+  does not invent an AWS root cause. The action is exhausted with a
+  post-launch terminal no-go. Tasks 6–10 remain
+  `implementation_complete; E2E_pending`; Step 14 remains `launch_blocked`.

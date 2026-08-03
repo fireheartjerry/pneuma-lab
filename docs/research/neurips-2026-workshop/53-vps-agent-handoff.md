@@ -381,3 +381,27 @@ fabricated from Step 4A or qualification receipts. Until that authority exists:
 
 This override is the current continuation contract for the VPS and supersedes
 the archived startup prompt and `/goal` text above.
+
+## Qualification-lane closure override — 2026-08-03
+
+The fresh action `dual-l40s-qualification-011` used the only permitted
+qualification launch. CloudTrail proves exactly one size-two Batch array with
+one retry attempt permitted by the fixed contract. Both children ended
+`FAILED` with status reason `JobQueue deleted` and zero attempts; no worker
+started, no identity or raw artifact exists, and the recovery drill did not
+run. The final status is a post-launch terminal no-go. Do not submit a
+successor action from this handoff.
+
+The immutable fixture-only image was
+`sha256:5433527fb588c009d6cf16a5ac4278c463bbb5fab0c0a6826147b4c98f2e83ff`;
+the projection was USD 4.4842. IAM simulation was green for the five exact
+input reads and two exact worker writes and denied output reads, wrong-worker,
+other-action, unrelated-object, list, delete, abort, decrypt, and IAM paths.
+All live action resources are absent after teardown. AWS retains the
+deregistered `INACTIVE` job-definition revision as provider history; that is
+not a runnable resource. The receipt and exact hashes are in
+`evidence/dual-l40s-qualification-011-execution-receipt-20260803.json`.
+
+The narrow teardown-verifier repair and focused regression are committed, but
+they do not justify relaunch. Tasks 6–10 remain
+`implementation_complete; E2E_pending`; Step 14 remains `launch_blocked`.
