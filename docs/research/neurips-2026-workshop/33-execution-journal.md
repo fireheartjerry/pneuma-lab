@@ -6224,3 +6224,32 @@ The next event after the archived migration boundary is appended below.
   `c53044b04677dd52a5b4f46b8b5209211bca6795`, a newly generated archive,
   fresh plan/package/builder/tag, and the same CPU-only/zero-retry/mandatory
   teardown contract.
+
+### EJ-20260803-qualification-image-build-007-complete
+
+- **Authority and build:** Fresh action `qualification-image-build-007` bound
+  plan SHA-256
+  `75e25d2e840fd0d5a592cfb086f617c472de7f0b3b6116794f6aacb264afed80`, source
+  commit `276080618afec5d3ee41c4df5cdc88e47cf6641a`, archive SHA-256
+  `b3b193f5f051a8c785a6d08cdade7e1359b63792666500abeebff45057fdb446`, and
+  signed package SHA-256
+  `59cf0a2bcf156fa4b544484040b392d24d52bc4475d712628eb15cd05ce9ff8a`.
+  One fresh CPU-only `m7i.xlarge` built and pushed only the linux/amd64
+  qualification-worker image in 418 seconds. The immutable ECR reference is
+  `892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:0aa9f2c10f5f6dbf0edc525e915e5d383d7837eaed1c4c3ecef4c72f5ee215fd`.
+- **Runtime gate:** The fixed entrypoint, source/base labels, absent command
+  override, official AWS CLI v2, `/opt/pneuma/pneuma_lab` import, and
+  `/opt/schemas/cloud-worker-admission-measurement.schema.json` check passed.
+  The network-none no-code check returned 2 with the required
+  `QUALIFICATION_CODE` marker and reached its sentinel. A network-none
+  in-image fake transport then materialized all five bound inputs, constructed
+  the fixed probe argv, wrote the worker-0 raw measurement, published one
+  immutable worker-indexed artifact, and retrieved byte-identical evidence.
+  No model, GPU, download, startup, benchmark, pilot, experiment, or
+  qualification run occurred.
+- **Teardown:** Builder `i-07b4980031bfc6fa7`, root
+  `vol-0db615e9509212a45`, temporary SG `sg-0d9b464cae62f35c8`, IAM
+  profile/role, and action-tagged ENIs are absent on fresh provider reads.
+  The source archive, build outputs, sanitized receipt, and immutable ECR
+  digest remain intentionally retained for the account-resolved qualification
+  plan. Phase B is complete; no scientific result exists.
