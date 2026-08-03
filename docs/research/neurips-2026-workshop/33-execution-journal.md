@@ -6057,3 +6057,25 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** No P0, Step 4B, model workload, benchmark, pilot, experiment,
   unblind, analysis, or scientific result occurred. CL-242 records the no-go;
   CL-243 records the absence closure.
+
+### EJ-20260803-kms-approver-policy-repair
+
+- **Scope:** Under the narrowly authorized repair, the default policy for
+  `alias/pneuma-approver` in `us-east-1` was read through the backing KMS key
+  id. The public key matched the active committed registry entry
+  `pneuma-kms-20260801-r1`. No qualification action, plan, ledger row,
+  signing package, Terraform resource, or Batch job was created.
+- **Policy mutation:** Exactly one additive `PneumaQualificationSigner`
+  statement was submitted. It grants only `kms:Sign`, `kms:GetPublicKey`, and
+  `kms:Verify` to the account root principal, with the exact
+  `ED25519_SHA_512` signing-algorithm condition and no other KMS permissions.
+  The three pre-existing statements were preserved byte-for-byte in the
+  submitted policy and remained unchanged in the post-update readback. The
+  sanitized receipt records policy hashes but no policy body.
+- **Health check:** One fixed nonsecret-message sign and one verify completed:
+  both exit codes were zero and verification was valid. The receipt records
+  only the SHA-256 of the returned signature bytes.
+- **Evidence:**
+  `evidence/kms-approver-policy-repair-receipt-20260803.json`.
+- **Boundary:** The policy repair stopped after the health check. No
+  qualification execution or scientific workload occurred.

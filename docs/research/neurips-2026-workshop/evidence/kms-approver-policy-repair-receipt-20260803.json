@@ -1,0 +1,45 @@
+{
+  "record_kind": "cloud_kms_policy_change_receipt",
+  "schema_version": "0.1.0",
+  "observed_at": "2026-08-03T04:44:20Z",
+  "provider": "aws",
+  "region": "us-east-1",
+  "key_alias": "alias/pneuma-approver",
+  "policy_name": "default",
+  "registry_key_id": "pneuma-kms-20260801-r1",
+  "registry_public_key_match": true,
+  "policy_change": {
+    "put_key_policy_exit_code": 0,
+    "pre_policy_sha256": "5aeede2a260acef2c84ff0e8d03d305018915dce7c1f81a7592fe8001708e5de",
+    "submitted_policy_sha256": "8e08809857cb1aef81f1c5cf0751d5a70f12ac168ca289d1442db9c72dfef538",
+    "post_policy_sha256": "bb43fe99bad36e18422d767a0aeb15b86dc4b5cf0af4b9ee5080d32571c6113b",
+    "preexisting_statement_count": 3,
+    "existing_statement_bytes_preserved_in_submitted_policy": true,
+    "preexisting_statements_unchanged_after_readback": true,
+    "additive_statement_verified": true,
+    "additive_statement": {
+      "sid": "PneumaQualificationSigner",
+      "principal": "arn:aws:iam::892077329800:root",
+      "actions": ["kms:Sign", "kms:GetPublicKey", "kms:Verify"],
+      "resource": "*",
+      "condition": {
+        "StringEquals": {
+          "kms:SigningAlgorithm": "ED25519_SHA_512"
+        }
+      }
+    }
+  },
+  "health_check": {
+    "kms_sign_exit_code": 0,
+    "kms_verify_exit_code": 0,
+    "signature_valid": true,
+    "signature_sha256": "a5440444eaa92829e838b45ef6062c249b6d0e831e7e212eb478e007046f16e8"
+  },
+  "boundaries": {
+    "qualification_action_created": false,
+    "terraform_run": false,
+    "batch_job_submitted": false,
+    "resource_created": false,
+    "qualification_execution": false
+  }
+}
