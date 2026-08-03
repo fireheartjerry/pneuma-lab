@@ -102,6 +102,7 @@ def main() -> int:
             ledger_path=args.ledger,
         )
         terraform = TerraformAdapter(subprocess.run)
+        terraform.initialize()
         account_plan = terraform.load_account_plan(args.plan)
         envelope = _json_file(args.envelope)
         admission = _json_file(args.admission)

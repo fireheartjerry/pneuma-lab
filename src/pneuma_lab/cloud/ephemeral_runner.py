@@ -250,8 +250,35 @@ class TerraformAdapter:
         self.saved_plan_sha256: str | None = None
         self.terraform_show_sha256: str | None = None
         self.terraform_plan_binding_sha256: str | None = None
+        self.backend_initialized = False
+
+    def initialize(self) -> None:
+        """Initialize the committed shared backend before reading or mutating state."""
+
+        result = self.run(
+            [
+                "terraform",
+                f"-chdir={self.directory}",
+                "init",
+                "-input=false",
+                "-reconfigure",
+                "-lockfile=readonly",
+            ],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if result.returncode != 0:
+            raise CloudManifestError(
+                "terraform shared backend initialization failed"
+            )
+        self.backend_initialized = True
 
     def load_account_plan(self, plan_path: Path) -> dict[str, Any]:
+        if not self.backend_initialized:
+            raise CloudManifestError(
+                "terraform shared backend must be initialized before loading a plan"
+            )
         saved_plan = plan_path.read_bytes()
         saved_plan_sha256 = hashlib.sha256(saved_plan).hexdigest()
         result = self.run(
@@ -282,6 +309,10 @@ class TerraformAdapter:
         return plan
 
     def apply(self, *, lock_timeout: str, tags: Mapping[str, str]) -> None:
+        if not self.backend_initialized:
+            raise CloudManifestError(
+                "terraform shared backend must be initialized before apply"
+            )
         if self.plan_path is None or self.saved_plan_sha256 is None:
             raise CloudManifestError("no exact saved account plan loaded")
         current_plan_sha256 = hashlib.sha256(self.plan_path.read_bytes()).hexdigest()
@@ -346,6 +377,10 @@ class TerraformAdapter:
             raise CloudManifestError("terraform apply of saved plan failed")
 
     def destroy(self, *, lock_timeout: str, tags: Mapping[str, str]) -> None:
+        if not self.backend_initialized:
+            raise CloudManifestError(
+                "terraform shared backend must be initialized before destroy"
+            )
         result = self.run(
             [
                 "terraform",

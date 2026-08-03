@@ -240,6 +240,12 @@ returns a nonzero result when a required production execution-surface receipt
 is absent. These are source-only repairs; live backend initialization was not
 performed, no AWS spend or mutation occurred, and action-011 remains exhausted.
 
+The concrete runner now actually consumes that backend contract: it performs
+`terraform init -reconfigure -lockfile=readonly` before reading the saved plan,
+and refuses plan load, apply, or destroy if initialization did not succeed.
+The corresponding adapter regression passes. No AWS backend initialization or
+resource mutation occurred.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any

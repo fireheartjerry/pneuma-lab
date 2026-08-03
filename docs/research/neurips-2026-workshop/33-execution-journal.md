@@ -6625,3 +6625,8 @@ post-launch terminal no-go. Tasks 6–10 remain
   path. The focused IaC/Step14 tests, Ruff, Terraform format, backend-disabled
   init, and validation pass. No backend was initialized against AWS, no spend
   or provider mutation occurred, and no scientific work was run.
+- **Runner binding:** The concrete runner now performs
+  `terraform init -reconfigure -lockfile=readonly` before loading the saved
+  plan, and the adapter refuses plan load, apply, or destroy unless that shared
+  backend initialization succeeded. The mutation commands retain the signed
+  `-lock-timeout=60s` requirement.

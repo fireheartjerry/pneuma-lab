@@ -1039,6 +1039,9 @@ def test_terraform_adapter_parses_show_json_before_future_apply() -> None:
     try:
         plan_path.write_bytes(b"exact-plan-bytes")
         adapter = TerraformAdapter(run)
+        with pytest.raises(CloudManifestError, match="backend must be initialized"):
+            adapter.load_account_plan(plan_path)
+        adapter.initialize()
         plan = adapter.load_account_plan(plan_path)
         expected_show_sha256 = hashlib.sha256(
             json.dumps(terraform_show()).encode()
@@ -1049,15 +1052,20 @@ def test_terraform_adapter_parses_show_json_before_future_apply() -> None:
         ).hexdigest()
         assert "plan_sha256" not in plan
         adapter.apply(lock_timeout="60s", tags={})
-        assert calls[0][2:4] == ["show", "-json"]
+        assert calls[0][2:4] == ["init", "-input=false"]
+        assert "-reconfigure" in calls[0] and "-lockfile=readonly" in calls[0]
         assert str(plan_path) in calls[1]
         assert calls[1][2:4] == ["show", "-json"]
         assert str(plan_path) in calls[2]
-        assert "-lock=false" not in calls[2]
+        assert calls[2][2:4] == ["show", "-json"]
+        assert "-lock=false" not in calls[3]
+        adapter.destroy(lock_timeout="60s", tags={})
+        assert calls[4][2:4] == ["destroy", "-input=false"]
+        assert "-lock-timeout=60s" in calls[4]
         plan_path.write_bytes(b"tampered-plan-bytes")
         with pytest.raises(CloudManifestError, match="plan bytes"):
             adapter.apply(lock_timeout="60s", tags={})
-        assert len(calls) == 3
+        assert len(calls) == 5
     finally:
         plan_path.unlink(missing_ok=True)
 

@@ -120,6 +120,11 @@ destroy. The Step 14 spec-builder test now executes the missing-receipt path and
 proves it fails closed. Backend initialization was not run against AWS; no
 provider mutation, spend, new action, or scientific workload occurred.
 
+The concrete runner now initializes the committed backend with
+`terraform init -reconfigure -lockfile=readonly` before reading the saved plan,
+and the adapter rejects load/apply/destroy without that successful state. The
+lock-timeout mutation contract remains intact.
+
 ## Remaining gates before official P0 / Step 4B
 
 1. The dual-L40S qualification is not passed; action-011 is exhausted. No

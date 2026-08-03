@@ -1213,3 +1213,8 @@ artifact bucket through an encrypted S3 backend with Terraform-native
 spec builder has a runtime missing-receipt regression, so an absent production
 execution-surface receipt is proven to remain fail-closed. These changes are
 source-only and do not advance Tasks 6–10 or authorize official execution.
+
+The concrete qualification script now initializes and reconfigures that shared
+backend before loading the saved plan; the Terraform adapter refuses every
+load/apply/destroy path without a successful initialization. No AWS backend
+initialization or provider mutation occurred in this source-only repair.
