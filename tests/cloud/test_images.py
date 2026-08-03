@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 import pytest
 
 from pneuma_lab.cloud.errors import CloudManifestError
+from pneuma_lab.cloud.authorization_keys import canonical_bytes
 from pneuma_lab.cloud.images import (
     inspect_dockerfile,
     require_qualification_image_binding,
@@ -87,8 +89,12 @@ def test_step7b_refuses_builds_bound_to_different_input_locks() -> None:
 
 
 def qualification_receipt(source_commit: str = "a" * 40) -> dict:
-    return {
+    receipt = {
         "record_kind": "cloud_qualification_image_build_receipt",
+        "schema_version": "0.1.0",
+        "action_class": "image_build",
+        "action_id": "qualification-image-build-001",
+        "region": "us-east-1",
         "status": "COMPLETE",
         "provider": "aws",
         "source": {"commit": source_commit},
@@ -116,7 +122,10 @@ def qualification_receipt(source_commit: str = "a" * 40) -> dict:
                 "retrieved_bytes_match": True,
             },
         },
+        "teardown": {"builder": "terminated", "fresh_provider_absence": True},
     }
+    receipt["receipt_sha256"] = hashlib.sha256(canonical_bytes(receipt)).hexdigest()
+    return receipt
 
 
 def test_qualification_image_binding_requires_current_source_revision(tmp_path: Path) -> None:
@@ -135,4 +144,18 @@ def test_qualification_image_binding_requires_current_source_revision(tmp_path: 
             tmp_path,
             image_digest="sha256:" + "b" * 64,
             source_commit="c" * 40,
+        )
+
+
+def test_qualification_image_binding_rejects_tampered_receipt_bytes(tmp_path: Path) -> None:
+    receipt = qualification_receipt()
+    receipt["target"]["fresh_read_digest_match"] = False
+    (tmp_path / "qualification-image-build-001-receipt-20260803.json").write_text(
+        json.dumps(receipt), encoding="utf-8"
+    )
+    with pytest.raises(CloudManifestError, match="receipt digest"):
+        require_qualification_image_binding(
+            tmp_path,
+            image_digest="sha256:" + "b" * 64,
+            source_commit="a" * 40,
         )

@@ -278,6 +278,14 @@ The adapter also rejects symlink/non-regular saved plans and resolves accepted
 plan paths before invoking Terraform with `-chdir`, closing a relative-path
 interpretation seam.
 
+## Qualification image receipt integrity repair
+
+Image binding now rejects receipts with an unregistered record identity,
+malformed canonical self-digest, or missing builder termination/fresh provider
+absence proof. A tampered-receipt regression passes, and the historical
+action-011 image receipt remains valid only for its old source commit; it is
+still rejected for the current checkout.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any

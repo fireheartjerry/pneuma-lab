@@ -1236,3 +1236,7 @@ and the exact file is passed to locked destroy. Focused negative regressions,
 the CPU-only fixture check, Ruff, and status validation pass. These repairs are
 source-only; action-011 remains exhausted and no qualification or scientific
 launch was retried.
+
+The image binding path now also requires the registered qualification image
+receipt identity, canonical self-digest, and fresh builder-absence proof. A
+tampered receipt is rejected before any future provider mutation.

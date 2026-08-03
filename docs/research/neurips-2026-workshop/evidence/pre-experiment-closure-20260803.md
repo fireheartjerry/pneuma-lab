@@ -161,3 +161,7 @@ no-go or authorize another launch.
 
 The saved-plan path is now required to be a regular file and is normalized to
 an absolute path before Terraform `-chdir` execution.
+
+Qualification image binding also validates the registered receipt identity,
+canonical receipt digest, and fresh builder-absence proof before accepting an
+image/source pair.

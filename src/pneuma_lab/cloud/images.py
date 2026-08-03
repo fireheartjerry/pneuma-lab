@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import CloudManifestError
+from .authorization_keys import canonical_bytes
 
 
 _QUALIFICATION_IMAGE_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -111,8 +112,31 @@ def require_qualification_image_binding(
             "qualification image digest must match exactly one retained build receipt"
         )
     record = matches[0]
+    if (
+        record.get("record_kind") != "cloud_qualification_image_build_receipt"
+        or record.get("schema_version") != "0.1.0"
+        or record.get("action_class") != "image_build"
+        or record.get("region") != "us-east-1"
+        or not isinstance(record.get("action_id"), str)
+        or not record["action_id"]
+    ):
+        raise CloudManifestError("qualification image build receipt identity is invalid")
+    receipt_sha256 = record.get("receipt_sha256")
+    unsigned = {key: value for key, value in record.items() if key != "receipt_sha256"}
+    if (
+        not isinstance(receipt_sha256, str)
+        or receipt_sha256 != hashlib.sha256(canonical_bytes(unsigned)).hexdigest()
+    ):
+        raise CloudManifestError("qualification image build receipt digest is invalid")
     if record.get("status") != "COMPLETE" or record.get("provider") != "aws":
         raise CloudManifestError("qualification image build receipt is not complete")
+    teardown = record.get("teardown")
+    if (
+        not isinstance(teardown, Mapping)
+        or teardown.get("builder") != "terminated"
+        or teardown.get("fresh_provider_absence") is not True
+    ):
+        raise CloudManifestError("qualification image build receipt lacks teardown proof")
     target = record.get("target")
     if (
         not isinstance(target, Mapping)

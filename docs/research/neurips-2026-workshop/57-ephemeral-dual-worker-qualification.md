@@ -67,6 +67,10 @@ from another action.
 Saved plans must likewise be regular files and are resolved to absolute paths
 before Terraform's `-chdir` commands consume them.
 
+The retained qualification image receipt must also have the registered image
+build record identity, canonical self-digest, and fresh builder-absence proof;
+field-level matches alone are not sufficient for a future action.
+
 Future Terraform mutations must use state locking with a bounded lock timeout;
 `-lock=false` is forbidden. The runner verifies the signed preparation
 envelope/action admission and the four-resource account plan before calling
