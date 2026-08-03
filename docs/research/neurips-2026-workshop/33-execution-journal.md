@@ -5915,3 +5915,37 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** This was a failed non-scientific CPU image-build attempt only.
   No Terraform, Batch, GPU, Spot, model download, benchmark, pilot,
   qualification run, experiment, unblind, or scientific result occurred.
+
+### EJ-20260803-qualification-image-build-002
+
+- **Repair and authority:** The committed bootstrap repair is
+  `infra/aws/qualification-image-build-user-data.sh` at source commit
+  `826ce87c3352630aa7e85c724681ec2a9fa5f795`, template SHA-256
+  `422387b263da942e3b4bd685edfaf31586faaee5e16416feaad0ce75b225391a`.
+  Its local mocked regression returned the expected Docker nonzero status,
+  wrote the negative receipt, and reached the post-negative sentinel without
+  disabling the global `ERR` trap. Plan/ledger authority was pushed in
+  `e5cd7ed`, with plan SHA-256
+  `e0dfc67bd3177113845767670d1b2bc87036875e3fa675c45378e5df0e0d27d9`.
+  The fresh KMS package SHA-256 is
+  `a21bc8de7a65206a1b5b625332f21ebe70fa788bbc84a9eb74fc2938bb49817`.
+- **Build:** One fresh on-demand `m7i.xlarge` builder used the new source
+  archive SHA-256
+  `dbe87148bca0b5cc0a33da08a767239a41190d35c83d93c1bcf7484fc6d0be97`, IMDSv2
+  required, no ingress, and a 650 GiB encrypted delete-on-termination root.
+  The pinned linux/amd64 qualification-worker image passed exact entrypoint,
+  source-revision, base-digest, and `/opt/pneuma/pneuma_lab` checks. The
+  no-code network-none check returned 2 with `QUALIFICATION_CODE` on stderr,
+  wrote its receipt, reached the sentinel, and continued to ECR.
+- **Image:** Fresh ECR reads agree on
+  `892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:164a974153a51be65a73491888d8e04d33fd8c91f9c636ccba864671fee36fad`
+  under the unique tag `qualification-image-build-002-826ce87`.
+- **Teardown:** Builder `i-09537fb79c74b069a` terminated; fresh reads prove
+  root volume `vol-0d117be0d19fba61b`, security group `sg-073abe874c1663283`,
+  temporary IAM profile/role, and action-tagged network interfaces absent.
+  The sanitized receipt is
+  `evidence/qualification-image-build-002-receipt-20260803.json` with
+  SHA-256 `c17ca7f608947b55daae7d12f493127dfad9992940271f9a27ff86ea03cd05a1`.
+- **Boundary:** This was a non-scientific CPU image-build action only. No
+  Terraform, Batch, GPU, Spot, model download, benchmark, pilot, experiment,
+  qualification run, unblind, or scientific result occurred.
