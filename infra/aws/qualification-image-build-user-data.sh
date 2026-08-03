@@ -206,6 +206,54 @@ sidecar = {
 sidecar["fresh_ecr_sidecar_sha256"] = hashlib.sha256(canonical_bytes(sidecar)).hexdigest()
 print(json.dumps(sidecar, sort_keys=True, separators=(",", ":")))
 PY
+    python3 - "$OUTPUT_DIR/ecr-image-config-receipt.json" "$IMAGE_DIGEST" <<'PY'
+import hashlib
+import json
+import re
+import sys
+
+path, expected_digest = sys.argv[1:]
+raw = open(path, "rb").read()
+if not raw:
+    raise SystemExit("post-push image-config sidecar is empty")
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+sidecar = json.loads(raw.decode("utf-8"))
+if set(sidecar) != {
+    "fresh_ecr_image_config",
+    "fresh_ecr_fixture_runtime",
+    "fresh_ecr_sidecar_sha256",
+}:
+    raise SystemExit("post-push image-config sidecar has an unexpected schema")
+config = sidecar["fresh_ecr_image_config"]
+if set(config) != {"status", "image_digest", "inspect_sha256", "receipt_sha256"}:
+    raise SystemExit("post-push image-config receipt has an unexpected schema")
+if (
+    config["status"] != "pass"
+    or config["image_digest"] != expected_digest
+    or not re.fullmatch(r"[0-9a-f]{64}", config["inspect_sha256"])
+    or config["receipt_sha256"]
+    != hashlib.sha256(canonical({key: value for key, value in config.items() if key != "receipt_sha256"})).hexdigest()
+):
+    raise SystemExit("post-push image-config receipt is not self-bound")
+runtime = sidecar["fresh_ecr_fixture_runtime"]
+if set(runtime) != {"status", "worker_indices", "runtime_sha256", "receipt_sha256"}:
+    raise SystemExit("post-push fixture receipt has an unexpected schema")
+if (
+    runtime["status"] != "pass"
+    or runtime["worker_indices"] != [0, 1]
+    or not re.fullmatch(r"[0-9a-f]{64}", runtime["runtime_sha256"])
+    or runtime["receipt_sha256"]
+    != hashlib.sha256(canonical({key: value for key, value in runtime.items() if key != "receipt_sha256"})).hexdigest()
+):
+    raise SystemExit("post-push fixture receipt is not self-bound")
+if sidecar["fresh_ecr_sidecar_sha256"] != hashlib.sha256(
+    canonical({"fresh_ecr_image_config": config, "fresh_ecr_fixture_runtime": runtime})
+).hexdigest():
+    raise SystemExit("post-push sidecar is not self-bound")
+PY
     ENDED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf '{"action_id":"%s","ended_at":"%s","image":"%s","source_commit":"%s","started_at":"%s","state":"COMPLETE"}\n' \
         "$ACTION_ID" "$ENDED_AT" "$IMAGE_REF" "$SOURCE_COMMIT" "$STARTED_AT" \

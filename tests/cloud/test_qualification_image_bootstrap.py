@@ -83,4 +83,7 @@ def test_image_build_rechecks_the_immutable_ecr_digest_configuration() -> None:
     assert "fresh_ecr_image_config" in text
     assert "fresh_ecr_fixture_runtime" in text
     assert "fresh_ecr_sidecar_sha256" in text
+    assert 'if not raw:' in text
+    assert 'post-push image-config sidecar is empty' in text
+    assert 'post-push sidecar is not self-bound' in text
     assert "aws-cli/2" in text
