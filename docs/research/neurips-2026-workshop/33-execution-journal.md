@@ -6905,3 +6905,27 @@ post-launch terminal no-go. Tasks 6–10 remain
   occurred. The root cause is repaired in source by adding the missing ECR
   pull permissions to the successor builder policy and binding the host-side
   post-push sidecar Python import to the extracted source root.
+
+### EJ-20260803-qualification-image-build-010-preparation
+
+- **Fresh successor binding:** A new unsigned CPU-only image-build plan was
+  generated from pushed commit `84ee3b6b9e03c679dd7b625e286f2933b1adc848`.
+  The exact source archive SHA-256 is
+  `7b3f6662c96fc624fca1a4bfce684fb5b885a1de99caca3c6e2ff03c137a85e9` and the
+  rendered bootstrap SHA-256 is
+  `2b8fd14e8c8c92248805ef929805dbb6ea75555cdbdf11ea5424999a9b0f01a9`.
+  The new plan SHA-256 is
+  `8c625f2ef2e6a5026f825d9561425c23f514541f42b1b5cb715dffe073103fb1`.
+- **Policy repair and scope:** The fresh builder policy SHA-256 is
+  `c470046bdfdc0479ed1e750f55de483ce6a453525f33c04b5b60a5ced62805f0`.
+  It preserves action-scoped S3 source/output access and push permissions,
+  adds only the repository-scoped ECR `BatchGetImage`,
+  `GetDownloadUrlForLayer`, and `DescribeImages` readback actions plus the
+  required account-wide `GetAuthorizationToken`, and grants no unrelated
+  permissions. The plan is one m7i.xlarge builder, zero retries, USD 6.00
+  projected under a USD 25.00 ceiling, and requires fresh teardown proof.
+- **Boundary:** CL-290/CL-291 are preparation and admission rows only. The
+  successor is not a Terraform, Batch, GPU, Spot, model, benchmark, pilot,
+  official P0/Step-4B experiment, unblind, analysis, or claim-promotion
+  action. No provider mutation is permitted until its fresh package is
+  signed and admitted.
