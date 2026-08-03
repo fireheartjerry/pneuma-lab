@@ -6595,3 +6595,18 @@ post-launch terminal no-go. Tasks 6–10 remain
   fixture-only image check, graph refresh, and `git diff --check` pass. No AWS
   mutation, action-011 retry, new qualification launch, scientific workload,
   unblind, analysis, or claim promotion occurred.
+
+### EJ-20260803-dual-l40s-terraform-variable-resource-parity-hardening
+
+- **Terraform repair:** `parse_terraform_show` now requires the planned
+  compute-environment subnet list and security-group list to equal the
+  corresponding `subnet_ids` and `security_group_ids` Terraform variables
+  exactly. It no longer falls back to a variable when a planned resource
+  value is present, closing a cross-field binding seam before provider
+  admission.
+- **Regression/validation:** Added a hostile mismatch regression. The focused
+  cloud suite, Ruff, Terraform format/validation, project-status validation,
+  fixture-only image check, graph refresh, and `git diff --check` pass. This
+  was source-only work: no AWS mutation or spend occurred, action-011 was not
+  retried, and no scientific workload or claim promotion occurred. No new
+  action or ledger reservation was created.

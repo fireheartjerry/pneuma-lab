@@ -1397,10 +1397,20 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
             raise CloudManifestError(
                 f"planned {resource_type} tags do not bind the qualification action"
             )
-    subnets = resources.get("subnets") or variable("subnet_ids")
-    security_groups = resources.get("security_group_ids") or variable(
-        "security_group_ids"
-    )
+    variable_subnets = variable("subnet_ids")
+    variable_security_groups = variable("security_group_ids")
+    planned_subnets = resources.get("subnets")
+    planned_security_groups = resources.get("security_group_ids")
+    if planned_subnets != variable_subnets:
+        raise CloudManifestError(
+            "planned compute-resource subnets differ from the Terraform subnet_ids variable"
+        )
+    if planned_security_groups != variable_security_groups:
+        raise CloudManifestError(
+            "planned compute-resource security groups differ from the Terraform security_group_ids variable"
+        )
+    subnets = planned_subnets
+    security_groups = planned_security_groups
     if (
         not isinstance(subnets, list)
         or len(subnets) != len(QUALIFICATION_AZS)

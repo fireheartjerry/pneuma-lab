@@ -219,6 +219,16 @@ format/validation, project status, image fixture, graph refresh, and diff
 checks pass. These are source-only repairs; action-011 remains the single
 sealed terminal no-go and was not retried or relaunched.
 
+## Terraform variable/resource parity repair
+
+The post-no-go parser audit closed one remaining cross-field seam: planned
+compute-environment subnet and security-group values must now equal the
+`subnet_ids` and `security_group_ids` Terraform variables exactly. A conflicting
+variable cannot be silently replaced by a resource value or accepted through a
+fallback. The negative mismatch regression and bounded cloud/static checks
+pass. This repair created no AWS resources, spend, action, authority package,
+or ledger reservation; action-011 remains exhausted.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any

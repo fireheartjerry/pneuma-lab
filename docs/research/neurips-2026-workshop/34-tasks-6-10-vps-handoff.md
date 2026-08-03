@@ -1200,3 +1200,9 @@ queue, job definition, and tags. Focused negative regressions and all static
 closure checks pass. This strengthens the future qualification path only; it
 does not change the terminal action-011 no-go or advance Tasks 6–10 beyond
 `implementation_complete; E2E_pending`.
+
+The subsequent parser repair also requires the planned compute-environment
+subnet and security-group lists to equal the corresponding Terraform variables
+exactly. Its mismatch regression and bounded validation checks pass. No AWS
+mutation or spend occurred, and this does not change the exhausted action-011
+no-go or the official-study boundary.

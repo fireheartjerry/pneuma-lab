@@ -103,6 +103,15 @@ checks for KMS decrypt and IAM policy administration. Focused probe, runner,
 Terraform, IAM, and image-fixture tests pass; the sealed action-011 receipt is
 unchanged and was not retried.
 
+## Terraform variable/resource parity repair
+
+The future qualification parser now requires the planned compute-environment
+subnets and security groups to match the bound Terraform `subnet_ids` and
+`security_group_ids` variables exactly. A focused negative regression and all
+bounded cloud/static checks pass. This was source-only closure work with no AWS
+mutation, spend, new action, or ledger reservation; the action-011 no-go is
+unchanged.
+
 ## Remaining gates before official P0 / Step 4B
 
 1. The dual-L40S qualification is not passed; action-011 is exhausted. No

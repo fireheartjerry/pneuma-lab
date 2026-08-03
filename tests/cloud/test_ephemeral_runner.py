@@ -826,6 +826,15 @@ def test_qualification_resource_names_must_bind_the_action_id() -> None:
         parse_terraform_show(candidate)
 
 
+def test_qualification_subnet_and_security_group_variables_bind_compute_resources() -> None:
+    candidate = terraform_show()
+    candidate["variables"]["subnet_ids"]["value"] = list(
+        reversed(candidate["variables"]["subnet_ids"]["value"])
+    )
+    with pytest.raises(CloudManifestError, match="subnets differ"):
+        parse_terraform_show(candidate)
+
+
 def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
     plan = parse_terraform_show(terraform_show())
     plan["worker_role_arn"] = ROLE_ARNS["pneuma-worker"]
