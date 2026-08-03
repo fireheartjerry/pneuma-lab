@@ -75,7 +75,7 @@
       "name": "pneuma-qualification-image-build-002",
       "role_name": "pneuma-qualification-image-build-002",
       "trust_policy_sha256": "4457a82555d2e59e594e72d9824b363d8aca0be04c5da91b9368334db3b01600",
-      "permission_policy_sha256": "b940307784bc6b6a78b1bca3b758eed0059dbc4891d26e5571fa2a488d9a9847"
+      "permission_policy_sha256": "318a6cd16670a30ee6dd4c19461c73e4905ff807e3562bf395508d568d9961ae"
     },
     "max_runtime_seconds": 7200,
     "build_timeout_seconds": 6600,
@@ -110,5 +110,5 @@
     "delete_builder_role": true,
     "fresh_provider_absence_required": true
   },
-  "plan_sha256": "fff9632490b54bf29581cfff0f3fdf2adedb1e1a2a2522f85b7661b43c7086fc"
+  "plan_sha256": "e0dfc67bd3177113845767670d1b2bc87036875e3fa675c45378e5df0e0d27d9"
 }
