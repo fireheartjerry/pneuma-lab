@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,13 @@ from .authorization_keys import canonical_bytes
 
 _QUALIFICATION_IMAGE_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+_QUALIFICATION_IMAGE_RUNTIME_PATHS = (
+    "infra/docker/qualification-worker/**",
+    "schemas/**",
+    "src/pneuma_lab/**",
+    ":!src/pneuma_lab/cloud/ephemeral_runner.py",
+    ":!src/pneuma_lab/cloud/images.py",
+)
 
 
 def recipe_digest(paths: Sequence[Path]) -> str:
@@ -77,9 +85,11 @@ def require_qualification_image_binding(
 ) -> dict[str, Any]:
     """Require one complete fixture-image receipt bound to this checkout.
 
-    The image is immutable, but its digest can still point at an older source
-    revision.  The concrete qualification runner must reject that stale
-    source/image pair before any provider mutation.
+    The image is immutable, but the orchestration checkout may advance after
+    the image build as evidence and journal records are committed.  Accept an
+    ancestor image-build commit only when the image runtime tree is unchanged;
+    orchestration-only runner changes are deliberately excluded because the
+    container entrypoint never imports them.
     """
 
     if not _QUALIFICATION_IMAGE_DIGEST_RE.fullmatch(image_digest):
@@ -156,15 +166,46 @@ def require_qualification_image_binding(
     fresh_fixture = (
         checks.get("fresh_ecr_fixture_runtime") if isinstance(checks, Mapping) else None
     )
-    if not isinstance(source, Mapping) or source.get("commit") != source_commit:
-        raise CloudManifestError(
-            "qualification image was built from a different source revision"
+    source_build_commit = source.get("commit") if isinstance(source, Mapping) else None
+    if not isinstance(source_build_commit, str) or source_build_commit != source_commit:
+        if not isinstance(source_build_commit, str) or not _GIT_COMMIT_RE.fullmatch(
+            source_build_commit
+        ):
+            raise CloudManifestError(
+                "qualification image was built from a different source revision"
+            )
+        repository_root = Path(__file__).resolve().parents[3]
+        ancestor = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", source_build_commit, source_commit],
+            cwd=repository_root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
+        runtime_diff = subprocess.run(
+            [
+                "git",
+                "diff",
+                "--quiet",
+                source_build_commit,
+                source_commit,
+                "--",
+                *_QUALIFICATION_IMAGE_RUNTIME_PATHS,
+            ],
+            cwd=repository_root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if ancestor.returncode != 0 or runtime_diff.returncode != 0:
+            raise CloudManifestError(
+                "qualification image was built from a different source revision"
+            )
     if not isinstance(checks, Mapping) or not isinstance(fixture, Mapping):
         raise CloudManifestError(
             "qualification image receipt lacks fixture runtime evidence"
         )
-    if checks.get("source_revision_label") != source_commit:
+    if checks.get("source_revision_label") != source_build_commit:
         raise CloudManifestError("qualification image source labels disagree")
     if (
         checks.get("image_entrypoint") != "/opt/pneuma/fixed_admission_entrypoint.sh"

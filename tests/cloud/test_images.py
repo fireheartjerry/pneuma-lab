@@ -174,6 +174,51 @@ def test_qualification_image_binding_requires_current_source_revision(tmp_path: 
         )
 
 
+def test_qualification_image_binding_accepts_ancestor_for_unchanged_runtime_tree(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+
+    repository_root = Path(__file__).resolve().parents[2]
+    head = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=repository_root, text=True
+    ).strip()
+    ancestor = subprocess.check_output(
+        ["git", "rev-list", "--max-parents=0", head],
+        cwd=repository_root,
+        text=True,
+    ).splitlines()[-1]
+    runtime_diff = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--quiet",
+            ancestor,
+            head,
+            "--",
+            "infra/docker/qualification-worker/**",
+            "schemas/**",
+            "src/pneuma_lab/**",
+            ":!src/pneuma_lab/cloud/ephemeral_runner.py",
+            ":!src/pneuma_lab/cloud/images.py",
+        ],
+        cwd=repository_root,
+        check=False,
+    )
+    if runtime_diff.returncode != 0:
+        pytest.skip("this checkout has changed image-runtime files since its root commit")
+    receipt = qualification_receipt(ancestor)
+    (tmp_path / "qualification-image-build-001-receipt-20260803.json").write_text(
+        json.dumps(receipt), encoding="utf-8"
+    )
+    bound = require_qualification_image_binding(
+        tmp_path,
+        image_digest="sha256:" + "b" * 64,
+        source_commit=head,
+    )
+    assert bound["source"]["commit"] == ancestor
+
+
 def test_qualification_image_binding_rejects_tampered_receipt_bytes(tmp_path: Path) -> None:
     receipt = qualification_receipt()
     receipt["target"]["fresh_read_digest_match"] = False
