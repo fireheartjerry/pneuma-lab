@@ -1,0 +1,162 @@
+{
+    "account_id": "892077329800",
+    "action_class": "image_build",
+    "action_id": "qualification-image-build-009",
+    "authority": {
+        "admission_body_sha256": "d82dea8469dfb0af7f68ae3e040ff4ec29c18ceff26e746c8d9898af7ca535dd",
+        "admission_ledger_row": "CL-287",
+        "envelope_body_sha256": "73061b035dc2f28c00536e4300fa0e9c7749326764a7eb285f455e7286676d4e",
+        "envelope_ledger_row": "CL-286",
+        "kms_algorithm": "ED25519_SHA_512",
+        "kms_verify": true,
+        "max_retries": 0,
+        "plan_sha256": "eda16bf49022c6cfe3c6cbc375a6757245671c344b069c3cde7df953d1dd9aff",
+        "signing_package_sha256": "b52a40f1222fe7a2cd11c53b361b5c0cda51dbb8e984455a794b27a7b3e73dc0"
+    },
+    "builder": {
+        "ami_id": "ami-08bc385c9fc5afc94",
+        "bootstrap_elapsed_seconds": 453,
+        "bootstrap_ended_at": "2026-08-03T18:54:24Z",
+        "bootstrap_started_at": "2026-08-03T18:46:51Z",
+        "imds_http_tokens": "required",
+        "instance_id": "i-0045ae789a1e767dc",
+        "instance_state": "terminated",
+        "instance_type": "m7i.xlarge",
+        "launch_time": "2026-08-03T18:46:50Z",
+        "root_delete_on_termination": true,
+        "root_volume_encrypted": true,
+        "root_volume_gib": 650,
+        "security_group_id": "sg-092e6748b373eeec1",
+        "subnet_id": "subnet-0da0658f2703d3e58",
+        "timing_basis": "CloudTrail AssumeRole to final S3 output LastModified",
+        "vpc_id": "vpc-0baeaefeb8b57c19b"
+    },
+    "builder_output": {
+        "bootstrap_log_sha256": "01aadf540fb90c80033d821b22c46c2f48eedfa151c01fa179e3ebac6b2da1d4",
+        "ecr_metadata_sha256": "cc974519297d739d2acf1f8908fc826eb53c8208fc3244cc8d2b589767447418",
+        "ecr_pull_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "fixture_receipt_sha256": "371ae7e4d5ad8d38f1e0393e67a8dc724b1893469a8ad8d29acd666bed51c838",
+        "image_inspect_sha256": "a744de6dd918d3d0053072820f589df11431b528d11feda8392595b71fa61f40",
+        "negative_receipt_sha256": "43ae69e33b81342af8a4fdfc8d894aeadbc6280fd65dfbe954c7bc6b6378c96a",
+        "output_object_hashes": {
+            "bootstrap-status.json": "9f2ae691c79396a111782b1788757853fe3b54ebea670da09b7128bc26cf6bec",
+            "bootstrap.log": "01aadf540fb90c80033d821b22c46c2f48eedfa151c01fa179e3ebac6b2da1d4",
+            "builder-identity.json": "84755de87beb7e9da3092c673fcf32c4460f6502ac760eb4a136ccfa0ac68349",
+            "docker-push.log": "e076fff183ca583d3b6223092cceae58ee3dc3fd9556c10fbf1780e0fc07f2f1",
+            "docker-version.json": "e938e0d538bdd3771ce0de8d6069a603e9d1cf8388c403cd40cca53f8eb8b051",
+            "ecr-image-metadata.json": "cc974519297d739d2acf1f8908fc826eb53c8208fc3244cc8d2b589767447418",
+            "ecr-image-pull.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "ecr-login.txt": "8bd4a1179fd214d0c9cfa53d7bb46c2c347c664a5f05beb77eae4c096fd979d3",
+            "entrypoint-negative.json": "43ae69e33b81342af8a4fdfc8d894aeadbc6280fd65dfbe954c7bc6b6378c96a",
+            "entrypoint-negative.stderr": "2ee015deda9ec4b50fada4aa440e29e5ed127dda407b5ef845526f5a21821d39",
+            "entrypoint-negative.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "fixture-runtime.json": "371ae7e4d5ad8d38f1e0393e67a8dc724b1893469a8ad8d29acd666bed51c838",
+            "image-aws-version.txt": "57c08f5c4c7bf76ad25b64cb1ac7d84f6267434641f755d97a2be4fc72c0418c",
+            "image-inspect.json": "a744de6dd918d3d0053072820f589df11431b528d11feda8392595b71fa61f40",
+            "post-negative-check-sentinel.json": "66e368467a5d1c114afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "s3_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-009/outputs/",
+        "sentinel_sha256": "66e368467a5d1c114afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "status_sha256": "9f2ae691c79396a111782b1788757853fe3b54ebea670da09b7128bc26cf6bec"
+    },
+    "cost": {
+        "hard_ceiling_usd": 25.0,
+        "observed_builder_elapsed_seconds": 453,
+        "projected_usd": 6.0,
+        "settled_cost": "pending billing settlement"
+    },
+    "failure": {
+        "build_and_push": true,
+        "ecr_pull": false,
+        "error_class": "missing_ecr_batch_get_image",
+        "no_qualification_use": true,
+        "package_import_and_fixture_check": true,
+        "post_push_sidecars": false,
+        "reason": "ecr_immutable_readback_denied",
+        "stage": "post_push_immutable_readback",
+        "provider_detail": "The builder role was denied ecr:BatchGetImage on arn:aws:ecr:us-east-1:892077329800:repository/pneuma-c160-worker during docker pull of the fresh immutable digest."
+    },
+    "forbidden_actions": [
+        "terraform",
+        "batch",
+        "gpu",
+        "spot",
+        "model_download",
+        "model_load",
+        "benchmark",
+        "pilot",
+        "experiment",
+        "qualification_run"
+    ],
+    "local_checks": {
+        "aws_cli": {
+            "check": "pass",
+            "version": "aws-cli/2.36.14"
+        },
+        "base_digest_label": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90",
+        "dockerfile_hash": "pass",
+        "ecr_push": "pass",
+        "fixture_runtime": {
+            "model_loaded": false,
+            "network": "none",
+            "published_bytes": {
+                "0": 8250,
+                "1": 8250
+            },
+            "status": "pass",
+            "worker_indices": [0, 1]
+        },
+        "fresh_ecr_read": "pass",
+        "image_cmd_override": "absent",
+        "image_entrypoint": "/opt/pneuma/fixed_admission_entrypoint.sh",
+        "image_entrypoint_check": "pass",
+        "image_source_revision_label": "6d6114b2beb0c8de0f9bce5fb107964be41dd712",
+        "negative_check": {
+            "network": "none",
+            "post_negative_check_sentinel": true,
+            "qualification_code_supplied": false,
+            "returncode": 2,
+            "status_receipt_written": true,
+            "stderr_contains": "QUALIFICATION_CODE"
+        },
+        "post_push_immutable_pull": "failed",
+        "source_archive_roundtrip": "pass",
+        "runtime_sidecar": "not reached"
+    },
+    "provider": "aws",
+    "receipt_sha256": "81c237fc340b5aef4f38cceceb3b6187889d1ccd9bda8afe78fd647089ffefb2",
+    "record_kind": "cloud_qualification_image_build_receipt",
+    "region": "us-east-1",
+    "schema_version": "0.1.0",
+    "source": {
+        "archive_sha256": "c1e345337d3e79433868ccf533933758eef7b448772123561d5089b0b79c9ab0",
+        "archive_size_bytes": 30402560,
+        "archive_uri": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-009/source.tar",
+        "base_digest": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90",
+        "bootstrap_rendered_sha256": "ea2712b5314fb9e70ff7d641a2f2b270e731d7b7e642a97e42f7c12c4b1a99c0",
+        "bootstrap_template_sha256": "4e8ba87ede5406dfd88c6c9a4e2e33fcd14c9a1e864968f53fac2e2bc8efc218",
+        "commit": "6d6114b2beb0c8de0f9bce5fb107964be41dd712",
+        "dockerfile": "infra/docker/qualification-worker/Dockerfile",
+        "dockerfile_sha256": "3b970d926d34acd8225280a6cd0c520ce74f49a366030a71dfdfdda68cf56662"
+    },
+    "status": "FAILED",
+    "target": {
+        "ecr_image_digest": "sha256:22a19e418bdbcf40fe7a1618bfb41a75948994395e3cfcd8ccd8d1c54e2a08bf",
+        "fresh_read_digest_match": true,
+        "image_tag": "qualification-image-build-009-6d6114b",
+        "immutable_ecr_reference": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:22a19e418bdbcf40fe7a1618bfb41a75948994395e3cfcd8ccd8d1c54e2a08bf",
+        "platform": "linux/amd64",
+        "repository_tag_mutability": "IMMUTABLE",
+        "repository_uri": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker",
+        "scan_on_push": true
+    },
+    "teardown": {
+        "builder": "terminated",
+        "fresh_provider_absence": true,
+        "iam_role": "absent",
+        "instance_profile": "absent",
+        "network_interfaces": [],
+        "root_volume": "absent",
+        "security_group": "absent"
+    }
+}

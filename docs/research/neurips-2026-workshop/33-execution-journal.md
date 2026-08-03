@@ -6872,3 +6872,36 @@ post-launch terminal no-go. Tasks 6–10 remain
 - **Boundary:** CL-286/CL-287 were recorded before KMS signing. No builder,
   IAM role/profile, security group, ECR push, Batch resource, or scientific
   workload exists for action-009 yet.
+
+### EJ-20260803-qualification-image-build-009-no-go-and-teardown
+
+- **Exact provider failure:** The signed one-use CPU-only action launched one
+  `m7i.xlarge` builder `i-0045ae789a1e767dc` exactly once. It round-tripped the
+  sealed source archive, built the committed `linux/amd64` image, passed the
+  fixed-entrypoint/no-code check, AWS CLI v2 check, and CPU-only two-worker
+  fixture/materialization/raw-publication check, and pushed immutable ECR
+  digest `sha256:22a19e418bdbcf40fe7a1618bfb41a75948994395e3cfcd8ccd8d1c54e2a08bf`.
+  The fresh immutable `docker pull` then failed with the concrete AWS IAM
+  denial `ecr:BatchGetImage` on the worker repository. The image has no
+  post-push sidecar and is rejected for qualification use.
+- **Bound evidence:** The action is bound to plan SHA-256
+  `eda16bf49022c6cfe3c6cbc375a6757245671c344b069c3cde7df953d1dd9aff`, signed
+  package SHA-256
+  `b52a40f1222fe7a2cd11c53b361b5c0cda51dbb8e984455a794b27a7b3e73dc0`,
+  envelope body SHA-256
+  `73061b035dc2f28c00536e4300fa0e9c7749326764a7eb285f455e7286676d4e`, and
+  admission body SHA-256
+  `d82dea8469dfb0af7f68ae3e040ff4ec29c18ceff26e746c8d9898af7ca535dd`.
+  KMS `ED25519_SHA_512` signing and verification passed. The sanitized
+  no-go receipt is
+  `evidence/qualification-image-build-009-receipt-20260803.json` with
+  SHA-256 `81c237fc340b5aef4f38cceceb3b6187889d1ccd9bda8afe78fd647089ffefb2`.
+- **Teardown and boundary:** The builder terminated after the bootstrap
+  failure; fresh reads prove its 650-GiB root volume, action security group,
+  temporary IAM role/profile, and network interface absent. The image tag and
+  digest remain in ECR only as rejected evidence. Action-009 is exhausted and
+  was not retried. No Terraform, Batch, GPU, Spot, model, benchmark, pilot,
+  official P0/Step-4B experiment, unblind, analysis, or claim promotion
+  occurred. The root cause is repaired in source by adding the missing ECR
+  pull permissions to the successor builder policy and binding the host-side
+  post-push sidecar Python import to the extracted source root.
