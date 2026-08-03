@@ -6929,3 +6929,36 @@ post-launch terminal no-go. Tasks 6–10 remain
   official P0/Step-4B experiment, unblind, analysis, or claim-promotion
   action. No provider mutation is permitted until its fresh package is
   signed and admitted.
+
+### EJ-20260803-qualification-image-build-010-no-go-and-teardown
+
+- **Exact build result:** The signed one-use CPU-only action launched one
+  `m7i.xlarge` builder `i-03abee9d35c566e3c` exactly once. It built and pushed
+  immutable digest
+  `sha256:5b3be8a7b8937d99bf651721ee5dfa0407fcd9146b700f5138b785be00e71407`,
+  passed the fixed-entrypoint/no-code check, AWS CLI v2 check, CPU-only
+  two-worker fixture, fresh immutable pull, and fresh immutable image inspect.
+  The host-side post-push config sidecar failed with
+  `ModuleNotFoundError: No module named 'pneuma_lab'` because the source
+  package is under `source/src`, while the bootstrap used `PYTHONPATH=source`.
+  The digest is rejected for qualification use.
+- **Bound evidence:** The action is bound to plan SHA-256
+  `8c625f2ef2e6a5026f825d9561425c23f514541f42b1b5cb715dffe073103fb1`, signed
+  package SHA-256
+  `2b5ff7cea1a7cc9d78fb668f2b8cf45cf1cb637ccd2fc78a85e5acd8e3aec65f`,
+  envelope body SHA-256
+  `760e2682e7cb9f8d9608275db9bd7027ce8ce9903192d4da52af6557292004e9`, and
+  admission body SHA-256
+  `c32a768a098a712670805299e0120669f7d3904c6150fbc85b1aa335f5a9c066`.
+  KMS `ED25519_SHA_512` signing and verification passed. The sanitized
+  no-go receipt is
+  `evidence/qualification-image-build-010-receipt-20260803.json` with
+  SHA-256 `4d96076be1dbc9772a29791435e7a06e9509d19b2c6c4173c880beba804999c0`.
+- **Teardown and boundary:** The builder terminated after the bootstrap
+  failure; fresh reads prove its 650-GiB root volume, action security group,
+  temporary IAM role/profile, and network interface absent. The image tag and
+  digest remain in ECR only as rejected evidence. Action-010 is exhausted and
+  was not retried. No Terraform, Batch, GPU, Spot, model, benchmark, pilot,
+  official P0/Step-4B experiment, unblind, analysis, or claim promotion
+  occurred. The source repair for the next fresh action changes the sidecar
+  binding to `PYTHONPATH="$SOURCE_ROOT/src"` and adds a focused regression.

@@ -168,7 +168,7 @@ PY
         "$IMMUTABLE_IMAGE_REF" "$OUTPUT_DIR" \
         "$SOURCE_ROOT/scripts/research/qualification_image_fixture_check.py" \
         "ecr-fixture-runtime.json"
-    PYTHONPATH="$SOURCE_ROOT" python3 - "$OUTPUT_DIR/ecr-image-inspect.json" \
+    PYTHONPATH="$SOURCE_ROOT/src" python3 - "$OUTPUT_DIR/ecr-image-inspect.json" \
         "$OUTPUT_DIR/ecr-fixture-runtime.json" "$IMAGE_DIGEST" \
         > "$OUTPUT_DIR/ecr-image-config-receipt.json" <<'PY'
 import hashlib
