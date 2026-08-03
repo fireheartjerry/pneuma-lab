@@ -7228,3 +7228,62 @@ post-launch terminal no-go. Tasks 6–10 remain
   provider mutation, image push, Terraform, Batch, GPU, Spot, model,
   benchmark, pilot, official P0/Step-4B experiment, unblind, analysis, or claim
   promotion occurred.
+
+### EJ-20260803-dual-l40s-qualification-012-prelaunch-no-go
+
+- **Fresh plan and IAM:** Action-012 passed the read-only account plan: exactly
+  four approved Terraform creates, Batch-managed GPU AMI path, four
+  `us-east-1a/b/c/d` subnets, zero-ingress SG, exact instance-profile to one
+  worker-role chain, separate Batch service role, 16 Spot vCPUs, and a USD
+  4.4842 two-worker/3,600-second projection. IAM simulation passed all 17
+  expected decisions; the effective policy SHA-256 is
+  `3f2970ac68e594ec76f45af57fcc0f6044e6fc305453656bb09bb0fc1d369ada`.
+- **Authority:** The exact saved-plan/show/composite hashes were
+  `c1754fb18e27c845377bd3f4b7e49925e108f68d4931f0e2d4db45cbd78e850f`,
+  `6eab97765dc117eadf8c2a10f885a21e7102f903527147e4aa45077e772a34f5`, and
+  `d8b16bd4014437a9229a9e0306353955fbe505122168755012fb6ad202ced961`.
+  KMS verified both action-012 signatures with `ED25519_SHA_512`; the signing
+  package SHA-256 was
+  `17596edc8d6bb5806db39315ceb441121a75d47606b9db9f8654ced221c3be17`.
+- **Binding no-go:** Before apply, the image gate rejected retained image-013
+  because `src/pneuma_lab/cloud/qualification_execution.py` changed after
+  its image source commit and is imported by the fixed ENTRYPOINT. Action-012
+  therefore ended pre-launch with no Terraform, Batch, GPU/Spot, worker,
+  artifact, recovery, or provider mutation. It was not retried; successor
+  action-013 requires a fresh immutable image and regenerated bindings.
+
+### EJ-20260803-qualification-image-build-015-preflight-retirement
+
+- **Plan repair:** Fresh image-build action-015 was retired before provider
+  admission because its plan omitted the required explicit
+  `input_lock_sha256: null` field. The signer emitted no exact package or
+  admission; no source upload, IAM/EC2 resource, SG, ECR push, or builder was
+  created. A single envelope-signing call was attempted before admission
+  construction failed, so action-015 was exhausted and not reused.
+- **Successor:** Action-016 regenerated the plan with the explicit null input
+  lock and fresh ledger bindings. No scientific workload or official
+  P0/Step-4B work occurred.
+
+### EJ-20260803-qualification-image-build-016-complete-and-teardown
+
+- **Authority and execution:** Action-016 bound plan
+  `7dbe898538f28d91b89c7533184e8135fd925972ef34480aee28ca6555e26642`, source
+  commit `1e5cd5e226b67185b235c1cd63a861e9fadb6b51`, source archive
+  `ddbc4bcdbd090d1967aff4f00d783a79c5c1548ae606f5b80930bfbe94976567`, and
+  rendered bootstrap `26579afe11918f8fe988598e7932a41afe87ad524ef7d53ef1c07968a2420eed`.
+  KMS verified both signatures. One `m7i.xlarge` builder
+  (`i-0af1a42d9afd18ca7`) ran exactly once; observed bootstrap duration was
+  441 seconds.
+- **Result:** The fresh immutable linux/amd64 digest is
+  `sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b`.
+  Fixed ENTRYPOINT/CMD, AWS CLI v2, package import, network-none negative
+  check, CPU-only two-worker fixture, immutable pull/inspect, and the
+  self-bound sidecar all passed. Both fixture records reported
+  `model_loaded=false` and 8,250 bytes. Receipt SHA-256 is
+  `0d6ea9d714855a93947459eab41186bd68ac5bb4e315b7118b76889b28e9a7ac`.
+- **Teardown and boundary:** The builder was explicitly terminated after its
+  self-shutdown. Fresh reads prove no live action instances, volumes, ENIs,
+  SG, role, or profile remain. The ECR digest/tag and 20-object output prefix
+  remain retained evidence. No Terraform, Batch, GPU, Spot, model,
+  benchmark, pilot, official P0/Step-4B experiment, unblind, analysis, or
+  claim promotion occurred.
