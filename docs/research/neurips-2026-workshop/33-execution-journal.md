@@ -7020,3 +7020,25 @@ post-launch terminal no-go. Tasks 6–10 remain
   occurred. The failed host-side dependency is not an external AWS/provider
   or capacity terminal no-go; a fresh image-build action is required after the
   repair is committed and rebound.
+
+### EJ-20260803-qualification-image-build-012-preparation
+
+- **Fresh successor binding:** A new unsigned CPU-only image-build plan was
+  generated from pushed commit `2fdd2b3029309eb5bcc9ca3fe84b207ba87efc76`.
+  The source archive SHA-256 is
+  `5d64937d114e10ce1af565e75a7b5a1dd3c476951f1fac830bcf8d9bb9ab7994`, the
+  rendered bootstrap SHA-256 is
+  `891f321e0c97614d787305ae7993fa7ef9a3209e30bc9593ea5139e633cbd36b`, and
+  the plan SHA-256 is
+  `d2b7152292f40de9038b8c18f8326c78ea1a265952db1b1407a4ee1787680bfe`.
+- **Repair and scope:** The fresh builder policy SHA-256 is
+  `7cedc9a6aec2dec9c86a911900d4bdf8d3fdc152b7c405dc6293818b7b141c36`.
+  The bootstrap executes the canonical post-push receipt sidecar inside the
+  pulled immutable image with network disabled, a read-only filesystem, a
+  temporary `/tmp`, and a read-only output mount, so host Python packages do
+  not participate in image-runtime qualification. The plan remains one
+  m7i.xlarge, zero retries, USD 6.00 projected under a USD 25.00 ceiling, and
+  requires fresh teardown proof.
+- **Boundary:** CL-298/CL-299 are preparation and admission rows only. No
+  Terraform, Batch, GPU, Spot, model, benchmark, pilot, official P0/Step-4B
+  experiment, unblind, analysis, or claim-promotion action is authorized.
