@@ -1426,7 +1426,7 @@ def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
         )
 
 
-@pytest.mark.parametrize("flag", [None, "false"])
+@pytest.mark.parametrize("flag", ["false", "invalid"])
 def test_concrete_cli_rejects_incomplete_iam_policy_pagination(flag: str | None) -> None:
     plan = parse_terraform_show(terraform_show())
     plan["worker_role_arn"] = ROLE_ARNS["pneuma-worker"]
@@ -1434,8 +1434,7 @@ def test_concrete_cli_rejects_incomplete_iam_policy_pagination(flag: str | None)
 
     def run(argv, **kwargs):
         payload = {"PolicyNames": []}
-        if flag is not None:
-            payload["IsTruncated"] = flag
+        payload["IsTruncated"] = flag
         return subprocess.CompletedProcess(argv, 0, json.dumps(payload).encode(), b"")
 
     adapter = AwsCliAdapter(

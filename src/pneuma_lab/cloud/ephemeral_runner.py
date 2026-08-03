@@ -793,6 +793,10 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                     f"IAM {operation} response lacks its {result_key} list"
                 )
             rows.extend(page)
+            if "IsTruncated" not in response:
+                # AWS CLI omits the false pagination marker on current IAM
+                # responses when the first page is complete.
+                return rows
             truncated = response.get("IsTruncated")
             if truncated is False:
                 return rows
