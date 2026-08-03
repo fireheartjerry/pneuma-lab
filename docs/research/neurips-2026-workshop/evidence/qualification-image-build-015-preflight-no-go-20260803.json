@@ -1,0 +1,29 @@
+{
+  "record_kind": "cloud_qualification_preflight_no_go",
+  "schema_version": "0.1.0",
+  "status": "RETIRED_BEFORE_ADMISSION",
+  "observed_at": "2026-08-03T22:07:08Z",
+  "action_class": "image_build",
+  "action_id": "qualification-image-build-015",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "plan_sha256": "4399103974b03d4a12cb54919a38d607dd847f8aec02488caf2f9dc040c8aae1",
+  "plan_receipt_sha256": "cde924ecedccf8f456392b448ff649279c44b478d9a5d3afae7f50e40ea73cd7",
+  "provider_mutation": "none",
+  "reason": "The fresh image-build plan omitted the required explicit input_lock_sha256 field. The signer failed before emitting a signing package or admission; no builder, IAM identity, security group, source upload, ECR push, or other provider mutation occurred.",
+  "kms_partial_attempt": "envelope signing call occurred before the admission object construction rejected the missing plan field; no exact package or admission was emitted",
+  "retry": "none",
+  "scientific_workload": "none",
+  "teardown": {
+    "builder_instances_absent": true,
+    "builder_volumes_absent": true,
+    "builder_network_interfaces_absent": true,
+    "builder_security_group_absent": true,
+    "builder_role_absent": true,
+    "builder_instance_profile_absent": true,
+    "output_prefix_empty": true,
+    "complete": true
+  },
+  "official_study_boundary": "preserved"
+}
