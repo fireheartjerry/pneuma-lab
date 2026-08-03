@@ -38,6 +38,7 @@ DENIED_CHECK_IDS = (
     "output-abort",
 )
 ALL_CHECK_IDS = ALLOWED_CHECK_IDS + DENIED_CHECK_IDS
+QUALIFICATION_WORKER_POLICY_NAME = "bounded-experiment-access"
 
 
 def _digest(value: Any, *, field: str) -> str:
@@ -69,6 +70,18 @@ def _resource_policy_sha256(resource_policy: Mapping[str, Any] | None) -> str | 
         payload = canonical_bytes(dict(resource_policy))
     except (TypeError, ValueError) as exc:
         raise CloudManifestError("IAM resource policy is not canonical JSON") from exc
+    return hashlib.sha256(payload).hexdigest()
+
+
+def policy_document_sha256(policy: Mapping[str, Any]) -> str:
+    """Hash one live IAM policy document without retaining its contents."""
+
+    if not isinstance(policy, Mapping):
+        raise CloudManifestError("IAM policy document must be a JSON object")
+    try:
+        payload = canonical_bytes(dict(policy))
+    except (TypeError, ValueError) as exc:
+        raise CloudManifestError("IAM policy document is not canonical JSON") from exc
     return hashlib.sha256(payload).hexdigest()
 
 

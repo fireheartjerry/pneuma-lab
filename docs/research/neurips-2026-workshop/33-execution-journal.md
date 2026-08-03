@@ -6486,3 +6486,22 @@ post-launch terminal no-go. Tasks 6–10 remain
   relaunched, and no scientific workload or claim boundary changed. Action
   011 remains the single exhausted post-launch terminal no-go with complete
   teardown.
+
+### EJ-20260803-dual-l40s-raw-show-and-live-policy-source-repair
+
+- **Audit finding:** The concrete account-plan acceptance path could surface a
+  missing or malformed raw Terraform-show digest as a low-level mapping error,
+  and the IAM simulation path trusted the authority policy digest without
+  re-reading the exact existing worker inline policy from AWS.
+- **Repair:** Account-plan admission now requires a lowercase SHA-256 raw-show
+  binding and raises a typed fail-closed cloud error when it is absent or
+  invalid. Before the fixed 15-case simulation, the AWS adapter now reads
+  `bounded-experiment-access` from the provider-verified attached role,
+  canonicalizes it for hashing without retaining policy contents, and rejects
+  any drift from the action authority.
+- **Validation/boundary:** Focused runner/IAM regressions pass, including the
+  live-policy-drift rejection. The permanent Claude guide now matches the
+  dual-worker topology recorded in `AGENTS.md`. This was source-only repair:
+  no AWS resource was created, action-011 was not retried, and no P0/Step 4B,
+  benchmark/model workload, pilot, unblind, analysis, or claim promotion
+  occurred.

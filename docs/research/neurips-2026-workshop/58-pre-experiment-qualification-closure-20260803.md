@@ -125,6 +125,19 @@ signing, schema, and Terraform regressions pass. These changes improve the
 next fresh qualification package; they do not alter the sealed action-011
 no-go receipt or authorize a retry.
 
+## Raw-show and live-policy binding repair
+
+The final source audit repaired two smaller fail-closed seams without touching
+AWS. Account-plan admission now requires the exact lowercase SHA-256 of the
+raw Terraform-show bytes and reports a typed cloud error for missing or
+malformed metadata. Before IAM simulation, the concrete adapter reads the
+`bounded-experiment-access` inline policy from the provider-verified attached
+worker role, canonicalizes only its digest, and rejects live policy drift from
+the fresh action authority. A focused regression covers that rejection. The
+dual-worker topology is now consistent in both permanent agent guides. Action
+011 remains exhausted; there was no relaunch, provider mutation, or scientific
+workload.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any

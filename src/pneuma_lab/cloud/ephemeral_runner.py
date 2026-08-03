@@ -16,6 +16,7 @@ import re
 import subprocess
 import time
 from typing import Any, Protocol
+from urllib.parse import unquote
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -47,7 +48,12 @@ from .qualification_execution import (
     terraform_plan_binding_digest,
     verify_provider_bindings,
 )
-from .iam_simulation import run_iam_simulation, validate_iam_simulation_matrix
+from .iam_simulation import (
+    QUALIFICATION_WORKER_POLICY_NAME,
+    policy_document_sha256,
+    run_iam_simulation,
+    validate_iam_simulation_matrix,
+)
 
 QUALIFICATION_TAGS = {
     "QualificationPurpose": "dual-l40s-admission-only",
@@ -570,6 +576,43 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             if not isinstance(decoded_policy, Mapping):
                 raise CloudManifestError("S3 bucket policy must be a JSON object")
             resource_policy = decoded_policy
+        role_name = plan.get("worker_role_name")
+        if not isinstance(role_name, str) or not role_name:
+            raise CloudManifestError(
+                "IAM simulation plan lacks the verified worker role name"
+            )
+        worker_policy_response = self._call(
+            "iam",
+            "get-role-policy",
+            "--role-name",
+            role_name,
+            "--policy-name",
+            QUALIFICATION_WORKER_POLICY_NAME,
+        )
+        encoded_document = (
+            worker_policy_response.get("PolicyDocument")
+            if isinstance(worker_policy_response, Mapping)
+            else None
+        )
+        if not isinstance(encoded_document, str) or not encoded_document:
+            raise CloudManifestError(
+                "IAM response lacks the qualification worker policy document"
+            )
+        try:
+            worker_policy = json.loads(unquote(encoded_document))
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise CloudManifestError(
+                "IAM qualification worker policy is not valid JSON"
+            ) from exc
+        if not isinstance(worker_policy, Mapping):
+            raise CloudManifestError(
+                "IAM qualification worker policy is not a JSON object"
+            )
+        live_policy_sha256 = policy_document_sha256(worker_policy)
+        if live_policy_sha256 != expected_policy_sha256:
+            raise CloudManifestError(
+                "live qualification worker policy differs from authority"
+            )
         return run_iam_simulation(
             self._call,
             plan=plan,
@@ -1241,8 +1284,14 @@ def require_account_plan(
             and all(character in "0123456789abcdef" for character in candidate)
         ):
             raw_show_sha256 = candidate
-    if isinstance(raw_show_sha256, str) and len(raw_show_sha256) == 64:
+    if isinstance(raw_show_sha256, str) and len(raw_show_sha256) == 64 and all(
+        character in "0123456789abcdef" for character in raw_show_sha256
+    ):
         parsed["terraform_show_sha256"] = raw_show_sha256
+    else:
+        raise CloudManifestError(
+            "qualification plan lacks the exact Terraform show SHA-256"
+        )
     parsed["terraform_plan_binding_sha256"] = terraform_plan_binding_digest(
         saved_plan_sha256, parsed["terraform_show_sha256"]
     )

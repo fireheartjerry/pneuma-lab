@@ -71,7 +71,7 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
     ]
     output_path = f"s3://bucket/runs/qualification/{action_id}/outputs/"
     image = "registry.example.invalid/worker@sha256:" + "a" * 64
-    return {
+    plan = {
         "format_version": "1.0",
         "variables": {
             "region": {"value": "us-east-1"},
@@ -196,6 +196,8 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
         ],
         "saved_plan_sha256": hashlib.sha256(b"fixture-saved-plan").hexdigest(),
     }
+    plan["terraform_show_sha256"] = parse_terraform_show(plan)["terraform_show_sha256"]
+    return plan
 
 
 class ReadOnlyProvider:
@@ -490,6 +492,14 @@ def test_loaded_account_plan_preserves_raw_show_binding() -> None:
     )
 
 
+def test_missing_show_binding_fails_closed_with_cloud_error() -> None:
+    candidate = terraform_show()
+    candidate["terraform_show_sha256"] = "not-a-digest"
+    candidate["_qualification"] = {"terraform_show_sha256": "also-not-a-digest"}
+    with pytest.raises(CloudManifestError, match="Terraform show SHA-256"):
+        require_account_plan(candidate, provider=ReadOnlyProvider())
+
+
 def test_instance_profile_is_verified_before_its_attached_role() -> None:
     plan = parse_terraform_show(terraform_show())
     provider = ReadOnlyProvider()
@@ -680,10 +690,24 @@ def test_concrete_provider_arguments_are_bound_to_the_saved_plan() -> None:
 def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
     plan = parse_terraform_show(terraform_show())
     plan["worker_role_arn"] = ROLE_ARNS["pneuma-worker"]
+    plan["worker_role_name"] = "pneuma-worker"
     policy = {
         "Version": "2012-10-17",
         "Statement": [{"Effect": "Deny", "Action": "s3:*", "Resource": "*"}],
     }
+    worker_policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::bucket/input",
+            }
+        ],
+    }
+    worker_policy_sha256 = hashlib.sha256(
+        canonical_bytes(worker_policy)
+    ).hexdigest()
     checks = expected_checks(
         input_paths=plan["input_paths"], output_root=plan["output_path"]
     )
@@ -694,6 +718,13 @@ def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
         if "get-bucket-policy" in argv:
             return subprocess.CompletedProcess(
                 argv, 0, json.dumps({"Policy": json.dumps(policy)}).encode(), b""
+            )
+        if "get-role-policy" in argv:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                json.dumps({"PolicyDocument": json.dumps(worker_policy)}).encode(),
+                b"",
             )
         action = argv[argv.index("--action-names") + 1]
         resource = argv[argv.index("--resource-arns") + 1]
@@ -733,16 +764,23 @@ def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
     record = adapter.capture_iam_simulation(
         plan=plan,
         action_id="qual-1",
-        expected_policy_sha256="a" * 64,
+        expected_policy_sha256=worker_policy_sha256,
     )
     assert record["resource_policy_present"] is True
     assert record["resource_policy_sha256"] == hashlib.sha256(
         canonical_bytes(policy)
     ).hexdigest()
+    assert any("get-role-policy" in argv for argv in calls)
     iam_calls = [argv for argv in calls if "simulate-principal-policy" in argv]
     assert len(iam_calls) == 15
     assert all("--resource-policy" in argv for argv in iam_calls)
     assert "arn:aws" not in json.dumps(record)
+    with pytest.raises(CloudManifestError, match="differs from authority"):
+        adapter.capture_iam_simulation(
+            plan=plan,
+            action_id="qual-1",
+            expected_policy_sha256="f" * 64,
+        )
 
 
 def test_concrete_cli_kms_verification_checks_registry_and_both_signatures() -> None:

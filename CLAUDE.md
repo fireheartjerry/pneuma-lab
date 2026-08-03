@@ -38,9 +38,10 @@ append-only forensic trail.
   Canonical Step 4B remains pending for the separately authorized experiment.
 - No real benchmark, model-provider, unblind/analysis, or scientific result of
   record exists. AWS has $10,000 verified EC2-eligible credit plus a separate
-  $100 credit. The primary topology is one 8-vCPU `g6e.2xlarge` with one L40S;
-  only its matching G/VT quota may satisfy the AWS admission gate. Azure remains
-  separately authorized and separately governed.
+  $100 credit. The primary topology is two independent 8-vCPU Spot
+  `g6e.2xlarge` workers, two L40S devices total, capped at 16 Spot vCPUs;
+  only fresh matching G/VT capacity evidence may satisfy the AWS admission
+  gate. Azure remains separately authorized and separately governed.
 
 ## Standing Human-Operator Authority — Pre-experiment Qualification
 

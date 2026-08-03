@@ -75,6 +75,15 @@ Focused cloud, signer, schema, and Terraform tests pass. This is readiness
 repair only: the sealed action-011 terminal no-go is unchanged and no AWS
 resource or scientific workload was launched.
 
+## Final source-binding repair
+
+The future qualification path now rejects account plans without an exact,
+lowercase SHA-256 binding for the raw Terraform-show bytes. It also reads and
+hash-checks the exact `bounded-experiment-access` inline policy on the verified
+worker role immediately before IAM simulation, failing closed on policy drift.
+The focused regression is green. This changes no sealed action-011 fact and
+authorizes no relaunch or official scientific work.
+
 ## Remaining gates before official P0 / Step 4B
 
 1. The dual-L40S qualification is not passed; action-011 is exhausted. No
