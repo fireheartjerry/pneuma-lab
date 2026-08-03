@@ -57,6 +57,13 @@ legacy binding fields retained for exact plan/action hashing; only
 This document records code contracts only. It is not a provider receipt and
 does not claim that a worker, GPU, model, benchmark, or experiment ran.
 
+The concrete `--execute` runner also requires the exact fresh ignored
+`--tfvars` path. It must be a regular mode-600 `.tfvars` file; its bytes are
+hashed when the saved plan is loaded, checked again before apply and destroy,
+and passed explicitly to the locked destroy command. Teardown therefore
+cannot silently fall back to a stale checkout-local `qualification.auto.tfvars`
+from another action.
+
 Future Terraform mutations must use state locking with a bounded lock timeout;
 `-lock=false` is forbidden. The runner verifies the signed preparation
 envelope/action admission and the four-resource account plan before calling
