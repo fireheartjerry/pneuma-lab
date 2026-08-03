@@ -237,6 +237,9 @@ class FakeProvider(ReadOnlyProvider):
                 "jobs",
                 "instances",
                 "volumes",
+                "launch_template",
+                "network_interfaces",
+                "security_group",
                 "job_definition",
                 "queue",
                 "compute_environment",
@@ -517,6 +520,116 @@ def test_concrete_cli_waits_for_valid_environment_and_queue() -> None:
     }
     assert any("describe-compute-environments" in call for call in calls)
     assert any("describe-job-queues" in call for call in calls)
+
+
+def test_concrete_cli_absence_checks_all_ephemeral_resource_classes() -> None:
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        payloads = {
+            "describe-job-queues": {"jobQueues": []},
+            "describe-compute-environments": {"computeEnvironments": []},
+            "describe-job-definitions": {"jobDefinitions": []},
+            "describe-instances": {"Reservations": []},
+            "describe-volumes": {"Volumes": []},
+            "describe-launch-templates": {"LaunchTemplates": []},
+            "describe-network-interfaces": {"NetworkInterfaces": []},
+            "describe-security-groups": {"SecurityGroups": []},
+        }
+        command = next(key for key in payloads if key in argv)
+        return subprocess.CompletedProcess(
+            argv, 0, json.dumps(payloads[command]).encode(), b""
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    assert adapter.verify_absence({"QualificationActionId": "qual-1"}) == {
+        "jobs": True,
+        "instances": True,
+        "volumes": True,
+        "launch_template": True,
+        "network_interfaces": True,
+        "security_group": True,
+        "job_definition": True,
+        "queue": True,
+        "compute_environment": True,
+    }
+    assert any(
+        "Name=launch-template-name,Values=qual-1-worker-*" in call
+        for call in calls
+    )
+    assert any("describe-network-interfaces" in call for call in calls)
+
+
+def test_concrete_cli_absence_accepts_deleted_queue_and_environment() -> None:
+    def run(argv, **kwargs):
+        if "describe-job-queues" in argv or "describe-compute-environments" in argv:
+            return subprocess.CompletedProcess(
+                argv,
+                254,
+                b"",
+                b"ResourceNotFoundException: deleted",
+            )
+        command = next(
+            command
+            for command in (
+                "describe-job-definitions",
+                "describe-instances",
+                "describe-volumes",
+                "describe-launch-templates",
+                "describe-network-interfaces",
+                "describe-security-groups",
+            )
+            if command in argv
+        )
+        collection = {
+            "describe-job-definitions": "jobDefinitions",
+            "describe-instances": "Reservations",
+            "describe-volumes": "Volumes",
+            "describe-launch-templates": "LaunchTemplates",
+            "describe-network-interfaces": "NetworkInterfaces",
+            "describe-security-groups": "SecurityGroups",
+        }[command]
+        return subprocess.CompletedProcess(
+            argv, 0, json.dumps({collection: []}).encode(), b""
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    assert all(
+        adapter.verify_absence({"QualificationActionId": "qual-1"}).values()
+    )
+
+
+def test_concrete_cli_absence_does_not_swallow_unrelated_provider_errors() -> None:
+    def run(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            argv,
+            254,
+            b"",
+            b"ClientException: invalid parameter",
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    with pytest.raises(CloudManifestError, match="absence read failed"):
+        adapter.verify_absence({"QualificationActionId": "qual-1"})
 
 
 def test_concrete_cli_adapter_accepts_only_two_succeeded_first_attempt_children(

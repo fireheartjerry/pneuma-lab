@@ -261,6 +261,40 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         )
         return _json_result(result)
 
+    def _call_absence(self, *args: str) -> Any:
+        result = self.run(
+            [
+                "aws",
+                *args,
+                "--region",
+                self.region,
+                "--output",
+                "json",
+                "--no-cli-pager",
+            ],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if result.returncode != 0:
+            detail = result.stderr.decode("utf-8", errors="replace")
+            normalized = detail.lower()
+            missing = any(
+                marker in detail
+                for marker in (
+                    "ResourceNotFoundException",
+                    "JobQueueNotFoundException",
+                    "ComputeEnvironmentNotFoundException",
+                )
+            ) or (
+                "clientexception" in normalized
+                and ("does not exist" in normalized or "not found" in normalized)
+            )
+            if missing:
+                return {}
+            raise CloudManifestError("provider absence read failed")
+        return _json_result(result)
+
     def preflight(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
         return self._call("batch", "describe-job-queues", "--job-queues", self.queue)
 
@@ -476,14 +510,16 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         )
 
     def verify_absence(self, tags: Mapping[str, str]) -> Mapping[str, bool]:
-        queue = self._call("batch", "describe-job-queues", "--job-queues", self.queue)
-        env = self._call(
+        queue = self._call_absence(
+            "batch", "describe-job-queues", "--job-queues", self.queue
+        )
+        env = self._call_absence(
             "batch",
             "describe-compute-environments",
             "--compute-environments",
             self.compute_environment,
         )
-        definition = self._call(
+        definition = self._call_absence(
             "batch",
             "describe-job-definitions",
             "--job-definition-name",
@@ -491,25 +527,54 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "--status",
             "ACTIVE",
         )
-        instances = self._call(
+        instances = self._call_absence(
             "ec2",
             "describe-instances",
             "--filters",
             f"Name=tag:QualificationActionId,Values={tags['QualificationActionId']}",
         )
-        volumes = self._call(
+        volumes = self._call_absence(
             "ec2",
             "describe-volumes",
             "--filters",
             f"Name=tag:QualificationActionId,Values={tags['QualificationActionId']}",
         )
-        jobs = self._call(
-            "batch", "list-jobs", "--job-queue", self.queue, "--job-status", "RUNNING"
+        launch_templates = self._call_absence(
+            "ec2",
+            "describe-launch-templates",
+            "--filters",
+            f"Name=launch-template-name,Values={tags['QualificationActionId']}-worker-*",
         )
+        network_interfaces = self._call_absence(
+            "ec2",
+            "describe-network-interfaces",
+            "--filters",
+            f"Name=tag:QualificationActionId,Values={tags['QualificationActionId']}",
+        )
+        security_groups = self._call_absence(
+            "ec2",
+            "describe-security-groups",
+            "--filters",
+            f"Name=tag:QualificationActionId,Values={tags['QualificationActionId']}",
+        )
+        jobs = True
+        if self.parent_job_id is not None:
+            job_rows = self._call_absence(
+                "batch",
+                "describe-jobs",
+                "--jobs",
+                self.parent_job_id,
+                f"{self.parent_job_id}:0",
+                f"{self.parent_job_id}:1",
+            ).get("jobs", [])
+            jobs = not job_rows
         return {
-            "jobs": not jobs.get("jobSummaryList"),
+            "jobs": jobs,
             "instances": not instances.get("Reservations"),
             "volumes": not volumes.get("Volumes"),
+            "launch_template": not launch_templates.get("LaunchTemplates"),
+            "network_interfaces": not network_interfaces.get("NetworkInterfaces"),
+            "security_group": not security_groups.get("SecurityGroups"),
             "job_definition": not definition.get("jobDefinitions"),
             "queue": not queue.get("jobQueues"),
             "compute_environment": not env.get("computeEnvironments"),
@@ -708,6 +773,9 @@ def execute(
         "jobs",
         "instances",
         "volumes",
+        "launch_template",
+        "network_interfaces",
+        "security_group",
         "job_definition",
         "queue",
         "compute_environment",

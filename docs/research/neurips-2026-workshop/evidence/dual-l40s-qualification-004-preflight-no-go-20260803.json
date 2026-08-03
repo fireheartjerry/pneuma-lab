@@ -1,0 +1,117 @@
+{
+  "record_kind": "cloud_ephemeral_dual_worker_qualification_preflight_receipt",
+  "schema_version": "0.1.0",
+  "status": "no_go_preflight",
+  "qualification_only": true,
+  "observed_at": "2026-08-03T07:09:18Z",
+  "action_id": "dual-l40s-qualification-004",
+  "provider": "aws",
+  "region": "us-east-1",
+  "plan": {
+    "saved_plan_sha256": "94ddb37f12d63342066f610fc2b8bbf28680e9b0558e542d7e08dcef7e7018a2",
+    "terraform_show_sha256": "a4a12c7c0abf7b21846462a660ade8e12bed938a8750137e78cad62d6eff53cd",
+    "terraform_plan_binding_sha256": "cbc3998744092bf1939dcc343d0809e7e5080d6bc29afb8b13faee441a21ce91",
+    "exactly_four_creates": true,
+    "resource_addresses": [
+      "aws_batch_compute_environment.qualification",
+      "aws_batch_job_definition.worker",
+      "aws_batch_job_queue.qualification",
+      "aws_launch_template.qualification"
+    ],
+    "managed_gpu_ami_path": true,
+    "planned_image_id": null,
+    "action_bound_values": true,
+    "pinned_ecr_digest": "sha256:0aa9f2c10f5f6dbf0edc525e915e5d383d7837eaed1c4c3ecef4c72f5ee215fd"
+  },
+  "account_gates": {
+    "account_id": "892077329800",
+    "vpc_id": "vpc-0baeaefeb8b57c19b",
+    "worker_instance_profile_arn": "arn:aws:iam::892077329800:instance-profile/pneuma-c160-worker",
+    "attached_worker_role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-worker",
+    "batch_service_role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-batch-service",
+    "subnet_az_map": {
+      "us-east-1a": "subnet-0da0658f2703d3e58",
+      "us-east-1b": "subnet-0fb70ec94971ee036",
+      "us-east-1c": "subnet-06bfd2d42e292f160",
+      "us-east-1d": "subnet-0ef225f27b1e1f095"
+    },
+    "security_group_id": "sg-02a6d8fb9c26477eb",
+    "security_group_ingress_rules": 0,
+    "spot_vcpu_quota": 16,
+    "g6e_2xlarge_offerings": [
+      "us-east-1a",
+      "us-east-1b",
+      "us-east-1c",
+      "us-east-1d"
+    ],
+    "spot_price_usd_per_hour_by_az": {
+      "us-east-1a": 2.2421,
+      "us-east-1b": 2.2421,
+      "us-east-1c": 2.2115,
+      "us-east-1d": 2.2421
+    },
+    "projected_two_workers_3600s_usd": 4.4842,
+    "projection_below_usd_100": true
+  },
+  "runtime_gate": {
+    "image_build_receipt": "evidence/qualification-image-build-007-receipt-20260803.json",
+    "fixed_entrypoint_verified": true,
+    "aws_cli_v2_verified": true,
+    "package_import_verified": true,
+    "fixture_materialization_and_raw_publication_verified": true,
+    "network_none_no_code_check_verified": true,
+    "model_or_benchmark_started": false
+  },
+  "permission_gate": {
+    "worker_role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-worker",
+    "input_get_object": "allowed_for_all_five_exact_action_scoped_inputs",
+    "input_put_object": "allowed_unexpectedly",
+    "output_put_object": "allowed_for_both_worker_indexed_raw_objects",
+    "output_get_object": "allowed_unexpectedly",
+    "inline_statement_summary": {
+      "sid": "ArtifactPrefix",
+      "effect": "Allow",
+      "actions": [
+        "s3:AbortMultipartUpload",
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "resource": "*"
+    },
+    "bucket_policy_present": false,
+    "least_privilege_verified": false,
+    "blocker": "planned worker role is not restricted to action-scoped fixture reads and worker-indexed raw-output writes"
+  },
+  "execution": {
+    "authority_minted": false,
+    "terraform_apply_started": false,
+    "batch_submission_started": false,
+    "worker_identities": [],
+    "raw_artifacts": [],
+    "recovery": "not_run_no_resources",
+    "observed_provider_cost_usd": 0.0,
+    "retry_performed": false,
+    "resources_created": []
+  },
+  "fresh_absence": {
+    "jobs": true,
+    "instances": true,
+    "volumes": true,
+    "launch_template": true,
+    "network_interfaces": true,
+    "security_group": true,
+    "job_definition": true,
+    "queue": true,
+    "compute_environment": true
+  },
+  "scientific_boundary": {
+    "no_p0": true,
+    "no_step_4b": true,
+    "no_benchmark": true,
+    "no_pilot": true,
+    "no_model_experiment": true,
+    "no_unblind": true,
+    "no_analysis": true,
+    "no_claim_promotion": true
+  }
+}

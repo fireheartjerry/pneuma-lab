@@ -6253,3 +6253,42 @@ The next event after the archived migration boundary is appended below.
   The source archive, build outputs, sanitized receipt, and immutable ECR
   digest remain intentionally retained for the account-resolved qualification
   plan. Phase B is complete; no scientific result exists.
+
+### EJ-20260803-dual-l40s-qualification-004-preflight-no-go
+
+- **Read-only plan:** Fresh action candidate `dual-l40s-qualification-004`
+  produced exactly four creates in the qualification-only Terraform directory:
+  the managed Batch compute environment, qualification launch template, queue,
+  and worker job definition. The saved-plan SHA-256 is
+  `94ddb37f12d63342066f610fc2b8bbf28680e9b0558e542d7e08dcef7e7018a2`; the
+  raw `terraform show -json` SHA-256 is
+  `a4a12c7c0abf7b21846462a660ade8e12bed938a8750137e78cad62d6eff53cd`; the
+  composite binding is
+  `cbc3998744092bf1939dcc343d0809e7e5080d6bc29afb8b13faee441a21ce91`.
+  The plan uses the AWS Batch-managed GPU/ECS AMI path with null planned
+  `image_id`, action-004 values/tags/output prefix, and the active immutable
+  worker digest
+  `sha256:0aa9f2c10f5f6dbf0edc525e915e5d383d7837eaed1c4c3ecef4c72f5ee215fd`.
+- **Account gates:** Read-only identity, exact instance-profile ARN and one
+  attached role, separate Batch service role, four available VPC subnets in
+  `us-east-1a` through `us-east-1d`, zero-ingress SG, 16 Spot vCPUs, all four
+  `g6e.2xlarge` offerings, fresh ECR metadata, and a USD 4.4842 two-worker /
+  3,600-second projection all passed.
+- **Blocking finding:** IAM simulation of the planned worker role allowed
+  `s3:PutObject` on each of the five action-scoped input objects and
+  `s3:GetObject` on both worker raw-output objects. The inline `ArtifactPrefix`
+  statement allows `s3:GetObject`/`s3:PutObject` on `Resource: "*"`, and no
+  bucket policy narrows it. The required least-privilege gate therefore failed
+  closed. No action-004 envelope, admission, KMS signature, Terraform apply,
+  Batch submission, GPU/Spot allocation, worker identity, raw artifact,
+  recovery drill, or retry occurred.
+- **Absence:** Fresh provider reads prove action-004 jobs, instances, volumes,
+  launch template, ENIs, security group, job definition, queue, and compute
+  environment absent. The sanitized receipt is
+  `evidence/dual-l40s-qualification-004-preflight-no-go-20260803.json` with
+  SHA-256 `0cbee83ed26a6b321df19b84eeace8136a24961a5027abdb77827e8f0ccccea5`.
+- **Closure boundary:** The pre-experiment closure report lists the policy
+  repair, fresh authority ceremony, fixture qualification, and missing P0 /
+  Step 4B authority receipts that remain. Task 6–10 remain
+  `implementation_complete; E2E_pending`; Step 14 remains `launch_blocked`.
+  No scientific result or claim promotion exists.

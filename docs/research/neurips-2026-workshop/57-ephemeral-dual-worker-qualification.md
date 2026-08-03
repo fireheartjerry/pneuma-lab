@@ -20,7 +20,9 @@ existing VPC; this stack creates no networking resources.
 The job definition enforces a 3,600-second attempt timeout and one attempt
 (`retry_strategy.attempts = 1`, equivalent to zero retries). The provider-free
 admission package additionally requires exactly two distinct worker identities,
-zero retries, and post-destroy provider-absence proof. The USD 100 value is a
+zero retries, and post-destroy provider-absence proof for jobs, instances,
+volumes, launch templates, network interfaces, security groups, the job
+definition, queue, and compute environment. The USD 100 value is a
 fail-closed reservation/projection bound combined with timeout and teardown;
 it is not an impossible-to-exceed AWS billing cap. AWS Budget alarms are
 observability only and are never called enforcement.
@@ -38,5 +40,6 @@ Future Terraform mutations must use state locking with a bounded lock timeout;
 `-lock=false` is forbidden. The runner verifies the signed preparation
 envelope/action admission and the four-resource account plan before calling
 Terraform, submits one size-two Batch array only, and always disables/drains
-before destroy followed by tagged absence checks for jobs, instances, volumes,
-job definition, queue, and compute environment.
+before destroy followed by tagged/name-bound absence checks for jobs, instances,
+volumes, launch template, network interfaces, security group, job definition,
+queue, and compute environment.

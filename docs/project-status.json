@@ -2,7 +2,7 @@
     "$schema": "../schemas/project-status.schema.json",
     "manifest_kind": "pneuma_project_status",
     "manifest_schema_version": "0.1.0",
-    "as_of": "2026-08-02",
+    "as_of": "2026-08-03",
     "project": {
         "role": "standalone_research_evaluation_harness",
         "integration_mode": "standalone",
@@ -519,6 +519,7 @@
                 "tests/cloud/test_iac_plan.py"
             ],
             "blockers": [
+                "B-NEURIPS-CLOUD-WORKER-LEAST-PRIVILEGE",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -1040,6 +1041,10 @@
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
             "summary": "The required pre-experiment hostile launch review ran against ten digest-bound reviewer transcripts and failed closed with verdict launch_blocked. The citation repair and primary-source verification removed the citation blockers; three grounded blockers remain: no real authority-backed power report/tier receipt, and missing packet/assignment/detectability/unblind receipts from the Step 14 index. The compact receipt is docs/research/neurips-2026-workshop/evidence/step14-launch-review-20260802.json. No experiment or provider action is authorized."
+        },
+        {
+            "id": "B-NEURIPS-CLOUD-WORKER-LEAST-PRIVILEGE",
+            "summary": "The read-only dual-worker qualification preflight stopped before authority because the planned worker role permits s3:GetObject and s3:PutObject on Resource *; IAM simulation therefore cannot prove action-scoped fixture reads and worker-indexed raw-output writes. The sanitized no-go receipt is docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-004-preflight-no-go-20260803.json. No Terraform apply, Batch submission, worker, or scientific action occurred."
         },
         {
             "id": "B-NEURIPS-EXPERIMENT-EXECUTION",
