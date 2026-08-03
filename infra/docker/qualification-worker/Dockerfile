@@ -15,7 +15,8 @@ RUN sed -i \
         /etc/apt/sources.list /etc/apt/sources.list.d/*.list \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
-        awscli \
+        curl \
+        unzip \
     && DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade --yes \
     && DEBIAN_FRONTEND=noninteractive apt-get purge --yes --auto-remove \
         ffmpeg \
@@ -27,6 +28,12 @@ RUN sed -i \
         libpostproc55 \
         libswresample3 \
         libswscale5 \
+    && curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+        https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip \
+        --output /tmp/awscliv2.zip \
+    && unzip -q /tmp/awscliv2.zip -d /tmp \
+    && /tmp/aws/install --install-dir /usr/local/aws-cli --bin-dir /usr/local/bin \
+    && rm -rf /tmp/aws /tmp/awscliv2.zip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

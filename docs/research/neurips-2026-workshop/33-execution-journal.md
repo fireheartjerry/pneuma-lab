@@ -6141,3 +6141,31 @@ The next event after the archived migration boundary is appended below.
 - **Successor boundary:** The source-only repair rewrites the base image's
   Ubuntu archive/security sources to HTTPS before installing `awscli`; it
   preserves the sealed network boundary and requires a fresh successor action.
+
+### EJ-20260803-qualification-image-build-004-no-go
+
+- **Trigger and authority:** The pinned image still required an executable AWS
+  CLI after action 003 failed at package retrieval. Fresh action
+  `qualification-image-build-004` bound plan SHA-256
+  `0ed5a14e845d9e2c57d9b97e367ee650bf3eae4f1dd2ccf92e1b8ba6358f775c`, source
+  archive SHA-256 `411b0ff6e61e031197d8d7ac69620f1a99e7ad00f8bcb23ee00272059a581a53`,
+  and signed package SHA-256
+  `cc4a2af3e8b5a848dd12bf3cc39d9c0d0696129c8ee7b349e11c2cb2bafa232b`.
+- **Build and runtime:** One fresh `m7i.xlarge` built and pushed only the
+  linux/amd64 qualification-worker image. The fixed entrypoint, source and
+  base labels, package tree, and network-none no-code negative check passed;
+  the fresh ECR digest was
+  `sha256:f65066048987b633914ec790a8ac40bc8781904de6a3e912422b9192592c93f5`.
+  The required non-GPU runtime check then found that Debian's `awscli`
+  executable crashed under Python 3.12 with `KeyError: 'opsworkscm'`. The
+  digest is rejected for qualification and action 004 is exhausted.
+- **Teardown:** Builder `i-08956823ced957751`, root
+  `vol-0a576e1a11a50984c`, temporary SG `sg-0d04e66aa8392df16`, IAM profile
+  and role, and action-tagged ENIs are absent on fresh provider reads. The
+  rejected ECR digest is retained only as sanitized evidence. No Terraform,
+  Batch, GPU, Spot, model, benchmark, pilot, experiment, qualification run,
+  unblind, analysis, or scientific result occurred.
+- **Successor boundary:** Only the AWS CLI installation is being repaired,
+  using the official AWS CLI v2 archive over the already-bound HTTPS egress.
+  A fresh action 005, source archive, builder, tag, package, and digest are
+  required; action 004 will not be reused.

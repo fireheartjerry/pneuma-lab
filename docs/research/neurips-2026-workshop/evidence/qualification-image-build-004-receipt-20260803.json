@@ -1,0 +1,119 @@
+{
+  "record_kind": "cloud_qualification_image_build_receipt",
+  "schema_version": "0.1.0",
+  "receipt_sha256": "38509a75cddece18cf2be5692f89b04e6a31b26d91f01b7b0b52f3e1374cc588",
+  "action_id": "qualification-image-build-004",
+  "action_class": "image_build",
+  "status": "FAILED",
+  "provider": "aws",
+  "account_id": "892077329800",
+  "region": "us-east-1",
+  "authority": {
+    "plan_sha256": "0ed5a14e845d9e2c57d9b97e367ee650bf3eae4f1dd2ccf92e1b8ba6358f775c",
+    "signing_package_sha256": "cc4a2af3e8b5a848dd12bf3cc39d9c0d0696129c8ee7b349e11c2cb2bafa232b",
+    "envelope_ledger_row": "CL-253",
+    "admission_ledger_row": "CL-254",
+    "max_retries": 0
+  },
+  "source": {
+    "commit": "177e20f130a010ec5fd107b455c04f9cad1c06ca",
+    "archive_uri": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-004/source.tar",
+    "archive_sha256": "411b0ff6e61e031197d8d7ac69620f1a99e7ad00f8bcb23ee00272059a581a53",
+    "archive_size_bytes": 29859840,
+    "dockerfile": "infra/docker/qualification-worker/Dockerfile",
+    "dockerfile_sha256": "8aa8d74a5eb2dfbba487a3ee8b625a2e14b5a7a06cd2a77ededd1c0f96774957",
+    "base_digest": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90",
+    "bootstrap_sha256": "498e33cda7869e840dd720fa6c85bbda6442ec7f1059ff457b0b8c7eac0b328e"
+  },
+  "target": {
+    "repository_uri": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker",
+    "image_tag": "qualification-image-build-004-177e20f",
+    "platform": "linux/amd64",
+    "ecr_image_digest": "sha256:f65066048987b633914ec790a8ac40bc8781904de6a3e912422b9192592c93f5",
+    "immutable_reference": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:f65066048987b633914ec790a8ac40bc8781904de6a3e912422b9192592c93f5",
+    "digest_rejected_for_runtime": true
+  },
+  "builder": {
+    "instance_id": "i-08956823ced957751",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-03T05:48:25Z",
+    "bootstrap_observation_time": "2026-08-03T05:55:50Z",
+    "observed_builder_elapsed_seconds": 445,
+    "ami_id": "ami-08bc385c9fc5afc94",
+    "subnet_id": "subnet-0da0658f2703d3e58",
+    "vpc_id": "vpc-0baeaefeb8b57c19b",
+    "security_group_id": "sg-0d04e66aa8392df16",
+    "root_volume_id": "vol-0a576e1a11a50984c",
+    "root_volume_gib": 650,
+    "root_volume_encrypted": true,
+    "root_delete_on_termination": true,
+    "imds_http_tokens": "required",
+    "instance_state": "terminated"
+  },
+  "failure": {
+    "stage": "runtime_contract",
+    "reason": "aws_cli_invocation_failed",
+    "error_class": "aws_cli_python_compatibility",
+    "detail": "the Debian awscli executable was present but crashed on invocation under the image Python runtime with an opsworkscm command-table KeyError",
+    "build_and_push": true,
+    "negative_check": true,
+    "package_import_and_fixture_artifact_check": false,
+    "no_qualification_use": true
+  },
+  "local_checks": {
+    "source_archive_roundtrip": "pass",
+    "dockerfile_hash": "pass",
+    "image_entrypoint": "/opt/pneuma/fixed_admission_entrypoint.sh",
+    "image_entrypoint_check": "pass",
+    "source_revision_label_check": "pass",
+    "base_digest_label_check": "pass",
+    "pneuma_lab_tree_check": "pass",
+    "negative_check": {
+      "network": "none",
+      "qualification_code_supplied": false,
+      "returncode": 2,
+      "stderr_contains": "QUALIFICATION_CODE",
+      "status_receipt_written": true,
+      "post_negative_check_sentinel": true
+    },
+    "ecr_push": "pass",
+    "fresh_ecr_read": "pass",
+    "aws_cli_binary_present": true,
+    "aws_cli_invocation": "fail",
+    "runtime_contract": "fail"
+  },
+  "builder_output": {
+    "s3_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-004/outputs/",
+    "status_sha256": "693301025f61362d4cc7406fd6541d44c743aa024d004e73981a31b0449b1f06",
+    "bootstrap_log_sha256": "a278bc8fa346ff3142dedd3e9c98d0778c24f80c3f0bb3ddf750f91c41ce5184",
+    "image_inspect_sha256": "c77a1ff8d00dad14ce1a56bb12bb43a92d01d2fd3762cc356f70392230b3aecc",
+    "negative_receipt_sha256": "f2cbe51053624de7c42833908e885aa8b128eb4dd9c60bac1a3eca033d05308f",
+    "ecr_metadata_sha256": "3d296f18e746bab51b94a0b9208a2f8dece81c516de0c16b97fe558dae1162a5"
+  },
+  "teardown": {
+    "builder": "terminated",
+    "root_volume": "absent",
+    "security_group": "absent",
+    "instance_profile": "absent",
+    "iam_role": "absent",
+    "network_interfaces": [],
+    "fresh_provider_absence": true
+  },
+  "cost": {
+    "projected_usd": 6.0,
+    "hard_ceiling_usd": 25.0,
+    "observed_builder_elapsed_seconds": 445,
+    "settled_cost": "pending billing settlement"
+  },
+  "forbidden_actions": [
+    "terraform",
+    "batch",
+    "gpu",
+    "spot",
+    "model_download",
+    "benchmark",
+    "pilot",
+    "experiment",
+    "qualification_run"
+  ]
+}

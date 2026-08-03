@@ -539,7 +539,8 @@ def test_terraform_and_image_contract_preserve_qualification_tags_and_entrypoint
     assert "https://archive.ubuntu.com" in dockerfile_text
     assert "https://security.ubuntu.com" in dockerfile_text
     assert "apt-get install --yes --no-install-recommends" in dockerfile_text
-    assert "awscli" in dockerfile_text
+    assert "awscli-exe-linux-x86_64.zip" in dockerfile_text
+    assert "--install-dir /usr/local/aws-cli" in dockerfile_text
     assert (
         'ENTRYPOINT ["/opt/pneuma/fixed_admission_entrypoint.sh"]' in dockerfile_text
     )
