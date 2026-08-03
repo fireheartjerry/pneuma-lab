@@ -10,6 +10,12 @@ definition. The environment is pinned to exactly two `g6e.2xlarge` workers
 (8 vCPUs and one L40S each), a
 16-vCPU ceiling, and `SPOT_PRICE_CAPACITY_OPTIMIZED`. The main experiment
 stack is unchanged and its `prevent_destroy` lifecycle remains authoritative.
+The managed Batch environment deliberately has no custom `image_id` binding or
+`ami_id` variable: AWS Batch selects its AWS Batch-managed GPU/ECS AMI, and the
+CPU builder AMI is never passed to the worker environment. The account-bound plan
+must use every existing available subnet in each offered AZ (`us-east-1a`-
+`us-east-1d`) and retain the verified zero-ingress security group for the
+existing VPC; this stack creates no networking resources.
 
 The job definition enforces a 3,600-second attempt timeout and one attempt
 (`retry_strategy.attempts = 1`, equivalent to zero retries). The provider-free

@@ -24,10 +24,6 @@ variable "qualification_code" {
   }
 }
 
-variable "ami_id" {
-  type = string
-}
-
 variable "gpu_worker_image" {
   type = string
   validation {

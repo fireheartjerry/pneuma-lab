@@ -74,10 +74,17 @@ def test_teardown_requires_post_destroy_absence() -> None:
 
 def test_ephemeral_stack_has_destroyable_watchdog_and_no_retry_contract() -> None:
     text = (ROOT / "infra/terraform/qualification/main.tf").read_text()
+    variables = (ROOT / "infra/terraform/qualification/variables.tf").read_text()
+    documentation = (
+        ROOT / "docs/research/neurips-2026-workshop/57-ephemeral-dual-worker-qualification.md"
+    ).read_text()
     assert re.search(r"max_vcpus\s*=\s*16", text)
     assert 'allocation_strategy = "SPOT_PRICE_CAPACITY_OPTIMIZED"' in text
     assert "attempt_duration_seconds = 3600" in text
     assert "attempts = 1" in text
+    assert not re.search(r"^\s*image_id\s*=", text, re.MULTILINE)
+    assert 'variable "ami_id"' not in variables
+    assert "AWS Batch-managed GPU/ECS AMI" in documentation
     dockerfile = (ROOT / "infra/docker/qualification-worker/Dockerfile").read_text()
     assert "fixed_admission_entrypoint.sh" in dockerfile
     assert "qualification-entrypoint" not in dockerfile

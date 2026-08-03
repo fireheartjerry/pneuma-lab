@@ -40,7 +40,6 @@ resource "aws_batch_compute_environment" "qualification" {
     desired_vcpus       = 0
     max_vcpus           = 16
     instance_type       = ["g6e.2xlarge"]
-    image_id            = var.ami_id
     instance_role       = var.instance_role_arn
     spot_iam_fleet_role = var.spot_fleet_role_arn
     security_group_ids  = var.security_group_ids

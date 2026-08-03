@@ -5983,3 +5983,43 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** No Terraform apply, Batch submission, GPU/Spot allocation,
   model download, benchmark, pilot, experiment, qualification run, unblind,
   or scientific result occurred. The saved plan remains in `/tmp` only.
+
+### EJ-20260803-dual-l40s-qualification-002-account-plan
+
+- **Topology repair:** The qualification-only Terraform stack now omits the
+  custom `image_id` binding and the `ami_id` variable. The planned compute
+  resource reports `image_id: null`, which leaves AMI selection to the AWS
+  Batch-managed GPU/ECS path; the CPU builder AMI is not bound. Focused tests
+  and the qualification contract documentation assert this boundary. The
+  main experiment Terraform stack was not changed.
+- **Plan:** A fresh ignored mode-600 `qualification.auto.tfvars` bound action
+  `dual-l40s-qualification-002`, fixture-only code, the exact immutable worker
+  image digest, all four discovered subnets, the existing zero-ingress
+  security group, and a unique action-scoped S3 output prefix. The saved-plan
+  bytes are SHA-256
+  `d9cb20a90cefed2e288f044da5029ec3bc5534a6ad78a8dc5a5bbb61209b7a31`;
+  `terraform show -json` SHA-256 is
+  `0d4702bd1364daa13271aa6aa6378b819daf871766ab38b4f779e1f9bf9a2873`.
+  The real plan has exactly four `create` actions:
+  `aws_batch_compute_environment.qualification`,
+  `aws_launch_template.qualification`,
+  `aws_batch_job_queue.qualification`, and
+  `aws_batch_job_definition.worker`; no command override or other resource
+  action is planned.
+- **Provider readbacks:** Account `892077329800`, VPC
+  `vpc-0baeaefeb8b57c19b`, and the subnet map were verified as
+  `us-east-1a:subnet-0da0658f2703d3e58`,
+  `us-east-1b:subnet-0fb70ec94971ee036`,
+  `us-east-1c:subnet-06bfd2d42e292f160`, and
+  `us-east-1d:subnet-0ef225f27b1e1f095`; all were `available` with 4,091
+  available IPs. Every offered `g6e.2xlarge` AZ is covered. The retained
+  `sg-02a6d8fb9c26477eb` is in the same VPC and has zero ingress rules. The
+  16 G/VT Spot-vCPU quota, all four offerings, existing IAM role/profile, and
+  exact ACTIVE ECR digest matched the plan. The sanitized receipt is
+  `evidence/dual-l40s-qualification-002-account-plan-receipt-20260803.json`
+  with SHA-256
+  `cc69ec029102cbfee61c87e22c655420d5fbf4ba2e70a237567ab7f27ec01a1f`.
+- **Boundary:** This was read-only planning and provider verification only.
+  No Terraform apply, Batch submission, GPU/Spot allocation, model download,
+  benchmark, pilot, experiment, qualification run, unblind, or scientific
+  result occurred. The fresh saved plan remains in `/tmp` only.
