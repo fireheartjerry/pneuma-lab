@@ -105,6 +105,20 @@ def test_ephemeral_plan_guard_names_exactly_four_owned_resources() -> None:
     assert len(addresses) == 4
 
 
+def test_ephemeral_qualification_uses_shared_encrypted_s3_state_lock() -> None:
+    qualification_root = ROOT / "infra" / "terraform" / "qualification"
+    backend = (qualification_root / "backend.tf").read_text()
+    main = (qualification_root / "main.tf").read_text()
+    assert 'required_version = ">= 1.10.0"' in backend
+    assert 'backend "s3"' in backend
+    assert 'bucket       = "pneuma-phase-b-892077329800"' in backend
+    assert 'key          = "terraform/qualification/dual-l40s.tfstate"' in backend
+    assert 'region       = "us-east-1"' in backend
+    assert "encrypt      = true" in backend
+    assert "use_lockfile = true" in backend
+    assert 'required_version = ">= 1.6.0"' not in main
+
+
 def test_image_and_batch_command_bind_fixed_probe_and_distinct_outputs() -> None:
     dockerfile = (ROOT / "infra/docker/qualification-worker/Dockerfile").read_text()
     hcl = (ROOT / "infra/terraform/qualification/main.tf").read_text()

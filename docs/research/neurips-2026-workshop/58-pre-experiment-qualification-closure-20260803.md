@@ -229,6 +229,17 @@ fallback. The negative mismatch regression and bounded cloud/static checks
 pass. This repair created no AWS resources, spend, action, authority package,
 or ledger reservation; action-011 remains exhausted.
 
+## Shared Terraform locking and Step 14 gate hardening
+
+The qualification stack now uses the existing verified artifact bucket as an
+encrypted S3 backend with a fixed state key and Terraform-native
+`use_lockfile` locking, with Terraform 1.10.0 as the minimum supported version.
+This makes the locked apply/destroy contract serialize across operator hosts,
+not only within one checkout. A new Step 14 regression proves the spec builder
+returns a nonzero result when a required production execution-surface receipt
+is absent. These are source-only repairs; live backend initialization was not
+performed, no AWS spend or mutation occurred, and action-011 remains exhausted.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any

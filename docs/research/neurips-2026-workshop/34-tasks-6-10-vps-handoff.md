@@ -1206,3 +1206,10 @@ subnet and security-group lists to equal the corresponding Terraform variables
 exactly. Its mismatch regression and bounded validation checks pass. No AWS
 mutation or spend occurred, and this does not change the exhausted action-011
 no-go or the official-study boundary.
+
+The qualification stack now also binds its state to the existing verified
+artifact bucket through an encrypted S3 backend with Terraform-native
+`use_lockfile` locking; the minimum Terraform version is 1.10.0. The Step 14
+spec builder has a runtime missing-receipt regression, so an absent production
+execution-surface receipt is proven to remain fail-closed. These changes are
+source-only and do not advance Tasks 6–10 or authorize official execution.

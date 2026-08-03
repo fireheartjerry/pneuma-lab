@@ -6610,3 +6610,18 @@ post-launch terminal no-go. Tasks 6–10 remain
   was source-only work: no AWS mutation or spend occurred, action-011 was not
   retried, and no scientific workload or claim promotion occurred. No new
   action or ledger reservation was created.
+
+### EJ-20260803-dual-l40s-shared-terraform-lock-and-step14-gate-hardening
+
+- **Terraform locking repair:** The qualification stack now declares the
+  existing verified artifact bucket as an encrypted S3 backend with a fixed
+  qualification state key and Terraform-native `use_lockfile` locking. Its
+  minimum Terraform version is 1.10.0, and the existing apply/destroy
+  `-lock-timeout=60s` contract remains required. This closes the cross-host
+  state-race gap left by a local-only lock file.
+- **Release regression:** Step 14 now has a runtime test that constructs a
+  temporary declared-input set with one production execution-surface receipt
+  absent and proves the spec builder returns code 2 while naming the missing
+  path. The focused IaC/Step14 tests, Ruff, Terraform format, backend-disabled
+  init, and validation pass. No backend was initialized against AWS, no spend
+  or provider mutation occurred, and no scientific work was run.

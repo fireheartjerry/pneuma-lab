@@ -112,6 +112,14 @@ bounded cloud/static checks pass. This was source-only closure work with no AWS
 mutation, spend, new action, or ledger reservation; the action-011 no-go is
 unchanged.
 
+## Shared Terraform locking and Step 14 gate hardening
+
+The qualification stack now declares encrypted S3 state with Terraform-native
+`use_lockfile` locking and retains the 60-second lock timeout on apply and
+destroy. The Step 14 spec-builder test now executes the missing-receipt path and
+proves it fails closed. Backend initialization was not run against AWS; no
+provider mutation, spend, new action, or scientific workload occurred.
+
 ## Remaining gates before official P0 / Step 4B
 
 1. The dual-L40S qualification is not passed; action-011 is exhausted. No
