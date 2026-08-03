@@ -71,6 +71,14 @@ The retained qualification image receipt must also have the registered image
 build record identity, canonical self-digest, and fresh builder-absence proof;
 field-level matches alone are not sufficient for a future action.
 
+The runner's generic result surface does not treat the requested submit shape
+as proof of exactly one provider submission: `submit_count_proven` remains
+unproven until the concrete CloudTrail check supplies the sole matching
+`SubmitJob` event. If post-submit absence validation fails, the typed terminal
+error retains the complete lifecycle context for forensic review. Malformed or
+non-finite authority projection values are also rejected as typed manifest
+errors. These are source-only repairs; action-011 remains exhausted.
+
 Future Terraform mutations must use state locking with a bounded lock timeout;
 `-lock=false` is forbidden. The runner verifies the signed preparation
 envelope/action admission and the four-resource account plan before calling

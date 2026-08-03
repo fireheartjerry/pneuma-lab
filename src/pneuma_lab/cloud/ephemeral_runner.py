@@ -1717,7 +1717,10 @@ def execute(
     iam_simulation: Mapping[str, Any] | None = None
     kms_verification: Mapping[str, Any] | None = None
     launch: dict[str, Any] = {
-        "submit_count_proven": 1,
+        # A requested submit contract is not proof of exactly one provider
+        # submission. The concrete receipt path replaces this sentinel with
+        # the live CloudTrail result before a receipt can be built.
+        "submit_count_proven": 0,
         "array_size": 2,
         "retry_attempts": 1,
     }
@@ -1859,7 +1862,29 @@ def execute(
         raise QualificationExecutionError(
             "qualification teardown absence failed closed", context=context
         ) from exc
-    _require_complete_provider_absence(absence, phase="teardown")
+    try:
+        _require_complete_provider_absence(absence, phase="teardown")
+    except Exception as exc:
+        context = {
+            "plan": dict(parsed_plan),
+            "authority": authority_result,
+            "projected_cost_usd": projected,
+            "preflight": preflight,
+            "ready": ready,
+            "parent_job_id": parent_job_id,
+            "evidence": evidence,
+            "recovery": recovery,
+            "iam_simulation": iam_simulation,
+            "kms_verification": kms_verification,
+            "launch": launch,
+            "failure": failure,
+            "cleanup_failure": cleanup_failure,
+            "absence": absence,
+        }
+        raise QualificationExecutionError(
+            "qualification teardown absence validation failed closed",
+            context=context,
+        ) from exc
     context = {
         "plan": dict(parsed_plan),
         "authority": authority_result,

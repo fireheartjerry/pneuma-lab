@@ -6694,3 +6694,26 @@ post-launch terminal no-go. Tasks 6–10 remain
   CPU-only fixture check passes. Graphify was refreshed. No AWS mutation,
   action-011 retry, new launch, scientific workload, unblind, analysis, or
   claim promotion occurred.
+
+### EJ-20260803-receipt-and-terminal-context-hardening
+
+- **Authority validation repair:** Missing, boolean, non-finite, or otherwise
+  malformed qualification projection values now produce the typed
+  `CloudManifestError` before package/receipt comparison. The authority path
+  no longer leaks a raw `TypeError` from `float(None)` or accepts a non-finite
+  numeric sentinel.
+- **Teardown evidence repair:** If provider absence readback returns but fails
+  the complete absence contract, the runner now raises a
+  `QualificationExecutionError` retaining the post-submit plan, launch,
+  admission, IAM, KMS, recovery, cleanup, and raw absence context. A failed
+  absence validator cannot erase the forensic state needed for the terminal
+  no-go review.
+- **Exactly-once claim repair:** The generic injected runner now marks
+  `submit_count_proven` as unproven until live CloudTrail evidence replaces
+  the sentinel. The concrete qualification configuration still requires and
+  validates the single CloudTrail `SubmitJob` event before any receipt is
+  built.
+- **Verification/boundary:** Focused runner/receipt tests and Ruff pass. No
+  AWS mutation, action-011 retry, new launch, spend, scientific workload,
+  unblind, analysis, or claim promotion occurred; no new ledger row was
+  created.

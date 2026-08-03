@@ -1207,6 +1207,13 @@ exactly. Its mismatch regression and bounded validation checks pass. No AWS
 mutation or spend occurred, and this does not change the exhausted action-011
 no-go or the official-study boundary.
 
+The latest receipt/runner repair makes malformed or non-finite projection
+values typed failures, retains the full post-submit context when teardown
+absence validation itself fails, and does not treat an unverified generic
+submit-count sentinel as proven until CloudTrail evidence is captured.
+Focused runner/receipt tests and Ruff pass; no new action, ledger row, AWS
+mutation, qualification launch, or scientific workload occurred.
+
 The qualification stack now also binds its state to the existing verified
 artifact bucket through an encrypted S3 backend with Terraform-native
 `use_lockfile` locking; the minimum Terraform version is 1.10.0. The Step 14

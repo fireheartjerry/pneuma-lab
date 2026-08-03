@@ -159,6 +159,13 @@ whose bytes remain unchanged through locked apply and destroy. These checks
 are covered by focused regressions; they do not alter the terminal action-011
 no-go or authorize another launch.
 
+The latest source-only repair makes malformed or non-finite authority
+projections typed failures, preserves the full post-submit context when
+teardown absence validation fails, and prevents the generic runner from
+claiming an exactly-once submission before CloudTrail evidence is captured.
+Focused regressions pass. No new action, spend-ledger row, AWS mutation, or
+scientific workload was created.
+
 The saved-plan path is now required to be a regular file and is normalized to
 an absolute path before Terraform `-chdir` execution.
 

@@ -178,6 +178,20 @@ def test_validate_authority_evidence_rechecks_complete_package_binding() -> None
             projected_cost_usd=4.48,
         )
 
+    missing_projection = deepcopy(authority)
+    missing_projection.pop("projected_cost_usd")
+    with pytest.raises(CloudManifestError, match="authority projection"):
+        validate_authority_evidence(
+            missing_projection,
+            package_bytes=package_bytes,
+            envelope=envelope,
+            admission=admission,
+            action_id="dual-l40s-qualification-012",
+            region="us-east-1",
+            plan=plan,
+            projected_cost_usd=4.48,
+        )
+
 
 def test_current_terminal_no_go_receipt_is_schema_bound() -> None:
     record = json.loads(RECEIPT.read_text(encoding="utf-8"))

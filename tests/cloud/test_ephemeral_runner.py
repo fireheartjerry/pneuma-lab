@@ -441,6 +441,7 @@ def test_runner_verifies_real_plan_and_executes_exact_two_children() -> None:
         verify_authority=authority,
     )
     assert result["qualification_only"] is True
+    assert result["launch"]["submit_count_proven"] == 0
     assert provider.calls == [
         "pricing",
         "preflight",
@@ -483,7 +484,10 @@ def test_runner_rejects_nonempty_output_prefix_after_teardown() -> None:
         return proof
 
     provider.verify_absence = nonempty_absence  # type: ignore[method-assign]
-    with pytest.raises(CloudManifestError, match="output prefix is not empty"):
+    with pytest.raises(
+        QualificationExecutionError,
+        match="absence validation failed closed",
+    ) as raised:
         execute(
             RunnerConfig("qual-1", "us-east-1"),
             envelope={},
@@ -495,6 +499,40 @@ def test_runner_rejects_nonempty_output_prefix_after_teardown() -> None:
             terraform=terraform,
             verify_authority=authority,
         )
+    assert raised.value.context["absence"]["artifact_prefix"] == {
+        "empty": False,
+        "object_count": 1,
+    }
+    assert terraform.calls == ["apply:60s", "destroy:60s"]
+
+
+def test_runner_retains_context_when_absence_validation_fails() -> None:
+    provider, terraform = FakeProvider(), FakeTerraform()
+
+    def incomplete_absence(tags):
+        provider.calls.append("absence")
+        return {"jobs": True}
+
+    provider.verify_absence = incomplete_absence  # type: ignore[method-assign]
+    with pytest.raises(
+        QualificationExecutionError,
+        match="absence validation failed closed",
+    ) as raised:
+        execute(
+            RunnerConfig("qual-1", "us-east-1"),
+            envelope={},
+            admission={},
+            key_registry={},
+            ledger_path=LEDGER,
+            account_plan=terraform_show(),
+            provider=provider,
+            terraform=terraform,
+            verify_authority=authority,
+        )
+    context = raised.value.context
+    assert context["parent_job_id"] == "parent"
+    assert context["evidence"]["parent_status"] == "SUCCEEDED"
+    assert context["absence"] == {"jobs": True}
     assert terraform.calls == ["apply:60s", "destroy:60s"]
 
 

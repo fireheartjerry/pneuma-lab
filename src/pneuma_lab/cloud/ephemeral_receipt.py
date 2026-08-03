@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 import hashlib
 import json
+import math
 from typing import Any
 
 from .authorization_keys import authorization_body_digest
@@ -38,6 +39,18 @@ def _hash_identifier(value: Any, *, field: str) -> str:
     if not isinstance(value, str) or not value:
         raise CloudManifestError(f"{field} must be a nonempty identifier")
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _finite_number(value: Any, *, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise CloudManifestError(f"{field} must be a finite number")
+    try:
+        number = float(value)
+    except (OverflowError, ValueError) as exc:
+        raise CloudManifestError(f"{field} must be a finite number") from exc
+    if not math.isfinite(number):
+        raise CloudManifestError(f"{field} must be a finite number")
+    return number
 
 
 def _signature_digest(record: Mapping[str, Any], *, field: str) -> str:
@@ -88,12 +101,18 @@ def _validate_qualification_package_binding(
         raise CloudManifestError("qualification package image differs from the plan")
     if authority.get("image_digest") != image_digest:
         raise CloudManifestError("authority image digest differs from the plan")
-    binding_projection = binding.get("projected_cost_usd")
-    if (
-        not isinstance(binding_projection, (int, float))
-        or isinstance(binding_projection, bool)
-        or float(binding_projection) != float(projected_cost_usd)
-    ):
+    expected_projection = _finite_number(
+        projected_cost_usd, field="qualification projection"
+    )
+    try:
+        binding_projection = _finite_number(
+            binding.get("projected_cost_usd"), field="package projection"
+        )
+    except CloudManifestError as exc:
+        raise CloudManifestError(
+            "qualification package projection differs from execution"
+        ) from exc
+    if binding_projection != expected_projection:
         raise CloudManifestError("qualification package projection differs from execution")
     if binding.get("projected_cost_usd") != authority.get("projected_cost_usd"):
         raise CloudManifestError("qualification package projection differs from authority")
@@ -195,7 +214,13 @@ def validate_authority_evidence(
     image_digest = image.rsplit("@", 1)[1]
     if authority.get("image_digest") != image_digest:
         raise CloudManifestError("authority image digest differs from the execution plan")
-    if float(authority.get("projected_cost_usd")) != float(projected_cost_usd):
+    authority_projection = _finite_number(
+        authority.get("projected_cost_usd"), field="authority projection"
+    )
+    execution_projection = _finite_number(
+        projected_cost_usd, field="execution projection"
+    )
+    if authority_projection != execution_projection:
         raise CloudManifestError("authority projection differs from the execution projection")
     if authority.get("max_retries") != 0:
         raise CloudManifestError("authority receipt permits retries")
@@ -376,6 +401,9 @@ def build_ephemeral_qualification_receipt(
     failure = context.get("failure")
     cleanup_failure = context.get("cleanup_failure")
     status = "passed" if failure is None and cleanup_failure is None else "no_go"
+    projected_cost_usd = _finite_number(
+        context.get("projected_cost_usd"), field="qualification projection"
+    )
     image = plan.get("image") or plan.get("gpu_worker_image")
     if not isinstance(image, str) or "@sha256:" not in image:
         raise CloudManifestError("execution context lacks an immutable image")
@@ -549,8 +577,8 @@ def build_ephemeral_qualification_receipt(
             "instance_type": "g6e.2xlarge",
             "worker_count": 2,
             "worker_seconds_ceiling": 3600,
-            "projected_cost_usd": float(context.get("projected_cost_usd")),
-            "strictly_below_usd_100": float(context.get("projected_cost_usd")) < 100,
+            "projected_cost_usd": projected_cost_usd,
+            "strictly_below_usd_100": projected_cost_usd < 100,
             "observed_worker_duration_seconds": durations,
             "observed_worker_duration_note": (
                 "No worker reached STARTING/RUNNING; both children had zero attempts."

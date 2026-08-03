@@ -286,6 +286,18 @@ absence proof. A tampered-receipt regression passes, and the historical
 action-011 image receipt remains valid only for its old source commit; it is
 still rejected for the current checkout.
 
+## Receipt and terminal-context hardening
+
+The future authority/receipt path now rejects missing, boolean, non-finite, or
+malformed projection values with typed cloud errors. The runner also retains
+the complete post-submit execution context when provider absence validation
+returns a record that fails the teardown contract, instead of emitting only a
+bare validation exception. Its generic result surface leaves
+`submit_count_proven` unproven until the concrete CloudTrail check captures the
+single matching submission; the concrete receipt path requires that live
+evidence. Focused runner/receipt regressions and Ruff pass. No AWS mutation,
+new action, ledger row, relaunch, or scientific workload occurred.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any
