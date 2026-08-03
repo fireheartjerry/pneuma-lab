@@ -1264,6 +1264,14 @@ def test_qualification_subnet_and_security_group_variables_bind_compute_resource
     candidate["variables"]["subnet_ids"]["value"] = list(
         reversed(candidate["variables"]["subnet_ids"]["value"])
     )
+    parsed = parse_terraform_show(candidate)
+    assert set(parsed["subnet_ids"]) == set(
+        candidate["variables"]["subnet_ids"]["value"]
+    )
+
+    candidate["variables"]["subnet_ids"]["value"][-1] = candidate[
+        "variables"
+    ]["subnet_ids"]["value"][0]
     with pytest.raises(CloudManifestError, match="subnets differ"):
         parse_terraform_show(candidate)
 

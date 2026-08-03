@@ -1673,7 +1673,11 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
     variable_security_groups = variable("security_group_ids")
     planned_subnets = resources.get("subnets")
     planned_security_groups = resources.get("security_group_ids")
-    if planned_subnets != variable_subnets:
+    if (
+        not isinstance(planned_subnets, list)
+        or not isinstance(variable_subnets, list)
+        or sorted(planned_subnets) != sorted(variable_subnets)
+    ):
         raise CloudManifestError(
             "planned compute-resource subnets differ from the Terraform subnet_ids variable"
         )
