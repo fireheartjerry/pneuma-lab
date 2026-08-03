@@ -1,0 +1,79 @@
+{
+  "record_kind": "cloud_qualification_image_build_receipt",
+  "schema_version": "0.1.0",
+  "receipt_sha256": "34fe729347c13ff9838f3a4ce0515fe2c0181db0fddc6c31a1c70f323aef089b",
+  "action_id": "qualification-image-build-006",
+  "action_class": "image_build",
+  "status": "FAILED",
+  "provider": "aws",
+  "account_id": "892077329800",
+  "region": "us-east-1",
+  "authority": {
+    "plan_sha256": "46ef1912e33e65e0e8e768656d58771d634199a280a2547be9bcbeee8d5262c8",
+    "signing_package_sha256": "03d43c6df925c2a276cd27f4b94cede130ca55b97f4cb64330001f5568d4ab35",
+    "envelope_ledger_row": "CL-261",
+    "admission_ledger_row": "CL-262",
+    "max_retries": 0
+  },
+  "source": {
+    "planned_commit": "c53044b3d3f60502526011fe2b8fe2ee0906d657",
+    "actual_repair_commit": "c53044b04677dd52a5b4f46b8b5209211bca6795",
+    "archive_uri": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-006/source.tar",
+    "archive_sha256": "aed70d319f8fd90a550dad024108d7aa63a361fc90a874358787a14bdf8514e6",
+    "archive_size_bytes": 29900800,
+    "dockerfile": "infra/docker/qualification-worker/Dockerfile",
+    "dockerfile_sha256": "3b970d926d34acd8225280a6cd0c520ce74f49a366030a71dfdfdda68cf56662",
+    "base_digest": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90",
+    "bootstrap_rendered_sha256": "6b9db08a825567990bca941b074c5cbb943bf957ac96c97cbc8b061f4ea58a74"
+  },
+  "target": {
+    "repository_uri": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker",
+    "image_tag": "qualification-image-build-006-c53044b",
+    "platform": "linux/amd64",
+    "ecr_image_digest": null,
+    "digest_rejected_for_runtime": true
+  },
+  "failure": {
+    "stage": "preflight",
+    "reason": "source_commit_not_found",
+    "error_class": "invalid_plan_binding",
+    "detail": "the plan recorded a 40-character source commit that is not a Git object; the actual repair commit differs",
+    "source_archive_upload": false,
+    "builder_launch": false,
+    "no_qualification_use": true
+  },
+  "local_checks": {
+    "plan_canonical_digest": "pass",
+    "signing_package_local_verification": "pass",
+    "source_commit_lookup": "fail",
+    "provider_mutation": "not_started"
+  },
+  "teardown": {
+    "builder": "not_created",
+    "root_volume": "not_created",
+    "security_group": "absent",
+    "instance_profile": "absent",
+    "iam_role": "absent",
+    "network_interfaces": [],
+    "source_object": "absent",
+    "ecr_tag": "absent",
+    "fresh_provider_absence": true
+  },
+  "cost": {
+    "projected_usd": 6.0,
+    "hard_ceiling_usd": 25.0,
+    "observed_builder_elapsed_seconds": 0,
+    "settled_cost": "none"
+  },
+  "forbidden_actions": [
+    "terraform",
+    "batch",
+    "gpu",
+    "spot",
+    "model_download",
+    "benchmark",
+    "pilot",
+    "experiment",
+    "qualification_run"
+  ]
+}

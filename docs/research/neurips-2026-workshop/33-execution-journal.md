@@ -6198,3 +6198,29 @@ The next event after the archived migration boundary is appended below.
   `/opt/schemas` and asserts the required worker-admission schema exists at
   build time. A fresh action 006, archive, package, builder, tag, and digest
   are required; action 005 will not be reused.
+
+### EJ-20260803-qualification-image-build-006-no-go
+
+- **Preflight failure:** Fresh action `qualification-image-build-006` was
+  bound to plan SHA-256
+  `46ef1912e33e65e0e8e768656d58771d634199a280a2547be9bcbeee8d5262c8` and
+  signed package SHA-256
+  `03d43c6df925c2a276cd27f4b94cede130ca55b97f4cb64330001f5568d4ab35`.
+  The plan recorded source commit
+  `c53044b3d3f60502526011fe2b8fe2ee0906d657`, but that Git object does not
+  exist; the actual source repair commit is
+  `c53044b04677dd52a5b4f46b8b5209211bca6795`.
+- **No mutation:** The preflight stopped before source upload, IAM/profile or
+  SG creation, builder launch, ECR push, Terraform, Batch, GPU, Spot, model,
+  benchmark, pilot, experiment, qualification run, or scientific action.
+  Action 006 is exhausted and will not be reused.
+- **Absence:** Fresh provider reads prove the action-006 S3 source object, ECR
+  tag, temporary profile/role, SG, instances, volumes, and ENIs absent. The
+  sanitized receipt is
+  `evidence/qualification-image-build-006-receipt-20260803.json` with
+  canonical SHA-256
+  `34fe729347c13ff9838f3a4ce0515fe2c0181db0fddc6c31a1c70f323aef089b`.
+- **Successor boundary:** Action 007 will bind the exact existing commit
+  `c53044b04677dd52a5b4f46b8b5209211bca6795`, a newly generated archive,
+  fresh plan/package/builder/tag, and the same CPU-only/zero-retry/mandatory
+  teardown contract.
