@@ -6505,3 +6505,14 @@ post-launch terminal no-go. Tasks 6–10 remain
   no AWS resource was created, action-011 was not retried, and no P0/Step 4B,
   benchmark/model workload, pilot, unblind, analysis, or claim promotion
   occurred.
+
+### EJ-20260803-dual-l40s-plan-show-consistency-hardening
+
+- **Repair:** The future runner now rejects any malformed or conflicting
+  top-level versus nested Terraform-show SHA-256 metadata before account-plan
+  acceptance. The locked apply path also treats a missing or malformed
+  re-read digest as an explicit `CloudManifestError`, then compares it with
+  the originally loaded raw-show bytes before applying.
+- **Validation/boundary:** Focused runner/IAM tests pass. No AWS command was
+  used for mutation, action-011 was not retried, and no scientific workload or
+  claim promotion occurred.

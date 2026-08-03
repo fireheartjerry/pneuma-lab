@@ -496,7 +496,17 @@ def test_missing_show_binding_fails_closed_with_cloud_error() -> None:
     candidate = terraform_show()
     candidate["terraform_show_sha256"] = "not-a-digest"
     candidate["_qualification"] = {"terraform_show_sha256": "also-not-a-digest"}
-    with pytest.raises(CloudManifestError, match="Terraform show SHA-256"):
+    with pytest.raises(CloudManifestError, match="invalid Terraform show SHA-256"):
+        require_account_plan(candidate, provider=ReadOnlyProvider())
+
+
+def test_conflicting_show_bindings_fail_closed_with_cloud_error() -> None:
+    candidate = terraform_show()
+    candidate["_qualification"] = {"terraform_show_sha256": "b" * 64}
+    with pytest.raises(
+        CloudManifestError,
+        match="conflicting Terraform show SHA-256",
+    ):
         require_account_plan(candidate, provider=ReadOnlyProvider())
 
 

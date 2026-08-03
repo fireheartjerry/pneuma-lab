@@ -138,6 +138,14 @@ dual-worker topology is now consistent in both permanent agent guides. Action
 011 remains exhausted; there was no relaunch, provider mutation, or scientific
 workload.
 
+## Plan/show consistency hardening
+
+The future qualification runner now fails closed on malformed or conflicting
+Terraform-show digest metadata, and the locked apply re-read reports an
+explicit cloud error before mutation if its raw-show digest is unavailable or
+invalid. A focused regression covers conflicting plan/show metadata. This is
+source-only hardening; action-011 remains exhausted and unchanged.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any

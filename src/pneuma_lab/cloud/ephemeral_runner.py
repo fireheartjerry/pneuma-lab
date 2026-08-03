@@ -299,7 +299,16 @@ class TerraformAdapter:
         if show_result.returncode != 0:
             raise CloudManifestError("terraform show failed before apply")
         current_show = parse_terraform_show_json(show_result.stdout)
-        if current_show["terraform_show_sha256"] != self.terraform_show_sha256:
+        current_show_sha256 = current_show.get("terraform_show_sha256")
+        if (
+            not isinstance(current_show_sha256, str)
+            or len(current_show_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in current_show_sha256
+            )
+            or current_show_sha256 != self.terraform_show_sha256
+        ):
             raise CloudManifestError(
                 "Terraform show bytes changed after plan review"
             )
@@ -1266,32 +1275,47 @@ def require_account_plan(
             "account plan lacks the exact saved Terraform plan SHA-256"
         )
     parsed["saved_plan_sha256"] = saved_plan_sha256
-    raw_show_sha256 = plan.get("terraform_show_sha256")
-    if not (
-        isinstance(raw_show_sha256, str)
-        and len(raw_show_sha256) == 64
-        and all(character in "0123456789abcdef" for character in raw_show_sha256)
-    ):
-        loaded_metadata = plan.get("_qualification")
-        candidate = (
-            loaded_metadata.get("terraform_show_sha256")
-            if isinstance(loaded_metadata, Mapping)
-            else None
+    top_level_show_sha256 = plan.get("terraform_show_sha256")
+    loaded_metadata = plan.get("_qualification")
+    nested_show_sha256 = (
+        loaded_metadata.get("terraform_show_sha256")
+        if isinstance(loaded_metadata, Mapping)
+        else None
+    )
+
+    def valid_sha256(value: Any) -> bool:
+        return isinstance(value, str) and len(value) == 64 and all(
+            character in "0123456789abcdef" for character in value
         )
-        if (
-            isinstance(candidate, str)
-            and len(candidate) == 64
-            and all(character in "0123456789abcdef" for character in candidate)
-        ):
-            raw_show_sha256 = candidate
-    if isinstance(raw_show_sha256, str) and len(raw_show_sha256) == 64 and all(
-        character in "0123456789abcdef" for character in raw_show_sha256
+
+    present_sources = [
+        value
+        for value in (top_level_show_sha256, nested_show_sha256)
+        if value is not None
+    ]
+    if any(not valid_sha256(value) for value in present_sources):
+        raise CloudManifestError(
+            "qualification plan contains an invalid Terraform show SHA-256"
+        )
+    if (
+        valid_sha256(top_level_show_sha256)
+        and valid_sha256(nested_show_sha256)
+        and top_level_show_sha256 != nested_show_sha256
     ):
-        parsed["terraform_show_sha256"] = raw_show_sha256
-    else:
+        raise CloudManifestError(
+            "qualification plan contains conflicting Terraform show SHA-256 "
+            "bindings"
+        )
+    raw_show_sha256 = (
+        top_level_show_sha256
+        if valid_sha256(top_level_show_sha256)
+        else nested_show_sha256
+    )
+    if not valid_sha256(raw_show_sha256):
         raise CloudManifestError(
             "qualification plan lacks the exact Terraform show SHA-256"
         )
+    parsed["terraform_show_sha256"] = raw_show_sha256
     parsed["terraform_plan_binding_sha256"] = terraform_plan_binding_digest(
         saved_plan_sha256, parsed["terraform_show_sha256"]
     )

@@ -84,6 +84,14 @@ worker role immediately before IAM simulation, failing closed on policy drift.
 The focused regression is green. This changes no sealed action-011 fact and
 authorizes no relaunch or official scientific work.
 
+## Plan/show consistency hardening
+
+The future qualification path now rejects malformed or conflicting top-level
+and nested Terraform-show SHA-256 metadata. Locked apply also reports an
+explicit typed failure if the reread raw-show digest is unavailable or invalid,
+before any mutation. The focused conflict regression is green. This is
+source-only hardening; action-011 remains exhausted and unchanged.
+
 ## Remaining gates before official P0 / Step 4B
 
 1. The dual-L40S qualification is not passed; action-011 is exhausted. No
