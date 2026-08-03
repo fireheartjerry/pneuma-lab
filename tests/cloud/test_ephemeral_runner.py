@@ -940,10 +940,21 @@ def test_ephemeral_plan_guard_rejects_unmanaged_or_custom_ami(
         parse_terraform_show(candidate)
 
 
-def test_ephemeral_plan_guard_requires_spot_fleet_role_binding() -> None:
+def test_ephemeral_plan_guard_allows_absent_optional_spot_fleet_role_binding() -> None:
     candidate = terraform_show()
     candidate["variables"]["spot_fleet_role_arn"]["value"] = None
-    with pytest.raises(CloudManifestError, match="Spot fleet role"):
+    candidate["planned_values"]["root_module"]["resources"][0]["values"][
+        "compute_resources"
+    ][0]["spot_iam_fleet_role"] = None
+    parsed = parse_terraform_show(candidate)
+    assert parsed["spot_fleet_role_arn"] is None
+    assert parsed["spot_fleet_role_name"] is None
+
+
+def test_ephemeral_plan_guard_rejects_unbound_spot_fleet_role() -> None:
+    candidate = terraform_show()
+    candidate["variables"]["spot_fleet_role_arn"]["value"] = None
+    with pytest.raises(CloudManifestError, match="spot_iam_fleet_role"):
         parse_terraform_show(candidate)
 
 

@@ -1887,11 +1887,18 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
 
     spot_fleet_role_arn = variable("spot_fleet_role_arn")
     planned_spot_role = resources.get("spot_iam_fleet_role")
-    spot_fleet_role_name = _iam_binding_name(
-        spot_fleet_role_arn,
-        kind="role",
-        field="Spot fleet role",
-    )
+    if spot_fleet_role_arn is None:
+        if planned_spot_role not in (None, ""):
+            raise CloudManifestError(
+                "planned spot_iam_fleet_role does not equal its Terraform role binding"
+            )
+        spot_fleet_role_name = None
+    else:
+        spot_fleet_role_name = _iam_binding_name(
+            spot_fleet_role_arn,
+            kind="role",
+            field="Spot fleet role",
+        )
     if planned_spot_role != spot_fleet_role_arn:
         raise CloudManifestError(
             "planned spot_iam_fleet_role does not equal its Terraform role ARN"
@@ -2112,11 +2119,18 @@ def verify_provider_bindings(
         plan.get("batch_service_role_name"),
         "Batch service role",
     )
-    spot_role = verify_role_binding(
-        plan.get("spot_fleet_role_arn"),
-        plan.get("spot_fleet_role_name"),
-        "Spot fleet role",
-    )
+    if plan.get("spot_fleet_role_arn") is None:
+        if plan.get("spot_fleet_role_name") is not None:
+            raise CloudManifestError(
+                "planned Spot fleet role name is present without its ARN"
+            )
+        spot_role = None
+    else:
+        spot_role = verify_role_binding(
+            plan.get("spot_fleet_role_arn"),
+            plan.get("spot_fleet_role_name"),
+            "Spot fleet role",
+        )
     subnets = adapter.describe_subnets(tuple(plan["subnet_ids"]))
     if len(plan["subnet_ids"]) != len(QUALIFICATION_AZS) or len(subnets) != len(QUALIFICATION_AZS):
         raise CloudManifestError("qualification must use exactly four subnets")
@@ -2156,7 +2170,11 @@ def verify_provider_bindings(
     return {
         "account_id": account_id,
         "role": dict(role),
-        "roles": [dict(role), service_role, spot_role],
+        "roles": [
+            dict(role),
+            service_role,
+            *([spot_role] if spot_role is not None else []),
+        ],
         "instance_profile": dict(profile),
         "vpc_id": observed_vpc,
         "service_role": service_role,
