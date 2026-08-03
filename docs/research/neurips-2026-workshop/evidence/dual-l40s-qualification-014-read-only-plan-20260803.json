@@ -1,0 +1,198 @@
+{
+  "account_id": "892077329800",
+  "action_class": "qualification_audit",
+  "action_id": "dual-l40s-qualification-014",
+  "bindings": {
+    "attached_worker_role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-worker",
+    "attached_worker_role_id": "AROA47M7TZWEMEZ327OGZ",
+    "batch_service_role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-batch-service",
+    "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+    "image_build_receipt_sha256": "0d6ea9d714855a93947459eab41186bd68ac5bb4e315b7118b76889b28e9a7ac",
+    "image_digest": "sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+    "image_runtime_tree_unchanged_since_source_commit": true,
+    "image_source_commit": "1e5cd5e226b67185b235c1cd63a861e9fadb6b51",
+    "input_hashes": {
+      "architecture": "b4f883bbe0215558e423fe8ff5a3a9829c83e311aa1fc4463e3867fb70416c18",
+      "authorization": "7a9edc175e5c711037f7d97ddf8b966db232badfcd95f5c4e120fc5551a12a1c",
+      "code": "db697473f809c5029caf16344c2ebf32abdcb07567e50c3afee1ffb0dd3c9342",
+      "image": "5c54cf16abc16af0fbe27083386c0dd7eed8dd57c01e692905e9515f1b6dfa8c",
+      "input_lock": "27dfaef6660ae84606cc40933f96121a7b8033c9570025930ffdba06fc69915a",
+      "protocol": "c6c257b374ca690ae753dfdeeeefb03ce65bf906bd57968900fb9a52180c9269"
+    },
+    "input_lock_sha256": "27dfaef6660ae84606cc40933f96121a7b8033c9570025930ffdba06fc69915a",
+    "instance_profile_arn": "arn:aws:iam::892077329800:instance-profile/pneuma-c160-worker",
+    "instance_profile_role_count": 1,
+    "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-014/outputs/",
+    "qualification_code": "fixture-only-qualification-code-014",
+    "qualification_model": "fixture-only-cuda",
+    "qualification_model_revision": "fixture-only-v1",
+    "security_group_id": "sg-02a6d8fb9c26477eb",
+    "security_group_ingress_rule_count": 0,
+    "spot_fleet_role_arn": null,
+    "subnet_az_map": [
+      {
+        "availability_zone": "us-east-1a",
+        "subnet_id": "subnet-0da0658f2703d3e58"
+      },
+      {
+        "availability_zone": "us-east-1b",
+        "subnet_id": "subnet-0fb70ec94971ee036"
+      },
+      {
+        "availability_zone": "us-east-1c",
+        "subnet_id": "subnet-06bfd2d42e292f160"
+      },
+      {
+        "availability_zone": "us-east-1d",
+        "subnet_id": "subnet-0ef225f27b1e1f095"
+      }
+    ],
+    "vpc_id": "vpc-0baeaefeb8b57c19b"
+  },
+  "iam": {
+    "all_expected_decisions_match": true,
+    "allowed": [
+      "input-read-protocol",
+      "input-read-architecture",
+      "input-read-authorization",
+      "input-read-image",
+      "input-read-input-lock",
+      "raw-write-worker-0",
+      "raw-write-worker-1"
+    ],
+    "check_count": 17,
+    "denied": [
+      "output-read-worker-0",
+      "output-read-worker-1",
+      "wrong-worker-output",
+      "other-action-input",
+      "unrelated-object",
+      "bucket-list",
+      "output-delete",
+      "output-abort",
+      "kms-decrypt",
+      "iam-policy-admin"
+    ],
+    "effective_policy_sha256": "75ecd4671f5d31fcc211210c775892f485c0d2c0f102a78d68f444bb71350d65",
+    "policy_inventory_sha256": "6e8858f026ff4bb6f61f6baebce18106ae9fb8cbed2b4d6eb9846b81b2ba3174",
+    "policy_source_role_arn_sha256": "2ea2fe8c81c71dc3eb8aa665a6d124ee5ec998f215f05a16c90355f561f5a8cf",
+    "resource_policy_present": false,
+    "resource_policy_sha256": null,
+    "simulation_matrix_sha256": "f169ce890ee2bbe8eb34d14c0eb3ad851916dd2cb244c15d0efe68987179f328"
+  },
+  "observed_at": "2026-08-03T23:15:39Z",
+  "offering_checks": [
+    {
+      "instance_type": "g6e.2xlarge",
+      "location": "us-east-1a"
+    },
+    {
+      "instance_type": "g6e.2xlarge",
+      "location": "us-east-1b"
+    },
+    {
+      "instance_type": "g6e.2xlarge",
+      "location": "us-east-1c"
+    },
+    {
+      "instance_type": "g6e.2xlarge",
+      "location": "us-east-1d"
+    }
+  ],
+  "plan": {
+    "approved_resource_addresses": [
+      "aws_batch_compute_environment.qualification",
+      "aws_launch_template.qualification",
+      "aws_batch_job_queue.qualification",
+      "aws_batch_job_definition.worker"
+    ],
+    "attempt_duration_seconds": 3600,
+    "command_override": false,
+    "custom_image_id": null,
+    "exactly_four_creates": true,
+    "execution_plan_sha256": "211202410440dc429a2ef9419695c6badcd2a57ec6a25fe92fe53f417011dcfd",
+    "instance_tag_binding": "dual-l40s-qualification-014",
+    "managed_gpu_ami_path": true,
+    "max_spot_vcpus": 16,
+    "no_other_resource_actions": true,
+    "retry_attempts": 1,
+    "saved_plan_path": "/tmp/pneuma-dual-l40s-qualification-014.tfplan",
+    "saved_plan_sha256": "88377c087f7b97f58c9b8ddb10ce51befba4f3a3deb569660afff93c517fc0d8",
+    "spot": true,
+    "terraform_plan_binding_sha256": "cdda8710163ad0d36437bae51ec01beb7ae7e003012aaf8685dec1477e68f5b5",
+    "terraform_show_sha256": "f6a5ef16788849d74ae7491dcc644941ec437f3ab35c5ca3ce3be68e602eb848",
+    "volume_tag_binding": "dual-l40s-qualification-014",
+    "worker_count": 2,
+    "worker_gpus": 1,
+    "worker_instance_type": "g6e.2xlarge",
+    "worker_memory_mib": 60000,
+    "worker_vcpus": 8
+  },
+  "projection_usd": 4.4842,
+  "provider": "aws",
+  "provider_checks": {
+    "batch_service_role_verified_separately": true,
+    "ecr_digest_verified": true,
+    "identity_verified": true,
+    "instance_profile_exactly_one_role_verified": true,
+    "offered_availability_zones": [
+      "us-east-1a",
+      "us-east-1b",
+      "us-east-1c",
+      "us-east-1d"
+    ],
+    "offered_instance_type": "g6e.2xlarge",
+    "profile_role_account_matches": true,
+    "projected_two_worker_3600_seconds_usd": 4.4842,
+    "projection_strictly_below_usd_100": true,
+    "provider_absence": {
+      "artifact_prefix_empty": true,
+      "compute_environment": true,
+      "inactive_job_definition_history_retained_by_aws": false,
+      "instances": true,
+      "job_definition": true,
+      "jobs": true,
+      "launch_template": true,
+      "network_interfaces": true,
+      "queue": true,
+      "security_group": true,
+      "volumes": true
+    },
+    "security_group_zero_ingress_verified": true,
+    "spot_price_max_usd_per_hour": 2.2421,
+    "spot_price_sample_count": 100,
+    "spot_quota_code": "L-3819A6DF",
+    "spot_vcpu_quota": 16.0,
+    "subnets_available_in_all_four_azs": true,
+    "vpc_and_subnets_match": true,
+    "worker_role_verified_separately": true
+  },
+  "qualification_only": true,
+  "quota_checks": [
+    {
+      "name": "Running On-Demand G and VT instances",
+      "quota_code": "L-DB2E81BA",
+      "value": 8.0
+    },
+    {
+      "name": "All G and VT Spot Instance Requests",
+      "quota_code": "L-3819A6DF",
+      "value": 16.0
+    }
+  ],
+  "record_kind": "cloud_qualification_read_only_plan",
+  "region": "us-east-1",
+  "schema_version": "0.1.0",
+  "scientific_boundary": {
+    "fixture_only": true,
+    "no_analysis": true,
+    "no_benchmark": true,
+    "no_claim_promotion": true,
+    "no_model_load": true,
+    "no_p0": true,
+    "no_pilot": true,
+    "no_step_4b": true,
+    "no_unblind": true
+  },
+  "status": "read_only_plan_passed"
+}

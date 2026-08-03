@@ -1,0 +1,82 @@
+{
+  "account_id": "892077329800",
+  "action_class": "qualification_audit",
+  "action_id": "dual-l40s-qualification-014",
+  "bindings": {
+    "action_id": "dual-l40s-qualification-014",
+    "iam_policy_sha256": "75ecd4671f5d31fcc211210c775892f485c0d2c0f102a78d68f444bb71350d65",
+    "image_digest": "sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+    "max_retries": 0,
+    "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-014/outputs/",
+    "projected_cost_usd": 4.4842,
+    "subnet_az_map": [
+      {
+        "availability_zone": "us-east-1a",
+        "subnet_id": "subnet-0da0658f2703d3e58"
+      },
+      {
+        "availability_zone": "us-east-1b",
+        "subnet_id": "subnet-0fb70ec94971ee036"
+      },
+      {
+        "availability_zone": "us-east-1c",
+        "subnet_id": "subnet-06bfd2d42e292f160"
+      },
+      {
+        "availability_zone": "us-east-1d",
+        "subnet_id": "subnet-0ef225f27b1e1f095"
+      }
+    ]
+  },
+  "cost_ceiling_usd": 100.0,
+  "iam_policy_sha256": "75ecd4671f5d31fcc211210c775892f485c0d2c0f102a78d68f444bb71350d65",
+  "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+  "input_lock_sha256": "27dfaef6660ae84606cc40933f96121a7b8033c9570025930ffdba06fc69915a",
+  "max_retries": 0,
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-014/outputs/",
+  "plan_sha256": "211202410440dc429a2ef9419695c6badcd2a57ec6a25fe92fe53f417011dcfd",
+  "projected_cost_usd": 4.4842,
+  "provider": "aws",
+  "qualification_code": "fixture-only-qualification-code-014",
+  "qualification_model": "fixture-only-cuda",
+  "qualification_model_revision": "fixture-only-v1",
+  "record_kind": "cloud_qualification_execution_plan",
+  "region": "us-east-1",
+  "saved_plan_path": "/tmp/pneuma-dual-l40s-qualification-014.tfplan",
+  "saved_plan_sha256": "88377c087f7b97f58c9b8ddb10ce51befba4f3a3deb569660afff93c517fc0d8",
+  "schema_version": "0.1.0",
+  "subnet_az_map": [
+    {
+      "availability_zone": "us-east-1a",
+      "subnet_id": "subnet-0da0658f2703d3e58"
+    },
+    {
+      "availability_zone": "us-east-1b",
+      "subnet_id": "subnet-0fb70ec94971ee036"
+    },
+    {
+      "availability_zone": "us-east-1c",
+      "subnet_id": "subnet-06bfd2d42e292f160"
+    },
+    {
+      "availability_zone": "us-east-1d",
+      "subnet_id": "subnet-0ef225f27b1e1f095"
+    }
+  ],
+  "terraform_directory": "infra/terraform/qualification",
+  "terraform_plan_binding_sha256": "cdda8710163ad0d36437bae51ec01beb7ae7e003012aaf8685dec1477e68f5b5",
+  "terraform_show_sha256": "f6a5ef16788849d74ae7491dcc644941ec437f3ab35c5ca3ce3be68e602eb848",
+  "worker_contract": {
+    "attempt_duration_seconds": 3600,
+    "attempts": 1,
+    "command_override": false,
+    "count": 2,
+    "gpus_per_worker": 1,
+    "instance_type": "g6e.2xlarge",
+    "managed_gpu_ami_path": true,
+    "max_spot_vcpus": 16,
+    "memory_mib_per_worker": 60000,
+    "spot": true,
+    "vcpus_per_worker": 8
+  }
+}
