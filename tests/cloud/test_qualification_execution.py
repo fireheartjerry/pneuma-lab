@@ -690,7 +690,9 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                     {
                         "address": "aws_batch_job_definition.gpu_worker",
                         "values": {
+                            "type": "container",
                             "name": "fixed-admission-001-worker",
+                            "platform_capabilities": ["EC2"],
                             "tags": {
                                 "QualificationCode": "signed-code",
                                 "QualificationAction": "fixed-admission-001",

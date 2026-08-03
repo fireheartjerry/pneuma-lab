@@ -133,6 +133,8 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                         "address": "aws_batch_job_definition.worker",
                         "values": {
                             "name": f"{action_id}-worker",
+                            "type": "container",
+                            "platform_capabilities": ["EC2"],
                             "tags": tags,
                             "timeout": [{"attempt_duration_seconds": 3600}],
                             "retry_strategy": [{"attempts": 1}],
@@ -783,6 +785,23 @@ def test_ephemeral_plan_guard_rejects_unmanaged_or_custom_ami(
         compute[field] = value
     else:
         compute["compute_resources"][0][field] = value
+    with pytest.raises(CloudManifestError, match=message):
+        parse_terraform_show(candidate)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("type", "multinode", "container job"),
+        ("platform_capabilities", None, "EC2-only"),
+    ],
+)
+def test_ephemeral_plan_guard_rejects_ambiguous_batch_job_definition(
+    field: str, value: object, message: str
+) -> None:
+    candidate = terraform_show()
+    values = candidate["planned_values"]["root_module"]["resources"][1]["values"]
+    values[field] = value
     with pytest.raises(CloudManifestError, match=message):
         parse_terraform_show(candidate)
 
@@ -1783,14 +1802,16 @@ def test_concrete_cli_adapter_accepts_only_two_succeeded_first_attempt_children(
     def failed_run(argv, **kwargs):
         payload = {"jobs": [{"jobId": "parent", "status": "SUCCEEDED"}]}
         if argv[argv.index("--jobs") + 1] != "parent":
+            requested = argv[argv.index("--jobs") + 1]
+            index = int(requested.rsplit(":", 1)[1])
             payload = {
                 "jobs": [
                     {
-                        "jobId": argv[argv.index("--jobs") + 1],
+                        "jobId": requested,
                         "status": "FAILED",
-                        "arrayProperties": {"index": 0},
+                        "arrayProperties": {"index": index},
                         "attempts": [{}],
-                        "container": {"instanceId": "i-0123456789abcdef0"},
+                        "container": {"instanceId": f"i-0123456789abcdef{index}"},
                     }
                 ]
             }
@@ -1806,6 +1827,134 @@ def test_concrete_cli_adapter_accepts_only_two_succeeded_first_attempt_children(
     )
     with pytest.raises(CloudManifestError, match="SUCCEEDED"):
         failed.collect_admission("parent")
+
+
+def test_concrete_cli_rejects_batch_child_id_drift() -> None:
+    def run(argv, **kwargs):
+        requested = argv[argv.index("--jobs") + 1]
+        if requested == "parent":
+            payload = {"jobs": [{"jobId": "parent", "status": "SUCCEEDED"}]}
+        else:
+            payload = {
+                "jobs": [
+                    {
+                        "jobId": "other-parent:0",
+                        "status": "SUCCEEDED",
+                        "arrayProperties": {"index": 0},
+                        "attempts": [{}],
+                    }
+                ]
+            }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(payload).encode(), b"")
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="q",
+        job_definition="d",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    with pytest.raises(BatchAdmissionError, match="wrong array child") as raised:
+        adapter.collect_admission("parent")
+    assert raised.value.children[0]["jobId"] == "other-parent:0"
+
+
+def test_concrete_cli_rejects_batch_child_index_drift() -> None:
+    def run(argv, **kwargs):
+        requested = argv[argv.index("--jobs") + 1]
+        if requested == "parent":
+            payload = {"jobs": [{"jobId": "parent", "status": "SUCCEEDED"}]}
+        else:
+            index = int(requested.rsplit(":", 1)[1])
+            payload = {
+                "jobs": [
+                    {
+                        "jobId": requested,
+                        "status": "SUCCEEDED",
+                        "arrayProperties": {"index": 1 - index},
+                        "attempts": [{}],
+                    }
+                ]
+            }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(payload).encode(), b"")
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="q",
+        job_definition="d",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    with pytest.raises(BatchAdmissionError, match="wrong array child index") as raised:
+        adapter.collect_admission("parent")
+    assert raised.value.children[0]["arrayProperties"]["index"] == 1
+
+
+def test_concrete_cli_retains_partial_artifact_context_on_retrieval_failure(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "input.json"
+    source.write_text("{}", encoding="utf-8")
+    measurements = {}
+    for index in (0, 1):
+        measurement = build_raw_measurement(
+            code="signed-code",
+            worker_index=index,
+            instance_id=f"i-0123456789abcdef{index}",
+            protocol_sha256="a" * 64,
+            architecture_sha256="b" * 64,
+            authorization_sha256="c" * 64,
+            image_sha256="d" * 64,
+            input_lock_sha256="e" * 64,
+            code_sha256="f" * 64,
+            input_paths=[source],
+            rungs=_rungs(),
+        )
+        measurements[worker_artifact_uri("s3://bucket/runs/qual-1", index)] = (
+            canonical_bytes(measurement) + b"\n"
+        )
+
+    class PartialObjects:
+        def get_object(self, bucket, key):
+            uri = f"s3://{bucket}/{key}"
+            if "/worker-1/" in uri:
+                raise RuntimeError("worker-1 object unavailable")
+            return measurements[uri]
+
+    def run(argv, **kwargs):
+        requested = argv[argv.index("--jobs") + 1]
+        if requested == "parent":
+            payload = {"jobs": [{"jobId": "parent", "status": "SUCCEEDED"}]}
+        else:
+            index = int(requested.rsplit(":", 1)[1])
+            payload = {
+                "jobs": [
+                    {
+                        "jobId": requested,
+                        "status": "SUCCEEDED",
+                        "arrayProperties": {"index": index},
+                        "attempts": [{}],
+                        "container": {"instanceId": f"i-0123456789abcdef{index}"},
+                    }
+                ]
+            }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(payload).encode(), b"")
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="q",
+        job_definition="d",
+        output_root="s3://bucket/runs/qual-1",
+        transport=PartialObjects(),
+    )
+    with pytest.raises(BatchAdmissionError, match="raw worker artifact retrieval") as raised:
+        adapter.collect_admission("parent")
+    assert raised.value.instance_ids == (
+        "i-0123456789abcdef0",
+        "i-0123456789abcdef1",
+    )
+    assert set(raised.value.raw_evidence) == {0}
 
 
 def test_concrete_cli_recovery_rejects_a_bare_describe_success() -> None:

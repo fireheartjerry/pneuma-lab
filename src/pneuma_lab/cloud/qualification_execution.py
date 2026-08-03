@@ -96,10 +96,16 @@ class BatchAdmissionError(CloudManifestError):
         *,
         parent: Mapping[str, Any],
         children: Sequence[Mapping[str, Any]],
+        raw_evidence: Mapping[int, bytes] | None = None,
+        instance_ids: Sequence[str] = (),
+        failure_kind: str = "batch_children_failed_before_execution",
     ) -> None:
         super().__init__(message)
         self.parent = dict(parent)
         self.children = tuple(dict(child) for child in children)
+        self.raw_evidence = dict(raw_evidence or {})
+        self.instance_ids = tuple(instance_ids)
+        self.failure_kind = failure_kind
 
 
 def terraform_plan_binding_digest(
@@ -1192,6 +1198,10 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         "aws_batch_job_definition.gpu_worker",
         "aws_batch_job_definition.worker",
     )
+    if job_definition.get("type") != "container":
+        raise CloudManifestError(
+            "planned qualification job definition must be a container job"
+        )
     container = _json_object(
         job_definition.get("container_properties"), field="container_properties"
     )
@@ -1315,7 +1325,7 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         raise CloudManifestError(
             "planned job definition resource requirements differ from the fixed worker contract"
         )
-    if job_definition.get("platform_capabilities") not in (None, ["EC2"]):
+    if job_definition.get("platform_capabilities") != ["EC2"]:
         raise CloudManifestError("planned qualification job is not EC2-only")
     timeout = job_definition.get("timeout")
     if timeout != [{"attempt_duration_seconds": 3600}]:

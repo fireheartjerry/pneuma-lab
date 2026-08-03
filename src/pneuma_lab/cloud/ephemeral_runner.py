@@ -1026,11 +1026,14 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "--tags",
             json.dumps(dict(tags), sort_keys=True),
         )
-        self.parent_job_id = data.get("jobId")
-        if not self.parent_job_id:
+        if not isinstance(data, Mapping):
+            raise CloudManifestError("Batch submit returned a non-object response")
+        parent_job_id = data.get("jobId")
+        if not isinstance(parent_job_id, str) or not parent_job_id:
             raise CloudManifestError("Batch submit omitted parent job id")
+        self.parent_job_id = parent_job_id
         self._last_submit_tags = dict(tags)
-        return self.parent_job_id
+        return parent_job_id
 
     def capture_submit_evidence(self, parent_job_id: str) -> Mapping[str, Any]:
         """Capture exactly one CloudTrail SubmitJob event for this parent."""
@@ -1158,6 +1161,8 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         }
 
     def collect_admission(self, parent_job_id: str) -> Mapping[str, Any]:
+        if not isinstance(parent_job_id, str) or not parent_job_id:
+            raise CloudManifestError("Batch admission requires a nonempty parent job id")
         deadline = time.monotonic() + 3600
         while True:
             parent_response = self._call(
@@ -1168,9 +1173,24 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                 raise CloudManifestError(
                     "Batch describe-jobs did not return exactly one array parent"
                 )
+            if not isinstance(parent_rows[0], Mapping):
+                raise BatchAdmissionError(
+                    "Batch describe-jobs returned a non-object array parent",
+                    parent={},
+                    children=(),
+                    failure_kind="batch_admission_observation_invalid",
+                )
             parent = dict(parent_rows[0])
+            if parent.get("jobId") != parent_job_id:
+                raise BatchAdmissionError(
+                    "Batch describe-jobs returned the wrong array parent",
+                    parent=parent,
+                    children=(),
+                    failure_kind="batch_identity_binding_failure",
+                )
             children: list[dict[str, Any]] = []
             for index in (0, 1):
+                expected_child_id = f"{parent_job_id}:{index}"
                 detail = self._call(
                     "batch", "describe-jobs", "--jobs", f"{parent_job_id}:{index}"
                 )
@@ -1179,7 +1199,30 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                     raise CloudManifestError(
                         "Batch describe-jobs did not return exactly one array child"
                     )
-                children.append(dict(rows[0]))
+                if not isinstance(rows[0], Mapping):
+                    raise BatchAdmissionError(
+                        "Batch describe-jobs returned a non-object array child",
+                        parent=parent,
+                        children=children,
+                        failure_kind="batch_admission_observation_invalid",
+                    )
+                child = dict(rows[0])
+                if child.get("jobId") != expected_child_id:
+                    raise BatchAdmissionError(
+                        "Batch describe-jobs returned the wrong array child",
+                        parent=parent,
+                        children=(*children, child),
+                        failure_kind="batch_identity_binding_failure",
+                    )
+                array = child.get("arrayProperties") or {}
+                if not isinstance(array, Mapping) or array.get("index") != index:
+                    raise BatchAdmissionError(
+                        "Batch describe-jobs returned the wrong array child index",
+                        parent=parent,
+                        children=(*children, child),
+                        failure_kind="batch_identity_binding_failure",
+                    )
+                children.append(child)
             if parent.get("status") == "FAILED" or any(
                 child.get("status") == "FAILED" for child in children
             ):
@@ -1200,31 +1243,74 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                     "qualification array did not reach terminal success"
                 )
             time.sleep(5)
-        first, second = require_two_succeeded_children(
+        require_two_succeeded_children(
             children, parent_status=parent.get("status")
         )
-        raw = {
-            index: retrieve_raw_measurement(
-                self,
-                artifact_prefix=self.output_root,
-                worker_index=index,
-            )
-            for index in (0, 1)
-        }
-        instance_ids: list[str] = []
+        instance_ids_by_index: dict[int, str] = {}
         for child in children:
+            array = child.get("arrayProperties") or {}
+            index = array.get("index") if isinstance(array, Mapping) else None
             instance_id = (child.get("container") or {}).get("instanceId")
+            if type(index) is not int or index not in (0, 1):
+                raise BatchAdmissionError(
+                    "worker identity lacks a valid array index",
+                    parent=parent,
+                    children=children,
+                    failure_kind="worker_identity_binding_failure",
+                )
             if not isinstance(instance_id, str) or not instance_id:
-                raise CloudManifestError("worker identity missing from Batch detail")
-            instance_ids.append(instance_id)
+                raise BatchAdmissionError(
+                    "worker identity missing from Batch detail",
+                    parent=parent,
+                    children=children,
+                    failure_kind="worker_identity_binding_failure",
+                )
+            if index in instance_ids_by_index:
+                raise BatchAdmissionError(
+                    "worker identity repeats an array index",
+                    parent=parent,
+                    children=children,
+                    failure_kind="worker_identity_binding_failure",
+                )
+            instance_ids_by_index[index] = instance_id
+        if set(instance_ids_by_index) != {0, 1}:
+            raise BatchAdmissionError(
+                "worker identities do not cover both array indexes",
+                parent=parent,
+                children=children,
+                failure_kind="worker_identity_binding_failure",
+            )
+        instance_ids = (
+            instance_ids_by_index[0],
+            instance_ids_by_index[1],
+        )
+        raw: dict[int, bytes] = {}
+        for index in (0, 1):
+            try:
+                raw[index] = retrieve_raw_measurement(
+                    self,
+                    artifact_prefix=self.output_root,
+                    worker_index=index,
+                )
+            except Exception as exc:
+                raise BatchAdmissionError(
+                    "raw worker artifact retrieval failed",
+                    parent=parent,
+                    children=children,
+                    raw_evidence=raw,
+                    instance_ids=instance_ids,
+                    failure_kind="raw_artifact_retrieval_failure",
+                ) from exc
         return {
             "parent_status": parent.get("status"),
             "children": tuple(children),
-            "instance_ids": tuple(instance_ids),
+            "instance_ids": instance_ids,
             "raw_evidence": raw,
         }
 
     def run_partition_recovery(self, parent_job_id: str) -> Mapping[str, Any]:
+        if not isinstance(parent_job_id, str) or not parent_job_id:
+            raise CloudManifestError("recovery requires a nonempty parent job id")
         parent_response = self._call("batch", "describe-jobs", "--jobs", parent_job_id)
         parent_rows = parent_response.get("jobs", [])
         if not isinstance(parent_rows, list) or len(parent_rows) != 1:
@@ -1232,6 +1318,8 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                 "recovery requires exactly one described array parent"
             )
         parent = parent_rows[0]
+        if not isinstance(parent, Mapping) or parent.get("jobId") != parent_job_id:
+            raise CloudManifestError("recovery returned the wrong array parent")
         if parent.get("status") != "SUCCEEDED":
             raise CloudManifestError("recovery requires a completed array parent")
         child_ids = [f"{parent_job_id}:0", f"{parent_job_id}:1"]
@@ -1418,8 +1506,15 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             # Batch retains terminal job history after completion.  Teardown
             # proves that no submitted job remains runnable, not that the
             # provider has erased its immutable audit history.
+            expected_job_ids = {
+                self.parent_job_id,
+                f"{self.parent_job_id}:0",
+                f"{self.parent_job_id}:1",
+            }
             jobs = isinstance(job_rows, list) and all(
                 isinstance(row, Mapping)
+                and isinstance(row.get("jobId"), str)
+                and row.get("jobId") in expected_job_ids
                 and row.get("status") in TERMINAL_BATCH_JOB_STATUSES
                 for row in job_rows
             )
@@ -1828,8 +1923,8 @@ def execute(
                 "parent_status": exc.parent.get("status"),
                 "parent": exc.parent,
                 "children": exc.children,
-                "instance_ids": (),
-                "raw_evidence": {},
+                "instance_ids": exc.instance_ids,
+                "raw_evidence": exc.raw_evidence,
             }
     finally:
         try:

@@ -597,15 +597,23 @@ def build_ephemeral_qualification_receipt(
         "teardown": _teardown(absence),
     }
     if status == "no_go":
+        failure_kind = getattr(failure, "failure_kind", None)
         reason: dict[str, Any] = {
             "kind": (
-                "batch_children_failed_before_execution"
-                if isinstance(failure, BatchAdmissionError)
-                else "qualification_lifecycle_terminal_failure"
+                failure_kind
+                if isinstance(failure_kind, str) and failure_kind
+                else (
+                    "batch_children_failed_before_execution"
+                    if isinstance(failure, BatchAdmissionError)
+                    else "qualification_lifecycle_terminal_failure"
+                )
             ),
             "qualification_pass_impossible": True,
             "no_retry_after_launch": True,
         }
+        if failure is not None:
+            reason["error_type"] = type(failure).__name__
+            reason["error"] = str(failure) or "qualification lifecycle failure"
         parent = evidence.get("parent")
         if not isinstance(parent, Mapping):
             parent = {}

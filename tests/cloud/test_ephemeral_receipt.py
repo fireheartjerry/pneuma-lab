@@ -193,6 +193,56 @@ def test_validate_authority_evidence_rechecks_complete_package_binding() -> None
         )
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("status", "not-authorized", "authorized_and_verified"),
+        ("qualification_only", False, "qualification-only"),
+        ("action_id", "other-action", "action or provider"),
+        ("provider", "gcp", "action or provider"),
+        ("region", "us-west-2", "region differs"),
+        ("action_class", "scientific_experiment", "qualification audit"),
+        ("max_retries", 1, "permits retries"),
+        ("signed_package_sha256", "0" * 64, "signed package bytes"),
+        ("iam_policy_sha256", "b" * 64, "package IAM policy"),
+    ],
+)
+def test_validate_authority_evidence_rejects_authority_drift(
+    field: str, value: object, message: str
+) -> None:
+    authority, package_bytes, envelope, admission, plan = _authority_evidence_fixture()
+    tampered = deepcopy(authority)
+    tampered[field] = value
+    with pytest.raises(CloudManifestError, match=message):
+        validate_authority_evidence(
+            tampered,
+            package_bytes=package_bytes,
+            envelope=envelope,
+            admission=admission,
+            action_id="dual-l40s-qualification-012",
+            region="us-east-1",
+            plan=plan,
+            projected_cost_usd=4.48,
+        )
+
+
+def test_validate_authority_evidence_rejects_kms_drift() -> None:
+    authority, package_bytes, envelope, admission, plan = _authority_evidence_fixture()
+    tampered = deepcopy(authority)
+    tampered["kms"]["signing_algorithm"] = "RSA_SHA_256"
+    with pytest.raises(CloudManifestError, match="KMS authority verification"):
+        validate_authority_evidence(
+            tampered,
+            package_bytes=package_bytes,
+            envelope=envelope,
+            admission=admission,
+            action_id="dual-l40s-qualification-012",
+            region="us-east-1",
+            plan=plan,
+            projected_cost_usd=4.48,
+        )
+
+
 def test_current_terminal_no_go_receipt_is_schema_bound() -> None:
     record = json.loads(RECEIPT.read_text(encoding="utf-8"))
     validated = validate_ephemeral_dual_worker_qualification_receipt(record)

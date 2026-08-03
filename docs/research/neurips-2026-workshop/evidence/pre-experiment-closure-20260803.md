@@ -172,3 +172,19 @@ an absolute path before Terraform `-chdir` execution.
 Qualification image binding also validates the registered receipt identity,
 canonical receipt digest, and fresh builder-absence proof before accepting an
 image/source pair.
+
+## Latest Batch identity and plan-admission repair
+
+The future concrete runner now binds each Batch child response to the exact
+requested `parent_job_id:index` and provider array index, orders the two worker
+identities by index, and retains observed parent/child context on malformed
+identity or raw-artifact retrieval failure. A partial raw-artifact map is
+reported as typed `raw_artifact_retrieval_failure`; it cannot be mistaken for
+successful two-worker evidence. Terraform-show parsing also rejects a missing
+or ambiguous job-definition type/platform and requires explicit `container`
+plus EC2-only capabilities.
+
+Focused cloud/receipt/provider tests, changed-file Ruff, Terraform checks,
+status validation, the CPU-only fixture check, and graph refresh pass. This
+was source-only closure work: action-011 remains exhausted, no AWS mutation or
+new ledger row occurred, and no official scientific work was run.

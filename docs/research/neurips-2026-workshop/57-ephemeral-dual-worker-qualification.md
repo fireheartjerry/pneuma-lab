@@ -111,3 +111,20 @@ with a focused regression in `tests/cloud/test_ephemeral_runner.py`.
 
 Receipt: `evidence/dual-l40s-qualification-011-execution-receipt-20260803.json`
 (SHA-256 `2452cc4a1a531e39bf170c038c8ba56829b57ea77b58ea532b2f61acb3990854`).
+
+## Latest source-only admission hardening — 2026-08-03
+
+The concrete adapter now requires every Batch child response to retain the
+requested `parent_job_id:index` and matching `arrayProperties.index`, then
+binds worker identities in explicit index order. Wrong or malformed provider
+observations, duplicate/incomplete indexes, and missing identities fail closed
+with the observed parent/children retained for the terminal receipt. Raw
+artifact retrieval is ordered and preserves partial raw evidence plus both
+identity bindings when a later worker object cannot be retrieved; the no-go
+reason is typed `raw_artifact_retrieval_failure`.
+
+Terraform-show admission now requires the planned job definition to explicitly
+be a `container` job with `platform_capabilities == ["EC2"]`. Focused cloud,
+receipt, Terraform, status, fixture, and graph checks pass. This is source-only
+repair: no AWS resource, action, ledger row, qualification relaunch, or
+scientific workload was created.

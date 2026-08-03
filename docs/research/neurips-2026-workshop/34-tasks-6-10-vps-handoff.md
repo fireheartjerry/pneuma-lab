@@ -1247,3 +1247,14 @@ launch was retried.
 The image binding path now also requires the registered qualification image
 receipt identity, canonical self-digest, and fresh builder-absence proof. A
 tampered receipt is rejected before any future provider mutation.
+
+The latest source-only Batch seam repair binds every child observation to the
+requested `parent_job_id:index` and provider-reported array index, orders
+worker identities by index, and retains parent/child observations when a
+malformed identity or raw-artifact retrieval failure occurs. Partial raw
+artifact context is now explicit as a terminal no-go rather than being
+discarded. Terraform-show admission also requires an explicit container job
+with EC2-only platform capabilities. Focused cloud/receipt tests, changed-file
+Ruff, Terraform format/validation, status, fixture, and graph checks pass.
+No AWS mutation, new action, ledger row, qualification relaunch, or scientific
+workload occurred; action-011 remains the sealed terminal no-go.

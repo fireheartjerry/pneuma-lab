@@ -6717,3 +6717,26 @@ post-launch terminal no-go. Tasks 6–10 remain
   AWS mutation, action-011 retry, new launch, spend, scientific workload,
   unblind, analysis, or claim promotion occurred; no new ledger row was
   created.
+
+### EJ-20260803-batch-identity-and-plan-admission-hardening
+
+- **Batch identity repair:** The concrete adapter now binds every described
+  array child to the requested `parent_job_id:index`, verifies the provider's
+  `arrayProperties.index`, and orders the two instance identities by array
+  index. Wrong parent/child identifiers, malformed observations, duplicate or
+  incomplete indexes, and missing worker identities now fail closed while
+  retaining the observed parent/child records for a truthful terminal receipt.
+- **Artifact-context repair:** Raw worker retrieval is now ordered and
+  fail-closed. If worker 1 retrieval fails after worker 0 was retrieved, the
+  terminal `raw_artifact_retrieval_failure` evidence retains the ordered
+  worker identities and the partial raw-artifact map instead of silently
+  reducing the failure to an empty observation.
+- **Terraform admission repair:** Planned qualification job definitions must
+  explicitly be `container` jobs with `platform_capabilities == ["EC2"]`; an
+  omitted or ambiguous platform/type value cannot pass the managed GPU plan
+  gate.
+- **Verification/boundary:** Focused cloud/receipt/provider tests, Ruff on the
+  changed files, Terraform format/validation, status validation, the
+  CPU-only fixture check, and graph refresh pass. No AWS mutation, action
+  relaunch, new ledger row, scientific workload, unblind, analysis, or claim
+  promotion occurred.
