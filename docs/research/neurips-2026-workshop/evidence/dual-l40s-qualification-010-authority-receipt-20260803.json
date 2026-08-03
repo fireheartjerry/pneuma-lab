@@ -1,0 +1,53 @@
+{
+  "record_kind": "cloud_qualification_authority_receipt",
+  "schema_version": "0.1.0",
+  "status": "authorized_and_verified",
+  "observed_at": "2026-08-03T09:12:22Z",
+  "qualification_only": true,
+  "action_id": "dual-l40s-qualification-010",
+  "action_class": "qualification_audit",
+  "provider": "aws",
+  "region": "us-east-1",
+  "plan_sha256": "02da6dd7e5c89f72620e8ecdfa71113adf8cda9349b6a4c1c5c7198dcab13962",
+  "saved_plan_sha256": "2b45af74929f2383036d9e80fa23357bc6f7bc43621aee405aa16c9c4ccca259",
+  "terraform_show_sha256": "2cbf7570cc2bd90d6fe19a36d7fd5af53d9e4d86bec42c8ab978f78031f6a546",
+  "terraform_plan_binding_sha256": "baaa864e8c01a755c0361b319eae317330702905cc8a6cf47e8a277a2eb34f70",
+  "input_lock_sha256": "0c65f6c68802833bed828ade61dbca2c2dd8a0031f16aeee0a3407fb4bd5096b",
+  "iam_policy_sha256": "dcc530fdc96dc9d77da7ed022a08a92751a02ed6c697ae490e164dc1325ad2ae",
+  "image_digest": "sha256:5433527fb588c009d6cf16a5ac4278c463bbb5fab0c0a6826147b4c98f2e83ff",
+  "projected_cost_usd": 4.4842,
+  "max_retries": 0,
+  "envelope": {
+    "ledger_row_id": "CL-277",
+    "ledger_row_sha256": "0cea4cec8aede8a9f4993b0b1d05bf97afe739a92dd3e02b101f4a0ccbd88cb0",
+    "body_sha256": "b8f0e678d788f13823dcf3624141c1b203822efd8447da5307fddf1c97d43e5c",
+    "signature_sha256": "b8bbf9aea5b6960bb292e1ea0e8a18200ead831793bca499a8ab1ccb8efcb44d",
+    "expires_timestamp": "2026-08-03T11:12:22Z"
+  },
+  "admission": {
+    "ledger_row_id": "CL-278",
+    "ledger_row_sha256": "fa276f4855eea2ae038b946a1e65a8c8e3b8b3a3472ae9f05b28845b7f17729d",
+    "body_sha256": "de84c4054983647bdc38f9f17632ec2fb4edd9f10fb56ca149fe7e0a6593befe",
+    "signature_sha256": "0fa0bd758f1773d94b9cb9e802a8a7ac9634b1f3753a55714fecf41716a34b52",
+    "expires_timestamp": "2026-08-03T11:12:22Z"
+  },
+  "signed_package_sha256": "5234e2915c796495b68db462ee8f4874994fa92393fea5f0bde191506170f460",
+  "kms": {
+    "key_alias": "alias/pneuma-approver",
+    "registry_key_id": "pneuma-kms-20260801-r1",
+    "signing_algorithm": "ED25519_SHA_512",
+    "envelope_signature_valid": true,
+    "admission_signature_valid": true
+  },
+  "scientific_boundary": {
+    "fixture_only": true,
+    "no_p0": true,
+    "no_step_4b": true,
+    "no_model_load": true,
+    "no_benchmark": true,
+    "no_pilot": true,
+    "no_unblind": true,
+    "no_analysis": true,
+    "no_claim_promotion": true
+  }
+}
