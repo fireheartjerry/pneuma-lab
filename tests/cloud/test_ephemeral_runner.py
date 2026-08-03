@@ -376,7 +376,10 @@ def test_terraform_adapter_parses_show_json_before_future_apply() -> None:
         plan_path.write_bytes(b"exact-plan-bytes")
         adapter = TerraformAdapter(run)
         plan = adapter.load_account_plan(plan_path)
-        assert plan["terraform_show_sha256"]
+        expected_show_sha256 = hashlib.sha256(
+            json.dumps(terraform_show()).encode()
+        ).hexdigest()
+        assert plan["terraform_show_sha256"] == expected_show_sha256
         assert plan["saved_plan_sha256"] == hashlib.sha256(
             b"exact-plan-bytes"
         ).hexdigest()

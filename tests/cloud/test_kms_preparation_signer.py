@@ -12,10 +12,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from scripts.research import sign_preparation_action
 
-from pneuma_lab.cloud.qualification_execution import (
-    parse_terraform_show,
-    terraform_plan_binding_digest,
-)
+from pneuma_lab.cloud.qualification_execution import terraform_plan_binding_digest
 
 from .test_ephemeral_runner import terraform_show
 
@@ -69,7 +66,8 @@ def test_execution_manifest_digest_binds_saved_plan_and_show_bytes(
     saved = tmp_path / "qualification.tfplan"
     saved.write_bytes(b"exact-plan-bytes")
     show = terraform_show()
-    show_sha = parse_terraform_show(show)["terraform_show_sha256"]
+    show_bytes = json.dumps(show, separators=(",", ":")).encode()
+    show_sha = hashlib.sha256(show_bytes).hexdigest()
     plan = {
         "saved_plan_path": str(saved),
         "saved_plan_sha256": hashlib.sha256(saved.read_bytes()).hexdigest(),
@@ -77,7 +75,7 @@ def test_execution_manifest_digest_binds_saved_plan_and_show_bytes(
     }
 
     def fake_run(argv, **kwargs):
-        return subprocess.CompletedProcess(argv, 0, json.dumps(show).encode(), b"")
+        return subprocess.CompletedProcess(argv, 0, show_bytes, b"")
 
     monkeypatch.setattr(sign_preparation_action.subprocess, "run", fake_run)
     assert sign_preparation_action.execution_manifest_digest(plan) == (
@@ -85,4 +83,26 @@ def test_execution_manifest_digest_binds_saved_plan_and_show_bytes(
     )
     saved.write_bytes(b"tampered-plan-bytes")
     with pytest.raises(ValueError, match="saved Terraform plan bytes"):
+        sign_preparation_action.execution_manifest_digest(plan)
+
+
+def test_execution_manifest_rejects_same_show_document_with_different_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved = tmp_path / "qualification.tfplan"
+    saved.write_bytes(b"exact-plan-bytes")
+    show = terraform_show()
+    bound_show = json.dumps(show, separators=(",", ":")).encode()
+    different_show_bytes = json.dumps(show, indent=2).encode()
+    plan = {
+        "saved_plan_path": str(saved),
+        "saved_plan_sha256": hashlib.sha256(saved.read_bytes()).hexdigest(),
+        "terraform_show_sha256": hashlib.sha256(bound_show).hexdigest(),
+    }
+
+    def fake_run(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 0, different_show_bytes, b"")
+
+    monkeypatch.setattr(sign_preparation_action.subprocess, "run", fake_run)
+    with pytest.raises(ValueError, match="show bytes"):
         sign_preparation_action.execution_manifest_digest(plan)

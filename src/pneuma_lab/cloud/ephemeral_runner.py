@@ -29,6 +29,7 @@ from .qualification_execution import (
     AwsCliAdapter as ObjectAwsCliAdapter,
     derive_spend_history_binding,
     parse_terraform_show,
+    parse_terraform_show_json,
     require_two_succeeded_children,
     retrieve_raw_measurement,
     terraform_plan_binding_digest,
@@ -112,7 +113,7 @@ class TerraformAdapter:
         plan = _json_result(result)
         if not isinstance(plan, dict):
             raise CloudManifestError("terraform show did not return an object")
-        parsed = parse_terraform_show(plan)
+        parsed = parse_terraform_show_json(result.stdout)
         _require_resource_contract(plan)
         plan["terraform_show_sha256"] = parsed["terraform_show_sha256"]
         plan["saved_plan_sha256"] = saved_plan_sha256
@@ -151,8 +152,10 @@ class TerraformAdapter:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        current_show = _json_result(show_result)
-        if parse_terraform_show(current_show)["terraform_show_sha256"] != self.terraform_show_sha256:
+        if show_result.returncode != 0:
+            raise CloudManifestError("terraform show failed before apply")
+        current_show = parse_terraform_show_json(show_result.stdout)
+        if current_show["terraform_show_sha256"] != self.terraform_show_sha256:
             raise CloudManifestError(
                 "Terraform show bytes changed after plan review"
             )

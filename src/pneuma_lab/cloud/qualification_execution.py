@@ -1255,18 +1255,29 @@ def parse_terraform_show_json(
 ) -> dict[str, Any]:
     if isinstance(payload, Mapping):
         return parse_terraform_show(payload)
+    raw_payload: bytes
     if isinstance(payload, bytes):
+        raw_payload = payload
         try:
             payload = payload.decode("utf-8")
         except UnicodeDecodeError as exc:
             raise CloudManifestError("Terraform show JSON is not UTF-8") from exc
+    elif isinstance(payload, str):
+        raw_payload = payload.encode("utf-8")
+    else:
+        raise CloudManifestError("Terraform show output is not JSON")
     try:
         document = json.loads(payload)
     except (TypeError, json.JSONDecodeError) as exc:
         raise CloudManifestError("Terraform show output is not JSON") from exc
     if not isinstance(document, Mapping):
         raise CloudManifestError("Terraform show output is not an object")
-    return parse_terraform_show(document)
+    parsed = parse_terraform_show(document)
+    # The runner consumes the provider's exact stdout bytes.  Preserve that
+    # byte-level digest instead of silently replacing it with a canonicalized
+    # re-serialization of the JSON document.
+    parsed["terraform_show_sha256"] = hashlib.sha256(raw_payload).hexdigest()
+    return parsed
 
 
 def verify_provider_bindings(
