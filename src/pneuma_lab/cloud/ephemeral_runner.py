@@ -679,13 +679,21 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "--compute-environments",
             self.compute_environment,
         )
-        definition = self._call_absence(
+        active_definition = self._call_absence(
             "batch",
             "describe-job-definitions",
             "--job-definition-name",
             self.job_definition,
             "--status",
-            "ALL",
+            "ACTIVE",
+        )
+        inactive_definition = self._call_absence(
+            "batch",
+            "describe-job-definitions",
+            "--job-definition-name",
+            self.job_definition,
+            "--status",
+            "INACTIVE",
         )
         instances = self._call_absence(
             "ec2",
@@ -735,7 +743,8 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "launch_template": not launch_templates.get("LaunchTemplates"),
             "network_interfaces": not network_interfaces.get("NetworkInterfaces"),
             "security_group": not security_groups.get("SecurityGroups"),
-            "job_definition": not definition.get("jobDefinitions"),
+            "job_definition": not active_definition.get("jobDefinitions")
+            and not inactive_definition.get("jobDefinitions"),
             "queue": not queue.get("jobQueues"),
             "compute_environment": not env.get("computeEnvironments"),
         }
