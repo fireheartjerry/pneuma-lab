@@ -1,0 +1,114 @@
+{
+  "record_kind": "cloud_qualification_image_build_plan",
+  "schema_version": "0.1.0",
+  "action_id": "qualification-image-build-002",
+  "action_class": "image_build",
+  "provider": "aws",
+  "region": "us-east-1",
+  "frozen_timestamp": "2026-08-03T02:26:32Z",
+  "expires_timestamp": "2026-08-03T08:00:00Z",
+  "input_lock_sha256": null,
+  "projected_cost_usd": 6.0,
+  "cost_ceiling_usd": 25.0,
+  "max_retries": 0,
+  "source": {
+    "commit": "826ce87c3352630aa7e85c724681ec2a9fa5f795",
+    "archive": {
+      "s3_uri": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-002/source.tar",
+      "sha256": "dbe87148bca0b5cc0a33da08a767239a41190d35c83d93c1bcf7484fc6d0be97",
+      "size_bytes": 29747200
+    },
+    "dockerfile": {
+      "path": "infra/docker/qualification-worker/Dockerfile",
+      "sha256": "95ed8a8b1fcbd6cc868abcac987dca746859598b1fbbad0ff8d930fbb0507248"
+    },
+    "base_digest": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90"
+  },
+  "bootstrap": {
+    "template_path": "infra/aws/qualification-image-build-user-data.sh",
+    "template_sha256": "422387b263da942e3b4bd685edfaf31586faaee5e16416feaad0ce75b225391a",
+    "rendered_sha256": "643cb73db3a4a8ada747c78fbd9506c287d7459f9e72d159a48628a2a1693ba6",
+    "negative_check": {
+      "network": "none",
+      "qualification_code_supplied": false,
+      "expected_stderr_marker": "QUALIFICATION_CODE",
+      "expected_post_check_sentinel": true
+    }
+  },
+  "target": {
+    "repository_name": "pneuma-c160-worker",
+    "repository_uri": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker",
+    "image_tag": "qualification-image-build-002-826ce87",
+    "platform": "linux/amd64",
+    "tag_mutability_required": "IMMUTABLE",
+    "scan_on_push_required": true
+  },
+  "builder": {
+    "ami_id": "ami-08bc385c9fc5afc94",
+    "instance_type": "m7i.xlarge",
+    "subnet_id": "subnet-0da0658f2703d3e58",
+    "vpc_id": "vpc-0baeaefeb8b57c19b",
+    "public_ip_required": true,
+    "root_device": "/dev/xvda",
+    "root_volume": {
+      "type": "gp3",
+      "size_gib": 650,
+      "encrypted": true,
+      "delete_on_termination": true
+    },
+    "imds": {
+      "http_tokens": "required",
+      "http_endpoint": "enabled",
+      "http_put_response_hop_limit": 2
+    },
+    "security_group": {
+      "name": "pneuma-qualification-image-build-002",
+      "description": "Pneuma qualification image build 002; no ingress",
+      "ingress": [],
+      "egress": [
+        {"protocol": "tcp", "from_port": 443, "to_port": 443, "cidr": "0.0.0.0/0"},
+        {"protocol": "tcp", "from_port": 53, "to_port": 53, "cidr": "172.31.0.2/32"},
+        {"protocol": "udp", "from_port": 53, "to_port": 53, "cidr": "172.31.0.2/32"}
+      ]
+    },
+    "instance_profile": {
+      "name": "pneuma-qualification-image-build-002",
+      "role_name": "pneuma-qualification-image-build-002",
+      "trust_policy_sha256": "4457a82555d2e59e594e72d9824b363d8aca0be04c5da91b9368334db3b01600",
+      "permission_policy_sha256": "b940307784bc6b6a78b1bca3b758eed0059dbc4891d26e5571fa2a488d9a9847"
+    },
+    "max_runtime_seconds": 7200,
+    "build_timeout_seconds": 6600,
+    "max_retries": 0
+  },
+  "cost": {
+    "projected_usd": 6.0,
+    "hard_ceiling_usd": 25.0,
+    "stop_if_projection_at_or_above_ceiling": true
+  },
+  "authority": {
+    "envelope_ledger_row_id": "CL-234",
+    "admission_ledger_row_id": "CL-235",
+    "expires_timestamp": "2026-08-03T08:00:00Z"
+  },
+  "constraints": {
+    "no_terraform": true,
+    "no_batch": true,
+    "no_gpu": true,
+    "no_spot": true,
+    "no_model_download": true,
+    "no_benchmark": true,
+    "no_pilot": true,
+    "no_experiment": true,
+    "no_qualification_run": true
+  },
+  "teardown": {
+    "terminate_builder": true,
+    "delete_root_volume": true,
+    "delete_security_group": true,
+    "delete_instance_profile": true,
+    "delete_builder_role": true,
+    "fresh_provider_absence_required": true
+  },
+  "plan_sha256": "fff9632490b54bf29581cfff0f3fdf2adedb1e1a2a2522f85b7661b43c7086fc"
+}
