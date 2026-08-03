@@ -13,10 +13,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-import shutil
-import subprocess
 import sys
 import tempfile
 from typing import Any
@@ -27,8 +25,8 @@ from .manifests import validate_worker_admission_measurement
 from .qualification_execution import (
     AwsCliAdapter,
     materialize_authenticated_inputs,
-    parse_s3_uri,
     publish_raw_measurement,
+    retrieve_raw_measurement,
     worker_artifact_uri,
 )
 
@@ -234,57 +232,90 @@ def build_probe_argv(code: str) -> list[str]:
     return ["--code", code]
 
 
-def _materialize_one(value: str, *, destination: Path, name: str) -> Path:
-    """Turn one local path or authenticated S3 object into a local file."""
+def _materialize_one(
+    value: str,
+    *,
+    destination: Path,
+    name: str,
+    adapter: AwsCliAdapter,
+    allow_literal: bool = False,
+) -> Path:
+    """Materialize and re-read one bound value as a verified local file.
 
+    S3 values are fetched through the injected object adapter.  A code value
+    may also be literal source text; all five other values must be local paths
+    or S3 object locators.  In either case the bytes written to the target are
+    read back and checked before they are handed to the probe.
+    """
+
+    if not isinstance(value, str) or not value:
+        raise CloudManifestError(f"qualification input {name} is empty")
     destination.mkdir(parents=True, exist_ok=True)
     target = destination / name
-    if value.startswith("s3://"):
-        location = parse_s3_uri(value)
-        result = subprocess.run(
-            [
-                "aws",
-                "s3api",
-                "get-object",
-                "--bucket",
-                location.bucket,
-                "--key",
-                location.key,
-                str(target),
-                "--no-cli-pager",
-            ],
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+    if target.exists() or target.is_symlink():
+        raise CloudManifestError(
+            f"qualification materialization target exists: {name}"
         )
-        if result.returncode != 0:
-            raise CloudManifestError(f"authenticated input download failed for {value}")
+
+    if value.startswith("s3://"):
+        payload = adapter.get_object(value)
     else:
         source = Path(value)
-        if not source.is_file() or not os.access(source, os.R_OK):
+        if source.is_file() and os.access(source, os.R_OK):
+            try:
+                payload = source.read_bytes()
+            except OSError as exc:
+                raise CloudManifestError(
+                    f"qualification input is not readable: {value}"
+                ) from exc
+        elif allow_literal:
+            payload = value.encode("utf-8")
+        else:
             raise CloudManifestError(
                 f"qualification input is not a readable local file: {value}"
             )
-        if source.resolve() != target.resolve():
-            shutil.copyfile(source, target)
-    if not target.is_file() or not os.access(target, os.R_OK):
+
+    if not isinstance(payload, bytes):
+        raise CloudManifestError(f"qualification input {name} was not bytes")
+    digest = hashlib.sha256(payload).hexdigest()
+    try:
+        target.write_bytes(payload)
+        observed = target.read_bytes()
+    except OSError as exc:
         raise CloudManifestError(
             f"materialized qualification input is not readable: {value}"
+        ) from exc
+    if (
+        not target.is_file()
+        or not os.access(target, os.R_OK)
+        or len(observed) != len(payload)
+        or hashlib.sha256(observed).hexdigest() != digest
+    ):
+        raise CloudManifestError(
+            f"materialized qualification input failed verification: {value}"
         )
     return target
 
 
-def _runtime_argv(code: str, *, root: Path) -> tuple[list[str], Path]:
+def _runtime_argv(
+    code: str,
+    *,
+    root: Path,
+    adapter: AwsCliAdapter | None = None,
+    env: Mapping[str, str] | None = None,
+) -> tuple[list[str], Path]:
     """Materialize image-bound inputs and build the dual-worker argv."""
 
-    raw_index = os.environ.get("AWS_BATCH_JOB_ARRAY_INDEX")
+    bindings = os.environ if env is None else env
+    object_adapter = adapter or AwsCliAdapter()
+    raw_index = bindings.get("AWS_BATCH_JOB_ARRAY_INDEX")
     if raw_index not in {"0", "1"}:
         raise SystemExit("AWS_BATCH_JOB_ARRAY_INDEX must be exactly 0 or 1")
-    model = os.environ.get(
-        "QUALIFICATION_MODEL", os.environ.get("PNEUMA_SUBJECT_MODEL")
+    model = bindings.get(
+        "QUALIFICATION_MODEL", bindings.get("PNEUMA_SUBJECT_MODEL")
     )
-    revision = os.environ.get(
-        "QUALIFICATION_MODEL_REVISION", os.environ.get("PNEUMA_SUBJECT_REVISION")
+    revision = bindings.get(
+        "QUALIFICATION_MODEL_REVISION", bindings.get("PNEUMA_SUBJECT_REVISION")
     )
     if not model or not revision:
         raise SystemExit("qualification image lacks model and revision bindings")
@@ -294,7 +325,6 @@ def _runtime_argv(code: str, *, root: Path) -> tuple[list[str], Path]:
         model,
         "--revision",
         revision,
-        "--code",
     ]
     required = {
         "QUALIFICATION_PROTOCOL": "--protocol",
@@ -303,20 +333,85 @@ def _runtime_argv(code: str, *, root: Path) -> tuple[list[str], Path]:
         "QUALIFICATION_IMAGE": "--image",
         "QUALIFICATION_INPUT_LOCK": "--input-lock",
     }
-    code_path = _materialize_one(code, destination=root, name="qualification-code")
-    argv.append(str(code_path))
+    code_path = _materialize_one(
+        code,
+        destination=root,
+        name="qualification-code",
+        adapter=object_adapter,
+        allow_literal=True,
+    )
+    local_inputs = [code_path]
+    argv.extend(build_probe_argv(str(code_path)))
     for variable, flag in required.items():
-        value = os.environ.get(variable)
+        value = bindings.get(variable)
         if not value:
             raise SystemExit(f"missing image-bound qualification variable: {variable}")
         path = _materialize_one(
-            value, destination=root, name=variable.lower().replace("_", "-")
+            value,
+            destination=root,
+            name=variable.lower().replace("_", "-"),
+            adapter=object_adapter,
         )
+        local_inputs.append(path)
         argv.extend((flag, str(path)))
+    validate_local_probe_inputs(local_inputs)
     output = root / f"worker-{raw_index}" / "raw-measurement.json"
     argv.extend(("--worker-index", raw_index, "--output", str(output)))
     argv.extend(("--rung", "l40s-tp1-32768", "--rung", "l40s-tp1-65536"))
     return argv, output
+
+
+def run_fixed_worker(
+    *,
+    code: str,
+    root: Path,
+    adapter: AwsCliAdapter,
+    env: Mapping[str, str],
+    probe_runner: Callable[[Sequence[str], Path], None] | None = None,
+) -> bytes:
+    """Run the fixed image path, publish once, and retrieve the raw object.
+
+    ``probe_runner`` is a local-only seam for regression tests.  The default
+    invokes the real dual-worker probe with the exact argv constructed above.
+    """
+
+    command, output = _runtime_argv(
+        code,
+        root=root,
+        adapter=adapter,
+        env=env,
+    )
+    if probe_runner is None:
+        saved_argv = sys.argv
+        try:
+            sys.argv = command
+            from . import dual_worker_admission_probe
+
+            dual_worker_admission_probe.main()
+        finally:
+            sys.argv = saved_argv
+    else:
+        probe_runner(command, output)
+    if not output.is_file() or not os.access(output, os.R_OK):
+        raise CloudManifestError("fixed admission probe did not create raw output")
+    payload = output.read_bytes()
+    raw_index = env.get("AWS_BATCH_JOB_ARRAY_INDEX")
+    prefix = env.get("QUALIFICATION_ARTIFACT_PREFIX")
+    if raw_index not in {"0", "1"} or not prefix:
+        raise CloudManifestError(
+            "fixed admission worker lacks its array index or artifact prefix"
+        )
+    publish_raw_measurement(
+        adapter,
+        artifact_prefix=prefix,
+        worker_index=int(raw_index),
+        raw_bytes=payload,
+    )
+    return retrieve_raw_measurement(
+        adapter,
+        artifact_prefix=prefix,
+        worker_index=int(raw_index),
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -330,23 +425,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if raw_index not in {"0", "1"}:
         raise SystemExit("AWS_BATCH_JOB_ARRAY_INDEX must be exactly 0 or 1")
     with tempfile.TemporaryDirectory(prefix="pneuma-qualification-") as temporary:
-        command, output = _runtime_argv(args.code, root=Path(temporary))
-        saved_argv = sys.argv
-        try:
-            sys.argv = command
-            from . import dual_worker_admission_probe
-
-            dual_worker_admission_probe.main()
-        finally:
-            sys.argv = saved_argv
-        payload = output.read_bytes()
-        # This enforces schema validation, worker-index binding and the
-        # immutable S3 precondition in the same adapter used by the controller.
-        publish_raw_measurement(
-            AwsCliAdapter(),
-            artifact_prefix=prefix,
-            worker_index=int(raw_index),
-            raw_bytes=payload,
+        run_fixed_worker(
+            code=args.code,
+            root=Path(temporary),
+            adapter=AwsCliAdapter(),
+            env=os.environ,
         )
     return 0
 

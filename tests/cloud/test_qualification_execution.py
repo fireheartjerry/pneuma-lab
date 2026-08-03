@@ -4,12 +4,19 @@ import copy
 import hashlib
 import json
 from pathlib import Path
+import sys
 
 import pytest
 
+from pneuma_lab.cloud.authorization_keys import canonical_bytes
 from pneuma_lab.cloud.authorization_keys import canonical_ledger_digest
+from pneuma_lab.cloud import fixed_admission_probe
 from pneuma_lab.cloud.errors import CloudManifestError
-from pneuma_lab.cloud.fixed_admission_probe import build_probe_argv, run_probe
+from pneuma_lab.cloud.fixed_admission_probe import (
+    build_probe_argv,
+    build_raw_measurement,
+    run_probe,
+)
 from pneuma_lab.cloud.interruption import run_canonical_interruption_drill
 from pneuma_lab.cloud.qualification_execution import (
     AwsCliAdapter,
@@ -345,6 +352,97 @@ def test_probe_requires_code_local_inputs_and_worker_specific_publication(
             rungs={"l40s-tp1-32768": {}, "l40s-tp1-65536": {}},
             output=tmp_path / "bad.json",
         )
+
+
+def test_fixed_entrypoint_materializes_bound_files_and_publishes_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = FakeAwsTransport()
+    client = adapter(transport)
+    prefix = "s3://bucket/runs/action"
+    code_uri = f"{prefix}/qualification.py"
+    bindings = {
+        "QUALIFICATION_CODE": code_uri,
+        "QUALIFICATION_PROTOCOL": f"{prefix}/protocol.json",
+        "QUALIFICATION_ARCHITECTURE": f"{prefix}/architecture.json",
+        "QUALIFICATION_AUTHORIZATION": f"{prefix}/authorization.json",
+        "QUALIFICATION_IMAGE": f"{prefix}/image.json",
+        "QUALIFICATION_INPUT_LOCK": f"{prefix}/input-lock.json",
+    }
+    payloads = {
+        code_uri: b"signed qualification fixture\n",
+        bindings["QUALIFICATION_PROTOCOL"]: b"protocol\n",
+        bindings["QUALIFICATION_ARCHITECTURE"]: b"architecture\n",
+        bindings["QUALIFICATION_AUTHORIZATION"]: b"authorization\n",
+        bindings["QUALIFICATION_IMAGE"]: b"image\n",
+        bindings["QUALIFICATION_INPUT_LOCK"]: b"input-lock\n",
+    }
+    for uri, payload in payloads.items():
+        location = parse_s3_uri(uri)
+        transport.objects[(location.bucket, location.key)] = payload
+
+    environment = {
+        **bindings,
+        "AWS_BATCH_JOB_ARRAY_INDEX": "1",
+        "QUALIFICATION_ARTIFACT_PREFIX": prefix,
+        "QUALIFICATION_MODEL": "fixture-model",
+        "QUALIFICATION_MODEL_REVISION": "fixture-revision",
+    }
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(fixed_admission_probe, "AwsCliAdapter", lambda: client)
+
+    def fake_probe() -> None:
+        def option(flag: str) -> Path:
+            index = sys.argv.index(flag)
+            return Path(sys.argv[index + 1])
+
+        code_path = option("--code")
+        input_paths = [
+            option(flag)
+            for flag in (
+                "--protocol",
+                "--architecture",
+                "--authorization",
+                "--image",
+                "--input-lock",
+            )
+        ]
+        assert all(path.is_file() for path in (code_path, *input_paths))
+        assert all(
+            not str(path).startswith("s3://")
+            for path in (code_path, *input_paths)
+        )
+        record = build_raw_measurement(
+            code=code_path.read_text(encoding="utf-8"),
+            worker_index=1,
+            instance_id="i-0123456789abcdef1",
+            protocol_sha256=hashlib.sha256(input_paths[0].read_bytes()).hexdigest(),
+            architecture_sha256=hashlib.sha256(input_paths[1].read_bytes()).hexdigest(),
+            authorization_sha256=hashlib.sha256(input_paths[2].read_bytes()).hexdigest(),
+            image_sha256=hashlib.sha256(input_paths[3].read_bytes()).hexdigest(),
+            input_lock_sha256=hashlib.sha256(input_paths[4].read_bytes()).hexdigest(),
+            code_sha256=hashlib.sha256(code_path.read_bytes()).hexdigest(),
+            input_paths=input_paths,
+            rungs=_rungs(),
+        )
+        output = option("--output")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(canonical_bytes(record) + b"\n")
+
+    from pneuma_lab.cloud import dual_worker_admission_probe
+
+    monkeypatch.setattr(dual_worker_admission_probe, "main", fake_probe)
+    assert fixed_admission_probe.main(["--code", code_uri]) == 0
+
+    retrieved = retrieve_raw_measurement(
+        client,
+        artifact_prefix=prefix,
+        worker_index=1,
+    )
+    assert json.loads(retrieved)["worker_index"] == 1
+    assert len(transport.put_calls) == 1
+    assert transport.put_calls[0][1] == "runs/action/worker-1/raw-measurement.json"
 
 
 def test_submit_and_children_are_exactly_two_successful_first_attempts() -> None:

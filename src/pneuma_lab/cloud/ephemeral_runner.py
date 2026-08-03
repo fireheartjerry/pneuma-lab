@@ -41,6 +41,7 @@ QUALIFICATION_TAGS = {
 EXPECTED_RESOURCE_ADDRESSES = frozenset(
     {
         "aws_batch_compute_environment.qualification",
+        "aws_launch_template.qualification",
         "aws_batch_job_queue.qualification",
         "aws_batch_job_definition.worker",
     }
@@ -92,9 +93,11 @@ class TerraformAdapter:
         self.run = run
         self.directory = directory
         self.plan_path: Path | None = None
+        self.saved_plan_sha256: str | None = None
 
     def load_account_plan(self, plan_path: Path) -> dict[str, Any]:
-        plan_path.read_bytes()
+        saved_plan = plan_path.read_bytes()
+        saved_plan_sha256 = hashlib.sha256(saved_plan).hexdigest()
         result = self.run(
             ["terraform", f"-chdir={self.directory}", "show", "-json", str(plan_path)],
             check=False,
@@ -105,14 +108,22 @@ class TerraformAdapter:
         if not isinstance(plan, dict):
             raise CloudManifestError("terraform show did not return an object")
         parsed = parse_terraform_show(plan)
+        _require_resource_contract(plan)
         plan["terraform_show_sha256"] = parsed["terraform_show_sha256"]
+        plan["saved_plan_sha256"] = saved_plan_sha256
         plan["_qualification"] = parsed
         self.plan_path = plan_path
+        self.saved_plan_sha256 = saved_plan_sha256
         return plan
 
     def apply(self, *, lock_timeout: str, tags: Mapping[str, str]) -> None:
-        if self.plan_path is None:
+        if self.plan_path is None or self.saved_plan_sha256 is None:
             raise CloudManifestError("no exact saved account plan loaded")
+        current_plan_sha256 = hashlib.sha256(self.plan_path.read_bytes()).hexdigest()
+        if current_plan_sha256 != self.saved_plan_sha256:
+            raise CloudManifestError(
+                "saved Terraform plan bytes changed after plan review"
+            )
         result = self.run(
             [
                 "terraform",
@@ -146,6 +157,24 @@ class TerraformAdapter:
         )
         if result.returncode != 0:
             raise CloudManifestError("terraform destroy failed")
+
+
+def _require_resource_contract(plan: Mapping[str, Any]) -> None:
+    changes = plan.get("resource_changes")
+    if not isinstance(changes, list):
+        raise CloudManifestError(
+            "ephemeral qualification plan lacks resource_changes"
+        )
+    addresses = {
+        change.get("address")
+        for change in changes
+        if isinstance(change, Mapping) and isinstance(change.get("address"), str)
+    }
+    if addresses != EXPECTED_RESOURCE_ADDRESSES:
+        raise CloudManifestError(
+            "ephemeral qualification plan must contain exactly the compute "
+            "environment, launch template, queue, and job definition"
+        )
 
 
 class AwsCliAdapter(ObjectAwsCliAdapter):
@@ -415,6 +444,7 @@ def require_account_plan(
     """
 
     parsed = parse_terraform_show(plan)
+    _require_resource_contract(plan)
     if action_id is not None and parsed["action_id"] != action_id:
         raise CloudManifestError(
             "account plan action tag differs from signed action id"

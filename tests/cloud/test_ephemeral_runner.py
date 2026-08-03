@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -89,6 +90,10 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                         },
                     },
                     {
+                        "address": "aws_batch_job_queue.qualification",
+                        "values": {"tags": tags},
+                    },
+                    {
                         "address": "aws_launch_template.qualification",
                         "values": {
                             "tag_specifications": [
@@ -107,6 +112,10 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
             },
             {
                 "address": "aws_batch_job_definition.worker",
+                "change": {"actions": ["create"]},
+            },
+            {
+                "address": "aws_batch_job_queue.qualification",
                 "change": {"actions": ["create"]},
             },
             {
@@ -264,6 +273,17 @@ def test_invented_account_plan_fields_are_not_accepted() -> None:
         )
 
 
+def test_ephemeral_plan_guard_rejects_a_plan_without_its_launch_template() -> None:
+    candidate = terraform_show()
+    candidate["resource_changes"] = [
+        change
+        for change in candidate["resource_changes"]
+        if change["address"] != "aws_launch_template.qualification"
+    ]
+    with pytest.raises(CloudManifestError, match="exactly.*launch template"):
+        require_account_plan(candidate, provider=ReadOnlyProvider())
+
+
 def test_action_mismatch_is_read_before_any_mutation() -> None:
     provider, terraform = FakeProvider(), FakeTerraform()
     with pytest.raises(CloudManifestError, match="action"):
@@ -344,11 +364,18 @@ def test_terraform_adapter_parses_show_json_before_future_apply() -> None:
         adapter = TerraformAdapter(run)
         plan = adapter.load_account_plan(plan_path)
         assert plan["terraform_show_sha256"]
+        assert plan["saved_plan_sha256"] == hashlib.sha256(
+            b"exact-plan-bytes"
+        ).hexdigest()
         assert "plan_sha256" not in plan
         adapter.apply(lock_timeout="60s", tags={})
         assert calls[0][2:4] == ["show", "-json"]
         assert str(plan_path) in calls[1]
         assert "-lock=false" not in calls[1]
+        plan_path.write_bytes(b"tampered-plan-bytes")
+        with pytest.raises(CloudManifestError, match="plan bytes"):
+            adapter.apply(lock_timeout="60s", tags={})
+        assert len(calls) == 2
     finally:
         plan_path.unlink(missing_ok=True)
 

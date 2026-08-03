@@ -3,10 +3,11 @@
 **Status:** implementation-only; no cloud qualification has run.
 
 The separate `infra/terraform/qualification/` stack is the only future apply
-surface for the bounded infrastructure qualification. It owns three
-destroyable AWS Batch control-plane objects: an enabled Spot compute
-environment, a queue, and a fixture-only GPU job definition. The environment
-is pinned to exactly two `g6e.2xlarge` workers (8 vCPUs and one L40S each), a
+surface for the bounded infrastructure qualification. It owns four
+destroyable AWS control-plane objects: an enabled Spot compute environment,
+its qualification launch template, a queue, and a fixture-only GPU job
+definition. The environment is pinned to exactly two `g6e.2xlarge` workers
+(8 vCPUs and one L40S each), a
 16-vCPU ceiling, and `SPOT_PRICE_CAPACITY_OPTIMIZED`. The main experiment
 stack is unchanged and its `prevent_destroy` lifecycle remains authoritative.
 
@@ -29,7 +30,7 @@ does not claim that a worker, GPU, model, benchmark, or experiment ran.
 
 Future Terraform mutations must use state locking with a bounded lock timeout;
 `-lock=false` is forbidden. The runner verifies the signed preparation
-envelope/action admission and the three-resource account plan before calling
+envelope/action admission and the four-resource account plan before calling
 Terraform, submits one size-two Batch array only, and always disables/drains
 before destroy followed by tagged absence checks for jobs, instances, volumes,
 job definition, queue, and compute environment.

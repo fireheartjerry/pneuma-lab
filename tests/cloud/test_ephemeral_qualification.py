@@ -13,6 +13,7 @@ from pneuma_lab.cloud.ephemeral_qualification import (
     validate_plan,
 )
 from pneuma_lab.cloud.errors import CloudManifestError
+from pneuma_lab.cloud.ephemeral_runner import EXPECTED_RESOURCE_ADDRESSES
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -81,6 +82,17 @@ def test_ephemeral_stack_has_destroyable_watchdog_and_no_retry_contract() -> Non
     assert "fixed_admission_entrypoint.sh" in dockerfile
     assert "qualification-entrypoint" not in dockerfile
     assert "prevent_destroy" not in text
+
+
+def test_ephemeral_plan_guard_names_exactly_four_owned_resources() -> None:
+    hcl = (ROOT / "infra/terraform/qualification/main.tf").read_text()
+    addresses = {
+        f"{kind}.{name}"
+        for kind, name in re.findall(r'resource\s+"([^"]+)"\s+"([^"]+)"', hcl)
+    }
+    assert addresses == EXPECTED_RESOURCE_ADDRESSES
+    assert "aws_launch_template.qualification" in addresses
+    assert len(addresses) == 4
 
 
 def test_image_and_batch_command_bind_fixed_probe_and_distinct_outputs() -> None:
