@@ -7252,6 +7252,24 @@ post-launch terminal no-go. Tasks 6–10 remain
   artifact, recovery, or provider mutation. It was not retried; successor
   action-013 requires a fresh immutable image and regenerated bindings.
 
+### EJ-20260803-dual-l40s-qualification-013-prelaunch-no-go
+
+- **Concrete failure:** The signed action-013 runner stopped before Terraform
+  apply because it passed the raw `_qualification` Terraform parse directly to
+  `validate_authority_evidence`. That parse exposes the four subnet IDs but not
+  the provider-verified AZ map required by the authority binding. The immutable
+  image was correctly reached through its raw `image` field; the failure was a
+  host-side runner ordering mismatch.
+- **Provider boundary:** No Terraform apply, Batch submission, EC2/GPU/Spot
+  allocation, worker, artifact, recovery drill, or provider mutation occurred.
+  Fresh absence reads prove the action-013 names and output prefix are empty.
+- **Repair and successor:** Action-013 is exhausted and was not replayed.
+  The runner now enriches the loaded plan with `require_account_plan` before
+  image and authority validation. The repair is host-side orchestration only;
+  action-014 will regenerate the fixture input lock, worker policy, Terraform
+  plan, ledger rows, KMS package, and authority receipt against the pushed
+  repair.
+
 ### EJ-20260803-qualification-image-build-015-preflight-retirement
 
 - **Plan repair:** Fresh image-build action-015 was retired before provider

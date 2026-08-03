@@ -21,6 +21,7 @@ from pneuma_lab.cloud.ephemeral_runner import (
     RunnerConfig,
     TerraformAdapter,
     execute,
+    require_account_plan,
     require_fresh_qualification_action,
 )
 
@@ -234,6 +235,20 @@ def main() -> int:
         plan_for_binding = account_plan.get("_qualification")
         if not isinstance(plan_for_binding, Mapping):
             raise ValueError("loaded Terraform plan lacks its parsed qualification binding")
+        provider = AwsCliAdapter(
+            subprocess.run,
+            region=args.region,
+            queue=args.queue,
+            job_definition=args.job_definition,
+            compute_environment=args.compute_environment,
+            output_root=args.output_root,
+        )
+        parsed_plan = require_account_plan(
+            account_plan,
+            action_id=args.action_id,
+            provider=provider,
+            ledger_path=args.ledger,
+        )
         source_revision = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             check=True,
@@ -243,7 +258,7 @@ def main() -> int:
         ).stdout.strip()
         require_qualification_image_binding(
             evidence_root,
-            image_digest=_qualification_image_digest(plan_for_binding),
+            image_digest=_qualification_image_digest(parsed_plan),
             source_commit=source_revision,
         )
         authority = validate_authority_evidence(
@@ -253,16 +268,8 @@ def main() -> int:
             admission=admission,
             action_id=args.action_id,
             region=args.region,
-            plan=plan_for_binding,
+            plan=parsed_plan,
             projected_cost_usd=float(authority_record["projected_cost_usd"]),
-        )
-        provider = AwsCliAdapter(
-            subprocess.run,
-            region=args.region,
-            queue=args.queue,
-            job_definition=args.job_definition,
-            compute_environment=args.compute_environment,
-            output_root=args.output_root,
         )
         result = execute(
             RunnerConfig(
