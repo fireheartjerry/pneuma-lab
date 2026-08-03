@@ -451,7 +451,12 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         return _json_result(result)
 
     def preflight(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
-        return self._call("batch", "describe-job-queues", "--job-queues", self.queue)
+        absence = self.verify_absence(tags)
+        if not all(absence.values()):
+            raise CloudManifestError(
+                "qualification preflight found residual action-scoped provider resources"
+            )
+        return {"provider_absence": dict(absence)}
 
     def wait_ready(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
         deadline = time.monotonic() + 600
