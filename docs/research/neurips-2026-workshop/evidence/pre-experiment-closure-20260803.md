@@ -209,3 +209,26 @@ action-token boundary. The Terraform and provider paths also require the Spot
 fleet role ARN and verify its account-bound role readback. Focused regressions
 pass. This does not modify the sealed action-011 receipt or create a successor
 action.
+
+## Superseding action-012 terminal evidence — 2026-08-03
+
+The AWS session was restored and `qualification-image-build-012` launched once
+under its fresh signed admission. The CPU-only builder completed fixture
+materialization and pushed immutable digest
+`sha256:5844cad087fa1b99b88f456693612743567eb80d2c481b316443033855b0ff4d`,
+but its required post-push image-config receipt was empty. The failure is
+concretely local: the stdin-backed `python3 -` sidecar lacked Docker
+`--interactive`, received EOF, and exited zero; bootstrap then falsely marked
+the build complete. The digest is rejected, no Batch qualification was
+submitted, no retry occurred, and no scientific workload ran.
+
+Binding hashes: composite/plan
+`d2b7152292f40de9038b8c18f8326c78ea1a265952db1b1407a4ee1787680bfe`, package
+`d333a1e86a116779b3f8326be8462f4fd99164d041e36aac767ecca68dd9fbf4`, envelope
+`e66de41e3efc1897d11258d7b1a3d6f6ae0d4b0de31d8285d74a8839b084ca11`, admission
+`bf4f1681102f79e340fd625998adaaaf884a2befe5ed25b73afc53bac1c9bb02`, and
+receipt `3e5f64464e6eb6c4d77e8dcb6fc91e1c578a32a92408ac7f0c5ebb0c68b00b95`.
+The instance self-terminated after 445 seconds; final scans found no action
+instance, volume, ENI, IAM profile/role, or security group. The source repair
+is committed separately from the rejected build and must be used only with a
+fresh action/package if the qualification lane is reopened.

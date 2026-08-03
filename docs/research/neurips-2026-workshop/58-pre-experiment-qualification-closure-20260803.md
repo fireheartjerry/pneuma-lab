@@ -413,3 +413,35 @@ self-binds raw post-push inspect bytes and the two-worker fixture runtime, and
 the validator requires AWS CLI v2 plus those sidecars. Focused tests, lint,
 Terraform, status, fixture, and graph checks pass. AWS credentials are
 expired, so no fresh image/plan/provider mutation or relaunch occurred.
+
+## Action-012 image-build terminal disposition — 2026-08-03
+
+After AWS credentials were restored, the fresh action
+`qualification-image-build-012` was executed once under its signed admission.
+The builder instance `i-062fdd2f4f6469517` completed its CPU-only fixture and
+ECR push, but the required post-push image-config receipt was zero bytes. The
+concrete cause is a local bootstrap semantic defect: the stdin-backed
+`python3 -` sidecar was launched without Docker `--interactive`, so Python
+received EOF and exited successfully without emitting the receipt. The
+bootstrap incorrectly recorded `COMPLETE`; the image is rejected and is not
+qualified for Batch. No Batch job or scientific workload was submitted, no
+retry occurred, and no worker/raw/recovery result exists.
+
+Action-012 evidence is bound by plan/composite
+`d2b7152292f40de9038b8c18f8326c78ea1a265952db1b1407a4ee1787680bfe`, signed
+package `d333a1e86a116779b3f8326be8462f4fd99164d041e36aac767ecca68dd9fbf4`,
+envelope `e66de41e3efc1897d11258d7b1a3d6f6ae0d4b0de31d8285d74a8839b084ca11`,
+admission `bf4f1681102f79e340fd625998adaaaf884a2befe5ed25b73afc53bac1c9bb02`,
+and terminal receipt `3e5f64464e6eb6c4d77e8dcb6fc91e1c578a32a92408ac7f0c5ebb0c68b00b95`.
+The pushed image digest is
+`sha256:5844cad087fa1b99b88f456693612743567eb80d2c481b316443033855b0ff4d`;
+its fixture and CLI checks passed, but the empty receipt is a hard rejection.
+
+The builder terminated itself after 445 seconds. Final absence proof found no
+action instance, root volume, ENI, IAM instance profile/role, or security
+group. The rejected ECR digest/tag and raw S3 output remain retained as
+forensic evidence. The committed `--interactive` repair is source-only and
+requires a separately fresh, newly bound image-build action before any future
+Batch admission. This lane therefore closes honestly as a terminal no-go, not
+as a qualification pass; official P0/Step-4B work remains excluded and
+blocked.

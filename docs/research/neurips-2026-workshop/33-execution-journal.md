@@ -7064,3 +7064,44 @@ post-launch terminal no-go. Tasks 6–10 remain
   build and its mandatory teardown. No Terraform, Batch, GPU, Spot, model,
   benchmark, pilot, official P0/Step-4B experiment, unblind, analysis, or
   claim-promotion action is included.
+
+### EJ-20260803-qualification-image-build-012-no-go-and-teardown
+
+- **Exact build result:** The signed one-use CPU-only action launched one
+  `m7i.xlarge` builder `i-062fdd2f4f6469517` exactly once. It built and pushed
+  immutable digest
+  `sha256:5844cad087fa1b99b88f456693612743567eb80d2c481b316443033855b0ff4d`,
+  passed the fixed-entrypoint/no-code check, AWS CLI v2 check, CPU-only
+  two-worker fixture, fresh immutable pull, and fresh immutable image inspect.
+  The required post-push sidecar object was zero bytes. Although the bootstrap
+  status object incorrectly says `COMPLETE`, the image is rejected for
+  qualification because the required self-bound sidecar receipt is absent.
+- **Bound evidence:** The action is bound to plan SHA-256
+  `d2b7152292f40de9038b8c18f8326c78ea1a265952db1b1407a4ee1787680bfe`, signed
+  package SHA-256
+  `d333a1e86a116779b3f8326be8462f4fd99164d041e36aac767ecca68dd9fbf4`,
+  envelope body SHA-256
+  `e66de41e3efc1897d11258d7b1a3d6f6ae0d4b0de31d8285d74a8839b084ca11`, and
+  admission body SHA-256
+  `bf4f1681102f79e340fd625998adaaaf884a2befe5ed25b73afc53bac1c9bb02`.
+  KMS `ED25519_SHA_512` signing and verification passed. The 20-object raw
+  S3 output set and sanitized no-go receipt are retained under the action
+  prefix; the receipt self-hash is
+  `3e5f64464e6eb6c4d77e8dcb6fc91e1c578a32a92408ac7f0c5ebb0c68b00b95`.
+- **Concrete failure and timing:** CloudTrail recorded the builder role
+  assumption at `2026-08-03T20:01:12Z`; the final S3 output objects were
+  written at `2026-08-03T20:08:37Z`, an observed 445-second builder interval.
+  The source-bound sidecar executes `python3 -` through Docker but omitted
+  interactive stdin attachment. The process therefore received EOF and
+  emitted no stdout, producing the zero-byte `ecr-image-config-receipt.json`.
+  This is a bootstrap semantic failure, not an invented AWS capacity or
+  provider explanation. The source repair adds `--interactive` to the
+  stdin-backed container checks and is covered by a focused regression; no
+  new AWS action is launched.
+- **Teardown and boundary:** Fresh reads prove the builder is terminated,
+  its root volume and network interfaces are absent, and the temporary
+  instance profile, role, and SG are absent. Action-012 is exhausted and was
+  not retried after launch. No Terraform, Batch, GPU, Spot, model,
+  benchmark, pilot, official P0/Step-4B experiment, unblind, analysis, or
+  claim promotion occurred. The pre-experiment lane therefore has a terminal
+  post-launch no-go, not a qualification pass.

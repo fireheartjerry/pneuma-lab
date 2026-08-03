@@ -168,7 +168,7 @@ PY
         "$IMMUTABLE_IMAGE_REF" "$OUTPUT_DIR" \
         "$SOURCE_ROOT/scripts/research/qualification_image_fixture_check.py" \
         "ecr-fixture-runtime.json"
-    docker run --rm --network none --read-only --tmpfs /tmp \
+    docker run --interactive --rm --network none --read-only --tmpfs /tmp \
         --entrypoint python3 \
         --volume "$OUTPUT_DIR:/work/qualification-output:ro" \
         "$IMMUTABLE_IMAGE_REF" - \
