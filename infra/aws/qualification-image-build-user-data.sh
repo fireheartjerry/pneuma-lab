@@ -168,8 +168,12 @@ PY
         "$IMMUTABLE_IMAGE_REF" "$OUTPUT_DIR" \
         "$SOURCE_ROOT/scripts/research/qualification_image_fixture_check.py" \
         "ecr-fixture-runtime.json"
-    PYTHONPATH="$SOURCE_ROOT/src" python3 - "$OUTPUT_DIR/ecr-image-inspect.json" \
-        "$OUTPUT_DIR/ecr-fixture-runtime.json" "$IMAGE_DIGEST" \
+    docker run --rm --network none --read-only --tmpfs /tmp \
+        --entrypoint python3 \
+        --volume "$OUTPUT_DIR:/work/qualification-output:ro" \
+        "$IMMUTABLE_IMAGE_REF" - \
+        /work/qualification-output/ecr-image-inspect.json \
+        /work/qualification-output/ecr-fixture-runtime.json "$IMAGE_DIGEST" \
         > "$OUTPUT_DIR/ecr-image-config-receipt.json" <<'PY'
 import hashlib
 import json

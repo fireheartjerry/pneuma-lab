@@ -6982,3 +6982,41 @@ post-launch terminal no-go. Tasks 6–10 remain
 - **Boundary:** CL-294/CL-295 are preparation and admission rows only. No
   Terraform, Batch, GPU, Spot, model, benchmark, pilot, official P0/Step-4B
   experiment, unblind, analysis, or claim-promotion action is authorized.
+
+### EJ-20260803-qualification-image-build-011-no-go-and-teardown
+
+- **Exact build result:** The signed one-use CPU-only action launched one
+  `m7i.xlarge` builder `i-0f41f9ca8819cdedf` exactly once. It built and pushed
+  immutable digest
+  `sha256:826305f3005d49b650bc4fabfd84011e1d20ae69aa3766c4a45a443c3ca98eef`,
+  passed the fixed-entrypoint/no-code check, AWS CLI v2 check, CPU-only
+  two-worker fixture, fresh immutable pull, and fresh immutable image inspect.
+  The post-push receipt sidecar then failed because the host Amazon Linux
+  `jsonschema` did not provide `Draft202012Validator`. The digest is rejected
+  for qualification use.
+- **Bound evidence:** The action is bound to plan SHA-256
+  `d57e761bbb6347dedbfb07e27b3b68b40175701482d9528ac55855745b232bea`, signed
+  package SHA-256
+  `04640bf3a59ed3aaf25fd18c261bcbf4cc3ad3205d52a34f13b4f8d104789b1a`,
+  envelope body SHA-256
+  `273cd1746f0b5f94c278aac0ec8720456748b65ce5e69307415c6475084e8437`, and
+  admission body SHA-256
+  `388871fbd4d2b46daf388a701077c2d1051be0f3056d17d57011cebbd24759cf`.
+  KMS `ED25519_SHA_512` signing and verification passed. The sanitized
+  no-go receipt is
+  `evidence/qualification-image-build-011-receipt-20260803.json` with
+  SHA-256 `d61b9d4119d703c441d8724a241b2250f01ffe25d1a29bee0f992563206374b0`.
+- **Observed duration and teardown:** The builder ran for 438 seconds from
+  CloudTrail AssumeRole to the final S3 output timestamp. Fresh reads prove
+  the builder is terminated, its 650-GiB root volume and network interface
+  are absent, and the action IAM role/profile and security group are absent.
+  The image tag and digest remain in ECR only as rejected evidence. Action-011
+  is exhausted and was not retried. The routine sidecar defect is repaired in
+  source by executing the receipt inside the pulled immutable image with
+  network disabled, read-only filesystem, a temporary `/tmp`, and a read-only
+  output mount.
+- **Boundary:** No Terraform, Batch, GPU, Spot, model, benchmark, pilot,
+  official P0/Step-4B experiment, unblind, analysis, or claim promotion
+  occurred. The failed host-side dependency is not an external AWS/provider
+  or capacity terminal no-go; a fresh image-build action is required after the
+  repair is committed and rebound.

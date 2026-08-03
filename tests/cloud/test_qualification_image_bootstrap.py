@@ -72,7 +72,8 @@ def test_image_build_rechecks_the_immutable_ecr_digest_configuration() -> None:
     text = BOOTSTRAP.read_text(encoding="utf-8")
     assert 'docker pull "$IMMUTABLE_IMAGE_REF"' in text
     assert 'docker image inspect "$IMMUTABLE_IMAGE_REF"' in text
-    assert 'PYTHONPATH="$SOURCE_ROOT/src" python3 -' in text
+    assert '--volume "$OUTPUT_DIR:/work/qualification-output:ro"' in text
+    assert '"$IMMUTABLE_IMAGE_REF" -' in text
     assert "fresh_ecr_image_config" in text
     assert "fresh_ecr_fixture_runtime" in text
     assert "fresh_ecr_sidecar_sha256" in text
