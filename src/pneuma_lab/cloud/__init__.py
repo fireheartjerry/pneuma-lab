@@ -16,6 +16,26 @@ from .admission_measurement import (
     require_l40s_runtime,
     summarize_rung,
 )
+from .fixed_admission_probe import (
+    build_probe_argv,
+    run_authenticated_probe,
+    run_probe,
+    validate_local_probe_inputs,
+)
+from .interruption import run_canonical_interruption_drill, run_interruption_drill
+from .qualification_execution import (
+    AwsCliAdapter,
+    input_manifest_digest,
+    materialize_authenticated_inputs,
+    parse_s3_uri,
+    parse_terraform_show_json,
+    publish_raw_measurement,
+    require_array_evidence,
+    require_two_succeeded_children,
+    retrieve_raw_measurement,
+    verify_provider_bindings,
+    worker_artifact_uri,
+)
 from .iac import require_terraform_for_l1, terraform_status
 from .input_lock import (
     build_candidate_input_lock,
@@ -31,6 +51,7 @@ from .licence_audit import (
 )
 from .lease_contention import require_lease_contention_cleanup, require_lease_contention_qualification
 from .manifests import (
+    validate_batch_array_qualification_receipt,
     validate_experiment_manifest,
     validate_input_lock,
     validate_lease_contention_cleanup_receipt,
@@ -79,6 +100,7 @@ __all__ = [
     "authorization_body_digest",
     "canonical_tool_call",
     "build_account_verification",
+    "build_probe_argv",
     "require_batch_array_qualification",
     "build_audit_plan",
     "build_candidate_input_lock",
@@ -93,6 +115,22 @@ __all__ = [
     "envelope_digest",
     "missing_scopes",
     "measurement_evidence_digest",
+    "AwsCliAdapter",
+    "input_manifest_digest",
+    "materialize_authenticated_inputs",
+    "parse_s3_uri",
+    "parse_terraform_show_json",
+    "publish_raw_measurement",
+    "require_array_evidence",
+    "require_two_succeeded_children",
+    "retrieve_raw_measurement",
+    "run_canonical_interruption_drill",
+    "run_interruption_drill",
+    "run_authenticated_probe",
+    "run_probe",
+    "validate_local_probe_inputs",
+    "verify_provider_bindings",
+    "worker_artifact_uri",
     "OUTPUT_PARITY_FIXTURE_IDS",
     "policy_digest",
     "readable_policy_summary",

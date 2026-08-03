@@ -11,7 +11,7 @@ phases:
     commands:
       # CodeBuild has no GPU. Validate that the shipped entrypoint compiles;
       # CUDA capability is exercised only by the separately authorized L40S smoke.
-      - docker run --rm --entrypoint python3 "$REPOSITORY_URI:$IMAGE_TAG" -m py_compile /opt/pneuma/pneuma_lab/cloud/fixed_admission_probe.py /opt/pneuma/pneuma_lab/cloud/dual_worker_admission_probe.py
+      - docker run --rm --entrypoint python3 "$REPOSITORY_URI:$IMAGE_TAG" -m py_compile /opt/pneuma/pneuma_lab/cloud/fixed_admission_probe.py /opt/pneuma/pneuma_lab/cloud/dual_worker_admission_probe.py /opt/pneuma/pneuma_lab/cloud/qualification_execution.py
       - docker push "$REPOSITORY_URI:$IMAGE_TAG"
       - IMAGE_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "$REPOSITORY_URI:$IMAGE_TAG" | sed 's/^.*@//')"
       - test -n "$IMAGE_DIGEST"

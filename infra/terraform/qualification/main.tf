@@ -19,6 +19,8 @@ locals {
     QualificationTopology  = "two-g6e-2xlarge-l40s"
     QualificationManagedBy = "pneuma-ephemeral-runner-v1"
     QualificationAction    = var.qualification_action_id
+    QualificationActionId  = var.qualification_action_id
+    QualificationCode      = var.qualification_code
   }
 }
 
@@ -43,8 +45,27 @@ resource "aws_batch_compute_environment" "qualification" {
     spot_iam_fleet_role = var.spot_fleet_role_arn
     security_group_ids  = var.security_group_ids
     subnets             = var.subnet_ids
+    launch_template {
+      launch_template_id = aws_launch_template.qualification.id
+      version            = aws_launch_template.qualification.latest_version
+    }
+    tags = local.qualification_tags
   }
   tags = local.qualification_tags
+}
+
+resource "aws_launch_template" "qualification" {
+  name_prefix = "${var.name_prefix}-worker-"
+
+  tag_specifications {
+    resource_type = "instance"
+    tags          = local.qualification_tags
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+    tags          = local.qualification_tags
+  }
 }
 
 resource "aws_batch_job_queue" "qualification" {
@@ -72,11 +93,12 @@ resource "aws_batch_job_definition" "worker" {
       { type = "VCPU", value = "8" },
       { type = "MEMORY", value = "60000" },
     ]
-    # This image-bound adapter invokes the fixed two-rung probe and binds the
-    # Batch array index to worker 0 or 1. Ref:: is resolved by Batch per child.
-    # The immutable image ENTRYPOINT already dispatches fixed admission mode.
-    command = []
+    # The immutable image ENTRYPOINT dispatches fixed admission mode. No
+    # command override is intentional: an empty override would erase it.
     environment = [
+      { name = "QUALIFICATION_CODE", value = var.qualification_code },
+      { name = "QUALIFICATION_ACTION_ID", value = var.qualification_action_id },
+      { name = "QUALIFICATION_ARTIFACT_PREFIX", value = var.output_path },
       { name = "QUALIFICATION_MODEL", value = var.qualification_model },
       { name = "QUALIFICATION_MODEL_REVISION", value = var.qualification_model_revision },
       { name = "QUALIFICATION_PROTOCOL", value = var.protocol_path },

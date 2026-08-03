@@ -15,6 +15,15 @@ variable "qualification_action_id" {
   }
 }
 
+variable "qualification_code" {
+  type        = string
+  description = "Signed code artifact or literal passed to the fixed probe's required --code argument."
+  validation {
+    condition     = length(trimspace(var.qualification_code)) > 0 && length(var.qualification_code) <= 256
+    error_message = "qualification_code must be a nonempty string of at most 256 characters."
+  }
+}
+
 variable "ami_id" {
   type = string
 }

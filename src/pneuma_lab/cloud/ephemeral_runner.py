@@ -23,6 +23,15 @@ from .ephemeral_qualification import (
 )
 from .errors import CloudManifestError
 from .preparation_admission import require_preparation_admission
+from .authorization_keys import canonical_bytes
+from .qualification_execution import (
+    AwsCliAdapter as ObjectAwsCliAdapter,
+    derive_spend_history_binding,
+    parse_terraform_show,
+    require_two_succeeded_children,
+    retrieve_raw_measurement,
+    verify_provider_bindings,
+)
 
 QUALIFICATION_TAGS = {
     "QualificationPurpose": "dual-l40s-admission-only",
@@ -85,7 +94,7 @@ class TerraformAdapter:
         self.plan_path: Path | None = None
 
     def load_account_plan(self, plan_path: Path) -> dict[str, Any]:
-        raw = plan_path.read_bytes()
+        plan_path.read_bytes()
         result = self.run(
             ["terraform", f"-chdir={self.directory}", "show", "-json", str(plan_path)],
             check=False,
@@ -95,7 +104,9 @@ class TerraformAdapter:
         plan = _json_result(result)
         if not isinstance(plan, dict):
             raise CloudManifestError("terraform show did not return an object")
-        plan["plan_sha256"] = hashlib.sha256(raw).hexdigest()
+        parsed = parse_terraform_show(plan)
+        plan["terraform_show_sha256"] = parsed["terraform_show_sha256"]
+        plan["_qualification"] = parsed
         self.plan_path = plan_path
         return plan
 
@@ -137,7 +148,7 @@ class TerraformAdapter:
             raise CloudManifestError("terraform destroy failed")
 
 
-class AwsCliAdapter:
+class AwsCliAdapter(ObjectAwsCliAdapter):
     """Concrete AWS CLI command adapter with an injected subprocess seam."""
 
     def __init__(
@@ -149,7 +160,17 @@ class AwsCliAdapter:
         job_definition: str,
         output_root: str,
         compute_environment: str | None = None,
+        transport: Any | None = None,
     ) -> None:
+        super().__init__(
+            region=region,
+            transport=transport,
+            runner=run,
+            recovery_config={
+                "boundary_uri": f"{output_root.rstrip('/')}/interruption/boundary.json",
+                "compute_environment": compute_environment or queue,
+            },
+        )
         self.run, self.region = run, region
         self.queue, self.job_definition, self.output_root = (
             queue,
@@ -228,51 +249,86 @@ class AwsCliAdapter:
         return self.parent_job_id
 
     def collect_admission(self, parent_job_id: str) -> Mapping[str, Any]:
-        jobs = self._call("batch", "describe-jobs", "--jobs", parent_job_id)
-        children = (
-            jobs.get("jobs", [])[0].get("arrayProperties", {}).get("statusSummary", {})
-            if jobs.get("jobs")
-            else {}
-        )
-        if set(children) != {"0", "1"}:
+        parent_response = self._call("batch", "describe-jobs", "--jobs", parent_job_id)
+        parent_rows = parent_response.get("jobs", [])
+        if not isinstance(parent_rows, list) or len(parent_rows) != 1:
             raise CloudManifestError(
-                "Batch array did not expose exactly two completed children"
+                "Batch describe-jobs did not return exactly one array parent"
             )
-        raw: dict[int, bytes] = {}
-        ids: list[str] = []
+        parent = parent_rows[0]
+        children: list[dict[str, Any]] = []
         for index in (0, 1):
             detail = self._call(
                 "batch", "describe-jobs", "--jobs", f"{parent_job_id}:{index}"
             )
-            instance_id = (
-                detail.get("jobs", [{}])[0].get("container", {}).get("instanceId")
+            rows = detail.get("jobs", [])
+            if not isinstance(rows, list) or len(rows) != 1:
+                raise CloudManifestError(
+                    "Batch describe-jobs did not return exactly one array child"
+                )
+            children.append(dict(rows[0]))
+        first, second = require_two_succeeded_children(
+            children, parent_status=parent.get("status")
+        )
+        raw = {
+            index: retrieve_raw_measurement(
+                self,
+                artifact_prefix=self.output_root,
+                worker_index=index,
             )
-            if not instance_id:
+            for index in (0, 1)
+        }
+        instance_ids: list[str] = []
+        for child in children:
+            instance_id = (child.get("container") or {}).get("instanceId")
+            if not isinstance(instance_id, str) or not instance_id:
                 raise CloudManifestError("worker identity missing from Batch detail")
-            ids.append(instance_id)
-            result = self.run(
-                [
-                    "aws",
-                    "s3",
-                    "cp",
-                    f"{self.output_root}/worker-{index}/measurement.json",
-                    "-",
-                    "--region",
-                    self.region,
-                    "--no-cli-pager",
-                ],
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            if result.returncode != 0 or not result.stdout:
-                raise CloudManifestError("raw admission evidence download failed")
-            raw[index] = result.stdout
-        return {"instance_ids": tuple(ids), "raw_evidence": raw}
+            instance_ids.append(instance_id)
+        return {
+            "parent_status": parent.get("status"),
+            "children": tuple(children),
+            "instance_ids": tuple(instance_ids),
+            "raw_evidence": raw,
+        }
 
     def run_partition_recovery(self, parent_job_id: str) -> Mapping[str, Any]:
-        result = self._call("batch", "describe-jobs", "--jobs", parent_job_id)
-        return {"restored_completed_boundary": bool(result.get("jobs"))}
+        parent_response = self._call("batch", "describe-jobs", "--jobs", parent_job_id)
+        parent_rows = parent_response.get("jobs", [])
+        if not isinstance(parent_rows, list) or len(parent_rows) != 1:
+            raise CloudManifestError(
+                "recovery requires exactly one described array parent"
+            )
+        parent = parent_rows[0]
+        if parent.get("status") != "SUCCEEDED":
+            raise CloudManifestError("recovery requires a completed array parent")
+        child_ids = [f"{parent_job_id}:0", f"{parent_job_id}:1"]
+        boundary = canonical_bytes({"parent": parent, "children": child_ids})
+        frozen = self.freeze(job_ids=(parent_job_id, *child_ids), boundary=boundary)
+        if frozen.get("completed") is not True or frozen.get("boundary") != boundary:
+            raise CloudManifestError(
+                "interruption freeze did not seal the completed boundary"
+            )
+        restored = self.restore(job_ids=(parent_job_id, *child_ids), boundary=boundary)
+        if (
+            restored.get("completed") is not True
+            or restored.get("boundary") != boundary
+            or restored.get("all_arm_visible_bytes_match") is not True
+        ):
+            raise CloudManifestError(
+                "interruption restore did not validate the exact boundary"
+            )
+        return {
+            "restored_completed_boundary": True,
+            "boundary_sha256": hashlib.sha256(boundary).hexdigest(),
+            "operations": (
+                "describe_jobs_before",
+                "freeze_completed_boundary",
+                "restore_completed_boundary",
+                "describe_jobs_after",
+            ),
+            "freeze": {"requested": True, "completed": True},
+            "restore": {"requested": True, "completed": True},
+        }
 
     def disable_and_drain(self, tags: Mapping[str, str]) -> None:
         self._call(
@@ -312,13 +368,13 @@ class AwsCliAdapter:
             "ec2",
             "describe-instances",
             "--filters",
-            f"Name=tag:QualificationAction,Values={tags['QualificationAction']}",
+            f"Name=tag:QualificationActionId,Values={tags['QualificationActionId']}",
         )
         volumes = self._call(
             "ec2",
             "describe-volumes",
             "--filters",
-            f"Name=tag:QualificationAction,Values={tags['QualificationAction']}",
+            f"Name=tag:QualificationActionId,Values={tags['QualificationActionId']}",
         )
         jobs = self._call(
             "batch", "list-jobs", "--job-queue", self.queue, "--job-status", "RUNNING"
@@ -343,46 +399,34 @@ class RunnerConfig:
 
 
 def require_account_plan(
-    plan: Mapping[str, Any], *, action_id: str | None = None
-) -> None:
-    """Accept only the three ephemeral resources and approved existing inputs."""
+    plan: Mapping[str, Any],
+    *,
+    action_id: str | None = None,
+    provider: Any | None = None,
+    ledger_path: Path | None = None,
+) -> dict[str, Any]:
+    """Parse real Terraform show-json values and verify existing bindings.
 
-    changes = plan.get("resource_changes")
-    if not isinstance(changes, Sequence) or isinstance(changes, (str, bytes)):
-        raise CloudManifestError("account plan must expose resource_changes")
-    observed = set()
-    for change in changes:
-        if (
-            not isinstance(change, Mapping)
-            or change.get("address") not in EXPECTED_RESOURCE_ADDRESSES
-        ):
-            raise CloudManifestError(
-                "account plan creates a non-qualification resource"
-            )
-        actions = tuple(change.get("actions", ()))
-        if actions != ("create",):
-            raise CloudManifestError(
-                "qualification account plan must contain only creates"
-            )
-        observed.add(change["address"])
-    if observed != EXPECTED_RESOURCE_ADDRESSES or len(changes) != len(
-        EXPECTED_RESOURCE_ADDRESSES
-    ):
-        raise CloudManifestError(
-            "account plan must contain exactly three ephemeral Batch resources"
-        )
-    if plan.get("approved_existing_inputs") != {
-        "roles": True,
-        "subnets": True,
-        "security_groups": True,
-    }:
-        raise CloudManifestError(
-            "account plan must reference pre-existing approved role/subnet/security-group inputs"
-        )
-    if action_id is not None and plan.get("qualification_action_id") != action_id:
+    ``approved_existing_inputs`` and caller-supplied spend booleans are not
+    evidence.  The plan carries concrete role, subnet, security-group, tag,
+    and environment values; the provider readback below verifies those
+    objects explicitly.  The spend binding, when requested, is recomputed
+    from the ledger bytes rather than accepted from the plan.
+    """
+
+    parsed = parse_terraform_show(plan)
+    if action_id is not None and parsed["action_id"] != action_id:
         raise CloudManifestError(
             "account plan action tag differs from signed action id"
         )
+    if provider is None:
+        raise CloudManifestError(
+            "account-plan acceptance requires explicit provider read-only checks"
+        )
+    verify_provider_bindings(provider, parsed)
+    if ledger_path is not None:
+        derive_spend_history_binding(ledger_path)
+    return parsed
 
 
 def terraform_mutation_commands(
@@ -398,6 +442,15 @@ def terraform_mutation_commands(
 
 
 def _require_evidence(receipt: Mapping[str, Any]) -> None:
+    children = receipt.get("children")
+    if not isinstance(children, Sequence) or isinstance(children, (str, bytes)):
+        raise CloudManifestError(
+            "admission receipt must retain both described array children"
+        )
+    require_two_succeeded_children(
+        children,
+        parent_status=receipt.get("parent_status"),
+    )
     ids = require_two_workers(receipt.get("instance_ids", ()))
     evidence = receipt.get("raw_evidence")
     if not isinstance(evidence, Mapping) or set(evidence) != {0, 1}:
@@ -427,7 +480,17 @@ def execute(
 ) -> Mapping[str, Any]:
     """Run the ordered qualification lifecycle through injected seams."""
 
-    require_account_plan(account_plan, action_id=config.action_id)
+    if not isinstance(ledger_path, Path):
+        raise CloudManifestError(
+            "qualification execution requires the authoritative spend ledger path"
+        )
+    parsed_plan = require_account_plan(
+        account_plan,
+        action_id=config.action_id,
+        provider=provider,
+        ledger_path=ledger_path,
+    )
+    spend_history_sha256 = derive_spend_history_binding(ledger_path)
     if config.expected_max_retries != MAX_RETRIES:
         raise CloudManifestError("qualification runner permits zero retries only")
     projected = provider.pricing_projection(
@@ -447,15 +510,17 @@ def execute(
         expected_action_class="qualification_audit",
         expected_provider="aws",
         expected_region=config.region,
-        expected_manifest_sha256=account_plan["plan_sha256"],
-        expected_input_lock_sha256=account_plan.get("input_lock_sha256"),
+        expected_manifest_sha256=parsed_plan["terraform_show_sha256"],
+        expected_input_lock_sha256=parsed_plan.get("input_lock_sha256"),
         expected_projected_cost_usd=projected,
         expected_max_retries=MAX_RETRIES,
-        spend_history_sha256=account_plan["spend_history_sha256"],
+        spend_history_sha256=spend_history_sha256,
     )
 
     tags = dict(QUALIFICATION_TAGS)
     tags["QualificationAction"] = config.action_id
+    tags["QualificationActionId"] = config.action_id
+    tags["QualificationCode"] = str(parsed_plan["qualification_code"])
     provider.preflight(tags)
     parent_job_id: str | None = None
     failure: Exception | None = None
@@ -471,7 +536,18 @@ def execute(
         evidence = provider.collect_admission(parent_job_id)
         _require_evidence(evidence)
         recovery = provider.run_partition_recovery(parent_job_id)
-        if recovery.get("restored_completed_boundary") is not True:
+        if (
+            recovery.get("restored_completed_boundary") is not True
+            or tuple(recovery.get("operations", ()))
+            != (
+                "describe_jobs_before",
+                "freeze_completed_boundary",
+                "restore_completed_boundary",
+                "describe_jobs_after",
+            )
+            or recovery.get("freeze") != {"requested": True, "completed": True}
+            or recovery.get("restore") != {"requested": True, "completed": True}
+        ):
             raise CloudManifestError(
                 "partition/interruption recovery boundary was not restored exactly"
             )

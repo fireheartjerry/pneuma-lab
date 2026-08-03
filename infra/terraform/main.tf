@@ -63,6 +63,11 @@ resource "aws_vpc_endpoint" "s3" {
 
 locals {
   interface_endpoints = toset(["ecr.api", "ecr.dkr", "logs", "ssm", "ssmmessages", "ec2messages"])
+  qualification_tags = merge(var.common_tags, {
+    Qualification         = "fixed-admission"
+    QualificationActionId = var.qualification_action_id
+    QualificationCode     = var.qualification_code
+  })
 }
 
 resource "aws_vpc_endpoint" "interface" {
@@ -236,7 +241,11 @@ resource "aws_launch_template" "worker" {
   }
   tag_specifications {
     resource_type = "instance"
-    tags          = { Name = "${var.name_prefix}-batch-worker" }
+    tags          = merge(local.qualification_tags, { Name = "${var.name_prefix}-batch-worker" })
+  }
+  tag_specifications {
+    resource_type = "volume"
+    tags          = merge(local.qualification_tags, { Name = "${var.name_prefix}-batch-worker-root" })
   }
 
   lifecycle {
@@ -274,7 +283,7 @@ resource "aws_batch_compute_environment" "worker" {
       version            = aws_launch_template.worker.latest_version
     }
 
-    tags = { BootstrapSHA256 = var.bootstrap_sha256 }
+    tags = merge(local.qualification_tags, { BootstrapSHA256 = var.bootstrap_sha256 })
   }
 
   lifecycle {
@@ -309,6 +318,11 @@ resource "aws_batch_job_definition" "gpu_worker" {
   container_properties = jsonencode({
     image      = var.gpu_worker_image
     privileged = true
+    environment = [
+      { name = "QUALIFICATION_CODE", value = var.qualification_code },
+      { name = "QUALIFICATION_ACTION_ID", value = var.qualification_action_id },
+      { name = "QUALIFICATION_ARTIFACT_PREFIX", value = "s3://${aws_s3_bucket.artifacts.id}/${var.artifact_prefix}/${var.qualification_action_id}" },
+    ]
     resourceRequirements = [
       { type = "GPU", value = "1" },
       { type = "VCPU", value = "8" },

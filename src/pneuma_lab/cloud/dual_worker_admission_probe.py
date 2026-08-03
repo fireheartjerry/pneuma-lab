@@ -276,6 +276,24 @@ def main() -> int:
             "input_lock_sha256": _sha256_file(args.input_lock),
             "code_sha256": _sha256_file(args.code),
         }
+        bound_inputs = [
+            {
+                "path": path.name,
+                "size_bytes": path.stat().st_size,
+                "sha256": _sha256_file(path),
+            }
+            for path in sorted(
+                (
+                    args.protocol,
+                    args.architecture,
+                    args.authorization,
+                    args.image,
+                    args.input_lock,
+                    args.code,
+                ),
+                key=lambda item: item.as_posix(),
+            )
+        ]
         instance_id = _aws_instance_id()
 
         import torch
@@ -295,6 +313,8 @@ def main() -> int:
             **bound_hashes,
             "worker_index": args.worker_index,
             "instance_id": instance_id,
+            "qualification_code_sha256": bound_hashes["code_sha256"],
+            "inputs": bound_inputs,
             "runtime": {
                 "model": args.model,
                 "revision": args.revision,

@@ -31,6 +31,17 @@ def receipt() -> dict:
             "restored_sha256": "c" * 64,
             "all_arm_visible_bytes_match": True,
         },
+        "drill": {
+            "operations": [
+                "describe_jobs_before",
+                "freeze_completed_boundary",
+                "restore_completed_boundary",
+                "describe_jobs_after",
+                "verify_tagged_resource_absence",
+            ],
+            "freeze": {"requested": True, "completed": True},
+            "restore": {"requested": True, "completed": True},
+        },
         "resources": [
             {"resource_id": "i-1", "resource_type": "compute", "state_before": "running", "state_after": "absent"},
             {"resource_id": "vol-1", "resource_type": "disk", "state_before": "in-use", "state_after": "absent"},
@@ -56,6 +67,7 @@ def test_exact_interruption_receipt_passes() -> None:
         (lambda row: row.update(watcher_identity_arn=row["controller_identity_arn"]), "independent"),
         (lambda row: row["lease"].update(watcher_observed_timestamp="2026-08-01T00:00:59Z"), "expiry"),
         (lambda row: row["boundary"].update(restored_sha256="d" * 64), "byte exact"),
+        (lambda row: row["drill"].update(operations=["describe_jobs"]), "too short|canonical"),
         (lambda row: row["resources"].append(dict(row["resources"][0])), "repeats"),
     ],
 )

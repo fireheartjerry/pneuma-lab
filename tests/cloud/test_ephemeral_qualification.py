@@ -78,7 +78,7 @@ def test_ephemeral_stack_has_destroyable_watchdog_and_no_retry_contract() -> Non
     assert "attempt_duration_seconds = 3600" in text
     assert "attempts = 1" in text
     dockerfile = (ROOT / "infra/docker/qualification-worker/Dockerfile").read_text()
-    assert "pneuma_lab.cloud.fixed_admission_probe" in dockerfile
+    assert "fixed_admission_entrypoint.sh" in dockerfile
     assert "qualification-entrypoint" not in dockerfile
     assert "prevent_destroy" not in text
 
@@ -89,12 +89,14 @@ def test_image_and_batch_command_bind_fixed_probe_and_distinct_outputs() -> None
     adapter = (ROOT / "src/pneuma_lab/cloud/fixed_admission_probe.py").read_text()
     probe = (ROOT / "src/pneuma_lab/cloud/dual_worker_admission_probe.py").read_text()
     assert "COPY src/pneuma_lab /opt/pneuma/pneuma_lab" in dockerfile
-    assert (
-        'ENTRYPOINT ["python3", "-m", "pneuma_lab.cloud.fixed_admission_probe"]'
-        in dockerfile
-    )
-    assert "command = []" in hcl
+    assert 'ENTRYPOINT ["/opt/pneuma/fixed_admission_entrypoint.sh"]' in dockerfile
+    assert "command = []" not in hcl
     assert 'value = "60000"' in hcl
     assert "qualification_action_id" in hcl
+    assert 'name = "QUALIFICATION_CODE"' in hcl
+    assert 'name = "QUALIFICATION_ACTION_ID"' in hcl
+    assert 'resource_type = "volume"' in hcl
+    assert "QualificationActionId" in hcl
     assert "worker-{raw_index}" in adapter
+    assert '"--code"' in adapter
     assert "_WATCHDOG_SECONDS = 3500" in probe

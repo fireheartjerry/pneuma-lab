@@ -14,6 +14,8 @@
         "provenance": {"type": "object", "required": ["design_sha256", "code_sha256"], "properties": {"design_sha256": {"$ref": "#/$defs/sha256"}, "code_sha256": {"$ref": "#/$defs/sha256"}}, "additionalProperties": false},
         "status": {"enum": ["candidate", "authorized"]},
         "input_lock_sha256": {"$ref": "#/$defs/sha256"},
+        "input_manifest_sha256": {"$ref": "#/$defs/sha256", "description": "Digest of the exact object URIs, local paths, sizes, and bytes admitted to a qualification child."},
+        "spend_history_sha256": {"$ref": "#/$defs/sha256", "description": "Digest of the current authoritative spend-history source, recomputed before materialization."},
         "scopes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["model", "tokenizer", "benchmark", "container_base", "verifier", "license", "contamination"]}},
         "byte_ceiling_bytes": {"type": "integer", "exclusiveMinimum": 0},
         "mirror_root": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$"},

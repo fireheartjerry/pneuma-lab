@@ -6,7 +6,7 @@
     "type": "object",
     "x-pneuma-schema-kind": "cloud-manifest",
     "x-pneuma-version": "0.1.0",
-    "required": ["record_kind", "schema_version", "plan_sha256", "input_lock_sha256", "provider", "region", "account_id", "drill_id", "controller_identity_arn", "watcher_identity_arn", "lease", "boundary", "resources", "residual_resource_ids", "gates"],
+    "required": ["record_kind", "schema_version", "plan_sha256", "input_lock_sha256", "provider", "region", "account_id", "drill_id", "controller_identity_arn", "watcher_identity_arn", "lease", "boundary", "drill", "resources", "residual_resource_ids", "gates"],
     "properties": {
         "record_kind": {"const": "cloud_interruption_qualification_receipt"},
         "schema_version": {"const": "0.1.0"},
@@ -38,6 +38,16 @@
                 "pre_interrupt_sha256": {"$ref": "#/$defs/digest"},
                 "restored_sha256": {"$ref": "#/$defs/digest"},
                 "all_arm_visible_bytes_match": {"type": "boolean"}
+            },
+            "additionalProperties": false
+        },
+        "drill": {
+            "type": "object",
+            "required": ["operations", "freeze", "restore"],
+            "properties": {
+                "operations": {"type": "array", "minItems": 5, "items": {"type": "string", "minLength": 1}},
+                "freeze": {"type": "object", "required": ["requested", "completed"], "properties": {"requested": {"const": true}, "completed": {"const": true}}, "additionalProperties": false},
+                "restore": {"type": "object", "required": ["requested", "completed"], "properties": {"requested": {"const": true}, "completed": {"const": true}}, "additionalProperties": false}
             },
             "additionalProperties": false
         },

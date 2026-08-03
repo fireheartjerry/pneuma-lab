@@ -11,6 +11,24 @@ variable "name_prefix" {
   }
 }
 
+variable "qualification_action_id" {
+  type        = string
+  description = "Exact action identity bound to the signed qualification admission."
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]{2,79}$", var.qualification_action_id))
+    error_message = "qualification_action_id must be a lowercase action identifier."
+  }
+}
+
+variable "qualification_code" {
+  type        = string
+  description = "Opaque code passed by the fixed qualification image to its required --code argument."
+  validation {
+    condition     = length(trimspace(var.qualification_code)) > 0 && length(var.qualification_code) <= 256
+    error_message = "qualification_code must be a nonempty string of at most 256 characters."
+  }
+}
+
 variable "ami_id" {
   type        = string
   description = "Pinned AWS Batch GPU-compatible AMI verified by the qualification receipt."
