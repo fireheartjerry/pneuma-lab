@@ -18,6 +18,7 @@ from pneuma_lab.cloud.ephemeral_runner import (
     QualificationExecutionError,
     RunnerConfig,
     TerraformAdapter,
+    _require_resource_contract,
     execute,
     require_account_plan,
     require_fresh_qualification_action,
@@ -25,7 +26,11 @@ from pneuma_lab.cloud.ephemeral_runner import (
 )
 from pneuma_lab.cloud.errors import CloudManifestError
 from pneuma_lab.cloud.fixed_admission_probe import build_raw_measurement
-from pneuma_lab.cloud.iam_simulation import expected_checks, run_iam_simulation
+from pneuma_lab.cloud.iam_simulation import (
+    expected_checks,
+    run_iam_simulation,
+    validate_worker_policy_documents,
+)
 from pneuma_lab.cloud.qualification_execution import worker_artifact_uri
 from pneuma_lab.cloud.qualification_execution import (
     BatchAdmissionError,
@@ -98,6 +103,49 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
             "output_path": {"value": output_path},
             "subnet_ids": {"value": subnets},
             "security_group_ids": {"value": ["sg-0123456789abcdef0"]},
+        },
+        "configuration": {
+            "root_module": {
+                "resources": [
+                    {
+                        "address": "aws_batch_compute_environment.qualification",
+                        "expressions": {
+                            "compute_resources": [
+                                {
+                                    "launch_template": [
+                                        {
+                                            "launch_template_id": {
+                                                "references": [
+                                                    "aws_launch_template.qualification.id"
+                                                ]
+                                            },
+                                            "version": {
+                                                "references": [
+                                                    "aws_launch_template.qualification.latest_version"
+                                                ]
+                                            },
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                    },
+                    {
+                        "address": "aws_batch_job_queue.qualification",
+                        "expressions": {
+                            "compute_environment_order": [
+                                {
+                                    "compute_environment": {
+                                        "references": [
+                                            "aws_batch_compute_environment.qualification.arn"
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                    },
+                ]
+            }
         },
         "planned_values": {
             "root_module": {
@@ -231,7 +279,18 @@ class ReadOnlyProvider:
         }
 
     def get_role(self, role_name):
-        return {"Role": {"RoleName": role_name, "Arn": ROLE_ARNS[role_name]}}
+        role_ids = {
+            "pneuma-worker": "AROAWORKER00000000001",
+            "pneuma-batch": "AROABATCH000000000002",
+            "pneuma-spot": "AROSPOT0000000000003",
+        }
+        return {
+            "Role": {
+                "RoleName": role_name,
+                "Arn": ROLE_ARNS[role_name],
+                "RoleId": role_ids[role_name],
+            }
+        }
 
     def get_instance_profile(self, profile_name):
         return {
@@ -242,6 +301,7 @@ class ReadOnlyProvider:
                     {
                         "RoleName": "pneuma-worker",
                         "Arn": ROLE_ARNS["pneuma-worker"],
+                        "RoleId": "AROAWORKER00000000001",
                     }
                 ],
             }
@@ -277,6 +337,35 @@ class FakeProvider(ReadOnlyProvider):
             output_root=plan["output_path"],
             iam_role_arn=plan["worker_role_arn"],
         )
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Action": "s3:GetObject",
+                    "Resource": [
+                        row["resource_arn"]
+                        for row in checks
+                        if row["id"].startswith("input-read-")
+                    ],
+                },
+                {
+                    "Effect": "Allow",
+                    "Action": "s3:PutObject",
+                    "Resource": [
+                        row["resource_arn"]
+                        for row in checks
+                        if row["id"].startswith("raw-write-")
+                    ],
+                },
+            ],
+        }
+        policy_inventory = validate_worker_policy_documents(
+            (("inline", "bounded-experiment-access", policy),),
+            input_paths=plan["input_paths"],
+            output_root=plan["output_path"],
+            iam_role_arn=plan["worker_role_arn"],
+        )
 
         def call(*args):
             action = args[args.index("--action-names") + 1]
@@ -305,6 +394,7 @@ class FakeProvider(ReadOnlyProvider):
             plan=plan,
             action_id=action_id,
             expected_policy_sha256=expected_policy_sha256,
+            policy_inventory=policy_inventory,
         )
 
     def preflight(self, tags):
@@ -869,6 +959,115 @@ def test_ephemeral_plan_guard_rejects_launch_template_id_mismatch() -> None:
         parse_terraform_show(candidate)
 
 
+def test_ephemeral_plan_guard_proves_unknown_cross_resource_ids_from_configuration() -> None:
+    candidate = terraform_show()
+    resources = candidate["planned_values"]["root_module"]["resources"]
+    compute = next(
+        resource
+        for resource in resources
+        if resource["address"] == "aws_batch_compute_environment.qualification"
+    )
+    launch_template = next(
+        resource
+        for resource in resources
+        if resource["address"] == "aws_launch_template.qualification"
+    )
+    compute["values"]["compute_resources"][0]["launch_template"][0]["id"] = None
+    launch_template["values"]["id"] = None
+
+    parsed = parse_terraform_show(candidate)
+
+    assert parsed["cross_resource_binding_proof"] == {
+        "launch_template": "terraform_configuration_reference",
+        "queue_compute_environment": "terraform_configuration_reference",
+    }
+
+
+def test_ephemeral_plan_guard_rejects_mixed_or_ambiguous_unknown_launch_references() -> None:
+    candidate = terraform_show()
+    resources = candidate["planned_values"]["root_module"]["resources"]
+    compute = next(
+        resource
+        for resource in resources
+        if resource["address"] == "aws_batch_compute_environment.qualification"
+    )
+    launch_template = next(
+        resource
+        for resource in resources
+        if resource["address"] == "aws_launch_template.qualification"
+    )
+    compute["values"]["compute_resources"][0]["launch_template"][0]["id"] = None
+    launch_template["values"]["id"] = None
+    launch_expression = next(
+        resource
+        for resource in candidate["configuration"]["root_module"]["resources"]
+        if resource["address"] == "aws_batch_compute_environment.qualification"
+    )["expressions"]["compute_resources"][0]["launch_template"][0]
+    launch_expression["launch_template_id"]["references"] = [
+        "aws_launch_template.qualification.id",
+        "aws_launch_template.worker.id",
+    ]
+    with pytest.raises(CloudManifestError, match="exact Terraform resource reference"):
+        parse_terraform_show(candidate)
+
+    candidate = terraform_show()
+    resources = candidate["planned_values"]["root_module"]["resources"]
+    compute = next(
+        resource
+        for resource in resources
+        if resource["address"] == "aws_batch_compute_environment.qualification"
+    )
+    launch_template = next(
+        resource
+        for resource in resources
+        if resource["address"] == "aws_launch_template.qualification"
+    )
+    compute["values"]["compute_resources"][0]["launch_template"][0]["id"] = None
+    launch_template["values"]["id"] = None
+    launch_expression = next(
+        resource
+        for resource in candidate["configuration"]["root_module"]["resources"]
+        if resource["address"] == "aws_batch_compute_environment.qualification"
+    )["expressions"]["compute_resources"][0]["launch_template"][0]
+    launch_expression["version"]["references"] = [
+        "aws_launch_template.worker.latest_version"
+    ]
+    with pytest.raises(CloudManifestError, match="exact launch-template resource"):
+        parse_terraform_show(candidate)
+
+
+def test_ephemeral_plan_contract_rejects_unplanned_extra_resources() -> None:
+    candidate = terraform_show()
+    candidate["planned_values"]["root_module"]["resources"].append(
+        {"address": "aws_s3_bucket.unapproved", "values": {}}
+    )
+    with pytest.raises(CloudManifestError, match="exactly the four approved resources"):
+        _require_resource_contract(candidate)
+
+
+def test_ephemeral_plan_guard_rejects_unknown_ids_without_exact_configuration_references() -> None:
+    candidate = terraform_show()
+    resources = candidate["planned_values"]["root_module"]["resources"]
+    compute = next(
+        resource
+        for resource in resources
+        if resource["address"] == "aws_batch_compute_environment.qualification"
+    )
+    launch_template = next(
+        resource
+        for resource in resources
+        if resource["address"] == "aws_launch_template.qualification"
+    )
+    compute["values"]["compute_resources"][0]["launch_template"][0]["id"] = None
+    launch_template["values"]["id"] = None
+    candidate["configuration"]["root_module"]["resources"][1]["expressions"][
+        "compute_environment_order"
+    ][0]["compute_environment"]["references"] = ["var.unrelated"]
+
+    with pytest.raises(CloudManifestError, match="exact Terraform resource reference"):
+        parse_terraform_show(candidate)
+
+
 def test_terraform_show_requires_us_east_1_and_a_concrete_vpc() -> None:
     candidate = terraform_show()
     candidate["variables"]["region"]["value"] = "us-west-2"
@@ -1039,7 +1238,28 @@ def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
             {
                 "Effect": "Allow",
                 "Action": "s3:GetObject",
-                "Resource": "arn:aws:s3:::bucket/input",
+                "Resource": [
+                    row["resource_arn"]
+                    for row in expected_checks(
+                        input_paths=plan["input_paths"],
+                        output_root=plan["output_path"],
+                        iam_role_arn=plan["worker_role_arn"],
+                    )
+                    if row["id"].startswith("input-read-")
+                ],
+            },
+            {
+                "Effect": "Allow",
+                "Action": "s3:PutObject",
+                "Resource": [
+                    row["resource_arn"]
+                    for row in expected_checks(
+                        input_paths=plan["input_paths"],
+                        output_root=plan["output_path"],
+                        iam_role_arn=plan["worker_role_arn"],
+                    )
+                    if row["id"].startswith("raw-write-")
+                ],
             }
         ],
     }
@@ -1064,6 +1284,20 @@ def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
                 argv,
                 0,
                 json.dumps({"PolicyDocument": json.dumps(worker_policy)}).encode(),
+                b"",
+            )
+        if "list-role-policies" in argv:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                b'{"IsTruncated":false,"PolicyNames":["bounded-experiment-access"]}',
+                b"",
+            )
+        if "list-attached-role-policies" in argv:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                b'{"IsTruncated":false,"AttachedPolicies":[]}',
                 b"",
             )
         action = argv[argv.index("--action-names") + 1]
@@ -1111,6 +1345,8 @@ def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
         canonical_bytes(policy)
     ).hexdigest()
     assert any("get-role-policy" in argv for argv in calls)
+    assert any("list-role-policies" in argv for argv in calls)
+    assert "policy_inventory" in record
     iam_calls = [argv for argv in calls if "simulate-principal-policy" in argv]
     assert len(iam_calls) == 17
     assert all(
@@ -1124,6 +1360,32 @@ def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
             plan=plan,
             action_id="qual-1",
             expected_policy_sha256="f" * 64,
+        )
+
+
+@pytest.mark.parametrize("flag", [None, "false"])
+def test_concrete_cli_rejects_incomplete_iam_policy_pagination(flag: str | None) -> None:
+    plan = parse_terraform_show(terraform_show())
+    plan["worker_role_arn"] = ROLE_ARNS["pneuma-worker"]
+    plan["worker_role_name"] = "pneuma-worker"
+
+    def run(argv, **kwargs):
+        payload = {"PolicyNames": []}
+        if flag is not None:
+            payload["IsTruncated"] = flag
+        return subprocess.CompletedProcess(argv, 0, json.dumps(payload).encode(), b"")
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root=plan["output_path"],
+    )
+    with pytest.raises(CloudManifestError, match="IsTruncated"):
+        adapter.capture_worker_policy_inventory(
+            plan=plan,
+            expected_policy_sha256="a" * 64,
         )
 
 
@@ -1409,6 +1671,29 @@ def test_concrete_cli_disables_and_drains_every_submitted_job(monkeypatch) -> No
     assert not any("terminate-job" in call for call in calls)
 
 
+def test_concrete_cli_rejects_partial_drain_describe_results() -> None:
+    def run(argv, **kwargs):
+        if "describe-jobs" in argv:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                b'{"jobs":[{"jobId":"parent","status":"FAILED"}]}',
+                b"",
+            )
+        return subprocess.CompletedProcess(argv, 0, b"{}", b"")
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="q",
+        job_definition="d",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    adapter.parent_job_id = "parent"
+    with pytest.raises(CloudManifestError, match="every requested job"):
+        adapter.disable_and_drain({})
+
+
 def test_concrete_cli_waits_for_valid_environment_and_queue() -> None:
     calls = []
 
@@ -1509,6 +1794,7 @@ def test_concrete_cli_absence_checks_all_ephemeral_resource_classes() -> None:
             "describe-launch-templates": {"LaunchTemplates": []},
             "describe-network-interfaces": {"NetworkInterfaces": []},
             "describe-security-groups": {"SecurityGroups": []},
+            "lookup-events": {"Events": []},
         }
         command = next(key for key in payloads if key in argv)
         return subprocess.CompletedProcess(
@@ -1554,6 +1840,8 @@ def test_concrete_cli_absence_accepts_deleted_queue_and_environment() -> None:
                 b"",
                 b"ResourceNotFoundException: deleted",
             )
+        if "lookup-events" in argv:
+            return subprocess.CompletedProcess(argv, 0, b'{"Events":[]}', b"")
         command = next(
             command
             for command in (
@@ -1605,7 +1893,19 @@ def test_concrete_cli_absence_accepts_terminal_job_history_and_inactive_definiti
             return subprocess.CompletedProcess(
                 argv,
                 0,
-                b'{"jobs":[{"jobId":"parent","status":"FAILED"}]}',
+                b'{"jobs":[{"jobId":"parent","status":"FAILED"},{"jobId":"parent:0","status":"FAILED"},{"jobId":"parent:1","status":"FAILED"}]}',
+                b"",
+            )
+        if "lookup-events" in argv:
+            event = {
+                "eventName": "SubmitJob",
+                "requestParameters": {"jobName": "qual-1"},
+                "responseElements": {"jobId": "parent"},
+            }
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                json.dumps({"Events": [{"CloudTrailEvent": json.dumps(event)}]}).encode(),
                 b"",
             )
         if "describe-job-definitions" in argv:
@@ -1657,6 +1957,7 @@ def test_concrete_cli_absence_accepts_terminal_job_history_and_inactive_definiti
         output_root="s3://bucket/runs/qual-1",
     )
     adapter.parent_job_id = "parent"
+    adapter._drained_action_job_ids = {"parent", "parent:0", "parent:1"}
     absence = adapter.verify_absence({"QualificationActionId": "qual-1"})
     assert all(absence.values())
     assert absence["jobs"] is True
@@ -1735,6 +2036,108 @@ def test_concrete_cli_captures_exact_cloudtrail_submit_event() -> None:
     assert evidence["array_size"] == 2
     assert evidence["retry_attempts"] == 1
     assert evidence["submit_event_time_utc"] == "2026-08-03T09:34:48Z"
+
+
+def test_concrete_cli_rejects_same_name_cloudtrail_event_for_wrong_parent() -> None:
+    tags = {
+        "QualificationPurpose": "dual-l40s-admission-only",
+        "QualificationTopology": "two-g6e-2xlarge-l40s",
+        "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
+        "QualificationAction": "qual-1",
+        "QualificationActionId": "qual-1",
+        "QualificationCode": "fixture-only-qualification-code",
+    }
+    event = {
+        "EventId": "event-wrong-parent",
+        "EventTime": "2026-08-03T09:34:48Z",
+        "CloudTrailEvent": json.dumps(
+            {
+                "eventName": "SubmitJob",
+                "responseElements": {"jobId": "different-parent"},
+                "requestParameters": {
+                    "jobName": "qual-1",
+                    "jobQueue": "qual-1",
+                    "jobDefinition": "qual-1-worker:1",
+                    "arrayProperties": {"size": 2},
+                    "retryStrategy": {"attempts": 1},
+                    "timeout": {"attemptDurationSeconds": 3600},
+                    "tags": tags,
+                },
+            }
+        ),
+    }
+
+    def run(argv, **kwargs):
+        if "submit-job" in argv:
+            return subprocess.CompletedProcess(argv, 0, b'{"jobId":"parent"}', b"")
+        return subprocess.CompletedProcess(
+            argv, 0, json.dumps({"Events": [event]}).encode(), b""
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    adapter.submit_array(size=2, timeout_seconds=3600, attempts=1, tags=tags)
+    with pytest.raises(CloudManifestError, match="does not match the submitted parent"):
+        adapter.capture_submit_evidence("parent")
+
+
+def test_concrete_cli_rejects_duplicate_submit_events_with_the_same_action_name() -> None:
+    tags = {
+        "QualificationPurpose": "dual-l40s-admission-only",
+        "QualificationTopology": "two-g6e-2xlarge-l40s",
+        "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
+        "QualificationAction": "qual-1",
+        "QualificationActionId": "qual-1",
+        "QualificationCode": "fixture-only-qualification-code",
+    }
+    request = {
+        "jobName": "qual-1",
+        "jobQueue": "qual-1",
+        "jobDefinition": "qual-1-worker:1",
+        "arrayProperties": {"size": 2},
+        "retryStrategy": {"attempts": 1},
+        "timeout": {"attemptDurationSeconds": 3600},
+        "tags": tags,
+    }
+    events = [
+        {
+            "EventId": f"event-{index}",
+            "EventTime": "2026-08-03T09:34:48Z",
+            "CloudTrailEvent": json.dumps(
+                {
+                    "eventName": "SubmitJob",
+                    "responseElements": {"jobId": job_id},
+                    "requestParameters": request,
+                }
+            ),
+        }
+        for index, job_id in enumerate(("parent", "duplicate-parent"), start=1)
+    ]
+
+    def run(argv, **kwargs):
+        if "submit-job" in argv:
+            return subprocess.CompletedProcess(
+                argv, 0, b'{"jobId":"parent"}', b""
+            )
+        return subprocess.CompletedProcess(
+            argv, 0, json.dumps({"Events": events}).encode(), b""
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    adapter.submit_array(size=2, timeout_seconds=3600, attempts=1, tags=tags)
+    with pytest.raises(CloudManifestError, match="exactly one SubmitJob event"):
+        adapter.capture_submit_evidence("parent")
 
 
 @pytest.mark.parametrize(

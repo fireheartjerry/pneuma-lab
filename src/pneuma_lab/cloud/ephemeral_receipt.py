@@ -11,7 +11,7 @@ from typing import Any
 from .authorization_keys import authorization_body_digest
 from .errors import CloudManifestError
 from .ephemeral_runner import _validate_kms_verification
-from .iam_simulation import validate_iam_simulation_matrix
+from .iam_simulation import validate_iam_simulation_matrix, validate_policy_inventory
 from .manifests import validate_ephemeral_dual_worker_qualification_receipt
 from .qualification_execution import (
     BatchAdmissionError,
@@ -391,6 +391,9 @@ def build_ephemeral_qualification_receipt(
         plan=plan,
         expected_policy_sha256=authority.get("iam_policy_sha256"),
     )
+    policy_inventory = iam_simulation.get("policy_inventory")
+    if policy_inventory is not None:
+        policy_inventory = validate_policy_inventory(policy_inventory)
     kms_verification = context.get("kms_verification")
     if not isinstance(kms_verification, Mapping):
         raise CloudManifestError("execution context lacks live KMS verification evidence")
@@ -539,6 +542,27 @@ def build_ephemeral_qualification_receipt(
             "run": False,
             "reason": "Admission did not reach two successful children.",
         }
+    authority_record = {
+        "package_sha256": authority.get("signed_package_sha256"),
+        "envelope_body_sha256": _authority_field(authority, "envelope", "body_sha256"),
+        "admission_body_sha256": _authority_field(authority, "admission", "body_sha256"),
+        "envelope_signature_sha256": _authority_field(
+            authority, "envelope", "signature_sha256"
+        ),
+        "admission_signature_sha256": _authority_field(
+            authority, "admission", "signature_sha256"
+        ),
+        "signature_algorithm": _authority_field(
+            authority, "kms", "signing_algorithm"
+        ),
+        "action_policy_sha256": authority.get("iam_policy_sha256"),
+        "iam_simulation_matrix_sha256": iam_simulation["matrix_sha256"],
+        "kms_verification_sha256": kms_verification["verification_sha256"],
+    }
+    if isinstance(policy_inventory, Mapping):
+        authority_record["iam_policy_inventory_sha256"] = policy_inventory[
+            "inventory_sha256"
+        ]
     receipt: dict[str, Any] = {
         "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt",
         "schema_version": "0.1.0",
@@ -556,23 +580,7 @@ def build_ephemeral_qualification_receipt(
             "terraform_show_sha256": plan.get("terraform_show_sha256"),
             "terraform_plan_binding_sha256": plan.get("terraform_plan_binding_sha256"),
         },
-        "authority": {
-            "package_sha256": authority.get("signed_package_sha256"),
-            "envelope_body_sha256": _authority_field(authority, "envelope", "body_sha256"),
-            "admission_body_sha256": _authority_field(authority, "admission", "body_sha256"),
-            "envelope_signature_sha256": _authority_field(
-                authority, "envelope", "signature_sha256"
-            ),
-            "admission_signature_sha256": _authority_field(
-                authority, "admission", "signature_sha256"
-            ),
-            "signature_algorithm": _authority_field(
-                authority, "kms", "signing_algorithm"
-            ),
-            "action_policy_sha256": authority.get("iam_policy_sha256"),
-            "iam_simulation_matrix_sha256": iam_simulation["matrix_sha256"],
-            "kms_verification_sha256": kms_verification["verification_sha256"],
-        },
+        "authority": authority_record,
         "spot_projection": {
             "instance_type": "g6e.2xlarge",
             "worker_count": 2,

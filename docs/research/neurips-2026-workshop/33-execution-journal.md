@@ -6790,3 +6790,66 @@ post-launch terminal no-go. Tasks 6–10 remain
   This is the intended `launch_blocked` result, not a software failure.
 - **Boundary:** No canonical P0/Step 4B lineage, provider action, unblind,
   analysis, claim promotion, or scientific result was created.
+
+### EJ-20260803-semantic-binding-policy-image-and-submit-hardening
+
+- **Terraform binding:** Unknown provider-generated launch-template and queue
+  IDs now require exact Terraform configuration references; conflicting
+  alias/index matches fail closed. Focused unknown-reference and mismatch
+  regressions pass.
+- **IAM least privilege:** The concrete AWS adapter enumerates all inline and
+  attached managed worker-role policies with pagination and retains only
+  sanitized hashes. Broad or other-action S3 Allows fail closed; the current
+  17-case simulation remains required. Focused policy-inventory regressions
+  pass.
+- **Image/runtime:** The CPU-only fixture check ran both worker indexes and
+  verified two immutable byte-identical raw objects. The image bootstrap now
+  pulls and inspects the exact fresh ECR digest after push, including fixed
+  ENTRYPOINT/CMD and source/base labels; the receipt validator requires the
+  digest-bound config check.
+- **Exactly-once/teardown:** CloudTrail matching covers the action job name as
+  well as the returned parent ID and rejects duplicate same-action submits;
+  teardown discovers all action-named Batch jobs across statuses.
+- **Verification/boundary:** Focused cloud/image/bootstrap tests, Ruff,
+  Terraform validation, status validation, fixture smoke, and graph refresh
+  pass. The AWS CLI session is expired; no fresh plan, image build, IAM
+  mutation, action, ledger row, relaunch, scientific workload, unblind,
+  analysis, or claim promotion occurred. Action-011 remains the sealed
+  post-launch terminal no-go.
+
+### EJ-20260803-final-fail-closed-audit-repairs
+
+- **Terraform/provider identity:** The parser now rejects extra planned-value
+  resources, ambiguous or mixed launch-template reference bases, and malformed
+  after_unknown markers. The profile's single attached role must match
+  iam get-role by name, ARN, and RoleId.
+- **IAM/image evidence:** IAM enumeration rejects missing or nonboolean
+  pagination completion, audits worker-applicable resource-policy S3 Allows,
+  and carries a separate sanitized policy-inventory digest into new receipts.
+  The image bootstrap emits self-bound post-push inspect and two-worker fixture
+  sidecars; AWS CLI v2 is checked from inside the image.
+- **Exactly-once/teardown:** CloudTrail evidence binds the returned parent ID
+  to the actual submission. Drain/absence requires every requested job row and
+  a retained drained set, with a final action-name CloudTrail scan after queue
+  deletion. Post-submit receipt assembly failure is retained as a sanitized
+  terminal context record.
+- **Boundary:** Focused regressions, Ruff, Terraform validation, status
+  validation, fixture smoke, and graph refresh passed. The AWS session is
+  expired; no fresh plan, image, IAM mutation, action, ledger row, relaunch, or
+  scientific workload occurred. Action-011 remains exhausted and no official
+  P0/Step-4B work was performed.
+
+### EJ-20260803-binding-regeneration-and-final-cloud-gate
+
+- **Binding repair:** The current executor surface digest is
+  `388aa041a937f7afa73e03a23d468772c56fff5b8b7c38236cf099cebee8c2e6`.
+  The candidate and lifecycle-pending Step 5B fixtures were regenerated to
+  that digest; the already signed historical ready-plan fixture remains bound
+  to its original executor digest and manifest.
+- **Provenance repair:** Five proxy/candidate fixtures were refreshed to the
+  current design digest `5fca7a952135906c210632428bdc9cc059c3292ac70ba59183265de5ca7f2a68`.
+  The full bounded `tests/cloud` suite, changed-file Ruff, status checker, and
+  whitespace gate pass.
+- **Boundary:** This was a local binding repair only. AWS credentials remain
+  expired; no image build, provider mutation, qualification relaunch, or
+  scientific work occurred.

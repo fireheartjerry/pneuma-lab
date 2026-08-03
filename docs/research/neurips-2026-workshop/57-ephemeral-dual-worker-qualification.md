@@ -141,3 +141,38 @@ retained evidence paths and the authoritative spend ledger. Terraform-show
 admission and provider binding also require the concrete Spot fleet role ARN;
 it cannot be omitted and silently skip role verification. These are source-only
 repairs and do not authorize another launch.
+
+## 2026-08-03 source-only semantic closure
+
+Future plan admission now requires exact Terraform configuration references
+when provider-generated launch-template or queue IDs are unknown, and rejects
+ambiguous alias/index matches. The concrete runner inventories every worker
+role inline/managed policy, rejects any S3 Allow beyond the five input objects
+and two worker output objects, detects duplicate same-action CloudTrail
+submissions, and discovers all action-scoped Batch jobs during teardown.
+The image fixture smoke covers both worker indexes; the image-build bootstrap
+re-reads and inspects the exact immutable ECR digest after push. These changes
+are source-only and do not change the sealed action-011 no-go or authorize a
+new launch.
+
+## Final semantic closure — 2026-08-03
+
+The future qualification contract is now stricter at the exact seams exposed
+by the final independent audits: planned values must contain only the four
+owned resources; unknown Terraform IDs must resolve to one matching resource
+base with consistent id/version or ARN references; malformed after_unknown
+metadata fails closed; and the profile's sole attached role must match
+iam get-role by name, ARN, and RoleId. Every IAM policy page must declare a
+boolean terminal pagination flag, all resource-based S3 Allows that could
+apply to the worker are checked, and the receipt can address the full
+sanitized policy inventory separately from the simulation matrix.
+
+The concrete submit/teardown path now binds CloudTrail's returned parent ID,
+requires complete rows for every requested Batch job, records the drained set,
+and scans CloudTrail for late or duplicate action-named submissions after
+queue deletion. Receipt-builder failure after submit is preserved as a
+sanitized post-launch failure record. The image bootstrap's post-push ECR
+inspect and two-worker fixture outputs are self-bound sidecars, and the image
+validator requires them plus AWS CLI v2 evidence. These repairs are
+source-only; action-011 remains exhausted and the official scientific lane
+remains excluded.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -12,6 +13,7 @@ from pneuma_lab.cloud.ephemeral_receipt import (
     build_ephemeral_qualification_receipt,
     validate_authority_evidence,
 )
+from pneuma_lab.cloud.authorization_keys import canonical_bytes
 from pneuma_lab.cloud.images import require_qualification_image_binding
 from pneuma_lab.cloud.ephemeral_runner import (
     AwsCliAdapter,
@@ -39,6 +41,115 @@ def _prelaunch_output(action_id: str, exc: Exception) -> dict[str, str]:
         "error_type": type(exc).__name__,
         "error": str(exc),
         "receipt_written": "false",
+    }
+
+
+def _postlaunch_receipt_failure(
+    action_id: str, context: Mapping[str, Any], receipt_exc: Exception
+) -> dict[str, Any]:
+    """Retain a sanitized post-submit context if receipt assembly itself fails."""
+
+    plan = context.get("plan") if isinstance(context.get("plan"), Mapping) else {}
+    launch = context.get("launch") if isinstance(context.get("launch"), Mapping) else {}
+    evidence = (
+        context.get("evidence") if isinstance(context.get("evidence"), Mapping) else {}
+    )
+    absence = (
+        context.get("absence") if isinstance(context.get("absence"), Mapping) else {}
+    )
+    iam = (
+        context.get("iam_simulation")
+        if isinstance(context.get("iam_simulation"), Mapping)
+        else {}
+    )
+    inventory = iam.get("policy_inventory")
+    sanitized = {
+        "action_id": action_id,
+        "parent_job_id_present": bool(context.get("parent_job_id")),
+        "plan": {
+            key: plan.get(key)
+            for key in (
+                "saved_plan_sha256",
+                "terraform_show_sha256",
+                "terraform_plan_binding_sha256",
+                "image",
+            )
+            if plan.get(key) is not None
+        },
+        "launch": {
+            key: launch.get(key)
+            for key in (
+                "submit_count_proven",
+                "array_size",
+                "retry_attempts",
+                "submit_event_time_utc",
+                "cloudtrail_submit_job_event_id_sha256",
+            )
+            if launch.get(key) is not None
+        },
+        "evidence": {
+            "parent_status": evidence.get("parent_status"),
+            "child_statuses": [
+                child.get("status")
+                for child in evidence.get("children", ())
+                if isinstance(child, Mapping)
+            ],
+            "worker_count": len(evidence.get("instance_ids", ()))
+            if isinstance(evidence.get("instance_ids", ()), (list, tuple))
+            else 0,
+        },
+        "absence": {
+            key: absence.get(key)
+            for key in (
+                "jobs",
+                "instances",
+                "volumes",
+                "launch_template",
+                "network_interfaces",
+                "security_group",
+                "job_definition",
+                "queue",
+                "compute_environment",
+            )
+            if key in absence
+        },
+        "iam_simulation_matrix_sha256": iam.get("matrix_sha256"),
+        "iam_policy_inventory_sha256": (
+            inventory.get("inventory_sha256")
+            if isinstance(inventory, Mapping)
+            else None
+        ),
+        "kms_verification_sha256": (
+            context.get("kms_verification", {}).get("verification_sha256")
+            if isinstance(context.get("kms_verification"), Mapping)
+            else None
+        ),
+        "failure": {
+            "type": type(context.get("failure")).__name__,
+            "error": str(context.get("failure")),
+        }
+        if context.get("failure") is not None
+        else None,
+        "cleanup_failure": {
+            "type": type(context.get("cleanup_failure")).__name__,
+            "error": str(context.get("cleanup_failure")),
+        }
+        if context.get("cleanup_failure") is not None
+        else None,
+    }
+    return {
+        "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt_failure",
+        "schema_version": "0.1.0",
+        "status": "post_launch_receipt_no_go",
+        "qualification_only": True,
+        "action_id": action_id,
+        "terminal_outcome": "post_launch_terminal_no_go",
+        "no_retry_after_launch": True,
+        "receipt_build_error_type": type(receipt_exc).__name__,
+        "receipt_build_error": str(receipt_exc),
+        "context_sha256": hashlib.sha256(canonical_bytes(sanitized)).hexdigest(),
+        "context_summary": sanitized,
+        "receipt_written": True,
     }
 
 
@@ -192,7 +303,15 @@ def main() -> int:
                 output_root=args.output_root,
             )
         except Exception as receipt_exc:
-            print(json.dumps(_prelaunch_output(args.action_id, receipt_exc), sort_keys=True))
+            fallback = _postlaunch_receipt_failure(
+                args.action_id, context, receipt_exc
+            )
+            if args.receipt is not None:
+                args.receipt.write_text(
+                    json.dumps(fallback, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+            print(json.dumps(fallback, sort_keys=True))
             return 1
         if args.receipt is not None:
             args.receipt.write_text(

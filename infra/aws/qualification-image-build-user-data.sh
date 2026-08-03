@@ -51,16 +51,29 @@ run_negative_entrypoint_check() {
         "$image_ref" "$negative_status" > "$receipt_path"
 }
 
+run_image_fixture_check() {
+    local image_ref="$1"
+    local output_dir="$2"
+    local fixture_script="$3"
+    local output_name="$4"
+    docker run --rm --network none --read-only --tmpfs /tmp \
+        --entrypoint python3 \
+        --volume "$fixture_script:/work/qualification_image_fixture_check.py:ro" \
+        "$image_ref" /work/qualification_image_fixture_check.py \
+        > "$output_dir/$output_name"
+}
+
 run_pre_push_checks() {
     local image_ref="$1"
     local output_dir="$2"
     run_negative_entrypoint_check "$image_ref" "$output_dir"
+    docker run --rm --network none --read-only --tmpfs /tmp \
+        --entrypoint /usr/local/bin/aws "$image_ref" --version \
+        > "$output_dir/image-aws-version.txt"
+    grep -Eq '^aws-cli/2\.' "$output_dir/image-aws-version.txt" \
+        || fail image_aws_cli_v2_check_failed
     if [[ "${3:-}" != "" ]]; then
-        docker run --rm --network none --read-only --tmpfs /tmp \
-            --entrypoint python3 \
-            --volume "$3:/work/qualification_image_fixture_check.py:ro" \
-            "$image_ref" /work/qualification_image_fixture_check.py \
-            > "$output_dir/fixture-runtime.json"
+        run_image_fixture_check "$image_ref" "$output_dir" "$3" "fixture-runtime.json"
     fi
     printf '{"stage":"post-negative-check","reached":true}\n' \
         > "$output_dir/post-negative-check-sentinel.json"
@@ -116,6 +129,79 @@ PY
     aws ecr describe-images --region us-east-1 --repository-name pneuma-c160-worker \
         --image-ids imageTag="$IMAGE_TAG" --output json --no-cli-pager \
         > "$OUTPUT_DIR/ecr-image-metadata.json"
+    IMAGE_DIGEST="$(python3 - "$OUTPUT_DIR/ecr-image-metadata.json" <<'PY'
+import json
+import re
+import sys
+
+rows = json.load(open(sys.argv[1], encoding="utf-8")).get("imageDetails") or []
+if len(rows) != 1:
+    raise SystemExit("fresh ECR metadata did not contain exactly one image")
+digest = rows[0].get("imageDigest")
+if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+    raise SystemExit("fresh ECR metadata lacks an immutable image digest")
+print(digest)
+PY
+)"
+    readonly IMMUTABLE_IMAGE_REF="$REPOSITORY_URI@$IMAGE_DIGEST"
+    docker pull "$IMMUTABLE_IMAGE_REF" > "$OUTPUT_DIR/ecr-image-pull.log"
+    docker image inspect "$IMMUTABLE_IMAGE_REF" > "$OUTPUT_DIR/ecr-image-inspect.json"
+    python3 - "$OUTPUT_DIR/ecr-image-inspect.json" "$SOURCE_COMMIT" "$BASE_DIGEST" <<'PY'
+import json
+import sys
+
+rows = json.load(open(sys.argv[1], encoding="utf-8"))
+if len(rows) != 1:
+    raise SystemExit("fresh ECR image inspect did not return one image")
+config = rows[0].get("Config") or {}
+if config.get("Entrypoint") != ["/opt/pneuma/fixed_admission_entrypoint.sh"]:
+    raise SystemExit("fresh ECR image entrypoint is not fixed")
+if config.get("Cmd") not in (None, []):
+    raise SystemExit("fresh ECR image has a command override")
+labels = config.get("Labels") or {}
+if labels.get("org.opencontainers.image.revision") != sys.argv[2]:
+    raise SystemExit("fresh ECR image source revision label differs")
+if labels.get("org.opencontainers.image.base.digest") != sys.argv[3]:
+    raise SystemExit("fresh ECR image base digest label differs")
+PY
+    run_image_fixture_check \
+        "$IMMUTABLE_IMAGE_REF" "$OUTPUT_DIR" \
+        "$SOURCE_ROOT/scripts/research/qualification_image_fixture_check.py" \
+        "ecr-fixture-runtime.json"
+    python3 - "$OUTPUT_DIR/ecr-image-inspect.json" \
+        "$OUTPUT_DIR/ecr-fixture-runtime.json" "$IMAGE_DIGEST" \
+        > "$OUTPUT_DIR/ecr-image-config-receipt.json" <<'PY'
+import hashlib
+import json
+import sys
+
+from pneuma_lab.cloud.authorization_keys import canonical_bytes
+
+inspect_path, fixture_path, image_digest = sys.argv[1:]
+inspect_sha256 = hashlib.sha256(open(inspect_path, "rb").read()).hexdigest()
+fixture_bytes = open(fixture_path, "rb").read()
+fixture = json.loads(fixture_bytes.decode("utf-8"))
+if fixture.get("status") != "pass" or fixture.get("worker_indices") != [0, 1]:
+    raise SystemExit("fresh ECR fixture did not pass the two-worker contract")
+config = {
+    "status": "pass",
+    "image_digest": image_digest,
+    "inspect_sha256": inspect_sha256,
+}
+config["receipt_sha256"] = hashlib.sha256(canonical_bytes(config)).hexdigest()
+runtime = {
+    "status": "pass",
+    "worker_indices": [0, 1],
+    "runtime_sha256": hashlib.sha256(fixture_bytes).hexdigest(),
+}
+runtime["receipt_sha256"] = hashlib.sha256(canonical_bytes(runtime)).hexdigest()
+sidecar = {
+    "fresh_ecr_image_config": config,
+    "fresh_ecr_fixture_runtime": runtime,
+}
+sidecar["fresh_ecr_sidecar_sha256"] = hashlib.sha256(canonical_bytes(sidecar)).hexdigest()
+print(json.dumps(sidecar, sort_keys=True, separators=(",", ":")))
+PY
     ENDED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf '{"action_id":"%s","ended_at":"%s","image":"%s","source_commit":"%s","started_at":"%s","state":"COMPLETE"}\n' \
         "$ACTION_ID" "$ENDED_AT" "$IMAGE_REF" "$SOURCE_COMMIT" "$STARTED_AT" \

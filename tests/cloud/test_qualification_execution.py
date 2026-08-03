@@ -91,10 +91,16 @@ class FakeAwsTransport:
             "pneuma-batch": "arn:aws:iam::123456789012:role/pneuma-batch",
             "pneuma-spot": "arn:aws:iam::123456789012:role/pneuma-spot",
         }
+        role_ids = {
+            "pneuma-worker": "AROAWORKER00000000001",
+            "pneuma-batch": "AROABATCH000000000002",
+            "pneuma-spot": "AROSPOT0000000000003",
+        }
         return {
             "Role": {
                 "RoleName": role_name,
                 "Arn": roles[role_name],
+                "RoleId": role_ids[role_name],
             }
         }
 
@@ -107,6 +113,7 @@ class FakeAwsTransport:
                     {
                         "RoleName": "pneuma-worker",
                         "Arn": "arn:aws:iam::123456789012:role/pneuma-worker",
+                        "RoleId": "AROAWORKER00000000001",
                     }
                 ],
             }
@@ -797,6 +804,49 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
             },
             {"address": "aws_iam_role.worker", "change": {"actions": ["create"]}},
         ],
+    }
+    document["configuration"] = {
+        "root_module": {
+            "resources": [
+                {
+                    "address": "aws_batch_compute_environment.worker[0]",
+                    "expressions": {
+                        "compute_resources": [
+                            {
+                                "launch_template": [
+                                    {
+                                        "launch_template_id": {
+                                            "references": [
+                                                "aws_launch_template.worker.id"
+                                            ]
+                                        },
+                                        "version": {
+                                            "references": [
+                                                "aws_launch_template.worker.latest_version"
+                                            ]
+                                        },
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                },
+                {
+                    "address": "aws_batch_job_queue.qualification",
+                    "expressions": {
+                        "compute_environment_order": [
+                            {
+                                "compute_environment": {
+                                    "references": [
+                                        "aws_batch_compute_environment.worker[0].arn"
+                                    ]
+                                }
+                            }
+                        ]
+                    },
+                },
+            ]
+        }
     }
     plan = parse_terraform_show(document)
     transport = FakeAwsTransport()

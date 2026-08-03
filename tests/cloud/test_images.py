@@ -89,6 +89,22 @@ def test_step7b_refuses_builds_bound_to_different_input_locks() -> None:
 
 
 def qualification_receipt(source_commit: str = "a" * 40) -> dict:
+    fresh_config = {
+        "status": "pass",
+        "image_digest": "sha256:" + "b" * 64,
+        "inspect_sha256": "c" * 64,
+    }
+    fresh_config["receipt_sha256"] = hashlib.sha256(
+        canonical_bytes(fresh_config)
+    ).hexdigest()
+    fresh_fixture = {
+        "status": "pass",
+        "worker_indices": [0, 1],
+        "runtime_sha256": "d" * 64,
+    }
+    fresh_fixture["receipt_sha256"] = hashlib.sha256(
+        canonical_bytes(fresh_fixture)
+    ).hexdigest()
     receipt = {
         "record_kind": "cloud_qualification_image_build_receipt",
         "schema_version": "0.1.0",
@@ -109,15 +125,26 @@ def qualification_receipt(source_commit: str = "a" * 40) -> dict:
             "image_entrypoint_check": "pass",
             "image_cmd_override": "absent",
             "fresh_ecr_read": "pass",
+            "fresh_ecr_image_config": fresh_config,
+            "fresh_ecr_image_digest": "sha256:" + "b" * 64,
+            "fresh_ecr_fixture_runtime": fresh_fixture,
+            "fresh_ecr_sidecar_sha256": hashlib.sha256(
+                canonical_bytes(
+                    {
+                        "fresh_ecr_image_config": fresh_config,
+                        "fresh_ecr_fixture_runtime": fresh_fixture,
+                    }
+                )
+            ).hexdigest(),
             "runtime_schema": "/opt/schemas/cloud-worker-admission-measurement.schema.json present",
-            "aws_cli": {"check": "pass"},
+            "aws_cli": {"check": "pass", "version": "aws-cli/2.36.14"},
             "package_import": {"pneuma_lab": "pass"},
             "fixture_runtime": {
                 "network": "none",
                 "gpu": False,
                 "model_download": False,
                 "model_loaded": False,
-                "immutable_worker_indexed_artifact": "worker-0",
+                "immutable_worker_indexed_artifacts": ["worker-0", "worker-1"],
                 "all_five_inputs_materialized_as_readable_local_files": True,
                 "retrieved_bytes_match": True,
             },
@@ -154,6 +181,27 @@ def test_qualification_image_binding_rejects_tampered_receipt_bytes(tmp_path: Pa
         json.dumps(receipt), encoding="utf-8"
     )
     with pytest.raises(CloudManifestError, match="receipt digest"):
+        require_qualification_image_binding(
+            tmp_path,
+            image_digest="sha256:" + "b" * 64,
+            source_commit="a" * 40,
+        )
+
+
+def test_qualification_image_binding_requires_both_worker_fixture_artifacts(
+    tmp_path: Path,
+) -> None:
+    receipt = qualification_receipt()
+    receipt["local_checks"]["fixture_runtime"][
+        "immutable_worker_indexed_artifacts"
+    ] = ["worker-0"]
+    receipt["receipt_sha256"] = hashlib.sha256(
+        canonical_bytes({key: value for key, value in receipt.items() if key != "receipt_sha256"})
+    ).hexdigest()
+    (tmp_path / "qualification-image-build-001-receipt-20260803.json").write_text(
+        json.dumps(receipt), encoding="utf-8"
+    )
+    with pytest.raises(CloudManifestError, match="fixture-only runtime evidence"):
         require_qualification_image_binding(
             tmp_path,
             image_digest="sha256:" + "b" * 64,

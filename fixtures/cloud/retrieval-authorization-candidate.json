@@ -3,7 +3,7 @@
     "schema_version": "0.2.0",
     "frozen_timestamp": "2026-07-31T00:00:00Z",
     "provenance": {
-        "design_sha256": "328b4dc2c736b6ebe405f585ff20e6f7e0ebedb58c989193c1120624a8a761d4",
+        "design_sha256": "5fca7a952135906c210632428bdc9cc059c3292ac70ba59183265de5ca7f2a68",
         "code_sha256": "6c5eeb754c04a213b54ccb9e1c52c1ddbef6b08f180bd12fc4a062a19febe2f2"
     },
     "status": "candidate",

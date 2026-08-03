@@ -87,6 +87,208 @@ def policy_document_sha256(policy: Mapping[str, Any]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _string_values(value: Any, *, field: str) -> tuple[str, ...]:
+    values = (value,) if isinstance(value, str) else value
+    if not isinstance(values, (list, tuple)) or not values or not all(
+        isinstance(item, str) and item for item in values
+    ):
+        raise CloudManifestError(f"IAM policy {field} must contain nonempty strings")
+    return tuple(values)
+
+
+def _policy_statements(policy: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
+    statements = policy.get("Statement")
+    if isinstance(statements, Mapping):
+        statements = (statements,)
+    if not isinstance(statements, (list, tuple)) or not all(
+        isinstance(statement, Mapping) for statement in statements
+    ):
+        raise CloudManifestError("IAM policy Statement must be an object or list")
+    return tuple(statements)
+
+
+def _expected_s3_resources(
+    *, input_paths: Mapping[str, Any], output_root: str, iam_role_arn: str
+) -> dict[str, frozenset[str]]:
+    checks = expected_checks(
+        input_paths=input_paths,
+        output_root=output_root,
+        iam_role_arn=iam_role_arn,
+    )
+    return {
+        action: frozenset(
+            row["resource_arn"] for row in checks if row["action"] == action
+        )
+        for action in ("s3:GetObject", "s3:PutObject")
+    }
+
+
+def validate_worker_policy_documents(
+    policy_documents: tuple[tuple[str, str, Mapping[str, Any]], ...],
+    *,
+    input_paths: Mapping[str, Any],
+    output_root: str,
+    iam_role_arn: str,
+) -> dict[str, Any]:
+    """Prove every worker-role S3 allow is within the exact action objects.
+
+    Non-S3 permissions in unrelated policies are preserved.  Any S3 allow
+    outside the five fixture reads and two raw writes is rejected, including a
+    wildcard resource, wildcard action, NotAction, or NotResource grant.
+    Only hashes and counts leave this function.
+    """
+
+    expected = _expected_s3_resources(
+        input_paths=input_paths,
+        output_root=output_root,
+        iam_role_arn=iam_role_arn,
+    )
+    rows: list[dict[str, str]] = []
+    for source, identifier, policy in policy_documents:
+        if source not in {"inline", "managed"} or not isinstance(identifier, str) or not identifier:
+            raise CloudManifestError("IAM policy inventory has an invalid policy identity")
+        if not isinstance(policy, Mapping):
+            raise CloudManifestError("IAM policy inventory contains a non-object policy")
+        for statement in _policy_statements(policy):
+            if statement.get("Effect") != "Allow":
+                continue
+            if "NotAction" in statement or "NotResource" in statement:
+                raise CloudManifestError(
+                    "worker role contains an allow policy with NotAction or NotResource"
+                )
+            actions = _string_values(statement.get("Action"), field="Action")
+            s3_actions = tuple(
+                action
+                for action in actions
+                if action == "*" or action.lower().startswith("s3:")
+            )
+            if not s3_actions:
+                continue
+            resources = frozenset(
+                _string_values(statement.get("Resource"), field="Resource")
+            )
+            for action in s3_actions:
+                allowed = expected.get(action)
+                if allowed is None or not resources <= allowed:
+                    raise CloudManifestError(
+                        "worker role contains an S3 allow outside the exact qualification objects"
+                    )
+        rows.append(
+            {
+                "source": source,
+                "identifier_sha256": hashlib.sha256(
+                    identifier.encode("utf-8")
+                ).hexdigest(),
+                "document_sha256": policy_document_sha256(policy),
+            }
+        )
+    if not rows:
+        raise CloudManifestError("worker role policy inventory is empty")
+    record: dict[str, Any] = {
+        "schema_version": "0.1.0",
+        "policies": sorted(rows, key=lambda row: (row["source"], row["identifier_sha256"])),
+    }
+    record["inventory_sha256"] = hashlib.sha256(canonical_bytes(record)).hexdigest()
+    return record
+
+
+def _resource_policy_applies_to_role(
+    statement: Mapping[str, Any], *, iam_role_arn: str
+) -> bool:
+    """Conservatively decide whether an Allow could apply to the worker role."""
+
+    if "NotPrincipal" in statement:
+        return True
+    principal = statement.get("Principal")
+    if principal == "*":
+        return True
+    values: list[str] = []
+    if isinstance(principal, str):
+        values.append(principal)
+    elif isinstance(principal, Mapping):
+        for value in principal.values():
+            if isinstance(value, str):
+                values.append(value)
+            elif isinstance(value, list) and all(
+                isinstance(item, str) for item in value
+            ):
+                values.extend(value)
+    account_id = iam_role_arn.split(":", 5)[4]
+    account_root = f"arn:aws:iam::{account_id}:root"
+    return any(value in {"*", iam_role_arn, account_root, account_id} for value in values)
+
+
+def validate_worker_resource_policy(
+    resource_policy: Mapping[str, Any],
+    *,
+    input_paths: Mapping[str, Any],
+    output_root: str,
+    iam_role_arn: str,
+) -> None:
+    """Reject resource-based S3 Allows that could grant the worker extra access."""
+
+    expected = _expected_s3_resources(
+        input_paths=input_paths,
+        output_root=output_root,
+        iam_role_arn=iam_role_arn,
+    )
+    for statement in _policy_statements(resource_policy):
+        if statement.get("Effect") != "Allow" or not _resource_policy_applies_to_role(
+            statement, iam_role_arn=iam_role_arn
+        ):
+            continue
+        if "NotAction" in statement or "NotResource" in statement:
+            raise CloudManifestError(
+                "S3 bucket policy has an allow with NotAction or NotResource applying to the worker"
+            )
+        actions = _string_values(statement.get("Action"), field="Action")
+        s3_actions = tuple(
+            action
+            for action in actions
+            if action == "*" or action.lower().startswith("s3:")
+        )
+        if not s3_actions:
+            continue
+        resources = frozenset(_string_values(statement.get("Resource"), field="Resource"))
+        for action in s3_actions:
+            allowed = expected.get(action)
+            if allowed is None or not resources <= allowed:
+                raise CloudManifestError(
+                    "S3 bucket policy grants the worker access outside the exact qualification objects"
+                )
+
+
+def validate_policy_inventory(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate the sanitized policy inventory and its self-digest."""
+
+    if not isinstance(record, Mapping) or set(record) != {
+        "schema_version",
+        "policies",
+        "inventory_sha256",
+    }:
+        raise CloudManifestError("IAM policy inventory has an unregistered shape")
+    if record.get("schema_version") != "0.1.0":
+        raise CloudManifestError("IAM policy inventory has an unsupported version")
+    policies = record.get("policies")
+    if not isinstance(policies, list) or not policies:
+        raise CloudManifestError("IAM policy inventory has no policies")
+    for policy in policies:
+        if not isinstance(policy, Mapping) or set(policy) != {
+            "source",
+            "identifier_sha256",
+            "document_sha256",
+        }:
+            raise CloudManifestError("IAM policy inventory row has an unregistered shape")
+        if policy.get("source") not in {"inline", "managed"}:
+            raise CloudManifestError("IAM policy inventory row has an invalid source")
+        _digest(policy.get("identifier_sha256"), field="IAM policy identifier")
+        _digest(policy.get("document_sha256"), field="IAM policy document")
+    unsigned = {key: value for key, value in record.items() if key != "inventory_sha256"}
+    if record.get("inventory_sha256") != hashlib.sha256(canonical_bytes(unsigned)).hexdigest():
+        raise CloudManifestError("IAM policy inventory digest is not derived from its bytes")
+    return dict(record)
+
+
 def expected_checks(
     *,
     input_paths: Mapping[str, Any],
@@ -152,6 +354,7 @@ def _matrix_payload(
     checks: tuple[Mapping[str, str], ...],
     observed: Mapping[str, str],
     resource_policy: Mapping[str, Any] | None,
+    policy_inventory: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     rows: list[dict[str, str]] = []
     for check in checks:
@@ -187,6 +390,8 @@ def _matrix_payload(
             row["expected"] == row["observed"] for row in rows
         ),
     }
+    if policy_inventory is not None:
+        payload["policy_inventory"] = validate_policy_inventory(policy_inventory)
     return payload
 
 
@@ -231,6 +436,8 @@ def validate_iam_simulation_matrix(
         raise CloudManifestError(
             "IAM simulation records a resource-policy digest without a policy"
         )
+    if "policy_inventory" in record:
+        validate_policy_inventory(record["policy_inventory"])
     checks = expected_checks(
         input_paths=plan.get("input_paths", {}),
         output_root=str(plan.get("output_path", "")),
@@ -270,6 +477,7 @@ def run_iam_simulation(
     action_id: str,
     expected_policy_sha256: str,
     resource_policy: Mapping[str, Any] | None = None,
+    policy_inventory: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run one exact IAM simulation per expected action/resource pair."""
 
@@ -328,6 +536,7 @@ def run_iam_simulation(
         checks=checks,
         observed=observed,
         resource_policy=resource_policy,
+        policy_inventory=policy_inventory,
     )
     record = _with_digest(payload)
     return validate_iam_simulation_matrix(

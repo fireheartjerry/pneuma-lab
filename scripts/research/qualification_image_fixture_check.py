@@ -133,11 +133,12 @@ def main() -> int:
         inputs = [Path(_option(list(argv), flag)) for flag in (
             "--protocol", "--architecture", "--authorization", "--image", "--input-lock"
         )]
+        worker_index = int(_option(list(argv), "--worker-index"))
         code_path = Path(_option(list(argv), "--code"))
         record = build_raw_measurement(
             code=code_path.read_text(encoding="utf-8"),
-            worker_index=0,
-            instance_id="i-0123456789abcdef0",
+            worker_index=worker_index,
+            instance_id=f"i-0123456789abcdef{worker_index}",
             protocol_sha256=hashlib.sha256(inputs[0].read_bytes()).hexdigest(),
             architecture_sha256=hashlib.sha256(inputs[1].read_bytes()).hexdigest(),
             authorization_sha256=hashlib.sha256(inputs[2].read_bytes()).hexdigest(),
@@ -150,22 +151,43 @@ def main() -> int:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_bytes(canonical_bytes(record) + b"\n")
 
+    payloads: dict[int, bytes] = {}
     with tempfile.TemporaryDirectory(prefix="pneuma-image-fixture-") as directory:
-        payload = run_fixed_worker(
-            code="fixture-only-code",
-            root=Path(directory),
-            adapter=adapter,
-            env=env,
-            probe_runner=fake_probe,
+        for worker_index in (0, 1):
+            worker_env = dict(env)
+            worker_env["AWS_BATCH_JOB_ARRAY_INDEX"] = str(worker_index)
+            payloads[worker_index] = run_fixed_worker(
+                code="fixture-only-code",
+                root=Path(directory) / f"worker-{worker_index}",
+                adapter=adapter,
+                env=worker_env,
+                probe_runner=fake_probe,
+            )
+    expected_keys = {
+        f"qualification-image-fixture-check/outputs/worker-{index}/raw-measurement.json"
+        for index in (0, 1)
+    }
+    if len(transport.puts) != 2 or {key for _, key, _ in transport.puts} != expected_keys:
+        raise RuntimeError("fixture image check did not publish exactly one object per worker")
+    for bucket, key, published in transport.puts:
+        if bucket != "fixture-bucket":
+            raise RuntimeError("fixture image check published to the wrong bucket")
+        worker_index = int(key.split("/worker-", 1)[1].split("/", 1)[0])
+        if payloads[worker_index] != published or transport.objects[(bucket, key)] != published:
+            raise RuntimeError("fixture image check could not retrieve byte-identical raw evidence")
+    print(
+        json.dumps(
+            {
+                "status": "pass",
+                "model_loaded": False,
+                "published_bytes": {
+                    str(index): len(payload) for index, payload in payloads.items()
+                },
+                "worker_indices": [0, 1],
+            },
+            sort_keys=True,
         )
-    if len(transport.puts) != 1:
-        raise RuntimeError("fixture image check did not publish exactly one object")
-    bucket, key, published = transport.puts[0]
-    if bucket != "fixture-bucket" or key != "qualification-image-fixture-check/outputs/worker-0/raw-measurement.json":
-        raise RuntimeError("fixture image check published the wrong worker object")
-    if payload != published or transport.objects[(bucket, key)] != payload:
-        raise RuntimeError("fixture image check could not retrieve byte-identical raw evidence")
-    print(json.dumps({"status": "pass", "model_loaded": False, "published_bytes": len(payload)}, sort_keys=True))
+    )
     return 0
 
 

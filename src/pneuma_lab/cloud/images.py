@@ -150,6 +150,12 @@ def require_qualification_image_binding(
     fixture = checks.get("fixture_runtime") if isinstance(checks, Mapping) else None
     package = checks.get("package_import") if isinstance(checks, Mapping) else None
     aws_cli = checks.get("aws_cli") if isinstance(checks, Mapping) else None
+    fresh_config = (
+        checks.get("fresh_ecr_image_config") if isinstance(checks, Mapping) else None
+    )
+    fresh_fixture = (
+        checks.get("fresh_ecr_fixture_runtime") if isinstance(checks, Mapping) else None
+    )
     if not isinstance(source, Mapping) or source.get("commit") != source_commit:
         raise CloudManifestError(
             "qualification image was built from a different source revision"
@@ -165,13 +171,85 @@ def require_qualification_image_binding(
         or checks.get("image_entrypoint_check") != "pass"
         or checks.get("image_cmd_override") != "absent"
         or checks.get("fresh_ecr_read") != "pass"
+        or checks.get("fresh_ecr_image_digest") != image_digest
     ):
         raise CloudManifestError(
             "qualification image fixed ENTRYPOINT evidence is incomplete"
         )
+    if not isinstance(fresh_config, Mapping) or set(fresh_config) != {
+        "status",
+        "image_digest",
+        "inspect_sha256",
+        "receipt_sha256",
+    }:
+        raise CloudManifestError(
+            "qualification image lacks the canonical post-push inspect receipt"
+        )
+    if (
+        fresh_config.get("status") != "pass"
+        or fresh_config.get("image_digest") != image_digest
+        or not isinstance(fresh_config.get("inspect_sha256"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", fresh_config["inspect_sha256"])
+        or fresh_config.get("receipt_sha256")
+        != hashlib.sha256(
+            canonical_bytes(
+                {
+                    key: value
+                    for key, value in fresh_config.items()
+                    if key != "receipt_sha256"
+                }
+            )
+        ).hexdigest()
+    ):
+        raise CloudManifestError(
+            "qualification image post-push inspect receipt is not self-bound"
+        )
+    if not isinstance(fresh_fixture, Mapping) or set(fresh_fixture) != {
+        "status",
+        "worker_indices",
+        "runtime_sha256",
+        "receipt_sha256",
+    }:
+        raise CloudManifestError(
+            "qualification image lacks the canonical post-push fixture receipt"
+        )
+    if (
+        fresh_fixture.get("status") != "pass"
+        or fresh_fixture.get("worker_indices") != [0, 1]
+        or not isinstance(fresh_fixture.get("runtime_sha256"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", fresh_fixture["runtime_sha256"])
+        or fresh_fixture.get("receipt_sha256")
+        != hashlib.sha256(
+            canonical_bytes(
+                {
+                    key: value
+                    for key, value in fresh_fixture.items()
+                    if key != "receipt_sha256"
+                }
+            )
+        ).hexdigest()
+    ):
+        raise CloudManifestError(
+            "qualification image post-push fixture receipt is not self-bound"
+        )
+    if not isinstance(checks.get("fresh_ecr_sidecar_sha256"), str) or checks.get(
+        "fresh_ecr_sidecar_sha256"
+    ) != hashlib.sha256(
+        canonical_bytes(
+            {
+                "fresh_ecr_image_config": dict(fresh_config),
+                "fresh_ecr_fixture_runtime": dict(fresh_fixture),
+            }
+        )
+    ).hexdigest():
+        raise CloudManifestError(
+            "qualification image post-push sidecar is not bound to the retained receipt"
+        )
     if (
         not isinstance(aws_cli, Mapping)
         or aws_cli.get("check") != "pass"
+        or not isinstance(aws_cli.get("version"), str)
+        or not aws_cli["version"].startswith("aws-cli/2.")
         or not isinstance(package, Mapping)
         or package.get("pneuma_lab") != "pass"
         or not isinstance(checks.get("runtime_schema"), str)
@@ -184,7 +262,7 @@ def require_qualification_image_binding(
         or fixture.get("gpu") is not False
         or fixture.get("model_download") is not False
         or fixture.get("model_loaded") is not False
-        or fixture.get("immutable_worker_indexed_artifact") != "worker-0"
+        or fixture.get("immutable_worker_indexed_artifacts") != ["worker-0", "worker-1"]
         or fixture.get("all_five_inputs_materialized_as_readable_local_files") is not True
         or fixture.get("retrieved_bytes_match") is not True
     ):

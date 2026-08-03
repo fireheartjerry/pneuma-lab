@@ -11,6 +11,8 @@ from pneuma_lab.cloud.iam_simulation import (
     expected_checks,
     run_iam_simulation,
     validate_iam_simulation_matrix,
+    validate_worker_resource_policy,
+    validate_worker_policy_documents,
 )
 
 
@@ -134,3 +136,109 @@ def test_live_matrix_can_include_a_canonical_bucket_policy_without_leaking_it() 
     ).hexdigest()
     assert len(calls) == len(ALL_CHECK_IDS)
     assert "Statement" not in json.dumps(record)
+
+
+def test_worker_policy_inventory_accepts_only_the_exact_action_objects() -> None:
+    plan = _plan()
+    checks = expected_checks(
+        input_paths=plan["input_paths"],
+        output_root=plan["output_path"],
+        iam_role_arn=plan["worker_role_arn"],
+    )
+    policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "s3:GetObject",
+                "Resource": [
+                    row["resource_arn"]
+                    for row in checks
+                    if row["id"].startswith("input-read-")
+                ],
+            },
+            {
+                "Effect": "Allow",
+                "Action": "s3:PutObject",
+                "Resource": [
+                    row["resource_arn"]
+                    for row in checks
+                    if row["id"].startswith("raw-write-")
+                ],
+            },
+        ],
+    }
+
+    record = validate_worker_policy_documents(
+        (("inline", "bounded-experiment-access", policy),),
+        input_paths=plan["input_paths"],
+        output_root=plan["output_path"],
+        iam_role_arn=plan["worker_role_arn"],
+    )
+
+    assert record["inventory_sha256"]
+    assert "arn:aws" not in json.dumps(record)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        {
+            "Effect": "Allow",
+            "Action": "s3:GetObject",
+            "Resource": "*",
+        },
+        {
+            "Effect": "Allow",
+            "Action": "s3:ListBucket",
+            "Resource": "arn:aws:s3:::bucket",
+        },
+        {
+            "Effect": "Allow",
+            "Action": "s3:PutObject",
+            "Resource": [
+                "arn:aws:s3:::bucket/runs/qualification/action/outputs/worker-0/raw-measurement.json",
+                "arn:aws:s3:::bucket/runs/qualification/other-action/outputs/worker-0/raw-measurement.json",
+            ],
+        },
+    ],
+)
+def test_worker_policy_inventory_rejects_broad_or_other_action_s3_allows(
+    statement: dict[str, object],
+) -> None:
+    plan = _plan()
+    with pytest.raises(CloudManifestError, match="outside the exact qualification objects"):
+        validate_worker_policy_documents(
+            (
+                (
+                    "managed",
+                    "arn:aws:iam::123456789012:policy/worker-extra",
+                    {"Version": "2012-10-17", "Statement": [statement]},
+                ),
+            ),
+            input_paths=plan["input_paths"],
+            output_root=plan["output_path"],
+            iam_role_arn=plan["worker_role_arn"],
+        )
+
+
+def test_worker_resource_policy_rejects_a_worker_applicable_broad_allow() -> None:
+    plan = _plan()
+    policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {"AWS": plan["worker_role_arn"]},
+                "Action": "s3:GetObject",
+                "Resource": "*",
+            }
+        ],
+    }
+    with pytest.raises(CloudManifestError, match="outside the exact qualification objects"):
+        validate_worker_resource_policy(
+            policy,
+            input_paths=plan["input_paths"],
+            output_root=plan["output_path"],
+            iam_role_arn=plan["worker_role_arn"],
+        )

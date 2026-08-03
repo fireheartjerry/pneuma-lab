@@ -38,6 +38,11 @@ class Provider:
             "Role": {
                 "RoleName": role_name,
                 "Arn": arns[role_name],
+                "RoleId": {
+                    "pneuma-worker": "AROAWORKER00000000001",
+                    "pneuma-batch": "AROABATCH000000000002",
+                    "pneuma-spot": "AROSPOT0000000000003",
+                }[role_name],
             }
         }
 
@@ -50,6 +55,7 @@ class Provider:
                     {
                         "RoleName": "pneuma-worker",
                         "Arn": "arn:aws:iam::123456789012:role/pneuma-worker",
+                        "RoleId": "AROAWORKER00000000001",
                     }
                 ],
             }

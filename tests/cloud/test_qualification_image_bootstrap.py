@@ -25,7 +25,7 @@ def test_negative_check_expected_failure_reaches_post_check_sentinel(
     fake_bin.mkdir()
     docker = fake_bin / "docker"
     docker.write_bytes(
-        b"#!/bin/sh\nprintf '%s\\n' 'QUALIFICATION_CODE is required' >&2\nexit 37\n"
+        b"#!/bin/sh\ncase \" $* \" in *' --version'*) printf '%s\\n' 'aws-cli/2.36.14 Python/3.14 Linux/fixture'; exit 0;; esac\nprintf '%s\\n' 'QUALIFICATION_CODE is required' >&2\nexit 37\n"
     )
     docker.chmod(0o755)
     output_dir = tmp_path / "output"
@@ -66,3 +66,13 @@ def test_fixture_runtime_check_is_bound_after_the_negative_entrypoint_check() ->
     assert "qualification_image_fixture_check.py" in text
     assert "--network none" in text
     assert 'run_pre_push_checks "$IMAGE_REF" "$OUTPUT_DIR"' in text
+
+
+def test_image_build_rechecks_the_immutable_ecr_digest_configuration() -> None:
+    text = BOOTSTRAP.read_text(encoding="utf-8")
+    assert 'docker pull "$IMMUTABLE_IMAGE_REF"' in text
+    assert 'docker image inspect "$IMMUTABLE_IMAGE_REF"' in text
+    assert "fresh_ecr_image_config" in text
+    assert "fresh_ecr_fixture_runtime" in text
+    assert "fresh_ecr_sidecar_sha256" in text
+    assert "aws-cli/2" in text

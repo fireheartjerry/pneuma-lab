@@ -53,7 +53,10 @@ from .iam_simulation import (
     QUALIFICATION_WORKER_POLICY_NAME,
     policy_document_sha256,
     run_iam_simulation,
+    validate_policy_inventory,
     validate_iam_simulation_matrix,
+    validate_worker_resource_policy,
+    validate_worker_policy_documents,
 )
 
 QUALIFICATION_TAGS = {
@@ -508,6 +511,48 @@ def _require_resource_contract(plan: Mapping[str, Any]) -> None:
             "ephemeral qualification plan must contain only approved creates"
         )
 
+    planned = plan.get("planned_values")
+    root = planned.get("root_module") if isinstance(planned, Mapping) else None
+    if not isinstance(root, Mapping):
+        raise CloudManifestError(
+            "ephemeral qualification plan lacks planned resource values"
+        )
+    planned_addresses: list[str] = []
+
+    def walk(module: Mapping[str, Any]) -> None:
+        resources = module.get("resources", [])
+        if not isinstance(resources, list):
+            raise CloudManifestError(
+                "ephemeral qualification planned module has an invalid resource list"
+            )
+        for resource in resources:
+            if not isinstance(resource, Mapping) or not isinstance(
+                resource.get("address"), str
+            ):
+                raise CloudManifestError(
+                    "ephemeral qualification planned resource lacks an address"
+                )
+            planned_addresses.append(resource["address"])
+        children = module.get("child_modules", [])
+        if not isinstance(children, list):
+            raise CloudManifestError(
+                "ephemeral qualification planned module has invalid child modules"
+            )
+        for child in children:
+            if not isinstance(child, Mapping):
+                raise CloudManifestError(
+                    "ephemeral qualification planned child module is invalid"
+                )
+            walk(child)
+
+    walk(root)
+    if len(planned_addresses) != len(set(planned_addresses)) or set(
+        planned_addresses
+    ) != EXPECTED_RESOURCE_ADDRESSES:
+        raise CloudManifestError(
+            "ephemeral qualification planned values must contain exactly the four approved resources"
+        )
+
 
 class AwsCliAdapter(ObjectAwsCliAdapter):
     """Concrete AWS CLI command adapter with an injected subprocess seam."""
@@ -540,6 +585,8 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         )
         self.compute_environment = compute_environment or queue
         self.parent_job_id: str | None = None
+        self._observed_action_job_ids: set[str] = set()
+        self._drained_action_job_ids: set[str] = set()
         self._last_submit_tags: dict[str, str] | None = None
         self._fixture_protocol: dict[str, Any] | None = None
         self._fixture_binding: dict[str, Any] | None = None
@@ -688,6 +735,136 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
 
         return compile_dual_worker_admissions(measurements, self._fixture_protocol)
 
+    def _list_iam_rows(
+        self, operation: str, role_name: str, result_key: str
+    ) -> list[Any]:
+        """Read every inline or attached worker-role policy without truncation."""
+
+        rows: list[Any] = []
+        marker: str | None = None
+        seen: set[str] = set()
+        while True:
+            arguments = ["iam", operation, "--role-name", role_name]
+            if marker is not None:
+                arguments.extend(("--marker", marker))
+            response = self._call(*arguments)
+            page = response.get(result_key) if isinstance(response, Mapping) else None
+            if not isinstance(page, list):
+                raise CloudManifestError(
+                    f"IAM {operation} response lacks its {result_key} list"
+                )
+            rows.extend(page)
+            truncated = response.get("IsTruncated")
+            if truncated is False:
+                return rows
+            if truncated is not True:
+                raise CloudManifestError(
+                    f"IAM {operation} response has an invalid IsTruncated flag"
+                )
+            candidate = response.get("Marker")
+            if not isinstance(candidate, str) or not candidate or candidate in seen:
+                raise CloudManifestError(
+                    f"IAM {operation} pagination did not provide a fresh marker"
+                )
+            seen.add(candidate)
+            marker = candidate
+
+    def capture_worker_policy_inventory(
+        self,
+        *,
+        plan: Mapping[str, Any],
+        expected_policy_sha256: str,
+    ) -> Mapping[str, Any]:
+        """Enumerate every worker-role policy and reject broad S3 grants."""
+
+        role_name = plan.get("worker_role_name")
+        role_arn = plan.get("worker_role_arn")
+        if not isinstance(role_name, str) or not role_name or not isinstance(role_arn, str):
+            raise CloudManifestError("IAM policy inventory lacks the verified worker role")
+        documents: list[tuple[str, str, Mapping[str, Any]]] = []
+        inline_names = self._list_iam_rows(
+            "list-role-policies", role_name, "PolicyNames"
+        )
+        if not all(isinstance(name, str) and name for name in inline_names):
+            raise CloudManifestError("IAM inline policy listing contains an invalid name")
+        if inline_names.count(QUALIFICATION_WORKER_POLICY_NAME) != 1:
+            raise CloudManifestError(
+                "worker role must contain exactly one qualification artifact policy"
+            )
+        for policy_name in inline_names:
+            response = self._call(
+                "iam",
+                "get-role-policy",
+                "--role-name",
+                role_name,
+                "--policy-name",
+                policy_name,
+            )
+            encoded = response.get("PolicyDocument") if isinstance(response, Mapping) else None
+            if not isinstance(encoded, str) or not encoded:
+                raise CloudManifestError("IAM inline policy response lacks its document")
+            try:
+                document = json.loads(unquote(encoded))
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise CloudManifestError("IAM inline policy document is not valid JSON") from exc
+            if not isinstance(document, Mapping):
+                raise CloudManifestError("IAM inline policy document is not an object")
+            documents.append(("inline", policy_name, document))
+            if policy_name == QUALIFICATION_WORKER_POLICY_NAME and (
+                policy_document_sha256(document) != expected_policy_sha256
+            ):
+                raise CloudManifestError(
+                    "qualification artifact policy differs from authority"
+                )
+
+        attached_rows = self._list_iam_rows(
+            "list-attached-role-policies", role_name, "AttachedPolicies"
+        )
+        for attached in attached_rows:
+            if not isinstance(attached, Mapping):
+                raise CloudManifestError("IAM attached-policy listing contains an invalid row")
+            policy_arn = attached.get("PolicyArn")
+            if not isinstance(policy_arn, str) or not policy_arn:
+                raise CloudManifestError("IAM attached-policy row lacks its ARN")
+            policy_response = self._call(
+                "iam", "get-policy", "--policy-arn", policy_arn
+            )
+            policy = policy_response.get("Policy") if isinstance(policy_response, Mapping) else None
+            default_version = policy.get("DefaultVersionId") if isinstance(policy, Mapping) else None
+            if not isinstance(default_version, str) or not default_version:
+                raise CloudManifestError("IAM managed policy lacks its default version")
+            version_response = self._call(
+                "iam",
+                "get-policy-version",
+                "--policy-arn",
+                policy_arn,
+                "--version-id",
+                default_version,
+            )
+            version = (
+                version_response.get("PolicyVersion")
+                if isinstance(version_response, Mapping)
+                else None
+            )
+            encoded = version.get("Document") if isinstance(version, Mapping) else None
+            if not isinstance(encoded, str) or not encoded:
+                raise CloudManifestError("IAM managed policy response lacks its document")
+            try:
+                document = json.loads(unquote(encoded))
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise CloudManifestError("IAM managed policy document is not valid JSON") from exc
+            if not isinstance(document, Mapping):
+                raise CloudManifestError("IAM managed policy document is not an object")
+            documents.append(("managed", policy_arn, document))
+
+        inventory = validate_worker_policy_documents(
+            tuple(documents),
+            input_paths=plan.get("input_paths", {}),
+            output_root=str(plan.get("output_path", "")),
+            iam_role_arn=role_arn,
+        )
+        return validate_policy_inventory(inventory)
+
     def capture_iam_simulation(
         self,
         *,
@@ -721,6 +898,12 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             if not isinstance(decoded_policy, Mapping):
                 raise CloudManifestError("S3 bucket policy must be a JSON object")
             resource_policy = decoded_policy
+            validate_worker_resource_policy(
+                resource_policy,
+                input_paths=plan.get("input_paths", {}),
+                output_root=str(plan.get("output_path", "")),
+                iam_role_arn=str(plan.get("worker_role_arn", "")),
+            )
         role_name = plan.get("worker_role_name")
         if not isinstance(role_name, str) or not role_name:
             raise CloudManifestError(
@@ -758,12 +941,17 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             raise CloudManifestError(
                 "live qualification worker policy differs from authority"
             )
+        inventory = self.capture_worker_policy_inventory(
+            plan=plan,
+            expected_policy_sha256=expected_policy_sha256,
+        )
         return run_iam_simulation(
             self._call,
             plan=plan,
             action_id=action_id,
             expected_policy_sha256=expected_policy_sha256,
             resource_policy=resource_policy,
+            policy_inventory=inventory,
         )
 
     def capture_kms_verification(
@@ -1035,7 +1223,12 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
     def capture_submit_evidence(self, parent_job_id: str) -> Mapping[str, Any]:
         """Capture exactly one CloudTrail SubmitJob event for this parent."""
 
-        events: list[Mapping[str, Any]] = []
+        if self._last_submit_tags is None:
+            raise CloudManifestError(
+                "CloudTrail SubmitJob evidence was requested without the concrete submission"
+            )
+        expected_job_name = self._last_submit_tags["QualificationAction"]
+        events: list[tuple[Mapping[str, Any], Mapping[str, Any]]] = []
         next_token: str | None = None
         seen_tokens: set[str] = set()
         while True:
@@ -1067,11 +1260,23 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                     if not isinstance(detail, Mapping):
                         continue
                     response_elements = detail.get("responseElements") or {}
-                    if (
-                        isinstance(response_elements, Mapping)
-                        and response_elements.get("jobId") == parent_job_id
-                    ):
-                        events.append(event)
+                    request_parameters = detail.get("requestParameters") or {}
+                    observed_job_name = (
+                        request_parameters.get("jobName")
+                        if isinstance(request_parameters, Mapping)
+                        else None
+                    )
+                    observed_parent = (
+                        response_elements.get("jobId")
+                        if isinstance(response_elements, Mapping)
+                        else None
+                    )
+                    if detail.get("eventName") != "SubmitJob":
+                        continue
+                    if observed_parent == parent_job_id or observed_job_name == expected_job_name:
+                        if isinstance(observed_parent, str) and observed_parent:
+                            self._observed_action_job_ids.add(observed_parent)
+                        events.append((event, detail))
             candidate = response.get("NextToken")
             if not isinstance(candidate, str) or not candidate:
                 break
@@ -1081,15 +1286,17 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             next_token = candidate
         if len(events) != 1:
             raise CloudManifestError(
-                "CloudTrail must contain exactly one SubmitJob event for the parent"
+                "CloudTrail must contain exactly one SubmitJob event for the qualification action"
             )
-        if self._last_submit_tags is None:
+        event, detail = events[0]
+        response_elements = detail.get("responseElements")
+        if (
+            not isinstance(response_elements, Mapping)
+            or response_elements.get("jobId") != parent_job_id
+        ):
             raise CloudManifestError(
-                "CloudTrail SubmitJob evidence was requested without the concrete submission"
+                "CloudTrail SubmitJob event response does not match the submitted parent job"
             )
-        event = events[0]
-        raw = event.get("CloudTrailEvent")
-        detail = json.loads(raw) if isinstance(raw, str) else {}
         request = detail.get("requestParameters") if isinstance(detail, Mapping) else {}
         request = request if isinstance(request, Mapping) else {}
         array_properties = request.get("arrayProperties") or {}
@@ -1121,7 +1328,6 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                 return True
             return False
 
-        expected_job_name = self._last_submit_tags["QualificationAction"]
         if request.get("jobName") != expected_job_name:
             raise CloudManifestError(
                 "CloudTrail SubmitJob event has the wrong qualification job name"
@@ -1348,9 +1554,165 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "restore": {"requested": True, "completed": True},
         }
 
+    def _list_action_job_ids(self, action_id: str) -> set[str]:
+        """Find every queued or historical job with this exact action name."""
+
+        if not isinstance(action_id, str) or not action_id:
+            return set()
+        found: set[str] = set()
+        for status in (
+            "SUBMITTED",
+            "PENDING",
+            "RUNNABLE",
+            "STARTING",
+            "RUNNING",
+            "SUCCEEDED",
+            "FAILED",
+        ):
+            next_token: str | None = None
+            seen_tokens: set[str] = set()
+            while True:
+                arguments = [
+                    "batch",
+                    "list-jobs",
+                    "--job-queue",
+                    self.queue,
+                    "--job-status",
+                    status,
+                ]
+                if next_token is not None:
+                    arguments.extend(("--next-token", next_token))
+                response = self._call_absence(*arguments)
+                rows = response.get("jobSummaryList") if isinstance(response, Mapping) else None
+                if not isinstance(rows, list):
+                    raise CloudManifestError(
+                        "Batch list-jobs returned an invalid job summary collection"
+                    )
+                for row in rows:
+                    if not isinstance(row, Mapping):
+                        raise CloudManifestError(
+                            "Batch list-jobs returned a non-object job summary"
+                        )
+                    if row.get("jobName") == action_id:
+                        job_id = row.get("jobId")
+                        if not isinstance(job_id, str) or not job_id:
+                            raise CloudManifestError(
+                                "action-scoped Batch job summary lacks its job id"
+                            )
+                        found.add(job_id)
+                candidate = response.get("nextToken")
+                if not isinstance(candidate, str) or not candidate:
+                    break
+                if candidate in seen_tokens:
+                    raise CloudManifestError("Batch list-jobs pagination repeated a token")
+                seen_tokens.add(candidate)
+                next_token = candidate
+
+    def _list_cloudtrail_action_job_ids(self, action_id: str) -> set[str]:
+        """Find every SubmitJob parent recorded for this exact action name."""
+
+        if not isinstance(action_id, str) or not action_id:
+            return set()
+        found: set[str] = set()
+        next_token: str | None = None
+        seen_tokens: set[str] = set()
+        while True:
+            arguments = [
+                "cloudtrail",
+                "lookup-events",
+                "--lookup-attributes",
+                "AttributeKey=EventName,AttributeValue=SubmitJob",
+                "--max-results",
+                "50",
+            ]
+            if next_token is not None:
+                arguments.extend(("--next-token", next_token))
+            response = self._call_absence(*arguments)
+            events = response.get("Events") if isinstance(response, Mapping) else None
+            if not isinstance(events, list):
+                raise CloudManifestError(
+                    "CloudTrail absence lookup returned an invalid Events collection"
+                )
+            for event in events:
+                if not isinstance(event, Mapping):
+                    raise CloudManifestError(
+                        "CloudTrail absence lookup returned a non-object event"
+                    )
+                raw = event.get("CloudTrailEvent")
+                if not isinstance(raw, str) or not raw:
+                    raise CloudManifestError(
+                        "CloudTrail absence event lacks its raw event document"
+                    )
+                try:
+                    detail = json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise CloudManifestError(
+                        "CloudTrail absence event is not valid JSON"
+                    ) from exc
+                if not isinstance(detail, Mapping) or detail.get("eventName") != "SubmitJob":
+                    continue
+                request = detail.get("requestParameters")
+                if not isinstance(request, Mapping) or request.get("jobName") != action_id:
+                    continue
+                response_elements = detail.get("responseElements")
+                job_id = (
+                    response_elements.get("jobId")
+                    if isinstance(response_elements, Mapping)
+                    else None
+                )
+                if not isinstance(job_id, str) or not job_id:
+                    raise CloudManifestError(
+                        "CloudTrail action event lacks its submitted parent job id"
+                    )
+                found.add(job_id)
+            candidate = response.get("NextToken") if isinstance(response, Mapping) else None
+            if not isinstance(candidate, str) or not candidate:
+                break
+            if candidate in seen_tokens:
+                raise CloudManifestError(
+                    "CloudTrail absence lookup pagination repeated a token"
+                )
+            seen_tokens.add(candidate)
+            next_token = candidate
+        return found
+
+    @staticmethod
+    def _complete_job_rows(
+        rows: Any, expected_job_ids: set[str], *, phase: str
+    ) -> dict[str, Mapping[str, Any]]:
+        if not isinstance(rows, list):
+            raise CloudManifestError(f"Batch {phase} returned an invalid jobs collection")
+        indexed: dict[str, Mapping[str, Any]] = {}
+        for row in rows:
+            if not isinstance(row, Mapping):
+                raise CloudManifestError(f"Batch {phase} returned a non-object job row")
+            job_id = row.get("jobId")
+            if not isinstance(job_id, str) or not job_id:
+                raise CloudManifestError(f"Batch {phase} returned a job without an id")
+            if job_id in indexed:
+                raise CloudManifestError(f"Batch {phase} returned a duplicate job row")
+            indexed[job_id] = row
+        if set(indexed) != expected_job_ids:
+            raise CloudManifestError(
+                f"Batch {phase} did not return exactly every requested job"
+            )
+        return indexed
+
     def disable_and_drain(self, tags: Mapping[str, str]) -> None:
         """Disable scheduling, then drain or terminate every submitted job."""
 
+        action_id = tags.get("QualificationActionId")
+        job_ids = set(self._observed_action_job_ids)
+        if isinstance(action_id, str) and action_id:
+            job_ids.update(self._list_action_job_ids(action_id))
+        if self.parent_job_id is not None:
+            job_ids.update(
+                {
+                    self.parent_job_id,
+                    f"{self.parent_job_id}:0",
+                    f"{self.parent_job_id}:1",
+                }
+            )
         self._call(
             "batch",
             "update-job-queue",
@@ -1367,46 +1729,45 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "--state",
             "DISABLED",
         )
-        if self.parent_job_id is not None:
-            job_ids = (
-                self.parent_job_id,
-                f"{self.parent_job_id}:0",
-                f"{self.parent_job_id}:1",
-            )
+        if job_ids:
+            ordered_job_ids = tuple(sorted(job_ids))
             deadline = time.monotonic() + 600
             termination_sent = False
             while True:
                 response = self._call_absence(
-                    "batch", "describe-jobs", "--jobs", *job_ids
+                    "batch", "describe-jobs", "--jobs", *ordered_job_ids
                 )
-                rows = response.get("jobs", [])
-                if not isinstance(rows, list):
-                    raise CloudManifestError(
-                        "Batch drain returned an invalid jobs collection"
-                    )
-                if not rows or all(
-                    isinstance(row, Mapping)
-                    and row.get("status") in TERMINAL_BATCH_JOB_STATUSES
-                    for row in rows
+                rows = self._complete_job_rows(
+                    response.get("jobs") if isinstance(response, Mapping) else None,
+                    set(ordered_job_ids),
+                    phase="drain",
+                )
+                if all(
+                    row.get("status") in TERMINAL_BATCH_JOB_STATUSES
+                    for row in rows.values()
                 ):
+                    self._drained_action_job_ids = set(ordered_job_ids)
                     break
                 if time.monotonic() >= deadline:
                     if termination_sent:
                         raise CloudManifestError(
                             "Batch jobs did not drain after the signed termination request"
                         )
-                    self._call(
-                        "batch",
-                        "terminate-job",
-                        "--job-id",
-                        self.parent_job_id,
-                        "--reason",
-                        "signed qualification teardown drain",
-                    )
+                    for job_id in ordered_job_ids:
+                        self._call(
+                            "batch",
+                            "terminate-job",
+                            "--job-id",
+                            job_id,
+                            "--reason",
+                            "signed qualification teardown drain",
+                        )
                     termination_sent = True
                     deadline = time.monotonic() + 300
                     continue
                 time.sleep(5)
+        else:
+            self._drained_action_job_ids = set()
 
     def verify_absence(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
         queue = self._call_absence(
@@ -1490,31 +1851,56 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             raise CloudManifestError(
                 "fresh qualification action has multiple inactive job-definition revisions"
             )
+        action_id = tags.get("QualificationActionId")
         jobs = True
+        cloudtrail_job_ids = (
+            self._list_cloudtrail_action_job_ids(action_id)
+            if isinstance(action_id, str) and action_id
+            else set()
+        )
+        expected_cloudtrail_ids = set(self._observed_action_job_ids)
+        if self.parent_job_id is None:
+            jobs = not cloudtrail_job_ids
+        elif expected_cloudtrail_ids:
+            jobs = cloudtrail_job_ids == expected_cloudtrail_ids
+        else:
+            jobs = len(cloudtrail_job_ids) == 1
+        if isinstance(action_id, str) and action_id and queue.get("jobQueues"):
+            jobs = jobs and not self._list_action_job_ids(action_id)
         if self.parent_job_id is not None:
+            expected_job_ids = set(self._observed_action_job_ids)
+            expected_job_ids.update(
+                {
+                    self.parent_job_id,
+                    f"{self.parent_job_id}:0",
+                    f"{self.parent_job_id}:1",
+                }
+            )
+            expected_job_ids.update(self._drained_action_job_ids)
+            if self._drained_action_job_ids != expected_job_ids:
+                jobs = False
             job_rows = self._call_absence(
                 "batch",
                 "describe-jobs",
                 "--jobs",
-                self.parent_job_id,
-                f"{self.parent_job_id}:0",
-                f"{self.parent_job_id}:1",
-            ).get("jobs", [])
+                *sorted(expected_job_ids),
+            )
             # Batch retains terminal job history after completion.  Teardown
             # proves that no submitted job remains runnable, not that the
             # provider has erased its immutable audit history.
-            expected_job_ids = {
-                self.parent_job_id,
-                f"{self.parent_job_id}:0",
-                f"{self.parent_job_id}:1",
-            }
-            jobs = isinstance(job_rows, list) and all(
-                isinstance(row, Mapping)
-                and isinstance(row.get("jobId"), str)
-                and row.get("jobId") in expected_job_ids
-                and row.get("status") in TERMINAL_BATCH_JOB_STATUSES
-                for row in job_rows
-            )
+            try:
+                described = self._complete_job_rows(
+                    job_rows.get("jobs") if isinstance(job_rows, Mapping) else None,
+                    expected_job_ids,
+                    phase="absence",
+                )
+            except CloudManifestError:
+                jobs = False
+            else:
+                jobs = jobs and all(
+                    row.get("status") in TERMINAL_BATCH_JOB_STATUSES
+                    for row in described.values()
+                )
         return {
             "jobs": jobs,
             "instances": not instances.get("Reservations"),
@@ -1843,6 +2229,10 @@ def execute(
                 plan=parsed_plan,
                 expected_policy_sha256=expected_policy_sha256,
             )
+            if not isinstance(iam_simulation.get("policy_inventory"), Mapping):
+                raise CloudManifestError(
+                    "live IAM simulation lacks the complete worker-policy inventory"
+                )
             capture_kms = getattr(provider, "capture_kms_verification", None)
             if not callable(capture_kms):
                 raise CloudManifestError(

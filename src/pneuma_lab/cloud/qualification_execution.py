@@ -82,6 +82,7 @@ _PARSED_QUALIFICATION_FIELDS = frozenset(
         "job_queue_name",
         "job_definition_name",
         "name_prefix",
+        "cross_resource_binding_proof",
         "terraform_show_sha256",
     }
 )
@@ -1036,6 +1037,267 @@ def _resource_rows(document: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
     return rows
 
 
+def _resource_change_unknown(
+    document: Mapping[str, Any],
+    *base_addresses: str,
+    path: Sequence[object],
+) -> bool:
+    """Read an ``after_unknown`` marker for one unambiguous resource field."""
+
+    candidates: list[Mapping[str, Any]] = []
+
+    def matches(address: Any) -> bool:
+        return isinstance(address, str) and any(
+            address == base or address.startswith(base + "[")
+            for base in base_addresses
+        )
+
+    planned = document.get("planned_values")
+
+    def walk(module: Mapping[str, Any]) -> None:
+        resources = module.get("resources", [])
+        if isinstance(resources, list):
+            for resource in resources:
+                if isinstance(resource, Mapping) and matches(resource.get("address")):
+                    candidates.append(resource)
+        children = module.get("child_modules", [])
+        if isinstance(children, list):
+            for child in children:
+                if isinstance(child, Mapping):
+                    walk(child)
+
+    if isinstance(planned, Mapping) and isinstance(
+        planned.get("root_module"), Mapping
+    ):
+        walk(planned["root_module"])
+    changes = document.get("resource_changes", [])
+    if isinstance(changes, list):
+        candidates.extend(
+            change
+            for change in changes
+            if isinstance(change, Mapping) and matches(change.get("address"))
+        )
+    addresses = {
+        candidate.get("address")
+        for candidate in candidates
+        if isinstance(candidate.get("address"), str)
+    }
+    if len(addresses) > 1:
+        joined = ", ".join(base_addresses)
+        raise CloudManifestError(
+            f"Terraform after_unknown metadata is ambiguous for ({joined})"
+        )
+    if not candidates:
+        return False
+    unknown: Any = None
+    for candidate in candidates:
+        values = candidate.get("after_unknown")
+        if not isinstance(values, Mapping):
+            change = candidate.get("change")
+            values = change.get("after_unknown") if isinstance(change, Mapping) else None
+        if values is None:
+            continue
+        current = values
+        for component in path:
+            if isinstance(component, int):
+                if not isinstance(current, list) or component >= len(current):
+                    current = None
+                    break
+                current = current[component]
+            else:
+                if not isinstance(current, Mapping) or component not in current:
+                    current = None
+                    break
+                current = current[component]
+        if current is True:
+            unknown = True
+        elif current not in (None, False):
+            raise CloudManifestError("Terraform after_unknown metadata is malformed")
+    return unknown is True
+
+
+def _configuration_resource_rows(
+    document: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Return Terraform configuration expressions keyed by resource address."""
+
+    rows: dict[str, dict[str, Any]] = {}
+
+    def walk(module: Mapping[str, Any]) -> None:
+        resources = module.get("resources", [])
+        if isinstance(resources, list):
+            for row in resources:
+                if (
+                    isinstance(row, Mapping)
+                    and isinstance(row.get("address"), str)
+                    and isinstance(row.get("expressions"), Mapping)
+                ):
+                    rows[row["address"]] = dict(row["expressions"])
+        children = module.get("module_calls", {})
+        if isinstance(children, Mapping):
+            for child in children.values():
+                if not isinstance(child, Mapping):
+                    continue
+                nested = child.get("module")
+                if isinstance(nested, Mapping):
+                    walk(nested)
+
+    configuration = document.get("configuration")
+    root = configuration.get("root_module") if isinstance(configuration, Mapping) else None
+    if isinstance(root, Mapping):
+        walk(root)
+    return rows
+
+
+def _configuration_resource(
+    document: Mapping[str, Any], *base_addresses: str
+) -> dict[str, Any]:
+    rows = _configuration_resource_rows(document)
+    matches: list[tuple[str, dict[str, Any]]] = []
+    for base_address in base_addresses:
+        for address, values in rows.items():
+            if address == base_address or address.startswith(base_address + "["):
+                matches.append((address, values))
+    if len(matches) == 1:
+        return dict(matches[0][1])
+    if len(matches) > 1:
+        joined = ", ".join(base_addresses)
+        raise CloudManifestError(
+            f"Terraform configuration has ambiguous expressions for ({joined})"
+        )
+    joined = ", ".join(base_addresses)
+    raise CloudManifestError(
+        f"Terraform show lacks configuration expressions for ({joined})"
+    )
+
+
+def _expression_references(
+    expressions: Mapping[str, Any], path: Sequence[object], *, field: str
+) -> frozenset[str]:
+    value: Any = expressions
+    for component in path:
+        if isinstance(component, int):
+            if not isinstance(value, list) or component >= len(value):
+                raise CloudManifestError(
+                    f"Terraform configuration lacks the {field} expression"
+                )
+            value = value[component]
+        else:
+            if not isinstance(value, Mapping) or component not in value:
+                raise CloudManifestError(
+                    f"Terraform configuration lacks the {field} expression"
+                )
+            value = value[component]
+    references = value.get("references") if isinstance(value, Mapping) else None
+    if not isinstance(references, list) or not all(
+        isinstance(reference, str) and reference for reference in references
+    ):
+        raise CloudManifestError(
+            f"Terraform configuration lacks references for the {field} expression"
+        )
+    return frozenset(references)
+
+
+def _matching_resource_reference_bases(
+    references: frozenset[str], *, resource_bases: Sequence[str], attribute: str
+) -> frozenset[str]:
+    """Return the resource bases that an expression actually references.
+
+    Terraform's reference list can contain ancillary references.  The
+    qualification contract is stricter: an ID and its version/ARN must each
+    resolve to one—and the same—approved resource, never merely to some
+    approved resource somewhere in the expression.
+    """
+
+    matches: set[str] = set()
+    for reference in references:
+        for base in resource_bases:
+            if reference == f"{base}.{attribute}" or (
+                reference.startswith(base + "[")
+                and reference.endswith(f".{attribute}")
+            ):
+                matches.add(base)
+    return frozenset(matches)
+
+
+def _require_cross_resource_configuration_bindings(
+    document: Mapping[str, Any], *, launch_unknown: bool, queue_unknown: bool
+) -> dict[str, str]:
+    """Prove unknown planned IDs through Terraform's own reference graph.
+
+    Fresh creates legitimately have unknown provider-generated IDs in
+    ``planned_values``.  A pair of nulls is therefore acceptable only when
+    Terraform's configuration section proves the exact resource references;
+    otherwise the plan is not safe to admit.
+    """
+
+    proof: dict[str, str] = {}
+    if launch_unknown:
+        expressions = _configuration_resource(
+            document,
+            "aws_batch_compute_environment.worker",
+            "aws_batch_compute_environment.qualification",
+        )
+        references = _expression_references(
+            expressions,
+            ("compute_resources", 0, "launch_template", 0, "launch_template_id"),
+            field="compute launch-template binding",
+        )
+        launch_id_bases = _matching_resource_reference_bases(
+            references,
+            resource_bases=(
+                "aws_launch_template.qualification",
+                "aws_launch_template.worker",
+            ),
+            attribute="id",
+        )
+        if len(launch_id_bases) != 1:
+            raise CloudManifestError(
+                "unknown compute launch-template binding lacks an exact Terraform resource reference"
+            )
+        version_references = _expression_references(
+            expressions,
+            ("compute_resources", 0, "launch_template", 0, "version"),
+            field="compute launch-template version binding",
+        )
+        launch_version_bases = _matching_resource_reference_bases(
+            version_references,
+            resource_bases=(
+                "aws_launch_template.qualification",
+                "aws_launch_template.worker",
+            ),
+            attribute="latest_version",
+        )
+        if launch_version_bases != launch_id_bases:
+            raise CloudManifestError(
+                "unknown compute launch-template version is not bound to the exact launch-template resource"
+            )
+        proof["launch_template"] = "terraform_configuration_reference"
+    if queue_unknown:
+        expressions = _configuration_resource(
+            document, "aws_batch_job_queue.qualification"
+        )
+        references = _expression_references(
+            expressions,
+            ("compute_environment_order", 0, "compute_environment"),
+            field="queue compute-environment binding",
+        )
+        queue_bases = _matching_resource_reference_bases(
+            references,
+            resource_bases=(
+                "aws_batch_compute_environment.qualification",
+                "aws_batch_compute_environment.worker",
+            ),
+            attribute="arn",
+        )
+        if len(queue_bases) != 1:
+            raise CloudManifestError(
+                "unknown queue compute-environment binding lacks an exact Terraform resource reference"
+            )
+        proof["queue_compute_environment"] = "terraform_configuration_reference"
+    return proof
+
+
 def _resource(
     rows: Mapping[str, Mapping[str, Any]], base_address: str
 ) -> dict[str, Any]:
@@ -1449,10 +1711,30 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         )
     launch_template_binding_id = compute_launch_template[0].get("id")
     launch_template_resource_id = launch_template.get("id")
-    if launch_template_binding_id not in (None, "") or launch_template_resource_id not in (
-        None,
-        "",
-    ):
+    cross_resource_binding_proof: dict[str, str] = {}
+    launch_binding_unknown = launch_template_binding_id in (None, "") or _resource_change_unknown(
+        document,
+        "aws_batch_compute_environment.qualification",
+        "aws_batch_compute_environment.worker",
+        path=("compute_resources", 0, "launch_template", 0, "id"),
+    )
+    launch_resource_unknown = launch_template_resource_id in (None, "") or _resource_change_unknown(
+        document,
+        "aws_launch_template.qualification",
+        "aws_launch_template.worker",
+        path=("id",),
+    )
+    if launch_binding_unknown and launch_resource_unknown:
+        cross_resource_binding_proof.update(
+            _require_cross_resource_configuration_bindings(
+                document, launch_unknown=True, queue_unknown=False
+            )
+        )
+    elif launch_binding_unknown or launch_resource_unknown:
+        raise CloudManifestError(
+            "planned compute launch-template binding is not concrete"
+        )
+    else:
         if not isinstance(launch_template_binding_id, str) or not isinstance(
             launch_template_resource_id, str
         ):
@@ -1463,6 +1745,7 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
             raise CloudManifestError(
                 "planned compute launch-template binding differs from the launch-template resource"
             )
+        cross_resource_binding_proof["launch_template"] = "planned_value_equality"
 
     instance_types = resources.get("instance_type")
     if instance_types != ["g6e.2xlarge"]:
@@ -1496,10 +1779,28 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         "compute_environment"
     )
     planned_compute_environment_arn = compute.get("arn")
-    if queue_compute_environment_arn not in (None, "") or planned_compute_environment_arn not in (
-        None,
-        "",
-    ):
+    queue_binding_unknown = queue_compute_environment_arn in (None, "") or _resource_change_unknown(
+        document,
+        "aws_batch_job_queue.qualification",
+        path=("compute_environment_order", 0, "compute_environment"),
+    )
+    compute_arn_unknown = planned_compute_environment_arn in (None, "") or _resource_change_unknown(
+        document,
+        "aws_batch_compute_environment.qualification",
+        "aws_batch_compute_environment.worker",
+        path=("arn",),
+    )
+    if queue_binding_unknown and compute_arn_unknown:
+        cross_resource_binding_proof.update(
+            _require_cross_resource_configuration_bindings(
+                document, launch_unknown=False, queue_unknown=True
+            )
+        )
+    elif queue_binding_unknown or compute_arn_unknown:
+        raise CloudManifestError(
+            "planned job queue compute-environment binding is not concrete"
+        )
+    else:
         if not isinstance(queue_compute_environment_arn, str) or not isinstance(
             planned_compute_environment_arn, str
         ):
@@ -1510,6 +1811,9 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
             raise CloudManifestError(
                 "planned job queue compute-environment binding differs from the compute resource"
             )
+        cross_resource_binding_proof["queue_compute_environment"] = (
+            "planned_value_equality"
+        )
     name_prefix = variable("name_prefix")
     planned_names = {
         "compute environment": compute.get("compute_environment_name"),
@@ -1638,6 +1942,7 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         "job_queue_name": queue.get("name"),
         "job_definition_name": job_definition.get("name"),
         "name_prefix": name_prefix,
+        "cross_resource_binding_proof": cross_resource_binding_proof,
         "terraform_show_sha256": hashlib.sha256(
             canonical_bytes(show_document)
         ).hexdigest(),
@@ -1745,6 +2050,7 @@ def verify_provider_bindings(
         raise CloudManifestError("worker instance profile has an invalid attached role")
     attached_role_name = attached.get("RoleName")
     attached_role_arn = attached.get("Arn")
+    attached_role_id = attached.get("RoleId")
     account_arn(
         attached_role_arn,
         kind="role",
@@ -1771,6 +2077,17 @@ def verify_provider_bindings(
         raise CloudManifestError(
             "iam get-role does not match the role attached to the instance profile"
         )
+    role_id = role.get("RoleId")
+    if (
+        not isinstance(attached_role_id, str)
+        or not attached_role_id
+        or not isinstance(role_id, str)
+        or not role_id
+        or attached_role_id != role_id
+    ):
+        raise CloudManifestError(
+            "iam get-role does not match the exact role identity attached to the instance profile"
+        )
 
     def verify_role_binding(arn: Any, name: Any, label: str) -> dict[str, Any]:
         expected_name = account_arn(arn, kind="role", label=label)
@@ -1782,6 +2099,8 @@ def verify_provider_bindings(
             raise CloudManifestError(f"planned {label} was not explicitly verified")
         if observed.get("RoleName") != expected_name or observed.get("Arn") != arn:
             raise CloudManifestError(f"provider {label} ARN differs from the Terraform plan")
+        if not isinstance(observed.get("RoleId"), str) or not observed["RoleId"]:
+            raise CloudManifestError(f"provider {label} has no concrete IAM role identity")
         return dict(observed)
 
     service_role = verify_role_binding(

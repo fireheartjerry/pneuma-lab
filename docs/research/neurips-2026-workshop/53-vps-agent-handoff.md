@@ -407,3 +407,46 @@ not a runnable resource. The receipt and exact hashes are in
 The narrow teardown-verifier repair and focused regression are committed, but
 they do not justify relaunch. Tasks 6–10 remain
 `implementation_complete; E2E_pending`; Step 14 remains `launch_blocked`.
+
+## Latest source-only semantic closure — 2026-08-03
+
+The qualification source path received one coherent hardening group after
+three bounded read-only agent-session audits. Terraform admission now proves
+unknown provider IDs through the exact configuration reference graph and
+rejects ambiguous aliases. The AWS adapter inventories all inline and managed
+worker-role policies with pagination and rejects broad or other-action S3
+Allows; the 17-check simulation remains mandatory. CloudTrail matching covers
+the action name as well as the returned parent ID, and teardown discovers all
+action-named jobs. The CPU-only image smoke covers both worker indexes, while
+the image bootstrap re-inspects the exact post-push ECR digest and its fixed
+runtime configuration. Focused tests, Ruff, Terraform validation, status
+validation, fixture smoke, and graph refresh pass. The AWS session is expired;
+no fresh provider plan or mutation occurred, and action-011 remains the sealed
+terminal no-go. Step 14 remains `launch_blocked` and Tasks 6–10 remain
+`implementation_complete; E2E_pending`.
+
+## Final source-only fail-closed closure — 2026-08-03
+
+The last independent agent-session audit found and the repair group closed
+five additional seams. Terraform admission now rejects extra planned-value
+resources, mixed or ambiguous unknown-ID reference graphs, and inconsistent
+after_unknown metadata; provider identity verification binds the attached
+role and iam get-role response through the concrete IAM RoleId. The AWS
+adapter rejects incomplete IAM pages, audits resource-based S3 Allows, and
+retains the sanitized policy-inventory digest in newly built qualification
+receipts.
+
+Post-submit evidence now requires the CloudTrail event's returned parent ID to
+equal the actual SubmitJob response. Teardown requires every requested Batch
+job row, records a complete drain set, and performs a final action-name
+CloudTrail scan even after the queue is gone. If receipt assembly fails after
+submission, the runner writes a sanitized post-launch context record instead
+of relabeling the event as pre-launch.
+
+The image bootstrap now emits self-bound post-push ECR inspect and two-worker
+fixture sidecars, including the AWS CLI v2 version and raw-runtime/inspect
+digests. A future qualification image must carry those sidecars; the sealed
+action-011 image receipt predates this evidence and is not silently upgraded.
+Focused regressions, Ruff, Terraform validation, status validation, fixture
+smoke, and graph refresh pass. AWS credentials remain expired; no provider
+mutation, new action, relaunch, or scientific work occurred.

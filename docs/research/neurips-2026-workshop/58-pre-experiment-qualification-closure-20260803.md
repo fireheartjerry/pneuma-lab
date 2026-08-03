@@ -364,3 +364,52 @@ roster, live vocabulary, gate, verdict, and row-count checks; both remain
 implementation verification only. The Step 14 campaign-spec builder correctly
 exited 2 and named the missing canonical P0 power report and P0 core receipt,
 so `launch_blocked` remains the honest disposition.
+
+## Latest source-only semantic and evidence hardening — 2026-08-03
+
+The future qualification path now closes three concrete fail-open seams found
+by independent bounded agent-session audits:
+
+- Terraform provider-generated IDs may remain unknown in a fresh create plan,
+  but the parser now requires Terraform's exact configuration reference graph
+  for both the compute-environment launch template and queue binding. Multiple
+  alias/index matches are rejected as ambiguous.
+- The concrete AWS adapter enumerates every inline and attached managed policy
+  on the verified worker role, follows IAM pagination, and retains only
+  sanitized policy/document hashes. Any Allow for S3 outside the five exact
+  fixture reads and two exact worker writes—including wildcard, ListBucket,
+  other-action, NotAction, or NotResource forms—is rejected before apply.
+  The live 17-case IAM simulation remains required.
+- CloudTrail matching now covers the exact action job name as well as the
+  submitted parent ID, so a duplicate same-action submission cannot evade the
+  one-submit proof. Teardown discovers all action-named Batch jobs across
+  terminal and active states before disable/drain/destroy.
+
+The CPU-only image fixture check now executes both worker indexes and verifies
+two immutable, byte-identical raw objects. The image-build bootstrap also pulls
+the exact fresh ECR digest after push and re-inspects its fixed ENTRYPOINT,
+empty CMD, source label, and base label; the future image receipt must bind
+that digest-bound config check. Focused cloud/image/bootstrap tests, Ruff,
+Terraform validation, status validation, fixture smoke, and graph refresh all
+pass. The default AWS CLI session is expired, so no fresh plan, image build,
+IAM mutation, action, ledger row, relaunch, or scientific workload occurred.
+Action-011 remains the sealed terminal no-go.
+
+## Final source-only audit closure — 2026-08-03
+
+The final bounded agent-session audit was converted into focused fail-closed
+repairs. The plan parser now proves exact single-base Terraform references,
+rejects extra planned resources and malformed unknown markers, and verifies
+the profile/role chain through RoleId. Worker IAM capture rejects incomplete
+pagination and broad resource-policy S3 grants, while newly emitted receipts
+retain a separate sanitized policy-inventory digest.
+
+CloudTrail submit evidence now requires the actual returned parent ID. Drain
+and absence verification require complete rows for every requested Batch job,
+retain the drained set, and scan action-named CloudTrail submissions even when
+the queue has already been deleted. A post-submit receipt-construction error
+is retained as a sanitized terminal record. The image-builder sidecar now
+self-binds raw post-push inspect bytes and the two-worker fixture runtime, and
+the validator requires AWS CLI v2 plus those sidecars. Focused tests, lint,
+Terraform, status, fixture, and graph checks pass. AWS credentials are
+expired, so no fresh image/plan/provider mutation or relaunch occurred.
