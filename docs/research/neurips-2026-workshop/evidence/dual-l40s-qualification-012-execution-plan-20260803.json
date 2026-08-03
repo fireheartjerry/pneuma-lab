@@ -1,0 +1,82 @@
+{
+  "record_kind": "cloud_qualification_execution_plan",
+  "schema_version": "0.1.0",
+  "action_class": "qualification_audit",
+  "action_id": "dual-l40s-qualification-012",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "cost_ceiling_usd": 100.0,
+  "projected_cost_usd": 4.4842,
+  "max_retries": 0,
+  "input_lock_sha256": "767ad3f4c29c0e3f5e526673063d3a7f6d6169139361db979de642b6a9e697af",
+  "saved_plan_path": "/tmp/pneuma-dual-l40s-qualification-012.tfplan",
+  "saved_plan_sha256": "c1754fb18e27c845377bd3f4b7e49925e108f68d4931f0e2d4db45cbd78e850f",
+  "terraform_directory": "infra/terraform/qualification",
+  "terraform_show_sha256": "6eab97765dc117eadf8c2a10f885a21e7102f903527147e4aa45077e772a34f5",
+  "terraform_plan_binding_sha256": "d8b16bd4014437a9229a9e0306353955fbe505122168755012fb6ad202ced961",
+  "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:6c256efdfbac62dc805465721e43295d2600d8dedb43486242a550a615c62d2f",
+  "iam_policy_sha256": "3f2970ac68e594ec76f45af57fcc0f6044e6fc305453656bb09bb0fc1d369ada",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-012/outputs/",
+  "subnet_az_map": [
+    {
+      "availability_zone": "us-east-1a",
+      "subnet_id": "subnet-0da0658f2703d3e58"
+    },
+    {
+      "availability_zone": "us-east-1b",
+      "subnet_id": "subnet-0fb70ec94971ee036"
+    },
+    {
+      "availability_zone": "us-east-1c",
+      "subnet_id": "subnet-06bfd2d42e292f160"
+    },
+    {
+      "availability_zone": "us-east-1d",
+      "subnet_id": "subnet-0ef225f27b1e1f095"
+    }
+  ],
+  "bindings": {
+    "action_id": "dual-l40s-qualification-012",
+    "iam_policy_sha256": "3f2970ac68e594ec76f45af57fcc0f6044e6fc305453656bb09bb0fc1d369ada",
+    "image_digest": "sha256:6c256efdfbac62dc805465721e43295d2600d8dedb43486242a550a615c62d2f",
+    "subnet_az_map": [
+      {
+        "availability_zone": "us-east-1a",
+        "subnet_id": "subnet-0da0658f2703d3e58"
+      },
+      {
+        "availability_zone": "us-east-1b",
+        "subnet_id": "subnet-0fb70ec94971ee036"
+      },
+      {
+        "availability_zone": "us-east-1c",
+        "subnet_id": "subnet-06bfd2d42e292f160"
+      },
+      {
+        "availability_zone": "us-east-1d",
+        "subnet_id": "subnet-0ef225f27b1e1f095"
+      }
+    ],
+    "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-012/outputs/",
+    "projected_cost_usd": 4.4842,
+    "max_retries": 0
+  },
+  "qualification_code": "fixture-only-qualification-code-012",
+  "qualification_model": "fixture-only-cuda",
+  "qualification_model_revision": "fixture-only-v1",
+  "worker_contract": {
+    "count": 2,
+    "instance_type": "g6e.2xlarge",
+    "gpus_per_worker": 1,
+    "vcpus_per_worker": 8,
+    "memory_mib_per_worker": 60000,
+    "max_spot_vcpus": 16,
+    "attempt_duration_seconds": 3600,
+    "attempts": 1,
+    "command_override": false,
+    "managed_gpu_ami_path": true,
+    "spot": true
+  },
+  "plan_sha256": "11c3dd1a61d8a1dd040b1ac7a560d0d44db0de604e666d652b3b7c705df8db9c"
+}
