@@ -1,0 +1,125 @@
+{
+  "record_kind": "cloud_qualification_image_build_receipt",
+  "schema_version": "0.1.0",
+  "receipt_sha256": "f9bfc3c755fb195e7aee2dad7e1c674d56e5e961357c34fcb374d8b83508a3b0",
+  "action_id": "qualification-image-build-005",
+  "action_class": "image_build",
+  "status": "FAILED",
+  "provider": "aws",
+  "account_id": "892077329800",
+  "region": "us-east-1",
+  "authority": {
+    "plan_sha256": "b57618717da43b256a1252eb35f99d69b235050c30d1c3d1647888769e90faa2",
+    "signing_package_sha256": "52572676c12a06bf9a4d6bebd5c09a0b1a7f5161a7f90ae69d9c03bc99c14cea",
+    "envelope_ledger_row": "CL-257",
+    "admission_ledger_row": "CL-258",
+    "max_retries": 0
+  },
+  "source": {
+    "commit": "b1cf02c3d3f60502526011fe2b8fe2ee0906d657",
+    "archive_uri": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-005/source.tar",
+    "archive_sha256": "a1af0ac4b927a505ee7beaa6bf55b472157da813fdc1c1cde6e9f39075cf95bb",
+    "archive_size_bytes": 29880320,
+    "dockerfile": "infra/docker/qualification-worker/Dockerfile",
+    "dockerfile_sha256": "370efa7697cd5b60497438bd565ec23708ccfab7d17fc1376ca0a91df0983a73",
+    "base_digest": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90",
+    "bootstrap_template": "infra/aws/qualification-image-build-user-data.sh",
+    "bootstrap_template_sha256": "422387b263da942e3b4bd685edfaf31586faaee5e16416feaad0ce75b225391a",
+    "bootstrap_rendered_sha256": "ab6ed731437ee7c4225cbc84e63b5afec8c36689f99495417fde9d0fccba3f9b"
+  },
+  "target": {
+    "repository_uri": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker",
+    "image_tag": "qualification-image-build-005-b1cf02c",
+    "platform": "linux/amd64",
+    "ecr_image_digest": "sha256:965ac0ecd42c3aaaf333bf6eacb1980bb5dedeb49cac07bbfd1af7c15b75e756",
+    "immutable_ecr_reference": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:965ac0ecd42c3aaaf333bf6eacb1980bb5dedeb49cac07bbfd1af7c15b75e756",
+    "digest_rejected_for_runtime": true
+  },
+  "builder": {
+    "instance_id": "i-012e7b5eff2e12d0d",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-03T06:18:47Z",
+    "bootstrap_started_at": "2026-08-03T06:18:56Z",
+    "bootstrap_ended_at": "2026-08-03T06:26:08Z",
+    "bootstrap_elapsed_seconds": 432,
+    "ami_id": "ami-08bc385c9fc5afc94",
+    "subnet_id": "subnet-0da0658f2703d3e58",
+    "vpc_id": "vpc-0baeaefeb8b57c19b",
+    "security_group_id": "sg-035f9a402be2fa81c",
+    "root_volume_id": "vol-0a6282436acd44e14",
+    "root_volume_gib": 650,
+    "root_volume_encrypted": true,
+    "root_delete_on_termination": true,
+    "imds_http_tokens": "required",
+    "instance_state": "terminated"
+  },
+  "failure": {
+    "stage": "runtime_contract",
+    "reason": "schemas_not_materialized",
+    "error_class": "missing_runtime_schema",
+    "detail": "the fixture/raw-path check failed because /opt/schemas/cloud-worker-admission-measurement.schema.json was absent from the image",
+    "build_and_push": true,
+    "negative_check": true,
+    "package_import": true,
+    "aws_cli_invocation": true,
+    "fixture_artifact_check": false,
+    "no_qualification_use": true
+  },
+  "local_checks": {
+    "source_archive_roundtrip": "pass",
+    "dockerfile_hash": "pass",
+    "image_entrypoint": "/opt/pneuma/fixed_admission_entrypoint.sh",
+    "image_entrypoint_check": "pass",
+    "source_revision_label_check": "pass",
+    "base_digest_label_check": "pass",
+    "pneuma_lab_tree_check": "pass",
+    "aws_cli": "aws-cli/2.36.14 Python/3.14.6 Linux x86_64; invocation pass",
+    "package_import": "pass",
+    "negative_check": {
+      "network": "none",
+      "qualification_code_supplied": false,
+      "returncode": 2,
+      "stderr_contains": "QUALIFICATION_CODE",
+      "status_receipt_written": true,
+      "post_negative_check_sentinel": true
+    },
+    "fixture_raw_path_check": "fail: missing /opt/schemas/cloud-worker-admission-measurement.schema.json",
+    "ecr_push": "pass",
+    "fresh_ecr_read": "pass"
+  },
+  "builder_output": {
+    "s3_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-005/outputs/",
+    "status_sha256": "5bf823e0af813f27290090b6845270a321037cd1f5e95c9dec4d9c1f185770f0",
+    "bootstrap_log_sha256": "b62bdccf43e0abd3c9cc56051d019f2528d5862f4b67aea2e9d06b4c4503a443",
+    "image_inspect_sha256": "a02f9959825ed04da234da7b4d9f4c0f15e74043c8eff0a5dddaeaaae6564574",
+    "negative_receipt_sha256": "f5ecfd5c85ce32d293ffec2e2c441594a792d2f15bcb474342b68eb22143cf0f",
+    "sentinel_sha256": "66e368467a5d1c114d4898804b48bed91c4793794c512b97c81525819d0d71d2",
+    "ecr_metadata_sha256": "8992b34fa4c0c04ac9299adc4d40029d9729601d29e3cb45e60f1682a3155b36"
+  },
+  "teardown": {
+    "builder": "terminated",
+    "root_volume": "absent",
+    "security_group": "absent",
+    "instance_profile": "absent",
+    "iam_role": "absent",
+    "network_interfaces": [],
+    "fresh_provider_absence": true
+  },
+  "cost": {
+    "projected_usd": 6.0,
+    "hard_ceiling_usd": 25.0,
+    "observed_builder_elapsed_seconds": 432,
+    "settled_cost": "pending billing settlement"
+  },
+  "forbidden_actions": [
+    "terraform",
+    "batch",
+    "gpu",
+    "spot",
+    "model_download",
+    "benchmark",
+    "pilot",
+    "experiment",
+    "qualification_run"
+  ]
+}

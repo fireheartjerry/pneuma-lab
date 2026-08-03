@@ -48,7 +48,9 @@ ENV PYTHONHASHSEED=0 \
 # The image itself selects qualification mode; Batch supplies no alternate
 # command and therefore cannot dispatch a scientific workload.
 COPY src/pneuma_lab /opt/pneuma/pneuma_lab
+COPY schemas /opt/schemas
 COPY infra/docker/qualification-worker/fixed_admission_entrypoint.sh /opt/pneuma/fixed_admission_entrypoint.sh
-RUN chmod 0555 /opt/pneuma/fixed_admission_entrypoint.sh
+RUN chmod 0555 /opt/pneuma/fixed_admission_entrypoint.sh \
+    && test -f /opt/schemas/cloud-worker-admission-measurement.schema.json
 ENV PYTHONPATH=/opt/pneuma
 ENTRYPOINT ["/opt/pneuma/fixed_admission_entrypoint.sh"]

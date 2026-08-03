@@ -541,6 +541,8 @@ def test_terraform_and_image_contract_preserve_qualification_tags_and_entrypoint
     assert "apt-get install --yes --no-install-recommends" in dockerfile_text
     assert "awscli-exe-linux-x86_64.zip" in dockerfile_text
     assert "--install-dir /usr/local/aws-cli" in dockerfile_text
+    assert "COPY schemas /opt/schemas" in dockerfile_text
+    assert "cloud-worker-admission-measurement.schema.json" in dockerfile_text
     assert (
         'ENTRYPOINT ["/opt/pneuma/fixed_admission_entrypoint.sh"]' in dockerfile_text
     )

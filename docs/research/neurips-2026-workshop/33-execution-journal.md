@@ -6169,3 +6169,32 @@ The next event after the archived migration boundary is appended below.
   using the official AWS CLI v2 archive over the already-bound HTTPS egress.
   A fresh action 005, source archive, builder, tag, package, and digest are
   required; action 004 will not be reused.
+
+### EJ-20260803-qualification-image-build-005-no-go
+
+- **Authority and build:** Fresh action `qualification-image-build-005` was
+  bound to plan SHA-256
+  `b57618717da43b256a1252eb35f99d69b235050c30d1c3d1647888769e90faa2`, source
+  commit `b1cf02c3d3f60502526011fe2b8fe2ee0906d657`, source archive SHA-256
+  `a1af0ac4b927a505ee7beaa6bf55b472157da813fdc1c1cde6e9f39075cf95bb`, and
+  signed package SHA-256
+  `52572676c12a06bf9a4d6bebd5c09a0b1a7f5161a7f90ae69d9c03bc99c14cea`.
+  One fresh CPU-only `m7i.xlarge` built and pushed only the qualification
+  worker image in 432 seconds. The fresh immutable digest was
+  `sha256:965ac0ecd42c3aaaf333bf6eacb1980bb5dedeb49cac07bbfd1af7c15b75e756`.
+- **Runtime no-go:** The fixed entrypoint, source/base labels, package import,
+  AWS CLI v2 invocation, and network-none no-code negative check passed. The
+  non-GPU fixture/raw-path check failed when schema validation attempted to
+  read `/opt/schemas/cloud-worker-admission-measurement.schema.json`; the
+  Dockerfile copied `src/pneuma_lab` but not the repo-root `schemas/` tree.
+  The digest is rejected for qualification and action 005 is exhausted.
+- **Teardown:** Builder `i-012e7b5eff2e12d0d`, root
+  `vol-0a6282436acd44e14`, temporary SG `sg-035f9a402be2fa81c`, temporary IAM
+  profile/role, and action-tagged ENIs are absent on fresh provider reads.
+  The rejected ECR digest/tag remains only as evidence. No Terraform, Batch,
+  GPU, Spot, model, benchmark, pilot, experiment, qualification run,
+  unblind, analysis, or scientific result occurred.
+- **Successor boundary:** The source-only repair copies `schemas/` to
+  `/opt/schemas` and asserts the required worker-admission schema exists at
+  build time. A fresh action 006, archive, package, builder, tag, and digest
+  are required; action 005 will not be reused.
