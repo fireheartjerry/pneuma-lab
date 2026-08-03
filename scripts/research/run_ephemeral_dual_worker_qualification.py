@@ -32,6 +32,15 @@ def _json_file(path: Path) -> dict[str, Any]:
     return value
 
 
+def _qualification_image_digest(plan: Mapping[str, Any]) -> str:
+    """Extract the immutable digest from the raw Terraform image binding."""
+
+    image = plan.get("image")
+    if not isinstance(image, str) or "@sha256:" not in image:
+        raise ValueError("loaded Terraform plan lacks an immutable qualification image")
+    return image.rsplit("@", 1)[1]
+
+
 def _prelaunch_output(action_id: str, exc: Exception) -> dict[str, str]:
     return {
         "record_kind": "cloud_ephemeral_dual_worker_qualification_preflight_no_go",
@@ -234,7 +243,7 @@ def main() -> int:
         ).stdout.strip()
         require_qualification_image_binding(
             evidence_root,
-            image_digest=str(plan_for_binding.get("image_digest", "")),
+            image_digest=_qualification_image_digest(plan_for_binding),
             source_commit=source_revision,
         )
         authority = validate_authority_evidence(

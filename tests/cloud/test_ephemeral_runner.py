@@ -38,6 +38,9 @@ from pneuma_lab.cloud.qualification_execution import (
     terraform_plan_binding_digest,
     verify_provider_bindings,
 )
+from scripts.research.run_ephemeral_dual_worker_qualification import (
+    _qualification_image_digest,
+)
 
 from .test_qualification_execution import _rungs
 
@@ -797,6 +800,13 @@ def test_loaded_account_plan_preserves_raw_show_binding() -> None:
     assert parsed["terraform_plan_binding_sha256"] == terraform_plan_binding_digest(
         "a" * 64, "b" * 64
     )
+
+
+def test_concrete_runner_extracts_digest_from_raw_terraform_image_binding() -> None:
+    image = "registry.example.invalid/worker@sha256:" + "a" * 64
+    assert _qualification_image_digest({"image": image}) == "sha256:" + "a" * 64
+    with pytest.raises(ValueError, match="immutable qualification image"):
+        _qualification_image_digest({"image_digest": "sha256:" + "a" * 64})
 
 
 def test_loaded_account_plan_rejects_nonhex_saved_plan_binding() -> None:
