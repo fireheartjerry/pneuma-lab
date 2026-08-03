@@ -50,6 +50,16 @@ builds the registered schema-bound receipt. It refuses to write an execution
 receipt for pre-launch failures. Focused provider-free cloud/schema tests pass;
 no AWS launch or retry occurred during this repair.
 
+## Follow-up readiness seam repair
+
+The concrete runner now performs and validates the exact 15-case live IAM
+simulation matrix before Terraform apply. Its sanitized digest is bound to the
+parsed plan's independently verified attached worker role and action-specific
+policy hash; the old caller-supplied matrix-hash argument is gone. The runner
+also rejects reuse of action IDs already represented in retained evidence and
+refuses receipt overwrite. Focused IAM/runner/receipt/schema regressions pass.
+No AWS mutation, relaunch, or scientific workload occurred.
+
 ## Remaining gates before official P0 / Step 4B
 
 1. The dual-L40S qualification is not passed; action-011 is exhausted. No

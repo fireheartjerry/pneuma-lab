@@ -80,6 +80,28 @@ It also noted that the literal cause of the queue deletion is not proven by
 the retained evidence; this closure records only AWS Batch's observed status
 reason and invents no root cause.
 
+## Concrete runner readiness repair after the follow-up seam audit
+
+A fresh read-only agent-session audit found two remaining concrete bypasses in
+the executable path. The CLI accepted a caller-provided IAM-matrix digest
+without performing the simulation, and the runner could be pointed at an
+action ID already represented in retained evidence. Both are repaired:
+
+- `iam simulate-principal-policy` now runs the fixed 15-case matrix derived
+  from the parsed action plan: five exact input reads, two worker-indexed raw
+  writes, and eight denied reads/writes/list/delete/abort cases. The retained
+  record is sanitized, bound to the independently verified attached role and
+  action-specific policy hash, and rehashed before apply and again at receipt
+  serialization.
+- The attached worker role ARN returned by the profile/read-role checks is
+  carried into the parsed plan for IAM simulation; the instance-profile ARN is
+  never substituted. Reuse of an action ID already present in the evidence
+  directory, or overwrite of its receipt path, fails before provider mutation.
+
+Focused provider-free IAM, runner, receipt, and schema regressions pass. This
+was a source/readiness repair only: it did not create AWS resources, relaunch
+action-011, or cross the official P0/Step 4B scientific boundary.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any

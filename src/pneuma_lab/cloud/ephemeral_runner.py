@@ -37,6 +37,7 @@ from .qualification_execution import (
     terraform_plan_binding_digest,
     verify_provider_bindings,
 )
+from .iam_simulation import run_iam_simulation, validate_iam_simulation_matrix
 
 QUALIFICATION_TAGS = {
     "QualificationPurpose": "dual-l40s-admission-only",
@@ -73,6 +74,30 @@ class QualificationExecutionError(CloudManifestError):
     def __init__(self, message: str, *, context: Mapping[str, Any]) -> None:
         super().__init__(message)
         self.context = dict(context)
+
+
+def require_fresh_qualification_action(
+    action_id: str, *, evidence_root: Path, receipt_path: Path | None = None
+) -> None:
+    """Refuse action IDs already represented in retained qualification evidence."""
+
+    if not isinstance(action_id, str) or not action_id:
+        raise CloudManifestError("qualification action id must be nonempty")
+    if evidence_root.exists():
+        matches = sorted(
+            path
+            for path in evidence_root.rglob("*")
+            if path.is_file() and action_id in path.name
+        )
+        if matches:
+            raise CloudManifestError(
+                "qualification action id is already represented in retained evidence: "
+                + matches[0].as_posix()
+            )
+    if receipt_path is not None and receipt_path.exists():
+        raise CloudManifestError(
+            "qualification receipt path already exists; refusing to overwrite evidence"
+        )
 
 
 class QualificationProvider(Protocol):
@@ -422,6 +447,22 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         from .worker_admission import compile_dual_worker_admissions
 
         return compile_dual_worker_admissions(measurements, self._fixture_protocol)
+
+    def capture_iam_simulation(
+        self,
+        *,
+        plan: Mapping[str, Any],
+        action_id: str,
+        expected_policy_sha256: str,
+    ) -> Mapping[str, Any]:
+        """Run the exact action/resource IAM matrix before any apply."""
+
+        return run_iam_simulation(
+            self._call,
+            plan=plan,
+            action_id=action_id,
+            expected_policy_sha256=expected_policy_sha256,
+        )
 
     def _call(self, *args: str) -> Any:
         result = self.run(
@@ -914,6 +955,8 @@ class RunnerConfig:
     expected_max_retries: int = MAX_RETRIES
     lock_timeout: str = "60s"
     require_receipt_evidence: bool = False
+    action_evidence_root: Path | None = None
+    receipt_path: Path | None = None
 
 
 def require_account_plan(
@@ -942,7 +985,20 @@ def require_account_plan(
         raise CloudManifestError(
             "account-plan acceptance requires explicit provider read-only checks"
         )
-    verify_provider_bindings(provider, parsed)
+    provider_bindings = verify_provider_bindings(provider, parsed)
+    attached_role = provider_bindings.get("role")
+    if not isinstance(attached_role, Mapping) or not isinstance(
+        attached_role.get("Arn"), str
+    ):
+        raise CloudManifestError(
+            "provider verification did not return the attached worker role ARN"
+        )
+    # The Terraform stack binds an existing instance profile, so the attached
+    # role is often absent from planned resources. Carry the independently
+    # verified role ARN into the parsed plan for IAM simulation; never
+    # substitute the instance-profile ARN.
+    parsed["worker_role_arn"] = attached_role["Arn"]
+    parsed["worker_role_name"] = attached_role.get("RoleName")
     if ledger_path is not None:
         derive_spend_history_binding(ledger_path)
     saved_plan_sha256 = plan.get("saved_plan_sha256")
@@ -1032,6 +1088,12 @@ def execute(
         raise CloudManifestError(
             "qualification execution requires the authoritative spend ledger path"
         )
+    if config.action_evidence_root is not None:
+        require_fresh_qualification_action(
+            config.action_id,
+            evidence_root=config.action_evidence_root,
+            receipt_path=config.receipt_path,
+        )
     parsed_plan = require_account_plan(
         account_plan,
         action_id=config.action_id,
@@ -1083,6 +1145,7 @@ def execute(
     parent_job_id: str | None = None
     evidence: Mapping[str, Any] | None = None
     recovery: Mapping[str, Any] | None = None
+    iam_simulation: Mapping[str, Any] | None = None
     launch: dict[str, Any] = {
         "submit_count_proven": 1,
         "array_size": 2,
@@ -1091,6 +1154,30 @@ def execute(
     failure: Exception | None = None
     cleanup_failure: Exception | None = None
     try:
+        if config.require_receipt_evidence:
+            capture_iam = getattr(provider, "capture_iam_simulation", None)
+            expected_policy_sha256 = authority_result.get("iam_policy_sha256")
+            if not callable(capture_iam):
+                raise CloudManifestError(
+                    "concrete qualification provider lacks live IAM simulation"
+                )
+            if not isinstance(expected_policy_sha256, str):
+                raise CloudManifestError(
+                    "authority receipt lacks the action-specific IAM policy hash"
+                )
+            observed_iam = capture_iam(
+                plan=parsed_plan,
+                action_id=config.action_id,
+                expected_policy_sha256=expected_policy_sha256,
+            )
+            if not isinstance(observed_iam, Mapping):
+                raise CloudManifestError("IAM simulation evidence is not an object")
+            iam_simulation = validate_iam_simulation_matrix(
+                observed_iam,
+                action_id=config.action_id,
+                plan=parsed_plan,
+                expected_policy_sha256=expected_policy_sha256,
+            )
         terraform.apply(lock_timeout=config.lock_timeout, tags=tags)
         ready = provider.wait_ready(tags)
         parent_job_id = provider.submit_array(
@@ -1178,6 +1265,7 @@ def execute(
             "parent_job_id": parent_job_id,
             "evidence": evidence,
             "recovery": recovery,
+            "iam_simulation": iam_simulation,
             "launch": launch,
             "failure": failure,
             "cleanup_failure": cleanup_failure,
@@ -1201,6 +1289,7 @@ def execute(
         "parent_job_id": parent_job_id,
         "evidence": evidence,
         "recovery": recovery,
+        "iam_simulation": iam_simulation,
         "launch": launch,
         "failure": failure,
         "cleanup_failure": cleanup_failure,
@@ -1223,6 +1312,7 @@ def execute(
         "ready": ready,
         "evidence": evidence,
         "recovery": recovery,
+        "iam_simulation": iam_simulation,
         "absence": dict(absence),
         "plan": dict(parsed_plan),
         "authority": authority_result,

@@ -21,6 +21,7 @@ from pneuma_lab.cloud.ephemeral_runner import (
 )
 from pneuma_lab.cloud.errors import CloudManifestError
 from pneuma_lab.cloud.fixed_admission_probe import build_raw_measurement
+from pneuma_lab.cloud.iam_simulation import expected_checks, run_iam_simulation
 from pneuma_lab.cloud.qualification_execution import worker_artifact_uri
 from pneuma_lab.cloud.qualification_execution import (
     BatchAdmissionError,
@@ -228,6 +229,41 @@ class FakeProvider(ReadOnlyProvider):
     calls: list[str] = field(default_factory=list)
     projection: float = 99.0
 
+    def capture_iam_simulation(self, *, plan, action_id, expected_policy_sha256):
+        self.calls.append("iam")
+        checks = expected_checks(
+            input_paths=plan["input_paths"], output_root=plan["output_path"]
+        )
+
+        def call(*args):
+            action = args[args.index("--action-names") + 1]
+            resource = args[args.index("--resource-arns") + 1]
+            expected = next(
+                row
+                for row in checks
+                if row["action"] == action and row["resource_arn"] == resource
+            )
+            return {
+                "EvaluationResults": [
+                    {
+                        "EvalActionName": action,
+                        "EvalResourceName": resource,
+                        "EvalDecision": (
+                            "allowed"
+                            if expected["expected"] == "allowed"
+                            else "implicitDeny"
+                        ),
+                    }
+                ]
+            }
+
+        return run_iam_simulation(
+            call,
+            plan=plan,
+            action_id=action_id,
+            expected_policy_sha256=expected_policy_sha256,
+        )
+
     def preflight(self, tags):
         self.calls.append("preflight")
         return {"ok": True}
@@ -246,6 +282,16 @@ class FakeProvider(ReadOnlyProvider):
     def submit_array(self, *, size, timeout_seconds, attempts, tags):
         self.calls.append(f"submit:{size}:{timeout_seconds}:{attempts}")
         return "parent"
+
+    def capture_submit_evidence(self, parent_job_id):
+        self.calls.append("cloudtrail")
+        return {
+            "cloudtrail_submit_job_event_id_sha256": "c" * 64,
+            "submit_event_time_utc": "2026-08-03T09:34:48Z",
+            "submit_count_proven": 1,
+            "array_size": 2,
+            "retry_attempts": 1,
+        }
 
     def collect_admission(self, parent_job_id):
         self.calls.append("collect")
@@ -317,7 +363,7 @@ def authority(*args, **kwargs):
         parse_terraform_show(terraform_show())["terraform_show_sha256"],
     )
     assert kwargs["spend_history_sha256"] == canonical_ledger_digest(LEDGER)
-    return {"authorized": True}
+    return {"authorized": True, "iam_policy_sha256": "a" * 64}
 
 
 def test_runner_verifies_real_plan_and_executes_exact_two_children() -> None:
@@ -346,6 +392,48 @@ def test_runner_verifies_real_plan_and_executes_exact_two_children() -> None:
     ]
     assert terraform.calls == ["apply:60s", "destroy:60s"]
     assert provider.calls[-2:] == ["disable-drain", "absence"]
+
+
+def test_receipt_runner_captures_and_validates_live_iam_before_apply() -> None:
+    provider, terraform = FakeProvider(), FakeTerraform()
+    result = execute(
+        RunnerConfig("qual-1", "us-east-1", require_receipt_evidence=True),
+        envelope={},
+        admission={},
+        key_registry={},
+        ledger_path=LEDGER,
+        account_plan=terraform_show(),
+        provider=provider,
+        terraform=terraform,
+        verify_authority=authority,
+    )
+    assert result["iam_simulation"]["all_expected_decisions_match"] is True
+    assert provider.calls.index("iam") < provider.calls.index("ready")
+    assert terraform.calls == ["apply:60s", "destroy:60s"]
+
+
+def test_exhausted_action_id_is_rejected_before_provider_calls(tmp_path: Path) -> None:
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    (evidence_root / "qual-1-terminal-receipt.json").write_text("{}", encoding="utf-8")
+    provider, terraform = FakeProvider(), FakeTerraform()
+    with pytest.raises(CloudManifestError, match="already represented"):
+        execute(
+            RunnerConfig(
+                "qual-1",
+                "us-east-1",
+                action_evidence_root=evidence_root,
+            ),
+            envelope={},
+            admission={},
+            key_registry={},
+            ledger_path=LEDGER,
+            account_plan=terraform_show(),
+            provider=provider,
+            terraform=terraform,
+            verify_authority=authority,
+        )
+    assert provider.calls == [] and terraform.calls == []
 
 
 def test_invented_account_plan_fields_are_not_accepted() -> None:

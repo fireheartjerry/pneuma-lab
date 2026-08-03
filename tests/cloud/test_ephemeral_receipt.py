@@ -10,6 +10,7 @@ from pneuma_lab.cloud.errors import CloudManifestError
 from pneuma_lab.cloud.ephemeral_receipt import (
     build_ephemeral_qualification_receipt,
 )
+from pneuma_lab.cloud.iam_simulation import expected_checks, run_iam_simulation
 from pneuma_lab.cloud.manifests import (
     validate_ephemeral_dual_worker_qualification_receipt,
 )
@@ -42,6 +43,53 @@ def test_ephemeral_receipt_rejects_retry_or_launch_contract_drift() -> None:
 
 def test_runner_receipt_builder_preserves_terminal_child_failure_evidence() -> None:
     digest = "a" * 64
+    plan = {
+        "saved_plan_sha256": "1" * 64,
+        "terraform_show_sha256": "2" * 64,
+        "terraform_plan_binding_sha256": "3" * 64,
+        "image": "registry.example/worker@sha256:" + "4" * 64,
+        "qualification_model": "fixture-only-cuda",
+        "qualification_model_revision": "fixture-only-v1",
+        "worker_role_arn": "arn:aws:iam::123456789012:role/worker",
+        "input_paths": {
+            "protocol": "s3://bucket/runs/qualification/qual-1/inputs/protocol.json",
+            "architecture": "s3://bucket/runs/qualification/qual-1/inputs/architecture.json",
+            "authorization": "s3://bucket/runs/qualification/qual-1/inputs/authorization.json",
+            "image": "s3://bucket/runs/qualification/qual-1/inputs/image.json",
+            "input_lock": "s3://bucket/runs/qualification/qual-1/inputs/input-lock.json",
+        },
+        "output_path": "s3://bucket/runs/qualification/qual-1/outputs/",
+    }
+    checks = expected_checks(
+        input_paths=plan["input_paths"], output_root=plan["output_path"]
+    )
+
+    def simulate(*args: str) -> dict[str, list[dict[str, str]]]:
+        action = args[args.index("--action-names") + 1]
+        resource = args[args.index("--resource-arns") + 1]
+        expected = next(
+            row
+            for row in checks
+            if row["action"] == action and row["resource_arn"] == resource
+        )
+        return {
+            "EvaluationResults": [
+                {
+                    "EvalActionName": action,
+                    "EvalResourceName": resource,
+                    "EvalDecision": (
+                        "allowed" if expected["expected"] == "allowed" else "implicitDeny"
+                    ),
+                }
+            ]
+        }
+
+    iam_simulation = run_iam_simulation(
+        simulate,
+        plan=plan,
+        action_id="qual-1",
+        expected_policy_sha256="b" * 64,
+    )
     authority = {
         "signed_package_sha256": digest,
         "iam_policy_sha256": "b" * 64,
@@ -67,14 +115,8 @@ def test_runner_receipt_builder_preserves_terminal_child_failure_evidence() -> N
     receipt = build_ephemeral_qualification_receipt(
         {
             "parent_job_id": "parent",
-            "plan": {
-                "saved_plan_sha256": "1" * 64,
-                "terraform_show_sha256": "2" * 64,
-                "terraform_plan_binding_sha256": "3" * 64,
-                "image": "registry.example/worker@sha256:" + "4" * 64,
-                "qualification_model": "fixture-only-cuda",
-                "qualification_model_revision": "fixture-only-v1",
-            },
+            "plan": plan,
+            "iam_simulation": iam_simulation,
             "projected_cost_usd": 4.48,
             "launch": {
                 "cloudtrail_submit_job_event_id_sha256": "5" * 64,
@@ -117,8 +159,7 @@ def test_runner_receipt_builder_preserves_terminal_child_failure_evidence() -> N
         action_id="qual-1",
         region="us-east-1",
         authority=authority,
-        iam_simulation_matrix_sha256="7" * 64,
-        output_root="s3://bucket/runs/qual-1/outputs/",
+        output_root=plan["output_path"],
     )
     assert receipt["status"] == "no_go"
     assert receipt["no_go_reason"]["child_statuses"][0]["status_reason"] == "JobQueue deleted"

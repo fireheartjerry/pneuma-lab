@@ -18,6 +18,7 @@ from pneuma_lab.cloud.ephemeral_runner import (
     RunnerConfig,
     TerraformAdapter,
     execute,
+    require_fresh_qualification_action,
 )
 
 
@@ -50,7 +51,6 @@ def main() -> int:
     parser.add_argument("--key-registry", type=Path)
     parser.add_argument("--signed-package", type=Path)
     parser.add_argument("--authority-receipt", type=Path)
-    parser.add_argument("--iam-simulation-matrix-sha256")
     parser.add_argument("--ledger", type=Path)
     parser.add_argument("--region", default="us-east-1")
     parser.add_argument("--queue")
@@ -77,7 +77,6 @@ def main() -> int:
         args.key_registry,
         args.signed_package,
         args.authority_receipt,
-        args.iam_simulation_matrix_sha256,
         args.ledger,
         args.queue,
         args.job_definition,
@@ -90,7 +89,16 @@ def main() -> int:
         )
 
     authority: dict[str, Any] | None = None
+    evidence_root = (
+        Path(__file__).resolve().parents[2]
+        / "docs/research/neurips-2026-workshop/evidence"
+    )
     try:
+        require_fresh_qualification_action(
+            args.action_id,
+            evidence_root=evidence_root,
+            receipt_path=args.receipt,
+        )
         terraform = TerraformAdapter(subprocess.run)
         account_plan = terraform.load_account_plan(args.plan)
         envelope = _json_file(args.envelope)
@@ -110,7 +118,6 @@ def main() -> int:
             region=args.region,
             plan=plan_for_binding,
             projected_cost_usd=float(authority_record["projected_cost_usd"]),
-            iam_simulation_matrix_sha256=args.iam_simulation_matrix_sha256,
         )
         provider = AwsCliAdapter(
             subprocess.run,
@@ -125,6 +132,8 @@ def main() -> int:
                 args.action_id,
                 args.region,
                 require_receipt_evidence=True,
+                action_evidence_root=evidence_root,
+                receipt_path=args.receipt,
             ),
             envelope=envelope,
             admission=admission,
@@ -139,7 +148,6 @@ def main() -> int:
             action_id=args.action_id,
             region=args.region,
             authority=authority,
-            iam_simulation_matrix_sha256=args.iam_simulation_matrix_sha256,
             output_root=args.output_root,
         )
         if args.receipt is not None:
@@ -163,7 +171,6 @@ def main() -> int:
                 action_id=args.action_id,
                 region=args.region,
                 authority=authority,
-                iam_simulation_matrix_sha256=args.iam_simulation_matrix_sha256,
                 output_root=args.output_root,
             )
         except Exception as receipt_exc:

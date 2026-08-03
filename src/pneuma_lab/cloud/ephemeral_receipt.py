@@ -9,6 +9,7 @@ from typing import Any
 
 from .authorization_keys import authorization_body_digest
 from .errors import CloudManifestError
+from .iam_simulation import validate_iam_simulation_matrix
 from .manifests import validate_ephemeral_dual_worker_qualification_receipt
 from .qualification_execution import (
     BatchAdmissionError,
@@ -63,7 +64,6 @@ def validate_authority_evidence(
     region: str,
     plan: Mapping[str, Any],
     projected_cost_usd: float,
-    iam_simulation_matrix_sha256: str,
 ) -> dict[str, Any]:
     """Recheck authority evidence before it is copied into a run receipt."""
 
@@ -114,7 +114,6 @@ def validate_authority_evidence(
         raise CloudManifestError("authority projection differs from the execution projection")
     if authority.get("max_retries") != 0:
         raise CloudManifestError("authority receipt permits retries")
-    _digest(iam_simulation_matrix_sha256, field="IAM simulation matrix")
     _digest(authority.get("iam_policy_sha256"), field="IAM policy")
 
     for label, record in (("envelope", envelope), ("admission", admission)):
@@ -249,7 +248,6 @@ def build_ephemeral_qualification_receipt(
     action_id: str,
     region: str,
     authority: Mapping[str, Any],
-    iam_simulation_matrix_sha256: str,
     output_root: str,
 ) -> dict[str, Any]:
     """Serialize only a complete post-launch lifecycle into a schema receipt."""
@@ -260,6 +258,19 @@ def build_ephemeral_qualification_receipt(
     plan = context.get("plan")
     if not isinstance(plan, Mapping):
         raise CloudManifestError("execution context lacks the exact parsed plan")
+    if plan.get("output_path") != output_root:
+        raise CloudManifestError(
+            "execution output root differs from the exact parsed plan"
+        )
+    iam_simulation = context.get("iam_simulation")
+    if not isinstance(iam_simulation, Mapping):
+        raise CloudManifestError("execution context lacks live IAM simulation evidence")
+    iam_simulation = validate_iam_simulation_matrix(
+        iam_simulation,
+        action_id=action_id,
+        plan=plan,
+        expected_policy_sha256=authority.get("iam_policy_sha256"),
+    )
     evidence = context.get("evidence")
     evidence = evidence if isinstance(evidence, Mapping) else {}
     children = _children(evidence)
@@ -432,7 +443,7 @@ def build_ephemeral_qualification_receipt(
                 authority, "kms", "signing_algorithm"
             ),
             "action_policy_sha256": authority.get("iam_policy_sha256"),
-            "iam_simulation_matrix_sha256": iam_simulation_matrix_sha256,
+            "iam_simulation_matrix_sha256": iam_simulation["matrix_sha256"],
         },
         "spot_projection": {
             "instance_type": "g6e.2xlarge",

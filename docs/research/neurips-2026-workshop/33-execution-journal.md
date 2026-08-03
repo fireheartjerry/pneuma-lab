@@ -6428,3 +6428,28 @@ post-launch terminal no-go. Tasks 6–10 remain
   exhausted action-011 launch was not retried. The scientific boundary is
   unchanged: no P0/Step 4B experiment, benchmark/model workload, pilot,
   unblind, analysis, or claim promotion occurred.
+
+### EJ-20260803-dual-l40s-live-iam-and-fresh-action-repair
+
+- **Audit:** A fresh read-only agent-session seam audit of the concrete
+  qualification CLI found that `--iam-simulation-matrix-sha256` was only a
+  shape-checked caller input, not live IAM evidence, and that no executable
+  guard refused reuse of an action ID already represented in retained
+  qualification evidence. Terraform/profile-role/teardown/receipt bindings
+  had no additional stale bypass in the audited path.
+- **Repair:** Added the fixed 15-case `iam simulate-principal-policy` matrix
+  (five exact input reads, two exact worker raw writes, and eight denied
+  cases), with sanitized resource digests, exact role/action/resource echo
+  checks, policy-hash binding, and independent matrix-byte rehashing before
+  apply and at receipt construction. The provider-verified attached role ARN
+  is carried into the parsed plan without substituting the instance profile.
+  The runner and concrete CLI now reject exhausted action IDs and receipt
+  overwrites before provider mutation.
+- **Validation and boundary:**
+  `timeout 55s .venv/bin/python -m pytest tests/cloud/test_iam_simulation.py
+  tests/cloud/test_ephemeral_receipt.py tests/cloud/test_ephemeral_runner.py
+  tests/test_schema_loads.py -q` passed all focused cases. No AWS command was
+  used to launch or mutate qualification resources in this repair; action-011
+  remains the single exhausted launch and terminal no-go. No official P0/
+  Step 4B experiment, benchmark/model workload, pilot, unblind, analysis, or
+  claim promotion occurred.
