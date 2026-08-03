@@ -5884,3 +5884,34 @@ The next event after the archived migration boundary is appended below.
   status coherence, and whitespace checks passed. No authentication, plan,
   apply, build, push, AWS call, job, GPU, model, benchmark, pilot, or
   scientific work occurred.
+
+### EJ-20260803-qualification-image-build-001
+
+- **Authority:** Created the exact plan for `qualification-image-build-001`,
+  bound CL-230 and CL-231 to plan SHA-256
+  `3f866ef4075a5f64b3456216c04b5d4cf23fa856df9834e953cf0db8a594913b`, and
+  committed/pushed the ledger and plan before making the fresh KMS-signed
+  envelope/admission. The signing package SHA-256 is
+  `b437a6c01db4a565bf585caecf03cb6f7218393167e7294022027f8b8e8b4988`.
+- **Build handoff:** One on-demand `m7i.xlarge` builder launched from AMI
+  `ami-08bc385c9fc5afc94` with IMDSv2 required, no ingress, and one 650 GiB
+  encrypted delete-on-termination root. The exact source archive round-tripped
+  at SHA-256
+  `8df1b9812432b3d993a0188e98bc93c695aedc5c3a3f09b2a4416fbf0dca45b4`.
+  Docker built the pinned `linux/amd64` qualification-worker image and local
+  inspection proved the fixed entrypoint, source-revision label, base-digest
+  label, and `/opt/pneuma/pneuma_lab` tree.
+- **No-go:** The network-none entrypoint-negative check was run without a
+  qualification code and emitted the required `QUALIFICATION_CODE` error. The
+  bootstrap's global `ERR` trap nevertheless treated that intentional nonzero
+  result as `bootstrap_error` before recording its status or reaching ECR
+  login/push. The unique ECR tag is absent, so no immutable ECR digest exists;
+  no retry was permitted.
+- **Teardown:** The builder terminated and fresh provider reads proved the
+  root volume, temporary security group, instance profile, IAM role, and
+  action-tagged network interfaces absent. The sanitized receipt is
+  `evidence/qualification-image-build-001-receipt-20260803.json` with
+  SHA-256 `16eb07ea29de9fbe933216e939243d016a5d975400ce6f52d42c9bca68dcd5f8`.
+- **Boundary:** This was a failed non-scientific CPU image-build attempt only.
+  No Terraform, Batch, GPU, Spot, model download, benchmark, pilot,
+  qualification run, experiment, unblind, or scientific result occurred.
