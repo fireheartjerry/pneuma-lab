@@ -1,0 +1,31 @@
+{
+  "record_kind": "cloud_qualification_image_build_plan_evidence",
+  "schema_version": "0.1.0",
+  "action_id": "qualification-image-build-008",
+  "action_class": "image_build",
+  "provider": "aws",
+  "account_id": "892077329800",
+  "region": "us-east-1",
+  "plan_sha256": "534db19835984ea93b4844171117ed2f8d4b2280f647c048ceff9498bcfde048",
+  "source_commit": "e36dd15ac2524c29d0fb02a8705ec7fcc48fb34a",
+  "source_archive_sha256": "1b1b927c1028bc4239157d2c00f0aaf677b29cd37a60ea1027b4c0215659e290",
+  "dockerfile_sha256": "3b970d926d34acd8225280a6cd0c520ce74f49a366030a71dfdfdda68cf56662",
+  "base_digest": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90",
+  "bootstrap_template_sha256": "422387b263da942e3b4bd685edfaf31586faaee5e16416feaad0ce75b225391a",
+  "bootstrap_rendered_sha256": "701b8d33c16e76def941f3b7e067ecc05e7f88f3b194d2d9a51e3150b789cc14",
+  "builder_trust_policy_sha256": "76fd167b1889163859412a7106ff88c49cbeb0fd5ea3a0e2dc52c10f0470afaf",
+  "builder_permission_policy_sha256": "441b8ed389cf8d773f8d7cbbdeedb2ca88c1f1595f5cf7642b6bb01aeaa2c2e9",
+  "image_tag": "qualification-image-build-008-e36dd15",
+  "projected_cost_usd": 6.0,
+  "cost_ceiling_usd": 25.0,
+  "max_retries": 0,
+  "no_gpu": true,
+  "no_model_download_or_load": true,
+  "fixture_runtime_check": "network-none CPU fake transport; one immutable worker-0 raw object",
+  "teardown_required": true,
+  "authority_rows": {
+    "envelope": "CL-271",
+    "admission": "CL-272"
+  },
+  "status": "unsigned_candidate"
+}
