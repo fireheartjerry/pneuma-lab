@@ -74,3 +74,22 @@ No item above has been executed or inferred by this local reconciliation.
 For the bounded, non-AWS VPS preflight that may precede a separately
 authorized launch review, use
 [`56-vps-dual-worker-preflight-prompt.md`](56-vps-dual-worker-preflight-prompt.md).
+
+## Qualification result update — action-014 — 2026-08-03
+
+The first fresh real dual-worker launch under this topology is sealed as a
+post-launch terminal no-go, not a qualification pass. Action-014 passed the
+fresh plan, IAM, immutable-image, provider, and KMS gates, then the runner's
+immediate CloudTrail exact-submit check observed zero indexed events and failed
+closed. A later read proved one size-two submission; AWS Batch retained both
+children as `FAILED` with status reason `JobQueue deleted`, zero attempts, and
+no worker identities or artifacts. Independent absence verification proves all
+active resources and the output prefix are gone. Receipt paths are
+`evidence/dual-l40s-qualification-014-terminal-no-go-20260803.json` and
+`evidence/dual-l40s-qualification-014-final-provider-absence-20260803.json`.
+
+This does not prove or disprove worker viability. Before a future qualification
+attempt, repair and focused-test the CloudTrail eventual-consistency race and
+the cleanup `NoneType` failure; do not infer a root cause for the observed
+provider status. No official P0/Step 4B experiment, benchmark/model workload,
+pilot, unblind, analysis, or claim promotion occurred.

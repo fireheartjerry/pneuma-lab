@@ -1,0 +1,136 @@
+{
+  "action_class": "qualification_audit",
+  "action_id": "dual-l40s-qualification-014",
+  "batch": {
+    "child_statuses": [
+      "FAILED",
+      "FAILED"
+    ],
+    "parent_job_id": "4b09ad03-af9f-4ce2-a970-b06917da114b",
+    "parent_status": "FAILED",
+    "raw_artifact_hashes": [],
+    "raw_describe_jobs_sha256": "3cd2b493fe946305d71e6723e3f1d7b6cf4614746406d4f940a6e7631f5c54a6",
+    "recovery": {
+      "reason": "Runner stopped before fixture collection because the launch evidence gate was terminal; no worker succeeded.",
+      "status": "not_run"
+    },
+    "rows": [
+      {
+        "array_index": null,
+        "attempt_count": 0,
+        "instance_id_present": false,
+        "job_id": "4b09ad03-af9f-4ce2-a970-b06917da114b",
+        "raw_artifact_not_observed": true,
+        "status": "FAILED",
+        "status_reason": "Array Child Job failed"
+      },
+      {
+        "array_index": 0,
+        "attempt_count": 0,
+        "instance_id_present": false,
+        "job_id": "4b09ad03-af9f-4ce2-a970-b06917da114b:0",
+        "raw_artifact_not_observed": true,
+        "status": "FAILED",
+        "status_reason": "JobQueue deleted"
+      },
+      {
+        "array_index": 1,
+        "attempt_count": 0,
+        "instance_id_present": false,
+        "job_id": "4b09ad03-af9f-4ce2-a970-b06917da114b:1",
+        "raw_artifact_not_observed": true,
+        "status": "FAILED",
+        "status_reason": "JobQueue deleted"
+      }
+    ],
+    "worker_identity_hashes": []
+  },
+  "cloudtrail": {
+    "exact_action_events": [
+      {
+        "array_size": 2,
+        "attempts": 1,
+        "event_id": "b73a3b21-9947-40ac-a081-b83120d8fb66",
+        "event_name": "SubmitJob",
+        "event_time": "2026-08-03T16:24:51-07:00",
+        "job_definition": "dual-l40s-qualification-014-worker",
+        "job_id": "4b09ad03-af9f-4ce2-a970-b06917da114b",
+        "job_queue": "dual-l40s-qualification-014",
+        "timeout_seconds": 3600
+      }
+    ],
+    "lookup_event_count_at_later_read": 1,
+    "raw_lookup_sha256": "5b471d5965c25623e1960f96e039058b85216a192c29372218635ef5b4a6a03a",
+    "runner_check_lag_observed": true
+  },
+  "failure": {
+    "provider_observed_terminal_reason": "Both retained Batch child records are FAILED with statusReason \"JobQueue deleted\"; no attempts, worker identities, or raw worker artifacts were observed.",
+    "root_cause_not_invented": true,
+    "runner_cleanup_error": "'NoneType' object is not iterable",
+    "runner_context_sha256": "c69a64fd625320d56c5a8384ace4ac136b292e092b5bd284f412c52da52ebe83",
+    "runner_error": "CloudTrail must contain exactly one SubmitJob event for the qualification action",
+    "runner_receipt_sha256": "d382323170a3b2547559116b851cf177d827a69c7dea8acef7dbd32c4d988191",
+    "runner_submit_count_proven": 0
+  },
+  "iam": {
+    "effective_policy_sha256": "75ecd4671f5d31fcc211210c775892f485c0d2c0f102a78d68f444bb71350d65",
+    "policy_inventory_sha256": "6e8858f026ff4bb6f61f6baebce18106ae9fb8cbed2b4d6eb9846b81b2ba3174",
+    "simulation_matrix_sha256": "f169ce890ee2bbe8eb34d14c0eb3ad851916dd2cb244c15d0efe68987179f328"
+  },
+  "no_retry_after_launch": true,
+  "observed_at": "2026-08-03T23:31:20Z",
+  "plan": {
+    "authority_receipt_sha256": "aff165b45af7b30afa1f08dc35af9f69fd08c8845cca28717957f311d7ae1f7a",
+    "image_digest": "sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+    "plan_sha256": "211202410440dc429a2ef9419695c6badcd2a57ec6a25fe92fe53f417011dcfd",
+    "saved_plan_sha256": "88377c087f7b97f58c9b8ddb10ce51befba4f3a3deb569660afff93c517fc0d8",
+    "signed_package_sha256": "dd67c26761566c49028900b5afe8e3c3922dd8fd39562d0b88648c39b4be7e3f",
+    "terraform_plan_binding_sha256": "cdda8710163ad0d36437bae51ec01beb7ae7e003012aaf8685dec1477e68f5b5",
+    "terraform_show_sha256": "f6a5ef16788849d74ae7491dcc644941ec437f3ab35c5ca3ce3be68e602eb848"
+  },
+  "projection_usd": 4.4842,
+  "provider": "aws",
+  "qualification_only": true,
+  "record_kind": "cloud_qualification_terminal_no_go",
+  "region": "us-east-1",
+  "schema_version": "0.1.0",
+  "scientific_boundary": {
+    "fixture_only": true,
+    "no_analysis": true,
+    "no_benchmark": true,
+    "no_claim_promotion": true,
+    "no_model_load": true,
+    "no_p0": true,
+    "no_pilot": true,
+    "no_step_4b": true,
+    "no_unblind": true
+  },
+  "status": "post_launch_terminal_no_go",
+  "teardown": {
+    "active_resources_absent": true,
+    "complete": true,
+    "output_prefix_empty": true,
+    "provider_absence": {
+      "artifact_prefix": {
+        "empty": true,
+        "object_count": 0
+      },
+      "compute_environment": true,
+      "instances": true,
+      "job_definition": true,
+      "jobs": true,
+      "launch_template": true,
+      "network_interfaces": true,
+      "provider_history": {
+        "inactive_job_definition_arn_sha256": "2ad3591993d1e371f10e84c153447f7c5498f1c6a6037d2edfa1db23c13b14b0",
+        "inactive_job_definition_history_retained_by_aws": true
+      },
+      "queue": true,
+      "security_group": true,
+      "volumes": true
+    },
+    "provider_absence_proof_sha256": "e556e8cc35db0abf8e4e7828098de57e2755f3004a4d78e639d985c9015ef3a3",
+    "terminal_batch_history_retained": true
+  },
+  "terminal_outcome": "external_provider_terminal_no_go"
+}

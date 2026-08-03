@@ -7305,3 +7305,48 @@ post-launch terminal no-go. Tasks 6–10 remain
   remain retained evidence. No Terraform, Batch, GPU, Spot, model,
   benchmark, pilot, official P0/Step-4B experiment, unblind, analysis, or
   claim promotion occurred.
+
+### EJ-20260803-dual-l40s-qualification-014-terminal-no-go
+
+- **Pre-launch authority:** Fresh action-014 passed the exact four-create
+  Terraform plan, provider profile-to-single-role and separate Batch-role
+  checks, four-AZ subnet/zero-ingress SG checks, immutable image-016 binding,
+  17-case live IAM simulation, and live KMS `ED25519_SHA_512` verification.
+  Saved-plan/show/composite hashes were
+  `88377c087f7b97f58c9b8ddb10ce51befba4f3a3deb569660afff93c517fc0d8`,
+  `f6a5ef16788849d74ae7491dcc644941ec437f3ab35c5ca3ce3be68e602eb848`, and
+  `cdda8710163ad0d36437bae51ec01beb7ae7e003012aaf8685dec1477e68f5b5`.
+  The effective worker-policy SHA-256 was
+  `75ecd4671f5d31fcc211210c775892f485c0d2c0f102a78d68f444bb71350d65`, and
+  the IAM matrix SHA-256 was
+  `f169ce890ee2bbe8eb34d14c0eb3ad851916dd2cb244c15d0efe68987179f328`.
+- **Authority:** The signed package is
+  `evidence/dual-l40s-qualification-014-signing-package-20260803.json`, SHA
+  `dd67c26761566c49028900b5afe8e3c3922dd8fd39562d0b88648c39b4be7e3f`; the
+  envelope/admission body hashes are
+  `9557a6b0a64c15a999bb8547091d5522ce353d19a90617868b4ba952fe4d8b9a` and
+  `7dc0a71afb37f6c52c2d82378081e6be99d049c513aa5826070fed11c0546860`.
+  Direct AWS KMS verification returned `SignatureValid: true` for both with
+  `ED25519_SHA_512`. The USD 4.4842 projection remained below the USD 100
+  ceiling; the action permitted zero retries and mandatory teardown.
+- **Single launch and terminal failure:** The concrete runner launched once.
+  Its immediate exact-CloudTrail gate observed zero indexed `SubmitJob`
+  events and failed closed. A later read found exactly one event
+  (`b73a3b21-9947-40ac-a081-b83120d8fb66`) for parent
+  `4b09ad03-af9f-4ce2-a970-b06917da114b`, array size 2, one attempt, and a
+  3,600-second timeout. AWS Batch readback shows the parent and both children
+  `FAILED` with provider status reason `JobQueue deleted`, zero attempts, and
+  no instance IDs. No worker identity, raw artifact, or recovery receipt
+  exists. The retained terminal no-go receipt is
+  `evidence/dual-l40s-qualification-014-terminal-no-go-20260803.json`, SHA
+  `c02791300ead2a554c55975df3d273a96ab655789efbbad3504ba8dc13c0b9cb`.
+- **Teardown and review:** Independent provider-absence proof
+  `evidence/dual-l40s-qualification-014-final-provider-absence-20260803.json`
+  (SHA `e556e8cc35db0abf8e4e7828098de57e2755f3004a4d78e639d985c9015ef3a3`)
+  shows active Batch/EC2 resources and the output prefix absent; terminal Batch
+  history and inactive job-definition history are retained as expected. The
+  runner also recorded cleanup error `TypeError: 'NoneType' object is not
+  iterable`; it is retained as an open repair, not hidden. The agentic hostile
+  review found no basis for a qualification claim and no proven root cause for
+  the provider's `JobQueue deleted` reason. Action-014 is exhausted; no retry
+  or official scientific work occurred.

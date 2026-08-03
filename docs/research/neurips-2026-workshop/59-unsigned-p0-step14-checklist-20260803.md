@@ -97,6 +97,17 @@ canonical Step-14 index.
   scientific analysis, and claim promotion out of this qualification lane
   until those receipts exist and the launch gate is explicitly cleared.
 
+## Current infrastructure disposition — 2026-08-03
+
+The fresh dual-L40S action-014 ended in a post-launch terminal no-go. It
+provided no successful worker, raw artifact, recovery, or scientific evidence.
+The final provider-absence proof is retained at
+`evidence/dual-l40s-qualification-014-final-provider-absence-20260803.json`;
+Step 14 remains `launch_blocked`. The CloudTrail eventual-consistency race and
+cleanup `NoneType` defect are explicit blockers before any future
+qualification; this unsigned checklist is not authority to repair, relaunch,
+or begin the official study.
+
 **Current evidence:** the infrastructure closure is recorded in
 `58-pre-experiment-qualification-closure-20260803.md`; the canonical Step-14
 receipt remains `launch_blocked`.

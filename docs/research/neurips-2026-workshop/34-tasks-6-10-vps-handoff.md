@@ -1273,3 +1273,34 @@ role in both Terraform-show admission and provider readback, and corrects the
 closure record's historical 15-case versus current 17-check IAM distinction.
 Focused regressions pass; action-011 remains sealed and no provider action was
 performed.
+
+### Current dual-L40S qualification closure — action-014 — 2026-08-03
+
+The current qualification result supersedes the earlier action-011 snapshot:
+fresh action `dual-l40s-qualification-014` reached the single permitted real
+launch and ended as a post-launch terminal no-go. Pre-launch plan, IAM, image,
+provider, and KMS checks were green. The saved-plan/show/composite hashes are
+`88377c087f7b97f58c9b8ddb10ce51befba4f3a3deb569660afff93c517fc0d8`,
+`f6a5ef16788849d74ae7491dcc644941ec437f3ab35c5ca3ce3be68e602eb848`, and
+`cdda8710163ad0d36437bae51ec01beb7ae7e003012aaf8685dec1477e68f5b5`; the
+immutable fixture image is
+`sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b`.
+
+The runner's immediate CloudTrail gate saw zero indexed `SubmitJob` events and
+failed closed. A later read proves exactly one size-two submission with one
+attempt, parent `4b09ad03-af9f-4ce2-a970-b06917da114b`. AWS Batch retained the
+parent and both children as `FAILED` with status reason `JobQueue deleted`, zero
+attempts, no worker identities, no raw artifacts, and no recovery receipt. The
+independent final absence proof
+`evidence/dual-l40s-qualification-014-final-provider-absence-20260803.json`
+proves active resources and the output prefix absent; the terminal no-go is
+sealed in
+`evidence/dual-l40s-qualification-014-terminal-no-go-20260803.json`.
+
+Tasks 6–10 remain `implementation_complete; E2E_pending`. Task 10 remains in
+release preparation only. Step 14 remains `launch_blocked`; no P0/Step 4B,
+benchmark/model workload, pilot, unblind, analysis, or claim promotion is
+authorized by this infrastructure result. Before any future qualification,
+the runner's CloudTrail eventual-consistency gate and cleanup `NoneType`
+failure must be repaired and focused-tested; the observed provider reason has
+no proven root cause and must not be rewritten as one.

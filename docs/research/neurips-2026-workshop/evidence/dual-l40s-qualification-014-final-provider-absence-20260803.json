@@ -1,0 +1,32 @@
+{
+  "action_id": "dual-l40s-qualification-014",
+  "job_ids": [
+    "4b09ad03-af9f-4ce2-a970-b06917da114b",
+    "4b09ad03-af9f-4ce2-a970-b06917da114b:0",
+    "4b09ad03-af9f-4ce2-a970-b06917da114b:1"
+  ],
+  "parent_job_id": "4b09ad03-af9f-4ce2-a970-b06917da114b",
+  "provider_absence": {
+    "artifact_prefix": {
+      "empty": true,
+      "object_count": 0
+    },
+    "compute_environment": true,
+    "instances": true,
+    "job_definition": true,
+    "jobs": true,
+    "launch_template": true,
+    "network_interfaces": true,
+    "provider_history": {
+      "inactive_job_definition_arn_sha256": "2ad3591993d1e371f10e84c153447f7c5498f1c6a6037d2edfa1db23c13b14b0",
+      "inactive_job_definition_history_retained_by_aws": true
+    },
+    "queue": true,
+    "security_group": true,
+    "volumes": true
+  },
+  "qualification_only": true,
+  "record_kind": "cloud_qualification_final_provider_absence",
+  "region": "us-east-1",
+  "schema_version": "0.1.0"
+}

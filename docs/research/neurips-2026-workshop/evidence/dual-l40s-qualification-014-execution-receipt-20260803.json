@@ -1,0 +1,55 @@
+{
+  "action_id": "dual-l40s-qualification-014",
+  "context_sha256": "c69a64fd625320d56c5a8384ace4ac136b292e092b5bd284f412c52da52ebe83",
+  "context_summary": {
+    "absence": {
+      "compute_environment": true,
+      "instances": true,
+      "job_definition": true,
+      "jobs": false,
+      "launch_template": true,
+      "network_interfaces": true,
+      "queue": true,
+      "security_group": true,
+      "volumes": true
+    },
+    "action_id": "dual-l40s-qualification-014",
+    "cleanup_failure": {
+      "error": "'NoneType' object is not iterable",
+      "type": "TypeError"
+    },
+    "evidence": {
+      "child_statuses": [],
+      "parent_status": null,
+      "worker_count": 0
+    },
+    "failure": {
+      "error": "CloudTrail must contain exactly one SubmitJob event for the qualification action",
+      "type": "CloudManifestError"
+    },
+    "iam_policy_inventory_sha256": "6e8858f026ff4bb6f61f6baebce18106ae9fb8cbed2b4d6eb9846b81b2ba3174",
+    "iam_simulation_matrix_sha256": "f169ce890ee2bbe8eb34d14c0eb3ad851916dd2cb244c15d0efe68987179f328",
+    "kms_verification_sha256": "c74da234caf19f14e81fdf8a2f71bad8083e03bd09257895893473d2d0532537",
+    "launch": {
+      "array_size": 2,
+      "retry_attempts": 1,
+      "submit_count_proven": 0
+    },
+    "parent_job_id_present": true,
+    "plan": {
+      "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+      "saved_plan_sha256": "88377c087f7b97f58c9b8ddb10ce51befba4f3a3deb569660afff93c517fc0d8",
+      "terraform_plan_binding_sha256": "cdda8710163ad0d36437bae51ec01beb7ae7e003012aaf8685dec1477e68f5b5",
+      "terraform_show_sha256": "f6a5ef16788849d74ae7491dcc644941ec437f3ab35c5ca3ce3be68e602eb848"
+    }
+  },
+  "no_retry_after_launch": true,
+  "qualification_only": true,
+  "receipt_build_error": "execution receipt would not be fixture-only",
+  "receipt_build_error_type": "CloudManifestError",
+  "receipt_written": true,
+  "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt_failure",
+  "schema_version": "0.1.0",
+  "status": "post_launch_receipt_no_go",
+  "terminal_outcome": "post_launch_terminal_no_go"
+}

@@ -2,12 +2,14 @@
 
 ## Verdict
 
-**B — post-launch terminal no-go.** Action
-`dual-l40s-qualification-011` was launched exactly once. CloudTrail proves one
-size-two Batch array with one permitted attempt. Both children became `FAILED`
-with provider status reason `JobQueue deleted` and zero attempts. The required
-two-worker qualification therefore did not pass; no retry or successor launch
-was performed.
+**B — post-launch terminal no-go.** Fresh action
+`dual-l40s-qualification-014` was launched exactly once. A later CloudTrail
+read proves one size-two `SubmitJob` with one permitted attempt, but the
+runner's immediate exact-event gate saw zero indexed events and failed closed.
+AWS Batch later retained the parent and both children as `FAILED` with provider
+status reason `JobQueue deleted` and zero attempts. No worker executed, so the
+two-worker qualification did not pass; no retry or successor launch is allowed
+under this action.
 
 No official P0/Step 4B experiment, benchmark/model workload, pilot, subject
 workload, unblind, scientific analysis, or claim promotion occurred.
@@ -15,53 +17,67 @@ workload, unblind, scientific analysis, or claim promotion occurred.
 ## Sealed facts
 
 - Immutable fixture-only image:
-  `sha256:5433527fb588c009d6cf16a5ac4278c463bbb5fab0c0a6826147b4c98f2e83ff`
-- IAM simulation: **pass**. Five exact input `GetObject` reads and two exact
-  worker-indexed `PutObject` writes were allowed. Output reads, wrong-worker,
-  other-action, unrelated-object, `ListBucket`, delete, and abort were denied
-  in the sealed action-011 15-case matrix. The current source contract adds
-  separate denied `kms:Decrypt` and `iam:PutRolePolicy` checks, for 17 fixed
-  checks total; those two checks were not part of the historical action-011
-  record. Policy SHA-256:
-  `73666739e4e41f136fd11049715130e9b5086e6cafc21cee642ebe179fb0f24b`.
+  `sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b`.
+- IAM simulation: **pass**. All 17 live decisions matched: five exact input
+  `GetObject` reads and two exact worker-indexed `PutObject` writes were
+  allowed; output reads, wrong-worker, other-action, unrelated-object,
+  `ListBucket`, delete, abort, KMS decrypt, and IAM administration were denied.
+  Effective policy SHA-256:
+  `75ecd4671f5d31fcc211210c775892f485c0d2c0f102a78d68f444bb71350d65`.
+  Matrix SHA-256:
+  `f169ce890ee2bbe8eb34d14c0eb3ad851916dd2cb244c15d0efe68987179f328`.
 - Plan hashes:
   - saved plan:
-    `7c665827ed95bd4d55657e81ee9c2edf718f287cd58af325b4c714ce2b901ddc`
+    `88377c087f7b97f58c9b8ddb10ce51befba4f3a3deb569660afff93c517fc0d8`
   - raw Terraform show:
-    `01387c775cf497046bbcc4cc6a82b08052f836a127dca214660bacf03ed70141`
+    `f6a5ef16788849d74ae7491dcc644941ec437f3ab35c5ca3ce3be68e602eb848`
   - composite binding:
-    `f4b627f943a0989222fd0aab53d8d01329ccca733de12135b54777914d5d0516`
+    `cdda8710163ad0d36437bae51ec01beb7ae7e003012aaf8685dec1477e68f5b5`
 - Authority hashes:
-  - package:
-    `8b3ae0892add4452464c00b0982f2dccc24a9a5cdf8dd944e6fa8783c8eddb7e`
+  - signed package:
+    `dd67c26761566c49028900b5afe8e3c3922dd8fd39562d0b88648c39b4be7e3f`
   - envelope body:
-    `606852028e73aafb61498e4b6e47e4428c33f81032c915901ba95b4198784c82`
+    `9557a6b0a64c15a999bb8547091d5522ce353d19a90617868b4ba952fe4d8b9a`
   - admission body:
-    `5cd6042eb58687c969d21dd54d03f0ed07116785ce5285a1aa399fefa6783016`
+    `7dc0a71afb37f6c52c2d82378081e6be99d049c513aa5826070fed11c0546860`
   - both signatures verified with `ED25519_SHA_512`.
 - Spot projection: **USD 4.4842** for two `g6e.2xlarge` workers at 3,600
   seconds, below the USD 100 bound. Observed worker duration: **none**;
   neither child reached `STARTING`/`RUNNING`.
 - Worker identity hashes: **none**. Raw artifact hashes: **none**; the
   action output prefix contains zero objects. Recovery: **not run**, because
-  admission never reached two successful children.
+  the runner stopped before fixture collection and no worker succeeded.
 
 ## Teardown proof
 
-Fresh AWS reads show no live action-scoped jobs, active job definition, queue,
-compute environment, launch template, instance, volume, network interface, or
-security group. AWS retains the deregistered `INACTIVE` job-definition revision
-as provider history; it is not runnable. The initial verifier incorrectly
-treated that history and terminal Batch job records as residual resources; the
-narrow repair and focused regression now model AWS semantics correctly.
-
-Receipt:
-`evidence/dual-l40s-qualification-011-execution-receipt-20260803.json`
+The independent final provider-absence proof is
+`evidence/dual-l40s-qualification-014-final-provider-absence-20260803.json`
 (SHA-256
-`2452cc4a1a531e39bf170c038c8ba56829b57ea77b58ea532b2f61acb3990854`).
-The receipt is now bound to
-`cloud-ephemeral-dual-worker-qualification-receipt.schema.json`; direct
-validation and the focused retry-drift regression pass.
+`e556e8cc35db0abf8e4e7828098de57e2755f3004a4d78e639d985c9015ef3a3`).
+It proves the active job definition, queue, compute environment, launch
+template, instances, volumes, ENIs, security group, and output objects are
+absent. The three retained Batch records are terminal; AWS retains only the
+expected inactive job-definition history, which is not runnable.
+
+The terminal receipt is
+`evidence/dual-l40s-qualification-014-terminal-no-go-20260803.json` (SHA-256
+`c02791300ead2a554c55975df3d273a96ab655789efbbad3504ba8dc13c0b9cb`). The
+runner's fallback receipt is retained separately at
+`evidence/dual-l40s-qualification-014-execution-receipt-20260803.json` (SHA-256
+`d382323170a3b2547559116b851cf177d827a69c7dea8acef7dbd32c4d988191`).
+
+## Current hostile closure review
+
+The independent agentic review confirmed that action-014 is an honest,
+fail-closed non-launch, not a qualification pass. It found two blockers before
+any future qualification attempt: the exact-one-CloudTrail gate needs bounded
+eventual-consistency reconciliation, and the cleanup path raised
+`TypeError: 'NoneType' object is not iterable`. The later read proves one exact
+submission, but the causal chain from CloudTrail lag through queue deletion to
+the `JobQueue deleted` child status is not established; this report claims only
+the observed provider facts. The review also confirms that plan, IAM, image,
+and KMS evidence proves pre-launch soundness, not GPU capacity or worker
+viability.
 
 ## Concrete runner repair after hostile audit
 
