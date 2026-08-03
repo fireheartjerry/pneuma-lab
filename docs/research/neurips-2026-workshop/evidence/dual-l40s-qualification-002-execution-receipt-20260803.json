@@ -1,0 +1,79 @@
+{
+  "record_kind": "cloud_qualification_execution_receipt",
+  "schema_version": "0.1.0",
+  "status": "no_go",
+  "observed_at": "2026-08-03T04:24:45Z",
+  "action_id": "dual-l40s-qualification-002",
+  "action_class": "qualification_audit",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "plan": {
+    "plan_sha256": "76507569cbca2ce191790f426f2ff298286e287e4e928578df8c7c0422d47456",
+    "saved_plan_sha256": "d9cb20a90cefed2e288f044da5029ec3bc5534a6ad78a8dc5a5bbb61209b7a31",
+    "terraform_show_sha256": "0d4702bd1364daa13271aa6aa6378b819daf871766ab38b4f779e1f9bf9a2873",
+    "terraform_plan_binding_sha256": "4513f9a73035d011d7c8a27915359ebfb28c54fe482d0bad8095862b41ac77e1",
+    "exactly_four_creates": true,
+    "saved_plan_rehash_match": true
+  },
+  "preflight": {
+    "identity_verified": true,
+    "ecr_digest_verified": true,
+    "ecr_digest": "sha256:164a974153a51be65a73491888d8e04d33fd8c91f9c636ccba864671fee36fad",
+    "spot_vcpu_quota": 16,
+    "g6e_offering_azs": ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"],
+    "subnet_az_coverage": ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"],
+    "spot_price_max_usd_per_hour": 2.2421,
+    "projected_two_worker_3600_seconds_usd": 4.4842,
+    "projection_below_usd_100": true
+  },
+  "authorization": {
+    "envelope_ledger_row": "CL-240",
+    "admission_ledger_row": "CL-241",
+    "kms_registry_key_id": "pneuma-kms-20260801-r1",
+    "kms_key_alias": "alias/pneuma-approver",
+    "signature_attempted_once": true,
+    "signature_status": "failed_exit_254",
+    "signed_package_written": false,
+    "signed_package_sha256": null,
+    "manifest_binding_verified_before_sign": true
+  },
+  "execution": {
+    "terraform_apply_started": false,
+    "batch_submission_started": false,
+    "worker_count": 0,
+    "worker_identity_hashes": [],
+    "raw_measurements": [],
+    "recovery_status": "not_run_no_resources",
+    "retry_performed": false
+  },
+  "teardown": {
+    "resource_mutation_started": false,
+    "absence_verified": true,
+    "jobs_absent": true,
+    "instances_absent": true,
+    "volumes_absent": true,
+    "job_definition_absent": true,
+    "queue_absent": true,
+    "compute_environment_absent": true,
+    "launch_template_absent": true,
+    "network_interface_absent": true,
+    "action_tagged_security_group_absent": true
+  },
+  "scientific_boundary": {
+    "fixture_only": true,
+    "no_p0": true,
+    "no_step_4b": true,
+    "no_model": true,
+    "no_benchmark": true,
+    "no_pilot": true,
+    "no_experiment": true,
+    "no_unblind": true,
+    "no_analysis": true
+  },
+  "failure": {
+    "phase": "preparation_signing",
+    "class": "kms_sign",
+    "detail": "Fresh KMS signing returned exit 254; no signed package was emitted. The action is exhausted with no retry."
+  }
+}

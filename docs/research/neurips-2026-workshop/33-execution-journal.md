@@ -6023,3 +6023,37 @@ The next event after the archived migration boundary is appended below.
   No Terraform apply, Batch submission, GPU/Spot allocation, model download,
   benchmark, pilot, experiment, qualification run, unblind, or scientific
   result occurred. The fresh saved plan remains in `/tmp` only.
+
+### EJ-20260803-dual-l40s-qualification-002-execution-no-go
+
+- **Authority:** CL-240 and CL-241 were appended, committed, and pushed in
+  `53584e1`, binding action `dual-l40s-qualification-002`, action class
+  `qualification_audit`, the exact saved-plan SHA-256
+  `d9cb20a90cefed2e288f044da5029ec3bc5534a6ad78a8dc5a5bbb61209b7a31`, the
+  exact `terraform show -json` stdout SHA-256
+  `0d4702bd1364daa13271aa6aa6378b819daf871766ab38b4f779e1f9bf9a2873`, and
+  composite execution binding
+  `4513f9a73035d011d7c8a27915359ebfb28c54fe482d0bad8095862b41ac77e1`.
+  The signer/runner repair was committed and pushed as `e5af9b1` and
+  `cedfe22`; focused qualification tests passed.
+- **Preflight:** The exact saved plan rehashed successfully and its show JSON
+  still contained exactly the four approved creates. Fresh read-only checks
+  verified identity, the pinned ECR digest, 16 Spot vCPUs, all four
+  `g6e.2xlarge` offerings, all four eligible subnet/AZ bindings, and a
+  two-worker/3,600-second Spot projection of USD 4.4842, strictly below the
+  USD 100 ceiling.
+- **No-go:** Fresh KMS signing was attempted once through the registered
+  `qualification_audit` path and returned exit 254 before emitting a signed
+  package. The admission was therefore never usable; no hand-edited package,
+  Terraform apply, Batch submission, job, worker, raw artifact, or recovery
+  drill was attempted. The action is exhausted with no retry.
+- **Teardown proof:** Because mutation never started, no teardown command was
+  needed. Fresh provider reads proved absent jobs, instances, volumes, launch
+  template, action-tagged network interface/security group, job definition,
+  queue, and compute environment. The sanitized no-go receipt is
+  `evidence/dual-l40s-qualification-002-execution-receipt-20260803.json` with
+  SHA-256
+  `dd508edebb0d34a083b56374cd061e7f3da75f9c84726f5f87e921ac82dcdb24`.
+- **Boundary:** No P0, Step 4B, model workload, benchmark, pilot, experiment,
+  unblind, analysis, or scientific result occurred. CL-242 records the no-go;
+  CL-243 records the absence closure.
