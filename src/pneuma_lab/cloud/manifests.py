@@ -46,6 +46,7 @@ _SCHEMA_BY_KIND = {
     "cloud_lease_contention_qualification_receipt": "cloud-lease-contention-qualification-receipt.schema.json",
     "cloud_lease_contention_cleanup_receipt": "cloud-lease-contention-cleanup-receipt.schema.json",
     "cloud_batch_array_qualification_receipt": "cloud-batch-array-qualification-receipt.schema.json",
+    "cloud_ephemeral_dual_worker_qualification_receipt": "cloud-ephemeral-dual-worker-qualification-receipt.schema.json",
 }
 
 
@@ -115,6 +116,17 @@ def validate_batch_array_qualification_receipt(record: Mapping[str, Any]) -> dic
     """Validate real Batch array evidence without promoting it to science."""
 
     return _validate(record, expected_kind="cloud_batch_array_qualification_receipt")
+
+
+def validate_ephemeral_dual_worker_qualification_receipt(
+    record: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate the terminal receipt for the fixed two-worker fixture lane."""
+
+    return _validate(
+        record,
+        expected_kind="cloud_ephemeral_dual_worker_qualification_receipt",
+    )
 
 
 def validate_production_role_receipt(record: Mapping[str, Any]) -> dict[str, Any]:

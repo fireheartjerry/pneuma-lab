@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pneuma-lab.local/schemas/cloud-ephemeral-dual-worker-qualification-receipt.schema.json",
+  "title": "Cloud Ephemeral Dual-Worker Qualification Receipt",
+  "description": "Immutable evidence for the bounded two-worker fixture-only AWS qualification; it is never a scientific result.",
+  "type": "object",
+  "x-pneuma-schema-kind": "cloud-manifest",
+  "x-pneuma-version": "0.1.0",
+  "required": [
+    "record_kind",
+    "schema_version",
+    "status",
+    "qualification_only",
+    "action_id",
+    "provider",
+    "region",
+    "terminal_outcome",
+    "launch",
+    "plan",
+    "authority",
+    "spot_projection",
+    "workers",
+    "teardown"
+  ],
+  "properties": {
+    "record_kind": {"const": "cloud_ephemeral_dual_worker_qualification_receipt"},
+    "schema_version": {"const": "0.1.0"},
+    "status": {"enum": ["passed", "no_go"]},
+    "qualification_only": {"const": true},
+    "action_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,79}$"},
+    "provider": {"const": "aws"},
+    "region": {"type": "string", "pattern": "^[a-z]{2}(?:-gov)?-[a-z]+-\\d$"},
+    "terminal_outcome": {"enum": ["qualification_passed", "post_launch_terminal_no_go"]},
+    "no_go_reason": {
+      "type": "object",
+      "required": ["kind", "qualification_pass_impossible", "no_retry_after_launch"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "parent_status": {"type": "string", "minLength": 1},
+        "parent_status_reason": {"type": "string", "minLength": 1},
+        "child_statuses": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["array_index", "status", "status_reason", "attempt_count", "worker_started"],
+            "properties": {
+              "array_index": {"type": "integer", "minimum": 0, "maximum": 1},
+              "status": {"type": "string", "minLength": 1},
+              "status_reason": {"type": "string", "minLength": 1},
+              "attempt_count": {"type": "integer", "minimum": 0},
+              "worker_started": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "error_type": {"type": "string", "minLength": 1},
+        "error": {"type": "string", "minLength": 1},
+        "qualification_pass_impossible": {"const": true},
+        "no_retry_after_launch": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "launch": {
+      "type": "object",
+      "required": [
+        "cloudtrail_submit_job_event_id_sha256",
+        "submit_event_time_utc",
+        "submit_count_proven",
+        "array_size",
+        "retry_attempts",
+        "parent_job_id_sha256",
+        "child_job_id_sha256",
+        "image_digest",
+        "qualification_model",
+        "qualification_model_revision"
+      ],
+      "properties": {
+        "cloudtrail_submit_job_event_id_sha256": {"$ref": "#/$defs/digest"},
+        "submit_event_time_utc": {"type": "string", "format": "date-time"},
+        "submit_count_proven": {"const": 1},
+        "array_size": {"const": 2},
+        "retry_attempts": {"const": 1},
+        "parent_job_id_sha256": {"$ref": "#/$defs/digest"},
+        "child_job_id_sha256": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/digest"}
+        },
+        "image_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "qualification_model": {"const": "fixture-only-cuda"},
+        "qualification_model_revision": {"const": "fixture-only-v1"}
+      },
+      "additionalProperties": false
+    },
+    "plan": {
+      "type": "object",
+      "required": ["saved_plan_sha256", "terraform_show_sha256", "terraform_plan_binding_sha256"],
+      "properties": {
+        "saved_plan_sha256": {"$ref": "#/$defs/digest"},
+        "terraform_show_sha256": {"$ref": "#/$defs/digest"},
+        "terraform_plan_binding_sha256": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "package_sha256",
+        "envelope_body_sha256",
+        "admission_body_sha256",
+        "envelope_signature_sha256",
+        "admission_signature_sha256",
+        "signature_algorithm",
+        "action_policy_sha256",
+        "iam_simulation_matrix_sha256"
+      ],
+      "properties": {
+        "package_sha256": {"$ref": "#/$defs/digest"},
+        "envelope_body_sha256": {"$ref": "#/$defs/digest"},
+        "admission_body_sha256": {"$ref": "#/$defs/digest"},
+        "envelope_signature_sha256": {"$ref": "#/$defs/digest"},
+        "admission_signature_sha256": {"$ref": "#/$defs/digest"},
+        "signature_algorithm": {"const": "ED25519_SHA_512"},
+        "action_policy_sha256": {"$ref": "#/$defs/digest"},
+        "iam_simulation_matrix_sha256": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "spot_projection": {
+      "type": "object",
+      "required": [
+        "instance_type",
+        "worker_count",
+        "worker_seconds_ceiling",
+        "projected_cost_usd",
+        "strictly_below_usd_100",
+        "observed_worker_duration_seconds",
+        "observed_worker_duration_note"
+      ],
+      "properties": {
+        "instance_type": {"const": "g6e.2xlarge"},
+        "worker_count": {"const": 2},
+        "worker_seconds_ceiling": {"const": 3600},
+        "projected_cost_usd": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 100},
+        "strictly_below_usd_100": {"const": true},
+        "observed_worker_duration_seconds": {"type": "array", "items": {"type": "number", "minimum": 0}},
+        "observed_worker_duration_note": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "workers": {
+      "type": "object",
+      "required": ["worker_identity_sha256", "raw_artifacts", "raw_artifact_prefix_object_count", "recovery"],
+      "properties": {
+        "worker_identity_sha256": {
+          "type": "array",
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/digest"}
+        },
+        "raw_artifacts": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["worker_index", "uri", "sha256", "size_bytes"],
+            "properties": {
+              "worker_index": {"type": "integer", "minimum": 0, "maximum": 1},
+              "uri": {"type": "string", "pattern": "^s3://.+"},
+              "sha256": {"$ref": "#/$defs/digest"},
+              "size_bytes": {"type": "integer", "minimum": 1}
+            },
+            "additionalProperties": false
+          }
+        },
+        "raw_artifact_prefix_object_count": {"type": "integer", "minimum": 0},
+        "recovery": {
+          "type": "object",
+          "required": ["run"],
+          "properties": {
+            "run": {"type": "boolean"},
+            "reason": {"type": "string", "minLength": 1},
+            "boundary_sha256": {"$ref": "#/$defs/digest"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "teardown": {
+      "type": "object",
+      "required": [
+        "live_jobs_absent",
+        "compute_environment_absent",
+        "queue_absent",
+        "active_job_definition_absent",
+        "inactive_job_definition_history_retained_by_aws",
+        "inactive_job_definition_arn_sha256",
+        "launch_template_absent",
+        "instances_absent",
+        "volumes_absent",
+        "network_interfaces_absent",
+        "security_group_absent",
+        "output_prefix_empty",
+        "teardown_complete_except_provider_history",
+        "absence_note"
+      ],
+      "properties": {
+        "live_jobs_absent": {"const": true},
+        "compute_environment_absent": {"const": true},
+        "queue_absent": {"const": true},
+        "active_job_definition_absent": {"const": true},
+        "inactive_job_definition_history_retained_by_aws": {"const": true},
+        "inactive_job_definition_arn_sha256": {"$ref": "#/$defs/digest"},
+        "launch_template_absent": {"const": true},
+        "instances_absent": {"const": true},
+        "volumes_absent": {"const": true},
+        "network_interfaces_absent": {"const": true},
+        "security_group_absent": {"const": true},
+        "output_prefix_empty": {"const": true},
+        "teardown_complete_except_provider_history": {"const": true},
+        "absence_note": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "software_repair_after_no_go": {
+      "type": "object",
+      "required": ["scope", "repair", "focused_regression", "launch_retried"],
+      "properties": {
+        "scope": {"const": "teardown verifier only"},
+        "repair": {"type": "string", "minLength": 1},
+        "focused_regression": {"type": "string", "minLength": 1},
+        "launch_retried": {"const": false}
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "no_go"}}},
+      "then": {"required": ["no_go_reason"]}
+    },
+    {
+      "if": {"properties": {"status": {"const": "passed"}}},
+      "then": {"not": {"required": ["no_go_reason"]}}
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

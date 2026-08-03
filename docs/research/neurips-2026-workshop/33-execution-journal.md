@@ -6376,6 +6376,15 @@ The next event after the archived migration boundary is appended below.
 post-launch terminal no-go. Tasks 6–10 remain
 `implementation_complete; E2E_pending`; Step 14 remains `launch_blocked`.
 
+### EJ-20260803-dual-l40s-receipt-schema-repair
+
+- **Evidence contract repair:** The terminal action-011 receipt had no
+  registered JSON Schema. Added
+  `schemas/cloud-ephemeral-dual-worker-qualification-receipt.schema.json`,
+  registered its manifest validator, and validated the unchanged receipt
+  bytes. The focused regression rejects a changed retry ceiling. No AWS
+  resource or qualification launch was performed or retried.
+
 ### EJ-20260803-task6-10-continuity-and-release-closure
 
 - **Task 6 continuity:** `timeout 55s .venv/bin/python

@@ -56,6 +56,9 @@ Receipt:
 `evidence/dual-l40s-qualification-011-execution-receipt-20260803.json`
 (SHA-256
 `2452cc4a1a531e39bf170c038c8ba56829b57ea77b58ea532b2f61acb3990854`).
+The receipt is now bound to
+`cloud-ephemeral-dual-worker-qualification-receipt.schema.json`; direct
+validation and the focused retry-drift regression pass.
 
 ## Hostile closure review
 
