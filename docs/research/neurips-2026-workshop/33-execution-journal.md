@@ -7042,3 +7042,25 @@ post-launch terminal no-go. Tasks 6–10 remain
 - **Boundary:** CL-298/CL-299 are preparation and admission rows only. No
   Terraform, Batch, GPU, Spot, model, benchmark, pilot, official P0/Step-4B
   experiment, unblind, analysis, or claim-promotion action is authorized.
+
+### EJ-20260803-qualification-image-build-012-signing-and-admission
+
+- **Fresh authority:** The exact action-012 plan was signed after the plan,
+  source archive, rendered bootstrap, policy hash, ledger rows, and pushed
+  source commit were rechecked. The signed package is
+  `evidence/qualification-image-build-012-signing-package-20260803.json` with
+  SHA-256 `d333a1e86a116779b3f8326be8462f4fd99164d041e36aac767ecca68dd9fbf4`.
+  Its plan and composite binding are both
+  `d2b7152292f40de9038b8c18f8326c78ea1a265952db1b1407a4ee1787680bfe`.
+- **KMS evidence:** The envelope body SHA-256 is
+  `e66de41e3efc1897d11258d7b1a3d6f6ae0d4b0de31d8285d74a8839b084ca11` and
+  the admission body SHA-256 is
+  `bf4f1681102f79e340fd625998adaaaf884a2befe5ed25b73afc53bac1c9bb02`.
+  Both signatures use the trusted `pneuma-kms-20260801-r1` key and the
+  `ED25519_SHA_512` KMS path; verification passed. The one-use admission
+  expires at `2026-08-04T07:52:26Z`, permits only `image_build`, and has zero
+  retries.
+- **Boundary:** The package is admitted for one CPU-only m7i.xlarge image
+  build and its mandatory teardown. No Terraform, Batch, GPU, Spot, model,
+  benchmark, pilot, official P0/Step-4B experiment, unblind, analysis, or
+  claim-promotion action is included.
