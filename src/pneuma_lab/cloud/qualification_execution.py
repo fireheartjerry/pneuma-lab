@@ -1245,7 +1245,7 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         raise CloudManifestError(
             "planned job definition resource requirements differ from the fixed worker contract"
         )
-    if container.get("platformCapabilities") not in (None, ["EC2"]):
+    if job_definition.get("platform_capabilities") not in (None, ["EC2"]):
         raise CloudManifestError("planned qualification job is not EC2-only")
     timeout = job_definition.get("timeout")
     if timeout != [{"attempt_duration_seconds": 3600}]:
@@ -1253,7 +1253,13 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
             "planned qualification job must have a 3600-second attempt timeout"
         )
     retry_strategy = job_definition.get("retry_strategy")
-    if retry_strategy != [{"attempts": 1}]:
+    if (
+        not isinstance(retry_strategy, list)
+        or len(retry_strategy) != 1
+        or not isinstance(retry_strategy[0], Mapping)
+        or retry_strategy[0].get("attempts") != 1
+        or retry_strategy[0].get("evaluate_on_exit") not in (None, [])
+    ):
         raise CloudManifestError(
             "planned qualification job must have exactly one attempt"
         )
