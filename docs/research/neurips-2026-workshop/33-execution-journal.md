@@ -6079,3 +6079,37 @@ The next event after the archived migration boundary is appended below.
   `evidence/kms-approver-policy-repair-receipt-20260803.json`.
 - **Boundary:** The policy repair stopped after the health check. No
   qualification execution or scientific workload occurred.
+
+### EJ-20260803-dual-l40s-qualification-003-no-go
+
+- **Plan and authority:** Fresh ignored mode-600 action-003 tfvars produced
+  `/tmp/pneuma-dual-l40s-qualification-003.tfplan`. The exact saved-plan SHA-256
+  is `961398cbc09b1d574c1e2a3ad814d20b08210434ef33be8e9fca676eb4c9bec8`; the
+  raw `terraform show -json` SHA-256 is
+  `a094639b213a0cf70f628f52be432970cdcb1fba5721a1ed2b28c5cf1584113f`; the
+  composite execution binding is
+  `e117759d79fd09b02762c8cc243dfec214f80eb71f261ca4d1ca3b83b4a12ab3`.
+  CL-244 recorded the read-only replan; CL-245/246 were signed with the
+  repaired KMS signer and locally verified. The signed package SHA-256 is
+  `b49795f29352b5c219ab3658a6f7e6d322cde7aa16ee207d2f98da46a871fcca`.
+- **Preflight:** The plan contained exactly the four approved creates, all
+  four available subnet/AZ bindings, no custom AMI/image ID, action-003 names,
+  tags, job environment, and output prefix, the pinned ECR digest, 16 Spot
+  vCPUs, and the one-GPU/8-vCPU/3,600-second/one-attempt child contract. Fresh
+  offerings and Spot history gave a two-worker projection of USD 4.4842,
+  strictly below USD 100.
+- **No-go:** The concrete runner failed closed in its explicit provider
+  binding check because the worker IAM role ARN differed from the Terraform
+  plan. This occurred before `terraform apply`; no Batch submission, worker,
+  raw artifact, or recovery drill occurred. Action 003 is exhausted with no
+  retry and no source repair or rerun was attempted.
+- **Absence:** Fresh provider reads prove no action-tagged jobs, instances,
+  volumes, launch template, network interface, security group, job definition,
+  queue, or compute environment. No destroy command was needed because apply
+  never started. The sanitized receipt is
+  `evidence/dual-l40s-qualification-003-execution-receipt-20260803.json` with
+  SHA-256
+  `d32108007c176d0ff186730d4ae30aabe6cffb262915f065b61ce28523f21323`.
+- **Boundary:** CL-247 records the no-go and CL-248 records teardown closure.
+  No P0, Step 4B, benchmark, pilot, model experiment, unblind, analysis, or
+  claim promotion occurred.

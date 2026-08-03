@@ -1,0 +1,67 @@
+{
+  "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt",
+  "schema_version": "0.1.0",
+  "status": "no_go",
+  "qualification_only": true,
+  "observed_at": "2026-08-03T05:02:13Z",
+  "action_id": "dual-l40s-qualification-003",
+  "provider": "aws",
+  "region": "us-east-1",
+  "plan": {
+    "execution_plan_sha256": "3d0c58f1ab47f3005c899861912a7d873da61437fda3b71b17f6ad0bdaf1dd6d",
+    "saved_plan_sha256": "961398cbc09b1d574c1e2a3ad814d20b08210434ef33be8e9fca676eb4c9bec8",
+    "terraform_show_sha256": "a094639b213a0cf70f628f52be432970cdcb1fba5721a1ed2b28c5cf1584113f",
+    "terraform_plan_binding_sha256": "e117759d79fd09b02762c8cc243dfec214f80eb71f261ca4d1ca3b83b4a12ab3"
+  },
+  "authority": {
+    "envelope_ledger_row": "CL-245",
+    "admission_ledger_row": "CL-246",
+    "signed_package_sha256": "b49795f29352b5c219ab3658a6f7e6d322cde7aa16ee207d2f98da46a871fcca",
+    "admission_manifest_matches_plan": true,
+    "max_retries": 0,
+    "projected_cost_usd": 4.4842
+  },
+  "preflight": {
+    "exactly_four_creates": true,
+    "all_four_az_subnets": true,
+    "managed_gpu_ami_path": true,
+    "immutable_ecr_digest_verified": true,
+    "spot_vcpu_quota": 16,
+    "spot_projection_below_usd_100": true
+  },
+  "execution": {
+    "terraform_apply_started": false,
+    "batch_submission_started": false,
+    "worker_identity_sha256": [],
+    "raw_artifacts": [],
+    "recovery": "not_run_no_resources",
+    "observed_provider_cost_usd": 0.0,
+    "retry_performed": false
+  },
+  "failure": {
+    "error_type": "CloudManifestError",
+    "boundary": "provider IAM role ARN differs from the Terraform plan",
+    "effect": "failed closed before apply"
+  },
+  "teardown_absence": {
+    "jobs": true,
+    "instances": true,
+    "volumes": true,
+    "launch_template": true,
+    "network_interfaces": true,
+    "security_group": true,
+    "job_definition": true,
+    "queue": true,
+    "compute_environment": true
+  },
+  "scientific_boundary": {
+    "no_p0": true,
+    "no_step_4b": true,
+    "no_benchmark": true,
+    "no_pilot": true,
+    "no_model_experiment": true,
+    "no_unblind": true,
+    "no_analysis": true,
+    "no_claim_promotion": true
+  }
+}
