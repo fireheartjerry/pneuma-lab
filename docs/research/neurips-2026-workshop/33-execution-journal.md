@@ -5949,3 +5949,37 @@ The next event after the archived migration boundary is appended below.
 - **Boundary:** This was a non-scientific CPU image-build action only. No
   Terraform, Batch, GPU, Spot, model download, benchmark, pilot, experiment,
   qualification run, unblind, or scientific result occurred.
+
+### EJ-20260803-dual-l40s-qualification-001-account-plan
+
+- **Plan:** In the dedicated worktree at `origin/HEAD` `f9b86e8`, the ignored
+  mode-600 `qualification.auto.tfvars` bound action
+  `dual-l40s-qualification-001`, fixture-only code, the exact immutable worker
+  image digest, and a unique action-scoped S3 output prefix. It was not read
+  from, copied from, staged, or committed as `aws-private.tfvars`.
+- **Validation:** `terraform init -lockfile=readonly` and `terraform validate`
+  passed. The first plan attempt stopped before provider access because
+  Terraform did not consume the already-established AWS CLI login-session
+  source; the exact read-only plan then succeeded using that existing source
+  in-process, without a login or credential file export. Saved-plan bytes are
+  SHA-256 `b3cabc4a9a0c98b37575f31cc851630575485ad89ad08fb4f59664ab552f6c5d`;
+  `terraform show -json` SHA-256 is
+  `93a00b72898999bb88a02bb30edf21ffbb8be3eb23dcd832b29cf6c2f43d626c`.
+  The real plan has exactly four `create` actions:
+  `aws_batch_compute_environment.qualification`,
+  `aws_launch_template.qualification`,
+  `aws_batch_job_queue.qualification`, and
+  `aws_batch_job_definition.worker`; no `command` override is planned. The
+  absent legacy Spot Fleet role is explicitly omitted (`null`) for the modern
+  `SPOT_PRICE_CAPACITY_OPTIMIZED` strategy rather than invented.
+- **Provider readbacks:** Account `892077329800`, AMI
+  `ami-08bc385c9fc5afc94`, Batch service role/profile, subnet
+  `subnet-0da0658f2703d3e58`, security group `sg-02a6d8fb9c26477eb` with zero
+  ingress rules, 16 G/VT Spot-vCPU quota, four `g6e.2xlarge` AZ offerings, and
+  the exact ACTIVE ECR digest all matched. The sanitized receipt is
+  `evidence/dual-l40s-qualification-001-account-plan-receipt-20260803.json`
+  with SHA-256
+  `00f84d0886f64dfedb01a410d2b986fb95e910efd3e6d10d3608b108f514cc1c`.
+- **Boundary:** No Terraform apply, Batch submission, GPU/Spot allocation,
+  model download, benchmark, pilot, experiment, qualification run, unblind,
+  or scientific result occurred. The saved plan remains in `/tmp` only.

@@ -1,0 +1,117 @@
+{
+  "record_kind": "cloud_terraform_account_plan_receipt",
+  "schema_version": "0.1.0",
+  "status": "read_only_plan_passed",
+  "action_id": "dual-l40s-qualification-001",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "identity_arn": "arn:aws:iam::892077329800:root",
+  "plan": {
+    "saved_plan_path": "/tmp/pneuma-dual-l40s-qualification-001.tfplan",
+    "saved_plan_sha256": "b3cabc4a9a0c98b37575f31cc851630575485ad89ad08fb4f59664ab552f6c5d",
+    "terraform_show_format_version": "1.2",
+    "terraform_show_sha256": "93a00b72898999bb88a02bb30edf21ffbb8be3eb23dcd832b29cf6c2f43d626c",
+    "resource_changes": [
+      {
+        "address": "aws_batch_compute_environment.qualification",
+        "actions": ["create"]
+      },
+      {
+        "address": "aws_batch_job_definition.worker",
+        "actions": ["create"]
+      },
+      {
+        "address": "aws_batch_job_queue.qualification",
+        "actions": ["create"]
+      },
+      {
+        "address": "aws_launch_template.qualification",
+        "actions": ["create"]
+      }
+    ],
+    "exactly_four_creates": true,
+    "no_other_resource_actions": true
+  },
+  "planned_bindings": {
+    "qualification_code": "fixture-only-qualification-code-001",
+    "qualification_action_id": "dual-l40s-qualification-001",
+    "ami_id": "ami-08bc385c9fc5afc94",
+    "worker_image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:164a974153a51be65a73491888d8e04d33fd8c91f9c636ccba864671fee36fad",
+    "batch_service_role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-batch-service",
+    "instance_role_variable_value": "arn:aws:iam::892077329800:instance-profile/pneuma-c160-worker",
+    "attached_worker_role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-worker",
+    "instance_profile_arn": "arn:aws:iam::892077329800:instance-profile/pneuma-c160-worker",
+    "legacy_spot_fleet_role_arn": null,
+    "subnet_ids": ["subnet-0da0658f2703d3e58"],
+    "security_group_ids": ["sg-02a6d8fb9c26477eb"],
+    "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-001/outputs/"
+  },
+  "provider_checks": {
+    "ecr": {
+      "repository": "pneuma-c160-worker",
+      "digest": "sha256:164a974153a51be65a73491888d8e04d33fd8c91f9c636ccba864671fee36fad",
+      "status": "ACTIVE",
+      "tag": "qualification-image-build-002-826ce87",
+      "image_size_bytes": 10611296237
+    },
+    "ami": {
+      "id": "ami-08bc385c9fc5afc94",
+      "state": "available",
+      "architecture": "x86_64",
+      "imds_support": "v2.0"
+    },
+    "batch_service_role": {
+      "name": "pneuma-c160-batch-service",
+      "arn": "arn:aws:iam::892077329800:role/pneuma-c160-batch-service",
+      "trusted_service": "batch.amazonaws.com"
+    },
+    "worker_instance_profile": {
+      "name": "pneuma-c160-worker",
+      "arn": "arn:aws:iam::892077329800:instance-profile/pneuma-c160-worker",
+      "attached_role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-worker"
+    },
+    "legacy_spot_fleet_role": {
+      "present": false,
+      "plan_binding": "null",
+      "reason": "SPOT_PRICE_CAPACITY_OPTIMIZED does not use the absent legacy Spot Fleet role"
+    },
+    "subnet": {
+      "id": "subnet-0da0658f2703d3e58",
+      "vpc_id": "vpc-0baeaefeb8b57c19b",
+      "availability_zone": "us-east-1a",
+      "state": "available",
+      "map_public_ip_on_launch": true
+    },
+    "security_group": {
+      "id": "sg-02a6d8fb9c26477eb",
+      "vpc_id": "vpc-0baeaefeb8b57c19b",
+      "ingress_rule_count": 0,
+      "egress_rule_count": 3
+    },
+    "spot_vcpu_quota": {
+      "quota_code": "L-3819A6DF",
+      "quota_name": "All G and VT Spot Instance Requests",
+      "value": 16.0,
+      "required": 16,
+      "satisfied": true
+    },
+    "instance_type_offerings": {
+      "instance_type": "g6e.2xlarge",
+      "availability_zones": ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
+    }
+  },
+  "terraform_validation": {
+    "init_lockfile_readonly": true,
+    "validate": true,
+    "apply": false,
+    "batch_submission": false,
+    "no_gpu_or_spot_allocation_performed": true,
+    "model_benchmark_pilot_experiment": false
+  },
+  "sensitive_materials": {
+    "qualification_auto_tfvars_committed": false,
+    "saved_plan_committed": false,
+    "aws_private_tfvars_read": false
+  }
+}
