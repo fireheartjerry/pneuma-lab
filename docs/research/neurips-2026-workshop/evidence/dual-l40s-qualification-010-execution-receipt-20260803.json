@@ -1,0 +1,11 @@
+{
+  "action_id": "dual-l40s-qualification-010",
+  "error": "preparation admission does not bind the requested manifest",
+  "error_type": "CloudManifestError",
+  "provider": "aws",
+  "qualification_only": true,
+  "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt",
+  "region": "us-east-1",
+  "schema_version": "0.1.0",
+  "status": "no_go"
+}
