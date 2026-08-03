@@ -7125,3 +7125,25 @@ post-launch terminal no-go. Tasks 6–10 remain
   ceiling, zero retries, and fresh provider-absence teardown. The plan and
   CL-302/CL-303 ledger rows are committed before KMS signing; no provider
   mutation has occurred for action-013.
+
+### EJ-20260803-qualification-image-build-013-signing-and-admission
+
+- **KMS ceremony:** The exact committed action-013 plan and immutable ledger
+  rows were rechecked before signing. The canonical signing package is
+  `evidence/qualification-image-build-013-signing-package-20260803.json`,
+  SHA-256
+  `7888c5cddc3c2332a3e9280c62b3960f5b57cab104f3549f6df51842c2925200`.
+  Plan/composite binding is
+  `4a23d3c5a8f9bc7f58664c8a01b2cc7af48577a82015081f4d41ff2517dbc15a`.
+- **Signature verification:** The envelope body SHA-256 is
+  `5d8efc92f18e488e1868e54b4959ca61657aa65e8717d274981f9953fcb24335` and
+  the admission body SHA-256 is
+  `673aeb4037bf0508586a54ceafef7d20ce507b3eee16f5c4be5aed754511a9fc`.
+  AWS KMS alias `alias/pneuma-approver` verified both signatures with
+  `ED25519_SHA_512` against committed approver key
+  `pneuma-kms-20260801-r1`; both returned `SignatureValid: true`.
+- **Boundary:** The one-use action-013 admission permits only one CPU image
+  build, zero retries, a USD 6.00 projection under the USD 25.00 ceiling, and
+  mandatory teardown. No source upload, IAM/EC2 mutation, ECR push, Terraform,
+  Batch, GPU, Spot, model, benchmark, pilot, official experiment, unblind,
+  analysis, or claim promotion has occurred for action-013.
