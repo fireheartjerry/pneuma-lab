@@ -1,0 +1,128 @@
+{
+  "record_kind": "cloud_qualification_read_only_plan",
+  "schema_version": "0.1.0",
+  "status": "read_only_plan_passed",
+  "observed_at": "2026-08-03T09:06:26Z",
+  "qualification_only": true,
+  "action_id": "dual-l40s-qualification-010",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "plan": {
+    "execution_plan_sha256": "02da6dd7e5c89f72620e8ecdfa71113adf8cda9349b6a4c1c5c7198dcab13962",
+    "saved_plan_path": "/tmp/pneuma-dual-l40s-qualification-010.tfplan",
+    "saved_plan_sha256": "2b45af74929f2383036d9e80fa23357bc6f7bc43621aee405aa16c9c4ccca259",
+    "terraform_show_sha256": "2cbf7570cc2bd90d6fe19a36d7fd5af53d9e4d86bec42c8ab978f78031f6a546",
+    "terraform_plan_binding_sha256": "baaa864e8c01a755c0361b319eae317330702905cc8a6cf47e8a277a2eb34f70",
+    "exactly_four_creates": true,
+    "approved_resource_addresses": [
+      "aws_batch_compute_environment.qualification",
+      "aws_launch_template.qualification",
+      "aws_batch_job_queue.qualification",
+      "aws_batch_job_definition.worker"
+    ],
+    "no_other_resource_actions": true,
+    "managed_gpu_ami_path": true,
+    "command_override": false,
+    "worker_instance_type": "g6e.2xlarge",
+    "worker_vcpus": 8,
+    "worker_gpus": 1,
+    "max_spot_vcpus": 16,
+    "attempt_duration_seconds": 3600,
+    "retry_attempts": 1
+  },
+  "bindings": {
+    "qualification_code": "fixture-only-qualification-code-010",
+    "qualification_model": "fixture-only-cuda",
+    "qualification_model_revision": "fixture-only-v1",
+    "image_digest": "sha256:5433527fb588c009d6cf16a5ac4278c463bbb5fab0c0a6826147b4c98f2e83ff",
+    "image_build_receipt_sha256": "0329b39be4caace7b5cb415cb49ecbd0fb19fa3e8e6a5ea99c07ef3f6e12a05a",
+    "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-010/outputs/",
+    "vpc_id": "vpc-0baeaefeb8b57c19b",
+    "subnet_az_map": [
+      {"availability_zone": "us-east-1a", "subnet_id": "subnet-0da0658f2703d3e58"},
+      {"availability_zone": "us-east-1b", "subnet_id": "subnet-0fb70ec94971ee036"},
+      {"availability_zone": "us-east-1c", "subnet_id": "subnet-06bfd2d42e292f160"},
+      {"availability_zone": "us-east-1d", "subnet_id": "subnet-0ef225f27b1e1f095"}
+    ],
+    "security_group_id": "sg-02a6d8fb9c26477eb",
+    "security_group_ingress_rule_count": 0,
+    "instance_profile_arn": "arn:aws:iam::892077329800:instance-profile/pneuma-c160-worker",
+    "attached_worker_role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-worker",
+    "batch_service_role_arn": "arn:aws:iam::892077329800:role/pneuma-c160-batch-service",
+    "input_lock_sha256": "0c65f6c68802833bed828ade61dbca2c2dd8a0031f16aeee0a3407fb4bd5096b",
+    "input_hashes": {
+      "protocol": "4d07d65aedb9fd8ee867a66c1dffad53dd8366d8f809348dbb5ca4547d9c33b4",
+      "architecture": "384b03e29d931848b56f7e06dd9d22e79aeb083bf430928dd23c69191d18d293",
+      "authorization": "e9292f8bc3086843489f8bdf16c8893d1dc920e85b5c139b780f67c2318905cc",
+      "image": "f275f04465422d4c58ae3e536b366c01e2f184963d7a7cec3b9f70747fd8eeb7",
+      "input_lock": "0c65f6c68802833bed828ade61dbca2c2dd8a0031f16aeee0a3407fb4bd5096b",
+      "code": "4148089309a5295bc6c89c40ba991900b1ecd1b45c81b53d6f9dac2b7e23add5"
+    }
+  },
+  "provider_checks": {
+    "identity_verified": true,
+    "instance_profile_exactly_one_role_verified": true,
+    "worker_role_verified_separately": true,
+    "batch_service_role_verified_separately": true,
+    "ecr_digest_verified": true,
+    "spot_vcpu_quota": 16.0,
+    "spot_quota_code": "L-3819A6DF",
+    "offered_instance_type": "g6e.2xlarge",
+    "offered_availability_zones": ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"],
+    "subnets_available_in_all_four_azs": true,
+    "spot_price_sample_count": 100,
+    "spot_price_max_usd_per_hour": 2.2421,
+    "projected_two_worker_3600_seconds_usd": 4.4842,
+    "projection_strictly_below_usd_100": true,
+    "provider_absence": {
+      "jobs": true,
+      "instances": true,
+      "volumes": true,
+      "launch_template": true,
+      "network_interfaces": true,
+      "security_group": true,
+      "job_definition": true,
+      "queue": true,
+      "compute_environment": true
+    }
+  },
+  "iam": {
+    "role_policy_name": "bounded-experiment-access",
+    "effective_policy_sha256": "dcc530fdc96dc9d77da7ed022a08a92751a02ed6c697ae490e164dc1325ad2ae",
+    "wildcard_resource_present": false,
+    "abort_multipart_permission": false,
+    "simulation_matrix_sha256": "12301cd1b1bcaf51d8458de4d012f1a3be960a7cb589e833209d54cf52be3b2c",
+    "allowed": [
+      "input-read-protocol",
+      "input-read-architecture",
+      "input-read-authorization",
+      "input-read-image",
+      "input-read-input-lock",
+      "raw-write-worker-0",
+      "raw-write-worker-1"
+    ],
+    "denied": [
+      "output-read-worker-0",
+      "output-read-worker-1",
+      "wrong-worker-output",
+      "other-action-input",
+      "unrelated-object",
+      "bucket-list",
+      "output-delete",
+      "output-abort"
+    ],
+    "all_expected_decisions_match": true
+  },
+  "scientific_boundary": {
+    "fixture_only": true,
+    "no_p0": true,
+    "no_step_4b": true,
+    "no_model_load": true,
+    "no_benchmark": true,
+    "no_pilot": true,
+    "no_unblind": true,
+    "no_analysis": true,
+    "no_claim_promotion": true
+  }
+}

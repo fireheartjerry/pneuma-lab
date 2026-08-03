@@ -1,0 +1,59 @@
+{
+  "record_kind": "cloud_qualification_preflight_no_go",
+  "schema_version": "0.1.0",
+  "status": "superseded_before_admission",
+  "observed_at": "2026-08-03T09:09:35Z",
+  "qualification_only": true,
+  "action_id": "dual-l40s-qualification-009",
+  "provider": "aws",
+  "region": "us-east-1",
+  "account_id": "892077329800",
+  "plan": {
+    "saved_plan_sha256": "ac5d9467f27be5723b7e1066e240bdca1398a782fc957ab11baf135185a4e8b2",
+    "terraform_show_sha256": "8bbf45c120a3d967fbf824d71ac71ea54752ffacbe259d58cdd0266b2a78d542",
+    "terraform_plan_binding_sha256": "0c162625f75f6bea5b6753f9576a22cd69830bb078343c0c24313e3d5829ab9f",
+    "resource_mutation_started": false,
+    "batch_submission_started": false
+  },
+  "failure": {
+    "phase": "live_fixture_binding",
+    "class": "protocol_raw_hash_mismatch",
+    "detail": "The protocol bound hashes did not equal the exact downloaded S3 fixture bytes. The action was retired before authority, Terraform apply, Batch submission, or worker launch.",
+    "expected_bound_hashes": {
+      "architecture": "1a0313c8dd8e633369ecae9a857fc4547105d6785a1a96919bcf18b853bf2fae",
+      "authorization": "0277ad32186c3e32d6e7ea3d4cbc7f6f1a28dd5054d04a2d13c32eb7c2925beb",
+      "code": "6efe4747bd58a241cda337944235283f9b61c5499f68b37fc6ed043a6827a379",
+      "image": "f95dc03fbdf528e86df718dc22551e26eb85a608424e83891099c3168da8c2ae",
+      "input_lock": "20fa916a0dc8e28c54b2524cc5b2f935ea68a0f818f8401685e8be5a1b3a0e10"
+    },
+    "observed_download_hashes": {
+      "architecture": "ba98b1261d3f1312a24cb00f0b7610af275a0723237ad29b48581b9ce7942027",
+      "authorization": "f55f398b65305905f9a14d0b7be027de3ba56f04069db4e9a567582560683dbf",
+      "code": "6efe4747bd58a241cda337944235283f9b61c5499f68b37fc6ed043a6827a379",
+      "image": "24b0af9a55b3f13449037d28d2e9d513d74467d8811a80e8422d8ec32ce92840",
+      "input_lock": "eb30b3718c0112cd4f7dacd13d64b780a5e52c8984caa0e1ac89684415ceae00"
+    }
+  },
+  "teardown": {
+    "jobs": true,
+    "instances": true,
+    "volumes": true,
+    "launch_template": true,
+    "network_interfaces": true,
+    "security_group": true,
+    "job_definition": true,
+    "queue": true,
+    "compute_environment": true
+  },
+  "scientific_boundary": {
+    "fixture_only": true,
+    "no_p0": true,
+    "no_step_4b": true,
+    "no_model_load": true,
+    "no_benchmark": true,
+    "no_pilot": true,
+    "no_unblind": true,
+    "no_analysis": true,
+    "no_claim_promotion": true
+  }
+}
