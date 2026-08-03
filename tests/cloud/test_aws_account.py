@@ -28,10 +28,29 @@ class Provider:
         }
 
     def get_role(self, role_name):
+        arns = {
+            "pneuma-worker": "arn:aws:iam::123456789012:role/pneuma-worker",
+            "pneuma-batch": "arn:aws:iam::123456789012:role/pneuma-batch",
+            "pneuma-spot": "arn:aws:iam::123456789012:role/pneuma-spot",
+        }
         return {
             "Role": {
                 "RoleName": role_name,
-                "Arn": "arn:aws:iam::123456789012:role/pneuma-worker",
+                "Arn": arns[role_name],
+            }
+        }
+
+    def get_instance_profile(self, profile_name):
+        return {
+            "InstanceProfile": {
+                "InstanceProfileName": profile_name,
+                "Arn": f"arn:aws:iam::123456789012:instance-profile/{profile_name}",
+                "Roles": [
+                    {
+                        "RoleName": "pneuma-worker",
+                        "Arn": "arn:aws:iam::123456789012:role/pneuma-worker",
+                    }
+                ],
             }
         }
 
@@ -49,6 +68,15 @@ def _show() -> dict:
             "region": {"value": "us-east-1"},
             "qualification_code": {"value": "signed-code"},
             "qualification_action_id": {"value": "fixed-admission-001"},
+            "instance_role_arn": {
+                "value": "arn:aws:iam::123456789012:instance-profile/pneuma-worker"
+            },
+            "batch_service_role_arn": {
+                "value": "arn:aws:iam::123456789012:role/pneuma-batch"
+            },
+            "spot_fleet_role_arn": {
+                "value": "arn:aws:iam::123456789012:role/pneuma-spot"
+            },
         },
         "planned_values": {
             "root_module": {
@@ -60,6 +88,8 @@ def _show() -> dict:
                                 {
                                     "instance_type": ["g6e.2xlarge"],
                                     "max_vcpus": 16,
+                                    "instance_role": "arn:aws:iam::123456789012:instance-profile/pneuma-worker",
+                                    "spot_iam_fleet_role": "arn:aws:iam::123456789012:role/pneuma-spot",
                                     "subnets": ["subnet-0123456789abcdef0"],
                                     "security_group_ids": ["sg-0123456789abcdef0"],
                                     "tags": {
@@ -68,6 +98,7 @@ def _show() -> dict:
                                     },
                                 }
                             ],
+                            "service_role": "arn:aws:iam::123456789012:role/pneuma-batch",
                         },
                     },
                     {

@@ -377,6 +377,18 @@ class AwsCliAdapter:
             transport_args=(role_name,),
         )
 
+    def get_instance_profile(self, profile_name: str) -> dict[str, Any]:
+        return self._read_provider(
+            "get_instance_profile",
+            [
+                "iam",
+                "get-instance-profile",
+                "--instance-profile-name",
+                profile_name,
+            ],
+            transport_args=(profile_name,),
+        )
+
     def describe_subnets(self, subnet_ids: Sequence[str]) -> list[dict[str, Any]]:
         return self._read_provider_list(
             "describe_subnets",
@@ -1002,6 +1014,35 @@ def _tag_maps(value: Mapping[str, Any]) -> list[dict[str, str]]:
     return maps
 
 
+def _iam_binding_name(value: Any, *, kind: str, field: str) -> str:
+    """Return the simple IAM name from one planned ARN.
+
+    The qualification variables contain ARNs, but Batch's ``instance_role``
+    field is specifically an instance-profile ARN.  Keeping the ARN kind
+    explicit here prevents a role ARN from being accidentally passed to
+    ``get-instance-profile`` (or vice versa).
+    """
+
+    if not isinstance(value, str) or not value:
+        raise CloudManifestError(f"planned {field} lacks a concrete ARN")
+    parts = value.split(":", 5)
+    if (
+        len(parts) != 6
+        or parts[0] != "arn"
+        or parts[1] != "aws"
+        or parts[2] != "iam"
+        or not parts[4].isdigit()
+        or len(parts[4]) != 12
+        or parts[5].count("/") != 1
+        or not parts[5].startswith(f"{kind}/")
+        or not parts[5].split("/", 1)[1]
+    ):
+        raise CloudManifestError(
+            f"planned {field} must be an AWS IAM {kind} ARN"
+        )
+    return parts[5].split("/", 1)[1]
+
+
 def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
     """Parse actual ``terraform show -json`` values into a qualification plan.
 
@@ -1207,24 +1248,69 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
             "planned compute resources do not preserve the 16-vCPU ceiling"
         )
 
+    instance_profile_arn = variable("instance_role_arn")
+    instance_profile_name = _iam_binding_name(
+        instance_profile_arn,
+        kind="instance-profile",
+        field="worker instance profile",
+    )
+    planned_instance_role = resources.get("instance_role")
+    if planned_instance_role != instance_profile_arn:
+        raise CloudManifestError(
+            "planned Batch instance_role does not equal the Terraform instance-profile ARN"
+        )
+
+    batch_service_role_arn = variable("batch_service_role_arn")
+    batch_service_role_name = _iam_binding_name(
+        batch_service_role_arn,
+        kind="role",
+        field="Batch service role",
+    )
+    planned_service_role = compute.get("service_role")
+    if planned_service_role != batch_service_role_arn:
+        raise CloudManifestError(
+            "planned Batch service_role does not equal its Terraform role ARN"
+        )
+
+    spot_fleet_role_arn = variable("spot_fleet_role_arn")
+    planned_spot_role = resources.get("spot_iam_fleet_role")
+    if spot_fleet_role_arn is None:
+        spot_fleet_role_name = None
+        if planned_spot_role is not None:
+            raise CloudManifestError(
+                "planned spot_iam_fleet_role is not absent while its Terraform variable is null"
+            )
+    else:
+        spot_fleet_role_name = _iam_binding_name(
+            spot_fleet_role_arn,
+            kind="role",
+            field="Spot fleet role",
+        )
+    if spot_fleet_role_arn is not None and planned_spot_role != spot_fleet_role_arn:
+        raise CloudManifestError(
+            "planned spot_iam_fleet_role does not equal its Terraform role ARN"
+        )
+
+    # A qualification stack normally references an existing profile and does
+    # not create its role.  If a role resource is present, retain its planned
+    # identity as an additional exact constraint on the profile's one
+    # attached role; never treat the profile ARN itself as that role.
     try:
-        role = _resource_any(rows, "aws_iam_role.worker")
+        worker_role = _resource_any(rows, "aws_iam_role.worker")
     except CloudManifestError:
-        role_arn = variable("instance_role_arn")
-        if not isinstance(role_arn, str) or not role_arn:
-            raise CloudManifestError("planned worker IAM role lacks a concrete ARN")
-        role = {"arn": role_arn, "name": role_arn.rsplit("/", 1)[-1]}
-    role_arn = role.get("arn")
-    role_name = role.get("name")
-    if not isinstance(role_name, str) or not role_name:
-        raise CloudManifestError("planned worker IAM role lacks a concrete name")
-    if role_arn is not None and not isinstance(role_arn, str):
-        raise CloudManifestError("planned worker IAM role has an invalid ARN value")
-    role_arns = [role_arn] if isinstance(role_arn, str) else [None]
-    for variable_name in ("batch_service_role_arn", "spot_fleet_role_arn"):
-        candidate = variable(variable_name)
-        if isinstance(candidate, str) and candidate and candidate not in role_arns:
-            role_arns.append(candidate)
+        planned_worker_role_name = None
+        planned_worker_role_arn = None
+    else:
+        planned_worker_role_name = worker_role.get("name")
+        if not isinstance(planned_worker_role_name, str) or not planned_worker_role_name:
+            raise CloudManifestError("planned worker IAM role lacks a concrete name")
+        planned_worker_role_arn = worker_role.get("arn")
+        if planned_worker_role_arn is not None:
+            _iam_binding_name(
+                planned_worker_role_arn,
+                kind="role",
+                field="planned worker role",
+            )
     vpc_id = variable("vpc_id")
     region = variable("region")
     show_document = {
@@ -1235,9 +1321,14 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "action_id": action_id,
         "qualification_code": code,
-        "worker_role_name": role_name,
-        "worker_role_arn": role_arn,
-        "role_arns": tuple(role_arns),
+        "worker_instance_profile_name": instance_profile_name,
+        "worker_instance_profile_arn": instance_profile_arn,
+        "worker_role_name": planned_worker_role_name,
+        "worker_role_arn": planned_worker_role_arn,
+        "batch_service_role_name": batch_service_role_name,
+        "batch_service_role_arn": batch_service_role_arn,
+        "spot_fleet_role_name": spot_fleet_role_name,
+        "spot_fleet_role_arn": spot_fleet_role_arn,
         "subnet_ids": tuple(subnets),
         "security_group_ids": tuple(security_groups),
         "vpc_id": vpc_id if isinstance(vpc_id, str) and vpc_id else None,
@@ -1293,35 +1384,107 @@ def verify_provider_bindings(
         or len(account_id) != 12
     ):
         raise CloudManifestError("provider identity did not return a concrete account")
-    role: Mapping[str, Any] | None = None
-    verified_roles: list[dict[str, Any]] = []
-    role_arns = plan.get("role_arns", ())
-    if not isinstance(role_arns, Sequence) or isinstance(role_arns, (str, bytes)):
-        raise CloudManifestError("Terraform plan has no concrete role bindings")
-    for role_arn in role_arns:
-        expected_arn = role_arn if isinstance(role_arn, str) and role_arn else None
-        if role_arn is not None and expected_arn is None:
-            raise CloudManifestError("Terraform plan has an invalid role binding")
-        role_name = (
-            expected_arn.rsplit("/", 1)[-1]
-            if expected_arn is not None
-            else str(plan["worker_role_name"])
+
+    def account_arn(value: Any, *, kind: str, label: str) -> str:
+        name = _iam_binding_name(value, kind=kind, field=label)
+        assert isinstance(value, str)
+        if value.split(":", 5)[4] != account_id:
+            raise CloudManifestError(f"{label} ARN belongs to a different account")
+        return name
+
+    profile_arn = plan.get("worker_instance_profile_arn")
+    profile_name = plan.get("worker_instance_profile_name")
+    expected_profile_name = account_arn(
+        profile_arn,
+        kind="instance-profile",
+        label="planned worker instance profile",
+    )
+    if profile_name != expected_profile_name:
+        raise CloudManifestError(
+            "planned worker instance-profile name differs from its ARN"
         )
-        role_response = adapter.get_role(role_name)
-        observed = (
-            role_response.get("Role") if isinstance(role_response, Mapping) else None
+    profile_response = adapter.get_instance_profile(expected_profile_name)
+    profile = (
+        profile_response.get("InstanceProfile")
+        if isinstance(profile_response, Mapping)
+        else None
+    )
+    if not isinstance(profile, Mapping):
+        raise CloudManifestError(
+            "planned worker instance profile was not explicitly verified"
         )
-        if not isinstance(observed, Mapping) or observed.get("RoleName") != role_name:
-            raise CloudManifestError("planned IAM role was not explicitly verified")
-        if expected_arn is not None and observed.get("Arn") != expected_arn:
-            raise CloudManifestError(
-                "provider IAM role ARN differs from the Terraform plan"
-            )
-        verified_roles.append(dict(observed))
-        if role_name == plan["worker_role_name"]:
-            role = observed
-    if role is None:
-        raise CloudManifestError("planned worker IAM role was not explicitly verified")
+    if profile.get("InstanceProfileName") != expected_profile_name:
+        raise CloudManifestError(
+            "provider instance-profile name differs from the Terraform plan"
+        )
+    if profile.get("Arn") != profile_arn:
+        raise CloudManifestError(
+            "provider instance-profile ARN differs from the Terraform plan"
+        )
+    attached_roles = profile.get("Roles")
+    if not isinstance(attached_roles, list) or len(attached_roles) != 1:
+        raise CloudManifestError(
+            "worker instance profile must have exactly one attached role"
+        )
+    attached = attached_roles[0]
+    if not isinstance(attached, Mapping):
+        raise CloudManifestError("worker instance profile has an invalid attached role")
+    attached_role_name = attached.get("RoleName")
+    attached_role_arn = attached.get("Arn")
+    account_arn(
+        attached_role_arn,
+        kind="role",
+        label="attached worker role",
+    )
+    if not isinstance(attached_role_name, str) or not attached_role_name:
+        raise CloudManifestError("worker instance profile has no attached role name")
+    expected_worker_role_name = plan.get("worker_role_name")
+    expected_worker_role_arn = plan.get("worker_role_arn")
+    if (
+        expected_worker_role_name is not None
+        and attached_role_name != expected_worker_role_name
+    ):
+        raise CloudManifestError(
+            "attached worker role name differs from the planned role"
+        )
+    if expected_worker_role_arn is not None and attached_role_arn != expected_worker_role_arn:
+        raise CloudManifestError("attached worker role ARN differs from the planned role")
+    role_response = adapter.get_role(attached_role_name)
+    role = role_response.get("Role") if isinstance(role_response, Mapping) else None
+    if not isinstance(role, Mapping):
+        raise CloudManifestError("attached worker role was not explicitly verified")
+    if role.get("RoleName") != attached_role_name or role.get("Arn") != attached_role_arn:
+        raise CloudManifestError(
+            "iam get-role does not match the role attached to the instance profile"
+        )
+
+    def verify_role_binding(arn: Any, name: Any, label: str) -> dict[str, Any]:
+        expected_name = account_arn(arn, kind="role", label=label)
+        if name != expected_name:
+            raise CloudManifestError(f"planned {label} name differs from its ARN")
+        response = adapter.get_role(expected_name)
+        observed = response.get("Role") if isinstance(response, Mapping) else None
+        if not isinstance(observed, Mapping):
+            raise CloudManifestError(f"planned {label} was not explicitly verified")
+        if observed.get("RoleName") != expected_name or observed.get("Arn") != arn:
+            raise CloudManifestError(f"provider {label} ARN differs from the Terraform plan")
+        return dict(observed)
+
+    service_role = verify_role_binding(
+        plan.get("batch_service_role_arn"),
+        plan.get("batch_service_role_name"),
+        "Batch service role",
+    )
+    spot_arn = plan.get("spot_fleet_role_arn")
+    spot_role = (
+        verify_role_binding(
+            spot_arn,
+            plan.get("spot_fleet_role_name"),
+            "Spot fleet role",
+        )
+        if spot_arn is not None
+        else None
+    )
     subnets = adapter.describe_subnets(tuple(plan["subnet_ids"]))
     if {row.get("SubnetId") for row in subnets} != set(plan["subnet_ids"]):
         raise CloudManifestError("planned subnet ids were not explicitly verified")
@@ -1343,7 +1506,10 @@ def verify_provider_bindings(
     return {
         "account_id": account_id,
         "role": dict(role),
-        "roles": verified_roles,
+        "roles": [dict(role), service_role, *([spot_role] if spot_role else [])],
+        "instance_profile": dict(profile),
+        "service_role": service_role,
+        "spot_fleet_role": spot_role,
         "subnets": subnets,
         "security_groups": groups,
     }

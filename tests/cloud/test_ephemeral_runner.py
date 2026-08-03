@@ -24,6 +24,7 @@ from pneuma_lab.cloud.qualification_execution import worker_artifact_uri
 from pneuma_lab.cloud.qualification_execution import (
     parse_terraform_show,
     terraform_plan_binding_digest,
+    verify_provider_bindings,
 )
 
 from .test_qualification_execution import _rungs
@@ -36,6 +37,9 @@ ROLE_ARNS = {
     "pneuma-batch": "arn:aws:iam::123456789012:role/pneuma-batch",
     "pneuma-spot": "arn:aws:iam::123456789012:role/pneuma-spot",
 }
+PROFILE_ARNS = {
+    "pneuma-worker": "arn:aws:iam::123456789012:instance-profile/pneuma-worker"
+}
 
 
 def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict:
@@ -46,7 +50,7 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
             "region": {"value": "us-east-1"},
             "qualification_code": {"value": code},
             "qualification_action_id": {"value": action_id},
-            "instance_role_arn": {"value": ROLE_ARNS["pneuma-worker"]},
+            "instance_role_arn": {"value": PROFILE_ARNS["pneuma-worker"]},
             "batch_service_role_arn": {"value": ROLE_ARNS["pneuma-batch"]},
             "spot_fleet_role_arn": {"value": ROLE_ARNS["pneuma-spot"]},
             "subnet_ids": {"value": ["subnet-0123456789abcdef0"]},
@@ -63,6 +67,8 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                                 {
                                     "instance_type": ["g6e.2xlarge"],
                                     "max_vcpus": 16,
+                                    "instance_role": PROFILE_ARNS["pneuma-worker"],
+                                    "spot_iam_fleet_role": ROLE_ARNS["pneuma-spot"],
                                     "subnets": ["subnet-0123456789abcdef0"],
                                     "security_group_ids": ["sg-0123456789abcdef0"],
                                     "tags": tags,
@@ -71,6 +77,7 @@ def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict
                                     ],
                                 }
                             ],
+                            "service_role": ROLE_ARNS["pneuma-batch"],
                         },
                     },
                     {
@@ -140,6 +147,20 @@ class ReadOnlyProvider:
 
     def get_role(self, role_name):
         return {"Role": {"RoleName": role_name, "Arn": ROLE_ARNS[role_name]}}
+
+    def get_instance_profile(self, profile_name):
+        return {
+            "InstanceProfile": {
+                "InstanceProfileName": profile_name,
+                "Arn": PROFILE_ARNS[profile_name],
+                "Roles": [
+                    {
+                        "RoleName": "pneuma-worker",
+                        "Arn": ROLE_ARNS["pneuma-worker"],
+                    }
+                ],
+            }
+        }
 
     def describe_subnets(self, subnet_ids):
         return [
@@ -284,6 +305,49 @@ def test_invented_account_plan_fields_are_not_accepted() -> None:
             },
             provider=provider,
         )
+
+
+def test_instance_profile_is_verified_before_its_attached_role() -> None:
+    plan = parse_terraform_show(terraform_show())
+    provider = ReadOnlyProvider()
+
+    verified = verify_provider_bindings(provider, plan)
+
+    assert verified["instance_profile"]["Arn"] == PROFILE_ARNS["pneuma-worker"]
+    assert verified["role"]["Arn"] == ROLE_ARNS["pneuma-worker"]
+    assert verified["service_role"]["Arn"] == ROLE_ARNS["pneuma-batch"]
+    assert verified["spot_fleet_role"]["Arn"] == ROLE_ARNS["pneuma-spot"]
+
+
+def test_role_arn_cannot_substitute_for_the_planned_instance_profile() -> None:
+    candidate = terraform_show()
+    candidate["variables"]["instance_role_arn"]["value"] = ROLE_ARNS[
+        "pneuma-worker"
+    ]
+    candidate["planned_values"]["root_module"]["resources"][0]["values"][
+        "compute_resources"
+    ][0]["instance_role"] = ROLE_ARNS["pneuma-worker"]
+
+    with pytest.raises(CloudManifestError, match="instance profile"):
+        parse_terraform_show(candidate)
+
+
+@pytest.mark.parametrize("role_count", [0, 2])
+def test_instance_profile_requires_exactly_one_attached_role(role_count: int) -> None:
+    plan = parse_terraform_show(terraform_show())
+    provider = ReadOnlyProvider()
+    original = provider.get_instance_profile
+
+    def profile_with_wrong_cardinality(profile_name):
+        response = original(profile_name)
+        response["InstanceProfile"]["Roles"] = [
+            response["InstanceProfile"]["Roles"][0]
+        ] * role_count
+        return response
+
+    provider.get_instance_profile = profile_with_wrong_cardinality  # type: ignore[method-assign]
+    with pytest.raises(CloudManifestError, match="exactly one attached role"):
+        verify_provider_bindings(provider, plan)
 
 
 def test_ephemeral_plan_guard_rejects_a_plan_without_its_launch_template() -> None:

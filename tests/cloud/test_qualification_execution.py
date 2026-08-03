@@ -86,10 +86,29 @@ class FakeAwsTransport:
         }
 
     def get_role(self, role_name):
+        roles = {
+            "pneuma-worker": "arn:aws:iam::123456789012:role/pneuma-worker",
+            "pneuma-batch": "arn:aws:iam::123456789012:role/pneuma-batch",
+            "pneuma-spot": "arn:aws:iam::123456789012:role/pneuma-spot",
+        }
         return {
             "Role": {
-                "RoleName": "pneuma-worker",
-                "Arn": "arn:aws:iam::123456789012:role/pneuma-worker",
+                "RoleName": role_name,
+                "Arn": roles[role_name],
+            }
+        }
+
+    def get_instance_profile(self, profile_name):
+        return {
+            "InstanceProfile": {
+                "InstanceProfileName": profile_name,
+                "Arn": f"arn:aws:iam::123456789012:instance-profile/{profile_name}",
+                "Roles": [
+                    {
+                        "RoleName": "pneuma-worker",
+                        "Arn": "arn:aws:iam::123456789012:role/pneuma-worker",
+                    }
+                ],
             }
         }
 
@@ -530,6 +549,15 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
             "region": {"value": "us-east-1"},
             "qualification_code": {"value": "signed-code"},
             "qualification_action_id": {"value": "fixed-admission-001"},
+            "instance_role_arn": {
+                "value": "arn:aws:iam::123456789012:instance-profile/pneuma-worker"
+            },
+            "batch_service_role_arn": {
+                "value": "arn:aws:iam::123456789012:role/pneuma-batch"
+            },
+            "spot_fleet_role_arn": {
+                "value": "arn:aws:iam::123456789012:role/pneuma-spot"
+            },
         },
         "planned_values": {
             "root_module": {
@@ -541,6 +569,8 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                                 {
                                     "instance_type": ["g6e.2xlarge"],
                                     "max_vcpus": 16,
+                                    "instance_role": "arn:aws:iam::123456789012:instance-profile/pneuma-worker",
+                                    "spot_iam_fleet_role": "arn:aws:iam::123456789012:role/pneuma-spot",
                                     "subnets": ["subnet-0123456789abcdef0"],
                                     "security_group_ids": ["sg-0123456789abcdef0"],
                                     "tags": {
@@ -549,6 +579,7 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
                                     },
                                 }
                             ],
+                            "service_role": "arn:aws:iam::123456789012:role/pneuma-batch",
                         },
                     },
                     {
