@@ -362,6 +362,17 @@ def test_invented_account_plan_fields_are_not_accepted() -> None:
         )
 
 
+def test_loaded_account_plan_preserves_raw_show_binding() -> None:
+    candidate = terraform_show()
+    candidate["saved_plan_sha256"] = "a" * 64
+    candidate["terraform_show_sha256"] = "b" * 64
+    parsed = require_account_plan(candidate, provider=ReadOnlyProvider())
+    assert parsed["terraform_show_sha256"] == "b" * 64
+    assert parsed["terraform_plan_binding_sha256"] == terraform_plan_binding_digest(
+        "a" * 64, "b" * 64
+    )
+
+
 def test_instance_profile_is_verified_before_its_attached_role() -> None:
     plan = parse_terraform_show(terraform_show())
     provider = ReadOnlyProvider()

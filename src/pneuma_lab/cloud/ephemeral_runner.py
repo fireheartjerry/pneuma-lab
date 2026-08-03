@@ -794,6 +794,26 @@ def require_account_plan(
             "account plan lacks the exact saved Terraform plan SHA-256"
         )
     parsed["saved_plan_sha256"] = saved_plan_sha256
+    raw_show_sha256 = plan.get("terraform_show_sha256")
+    if not (
+        isinstance(raw_show_sha256, str)
+        and len(raw_show_sha256) == 64
+        and all(character in "0123456789abcdef" for character in raw_show_sha256)
+    ):
+        loaded_metadata = plan.get("_qualification")
+        candidate = (
+            loaded_metadata.get("terraform_show_sha256")
+            if isinstance(loaded_metadata, Mapping)
+            else None
+        )
+        if (
+            isinstance(candidate, str)
+            and len(candidate) == 64
+            and all(character in "0123456789abcdef" for character in candidate)
+        ):
+            raw_show_sha256 = candidate
+    if isinstance(raw_show_sha256, str) and len(raw_show_sha256) == 64:
+        parsed["terraform_show_sha256"] = raw_show_sha256
     parsed["terraform_plan_binding_sha256"] = terraform_plan_binding_digest(
         saved_plan_sha256, parsed["terraform_show_sha256"]
     )
