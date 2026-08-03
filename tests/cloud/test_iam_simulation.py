@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
@@ -77,3 +78,52 @@ def test_live_matrix_is_exactly_bound_and_sanitized() -> None:
             plan=plan,
             expected_policy_sha256="a" * 64,
         )
+
+
+def test_live_matrix_can_include_a_canonical_bucket_policy_without_leaking_it() -> None:
+    plan = _plan()
+    checks = expected_checks(
+        input_paths=plan["input_paths"], output_root=plan["output_path"]
+    )
+    policy = {
+        "Version": "2012-10-17",
+        "Statement": [{"Effect": "Allow", "Action": "s3:GetObject", "Resource": "*"}],
+    }
+    calls: list[tuple[str, ...]] = []
+
+    def call(*args: str) -> dict[str, list[dict[str, str]]]:
+        calls.append(args)
+        action = args[args.index("--action-names") + 1]
+        resource = args[args.index("--resource-arns") + 1]
+        expected = next(
+            row
+            for row in checks
+            if row["action"] == action and row["resource_arn"] == resource
+        )
+        assert "--resource-policy" in args
+        assert json.loads(args[args.index("--resource-policy") + 1]) == policy
+        return {
+            "EvaluationResults": [
+                {
+                    "EvalActionName": action,
+                    "EvalResourceName": resource,
+                    "EvalDecision": (
+                        "allowed" if expected["expected"] == "allowed" else "implicitDeny"
+                    ),
+                }
+            ]
+        }
+
+    record = run_iam_simulation(
+        call,
+        plan=plan,
+        action_id="action",
+        expected_policy_sha256="a" * 64,
+        resource_policy=policy,
+    )
+    assert record["resource_policy_present"] is True
+    assert record["resource_policy_sha256"] == hashlib.sha256(
+        json.dumps(policy, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    assert len(calls) == len(ALL_CHECK_IDS)
+    assert "Statement" not in json.dumps(record)

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 import hashlib
+import json
 from typing import Any
 
 from .authorization_keys import canonical_bytes
@@ -57,6 +58,18 @@ def _s3_arn(uri: str) -> str:
 def _bucket_arn(uri: str) -> str:
     location = parse_s3_uri(uri.rstrip("/") + "/marker")
     return f"arn:aws:s3:::{location.bucket}"
+
+
+def _resource_policy_sha256(resource_policy: Mapping[str, Any] | None) -> str | None:
+    if resource_policy is None:
+        return None
+    if not isinstance(resource_policy, Mapping):
+        raise CloudManifestError("IAM resource policy must be a JSON object")
+    try:
+        payload = canonical_bytes(dict(resource_policy))
+    except (TypeError, ValueError) as exc:
+        raise CloudManifestError("IAM resource policy is not canonical JSON") from exc
+    return hashlib.sha256(payload).hexdigest()
 
 
 def expected_checks(
@@ -116,6 +129,7 @@ def _matrix_payload(
     effective_policy_sha256: str,
     checks: tuple[Mapping[str, str], ...],
     observed: Mapping[str, str],
+    resource_policy: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     rows: list[dict[str, str]] = []
     for check in checks:
@@ -144,6 +158,8 @@ def _matrix_payload(
         "effective_policy_sha256": _digest(
             effective_policy_sha256, field="effective IAM policy"
         ),
+        "resource_policy_present": resource_policy is not None,
+        "resource_policy_sha256": _resource_policy_sha256(resource_policy),
         "checks": rows,
         "all_expected_decisions_match": all(
             row["expected"] == row["observed"] for row in rows
@@ -183,6 +199,16 @@ def validate_iam_simulation_matrix(
         expected_policy_sha256, field="effective IAM policy"
     ):
         raise CloudManifestError("IAM simulation policy hash differs from authority")
+    resource_policy_present = record.get("resource_policy_present")
+    if not isinstance(resource_policy_present, bool):
+        raise CloudManifestError("IAM simulation lacks resource-policy presence evidence")
+    resource_policy_sha256 = record.get("resource_policy_sha256")
+    if resource_policy_present:
+        _digest(resource_policy_sha256, field="IAM resource policy")
+    elif resource_policy_sha256 is not None:
+        raise CloudManifestError(
+            "IAM simulation records a resource-policy digest without a policy"
+        )
     checks = expected_checks(
         input_paths=plan.get("input_paths", {}),
         output_root=str(plan.get("output_path", "")),
@@ -220,6 +246,7 @@ def run_iam_simulation(
     plan: Mapping[str, Any],
     action_id: str,
     expected_policy_sha256: str,
+    resource_policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run one exact IAM simulation per expected action/resource pair."""
 
@@ -231,8 +258,18 @@ def run_iam_simulation(
         output_root=str(plan.get("output_path", "")),
     )
     observed: dict[str, str] = {}
+    resource_policy_json: str | None = None
+    if resource_policy is not None:
+        if not isinstance(resource_policy, Mapping):
+            raise CloudManifestError("IAM resource policy must be a JSON object")
+        try:
+            resource_policy_json = json.dumps(
+                dict(resource_policy), sort_keys=True, separators=(",", ":")
+            )
+        except (TypeError, ValueError) as exc:
+            raise CloudManifestError("IAM resource policy is not JSON-serializable") from exc
     for check in checks:
-        response = call(
+        arguments = [
             "iam",
             "simulate-principal-policy",
             "--policy-source-arn",
@@ -241,7 +278,10 @@ def run_iam_simulation(
             check["action"],
             "--resource-arns",
             check["resource_arn"],
-        )
+        ]
+        if resource_policy_json is not None:
+            arguments.extend(("--resource-policy", resource_policy_json))
+        response = call(*arguments)
         results = response.get("EvaluationResults", []) if isinstance(response, Mapping) else []
         if not isinstance(results, list) or len(results) != 1 or not isinstance(results[0], Mapping):
             raise CloudManifestError(f"IAM simulation returned an invalid result for {check['id']}")
@@ -263,6 +303,7 @@ def run_iam_simulation(
         effective_policy_sha256=expected_policy_sha256,
         checks=checks,
         observed=observed,
+        resource_policy=resource_policy,
     )
     record = _with_digest(payload)
     return validate_iam_simulation_matrix(

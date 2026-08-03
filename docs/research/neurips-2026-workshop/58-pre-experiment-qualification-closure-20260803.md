@@ -102,6 +102,29 @@ Focused provider-free IAM, runner, receipt, and schema regressions pass. This
 was a source/readiness repair only: it did not create AWS resources, relaunch
 action-011, or cross the official P0/Step 4B scientific boundary.
 
+## Concrete seam and policy-source repair after the second audit
+
+The next adversarial pass found and repaired four executable-path gaps without
+launching AWS: the concrete Batch submit now sends and CloudTrail-verifies the
+3,600-second attempt timeout; IAM simulation retrieves the real S3 bucket
+policy and includes its canonical policy bytes in every simulation while
+retaining only a sanitized digest; the runner independently fetches the live
+KMS Ed25519 public key, matches it to the committed registry, and verifies both
+authority signatures; and the authoritative spend ledger is part of the
+action-freshness check. The future dual-L40S signing package now binds the
+exact saved-plan/show/composite bytes together with the action policy hash,
+immutable image digest, four-AZ subnet map, output prefix, fresh projection,
+action id, and zero-retry limit.
+
+The Terraform worker inline policy was also repaired at source: its S3
+permissions are five exact fixture-input `GetObject` resources and two exact
+worker-indexed raw-output `PutObject` resources, with no `ListBucket`, output
+read, delete, decrypt, IAM, wildcard-resource, or multipart-abort grant. The
+unrelated DynamoDB and managed role policies remain intact. Focused cloud,
+signing, schema, and Terraform regressions pass. These changes improve the
+next fresh qualification package; they do not alter the sealed action-011
+no-go receipt or authorize a retry.
+
 ## Remaining blockers before the separately authorized official study
 
 1. The dual-L40S qualification is not passed. Action 011 is exhausted; any

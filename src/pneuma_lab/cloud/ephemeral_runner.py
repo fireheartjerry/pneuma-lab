@@ -8,12 +8,18 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+import base64
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import time
 from typing import Any, Protocol
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.exceptions import InvalidSignature
 
 from .ephemeral_qualification import (
     MAX_RETRIES,
@@ -24,7 +30,11 @@ from .ephemeral_qualification import (
 )
 from .errors import CloudManifestError
 from .preparation_admission import require_preparation_admission
-from .authorization_keys import canonical_bytes
+from .authorization_keys import (
+    canonical_bytes,
+    signed_body,
+    validate_key_registry,
+)
 from .qualification_execution import (
     AwsCliAdapter as ObjectAwsCliAdapter,
     BatchAdmissionError,
@@ -66,6 +76,20 @@ REQUIRED_ABSENCE_KEYS = frozenset(
     }
 )
 TERMINAL_BATCH_JOB_STATUSES = frozenset({"SUCCEEDED", "FAILED"})
+ABSENT_PROVIDER_ERROR_CODES = frozenset(
+    {
+        "ResourceNotFoundException",
+        "JobQueueNotFoundException",
+        "ComputeEnvironmentNotFoundException",
+        "InvalidLaunchTemplateName.NotFoundException",
+        "InvalidGroup.NotFound",
+        "InvalidInstanceID.NotFound",
+        "InvalidVolume.NotFound",
+        "InvalidNetworkInterfaceID.NotFound",
+        "NoSuchBucketPolicy",
+        "NoSuchEntity",
+    }
+)
 
 
 class QualificationExecutionError(CloudManifestError):
@@ -77,7 +101,11 @@ class QualificationExecutionError(CloudManifestError):
 
 
 def require_fresh_qualification_action(
-    action_id: str, *, evidence_root: Path, receipt_path: Path | None = None
+    action_id: str,
+    *,
+    evidence_root: Path,
+    receipt_path: Path | None = None,
+    ledger_path: Path | None = None,
 ) -> None:
     """Refuse action IDs already represented in retained qualification evidence."""
 
@@ -98,6 +126,19 @@ def require_fresh_qualification_action(
         raise CloudManifestError(
             "qualification receipt path already exists; refusing to overwrite evidence"
         )
+    if ledger_path is not None:
+        if not ledger_path.is_file():
+            raise CloudManifestError(
+                "qualification freshness requires the authoritative spend ledger"
+            )
+        ledger_text = ledger_path.read_text(encoding="utf-8")
+        if re.search(
+            rf"(?<![a-z0-9-]){re.escape(action_id)}(?![a-z0-9-])",
+            ledger_text,
+        ):
+            raise CloudManifestError(
+                "qualification action id is already represented in the spend ledger"
+            )
 
 
 class QualificationProvider(Protocol):
@@ -136,6 +177,54 @@ def _json_result(result: subprocess.CompletedProcess[bytes]) -> Any:
         return json.loads(result.stdout.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise CloudManifestError("provider subprocess returned invalid JSON") from exc
+
+
+def _provider_error_code(result: subprocess.CompletedProcess[bytes]) -> str | None:
+    """Extract only an AWS CLI structured error code from stderr."""
+
+    detail = result.stderr.decode("utf-8", errors="replace").strip()
+    match = re.search(r"\(([A-Za-z0-9_.]+)\)", detail)
+    if match is not None:
+        return match.group(1)
+    match = re.match(r"\s*([A-Za-z0-9_.]+):", detail)
+    return match.group(1) if match is not None else None
+
+
+def _validate_kms_verification(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate the sanitized live KMS verification receipt and its digest."""
+
+    required = {
+        "signing_algorithm",
+        "envelope_signature_valid",
+        "admission_signature_valid",
+        "key_id_sha256",
+        "registry_key_id",
+        "public_key_sha256",
+        "verification_sha256",
+    }
+    if not isinstance(record, Mapping) or set(record) != required:
+        raise CloudManifestError("KMS verification evidence has an unregistered shape")
+    if (
+        record["signing_algorithm"] != "ED25519_SHA_512"
+        or record["envelope_signature_valid"] is not True
+        or record["admission_signature_valid"] is not True
+    ):
+        raise CloudManifestError("live KMS verification is not green")
+    for field in ("key_id_sha256", "public_key_sha256"):
+        value = record[field]
+        if (
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+        ):
+            raise CloudManifestError(f"KMS verification {field} is not a digest")
+    if not isinstance(record["registry_key_id"], str) or not record["registry_key_id"]:
+        raise CloudManifestError("KMS verification lacks its registry key id")
+    unsigned = {key: value for key, value in record.items() if key != "verification_sha256"}
+    expected = hashlib.sha256(canonical_bytes(unsigned)).hexdigest()
+    if record["verification_sha256"] != expected:
+        raise CloudManifestError("KMS verification digest is not derived from its bytes")
+    return dict(record)
 
 
 class TerraformAdapter:
@@ -457,12 +546,124 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
     ) -> Mapping[str, Any]:
         """Run the exact action/resource IAM matrix before any apply."""
 
+        output = parse_s3_uri(str(plan["output_path"]).rstrip("/") + "/marker")
+        policy_response = self._call_absence(
+            "s3api",
+            "get-bucket-policy",
+            "--bucket",
+            output.bucket,
+            missing_codes=frozenset({"NoSuchBucketPolicy"}),
+        )
+        resource_policy: Mapping[str, Any] | None = None
+        if policy_response:
+            policy_text = policy_response.get("Policy")
+            if not isinstance(policy_text, str) or not policy_text:
+                raise CloudManifestError(
+                    "S3 bucket-policy response lacks its JSON policy document"
+                )
+            try:
+                decoded_policy = json.loads(policy_text)
+            except json.JSONDecodeError as exc:
+                raise CloudManifestError(
+                    "S3 bucket-policy response is not valid JSON"
+                ) from exc
+            if not isinstance(decoded_policy, Mapping):
+                raise CloudManifestError("S3 bucket policy must be a JSON object")
+            resource_policy = decoded_policy
         return run_iam_simulation(
             self._call,
             plan=plan,
             action_id=action_id,
             expected_policy_sha256=expected_policy_sha256,
+            resource_policy=resource_policy,
         )
+
+    def capture_kms_verification(
+        self,
+        *,
+        envelope: Mapping[str, Any],
+        admission: Mapping[str, Any],
+        key_registry: Mapping[str, Any],
+        authority: Mapping[str, Any],
+    ) -> Mapping[str, Any]:
+        """Verify the live KMS public key and both signed authority records."""
+
+        kms_authority = authority.get("kms")
+        if not isinstance(kms_authority, Mapping):
+            raise CloudManifestError("authority evidence lacks KMS binding")
+        key_alias = kms_authority.get("key_alias")
+        registry_key_id = kms_authority.get("registry_key_id")
+        if not isinstance(key_alias, str) or not key_alias:
+            raise CloudManifestError("authority KMS binding lacks its key alias")
+        if not isinstance(registry_key_id, str) or not registry_key_id:
+            raise CloudManifestError("authority KMS binding lacks its registry key id")
+        registry = validate_key_registry(key_registry)
+        registered = next(
+            (key for key in registry["keys"] if key["key_id"] == registry_key_id),
+            None,
+        )
+        if not isinstance(registered, Mapping) or registered.get("status") != "active":
+            raise CloudManifestError("authority KMS key is not active in the committed registry")
+        public_response = self._call(
+            "kms", "get-public-key", "--key-id", key_alias
+        )
+        if not isinstance(public_response, Mapping):
+            raise CloudManifestError("live KMS public-key response is not an object")
+        signing_algorithms = public_response.get("SigningAlgorithms")
+        if (
+            public_response.get("KeyUsage") != "SIGN_VERIFY"
+            or not isinstance(signing_algorithms, list)
+            or "ED25519_SHA_512" not in signing_algorithms
+        ):
+            raise CloudManifestError("live KMS key is not an Ed25519 SIGN_VERIFY key")
+        key_id = public_response.get("KeyId")
+        encoded_public = public_response.get("PublicKey")
+        if not isinstance(key_id, str) or not key_id:
+            raise CloudManifestError("live KMS public-key response lacks its key id")
+        if not isinstance(encoded_public, str) or not encoded_public:
+            raise CloudManifestError("live KMS public-key response lacks its public key")
+        try:
+            der_public = base64.b64decode(encoded_public, validate=True)
+            loaded_public = serialization.load_der_public_key(der_public)
+        except (ValueError, TypeError) as exc:
+            raise CloudManifestError("live KMS public key is not valid DER") from exc
+        if not isinstance(loaded_public, Ed25519PublicKey):
+            raise CloudManifestError("live KMS public key is not Ed25519")
+        raw_public = loaded_public.public_bytes(
+            serialization.Encoding.Raw, serialization.PublicFormat.Raw
+        )
+        if raw_public.hex() != registered.get("public_key_hex"):
+            raise CloudManifestError(
+                "live KMS public key differs from the committed approver registry"
+            )
+        for label, record in (("envelope", envelope), ("admission", admission)):
+            approval = record.get("human_authorization")
+            if not isinstance(approval, Mapping):
+                raise CloudManifestError(f"{label} lacks its human authorization")
+            if approval.get("key_id") != registry_key_id:
+                raise CloudManifestError(f"{label} is signed by the wrong registry key")
+            signature = approval.get("signature_ed25519")
+            if not isinstance(signature, str):
+                raise CloudManifestError(f"{label} lacks its Ed25519 signature")
+            try:
+                signature_bytes = bytes.fromhex(signature)
+                if len(signature_bytes) != 64:
+                    raise ValueError("signature length")
+                loaded_public.verify(signature_bytes, canonical_bytes(signed_body(record)))
+            except (ValueError, TypeError, InvalidSignature) as exc:
+                raise CloudManifestError(f"live KMS verification failed for {label}") from exc
+        verification = {
+            "signing_algorithm": "ED25519_SHA_512",
+            "envelope_signature_valid": True,
+            "admission_signature_valid": True,
+            "key_id_sha256": hashlib.sha256(key_id.encode("utf-8")).hexdigest(),
+            "registry_key_id": registry_key_id,
+            "public_key_sha256": hashlib.sha256(raw_public).hexdigest(),
+        }
+        verification["verification_sha256"] = hashlib.sha256(
+            canonical_bytes(verification)
+        ).hexdigest()
+        return _validate_kms_verification(verification)
 
     def _call(self, *args: str) -> Any:
         result = self.run(
@@ -481,7 +682,11 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         )
         return _json_result(result)
 
-    def _call_absence(self, *args: str) -> Any:
+    def _call_absence(
+        self,
+        *args: str,
+        missing_codes: frozenset[str] = ABSENT_PROVIDER_ERROR_CODES,
+    ) -> Any:
         result = self.run(
             [
                 "aws",
@@ -497,20 +702,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             stderr=subprocess.PIPE,
         )
         if result.returncode != 0:
-            detail = result.stderr.decode("utf-8", errors="replace")
-            normalized = detail.lower()
-            missing = any(
-                marker in detail
-                for marker in (
-                    "ResourceNotFoundException",
-                    "JobQueueNotFoundException",
-                    "ComputeEnvironmentNotFoundException",
-                )
-            ) or (
-                "clientexception" in normalized
-                and ("does not exist" in normalized or "not found" in normalized)
-            )
-            if missing:
+            if _provider_error_code(result) in missing_codes:
                 return {}
             raise CloudManifestError("provider absence read failed")
         return _json_result(result)
@@ -609,6 +801,12 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             '{"size":2}',
             "--retry-strategy",
             '{"attempts":1}',
+            "--timeout",
+            json.dumps(
+                {"attemptDurationSeconds": timeout_seconds},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
             "--tags",
             json.dumps(dict(tags), sort_keys=True),
         )
@@ -675,9 +873,15 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         request = request if isinstance(request, Mapping) else {}
         array_properties = request.get("arrayProperties") or {}
         retry_strategy = request.get("retryStrategy") or request.get("retry_strategy") or {}
+        timeout = request.get("timeout") or request.get("attemptDurationSeconds")
         if not isinstance(array_properties, Mapping) or not isinstance(retry_strategy, Mapping):
             raise CloudManifestError("CloudTrail SubmitJob event lacks fixed array bindings")
-        if array_properties.get("size") != 2 or retry_strategy.get("attempts") != 1:
+        if (
+            array_properties.get("size") != 2
+            or retry_strategy.get("attempts") != 1
+            or not isinstance(timeout, Mapping)
+            or timeout.get("attemptDurationSeconds") != 3600
+        ):
             raise CloudManifestError("CloudTrail SubmitJob event differs from the fixed retry contract")
         event_id = event.get("EventId")
         event_time = event.get("EventTime")
@@ -999,6 +1203,18 @@ def require_account_plan(
     # substitute the instance-profile ARN.
     parsed["worker_role_arn"] = attached_role["Arn"]
     parsed["worker_role_name"] = attached_role.get("RoleName")
+    parsed["subnet_az_map"] = tuple(
+        {
+            "availability_zone": row["AvailabilityZone"],
+            "subnet_id": row["SubnetId"],
+        }
+        for row in sorted(
+            provider_bindings["subnets"],
+            key=lambda value: str(value.get("AvailabilityZone")),
+        )
+    )
+    parsed["image_digest"] = parsed["image"].rsplit("@", 1)[1]
+    parsed["output_prefix"] = parsed["output_path"]
     if ledger_path is not None:
         derive_spend_history_binding(ledger_path)
     saved_plan_sha256 = plan.get("saved_plan_sha256")
@@ -1081,6 +1297,7 @@ def execute(
     provider: QualificationProvider,
     terraform: TerraformQualification,
     verify_authority: Callable[..., Any] = require_preparation_admission,
+    authority_evidence: Mapping[str, Any] | None = None,
 ) -> Mapping[str, Any]:
     """Run the ordered qualification lifecycle through injected seams."""
 
@@ -1093,6 +1310,7 @@ def execute(
             config.action_id,
             evidence_root=config.action_evidence_root,
             receipt_path=config.receipt_path,
+            ledger_path=ledger_path,
         )
     parsed_plan = require_account_plan(
         account_plan,
@@ -1135,6 +1353,13 @@ def execute(
         expected_max_retries=MAX_RETRIES,
         spend_history_sha256=spend_history_sha256,
     )
+    if not isinstance(authority_result, Mapping):
+        raise CloudManifestError("authority verifier did not return an object")
+    execution_authority = (
+        authority_evidence if authority_evidence is not None else authority_result
+    )
+    if not isinstance(execution_authority, Mapping):
+        raise CloudManifestError("execution authority evidence is not an object")
 
     tags = dict(QUALIFICATION_TAGS)
     tags["QualificationAction"] = config.action_id
@@ -1146,6 +1371,7 @@ def execute(
     evidence: Mapping[str, Any] | None = None
     recovery: Mapping[str, Any] | None = None
     iam_simulation: Mapping[str, Any] | None = None
+    kms_verification: Mapping[str, Any] | None = None
     launch: dict[str, Any] = {
         "submit_count_proven": 1,
         "array_size": 2,
@@ -1156,7 +1382,7 @@ def execute(
     try:
         if config.require_receipt_evidence:
             capture_iam = getattr(provider, "capture_iam_simulation", None)
-            expected_policy_sha256 = authority_result.get("iam_policy_sha256")
+            expected_policy_sha256 = execution_authority.get("iam_policy_sha256")
             if not callable(capture_iam):
                 raise CloudManifestError(
                     "concrete qualification provider lacks live IAM simulation"
@@ -1178,6 +1404,20 @@ def execute(
                 plan=parsed_plan,
                 expected_policy_sha256=expected_policy_sha256,
             )
+            capture_kms = getattr(provider, "capture_kms_verification", None)
+            if not callable(capture_kms):
+                raise CloudManifestError(
+                    "concrete qualification provider lacks live KMS verification"
+                )
+            observed_kms = capture_kms(
+                envelope=envelope,
+                admission=admission,
+                key_registry=key_registry,
+                authority=execution_authority,
+            )
+            if not isinstance(observed_kms, Mapping):
+                raise CloudManifestError("KMS verification evidence is not an object")
+            kms_verification = _validate_kms_verification(observed_kms)
         terraform.apply(lock_timeout=config.lock_timeout, tags=tags)
         ready = provider.wait_ready(tags)
         parent_job_id = provider.submit_array(
@@ -1266,6 +1506,7 @@ def execute(
             "evidence": evidence,
             "recovery": recovery,
             "iam_simulation": iam_simulation,
+            "kms_verification": kms_verification,
             "launch": launch,
             "failure": failure,
             "cleanup_failure": cleanup_failure,
@@ -1290,6 +1531,7 @@ def execute(
         "evidence": evidence,
         "recovery": recovery,
         "iam_simulation": iam_simulation,
+        "kms_verification": kms_verification,
         "launch": launch,
         "failure": failure,
         "cleanup_failure": cleanup_failure,
@@ -1313,6 +1555,7 @@ def execute(
         "evidence": evidence,
         "recovery": recovery,
         "iam_simulation": iam_simulation,
+        "kms_verification": kms_verification,
         "absence": dict(absence),
         "plan": dict(parsed_plan),
         "authority": authority_result,

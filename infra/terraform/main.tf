@@ -62,7 +62,8 @@ resource "aws_vpc_endpoint" "s3" {
 }
 
 locals {
-  interface_endpoints = toset(["ecr.api", "ecr.dkr", "logs", "ssm", "ssmmessages", "ec2messages"])
+  interface_endpoints           = toset(["ecr.api", "ecr.dkr", "logs", "ssm", "ssmmessages", "ec2messages"])
+  qualification_artifact_prefix = "${var.artifact_prefix}/qualification/${var.qualification_action_id}"
   qualification_tags = merge(var.common_tags, {
     Qualification         = "fixed-admission"
     QualificationActionId = var.qualification_action_id
@@ -321,7 +322,7 @@ resource "aws_batch_job_definition" "gpu_worker" {
     environment = [
       { name = "QUALIFICATION_CODE", value = var.qualification_code },
       { name = "QUALIFICATION_ACTION_ID", value = var.qualification_action_id },
-      { name = "QUALIFICATION_ARTIFACT_PREFIX", value = "s3://${aws_s3_bucket.artifacts.id}/${var.artifact_prefix}/${var.qualification_action_id}" },
+      { name = "QUALIFICATION_ARTIFACT_PREFIX", value = "s3://${aws_s3_bucket.artifacts.id}/${local.qualification_artifact_prefix}/outputs/" },
     ]
     resourceRequirements = [
       { type = "GPU", value = "1" },

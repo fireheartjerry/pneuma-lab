@@ -60,6 +60,21 @@ also rejects reuse of action IDs already represented in retained evidence and
 refuses receipt overwrite. Focused IAM/runner/receipt/schema regressions pass.
 No AWS mutation, relaunch, or scientific workload occurred.
 
+## Second executable-path seam repair
+
+The follow-up audit repaired the concrete Batch timeout binding, live S3
+bucket-policy-aware IAM simulation, independent live KMS public-key/signature
+verification, authoritative spend-ledger freshness, and future qualification
+package binding. The package now binds the exact plan bytes, action policy
+hash, immutable image, four-AZ map, action-scoped output prefix, fresh
+sub-USD-100 projection, action id, and zero retries. The Terraform worker
+policy source now grants only the five exact input reads and two exact raw
+output writes required by the fixed publisher; no S3 list/read/delete/decrypt,
+wildcard, or unnecessary multipart permission remains in that inline policy.
+Focused cloud, signer, schema, and Terraform tests pass. This is readiness
+repair only: the sealed action-011 terminal no-go is unchanged and no AWS
+resource or scientific workload was launched.
+
 ## Remaining gates before official P0 / Step 4B
 
 1. The dual-L40S qualification is not passed; action-011 is exhausted. No

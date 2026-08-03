@@ -76,21 +76,25 @@ resource "aws_iam_role_policy_attachment" "ssm_worker" {
 
 data "aws_iam_policy_document" "worker" {
   statement {
-    sid       = "ArtifactPrefix"
-    effect    = "Allow"
-    actions   = ["s3:GetObject", "s3:PutObject", "s3:AbortMultipartUpload"]
-    resources = ["${aws_s3_bucket.artifacts.arn}/${var.artifact_prefix}/*"]
+    sid     = "QualificationFixtureInputs"
+    effect  = "Allow"
+    actions = ["s3:GetObject"]
+    resources = [
+      "${aws_s3_bucket.artifacts.arn}/${local.qualification_artifact_prefix}/inputs/protocol.json",
+      "${aws_s3_bucket.artifacts.arn}/${local.qualification_artifact_prefix}/inputs/architecture.json",
+      "${aws_s3_bucket.artifacts.arn}/${local.qualification_artifact_prefix}/inputs/authorization.json",
+      "${aws_s3_bucket.artifacts.arn}/${local.qualification_artifact_prefix}/inputs/image.json",
+      "${aws_s3_bucket.artifacts.arn}/${local.qualification_artifact_prefix}/inputs/input-lock.json",
+    ]
   }
   statement {
-    sid       = "ArtifactList"
-    effect    = "Allow"
-    actions   = ["s3:ListBucket"]
-    resources = [aws_s3_bucket.artifacts.arn]
-    condition {
-      test     = "StringLike"
-      variable = "s3:prefix"
-      values   = ["${var.artifact_prefix}/*"]
-    }
+    sid     = "QualificationRawOutputs"
+    effect  = "Allow"
+    actions = ["s3:PutObject"]
+    resources = [
+      "${aws_s3_bucket.artifacts.arn}/${local.qualification_artifact_prefix}/outputs/worker-0/raw-measurement.json",
+      "${aws_s3_bucket.artifacts.arn}/${local.qualification_artifact_prefix}/outputs/worker-1/raw-measurement.json",
+    ]
   }
   statement {
     sid       = "ReadLeaseOnly"

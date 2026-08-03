@@ -35,6 +35,17 @@ any capacity/image/runtime/receipt/teardown failure, and execute destroy plus
 fresh absence verification. It must not run P0, Step 4B, a pilot, benchmark,
 shard, unblind, analysis, or claim promotion.
 
+The concrete future admission path also sends and verifies the per-submit
+3,600-second Batch timeout, supplies the live S3 bucket policy to all 15 IAM
+simulations, independently verifies the live KMS Ed25519 key and both signed
+authority records, and rejects action IDs already present in the authoritative
+spend ledger. Its future signed package binds the exact saved-plan/show/
+composite bytes, action-specific policy hash, image digest, four-AZ map,
+action-scoped output prefix, fresh projection, action id, and zero retries.
+The worker inline policy source grants only the five exact fixture reads and
+two exact raw-output writes; unrelated DynamoDB and managed role policies are
+preserved.
+
 The worker fixture is explicitly CUDA-only: it checks one real L40S, exercises
 the two registered tensor-allocation rungs, and emits deterministic tool/parity
 records. It does not import vLLM, download weights, load a model, or execute a

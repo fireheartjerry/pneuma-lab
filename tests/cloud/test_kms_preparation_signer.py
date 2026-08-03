@@ -106,3 +106,40 @@ def test_execution_manifest_rejects_same_show_document_with_different_bytes(
     monkeypatch.setattr(sign_preparation_action.subprocess, "run", fake_run)
     with pytest.raises(ValueError, match="show bytes"):
         sign_preparation_action.execution_manifest_digest(plan)
+
+
+def test_qualification_signing_binding_covers_policy_image_az_projection_and_output() -> None:
+    action_id = "dual-l40s-qualification-012"
+    plan = {
+        "action_class": "qualification_audit",
+        "action_id": action_id,
+        "iam_policy_sha256": "a" * 64,
+        "image_digest": "sha256:" + "b" * 64,
+        "subnet_az_map": [
+            {"availability_zone": "us-east-1d", "subnet_id": "subnet-d"},
+            {"availability_zone": "us-east-1a", "subnet_id": "subnet-a"},
+            {"availability_zone": "us-east-1c", "subnet_id": "subnet-c"},
+            {"availability_zone": "us-east-1b", "subnet_id": "subnet-b"},
+        ],
+        "output_prefix": f"s3://bucket/runs/qualification/{action_id}/outputs/",
+        "projected_cost_usd": 4.4842,
+        "max_retries": 0,
+    }
+    binding = sign_preparation_action.build_qualification_binding(plan)
+    assert binding == {
+        "action_id": action_id,
+        "iam_policy_sha256": "a" * 64,
+        "image_digest": "sha256:" + "b" * 64,
+        "subnet_az_map": [
+            {"availability_zone": "us-east-1a", "subnet_id": "subnet-a"},
+            {"availability_zone": "us-east-1b", "subnet_id": "subnet-b"},
+            {"availability_zone": "us-east-1c", "subnet_id": "subnet-c"},
+            {"availability_zone": "us-east-1d", "subnet_id": "subnet-d"},
+        ],
+        "output_prefix": f"s3://bucket/runs/qualification/{action_id}/outputs/",
+        "projected_cost_usd": 4.4842,
+        "max_retries": 0,
+    }
+    plan["max_retries"] = 1
+    with pytest.raises(ValueError, match="zero retries"):
+        sign_preparation_action.build_qualification_binding(plan)

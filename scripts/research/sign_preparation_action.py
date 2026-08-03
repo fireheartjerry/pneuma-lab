@@ -6,8 +6,10 @@ import argparse
 import base64
 import hashlib
 import json
+import math
 import subprocess
 import tempfile
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -84,6 +86,104 @@ def execution_manifest_digest(plan: dict[str, Any]) -> str:
     if observed_show_sha != show_sha:
         raise ValueError("Terraform show bytes do not match the signing plan")
     return terraform_plan_binding_digest(saved_sha, show_sha)
+
+
+def build_qualification_binding(plan: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Bind every high-risk qualification input into the signed package."""
+
+    if plan.get("action_class") != "qualification_audit" or not str(
+        plan.get("action_id", "")
+    ).startswith("dual-l40s-qualification-"):
+        return None
+    nested = plan.get("bindings")
+    nested = nested if isinstance(nested, Mapping) else {}
+    iam = plan.get("iam")
+    iam = iam if isinstance(iam, Mapping) else {}
+    action_id = plan.get("action_id")
+    policy_sha256 = (
+        plan.get("iam_policy_sha256")
+        or nested.get("iam_policy_sha256")
+        or iam.get("policy_sha256")
+        or iam.get("effective_policy_sha256")
+    )
+    image_digest = plan.get("image_digest") or nested.get("image_digest")
+    if image_digest is None:
+        image = plan.get("image") or plan.get("gpu_worker_image")
+        if isinstance(image, str) and "@sha256:" in image:
+            image_digest = image.rsplit("@", 1)[1]
+    subnet_az_map = (
+        plan.get("subnet_az_map")
+        or nested.get("subnet_az_map")
+        or plan.get("four_az_map")
+    )
+    output_prefix = (
+        plan.get("output_prefix")
+        or nested.get("output_prefix")
+        or plan.get("output_path")
+    )
+    projected = plan.get("projected_cost_usd")
+    max_retries = plan.get("max_retries")
+    if not isinstance(action_id, str) or not action_id:
+        raise ValueError("qualification signing plan lacks action_id")
+    if (
+        not isinstance(policy_sha256, str)
+        or len(policy_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in policy_sha256)
+    ):
+        raise ValueError("qualification signing plan lacks its exact IAM policy hash")
+    if (
+        not isinstance(image_digest, str)
+        or len(image_digest) != 71
+        or not image_digest.startswith("sha256:")
+        or any(character not in "0123456789abcdef" for character in image_digest[7:])
+    ):
+        raise ValueError("qualification signing plan lacks an immutable image digest")
+    if not isinstance(subnet_az_map, Sequence) or isinstance(
+        subnet_az_map, (str, bytes, bytearray)
+    ):
+        raise ValueError("qualification signing plan lacks its four-AZ subnet map")
+    normalized_subnets: list[dict[str, str]] = []
+    for row in subnet_az_map:
+        if not isinstance(row, Mapping):
+            raise ValueError("qualification subnet map contains a non-object")
+        az = row.get("availability_zone")
+        subnet_id = row.get("subnet_id")
+        if not isinstance(az, str) or not isinstance(subnet_id, str) or not subnet_id:
+            raise ValueError("qualification subnet map contains an invalid binding")
+        normalized_subnets.append({"availability_zone": az, "subnet_id": subnet_id})
+    normalized_subnets.sort(key=lambda row: row["availability_zone"])
+    if [row["availability_zone"] for row in normalized_subnets] != [
+        "us-east-1a",
+        "us-east-1b",
+        "us-east-1c",
+        "us-east-1d",
+    ] or len({row["subnet_id"] for row in normalized_subnets}) != 4:
+        raise ValueError("qualification signing plan must bind four distinct us-east-1 AZ subnets")
+    if (
+        not isinstance(output_prefix, str)
+        or not output_prefix.startswith("s3://")
+        or not output_prefix.rstrip("/").endswith(f"/{action_id}/outputs")
+    ):
+        raise ValueError("qualification signing plan lacks its action-scoped output prefix")
+    if type(max_retries) is not int or max_retries != 0:
+        raise ValueError("qualification signing plan must bind zero retries")
+    if (
+        not isinstance(projected, (int, float))
+        or isinstance(projected, bool)
+        or not math.isfinite(float(projected))
+        or float(projected) <= 0
+        or float(projected) >= 100
+    ):
+        raise ValueError("qualification signing plan lacks a fresh sub-USD-100 projection")
+    return {
+        "action_id": action_id,
+        "iam_policy_sha256": policy_sha256,
+        "image_digest": image_digest,
+        "subnet_az_map": normalized_subnets,
+        "output_prefix": output_prefix,
+        "projected_cost_usd": float(projected),
+        "max_retries": 0,
+    }
 
 
 def _aws_json(arguments: list[str]) -> dict[str, Any]:
@@ -216,6 +316,9 @@ def main() -> int:
                "envelope_body_sha256": authorization_body_digest(envelope),
                "admission_body_sha256": authorization_body_digest(admission),
                "envelope": envelope, "admission": admission}
+    qualification_binding = build_qualification_binding(plan)
+    if qualification_binding is not None:
+        package["qualification_binding"] = qualification_binding
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(canonical_bytes(package) + b"\n")
     print(json.dumps({key: package[key] for key in ("plan_sha256", "envelope_body_sha256", "admission_body_sha256")}))

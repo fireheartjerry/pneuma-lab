@@ -98,6 +98,7 @@ def main() -> int:
             args.action_id,
             evidence_root=evidence_root,
             receipt_path=args.receipt,
+            ledger_path=args.ledger,
         )
         terraform = TerraformAdapter(subprocess.run)
         account_plan = terraform.load_account_plan(args.plan)
@@ -142,6 +143,7 @@ def main() -> int:
             account_plan=account_plan,
             provider=provider,
             terraform=terraform,
+            authority_evidence=authority,
         )
         receipt = build_ephemeral_qualification_receipt(
             result,

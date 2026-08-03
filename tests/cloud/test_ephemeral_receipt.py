@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
 from pneuma_lab.cloud.errors import CloudManifestError
+from pneuma_lab.cloud.authorization_keys import canonical_bytes
 from pneuma_lab.cloud.ephemeral_receipt import (
     build_ephemeral_qualification_receipt,
 )
@@ -23,6 +25,19 @@ RECEIPT = (
     / "docs/research/neurips-2026-workshop/evidence/"
     / "dual-l40s-qualification-011-execution-receipt-20260803.json"
 )
+
+
+def kms_verification_record() -> dict[str, object]:
+    record: dict[str, object] = {
+        "signing_algorithm": "ED25519_SHA_512",
+        "envelope_signature_valid": True,
+        "admission_signature_valid": True,
+        "key_id_sha256": "1" * 64,
+        "registry_key_id": "pneuma-kms-20260801-r1",
+        "public_key_sha256": "2" * 64,
+    }
+    record["verification_sha256"] = hashlib.sha256(canonical_bytes(record)).hexdigest()
+    return record
 
 
 def test_current_terminal_no_go_receipt_is_schema_bound() -> None:
@@ -117,6 +132,7 @@ def test_runner_receipt_builder_preserves_terminal_child_failure_evidence() -> N
             "parent_job_id": "parent",
             "plan": plan,
             "iam_simulation": iam_simulation,
+            "kms_verification": kms_verification_record(),
             "projected_cost_usd": 4.48,
             "launch": {
                 "cloudtrail_submit_job_event_id_sha256": "5" * 64,
@@ -162,4 +178,7 @@ def test_runner_receipt_builder_preserves_terminal_child_failure_evidence() -> N
         output_root=plan["output_path"],
     )
     assert receipt["status"] == "no_go"
+    assert receipt["authority"]["kms_verification_sha256"] == kms_verification_record()[
+        "verification_sha256"
+    ]
     assert receipt["no_go_reason"]["child_statuses"][0]["status_reason"] == "JobQueue deleted"

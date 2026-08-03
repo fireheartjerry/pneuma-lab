@@ -125,7 +125,8 @@
         "admission_signature_sha256": {"$ref": "#/$defs/digest"},
         "signature_algorithm": {"const": "ED25519_SHA_512"},
         "action_policy_sha256": {"$ref": "#/$defs/digest"},
-        "iam_simulation_matrix_sha256": {"$ref": "#/$defs/digest"}
+        "iam_simulation_matrix_sha256": {"$ref": "#/$defs/digest"},
+        "kms_verification_sha256": {"$ref": "#/$defs/digest"}
       },
       "additionalProperties": false
     },

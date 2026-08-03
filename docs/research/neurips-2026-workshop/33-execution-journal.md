@@ -6453,3 +6453,36 @@ post-launch terminal no-go. Tasks 6–10 remain
   remains the single exhausted launch and terminal no-go. No official P0/
   Step 4B experiment, benchmark/model workload, pilot, unblind, analysis, or
   claim promotion occurred.
+
+### EJ-20260803-dual-l40s-executable-seam-hardening-and-policy-source-repair
+
+- **Audit:** Three bounded read-only agent-session audits reviewed the actual
+  cloud seam, release continuity, and image/Terraform/authority path. The
+  strongest remaining findings were concrete: the CLI validated but did not
+  submit Batch's per-job timeout; IAM simulation ignored an effective S3
+  bucket policy; KMS verification relied on authority booleans rather than a
+  fresh live-key/signature check; action freshness did not scan the
+  authoritative ledger; and the Terraform worker policy source still granted
+  broad S3 access.
+- **Repair:** Batch submission now sends `--timeout` with exactly 3,600
+  seconds and CloudTrail evidence requires the same request field. The IAM
+  matrix fetches the real bucket policy, supplies it to all 15 simulations,
+  and retains only its canonical digest. The runner fetches the live KMS
+  public key, checks `SIGN_VERIFY`/`ED25519_SHA_512`, matches the committed
+  registry key, and verifies both authority signatures over canonical bodies.
+  Freshness now binds the spend ledger. The qualification signing package
+  binds the exact plan bytes, action policy hash, image digest, four-AZ map,
+  output prefix, projection, action id, and zero retries.
+- **Least privilege:** The Terraform worker inline policy now permits only
+  five exact action-scoped fixture-input `s3:GetObject` resources and two
+  exact worker-indexed raw-output `s3:PutObject` resources. `ListBucket`,
+  output reads, deletes, decrypt, IAM administration, wildcard resources, and
+  multipart abort are absent; unrelated DynamoDB and managed role policies
+  remain preserved.
+- **Validation/boundary:** Focused IAM, runner, receipt, KMS-signer, schema,
+  and Terraform regressions passed; Terraform formatting passed. The Task 6
+  and Task 7 continuity scripts and five-case Task 10 release gate were also
+  rechecked earlier in this slice. No AWS resource was created, no action was
+  relaunched, and no scientific workload or claim boundary changed. Action
+  011 remains the single exhausted post-launch terminal no-go with complete
+  teardown.

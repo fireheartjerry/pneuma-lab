@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import base64
 import hashlib
 import json
 from pathlib import Path
 import subprocess
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from pneuma_lab.cloud.authorization_keys import canonical_ledger_digest
-from pneuma_lab.cloud.authorization_keys import canonical_bytes
+from pneuma_lab.cloud.authorization_keys import canonical_bytes, signed_body
 from pneuma_lab.cloud.ephemeral_runner import (
     AwsCliAdapter,
     QualificationExecutionError,
@@ -43,6 +46,19 @@ ROLE_ARNS = {
 PROFILE_ARNS = {
     "pneuma-worker": "arn:aws:iam::123456789012:instance-profile/pneuma-worker"
 }
+
+
+def kms_verification_record() -> dict[str, object]:
+    record: dict[str, object] = {
+        "signing_algorithm": "ED25519_SHA_512",
+        "envelope_signature_valid": True,
+        "admission_signature_valid": True,
+        "key_id_sha256": "1" * 64,
+        "registry_key_id": "pneuma-kms-20260801-r1",
+        "public_key_sha256": "2" * 64,
+    }
+    record["verification_sha256"] = hashlib.sha256(canonical_bytes(record)).hexdigest()
+    return record
 
 
 def terraform_show(action_id: str = "qual-1", code: str = "signed-code") -> dict:
@@ -279,6 +295,10 @@ class FakeProvider(ReadOnlyProvider):
     def compile_fixture_evidence(self, evidence):
         return {0: {"worker_index": 0}, 1: {"worker_index": 1}}
 
+    def capture_kms_verification(self, *, envelope, admission, key_registry, authority):
+        self.calls.append("kms")
+        return kms_verification_record()
+
     def submit_array(self, *, size, timeout_seconds, attempts, tags):
         self.calls.append(f"submit:{size}:{timeout_seconds}:{attempts}")
         return "parent"
@@ -363,7 +383,14 @@ def authority(*args, **kwargs):
         parse_terraform_show(terraform_show())["terraform_show_sha256"],
     )
     assert kwargs["spend_history_sha256"] == canonical_ledger_digest(LEDGER)
-    return {"authorized": True, "iam_policy_sha256": "a" * 64}
+    return {
+        "authorized": True,
+        "iam_policy_sha256": "a" * 64,
+        "kms": {
+            "key_alias": "alias/pneuma-approver",
+            "registry_key_id": "pneuma-kms-20260801-r1",
+        },
+    }
 
 
 def test_runner_verifies_real_plan_and_executes_exact_two_children() -> None:
@@ -650,6 +677,161 @@ def test_concrete_provider_arguments_are_bound_to_the_saved_plan() -> None:
         provider.bind_qualification_plan(plan)
 
 
+def test_concrete_cli_iam_simulation_binds_the_live_bucket_policy() -> None:
+    plan = parse_terraform_show(terraform_show())
+    plan["worker_role_arn"] = ROLE_ARNS["pneuma-worker"]
+    policy = {
+        "Version": "2012-10-17",
+        "Statement": [{"Effect": "Deny", "Action": "s3:*", "Resource": "*"}],
+    }
+    checks = expected_checks(
+        input_paths=plan["input_paths"], output_root=plan["output_path"]
+    )
+    calls: list[list[str]] = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        if "get-bucket-policy" in argv:
+            return subprocess.CompletedProcess(
+                argv, 0, json.dumps({"Policy": json.dumps(policy)}).encode(), b""
+            )
+        action = argv[argv.index("--action-names") + 1]
+        resource = argv[argv.index("--resource-arns") + 1]
+        expected = next(
+            row
+            for row in checks
+            if row["action"] == action and row["resource_arn"] == resource
+        )
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            json.dumps(
+                {
+                    "EvaluationResults": [
+                        {
+                            "EvalActionName": action,
+                            "EvalResourceName": resource,
+                            "EvalDecision": (
+                                "allowed"
+                                if expected["expected"] == "allowed"
+                                else "implicitDeny"
+                            ),
+                        }
+                    ]
+                }
+            ).encode(),
+            b"",
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root=plan["output_path"],
+    )
+    record = adapter.capture_iam_simulation(
+        plan=plan,
+        action_id="qual-1",
+        expected_policy_sha256="a" * 64,
+    )
+    assert record["resource_policy_present"] is True
+    assert record["resource_policy_sha256"] == hashlib.sha256(
+        canonical_bytes(policy)
+    ).hexdigest()
+    iam_calls = [argv for argv in calls if "simulate-principal-policy" in argv]
+    assert len(iam_calls) == 15
+    assert all("--resource-policy" in argv for argv in iam_calls)
+    assert "arn:aws" not in json.dumps(record)
+
+
+def test_concrete_cli_kms_verification_checks_registry_and_both_signatures() -> None:
+    private = Ed25519PrivateKey.generate()
+    key_id = "arn:aws:kms:us-east-1:123456789012:key/live-key"
+    registry_key_id = "pneuma-kms-20260801-r1"
+    public_raw = private.public_key().public_bytes_raw()
+    registry = {
+        "record_kind": "cloud_approver_key_registry",
+        "schema_version": "0.1.0",
+        "frozen_timestamp": "2026-08-01T00:00:00Z",
+        "keys": [
+            {
+                "key_id": registry_key_id,
+                "approver_id": "jerry-mathos-ai",
+                "algorithm": "ed25519",
+                "public_key_hex": public_raw.hex(),
+                "not_before": "2026-08-01T00:00:00Z",
+                "not_after": "2027-08-01T00:00:00Z",
+                "status": "active",
+                "revoked_timestamp": None,
+                "revocation_reason": None,
+            }
+        ],
+    }
+
+    def signed_record(kind: str) -> dict[str, object]:
+        record: dict[str, object] = {
+            "record_kind": kind,
+            "schema_version": "0.1.0",
+            "human_authorization": {
+                "approver_id": "jerry-mathos-ai",
+                "key_id": registry_key_id,
+                "granted_timestamp": "2026-08-03T09:00:00Z",
+                "expires_timestamp": "2026-08-03T12:00:00Z",
+                "body_sha256": "0" * 64,
+                "signature_ed25519": "0" * 128,
+            },
+        }
+        body = canonical_bytes(signed_body(record))
+        record["human_authorization"]["body_sha256"] = hashlib.sha256(body).hexdigest()
+        record["human_authorization"]["signature_ed25519"] = private.sign(body).hex()
+        return record
+
+    public_der = private.public_key().public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+    def run(argv, **kwargs):
+        assert "get-public-key" in argv
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            json.dumps(
+                {
+                    "KeyId": key_id,
+                    "KeyUsage": "SIGN_VERIFY",
+                    "SigningAlgorithms": ["ED25519_SHA_512"],
+                    "PublicKey": base64.b64encode(public_der).decode("ascii"),
+                }
+            ).encode(),
+            b"",
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    record = adapter.capture_kms_verification(
+        envelope=signed_record("cloud_preparation_envelope"),
+        admission=signed_record("cloud_preparation_admission"),
+        key_registry=registry,
+        authority={
+            "kms": {
+                "key_alias": "alias/pneuma-approver",
+                "registry_key_id": registry_key_id,
+            }
+        },
+    )
+    assert record["signing_algorithm"] == "ED25519_SHA_512"
+    assert record["envelope_signature_valid"] is True
+    assert record["admission_signature_valid"] is True
+    assert record["registry_key_id"] == registry_key_id
+
+
 def test_terraform_adapter_parses_show_json_before_future_apply() -> None:
     plan_path = Path("saved.tfplan")
     calls = []
@@ -716,6 +898,7 @@ def test_aws_adapter_submission_is_one_tagged_size_two_array_without_command() -
     assert calls[0].count("aws") == 1
     assert '--array-properties {"size":2}' in command
     assert '--retry-strategy {"attempts":1}' in command
+    assert '--timeout {"attemptDurationSeconds":3600}' in command
     assert "qual-1" in command
     assert "command" not in command
 
@@ -947,6 +1130,7 @@ def test_concrete_cli_captures_exact_cloudtrail_submit_event() -> None:
                 "requestParameters": {
                     "arrayProperties": {"size": 2},
                     "retryStrategy": {"attempts": 1},
+                    "timeout": {"attemptDurationSeconds": 3600},
                 },
             }
         ),

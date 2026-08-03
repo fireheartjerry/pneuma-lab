@@ -9,6 +9,7 @@ from typing import Any
 
 from .authorization_keys import authorization_body_digest
 from .errors import CloudManifestError
+from .ephemeral_runner import _validate_kms_verification
 from .iam_simulation import validate_iam_simulation_matrix
 from .manifests import validate_ephemeral_dual_worker_qualification_receipt
 from .qualification_execution import (
@@ -54,6 +55,75 @@ def _signature_digest(record: Mapping[str, Any], *, field: str) -> str:
     return hashlib.sha256(signature_bytes).hexdigest()
 
 
+def _validate_qualification_package_binding(
+    binding: Mapping[str, Any],
+    *,
+    authority: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    action_id: str,
+    projected_cost_usd: float,
+) -> None:
+    required = {
+        "action_id",
+        "iam_policy_sha256",
+        "image_digest",
+        "subnet_az_map",
+        "output_prefix",
+        "projected_cost_usd",
+        "max_retries",
+    }
+    if set(binding) != required:
+        raise CloudManifestError("qualification signing package has an incomplete binding")
+    if binding.get("action_id") != action_id:
+        raise CloudManifestError("qualification package action id differs")
+    _digest(binding.get("iam_policy_sha256"), field="qualification IAM policy")
+    if binding.get("iam_policy_sha256") != authority.get("iam_policy_sha256"):
+        raise CloudManifestError("qualification package IAM policy differs from authority")
+    image = plan.get("image") or plan.get("gpu_worker_image")
+    if not isinstance(image, str) or "@sha256:" not in image:
+        raise CloudManifestError("qualification plan lacks its immutable image")
+    image_digest = image.rsplit("@", 1)[1]
+    if binding.get("image_digest") != image_digest:
+        raise CloudManifestError("qualification package image differs from the plan")
+    if authority.get("image_digest") != image_digest:
+        raise CloudManifestError("authority image digest differs from the plan")
+    binding_projection = binding.get("projected_cost_usd")
+    if (
+        not isinstance(binding_projection, (int, float))
+        or isinstance(binding_projection, bool)
+        or float(binding_projection) != float(projected_cost_usd)
+    ):
+        raise CloudManifestError("qualification package projection differs from execution")
+    if binding.get("projected_cost_usd") != authority.get("projected_cost_usd"):
+        raise CloudManifestError("qualification package projection differs from authority")
+    if binding.get("max_retries") != 0 or authority.get("max_retries") != 0:
+        raise CloudManifestError("qualification package permits retries")
+    output_prefix = plan.get("output_prefix") or plan.get("output_path")
+    if binding.get("output_prefix") != output_prefix:
+        raise CloudManifestError("qualification package output prefix differs from the plan")
+    subnet_map = plan.get("subnet_az_map")
+    if not isinstance(subnet_map, Sequence) or isinstance(
+        subnet_map, (str, bytes, bytearray)
+    ):
+        raise CloudManifestError("qualification plan lacks its verified four-AZ subnet map")
+    expected_subnets = sorted(
+        [
+            {
+                "availability_zone": row.get("availability_zone"),
+                "subnet_id": row.get("subnet_id"),
+            }
+            for row in subnet_map
+            if isinstance(row, Mapping)
+        ],
+        key=lambda row: str(row["availability_zone"]),
+    )
+    observed_subnets = binding.get("subnet_az_map")
+    if observed_subnets != expected_subnets or [
+        row.get("availability_zone") for row in expected_subnets
+    ] != ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]:
+        raise CloudManifestError("qualification package four-AZ map differs from verified plan")
+
+
 def validate_authority_evidence(
     authority: Mapping[str, Any],
     *,
@@ -77,6 +147,8 @@ def validate_authority_evidence(
         raise CloudManifestError("authority receipt action or provider differs")
     if authority.get("region") != region:
         raise CloudManifestError("authority receipt region differs")
+    if authority.get("action_class") != "qualification_audit":
+        raise CloudManifestError("authority receipt is not a qualification audit")
     package_sha = _digest(authority.get("signed_package_sha256"), field="signed package")
     if hashlib.sha256(package_bytes).hexdigest() != package_sha:
         raise CloudManifestError("signed package bytes differ from authority receipt")
@@ -88,8 +160,16 @@ def validate_authority_evidence(
         raise CloudManifestError("signed package is not an object")
     if package.get("record_kind") != "cloud_preparation_signing_package":
         raise CloudManifestError("signed package has the wrong record kind")
+    plan_sha = _digest(authority.get("plan_sha256"), field="plan")
+    if package.get("plan_sha256") != plan_sha:
+        raise CloudManifestError("signed package plan digest differs from authority")
     if package.get("envelope") != dict(envelope) or package.get("admission") != dict(admission):
         raise CloudManifestError("signed package does not contain the exact authority records")
+    if (
+        package.get("envelope_body_sha256") != authorization_body_digest(envelope)
+        or package.get("admission_body_sha256") != authorization_body_digest(admission)
+    ):
+        raise CloudManifestError("signed package authority body digests differ")
 
     saved_plan_sha = _digest(plan.get("saved_plan_sha256"), field="saved plan")
     show_sha = _digest(plan.get("terraform_show_sha256"), field="Terraform show")
@@ -115,6 +195,16 @@ def validate_authority_evidence(
     if authority.get("max_retries") != 0:
         raise CloudManifestError("authority receipt permits retries")
     _digest(authority.get("iam_policy_sha256"), field="IAM policy")
+    qualification_binding = package.get("qualification_binding")
+    if not isinstance(qualification_binding, Mapping):
+        raise CloudManifestError("qualification signing package lacks its exact binding")
+    _validate_qualification_package_binding(
+        qualification_binding,
+        authority=authority,
+        plan=plan,
+        action_id=action_id,
+        projected_cost_usd=projected_cost_usd,
+    )
 
     for label, record in (("envelope", envelope), ("admission", admission)):
         body_sha = authorization_body_digest(record)
@@ -271,6 +361,10 @@ def build_ephemeral_qualification_receipt(
         plan=plan,
         expected_policy_sha256=authority.get("iam_policy_sha256"),
     )
+    kms_verification = context.get("kms_verification")
+    if not isinstance(kms_verification, Mapping):
+        raise CloudManifestError("execution context lacks live KMS verification evidence")
+    kms_verification = _validate_kms_verification(kms_verification)
     evidence = context.get("evidence")
     evidence = evidence if isinstance(evidence, Mapping) else {}
     children = _children(evidence)
@@ -444,6 +538,7 @@ def build_ephemeral_qualification_receipt(
             ),
             "action_policy_sha256": authority.get("iam_policy_sha256"),
             "iam_simulation_matrix_sha256": iam_simulation["matrix_sha256"],
+            "kms_verification_sha256": kms_verification["verification_sha256"],
         },
         "spot_projection": {
             "instance_type": "g6e.2xlarge",

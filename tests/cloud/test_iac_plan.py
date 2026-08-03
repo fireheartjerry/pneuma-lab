@@ -52,6 +52,14 @@ def test_static_iac_contract_is_pinned_and_tier_agnostic() -> None:
     assert 'actions   = ["dynamodb:GetItem"]' in iam
     assert "dynamodb:UpdateItem" in iam
     assert "dynamodb:UpdateItem" not in iam.split('data "aws_iam_policy_document" "watcher"')[0]
+    worker_policy = iam.split('data "aws_iam_policy_document" "worker"', 1)[1].split(
+        'resource "aws_iam_role_policy" "worker"', 1
+    )[0]
+    assert 'actions = ["s3:GetObject"]' in worker_policy
+    assert 'actions = ["s3:PutObject"]' in worker_policy
+    assert "s3:ListBucket" not in worker_policy
+    assert "s3:AbortMultipartUpload" not in worker_policy
+    assert "local.qualification_artifact_prefix" in worker_policy
 
 
 def test_absent_terraform_is_reported_pending_on_an_isolated_path(tmp_path: Path) -> None:
