@@ -1,0 +1,61 @@
+{
+  "action_class": "qualification_audit",
+  "action_id": "dual-l40s-qualification-019",
+  "admission": {
+    "body_sha256": "878b1bee2c9b4fadd90552fc52f296155fe11d2da9b61e918e3449e8258b00cc",
+    "expires_timestamp": "2026-08-04T12:00:00Z",
+    "ledger_row_id": "CL-358",
+    "ledger_row_sha256": "a38f39b33c34db74558da55a942c4d5896eccaa75dbaf968b06dfd13618cad18",
+    "signature_sha256": "4a666839078b7aef6f2aa9f2bb02c20448e1bdc6b3704f39ee25bd8d356e2fb9"
+  },
+  "admission_body_sha256": "878b1bee2c9b4fadd90552fc52f296155fe11d2da9b61e918e3449e8258b00cc",
+  "envelope": {
+    "body_sha256": "d831190c744a1f932cc905530191a9b4988843360269e35031adcf4e78765dd9",
+    "expires_timestamp": "2026-08-04T12:00:00Z",
+    "ledger_row_id": "CL-357",
+    "ledger_row_sha256": "6493ac9bf4c3fc324e466ca8e818ac185d12542671232870fd58a4e17f7d4169",
+    "signature_sha256": "409e74259181db19d4e6dcbdc15c837fd6fec1b53a1079db3bf29e89c0f3e649"
+  },
+  "envelope_body_sha256": "d831190c744a1f932cc905530191a9b4988843360269e35031adcf4e78765dd9",
+  "four_az_map_sha256": "2ed7bef4c572de3db37ec73ed06605f554e3df4ee2305776fce2b6374a3f5687",
+  "iam_policy_inventory_sha256": "f7a62c38814fee40f9dfbd01f44335d11bd588ff67e40b6b64bc542cb45f78a2",
+  "iam_policy_sha256": "cd551ea6b3b689140b3cb8d4865b6c272b692d6bf7616930419b65c29583b81b",
+  "iam_simulation_matrix_sha256": "56ce5ae76f537b836ee7f4dae2e8b9832fd0ba2c1149627c53e59429b2ed3144",
+  "image_build_receipt_sha256": "aca115cf02ac6e4657afa7d86c7331010ec3078124cf460cba1fd128ef41a6d7",
+  "image_digest": "sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e",
+  "input_lock_sha256": "e6b93fcf4edbcad2406d9ab98df82de638571fc5bc45f9a97cfce730bd04c803",
+  "kms": {
+    "admission_signature_valid": true,
+    "envelope_signature_valid": true,
+    "key_alias": "alias/pneuma-approver",
+    "live_verification_sha256": "c74da234caf19f14e81fdf8a2f71bad8083e03bd09257895893473d2d0532537",
+    "registry_key_id": "pneuma-kms-20260801-r1",
+    "signing_algorithm": "ED25519_SHA_512"
+  },
+  "max_retries": 0,
+  "observed_at": "2026-08-04T06:04:29Z",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-019/outputs/",
+  "plan_sha256": "df17c25859caa4369cb62d663bfd94bec5f3f614916c12503b27442631909ca7",
+  "projected_cost_usd": 4.4842,
+  "provider": "aws",
+  "qualification_only": true,
+  "record_kind": "cloud_qualification_authority_receipt",
+  "region": "us-east-1",
+  "saved_plan_sha256": "baaa7620c4384d248244cece1f511de7731deb7fb5ad44231cf4d9626513a8f5",
+  "schema_version": "0.1.0",
+  "scientific_boundary": {
+    "fixture_only": true,
+    "no_analysis": true,
+    "no_benchmark": true,
+    "no_claim_promotion": true,
+    "no_model_load": true,
+    "no_p0": true,
+    "no_pilot": true,
+    "no_step_4b": true,
+    "no_unblind": true
+  },
+  "signed_package_sha256": "96ffa5d0c2549af42a9acdb1a999f23c3bc2a0aa0011ec81e8e1e30f7e827bdc",
+  "status": "authorized_and_verified",
+  "terraform_plan_binding_sha256": "ada75565fcdd702df65977b6f440a6246dcedd3112b94f6f417b730a6b32be64",
+  "terraform_show_sha256": "ab65b5cb5078c47190385004f314723e6e3b75a9649768c2cf4849cd790a5554"
+}
