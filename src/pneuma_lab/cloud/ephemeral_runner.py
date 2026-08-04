@@ -50,7 +50,9 @@ from .qualification_execution import (
     retrieve_raw_measurement,
     terraform_plan_binding_digest,
     verify_provider_bindings,
+    worker_artifact_uri,
 )
+from .qualification_controller import QualificationController, QualificationStateStore
 from .iam_simulation import (
     QUALIFICATION_WORKER_POLICY_NAME,
     policy_document_sha256,
@@ -291,7 +293,11 @@ class QualificationProvider(Protocol):
         self, *, size: int, timeout_seconds: int, attempts: int, tags: Mapping[str, str]
     ) -> str: ...
 
+    def reconcile_submission(self, tags: Mapping[str, str]) -> Mapping[str, Any]: ...
+
     def collect_admission(self, parent_job_id: str) -> Mapping[str, Any]: ...
+
+    def reconcile_artifacts(self) -> Mapping[str, Any]: ...
 
     def run_partition_recovery(self, parent_job_id: str) -> Mapping[str, Any]: ...
 
@@ -1456,6 +1462,81 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         self._last_submit_tags = dict(tags)
         return parent_job_id
 
+    def reconcile_submission(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
+        """Reconcile a possibly completed SubmitJob before ever submitting again."""
+
+        action_id = tags.get("QualificationActionId")
+        if not isinstance(action_id, str) or not action_id:
+            raise CloudManifestError("submission reconciliation lacks the action id")
+        batch_job_ids = self._list_action_job_ids(action_id)
+        cloudtrail_job_ids = self._list_cloudtrail_action_job_ids(action_id)
+        batch_parent_ids = {job_id.split(":", 1)[0] for job_id in batch_job_ids}
+        if len(batch_parent_ids) > 1:
+            raise CloudManifestError(
+                "submission reconciliation found multiple Batch parent jobs"
+            )
+        if len(cloudtrail_job_ids) > 1:
+            raise CloudManifestError(
+                "submission reconciliation found multiple CloudTrail SubmitJob parents"
+            )
+        batch_parent = next(iter(batch_parent_ids), None)
+        cloudtrail_parent = next(iter(cloudtrail_job_ids), None)
+        if batch_parent is not None and cloudtrail_parent is not None and batch_parent != cloudtrail_parent:
+            raise CloudManifestError(
+                "Batch and CloudTrail submission reconciliation disagree on the parent"
+            )
+        parent_job_id = cloudtrail_parent or batch_parent
+        return {
+            "parent_job_id": parent_job_id,
+            "batch_job_ids": sorted(batch_job_ids),
+            "cloudtrail_job_ids": sorted(cloudtrail_job_ids),
+            "submit_count": len(cloudtrail_job_ids),
+        }
+
+    def reconcile_artifacts(self) -> Mapping[str, Any]:
+        """Reconcile the two immutable worker objects from the controller role."""
+
+        marker = parse_s3_uri(self.output_root.rstrip("/") + "/marker")
+        listing = self._call_absence(
+            "s3api",
+            "list-objects-v2",
+            "--bucket",
+            marker.bucket,
+            "--prefix",
+            marker.key.rsplit("/", 1)[0] + "/",
+        )
+        rows = listing.get("Contents", []) if isinstance(listing, Mapping) else None
+        if not isinstance(rows, list):
+            raise CloudManifestError("qualification artifact reconciliation returned invalid S3 contents")
+        expected = {
+            parse_s3_uri(worker_artifact_uri(self.output_root, index)).key: index
+            for index in (0, 1)
+        }
+        observed: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, Mapping):
+                raise CloudManifestError("qualification artifact listing contains a non-object row")
+            key = row.get("Key")
+            if key in expected:
+                observed.append(
+                    {
+                        "worker_index": expected[key],
+                        "key": key,
+                        "size_bytes": row.get("Size"),
+                    }
+                )
+        observed.sort(key=lambda row: row["worker_index"])
+        if [row["worker_index"] for row in observed] != [0, 1]:
+            raise CloudManifestError(
+                "qualification artifact reconciliation did not find both worker objects"
+            )
+        return {
+            "object_count": len(rows),
+            "worker_object_count": len(observed),
+            "worker_indices": [row["worker_index"] for row in observed],
+            "objects": observed,
+        }
+
     def capture_submit_evidence(self, parent_job_id: str) -> Mapping[str, Any]:
         """Capture exactly one CloudTrail SubmitJob event for this parent."""
 
@@ -2277,6 +2358,7 @@ class RunnerConfig:
     require_receipt_evidence: bool = False
     action_evidence_root: Path | None = None
     receipt_path: Path | None = None
+    state_path: Path | None = None
 
 
 def require_account_plan(
@@ -2457,6 +2539,106 @@ def _require_evidence(receipt: Mapping[str, Any]) -> None:
         raise CloudManifestError("worker identities must remain distinct")
 
 
+def _controller_failure_payload(exc: Exception) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "error_type": type(exc).__name__,
+        "error": str(exc) or "qualification controller failure",
+    }
+    if isinstance(exc, ProviderSubprocessError):
+        payload.update(
+            {
+                "operation": exc.operation,
+                "error_code": exc.error_code,
+                "stderr_sha256": exc.stderr_sha256,
+                "retryable": exc.retryable,
+            }
+        )
+    if isinstance(exc, BatchAdmissionError):
+        payload["failure_kind"] = exc.failure_kind
+    return payload
+
+
+def _controller_evidence_payload(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    children = evidence.get("children")
+    child_statuses: list[dict[str, Any]] = []
+    if isinstance(children, Sequence) and not isinstance(children, (str, bytes, bytearray)):
+        for child in children:
+            if not isinstance(child, Mapping):
+                continue
+            array = child.get("arrayProperties") or {}
+            child_statuses.append(
+                {
+                    "job_id": child.get("jobId") or child.get("job_id"),
+                    "array_index": array.get("index") if isinstance(array, Mapping) else None,
+                    "status": child.get("status"),
+                    "attempt_count": len(child.get("attempts", []))
+                    if isinstance(child.get("attempts", []), list)
+                    else 0,
+                }
+            )
+    raw = evidence.get("raw_evidence")
+    raw_hashes: dict[str, str] = {}
+    if isinstance(raw, Mapping):
+        for index in (0, 1):
+            value = raw.get(index) or raw.get(str(index))
+            if isinstance(value, (bytes, bytearray)) and value:
+                raw_hashes[str(index)] = hashlib.sha256(bytes(value)).hexdigest()
+    result: dict[str, Any] = {
+        "parent_status": evidence.get("parent_status"),
+        "child_statuses": child_statuses,
+        "instance_id_count": len(evidence.get("instance_ids", ()))
+        if isinstance(evidence.get("instance_ids", ()), (list, tuple))
+        else 0,
+        "raw_artifact_sha256": raw_hashes,
+    }
+    artifact = evidence.get("artifact_reconciliation")
+    if isinstance(artifact, Mapping):
+        result["artifact_reconciliation"] = {
+            key: artifact.get(key)
+            for key in ("object_count", "worker_object_count", "worker_indices")
+            if key in artifact
+        }
+    return result
+
+
+def _controller_binding(
+    *,
+    config: RunnerConfig,
+    plan: Mapping[str, Any],
+    tags: Mapping[str, str],
+) -> dict[str, Any]:
+    image = plan.get("image") or plan.get("gpu_worker_image")
+    image_digest = image.rsplit("@", 1)[1] if isinstance(image, str) and "@" in image else None
+    return {
+        "action_id": config.action_id,
+        "region": config.region,
+        "terraform_plan_binding_sha256": plan.get("terraform_plan_binding_sha256"),
+        "image_digest": image_digest,
+        "output_root": plan.get("output_path"),
+        "tags": dict(tags),
+    }
+
+
+def _bind_provider_parent(
+    provider: QualificationProvider,
+    parent_job_id: str,
+    *,
+    tags: Mapping[str, str] | None = None,
+) -> None:
+    """Restore adapter-local IDs so explicit teardown sees resumed jobs."""
+
+    if hasattr(provider, "parent_job_id"):
+        setattr(provider, "parent_job_id", parent_job_id)
+    observed = getattr(provider, "_observed_action_job_ids", None)
+    if isinstance(observed, set):
+        observed.update({parent_job_id, f"{parent_job_id}:0", f"{parent_job_id}:1"})
+    # CloudTrail evidence validation is deliberately bound to the exact
+    # submission tag set.  A restarted process has no in-memory submit call,
+    # so restore that immutable tag context before re-reading CloudTrail.
+    if hasattr(provider, "_last_submit_tags") and isinstance(tags, Mapping):
+        setattr(provider, "_last_submit_tags", dict(tags))
+
+
 def execute(
     config: RunnerConfig,
     *,
@@ -2470,7 +2652,7 @@ def execute(
     verify_authority: Callable[..., Any] = require_preparation_admission,
     authority_evidence: Mapping[str, Any] | None = None,
 ) -> Mapping[str, Any]:
-    """Run the ordered qualification lifecycle through injected seams."""
+    """Run the qualification lifecycle as a durable, restartable state machine."""
 
     if not isinstance(ledger_path, Path):
         raise CloudManifestError(
@@ -2491,10 +2673,10 @@ def execute(
     spend_history_sha256 = derive_spend_history_binding(ledger_path)
     bind_plan = getattr(provider, "bind_qualification_plan", None)
     if callable(bind_plan):
-        binding = bind_plan(parsed_plan)
-        if not isinstance(binding, Mapping):
+        fixture_binding = bind_plan(parsed_plan)
+        if not isinstance(fixture_binding, Mapping):
             raise CloudManifestError("qualification provider returned an invalid fixture binding")
-        input_lock_sha256 = binding.get("input_lock_sha256")
+        input_lock_sha256 = fixture_binding.get("input_lock_sha256")
         if not isinstance(input_lock_sha256, str) or len(input_lock_sha256) != 64:
             raise CloudManifestError("qualification provider did not bind the live input lock")
         parsed_plan["input_lock_sha256"] = input_lock_sha256
@@ -2535,100 +2717,514 @@ def execute(
     tags["QualificationAction"] = config.action_id
     tags["QualificationActionId"] = config.action_id
     tags["QualificationCode"] = str(parsed_plan["qualification_code"])
-    preflight = provider.preflight(tags)
-    if not isinstance(preflight, Mapping):
-        raise CloudManifestError("qualification preflight evidence is not an object")
-    _require_complete_provider_absence(
-        preflight.get("provider_absence"), phase="preflight"
+    immutable_binding = _controller_binding(
+        config=config,
+        plan=parsed_plan,
+        tags=tags,
     )
+    immutable_binding.update(
+        {
+            "saved_plan_sha256": parsed_plan.get("saved_plan_sha256"),
+            "terraform_show_sha256": parsed_plan.get("terraform_show_sha256"),
+            "input_lock_sha256": parsed_plan.get("input_lock_sha256"),
+            "authority_package_sha256": execution_authority.get(
+                "signed_package_sha256"
+            ),
+            "iam_policy_sha256": execution_authority.get("iam_policy_sha256"),
+            "max_retries": MAX_RETRIES,
+        }
+    )
+    state_store = QualificationStateStore(
+        config.state_path,
+        action_id=config.action_id,
+        binding=immutable_binding,
+    )
+    controller = QualificationController(state_store)
+    state_was_resumed = state_store.exists
+
+    def latest_payload(phase: str | None = None) -> dict[str, Any]:
+        for event in reversed(controller.snapshot.events):
+            if phase is not None and event.get("phase") != phase:
+                continue
+            payload = event.get("payload")
+            if isinstance(payload, Mapping):
+                return dict(payload)
+        return {}
+
+    if state_was_resumed:
+        controller.start_or_resume()
+        preflight_payload = latest_payload("prepared")
+        preflight_value = preflight_payload.get("preflight")
+        if not isinstance(preflight_value, Mapping):
+            raise CloudManifestError(
+                "persisted qualification state lacks its preflight evidence"
+            )
+        preflight = dict(preflight_value)
+        _require_complete_provider_absence(
+            preflight.get("provider_absence"), phase="resumed-preflight"
+        )
+    else:
+        preflight_value = provider.preflight(tags)
+        if not isinstance(preflight_value, Mapping):
+            raise CloudManifestError("qualification preflight evidence is not an object")
+        _require_complete_provider_absence(
+            preflight_value.get("provider_absence"), phase="preflight"
+        )
+        preflight = dict(preflight_value)
+        controller.start_or_resume(
+            {
+                "preflight": preflight,
+                "output_root": parsed_plan.get("output_path"),
+                "terraform_plan_binding_sha256": parsed_plan.get(
+                    "terraform_plan_binding_sha256"
+                ),
+            }
+        )
+
     ready: Mapping[str, Any] | None = None
-    parent_job_id: str | None = None
-    evidence: Mapping[str, Any] | None = None
+    parent_job_id: str | None = controller.snapshot.parent_job_id
+    evidence: dict[str, Any] | None = None
     recovery: Mapping[str, Any] | None = None
     iam_simulation: Mapping[str, Any] | None = None
     post_apply_iam_binding: Mapping[str, Any] | None = None
     kms_verification: Mapping[str, Any] | None = None
     launch: dict[str, Any] = {
-        # A requested submit contract is not proof of exactly one provider
-        # submission. The concrete receipt path replaces this sentinel with
-        # the live CloudTrail result before a receipt can be built.
         "submit_count_proven": 0,
         "array_size": 2,
         "retry_attempts": 1,
     }
     failure: Exception | None = None
     cleanup_failure: Exception | None = None
-    try:
-        if config.require_receipt_evidence:
-            capture_iam = getattr(provider, "capture_iam_simulation", None)
-            expected_policy_sha256 = execution_authority.get("iam_policy_sha256")
-            if not callable(capture_iam):
-                raise CloudManifestError(
-                    "concrete qualification provider lacks live IAM simulation"
-                )
-            if not isinstance(expected_policy_sha256, str):
-                raise CloudManifestError(
-                    "authority receipt lacks the action-specific IAM policy hash"
-                )
-            observed_iam = capture_iam(
-                plan=parsed_plan,
-                action_id=config.action_id,
-                expected_policy_sha256=expected_policy_sha256,
+
+    if parent_job_id is not None:
+        _bind_provider_parent(provider, parent_job_id, tags=tags)
+
+    def make_context(
+        *,
+        resumable: bool = False,
+        teardown_performed: bool = False,
+        absence: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "plan": dict(parsed_plan),
+            "authority": authority_result,
+            "projected_cost_usd": projected,
+            "preflight": preflight,
+            "ready": ready,
+            "parent_job_id": parent_job_id,
+            "evidence": evidence,
+            "recovery": recovery,
+            "iam_simulation": iam_simulation,
+            "post_apply_iam_binding": post_apply_iam_binding,
+            "kms_verification": kms_verification,
+            "launch": dict(launch),
+            "failure": failure,
+            "cleanup_failure": cleanup_failure,
+            "absence": dict(absence) if isinstance(absence, Mapping) else absence,
+            "controller_state": controller.snapshot.summary(),
+            "resumable": resumable,
+            "teardown_performed": teardown_performed,
+        }
+
+    def mark_observation_pending(stage: str, exc: Exception) -> None:
+        payload: dict[str, Any] = {
+            "stage": stage,
+            "failure": _controller_failure_payload(exc),
+            "parent_job_id": parent_job_id,
+            "child_job_ids": (
+                [f"{parent_job_id}:0", f"{parent_job_id}:1"]
+                if parent_job_id
+                else []
+            ),
+        }
+        if controller.snapshot.phase == "observation_pending":
+            payload["resumed"] = True
+        controller.transition("observation_pending", payload)
+
+    def raise_resumable(stage: str, exc: Exception) -> None:
+        mark_observation_pending(stage, exc)
+        raise QualificationExecutionError(
+            f"qualification {stage} observation is pending; resume the persisted controller state",
+            context=make_context(resumable=True),
+        ) from exc
+
+    def capture_iam_and_kms() -> None:
+        nonlocal iam_simulation, kms_verification
+        if not config.require_receipt_evidence:
+            return
+        capture_iam = getattr(provider, "capture_iam_simulation", None)
+        expected_policy_sha256 = execution_authority.get("iam_policy_sha256")
+        if not callable(capture_iam):
+            raise CloudManifestError(
+                "concrete qualification provider lacks live IAM simulation"
             )
-            if not isinstance(observed_iam, Mapping):
-                raise CloudManifestError("IAM simulation evidence is not an object")
-            iam_simulation = validate_iam_simulation_matrix(
-                observed_iam,
-                action_id=config.action_id,
-                plan=parsed_plan,
-                expected_policy_sha256=expected_policy_sha256,
+        if not isinstance(expected_policy_sha256, str):
+            raise CloudManifestError(
+                "authority receipt lacks the action-specific IAM policy hash"
             )
-            if not isinstance(iam_simulation.get("policy_inventory"), Mapping):
-                raise CloudManifestError(
-                    "live IAM simulation lacks the complete worker-policy inventory"
-                )
-            capture_kms = getattr(provider, "capture_kms_verification", None)
-            if not callable(capture_kms):
-                raise CloudManifestError(
-                    "concrete qualification provider lacks live KMS verification"
-                )
-            observed_kms = capture_kms(
-                envelope=envelope,
-                admission=admission,
-                key_registry=key_registry,
-                authority=execution_authority,
-            )
-            if not isinstance(observed_kms, Mapping):
-                raise CloudManifestError("KMS verification evidence is not an object")
-            kms_verification = _validate_kms_verification(observed_kms)
-        terraform.apply(lock_timeout=config.lock_timeout, tags=tags)
-        if config.require_receipt_evidence:
-            verify_post_apply = getattr(provider, "verify_post_apply_iam_binding", None)
-            expected_policy_sha256 = execution_authority.get("iam_policy_sha256")
-            if not callable(verify_post_apply):
-                raise CloudManifestError(
-                    "concrete qualification provider lacks post-apply IAM readback"
-                )
-            if not isinstance(expected_policy_sha256, str):
-                raise CloudManifestError(
-                    "authority receipt lacks the action-specific IAM policy hash"
-                )
-            observed_post_apply = verify_post_apply(
-                plan=parsed_plan,
-                expected_policy_sha256=expected_policy_sha256,
-            )
-            post_apply_iam_binding = _validate_post_apply_iam_binding(
-                observed_post_apply,
-                expected_policy_sha256=expected_policy_sha256,
-            )
-        ready = provider.wait_ready(tags)
-        parent_job_id = provider.submit_array(
-            size=2,
-            timeout_seconds=MAX_WORKER_RUNTIME_MINUTES * 60,
-            attempts=1,
-            tags=tags,
+        observed_iam = capture_iam(
+            plan=parsed_plan,
+            action_id=config.action_id,
+            expected_policy_sha256=expected_policy_sha256,
         )
-        if config.require_receipt_evidence:
+        if not isinstance(observed_iam, Mapping):
+            raise CloudManifestError("IAM simulation evidence is not an object")
+        iam_simulation = validate_iam_simulation_matrix(
+            observed_iam,
+            action_id=config.action_id,
+            plan=parsed_plan,
+            expected_policy_sha256=expected_policy_sha256,
+        )
+        if not isinstance(iam_simulation.get("policy_inventory"), Mapping):
+            raise CloudManifestError(
+                "live IAM simulation lacks the complete worker-policy inventory"
+            )
+        capture_kms = getattr(provider, "capture_kms_verification", None)
+        if not callable(capture_kms):
+            raise CloudManifestError(
+                "concrete qualification provider lacks live KMS verification"
+            )
+        observed_kms = capture_kms(
+            envelope=envelope,
+            admission=admission,
+            key_registry=key_registry,
+            authority=execution_authority,
+        )
+        if not isinstance(observed_kms, Mapping):
+            raise CloudManifestError("KMS verification evidence is not an object")
+        kms_verification = _validate_kms_verification(observed_kms)
+
+    def capture_post_apply_iam() -> None:
+        nonlocal post_apply_iam_binding
+        if not config.require_receipt_evidence:
+            return
+        verify_post_apply = getattr(provider, "verify_post_apply_iam_binding", None)
+        expected_policy_sha256 = execution_authority.get("iam_policy_sha256")
+        if not callable(verify_post_apply):
+            raise CloudManifestError(
+                "concrete qualification provider lacks post-apply IAM readback"
+            )
+        if not isinstance(expected_policy_sha256, str):
+            raise CloudManifestError(
+                "authority receipt lacks the action-specific IAM policy hash"
+            )
+        observed_post_apply = verify_post_apply(
+            plan=parsed_plan,
+            expected_policy_sha256=expected_policy_sha256,
+        )
+        post_apply_iam_binding = _validate_post_apply_iam_binding(
+            observed_post_apply,
+            expected_policy_sha256=expected_policy_sha256,
+        )
+
+    def perform_teardown(failure_for_context: Exception | None) -> Mapping[str, Any]:
+        nonlocal cleanup_failure
+        current = controller.snapshot.phase
+        if current == "teardown_failed":
+            controller.transition(
+                "teardown_started",
+                {
+                    "resumed": True,
+                    "retry": True,
+                    "parent_job_id": parent_job_id,
+                },
+            )
+        elif current != "teardown_started":
+            controller.transition(
+                "teardown_started",
+                {
+                    "outcome": "no_go" if failure_for_context is not None else "passed",
+                    "failure": (
+                        _controller_failure_payload(failure_for_context)
+                        if failure_for_context is not None
+                        else None
+                    ),
+                    "recovery": dict(recovery) if isinstance(recovery, Mapping) else None,
+                    "parent_job_id": parent_job_id,
+                    "child_job_ids": (
+                        [f"{parent_job_id}:0", f"{parent_job_id}:1"]
+                        if parent_job_id
+                        else []
+                    ),
+                },
+            )
+        cleanup_errors: list[Exception] = []
+        try:
+            provider.disable_and_drain(tags)
+        except Exception as exc:
+            cleanup_errors.append(exc)
+        try:
+            terraform.destroy(lock_timeout=config.lock_timeout, tags=tags)
+        except Exception as exc:
+            cleanup_errors.append(exc)
+        absence: Mapping[str, Any] | None = None
+        try:
+            observed_absence = provider.verify_absence(tags)
+            if not isinstance(observed_absence, Mapping):
+                raise CloudManifestError("qualification teardown absence is not an object")
+            absence = observed_absence
+            _require_complete_provider_absence(
+                absence,
+                phase="teardown",
+                allow_retained_raw_artifacts=failure_for_context is not None,
+            )
+        except Exception as exc:
+            cleanup_errors.append(exc)
+        if cleanup_errors:
+            cleanup_failure = cleanup_errors[0]
+            if controller.snapshot.phase != "teardown_failed":
+                controller.transition(
+                    "teardown_failed",
+                    {
+                        "failure": _controller_failure_payload(cleanup_failure),
+                        "parent_job_id": parent_job_id,
+                        "child_job_ids": (
+                            [f"{parent_job_id}:0", f"{parent_job_id}:1"]
+                            if parent_job_id
+                            else []
+                        ),
+                    },
+                )
+            raise QualificationExecutionError(
+                "qualification teardown absence validation failed closed; resume the persisted controller state",
+                context=make_context(
+                    resumable=True,
+                    teardown_performed=True,
+                    absence=absence,
+                ),
+            ) from cleanup_failure
+        controller.transition(
+            "teardown_complete",
+            {
+                "outcome": "no_go" if failure_for_context is not None else "passed",
+                "parent_job_id": parent_job_id,
+                "child_job_ids": (
+                    [f"{parent_job_id}:0", f"{parent_job_id}:1"]
+                    if parent_job_id
+                    else []
+                ),
+            },
+        )
+        assert absence is not None
+        return dict(absence)
+
+    def finish_terminal(exc: Exception) -> None:
+        nonlocal failure
+        failure = exc
+        absence = perform_teardown(failure)
+        raise QualificationExecutionError(
+            "qualification failed closed",
+            context=make_context(absence=absence, teardown_performed=True),
+        ) from exc
+
+    # If a process died during explicit teardown, do not rewind the lifecycle
+    # or submit anything. Reconstruct the terminal receipt inputs from Batch,
+    # S3, and the persisted outcome, then retry only the idempotent teardown.
+    phase = controller.snapshot.phase
+    if phase in {"teardown_started", "teardown_failed"}:
+        outcome_payload = latest_payload("teardown_started")
+        if outcome_payload.get("outcome") == "no_go":
+            failure_record = outcome_payload.get("failure")
+            failure = CloudManifestError(
+                str(failure_record.get("error"))
+                if isinstance(failure_record, Mapping)
+                else "qualification lifecycle reached a terminal no-go"
+            )
+        recovery_record = outcome_payload.get("recovery")
+        if isinstance(recovery_record, Mapping):
+            recovery = dict(recovery_record)
+        if parent_job_id is not None:
+            _bind_provider_parent(provider, parent_job_id, tags=tags)
+            try:
+                if config.require_receipt_evidence:
+                    capture = getattr(provider, "capture_submit_evidence", None)
+                    if not callable(capture):
+                        raise CloudManifestError(
+                            "concrete qualification provider lacks CloudTrail submit evidence"
+                        )
+                    observed_launch = capture(parent_job_id)
+                    if not isinstance(observed_launch, Mapping):
+                        raise CloudManifestError(
+                            "CloudTrail submit evidence is not an object"
+                        )
+                    launch.update(dict(observed_launch))
+                    capture_iam_and_kms()
+                    capture_post_apply_iam()
+                observed_evidence = provider.collect_admission(parent_job_id)
+                if not isinstance(observed_evidence, Mapping):
+                    raise CloudManifestError(
+                        "Batch admission evidence is not an object"
+                    )
+                _require_evidence(observed_evidence)
+                compile_fixture = getattr(provider, "compile_fixture_evidence", None)
+                if callable(compile_fixture):
+                    compiled = compile_fixture(observed_evidence)
+                    if not isinstance(compiled, Mapping) or set(compiled) != {0, 1}:
+                        raise CloudManifestError(
+                            "fixture admission compilation did not produce exactly two worker receipts"
+                        )
+                evidence = dict(observed_evidence)
+                if callable(compile_fixture):
+                    evidence["fixture_admissions"] = compiled
+                reconcile_artifacts = getattr(provider, "reconcile_artifacts", None)
+                if callable(reconcile_artifacts):
+                    artifact_reconciliation = reconcile_artifacts()
+                    if not isinstance(artifact_reconciliation, Mapping):
+                        raise CloudManifestError(
+                            "qualification artifact reconciliation is not an object"
+                        )
+                    evidence["artifact_reconciliation"] = dict(
+                        artifact_reconciliation
+                    )
+            except BatchAdmissionError as exc:
+                evidence = {
+                    "parent_status": exc.parent.get("status"),
+                    "parent": exc.parent,
+                    "children": exc.children,
+                    "instance_ids": exc.instance_ids,
+                    "raw_evidence": exc.raw_evidence,
+                }
+                if failure is None:
+                    failure = exc
+            except Exception as exc:
+                raise QualificationExecutionError(
+                    "qualification teardown evidence remains pending; resume the persisted controller state",
+                    context=make_context(
+                        resumable=True,
+                        teardown_performed=True,
+                    ),
+                ) from exc
+        absence = perform_teardown(failure)
+        if failure is not None:
+            raise QualificationExecutionError(
+                "qualification failed closed",
+                context=make_context(absence=absence, teardown_performed=True),
+            ) from failure
+        return {
+            "parent_job_id": parent_job_id,
+            "tags": tags,
+            "qualification_only": True,
+            "projected_cost_usd": projected,
+            "preflight": preflight,
+            "ready": ready,
+            "evidence": evidence,
+            "recovery": recovery,
+            "iam_simulation": iam_simulation,
+            "post_apply_iam_binding": post_apply_iam_binding,
+            "kms_verification": kms_verification,
+            "absence": dict(absence),
+            "plan": dict(parsed_plan),
+            "authority": authority_result,
+            "launch": dict(launch),
+            "controller_state": controller.snapshot.summary(),
+        }
+
+    # Before launch, the state machine may safely repeat the exact locked
+    # apply after a process dies between the mutation and its checkpoint.
+    phase = controller.snapshot.phase
+    if phase in {"prepared", "applying"}:
+        capture_iam_and_kms()
+        if phase == "prepared":
+            controller.transition(
+                "applying",
+                {
+                    "plan_binding_sha256": parsed_plan.get(
+                        "terraform_plan_binding_sha256"
+                    ),
+                },
+            )
+        try:
+            terraform.apply(lock_timeout=config.lock_timeout, tags=tags)
+        except Exception as exc:
+            finish_terminal(exc)
+        controller.transition(
+            "applied",
+            {"plan_binding_sha256": parsed_plan.get("terraform_plan_binding_sha256")},
+        )
+        phase = "applied"
+
+    if phase == "applied":
+        try:
+            capture_post_apply_iam()
+            ready_value = provider.wait_ready(tags)
+            if not isinstance(ready_value, Mapping):
+                raise CloudManifestError("qualification readiness evidence is not an object")
+            ready = dict(ready_value)
+        except Exception as exc:
+            finish_terminal(exc)
+        controller.transition(
+            "ready",
+            {
+                "compute_environment_status": ready.get("compute_environment_status"),
+                "queue_status": ready.get("queue_status"),
+            },
+        )
+        phase = "ready"
+
+    if phase == "ready":
+        controller.transition(
+            "submitting",
+            {"array_size": 2, "timeout_seconds": 3600, "attempts": 1},
+        )
+        phase = "submitting"
+
+    if phase == "submitting":
+        try:
+            reconcile = getattr(provider, "reconcile_submission", None)
+            submission: Mapping[str, Any] = {}
+            if callable(reconcile):
+                candidate = reconcile(tags)
+                if not isinstance(candidate, Mapping):
+                    raise CloudManifestError(
+                        "submission reconciliation returned a non-object"
+                    )
+                submission = candidate
+            candidate_parent = submission.get("parent_job_id")
+            if isinstance(candidate_parent, str) and candidate_parent:
+                parent_job_id = candidate_parent
+                child_ids = submission.get("child_job_ids")
+                if not isinstance(child_ids, list):
+                    child_ids = [
+                        f"{parent_job_id}:0",
+                        f"{parent_job_id}:1",
+                    ]
+                _bind_provider_parent(provider, parent_job_id, tags=tags)
+            else:
+                parent_job_id = provider.submit_array(
+                    size=2,
+                    timeout_seconds=MAX_WORKER_RUNTIME_MINUTES * 60,
+                    attempts=1,
+                    tags=tags,
+                )
+                if not isinstance(parent_job_id, str) or not parent_job_id:
+                    raise CloudManifestError("Batch submission omitted its parent job id")
+                child_ids = [f"{parent_job_id}:0", f"{parent_job_id}:1"]
+            controller.transition(
+                "submitted",
+                {
+                    "parent_job_id": parent_job_id,
+                    "child_job_ids": child_ids,
+                    "submission_reconciled": bool(submission),
+                    "submit_count": submission.get("submit_count"),
+                },
+            )
+            phase = "submitted"
+        except Exception as exc:
+            # Submission itself is an ambiguous boundary. A failed CLI call
+            # may have reached Batch, so the next invocation must reconcile
+            # Batch and CloudTrail before considering any teardown or submit.
+            raise_resumable("submission", exc)
+
+    if parent_job_id is None:
+        raise CloudManifestError(
+            "persisted qualification state reached post-apply without a parent job id"
+        )
+    _bind_provider_parent(provider, parent_job_id, tags=tags)
+
+    # CloudTrail is an observation of the already-persisted launch. It is
+    # allowed to fail transiently without changing the submitted resources.
+    if config.require_receipt_evidence and launch.get("submit_count_proven") != 1:
+        try:
             capture = getattr(provider, "capture_submit_evidence", None)
             if not callable(capture):
                 raise CloudManifestError(
@@ -2646,39 +3242,102 @@ def execute(
                 raise CloudManifestError(
                     "CloudTrail submit evidence differs from the fixed launch contract"
                 )
-        evidence = provider.collect_admission(parent_job_id)
-        _require_evidence(evidence)
-        compile_fixture = getattr(provider, "compile_fixture_evidence", None)
-        if not callable(compile_fixture):
-            raise CloudManifestError(
-                "concrete qualification provider lacks fixture admission compilation"
+        except Exception as exc:
+            raise_resumable("launch", exc)
+
+    phase = controller.snapshot.phase
+    if phase in {"submitted", "observation_pending"}:
+        controller.transition(
+            "launch_reconciled",
+            {
+                "parent_job_id": parent_job_id,
+                "child_job_ids": [f"{parent_job_id}:0", f"{parent_job_id}:1"],
+                "launch": {
+                    key: launch.get(key)
+                    for key in (
+                        "submit_count_proven",
+                        "array_size",
+                        "retry_attempts",
+                        "cloudtrail_submit_job_event_id_sha256",
+                    )
+                    if launch.get(key) is not None
+                },
+            },
+        )
+        phase = "launch_reconciled"
+
+    # A process may restart after any successful read checkpoint. Re-read the
+    # immutable Batch children and S3 objects to reconstruct the in-memory
+    # receipt inputs; this never submits a second array.
+    recovery_was_reconciled = phase == "recovery_reconciled"
+    if phase == "launch_reconciled":
+        controller.transition(
+            "observing",
+            {
+                "parent_job_id": parent_job_id,
+                "child_job_ids": [f"{parent_job_id}:0", f"{parent_job_id}:1"],
+            },
+        )
+        phase = "observing"
+    elif phase in {
+        "admission_reconciled",
+        "artifact_reconciled",
+        "recovering",
+        "recovery_reconciled",
+    }:
+        controller.transition(
+            "observing",
+            {
+                "resumed": True,
+                "parent_job_id": parent_job_id,
+                "child_job_ids": [f"{parent_job_id}:0", f"{parent_job_id}:1"],
+            },
+        )
+        phase = "observing"
+    elif phase == "observation_pending":
+        pending_stage = latest_payload("observation_pending").get("stage")
+        if pending_stage in {"admission", "artifact", "recovery", "authority"}:
+            controller.transition(
+                "observing",
+                {
+                    "resumed": True,
+                    "pending_stage": pending_stage,
+                    "parent_job_id": parent_job_id,
+                    "child_job_ids": [f"{parent_job_id}:0", f"{parent_job_id}:1"],
+                },
             )
-        compiled = compile_fixture(evidence)
-        if not isinstance(compiled, Mapping) or set(compiled) != {0, 1}:
-            raise CloudManifestError(
-                "fixture admission compilation did not produce exactly two worker receipts"
+            phase = "observing"
+
+    if phase == "workload_terminal":
+        terminal_payload = latest_payload("workload_terminal")
+        failure = CloudManifestError(
+            str(
+                (terminal_payload.get("failure") or {}).get("error")
+                if isinstance(terminal_payload.get("failure"), Mapping)
+                else "qualification workload reached a terminal failure"
             )
-        evidence = dict(evidence)
-        evidence["fixture_admissions"] = compiled
-        recovery = provider.run_partition_recovery(parent_job_id)
-        if (
-            recovery.get("restored_completed_boundary") is not True
-            or tuple(recovery.get("operations", ()))
-            != (
-                "describe_jobs_before",
-                "freeze_completed_boundary",
-                "restore_completed_boundary",
-                "describe_jobs_after",
-            )
-            or recovery.get("freeze") != {"requested": True, "completed": True}
-            or recovery.get("restore") != {"requested": True, "completed": True}
-        ):
-            raise CloudManifestError(
-                "partition/interruption recovery boundary was not restored exactly"
-            )
-    except Exception as exc:
-        failure = exc
-        if isinstance(exc, BatchAdmissionError):
+        )
+        finish_terminal(failure)
+
+    if phase == "observing":
+        try:
+            observed_evidence = provider.collect_admission(parent_job_id)
+            if not isinstance(observed_evidence, Mapping):
+                raise CloudManifestError("Batch admission evidence is not an object")
+            _require_evidence(observed_evidence)
+            compile_fixture = getattr(provider, "compile_fixture_evidence", None)
+            if not callable(compile_fixture):
+                raise CloudManifestError(
+                    "concrete qualification provider lacks fixture admission compilation"
+                )
+            compiled = compile_fixture(observed_evidence)
+            if not isinstance(compiled, Mapping) or set(compiled) != {0, 1}:
+                raise CloudManifestError(
+                    "fixture admission compilation did not produce exactly two worker receipts"
+                )
+            evidence = dict(observed_evidence)
+            evidence["fixture_admissions"] = compiled
+        except BatchAdmissionError as exc:
             evidence = {
                 "parent_status": exc.parent.get("status"),
                 "parent": exc.parent,
@@ -2686,90 +3345,124 @@ def execute(
                 "instance_ids": exc.instance_ids,
                 "raw_evidence": exc.raw_evidence,
             }
-    finally:
-        try:
-            provider.disable_and_drain(tags)
+            has_terminal_batch_status = (
+                exc.parent.get("status") == "FAILED"
+                or any(child.get("status") == "FAILED" for child in exc.children)
+            )
+            if not has_terminal_batch_status:
+                raise_resumable("admission", exc)
+            failure = exc
+            controller.transition(
+                "workload_terminal",
+                {
+                    "parent_job_id": parent_job_id,
+                    "child_job_ids": [f"{parent_job_id}:0", f"{parent_job_id}:1"],
+                    "failure": _controller_failure_payload(exc),
+                },
+            )
+            finish_terminal(exc)
         except Exception as exc:
-            cleanup_failure = exc
-        try:
-            terraform.destroy(lock_timeout=config.lock_timeout, tags=tags)
-        except Exception as exc:
-            cleanup_failure = cleanup_failure or exc
-    try:
-        absence = provider.verify_absence(tags)
-    except Exception as exc:
-        context = {
-            "plan": dict(parsed_plan),
-            "authority": authority_result,
-            "projected_cost_usd": projected,
-            "preflight": preflight,
-            "ready": ready,
-            "parent_job_id": parent_job_id,
-            "evidence": evidence,
-            "recovery": recovery,
-            "iam_simulation": iam_simulation,
-            "post_apply_iam_binding": post_apply_iam_binding,
-            "kms_verification": kms_verification,
-            "launch": launch,
-            "failure": failure,
-            "cleanup_failure": cleanup_failure,
-            "absence": None,
-        }
-        raise QualificationExecutionError(
-            "qualification teardown absence failed closed", context=context
-        ) from exc
-    try:
-        _require_complete_provider_absence(
-            absence,
-            phase="teardown",
-            allow_retained_raw_artifacts=failure is not None,
+            raise_resumable("admission", exc)
+        controller.transition(
+            "admission_reconciled",
+            {
+                "parent_job_id": parent_job_id,
+                "child_job_ids": [f"{parent_job_id}:0", f"{parent_job_id}:1"],
+                "evidence": _controller_evidence_payload(evidence),
+            },
         )
-    except Exception as exc:
-        context = {
-            "plan": dict(parsed_plan),
-            "authority": authority_result,
-            "projected_cost_usd": projected,
-            "preflight": preflight,
-            "ready": ready,
-            "parent_job_id": parent_job_id,
-            "evidence": evidence,
-            "recovery": recovery,
-            "iam_simulation": iam_simulation,
-            "post_apply_iam_binding": post_apply_iam_binding,
-            "kms_verification": kms_verification,
-            "launch": launch,
-            "failure": failure,
-            "cleanup_failure": cleanup_failure,
-            "absence": absence,
-        }
-        raise QualificationExecutionError(
-            "qualification teardown absence validation failed closed",
-            context=context,
-        ) from exc
-    context = {
-        "plan": dict(parsed_plan),
-        "authority": authority_result,
-        "projected_cost_usd": projected,
-        "preflight": preflight,
-        "ready": ready,
-        "parent_job_id": parent_job_id,
-        "evidence": evidence,
-        "recovery": recovery,
-        "iam_simulation": iam_simulation,
-        "post_apply_iam_binding": post_apply_iam_binding,
-        "kms_verification": kms_verification,
-        "launch": launch,
-        "failure": failure,
-        "cleanup_failure": cleanup_failure,
-        "absence": dict(absence),
-    }
-    if cleanup_failure is not None:
-        raise QualificationExecutionError(
-            "qualification teardown failed closed", context=context
-        ) from cleanup_failure
+        phase = "admission_reconciled"
+
+    if phase == "admission_reconciled":
+        reconcile_artifacts = getattr(provider, "reconcile_artifacts", None)
+        if callable(reconcile_artifacts):
+            try:
+                artifact_reconciliation = reconcile_artifacts()
+                if not isinstance(artifact_reconciliation, Mapping):
+                    raise CloudManifestError(
+                        "qualification artifact reconciliation is not an object"
+                    )
+                evidence = dict(evidence or {})
+                evidence["artifact_reconciliation"] = dict(artifact_reconciliation)
+            except Exception as exc:
+                raise_resumable("artifact", exc)
+        controller.transition(
+            "artifact_reconciled",
+            {
+                "parent_job_id": parent_job_id,
+                "child_job_ids": [f"{parent_job_id}:0", f"{parent_job_id}:1"],
+                "evidence": _controller_evidence_payload(evidence or {}),
+            },
+        )
+        phase = "artifact_reconciled"
+
+    if phase == "artifact_reconciled":
+        controller.transition(
+            "recovering",
+            {
+                "parent_job_id": parent_job_id,
+                "child_job_ids": [f"{parent_job_id}:0", f"{parent_job_id}:1"],
+            },
+        )
+        try:
+            if recovery_was_reconciled:
+                prior_recovery = latest_payload("recovery_reconciled").get("recovery")
+                recovery = (
+                    dict(prior_recovery)
+                    if isinstance(prior_recovery, Mapping)
+                    else {}
+                )
+            else:
+                recovery_value = provider.run_partition_recovery(parent_job_id)
+                if not isinstance(recovery_value, Mapping):
+                    raise CloudManifestError("partition recovery evidence is not an object")
+                recovery = dict(recovery_value)
+                if (
+                    recovery.get("restored_completed_boundary") is not True
+                    or tuple(recovery.get("operations", ()))
+                    != (
+                        "describe_jobs_before",
+                        "freeze_completed_boundary",
+                        "restore_completed_boundary",
+                        "describe_jobs_after",
+                    )
+                    or recovery.get("freeze") != {"requested": True, "completed": True}
+                    or recovery.get("restore") != {"requested": True, "completed": True}
+                ):
+                    raise CloudManifestError(
+                        "partition/interruption recovery boundary was not restored exactly"
+                    )
+        except Exception as exc:
+            raise_resumable("recovery", exc)
+        controller.transition(
+            "recovery_reconciled",
+            {
+                "parent_job_id": parent_job_id,
+                "child_job_ids": [f"{parent_job_id}:0", f"{parent_job_id}:1"],
+                "recovery": dict(recovery or {}),
+            },
+        )
+        phase = "recovery_reconciled"
+
+    if phase != "recovery_reconciled":
+        raise CloudManifestError(
+            f"qualification controller stopped at unexpected phase {phase!r}"
+        )
+
+    # If the process restarted after submission, re-establish the read-only
+    # IAM/KMS receipts before producing the terminal qualification evidence.
+    if config.require_receipt_evidence:
+        try:
+            capture_iam_and_kms()
+            capture_post_apply_iam()
+        except Exception as exc:
+            raise_resumable("authority", exc)
+
+    absence = perform_teardown(failure)
     if failure is not None:
         raise QualificationExecutionError(
-            "qualification failed closed", context=context
+            "qualification failed closed",
+            context=make_context(absence=absence, teardown_performed=True),
         ) from failure
     return {
         "parent_job_id": parent_job_id,
@@ -2787,4 +3480,5 @@ def execute(
         "plan": dict(parsed_plan),
         "authority": authority_result,
         "launch": dict(launch),
+        "controller_state": controller.snapshot.summary(),
     }

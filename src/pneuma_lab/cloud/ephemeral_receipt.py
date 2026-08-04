@@ -655,6 +655,9 @@ def build_ephemeral_qualification_receipt(
             absence, allow_retained_raw_artifacts=status == "no_go"
         ),
     }
+    controller_state = context.get("controller_state")
+    if isinstance(controller_state, Mapping):
+        receipt["controller_state"] = dict(controller_state)
     if status == "no_go":
         failure_kind = getattr(failure, "failure_kind", None)
         reason: dict[str, Any] = {

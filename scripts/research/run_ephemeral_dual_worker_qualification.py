@@ -163,6 +163,37 @@ def _postlaunch_receipt_failure(
     }
 
 
+def _resumable_output(
+    action_id: str, context: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Emit a non-terminal handoff; never turn a read failure into a receipt."""
+
+    parent_job_id = context.get("parent_job_id")
+    failure = context.get("failure")
+    return {
+        "record_kind": "cloud_ephemeral_dual_worker_qualification_resume_required",
+        "schema_version": "0.1.0",
+        "status": "resume_required",
+        "qualification_only": True,
+        "action_id": action_id,
+        "terminal_outcome": "not_terminal",
+        "no_retry_after_launch": False,
+        "controller_state": context.get("controller_state"),
+        "parent_job_id_sha256": (
+            hashlib.sha256(parent_job_id.encode("utf-8")).hexdigest()
+            if isinstance(parent_job_id, str) and parent_job_id
+            else None
+        ),
+        "failure": {
+            "type": type(failure).__name__,
+            "error": str(failure),
+        }
+        if failure is not None
+        else None,
+        "teardown_performed": context.get("teardown_performed") is True,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--execute", action="store_true")
@@ -181,6 +212,7 @@ def main() -> int:
     parser.add_argument("--compute-environment")
     parser.add_argument("--output-root")
     parser.add_argument("--receipt", type=Path)
+    parser.add_argument("--state", type=Path)
     args = parser.parse_args()
     if not args.execute:
         print(
@@ -206,10 +238,11 @@ def main() -> int:
         args.job_definition,
         args.compute_environment,
         args.output_root,
+        args.state,
     )
     if any(value is None for value in required):
         parser.error(
-            "--execute requires the exact plan, signed authority package and receipt evidence, queue, definition, and output root"
+            "--execute requires the exact plan, signed authority package, receipt, durable state path, queue, definition, and output root"
         )
 
     authority: dict[str, Any] | None = None
@@ -278,6 +311,7 @@ def main() -> int:
                 require_receipt_evidence=True,
                 action_evidence_root=evidence_root,
                 receipt_path=args.receipt,
+                state_path=args.state,
             ),
             envelope=envelope,
             admission=admission,
@@ -304,6 +338,9 @@ def main() -> int:
         return 0
     except QualificationExecutionError as exc:
         context = exc.context
+        if context.get("resumable") is True:
+            print(json.dumps(_resumable_output(args.action_id, context), sort_keys=True))
+            return 2
         if not context.get("parent_job_id"):
             print(json.dumps(_prelaunch_output(args.action_id, exc), sort_keys=True))
             return 1

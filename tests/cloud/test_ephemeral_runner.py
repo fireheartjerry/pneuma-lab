@@ -40,6 +40,7 @@ from pneuma_lab.cloud.qualification_execution import (
     terraform_plan_binding_digest,
     verify_provider_bindings,
 )
+from pneuma_lab.cloud.qualification_controller import QualificationStateStore
 from scripts.research.run_ephemeral_dual_worker_qualification import (
     _qualification_image_digest,
 )
@@ -518,6 +519,54 @@ class FakeTerraform:
         self.calls.append(f"destroy:{lock_timeout}")
 
 
+class RestartableFakeProvider(FakeProvider):
+    """Control-plane fake that exposes the post-submit restart boundary."""
+
+    def __init__(self, shared: dict[str, object]) -> None:
+        super().__init__()
+        self.shared = shared
+
+    def reconcile_submission(self, tags):
+        self.calls.append("reconcile-submission")
+        parent = self.shared.get("parent")
+        if isinstance(parent, str) and parent:
+            return {
+                "parent_job_id": parent,
+                "batch_job_ids": [parent, f"{parent}:0", f"{parent}:1"],
+                "cloudtrail_job_ids": [parent],
+                "submit_count": 1,
+            }
+        return {}
+
+    def submit_array(self, *, size, timeout_seconds, attempts, tags):
+        self.calls.append(f"submit:{size}:{timeout_seconds}:{attempts}")
+        self.shared["submit_calls"] = int(self.shared.get("submit_calls", 0)) + 1
+        self.shared["parent"] = "parent"
+        return "parent"
+
+    def collect_admission(self, parent_job_id):
+        remaining = int(self.shared.get("describe_failures_remaining", 0))
+        if remaining:
+            self.shared["describe_failures_remaining"] = remaining - 1
+            self.calls.append("describe-jobs-failure")
+            raise ProviderSubprocessError(
+                "repeated unclassified Batch observation failure",
+                operation="batch describe-jobs",
+                error_code=None,
+                stderr_sha256="d" * 64,
+                retryable=False,
+            )
+        return super().collect_admission(parent_job_id)
+
+    def reconcile_artifacts(self):
+        self.calls.append("reconcile-artifacts")
+        return {
+            "object_count": 2,
+            "worker_object_count": 2,
+            "worker_indices": [0, 1],
+        }
+
+
 def authority(*args, **kwargs):
     assert kwargs["expected_manifest_sha256"] == terraform_plan_binding_digest(
         hashlib.sha256(b"fixture-saved-plan").hexdigest(),
@@ -561,6 +610,89 @@ def test_runner_verifies_real_plan_and_executes_exact_two_children() -> None:
     ]
     assert terraform.calls == ["apply:60s", "destroy:60s"]
     assert provider.calls[-2:] == ["disable-drain", "absence"]
+
+
+def test_repeated_batch_observation_failures_resume_without_duplicate_submit(
+    tmp_path: Path,
+) -> None:
+    shared: dict[str, object] = {"describe_failures_remaining": 3}
+    config = RunnerConfig(
+        "qual-1",
+        "us-east-1",
+        action_evidence_root=tmp_path / "evidence",
+        receipt_path=tmp_path / "receipt.json",
+        state_path=tmp_path / "controller-state.json",
+    )
+
+    for iteration in range(3):
+        provider = RestartableFakeProvider(shared)
+        terraform = FakeTerraform()
+        with pytest.raises(QualificationExecutionError) as raised:
+            execute(
+                config,
+                envelope={},
+                admission={},
+                key_registry={},
+                ledger_path=LEDGER,
+                account_plan=terraform_show(),
+                provider=provider,
+                terraform=terraform,
+                verify_authority=authority,
+            )
+        assert raised.value.context["resumable"] is True
+        assert "disable-drain" not in provider.calls
+        assert "absence" not in provider.calls
+        assert terraform.calls == (["apply:60s"] if iteration == 0 else [])
+
+    provider = RestartableFakeProvider(shared)
+    terraform = FakeTerraform()
+    result = execute(
+        config,
+        envelope={},
+        admission={},
+        key_registry={},
+        ledger_path=LEDGER,
+        account_plan=terraform_show(),
+        provider=provider,
+        terraform=terraform,
+        verify_authority=authority,
+    )
+    assert result["controller_state"]["terminal_phase"] == "teardown_complete"
+    assert result["controller_state"]["resume_count"] >= 3
+    assert shared["submit_calls"] == 1
+    assert "submit:2:3600:1" not in provider.calls
+    assert provider.calls[-2:] == ["disable-drain", "absence"]
+    assert terraform.calls == ["destroy:60s"]
+    mode = (tmp_path / "controller-state.json").stat().st_mode & 0o777
+    assert mode == 0o600
+    persisted = QualificationStateStore(
+        tmp_path / "controller-state.json",
+        action_id="qual-1",
+        binding={
+            "action_id": "qual-1",
+            "region": "us-east-1",
+            "terraform_plan_binding_sha256": terraform_show()[
+                "terraform_plan_binding_sha256"
+            ],
+            "image_digest": "sha256:" + "a" * 64,
+            "output_root": terraform_show()["variables"]["output_path"]["value"],
+            "tags": {
+                "QualificationPurpose": "dual-l40s-admission-only",
+                "QualificationTopology": "two-g6e-2xlarge-l40s",
+                "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
+                "QualificationAction": "qual-1",
+                "QualificationActionId": "qual-1",
+                "QualificationCode": "signed-code",
+            },
+            "saved_plan_sha256": terraform_show()["saved_plan_sha256"],
+            "terraform_show_sha256": terraform_show()["terraform_show_sha256"],
+            "input_lock_sha256": None,
+            "authority_package_sha256": None,
+            "iam_policy_sha256": "a" * 64,
+            "max_retries": 0,
+        },
+    )
+    assert persisted.snapshot().phase == "teardown_complete"
 
 
 def test_runner_requires_complete_preflight_absence_before_apply() -> None:

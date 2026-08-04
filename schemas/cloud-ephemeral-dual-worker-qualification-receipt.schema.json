@@ -246,6 +246,31 @@
       },
       "additionalProperties": false
     },
+    "controller_state": {
+      "type": "object",
+      "required": [
+        "state_sha256",
+        "event_count",
+        "terminal_phase",
+        "resume_count",
+        "parent_job_id_sha256",
+        "child_job_id_sha256"
+      ],
+      "properties": {
+        "state_sha256": {"$ref": "#/$defs/digest"},
+        "event_count": {"type": "integer", "minimum": 1},
+        "terminal_phase": {"const": "teardown_complete"},
+        "resume_count": {"type": "integer", "minimum": 0},
+        "parent_job_id_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/digest"}]},
+        "child_job_id_sha256": {
+          "type": "array",
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/digest"}
+        }
+      },
+      "additionalProperties": false
+    },
     "software_repair_after_no_go": {
       "type": "object",
       "required": ["scope", "repair", "focused_regression", "launch_retried"],
