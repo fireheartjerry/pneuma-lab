@@ -59,6 +59,12 @@
                         { "type": "null" }
                     ]
                 },
+                "roster_ceremony_receipt_ref": {
+                    "oneOf": [
+                        { "$ref": "#/$defs/artifact_ref" },
+                        { "type": "null" }
+                    ]
+                },
                 "assignment_program_ref": { "$ref": "#/$defs/artifact_ref" },
                 "provider_lane_plan_ref": { "$ref": "#/$defs/artifact_ref" },
                 "branch_program_registry_ref": { "$ref": "#/$defs/artifact_ref" },
@@ -93,7 +99,8 @@
                 {
                     "properties": {
                         "eligibility_manifest_ref": { "type": "null" },
-                        "roster_ceremony_policy_ref": { "type": "null" }
+                        "roster_ceremony_policy_ref": { "type": "null" },
+                        "roster_ceremony_receipt_ref": { "type": "null" }
                     },
                     "required": [
                         "eligibility_manifest_ref",
@@ -107,11 +114,32 @@
                         },
                         "roster_ceremony_policy_ref": {
                             "$ref": "#/$defs/artifact_ref"
+                        },
+                        "roster_ceremony_receipt_ref": {
+                            "type": "null"
                         }
                     },
                     "required": [
                         "eligibility_manifest_ref",
                         "roster_ceremony_policy_ref"
+                    ]
+                },
+                {
+                    "properties": {
+                        "eligibility_manifest_ref": {
+                            "$ref": "#/$defs/artifact_ref"
+                        },
+                        "roster_ceremony_policy_ref": {
+                            "$ref": "#/$defs/artifact_ref"
+                        },
+                        "roster_ceremony_receipt_ref": {
+                            "$ref": "#/$defs/artifact_ref"
+                        }
+                    },
+                    "required": [
+                        "eligibility_manifest_ref",
+                        "roster_ceremony_policy_ref",
+                        "roster_ceremony_receipt_ref"
                     ]
                 }
             ],

@@ -50,7 +50,7 @@ def test_step7b_recipes_are_real_role_probes_not_fixture_bases() -> None:
         assert "registry.invalid" not in recipe
         assert "vllm/vllm-openai@sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90" in recipe
         assert f'"{role}"]' in recipe
-        assert "production_runtime.py" in recipe
+        assert "COPY src/pneuma_lab/cloud " in recipe
 
 
 def build_receipt(role: str, letter: str = "a") -> dict:

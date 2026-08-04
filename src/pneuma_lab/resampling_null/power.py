@@ -6,7 +6,7 @@ turns manifest-owned bytes into typed authority/configuration values.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
@@ -33,6 +33,7 @@ from .analysis import evaluate_binary_gate_batch
 from .authority_refs import closed_mapping, decode_artifact_ref
 from .errors import RecordValidationError
 from .json_io import load_json_bytes
+from .preflight import ConfirmationPreflightRegistry
 from .types import ArtifactRef
 from .types import AnalysisConfig, BinarySufficientStatisticsBatch, GateBatchResult, GroupKind, GroupLabel
 
@@ -698,6 +699,7 @@ class RosterBoundPowerAuthority:
     authority_kind: Literal["roster_bound_selection"]
     manifest_ref: ArtifactRef
     eligibility_manifest_ref: ArtifactRef
+    ceremony_receipt_ref: ArtifactRef
     roster_ref: ArtifactRef
     tier_membership_sha256: str
 
@@ -753,6 +755,9 @@ class PowerConfig:
     screen_topology_ref: ArtifactRef
     rng_contract_sha256: str
     authority_kind: str = "synthetic_validation"
+    # Confirmation power is executed once for each registered tier.  The
+    # synthetic and implementation-verification authorities leave this null.
+    tier: int | None = None
 
 
 _LOWERCASE_SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
@@ -984,13 +989,43 @@ def _authority_from_manifest(manifest_ref: ArtifactRef, *, run_root: Path, expec
         return SyntheticPowerAuthority("1", "synthetic_validation", manifest_ref, roster_ref, membership)
     if roster["roster_kind"] != "eligible_confirmation":
         raise RecordValidationError("roster-bound authority requires eligible_confirmation roster")
-    # `ConfirmationPreflightRegistry` deliberately exposes no reviewed live
-    # ceremony adapter.  A local JSON beacon/timestamp receipt cannot prove it
-    # was externally authenticated, so accepting one here would mint false
-    # confirmation authority.  Future support must arrive through a
-    # manifest-approved opaque capability, never a caller callback or blob.
-    raise RecordValidationError(
-        "roster-bound power authority unavailable: no reviewed verified ceremony adapter"
+    if not isinstance(eligibility, Mapping):
+        raise RecordValidationError(
+            "roster-bound power authority unavailable: no eligible confirmation manifest"
+        )
+    if not isinstance(manifest.get("roster_ceremony_receipt_ref"), Mapping):
+        raise RecordValidationError(
+            "roster-bound power authority unavailable: no reviewed verified ceremony adapter"
+        )
+    policy_ref = _manifest_ref(manifest, "roster_ceremony_policy_ref")
+    receipt_ref = _manifest_ref(manifest, "roster_ceremony_receipt_ref")
+    eligibility_path, _eligibility_raw = _read_ref(
+        _manifest_ref(manifest, "eligibility_manifest_ref"), run_root=run_root
+    )
+    policy_path, _policy_raw = _read_ref(policy_ref, run_root=run_root)
+    receipt_path, _receipt_raw = _read_ref(receipt_ref, run_root=run_root)
+    ConfirmationPreflightRegistry().claim_roster_ceremony_from_manifest(
+        eligibility_source=eligibility_path,
+        ceremony_policy_source=policy_path,
+        ceremony_receipt_source=receipt_path,
+        study_id=_manifest_study_id(manifest_ref, run_root=run_root),
+    )
+    _validate_confirmation_eligibility(
+        _manifest_ref(manifest, "eligibility_manifest_ref"),
+        roster,
+        study_id=_manifest_study_id(manifest_ref, run_root=run_root),
+        frozen_created_at=_manifest_frozen_created_at(manifest_ref, run_root=run_root),
+        manifest_payload=manifest,
+        run_root=run_root,
+    )
+    return RosterBoundPowerAuthority(
+        "1",
+        "roster_bound_selection",
+        manifest_ref,
+        _manifest_ref(manifest, "eligibility_manifest_ref"),
+        receipt_ref,
+        roster_ref,
+        membership,
     )
 
 
@@ -1004,6 +1039,7 @@ def _authority_value(authority: PowerAuthority) -> dict[str, object]:
     }
     if isinstance(authority, RosterBoundPowerAuthority):
         value["eligibility_manifest_ref"] = _ref_mapping(authority.eligibility_manifest_ref)
+        value["ceremony_receipt_ref"] = _ref_mapping(authority.ceremony_receipt_ref)
     return value
 
 
@@ -1045,7 +1081,7 @@ def load_power_authority(authority_ref: ArtifactRef, *, run_root: Path) -> Power
     if not isinstance(value, Mapping):
         raise RecordValidationError("power authority must be a JSON object")
     kind = value.get("authority_kind")
-    fields = _AUTHORITY_COMMON_FIELDS | ({"eligibility_manifest_ref"} if kind == "roster_bound_selection" else set())
+    fields = _AUTHORITY_COMMON_FIELDS | ({"eligibility_manifest_ref", "ceremony_receipt_ref"} if kind == "roster_bound_selection" else set())
     decoded = closed_mapping(value, fields=fields, field="power authority")
     if decoded["schema_version"] != "1" or kind not in {
         "synthetic_validation", "roster_bound_selection", "implementation_verification",
@@ -1145,7 +1181,14 @@ def grid_content_sha256(grid_ref: ArtifactRef, *, run_root: Path,
     return hashlib.sha256(raw).hexdigest()
 
 
-def load_power_config(authority_ref: ArtifactRef, grid_ref: ArtifactRef, screen_topology_ref: ArtifactRef, *, run_root: Path) -> PowerConfig:
+def load_power_config(
+    authority_ref: ArtifactRef,
+    grid_ref: ArtifactRef,
+    screen_topology_ref: ArtifactRef,
+    *,
+    run_root: Path,
+    tier: int | None = None,
+) -> PowerConfig:
     """Return the only public config constructor, rejecting all ref overrides."""
     authority = load_power_authority(authority_ref, run_root=run_root)
     manifest = _manifest(authority.manifest_ref, run_root=run_root)
@@ -1153,8 +1196,23 @@ def load_power_config(authority_ref: ArtifactRef, grid_ref: ArtifactRef, screen_
         raise RecordValidationError("power grid/topology refs must exactly equal manifest-bound refs")
     grid_content_sha256(grid_ref, run_root=run_root, authority_kind=authority.authority_kind)
     _read_ref(screen_topology_ref, run_root=run_root)
-    return PowerConfig(authority_ref, grid_ref, screen_topology_ref, RNG_CONTRACT_SHA256,
-                       authority.authority_kind)
+    if authority.authority_kind == "roster_bound_selection":
+        if tier not in (120, 160):
+            raise RecordValidationError(
+                "roster-bound power requires an explicit registered C120 or C160 tier"
+            )
+    elif tier is not None:
+        raise RecordValidationError(
+            "synthetic and implementation-verification power cannot carry a confirmation tier"
+        )
+    return PowerConfig(
+        authority_ref,
+        grid_ref,
+        screen_topology_ref,
+        RNG_CONTRACT_SHA256,
+        authority.authority_kind,
+        tier,
+    )
 
 
 def _power_contract_refs(config: PowerConfig, *, run_root: Path) -> tuple[ArtifactRef, ArtifactRef]:
@@ -1183,7 +1241,8 @@ def _record_base(config: PowerConfig, *, phase: str, generation: int, kernel_id:
     config_ref, numeric_ref = _power_contract_refs(config, run_root=run_root)
     return {"authority_ref": _ref_mapping(config.authority_ref), "decision_authority": authority.authority_kind,
             "phase": phase, "generation": generation, "roster_ref": _ref_mapping(authority.roster_ref),
-            "tier_membership_sha256": authority.tier_membership_sha256, "grid_ref": _ref_mapping(config.grid_ref),
+            "tier_membership_sha256": authority.tier_membership_sha256, "power_tier": config.tier,
+            "grid_ref": _ref_mapping(config.grid_ref),
             "screen_topology_ref": _ref_mapping(config.screen_topology_ref), "rng_contract_sha256": config.rng_contract_sha256,
             "grid_content_sha256": grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind), "kernel_id": kernel_id,
             "shard_count": shard_count, "config_ref": _ref_mapping(config_ref), "numeric_fixture_ref": _ref_mapping(numeric_ref),
@@ -1458,8 +1517,8 @@ def _screen_power_grid_locked(config: PowerConfig, *, phase: Literal["gaussian_a
     authority = load_power_authority(config.authority_ref, run_root=run_root)
     cells = frozen_power_cells(grid)
     digest = grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
-    layout = _roster_group_sizes(authority, run_root=run_root)
-    labels = _roster_joint_group_labels(authority, run_root=run_root)
+    layout = _roster_group_sizes(authority, run_root=run_root, tier=config.tier)
+    labels = _roster_joint_group_labels(authority, run_root=run_root, tier=config.tier)
     # The timing receipt replays every production cell through the same Task-7
     # count gate as a shard.  A single convenient cell is neither representative
     # nor authority to promise a parallel executor.
@@ -1568,24 +1627,38 @@ def _validate_screen_timing_admission(screen_ref: ArtifactRef, screen: Mapping[s
 
 def _same_config(payload: Mapping[str, object], config: PowerConfig, *, run_root: Path) -> None:
     base = _record_base(config, phase=cast(str, payload["phase"]), generation=cast(int, payload["generation"]), kernel_id=cast(str, payload["kernel_id"]), shard_count=cast(int, payload["shard_count"]), run_root=run_root)
-    for field in ("authority_ref", "roster_ref", "grid_ref", "screen_topology_ref", "rng_contract_sha256", "grid_content_sha256"):
-        if payload[field] != base[field]:
+    for field in ("authority_ref", "roster_ref", "power_tier", "grid_ref", "screen_topology_ref", "rng_contract_sha256", "grid_content_sha256"):
+        if payload.get(field) != base[field]:
             raise RecordValidationError(f"power parent {field} differs from config")
 
 
-def _roster_group_sizes(authority: PowerAuthority, *, run_root: Path) -> tuple[tuple[int, ...], tuple[int, ...]]:
+def _roster_group_sizes(
+    authority: PowerAuthority,
+    *,
+    run_root: Path,
+    tier: int | None,
+) -> tuple[tuple[int, ...], tuple[int, ...]]:
     """Derive exact joint sensitivity cells from roster benchmark/group fields.
 
     Task identifiers are opaque identifiers, not a covert experimental layout.
     Group order is canonicalized so a roster reordering cannot alter a draw.
     """
     roster = _load_roster(authority.roster_ref, run_root=run_root)
+    if authority.authority_kind == "roster_bound_selection" and tier not in (120, 160):
+        raise RecordValidationError(
+            "roster-bound group layout requires an explicit C120 or C160 tier"
+        )
     cells: dict[str, dict[tuple[tuple[str, str], ...], int]] = {"SWE": {}, "TAU": {}}
     for index, value in enumerate(cast(list[object], roster["tasks"])):
         task = closed_mapping(value, fields={"task_id", "benchmark", "stratum", "lineage", "groups", "tiers"}, field=f"power roster task[{index}]")
         benchmark = task["benchmark"]
         if benchmark not in cells:
             raise RecordValidationError("P0 roster must contain only SWE and TAU benchmarks")
+        tiers = task["tiers"]
+        if not isinstance(tiers, list):
+            raise RecordValidationError("P0 roster tiers must be arrays")
+        if tier is not None and tier not in tiers:
+            continue
         groups = task["groups"]
         if not isinstance(groups, list):
             raise RecordValidationError("P0 roster groups must be arrays")
@@ -1595,23 +1668,43 @@ def _roster_group_sizes(authority: PowerAuthority, *, run_root: Path) -> tuple[t
             for group in groups
         ))
         cells[cast(str, benchmark)][key] = cells[cast(str, benchmark)].get(key, 0) + 1
-    if any(sum(cells[name].values()) != 20 for name in ("SWE", "TAU")):
-        raise RecordValidationError("P0 execution requires exactly n=20 manifest tasks per benchmark")
+    expected = 20 if authority.authority_kind != "roster_bound_selection" else tier
+    if expected is None or any(sum(cells[name].values()) != expected for name in ("SWE", "TAU")):
+        label = (
+            "n=20 synthetic fixture tasks"
+            if authority.authority_kind != "roster_bound_selection"
+            else f"C{tier} manifest tasks"
+        )
+        raise RecordValidationError(f"P0 execution requires exactly {label} per benchmark")
     return (tuple(cells["SWE"][key] for key in sorted(cells["SWE"])),
             tuple(cells["TAU"][key] for key in sorted(cells["TAU"])))
 
 
-def _roster_joint_group_labels(authority: PowerAuthority, *, run_root: Path) -> tuple[
+def _roster_joint_group_labels(
+    authority: PowerAuthority,
+    *,
+    run_root: Path,
+    tier: int | None,
+) -> tuple[
     tuple[tuple[GroupLabel, ...], ...], tuple[tuple[GroupLabel, ...], ...],
 ]:
     """Return the same canonical joint-cell order used for simulation sizes."""
     roster = _load_roster(authority.roster_ref, run_root=run_root)
+    if authority.authority_kind == "roster_bound_selection" and tier not in (120, 160):
+        raise RecordValidationError(
+            "roster-bound group labels require an explicit C120 or C160 tier"
+        )
     cells: dict[str, set[tuple[tuple[str, str], ...]]] = {"SWE": set(), "TAU": set()}
     for value in cast(list[object], roster["tasks"]):
         task = closed_mapping(value, fields={"task_id", "benchmark", "stratum", "lineage", "groups", "tiers"}, field="power roster task")
         benchmark = cast(str, task["benchmark"])
         if benchmark not in cells:
             raise RecordValidationError("P0 roster must contain only SWE and TAU benchmarks")
+        tiers = task["tiers"]
+        if not isinstance(tiers, list):
+            raise RecordValidationError("P0 roster tiers must be arrays")
+        if tier is not None and tier not in tiers:
+            continue
         key = tuple(sorted((cast(str, closed_mapping(group, fields={"kind", "value"}, field="power roster group")["kind"]), cast(str, closed_mapping(group, fields={"kind", "value"}, field="power roster group")["value"])) for group in cast(list[object], task["groups"])))
         cells[benchmark].add(key)
     def labels(benchmark: str) -> tuple[tuple[GroupLabel, ...], ...]:
@@ -1739,8 +1832,8 @@ def simulate_power_shard(screen_ref: ArtifactRef, config: PowerConfig, *, shard_
     if (max_datasets is not None or max_cells is not None) and authority.authority_kind != "synthetic_validation":
         raise RecordValidationError("only synthetic fixtures may use incomplete P0 shard execution")
     dataset_count = grid.datasets_per_cell if max_datasets is None else max_datasets
-    roster_group_sizes = _roster_group_sizes(authority, run_root=run_root)
-    joint_group_labels = _roster_joint_group_labels(authority, run_root=run_root)
+    roster_group_sizes = _roster_group_sizes(authority, run_root=run_root, tier=config.tier)
+    joint_group_labels = _roster_joint_group_labels(authority, run_root=run_root, tier=config.tier)
     results: list[dict[str, object]] = []
     for cell in cells[start:end if max_cells is None else min(end, start + max_cells)]:
         totals, receipt = _gate_totals_for_cell(cell, authority=authority, digest=digest, phase=phase,
@@ -1812,13 +1905,239 @@ def _tier_decision(*, authority: PowerAuthority, rows: list[Mapping[str, object]
         return "IMPLEMENTATION_VERIFICATION_ONLY"
     if authority.authority_kind == "synthetic_validation":
         return "CONDITIONAL_ONLY"
-    # Both roster tiers consume the same full grid today; keep the decision
-    # derived from receipts rather than accepting a caller's preferred tier.
-    alternatives = [row for row in rows if cast(str, row["family"]) == "alternative"]
-    nulls = [row for row in rows if cast(str, row["family"]) != "alternative"]
-    passes = (all(cast(float, row["lower"]) >= 0.80 for row in alternatives)
-              and all(cast(float, row["upper"]) <= 0.05 for row in nulls))
-    return "C160" if passes else "FEASIBILITY_NO_GO"
+    tiers = {row.get("tier") for row in rows}
+    if len(tiers) != 1 or next(iter(tiers)) not in (120, 160):
+        raise RecordValidationError(
+            "roster-bound power decision requires one explicit C120 or C160 run"
+        )
+    tier = cast(int, next(iter(tiers)))
+    if not _tier_passes(rows):
+        return "FEASIBILITY_NO_GO"
+    return f"C{tier}"
+
+
+def _tier_passes(rows: Sequence[Mapping[str, object]]) -> bool:
+    expected_families = {
+        "alternative", "null_both", "null_content", "null_excess"
+    }
+    alternatives: list[Mapping[str, object]] = []
+    nulls: list[Mapping[str, object]] = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping) or row.get("family") not in {
+            "alternative", "null_both", "null_content", "null_excess"
+        }:
+            raise RecordValidationError(f"roster C-tier power row[{index}] has an invalid family")
+        lower, upper = row.get("lower"), row.get("upper")
+        if (
+            type(lower) not in (int, float)
+            or type(upper) not in (int, float)
+            or not np.isfinite(float(lower))
+            or not np.isfinite(float(upper))
+            or not 0.0 <= float(lower) <= float(upper) <= 1.0
+        ):
+            raise RecordValidationError(f"roster C-tier power row[{index}] has invalid intervals")
+        if row["family"] == "alternative":
+            alternatives.append(row)
+        else:
+            nulls.append(row)
+    if len(rows) != 4 or {cast(str, row["family"]) for row in rows} != expected_families:
+        raise RecordValidationError(
+            "roster C-tier power result must contain exactly one alternative and three registered null rows"
+        )
+    return (
+        all(float(row["lower"]) >= 0.80 for row in alternatives)
+        and all(float(row["upper"]) <= 0.05 for row in nulls)
+    )
+
+
+def select_roster_tier(
+    tier_results: Mapping[int | str, Sequence[Mapping[str, object]]],
+) -> Literal["C120", "C160", "FEASIBILITY_NO_GO"]:
+    """Apply the registered largest-feasible-tier rule.
+
+    The input is a completed, authority-bound power result for each registered
+    tier.  Selection uses only the power/type-I intervals: C160 is preferred
+    when it passes; C120 is the minimum fallback; if neither passes the result
+    is a formal no-go.  No efficacy, pilot, benchmark outcome, or operator
+    preference enters this function.
+    """
+
+    normalized: dict[int, Sequence[Mapping[str, object]]] = {}
+    for key, rows in tier_results.items():
+        try:
+            tier = int(key)
+        except (TypeError, ValueError) as exc:
+            raise RecordValidationError("roster tier results must use integer C120/C160 keys") from exc
+        if tier in normalized or tier not in (120, 160):
+            raise RecordValidationError("roster tier results must contain exactly one C120 and one C160 result")
+        if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)) or not rows:
+            raise RecordValidationError(f"roster C{tier} power result must contain rows")
+        normalized[tier] = rows
+    if set(normalized) != {120, 160}:
+        raise RecordValidationError("roster tier results must contain both registered tiers")
+
+    passes_160 = _tier_passes(normalized[160])
+    passes_120 = _tier_passes(normalized[120])
+    if passes_160:
+        return "C160"
+    if passes_120:
+        return "C120"
+    return "FEASIBILITY_NO_GO"
+
+
+def _roster_tier_decision_from_validation(
+    validation: Mapping[str, object],
+    *,
+    config: PowerConfig,
+    run_root: Path,
+    tier_receipt_ref: ArtifactRef | None = None,
+    validation_ref: ArtifactRef | None = None,
+) -> Literal["C120", "C160", "FEASIBILITY_NO_GO"]:
+    numeric_value = validation.get("numeric_receipt_ref")
+    numeric_ref = tier_receipt_ref or decode_artifact_ref(
+        numeric_value, field="roster validation numeric_receipt_ref"
+    )
+    numeric_path, numeric_raw = _read_ref(numeric_ref, run_root=run_root)
+    numeric = load_json_bytes(numeric_raw, source=numeric_path)
+    if not isinstance(numeric, Mapping) or numeric.get("contract_id") != "p0-roster-tier-decision-v1":
+        raise RecordValidationError("roster-bound finalization requires the registered per-tier power receipt")
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    expected_grid_digest = grid_content_sha256(
+        config.grid_ref, run_root=run_root, authority_kind=config.authority_kind
+    )
+    if (
+        numeric.get("authority_ref_sha256") != config.authority_ref.sha256
+        or numeric.get("tier_membership_sha256") != authority.tier_membership_sha256
+        or numeric.get("rng_contract_sha256") != config.rng_contract_sha256
+        or numeric.get("grid_content_sha256") != expected_grid_digest
+    ):
+        raise RecordValidationError("roster tier power receipt is not bound to authority, roster, or RNG")
+    tier_results = numeric.get("tier_results")
+    if not isinstance(tier_results, Mapping):
+        raise RecordValidationError("roster tier power receipt lacks both C120 and C160 results")
+    validation_refs = numeric.get("validation_refs")
+    if tier_receipt_ref is not None:
+        if not isinstance(validation_refs, Mapping) or validation_ref is None:
+            raise RecordValidationError(
+                "roster tier power receipt lacks validation ancestry"
+            )
+        expected_validation = validation_refs.get(str(config.tier))
+        if expected_validation != _ref_mapping(validation_ref):
+            raise RecordValidationError(
+                "roster tier power receipt does not bind the selected validation"
+            )
+    if validation.get("power_tier") != config.tier:
+        raise RecordValidationError(
+            "roster validation tier differs from the selected C120/C160 configuration"
+        )
+    decision = select_roster_tier(
+        cast(Mapping[int | str, Sequence[Mapping[str, object]]], tier_results)
+    )
+    return decision
+
+
+def _roster_tier_from_validation(
+    validation: Mapping[str, object],
+    *,
+    config: PowerConfig,
+    run_root: Path,
+    tier_receipt_ref: ArtifactRef | None = None,
+    validation_ref: ArtifactRef | None = None,
+) -> int:
+    decision = _roster_tier_decision_from_validation(
+        validation,
+        config=config,
+        run_root=run_root,
+        tier_receipt_ref=tier_receipt_ref,
+        validation_ref=validation_ref,
+    )
+    if decision == "FEASIBILITY_NO_GO":
+        raise RecordValidationError("registered C120/C160 power rule produced formal FEASIBILITY_NO_GO")
+    return int(decision[1:])
+
+
+def seal_roster_tier_decision_receipt(
+    c120_validation_ref: ArtifactRef,
+    c160_validation_ref: ArtifactRef,
+    config: PowerConfig,
+    *,
+    run_root: Path,
+    out: Path,
+) -> ArtifactRef:
+    """Combine the two completed tier validations into one sealed selector input.
+
+    This writes only a digest-bound numeric receipt; it does not select a tier
+    or create a power final.  The finalizers apply :func:`select_roster_tier`
+    to this receipt after reloading both validation ancestries.
+    """
+
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    if authority.authority_kind != "roster_bound_selection":
+        raise RecordValidationError("roster tier receipt requires roster-bound authority")
+    digest = grid_content_sha256(
+        config.grid_ref, run_root=run_root, authority_kind=config.authority_kind
+    )
+    entries: dict[str, object] = {}
+    validation_refs = {"120": c120_validation_ref, "160": c160_validation_ref}
+    for tier, ref in ((120, c120_validation_ref), (160, c160_validation_ref)):
+        validation = _report(ref, run_root=run_root, stage="validation")
+        if validation.get("power_tier") != tier:
+            raise RecordValidationError(
+                f"C{tier} tier receipt is not bound to a C{tier} validation"
+            )
+        if (
+            validation.get("authority_ref") != _ref_mapping(config.authority_ref)
+            or validation.get("tier_membership_sha256") != authority.tier_membership_sha256
+            or validation.get("rng_contract_sha256") != config.rng_contract_sha256
+            or validation.get("grid_content_sha256") != digest
+        ):
+            raise RecordValidationError(
+                f"C{tier} validation is not bound to the common power authority inputs"
+            )
+        numeric_ref = decode_artifact_ref(
+            validation.get("numeric_receipt_ref"),
+            field=f"C{tier} validation numeric_receipt_ref",
+        )
+        numeric_path, numeric_raw = _read_ref(numeric_ref, run_root=run_root)
+        numeric = load_json_bytes(numeric_raw, source=numeric_path)
+        if (
+            not isinstance(numeric, Mapping)
+            or numeric.get("contract_id") != "p0-roster-tier-decision-v1"
+            or numeric.get("authority_ref_sha256") != config.authority_ref.sha256
+            or numeric.get("tier_membership_sha256") != authority.tier_membership_sha256
+            or numeric.get("rng_contract_sha256") != config.rng_contract_sha256
+            or numeric.get("grid_content_sha256") != digest
+        ):
+            raise RecordValidationError(
+                f"C{tier} numeric receipt is not bound to the common power inputs"
+            )
+        tier_results = numeric.get("tier_results")
+        if not isinstance(tier_results, Mapping) or set(tier_results) != {str(tier)}:
+            raise RecordValidationError(
+                f"C{tier} numeric receipt must contain exactly its own tier rows"
+            )
+        rows = tier_results[str(tier)]
+        if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)):
+            raise RecordValidationError(f"C{tier} numeric receipt rows are malformed")
+        _tier_passes(rows)
+        entries[str(tier)] = list(rows)
+    combined = {
+        "contract_id": "p0-roster-tier-decision-v1",
+        "authority_ref_sha256": config.authority_ref.sha256,
+        "tier_membership_sha256": authority.tier_membership_sha256,
+        "rng_contract_sha256": config.rng_contract_sha256,
+        "grid_content_sha256": digest,
+        "validation_refs": {
+            key: _ref_mapping(ref) for key, ref in validation_refs.items()
+        },
+        "tier_results": entries,
+    }
+    return _write_validation_evidence(
+        out,
+        combined,
+        run_root=run_root,
+        role="power_roster_tier_decision_receipt",
+    )
 
 
 def _validation_family_totals(cell: PowerCell, *, authority: PowerAuthority, digest: str,
@@ -1853,8 +2172,8 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
     grid = _load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
     authority = load_power_authority(config.authority_ref, run_root=run_root)
     digest = grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind)
-    layout = _roster_group_sizes(authority, run_root=run_root)
-    joint_group_labels = _roster_joint_group_labels(authority, run_root=run_root)
+    layout = _roster_group_sizes(authority, run_root=run_root, tier=config.tier)
+    joint_group_labels = _roster_joint_group_labels(authority, run_root=run_root, tier=config.tier)
     by_cell = {cell.cell_id: cell for cell in frozen_power_cells(grid)}
     raw_rows: list[dict[str, object]] = []
     for selected_id in cast(list[str], selection["selected_cells"]):
@@ -1865,7 +2184,8 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
                 roster_group_sizes=layout, dataset_count=grid.validation_datasets_per_cell,
                 multiplier_draws=grid.multiplier_draws, joint_group_labels=joint_group_labels,
             )
-            raw_rows.append({"cell_id": cell_id, "family": family, "gaussian_gate_totals": gaussian,
+            raw_rows.append({"cell_id": cell_id, "family": family, "tier": config.tier,
+                             "gaussian_gate_totals": gaussian,
                              "full_multiplier_gate_totals": multiplier})
     lower_tail, upper_tail = 0.05 / 729, 0.05 / 2187
     receipts = []
@@ -1875,12 +2195,33 @@ def validate_gaussian_approximation(screen_ref: ArtifactRef, shard_refs: tuple[A
         receipts.append({"cell_id": cell_id,
             "alternative_power_lower": clopper_pearson_lower(cast(int, cast(Mapping[str, object], alternate["full_multiplier_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=lower_tail),
             "null_false_positive_upper": clopper_pearson_upper(max(cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"]) for row in null_rows), grid.validation_datasets_per_cell, tail_probability=upper_tail)})
-    gaussian_rows = [{"family": row["family"], "lower": clopper_pearson_lower(cast(int, cast(Mapping[str, object], row["gaussian_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=lower_tail), "upper": clopper_pearson_upper(cast(int, cast(Mapping[str, object], row["gaussian_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=upper_tail)} for row in raw_rows]
-    multiplier_rows = [{"family": row["family"], "lower": clopper_pearson_lower(cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=lower_tail), "upper": clopper_pearson_upper(cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=upper_tail)} for row in raw_rows]
+    gaussian_rows = [{"family": row["family"], "tier": row["tier"], "lower": clopper_pearson_lower(cast(int, cast(Mapping[str, object], row["gaussian_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=lower_tail), "upper": clopper_pearson_upper(cast(int, cast(Mapping[str, object], row["gaussian_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=upper_tail)} for row in raw_rows]
+    multiplier_rows = [{"family": row["family"], "tier": row["tier"], "lower": clopper_pearson_lower(cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=lower_tail), "upper": clopper_pearson_upper(cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"]), grid.validation_datasets_per_cell, tail_probability=upper_tail)} for row in raw_rows]
     maximum = max(abs(cast(int, cast(Mapping[str, object], row["gaussian_gate_totals"])["causal_pass_count"]) - cast(int, cast(Mapping[str, object], row["full_multiplier_gate_totals"])["causal_pass_count"])) / grid.validation_datasets_per_cell for row in raw_rows)
     gaussian_decision, multiplier_decision = _tier_decision(authority=authority, rows=gaussian_rows), _tier_decision(authority=authority, rows=multiplier_rows)
     raw_ref = _write_validation_evidence(out, {"contract_id": "p0-validation-raw-counts-v1", "draw_domain": "validation", "dataset_count": grid.validation_datasets_per_cell, "multiplier_draws": grid.multiplier_draws, "rows": raw_rows}, run_root=run_root, role="power_validation_raw_counts")
-    numeric_ref = _write_validation_evidence(out, {"contract_id": "p0-validation-decision-v1", "interval_receipts": receipts, "gaussian_decision": gaussian_decision, "full_multiplier_decision": multiplier_decision}, run_root=run_root, role="power_validation_numeric_receipt")
+    if authority.authority_kind == "roster_bound_selection":
+        numeric_value: dict[str, object] = {
+            "contract_id": "p0-roster-tier-decision-v1",
+            "authority_ref_sha256": config.authority_ref.sha256,
+            "tier_membership_sha256": authority.tier_membership_sha256,
+            "rng_contract_sha256": config.rng_contract_sha256,
+            "grid_content_sha256": digest,
+            "tier_results": {str(config.tier): multiplier_rows},
+        }
+    else:
+        numeric_value = {
+            "contract_id": "p0-validation-decision-v1",
+            "interval_receipts": receipts,
+            "gaussian_decision": gaussian_decision,
+            "full_multiplier_decision": multiplier_decision,
+        }
+    numeric_ref = _write_validation_evidence(
+        out,
+        numeric_value,
+        run_root=run_root,
+        role="power_validation_numeric_receipt",
+    )
     payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-gaussian-vs-multiplier-validation-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
     payload.update({"stage": "validation", "parent_refs": [_ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs], _ref_mapping(selection_ref)], "selected_cells": selection["selected_cells"], "interval_receipts": receipts, "validation_dataset_count": grid.validation_datasets_per_cell,
                     "raw_counts_ref": _ref_mapping(raw_ref), "numeric_receipt_ref": _ref_mapping(numeric_ref),
@@ -1919,9 +2260,51 @@ def finalize_synthetic_power_report(screen_ref: ArtifactRef, shard_refs: tuple[A
     )
 
 
+def finalize_roster_bound_power_report(
+    screen_ref: ArtifactRef,
+    shard_refs: tuple[ArtifactRef, ...],
+    selection_ref: ArtifactRef,
+    validation_ref: ArtifactRef,
+    config: PowerConfig,
+    *,
+    run_root: Path,
+    out: Path,
+    tier_receipt_ref: ArtifactRef | None = None,
+) -> ArtifactRef:
+    """Finalize a passed Gaussian lineage under verified roster authority."""
+
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    if authority.authority_kind != "roster_bound_selection":
+        raise RecordValidationError("roster-bound finalizer requires roster-bound authority")
+    validation = _report(validation_ref, run_root=run_root, stage="validation")
+    if validation["approximation_receipt"]["passed"] is not True:  # type: ignore[index]
+        raise RecordValidationError("roster-bound Gaussian validation did not pass")
+    if validation["approximation_receipt"]["tier_decision_unchanged"] is not True:  # type: ignore[index]
+        raise RecordValidationError("roster-bound Gaussian/full-multiplier tier decisions differ")
+    selected_tier = _roster_tier_from_validation(
+        validation,
+        config=config,
+        run_root=run_root,
+        tier_receipt_ref=tier_receipt_ref,
+        validation_ref=validation_ref,
+    )
+    return _finalize_completed_chain(
+        screen_ref,
+        shard_refs,
+        selection_ref,
+        validation_ref,
+        config,
+        decision="GO",
+        selected_tier=selected_tier,
+        run_root=run_root,
+        out=out,
+    )
+
+
 def _finalize_completed_chain(
     screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], selection_ref: ArtifactRef,
-    validation_ref: ArtifactRef, config: PowerConfig, *, decision: str, run_root: Path, out: Path,
+    validation_ref: ArtifactRef, config: PowerConfig, *, decision: str,
+    selected_tier: int | None = None, run_root: Path, out: Path,
 ) -> ArtifactRef:
     """Shared completed-chain sealing; the caller owns the authority check."""
     screen = _report(screen_ref, run_root=run_root, stage="screen")
@@ -1935,7 +2318,7 @@ def _finalize_completed_chain(
         raise RecordValidationError("selected final chain is not in the discovered authority ledger")
     payload = _record_base(config, phase="gaussian_approximation", generation=cast(int, screen["generation"]), kernel_id="power-final-gaussian-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
     payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in attempts],
-                    "finalization": {"kind": "completed_chain", "selected_phase": "gaussian_approximation", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-gaussian-v1", "selected_shard_count": screen["shard_count"], "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "selected_selection_ref": _ref_mapping(selection_ref), "selected_validation_ref": _ref_mapping(validation_ref), "selected_tier": None, "decision": decision}})
+                    "finalization": {"kind": "completed_chain", "selected_phase": "gaussian_approximation", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-gaussian-v1", "selected_shard_count": screen["shard_count"], "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "selected_selection_ref": _ref_mapping(selection_ref), "selected_validation_ref": _ref_mapping(validation_ref), "selected_tier": selected_tier, "decision": decision}})
     return _write_power(out, payload, run_root=run_root)
 
 
@@ -1953,7 +2336,7 @@ def validate_full_multiplier_fallback(screen_ref: ArtifactRef, shard_refs: tuple
     if failed["phase"] != "gaussian_approximation" or failed["approximation_receipt"]["passed"] is not False:  # type: ignore[index]
         raise RecordValidationError("fallback requires the terminal failed Gaussian validation")
     grid, authority = _load_power_grid(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind), load_power_authority(config.authority_ref, run_root=run_root)
-    digest, layout = grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind), _roster_group_sizes(authority, run_root=run_root)
+    digest, layout = grid_content_sha256(config.grid_ref, run_root=run_root, authority_kind=config.authority_kind), _roster_group_sizes(authority, run_root=run_root, tier=config.tier)
     raw_rows: list[dict[str, object]] = []
     for cell in frozen_power_cells(grid):
         # The fallback producer regenerates every dataset in its own phase and
@@ -1968,13 +2351,33 @@ def validate_full_multiplier_fallback(screen_ref: ArtifactRef, shard_refs: tuple
                 phase="full_multiplier_fallback", cell_id=cell.cell_id, replicate_index=replicate,
                 multiplier_draws=grid.multiplier_draws))
         lower_tail = grid.familywise_alpha / 729 if cell.family == "alternative" else grid.familywise_alpha / 2187
-        raw_rows.append({"cell_id": cell.cell_id, "family": cell.family,
+        raw_rows.append({"cell_id": cell.cell_id, "family": cell.family, "tier": config.tier,
             "gate_totals": {"dataset_count": grid.datasets_per_cell, "causal_pass_count": passed},
             "lower": clopper_pearson_lower(passed, grid.datasets_per_cell, tail_probability=lower_tail),
             "upper": clopper_pearson_upper(passed, grid.datasets_per_cell, tail_probability=lower_tail)})
     decision = _tier_decision(authority=authority, rows=raw_rows)
     raw_ref = _write_validation_evidence(out, {"contract_id": "p0-full-multiplier-raw-counts-v1", "multiplier_draws": grid.multiplier_draws, "rows": raw_rows}, run_root=run_root, role="power_full_multiplier_raw_counts")
-    numeric_ref = _write_validation_evidence(out, {"contract_id": "p0-full-multiplier-decision-v1", "decision": decision, "complete_cell_ids": [row["cell_id"] for row in raw_rows]}, run_root=run_root, role="power_full_multiplier_numeric_receipt")
+    if authority.authority_kind == "roster_bound_selection":
+        numeric_value = {
+            "contract_id": "p0-roster-tier-decision-v1",
+            "authority_ref_sha256": config.authority_ref.sha256,
+            "tier_membership_sha256": authority.tier_membership_sha256,
+            "rng_contract_sha256": config.rng_contract_sha256,
+            "grid_content_sha256": digest,
+            "tier_results": {str(config.tier): raw_rows},
+        }
+    else:
+        numeric_value = {
+            "contract_id": "p0-full-multiplier-decision-v1",
+            "decision": decision,
+            "complete_cell_ids": [row["cell_id"] for row in raw_rows],
+        }
+    numeric_ref = _write_validation_evidence(
+        out,
+        numeric_value,
+        run_root=run_root,
+        role="power_full_multiplier_numeric_receipt",
+    )
     payload = _record_base(config, phase="full_multiplier_fallback", generation=cast(int, screen["generation"]), kernel_id="power-full-grid-validation-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
     payload.update({"stage": "validation", "parent_refs": [_ref_mapping(ArtifactRef(**dict(trigger))), _ref_mapping(screen_ref), *[_ref_mapping(ref) for ref in shard_refs]], "fallback_trigger_ref": dict(trigger), "complete_cell_ids": [row["cell_id"] for row in raw_rows], "expected_cell_count": len(frozen_power_cells(grid)), "observed_cell_count": len(raw_rows), "raw_counts_ref": _ref_mapping(raw_ref), "numeric_receipt_ref": _ref_mapping(numeric_ref), "selected_tier": None if decision in {"CONDITIONAL_ONLY", "IMPLEMENTATION_VERIFICATION_ONLY", "FEASIBILITY_NO_GO"} else int(decision[1:]), "decision": decision if decision in {"CONDITIONAL_ONLY", "IMPLEMENTATION_VERIFICATION_ONLY"} else ("NO_GO" if decision == "FEASIBILITY_NO_GO" else "GO")})
     return _write_power(out, payload, run_root=run_root)
@@ -2005,9 +2408,115 @@ def finalize_synthetic_full_multiplier_report(screen_ref: ArtifactRef, shard_ref
     )
 
 
+def finalize_roster_bound_full_multiplier_report(
+    screen_ref: ArtifactRef,
+    shard_refs: tuple[ArtifactRef, ...],
+    validation_ref: ArtifactRef,
+    config: PowerConfig,
+    *,
+    run_root: Path,
+    out: Path,
+    tier_receipt_ref: ArtifactRef | None = None,
+) -> ArtifactRef:
+    """Finalize a passed full-multiplier fallback under roster authority."""
+
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    if authority.authority_kind != "roster_bound_selection":
+        raise RecordValidationError("roster-bound fallback finalizer requires roster-bound authority")
+    validation = _report(validation_ref, run_root=run_root, stage="validation")
+    if validation.get("decision") != "GO":
+        raise RecordValidationError("roster-bound fallback validation did not produce GO")
+    selected_tier = _roster_tier_from_validation(
+        validation,
+        config=config,
+        run_root=run_root,
+        tier_receipt_ref=tier_receipt_ref,
+        validation_ref=validation_ref,
+    )
+    return _finalize_full_multiplier_chain(
+        screen_ref,
+        shard_refs,
+        validation_ref,
+        config,
+        decision="GO",
+        selected_tier=selected_tier,
+        run_root=run_root,
+        out=out,
+    )
+
+
+def finalize_roster_bound_power_no_go(
+    validation_ref: ArtifactRef,
+    config: PowerConfig,
+    *,
+    tier_receipt_ref: ArtifactRef | None = None,
+    run_root: Path,
+    out: Path,
+) -> ArtifactRef:
+    """Seal the registered pre-outcome infeasibility terminal arm.
+
+    This is deliberately separate from the completed ``GO`` finalizers.  It
+    can only close a roster-bound validation whose externally supplied,
+    digest-bound C120/C160 receipt says that neither tier passes the registered
+    power/type-I rule; it cannot be used to turn an incomplete attempt into a
+    no-go.
+    """
+
+    authority = load_power_authority(config.authority_ref, run_root=run_root)
+    if authority.authority_kind != "roster_bound_selection":
+        raise RecordValidationError("feasibility no-go requires roster-bound authority")
+    validation = _report(validation_ref, run_root=run_root, stage="validation")
+    decision = _roster_tier_decision_from_validation(
+        validation,
+        config=config,
+        run_root=run_root,
+        tier_receipt_ref=tier_receipt_ref,
+        validation_ref=validation_ref,
+    )
+    if decision != "FEASIBILITY_NO_GO":
+        raise RecordValidationError("roster tier power rule did not produce formal FEASIBILITY_NO_GO")
+    attempts = _authority_attempt_refs(config, run_root=run_root)
+    if validation_ref not in attempts:
+        raise RecordValidationError("feasibility no-go terminal is not in the authority ledger")
+    phase = cast(str, validation["phase"])
+    kernel = (
+        "power-final-gaussian-v1"
+        if phase == "gaussian_approximation"
+        else "power-final-full-multiplier-v1"
+    )
+    payload = _record_base(
+        config,
+        phase=phase,
+        generation=cast(int, validation["generation"]),
+        kernel_id=kernel,
+        shard_count=cast(int, validation["shard_count"]),
+        run_root=run_root,
+    )
+    payload.update(
+        {
+            "stage": "final",
+            "parent_refs": [_ref_mapping(ref) for ref in attempts],
+            "all_attempt_refs": [_ref_mapping(ref) for ref in attempts],
+            "finalization": {
+                "kind": "feasibility_no_go",
+                "terminal_attempt_ref": _ref_mapping(validation_ref),
+                "terminal_stage": "validation",
+                "terminal_phase": phase,
+                "terminal_kernel_id": kernel,
+                "terminal_shard_count": validation["shard_count"],
+                "reason": "power_or_type_i_gate_failed",
+                "selected_tier": None,
+                "decision": "NO_GO",
+            },
+        }
+    )
+    return _write_power(out, payload, run_root=run_root)
+
+
 def _finalize_full_multiplier_chain(
     screen_ref: ArtifactRef, shard_refs: tuple[ArtifactRef, ...], validation_ref: ArtifactRef,
-    config: PowerConfig, *, decision: str, run_root: Path, out: Path,
+    config: PowerConfig, *, decision: str, selected_tier: int | None = None,
+    run_root: Path, out: Path,
 ) -> ArtifactRef:
     """Shared fallback completed-chain sealing; the caller owns the authority check."""
     screen, validation = _report(screen_ref, run_root=run_root, stage="screen"), _report(validation_ref, run_root=run_root, stage="validation")
@@ -2017,7 +2526,7 @@ def _finalize_full_multiplier_chain(
     attempts = _authority_attempt_refs(config, run_root=run_root)
     trigger = cast(Mapping[str, object], screen["fallback_trigger_ref"])
     payload = _record_base(config, phase="full_multiplier_fallback", generation=cast(int, screen["generation"]), kernel_id="power-final-full-multiplier-v1", shard_count=cast(int, screen["shard_count"]), run_root=run_root)
-    payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in attempts], "finalization": {"kind": "completed_chain", "selected_phase": "full_multiplier_fallback", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-full-multiplier-v1", "selected_shard_count": screen["shard_count"], "fallback_trigger_ref": dict(trigger), "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "full_grid_validation_ref": _ref_mapping(validation_ref), "selected_tier": None, "decision": decision}})
+    payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in attempts], "finalization": {"kind": "completed_chain", "selected_phase": "full_multiplier_fallback", "selected_generation": screen["generation"], "selected_kernel_id": "power-final-full-multiplier-v1", "selected_shard_count": screen["shard_count"], "fallback_trigger_ref": dict(trigger), "selected_screen_ref": _ref_mapping(screen_ref), "selected_shard_refs": [_ref_mapping(ref) for ref in shard_refs], "full_grid_validation_ref": _ref_mapping(validation_ref), "selected_tier": selected_tier, "decision": decision}})
     return _write_power(out, payload, run_root=run_root)
 
 
@@ -2043,7 +2552,7 @@ def finalize_synthetic_validation_failed(
     kernel = "power-final-gaussian-v1" if phase == "gaussian_approximation" else "power-final-full-multiplier-v1"
     payload = _record_base(config, phase=phase, generation=cast(int, terminal["generation"]), kernel_id=kernel, shard_count=cast(int, terminal["shard_count"]), run_root=run_root)
     payload.update({"stage": "final", "parent_refs": [_ref_mapping(ref) for ref in discovered_attempts], "all_attempt_refs": [_ref_mapping(ref) for ref in discovered_attempts],
-                    "finalization": {"kind": "synthetic_validation_failed", "terminal_attempt_ref": _ref_mapping(terminal_attempt_ref), "terminal_stage": terminal_stage, "terminal_phase": phase, "terminal_kernel_id": kernel, "terminal_shard_count": terminal["shard_count"], "reason": reason, "selected_tier": None, "decision": decision}})
+                    "finalization": {"kind": "synthetic_validation_failed", "terminal_attempt_ref": _ref_mapping(terminal_attempt_ref), "terminal_stage": terminal_stage, "terminal_phase": phase, "terminal_kernel_id": kernel, "terminal_shard_count": terminal["shard_count"], "reason": reason, "selected_tier": None, "decision": "CONDITIONAL_ONLY"}})
     return _write_power(out, payload, run_root=run_root)
 
 
@@ -2051,4 +2560,7 @@ __all__ = (
     "POWER_AUTHORITY_MEDIA_TYPE", "RNG_CONTRACT_SHA256", "PowerAuthority", "PowerConfig", "PowerGridSpec",
     "RosterBoundPowerAuthority", "SyntheticPowerAuthority", "grid_content_sha256", "load_power_authority", "load_power_config",
     "seal_roster_bound_power_authority", "seal_synthetic_power_authority",
+    "select_roster_tier", "seal_roster_tier_decision_receipt",
+    "finalize_roster_bound_power_report",
+    "finalize_roster_bound_full_multiplier_report", "finalize_roster_bound_power_no_go",
 )

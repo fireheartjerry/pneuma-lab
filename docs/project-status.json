@@ -555,7 +555,45 @@
                 "docs/research/neurips-2026-workshop/59-unsigned-p0-step14-checklist-20260803.md",
                 "docs/research/neurips-2026-workshop/60-pre-experiment-qualification-closure-20260804.md",
                 "docs/research/neurips-2026-workshop/61-unsigned-p0-step14-checklist-20260804.md",
-                "docs/research/neurips-2026-workshop/62-pre-experiment-qualification-closure-20260804.md"
+                "docs/research/neurips-2026-workshop/62-pre-experiment-qualification-closure-20260804.md",
+                "docs/research/neurips-2026-workshop/63-official-study-implementation-closure-20260804.md"
+            ],
+            "blockers": [
+                "B-NEURIPS-STEP14-REVIEW",
+                "B-NEURIPS-EXPERIMENT-EXECUTION"
+            ]
+        },
+        {
+            "id": "neurips_resampling_null_official_execution_path",
+            "status": "partial",
+            "scope": "offline_research",
+            "implementation_status": "implementation_complete",
+            "e2e_status": "E2E_pending",
+            "evidence_refs": [
+                "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
+                "docs/research/neurips-2026-workshop/63-official-study-implementation-closure-20260804.md",
+                "schemas/cloud-production-run-spec.schema.json",
+                "schemas/cloud-production-worker-evidence.schema.json",
+                "schemas/cloud-production-raw-worker-output.schema.json",
+                "schemas/cloud-production-controller-state.schema.json",
+                "schemas/cloud-official-study-authorization.schema.json",
+                "schemas/cloud-production-execution-surface.schema.json",
+                "infra/docker/controller/Dockerfile",
+                "infra/docker/model-server/Dockerfile",
+                "infra/docker/benchmark-worker/Dockerfile",
+                "src/pneuma_lab/cloud/production_run.py",
+                "src/pneuma_lab/cloud/production_evidence.py",
+                "src/pneuma_lab/cloud/production_controller.py",
+                "src/pneuma_lab/cloud/production_runtime.py",
+                "src/pneuma_lab/resampling_null/preflight.py",
+                "src/pneuma_lab/resampling_null/power.py",
+                "src/pneuma_lab/resampling_null/cli.py",
+                "schemas/resampling-ceremony-policy.schema.json",
+                "schemas/resampling-ceremony-receipt.schema.json",
+                "tests/cloud/test_production_path.py",
+                "tests/cloud/test_production_controller.py",
+                "tests/resampling_null/test_ceremony_preflight.py",
+                "tests/resampling_null/test_power_tier_selection.py"
             ],
             "blockers": [
                 "B-NEURIPS-STEP14-REVIEW",
@@ -607,7 +645,6 @@
                 "docs/research/neurips-2026-workshop/evidence/batch-array-qualification-014-receipt-20260802.json"
             ],
             "blockers": [
-                "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -635,7 +672,6 @@
                 "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
             ],
             "blockers": [
-                "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -661,7 +697,6 @@
                 "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
             ],
             "blockers": [
-                "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -680,7 +715,6 @@
                 "tests/cloud/test_emulation.py"
             ],
             "blockers": [
-                "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -700,7 +734,6 @@
                 "docs/research/neurips-2026-workshop/evidence/interruption-qualification-success-007-20260802.json"
             ],
             "blockers": [
-                "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -775,7 +808,6 @@
                 "tests/cloud/test_qualification_image_bootstrap.py"
             ],
             "blockers": [
-                "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -979,6 +1011,7 @@
         "docs/research/10-anti-fake-progress.md",
         "docs/research/neurips-2026-workshop/34-tasks-6-10-vps-handoff.md",
         "docs/research/neurips-2026-workshop/55-dual-l40s-spot-topology-reconciliation.md",
+        "docs/research/neurips-2026-workshop/63-official-study-implementation-closure-20260804.md",
         "docs/research/jspace-readiness.md",
         "docs/vision.md",
         "docs/gauge-card-standard.md",
@@ -1079,10 +1112,6 @@
         {
             "id": "B-NEURIPS-TASK10-E2E",
             "summary": "Task 10 has no complete authority-backed P0 lineage, isolated result of record, or independently verified canonical release decision; its state is implementation_complete and E2E_pending."
-        },
-        {
-            "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-            "summary": "The pre-experiment cloud semantics lane is now qualified by fresh action-019: the managed GPU AMI path, immutable fixture-only image, exact profile-to-role chain, least-privilege IAM simulation, four-AZ plan, one-use size-two Batch launch, two successful fixture workers, recovery boundary, and complete provider absence are evidenced. This blocker remains only as a broader Task 6–10 scientific E2E/lineage status; it does not require another qualification launch and does not authorize the official study."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",

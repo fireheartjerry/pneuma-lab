@@ -1,3 +1,4 @@
-# The sealed role probe imports only the Python standard library.  No pip
-# resolver is run during Step 7B, so this intentional empty closure is a real
-# lock rather than a placeholder.
+# The role package imports only dependencies already present in the exact
+# digest-pinned vLLM base: jsonschema for manifest validation and cryptography
+# for Ed25519 authority.  The Dockerfile has an explicit import probe; a future
+# image receipt must record the base SBOM and those resolved versions.

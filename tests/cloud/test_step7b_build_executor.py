@@ -142,6 +142,9 @@ def test_role_dockerfiles_use_the_repository_build_context() -> None:
         text = (repository / f"infra/docker/{role}/Dockerfile").read_text(encoding="utf-8")
         assert f"COPY infra/docker/{role}/{role}.lock " in text
         assert f'ENTRYPOINT ["python3", "-m", "pneuma_lab.cloud.production_runtime", "{role}"]' in text
+        assert "COPY src/pneuma_lab/cloud " in text
+        assert "COPY schemas/cloud-production-run-spec.schema.json " in text
+        assert 'import cryptography, jsonschema' in text
         assert 'find /opt/pneuma -xdev -exec touch --date="@${SOURCE_DATE_EPOCH}"' in text
 
 

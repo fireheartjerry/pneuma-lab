@@ -1,10 +1,14 @@
 # Three role recipes (Step 7B candidate)
 
 Each role is based on the exact Linux/amd64 `vllm/vllm-openai` digest already
-bound by the real Step 5B input lock.  The image overlays only the sealed
-standard-library `production_runtime` byte stream and an intentional empty
-dependency closure.  It does not download a model, execute a benchmark, use a
-GPU, push to a registry, or contain controller credentials.
+bound by the real Step 5B input lock.  The image overlays the sealed cloud
+production package, the closed task-registry validator, and the required
+schemas.  The build checks that the digest-pinned vLLM base exposes the
+reviewed `cryptography` and `jsonschema` runtime closure.  It does not download
+a model, execute a benchmark, use a GPU, push to a registry, or contain
+controller credentials.  The `verify` and `e2e` protocols remain
+qualification-only; `production` requires a separately bound run
+specification and official authorization.
 
 A separately signed Step 7B action must build every role twice with
 `SOURCE_DATE_EPOCH`, `PYTHONHASHSEED`, and UTC; execute its positive and

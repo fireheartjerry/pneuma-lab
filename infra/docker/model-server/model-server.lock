@@ -1,2 +1,4 @@
-# The sealed role probe imports only the Python standard library.  vLLM is part
-# of the exact digest-pinned base, not an unpinned pip resolution during build.
+# The role package imports only dependencies already present in the exact
+# digest-pinned vLLM base: jsonschema for manifest validation and cryptography
+# for Ed25519 authority.  vLLM remains part of the exact base, not an unpinned
+# pip resolution during build; the Dockerfile probes the complete closure.

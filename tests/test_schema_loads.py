@@ -19,8 +19,8 @@ EXPECTED_MANIFEST_COUNT = 1
 EXPECTED_FOUNDATION_COUNT = 6
 # Measurement-system analysis of an elicited metric channel (gauge card).
 EXPECTED_GAUGE_COUNT = 1
-EXPECTED_RESAMPLING_COUNT = 14
-EXPECTED_CLOUD_COUNT = 34
+EXPECTED_RESAMPLING_COUNT = 16
+EXPECTED_CLOUD_COUNT = 39
 
 SCHEMA_VERSION_OVERRIDES = {
     "consciousness-evidence-frame.schema.json": "0.2.0",
@@ -189,6 +189,8 @@ def test_resampling_schema_bucket_registered() -> None:
         "resampling-timing-no-go.schema.json",
         "resampling-unblind-receipt.schema.json",
         "resampling-artifact-root.schema.json",
+        "resampling-ceremony-policy.schema.json",
+        "resampling-ceremony-receipt.schema.json",
     )
     assert set(pls.RESAMPLING_SCHEMA_FILES).issubset(pls.ALL_SCHEMA_FILES)
     assert set(pls.RESAMPLING_SCHEMA_FILES).isdisjoint(pls.INPUT_SCHEMA_FILES)
@@ -196,7 +198,7 @@ def test_resampling_schema_bucket_registered() -> None:
 
 
 def test_t3_s02_operational_storage_stays_outside_scientific_schema_registry() -> None:
-    assert len(pls.RESAMPLING_SCHEMA_FILES) == 14
+    assert len(pls.RESAMPLING_SCHEMA_FILES) == 16
     assert all("storage" not in filename for filename in pls.RESAMPLING_SCHEMA_FILES)
     assert all(
         "matching-proof" not in filename for filename in pls.RESAMPLING_SCHEMA_FILES
@@ -235,6 +237,11 @@ def test_cloud_schema_bucket_registered() -> None:
         "cloud-step5b-lifecycle-receipt.schema.json",
         "cloud-isolation-qualification-receipt.schema.json",
         "cloud-production-role-receipt.schema.json",
+        "cloud-production-run-spec.schema.json",
+        "cloud-production-worker-evidence.schema.json",
+        "cloud-production-raw-worker-output.schema.json",
+        "cloud-production-controller-state.schema.json",
+        "cloud-official-study-authorization.schema.json",
         "cloud-lease-contention-qualification-receipt.schema.json",
         "cloud-lease-contention-cleanup-receipt.schema.json",
         "cloud-batch-array-qualification-receipt.schema.json",

@@ -16,7 +16,7 @@ import tempfile
 
 from .artifacts import (_scientific_documents, seal_artifact_root,
                         seal_study_manifest, verify_artifact_root,
-                        validate_record, write_record)
+                        validate_record)
 from .analysis import analysis_result_payload, analyze as analyze_rows
 from .blinding import (issue_unblind_permit, seal_blinded_projection,
                         unblind_and_publish_analysis)
@@ -38,10 +38,14 @@ from .execution_authority import load_prefix_execution_authority
 from .json_io import load_json_bytes, resolve_inside, run_root
 from .power import (finalize_implementation_verification_full_multiplier_report,
                     finalize_implementation_verification_power_report,
+                    finalize_roster_bound_full_multiplier_report,
+                    finalize_roster_bound_power_no_go,
+                    finalize_roster_bound_power_report,
                     finalize_synthetic_full_multiplier_report, finalize_synthetic_power_report, finalize_synthetic_validation_failed,
                     load_power_config, seal_implementation_verification_power_authority,
                     seal_roster_bound_power_authority,
-                    seal_synthetic_power_authority, screen_power_grid,
+                    seal_roster_tier_decision_receipt, seal_synthetic_power_authority,
+                    screen_power_grid,
                     select_validation_cells, simulate_power_shard,
                     validate_gaussian_approximation, validate_full_multiplier_fallback,
                     POWER_AUTHORITY_MEDIA_TYPE)
@@ -348,6 +352,7 @@ def _parser() -> argparse.ArgumentParser:
     seal.add_argument("--revision-source", action="append", required=True)
     seal.add_argument("--eligibility-manifest-source")
     seal.add_argument("--roster-ceremony-policy-source")
+    seal.add_argument("--roster-ceremony-receipt-source")
     seal.add_argument("--out", required=True)
     check = study.add_parser("validate")
     check.add_argument("--study", required=True)
@@ -355,11 +360,11 @@ def _parser() -> argparse.ArgumentParser:
     authority = power.add_parser("authority").add_subparsers(dest="authority_kind", required=True)
     for kind in ("synthetic", "roster-bound", "implementation-verification"):
         p = authority.add_parser(kind); p.add_argument("--study", required=True); p.add_argument("--out", required=True)
-    for name in ("screen", "simulate", "select-validation", "validate", "validate-fallback", "finalize"):
+    for name in ("screen", "simulate", "select-validation", "validate", "validate-fallback", "combine-tiers", "finalize"):
         p = power.add_parser(name)
-        p.add_argument("--authority", required=True); p.add_argument("--grid-ref", required=True); p.add_argument("--screen-topology-ref", required=True)
+        p.add_argument("--authority", required=True); p.add_argument("--grid-ref", required=True); p.add_argument("--screen-topology-ref", required=True); p.add_argument("--tier", type=int, choices=(120, 160))
         p.add_argument("--out", required=True)
-        if name != "finalize": p.add_argument("--screen")
+        if name not in ("finalize", "combine-tiers"): p.add_argument("--screen")
         if name == "screen":
             p.add_argument("--phase", choices=("gaussian_approximation", "full_multiplier_fallback"), required=True); p.add_argument("--generation", type=int, required=True); p.add_argument("--shard-count", type=int, required=True); p.add_argument("--fallback-trigger")
         elif name == "simulate": p.add_argument("--shard-index", type=int, required=True)
@@ -367,8 +372,11 @@ def _parser() -> argparse.ArgumentParser:
         elif name in ("validate", "validate-fallback"):
             p.add_argument("--shard-prefix", required=True)
             if name == "validate": p.add_argument("--selection", required=True)
+        elif name == "combine-tiers":
+            p.add_argument("--c120-validation", required=True)
+            p.add_argument("--c160-validation", required=True)
         else:
-            p.add_argument("--selected-screen"); p.add_argument("--selected-shard-prefix"); p.add_argument("--selected-selection"); p.add_argument("--selected-validation"); p.add_argument("--fallback-validation"); p.add_argument("--completed-gaussian", action="store_true"); p.add_argument("--completed-implementation-verification", action="store_true"); p.add_argument("--completed-implementation-verification-fallback", action="store_true"); p.add_argument("--completed-full-multiplier", action="store_true"); p.add_argument("--synthetic-validation-failed", action="store_true"); p.add_argument("--terminal-attempt"); p.add_argument("--terminal-stage", choices=("screen", "shard", "selection", "validation")); p.add_argument("--reason", choices=("gaussian_screen_exhausted", "full_multiplier_screen_exhausted", "numeric_fixture_failed", "runtime_bound_exceeded", "attempt_incomplete", "synthetic_validation_gate_failed"))
+            p.add_argument("--selected-screen"); p.add_argument("--selected-shard-prefix"); p.add_argument("--selected-selection"); p.add_argument("--selected-validation"); p.add_argument("--fallback-validation"); p.add_argument("--tier-receipt"); p.add_argument("--completed-gaussian", action="store_true"); p.add_argument("--completed-roster-bound", action="store_true"); p.add_argument("--completed-roster-bound-fallback", action="store_true"); p.add_argument("--completed-implementation-verification", action="store_true"); p.add_argument("--completed-implementation-verification-fallback", action="store_true"); p.add_argument("--completed-full-multiplier", action="store_true"); p.add_argument("--roster-bound-no-go", action="store_true"); p.add_argument("--synthetic-validation-failed", action="store_true"); p.add_argument("--terminal-attempt"); p.add_argument("--terminal-stage", choices=("screen", "shard", "selection", "validation")); p.add_argument("--reason", choices=("gaussian_screen_exhausted", "full_multiplier_screen_exhausted", "numeric_fixture_failed", "runtime_bound_exceeded", "attempt_incomplete", "power_or_type_i_gate_failed", "synthetic_validation_gate_failed"))
     schedule = top.add_parser("schedule").add_subparsers(dest="schedule_command", required=True)
     schedule_seal = schedule.add_parser("seal")
     schedule_seal.add_argument("--study", required=True); schedule_seal.add_argument("--power-final", required=True)
@@ -416,8 +424,9 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _config(args: argparse.Namespace, root: Path):
-    return load_power_config(_ref(root, args.authority, "power_authority"), _ref(root, args.grid_ref, "power_grid"), _ref(root, args.screen_topology_ref, "power_screen_topology"), run_root=root)
+def _config(args: argparse.Namespace, root: Path, *, tier_override: int | None = None):
+    tier = tier_override if tier_override is not None else getattr(args, "tier", None)
+    return load_power_config(_ref(root, args.authority, "power_authority"), _ref(root, args.grid_ref, "power_grid"), _ref(root, args.screen_topology_ref, "power_screen_topology"), run_root=root, tier=tier)
 
 
 def _artifact_ref(value: object, *, field: str) -> ArtifactRef:
@@ -947,7 +956,7 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | dict[str, o
             path, _ = resolve_inside(Path(args.study), root, require_exists=True)
             validate_record(load_json_bytes(path.read_bytes(), source=path)); return None
         values = vars(args)
-        ref = seal_study_manifest(*[Path(values[n]) for n in ("study_source", "tasks_source", "roster_source", "assignment_program_source", "provider_lane_plan_source", "branch_program_registry_source", "storage_policy_contract_source", "power_grid_source", "power_screen_topology_source", "tokenizer_source", "packet_template_source", "packet_policy_source", "pad_unit_set_source")], [Path(x) for x in args.revision_source], Path(args.required_kinds_source), eligibility_manifest_source=Path(args.eligibility_manifest_source) if args.eligibility_manifest_source else None, roster_ceremony_policy_source=Path(args.roster_ceremony_policy_source) if args.roster_ceremony_policy_source else None, run_root=root, out=_out(root, args.out)); return ref
+        ref = seal_study_manifest(*[Path(values[n]) for n in ("study_source", "tasks_source", "roster_source", "assignment_program_source", "provider_lane_plan_source", "branch_program_registry_source", "storage_policy_contract_source", "power_grid_source", "power_screen_topology_source", "tokenizer_source", "packet_template_source", "packet_policy_source", "pad_unit_set_source")], [Path(x) for x in args.revision_source], Path(args.required_kinds_source), eligibility_manifest_source=Path(args.eligibility_manifest_source) if args.eligibility_manifest_source else None, roster_ceremony_policy_source=Path(args.roster_ceremony_policy_source) if args.roster_ceremony_policy_source else None, roster_ceremony_receipt_source=Path(args.roster_ceremony_receipt_source) if args.roster_ceremony_receipt_source else None, run_root=root, out=_out(root, args.out)); return ref
     if args.command == "power":
         if args.power_command == "authority":
             manifest = _ref(root, args.study, "study_manifest")
@@ -957,6 +966,15 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | dict[str, o
                 "implementation-verification": seal_implementation_verification_power_authority,
             }[args.authority_kind]
             return fn(manifest, run_root=root, out=_out(root, args.out))
+        if args.power_command == "combine-tiers":
+            config = _config(args, root, tier_override=120)
+            return seal_roster_tier_decision_receipt(
+                _ref(root, args.c120_validation, "power_report"),
+                _ref(root, args.c160_validation, "power_report"),
+                config,
+                run_root=root,
+                out=_out(root, args.out),
+            )
         config = _config(args, root)
         if args.power_command == "screen":
             trigger = _ref(root, args.fallback_trigger, "power_report") if args.fallback_trigger else None
@@ -965,12 +983,20 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | dict[str, o
         if args.power_command == "select-validation": return select_validation_cells(_ref(root, args.screen, "power_report"), _shards(root, args.shard_prefix), config, run_root=root, out=_out(root, args.out))
         if args.power_command == "validate": return validate_gaussian_approximation(_ref(root, args.screen, "power_report"), _shards(root, args.shard_prefix), _ref(root, args.selection, "power_report"), config, run_root=root, out=_out(root, args.out))
         if args.power_command == "validate-fallback": return validate_full_multiplier_fallback(_ref(root, args.screen, "power_report"), _shards(root, args.shard_prefix), config, run_root=root, out=_out(root, args.out))
-        selected = sum(bool(x) for x in (args.completed_gaussian, args.completed_implementation_verification, args.completed_implementation_verification_fallback, args.completed_full_multiplier, args.synthetic_validation_failed))
+        selected = sum(bool(x) for x in (args.completed_gaussian, args.completed_roster_bound, args.completed_roster_bound_fallback, args.completed_implementation_verification, args.completed_implementation_verification_fallback, args.completed_full_multiplier, args.roster_bound_no_go, args.synthetic_validation_failed))
         if selected != 1: raise RecordValidationError("finalize requires exactly one closed finalization arm")
         if args.completed_gaussian:
             if not all((args.selected_screen, args.selected_shard_prefix, args.selected_selection, args.selected_validation)):
                 raise RecordValidationError("Gaussian final requires all selected screen, shard, selection, and validation refs")
             return finalize_synthetic_power_report(_ref(root,args.selected_screen,"power_report"), _shards(root,args.selected_shard_prefix), _ref(root,args.selected_selection,"power_report"), _ref(root,args.selected_validation,"power_report"), config, run_root=root,out=_out(root,args.out))
+        if args.completed_roster_bound:
+            if not all((args.selected_screen, args.selected_shard_prefix, args.selected_selection, args.selected_validation, args.tier_receipt)):
+                raise RecordValidationError("roster-bound final requires selected screen, shard, selection, validation, and both-tier receipt refs")
+            return finalize_roster_bound_power_report(_ref(root,args.selected_screen,"power_report"), _shards(root,args.selected_shard_prefix), _ref(root,args.selected_selection,"power_report"), _ref(root,args.selected_validation,"power_report"), config, tier_receipt_ref=_ref(root,args.tier_receipt,"power_validation_numeric_receipt"), run_root=root,out=_out(root,args.out))
+        if args.completed_roster_bound_fallback:
+            if not all((args.selected_screen, args.selected_shard_prefix, args.fallback_validation, args.tier_receipt)):
+                raise RecordValidationError("roster-bound fallback final requires selected screen, shard, fallback validation, and both-tier receipt refs")
+            return finalize_roster_bound_full_multiplier_report(_ref(root,args.selected_screen,"power_report"), _shards(root,args.selected_shard_prefix), _ref(root,args.fallback_validation,"power_report"), config, tier_receipt_ref=_ref(root,args.tier_receipt,"power_validation_numeric_receipt"), run_root=root,out=_out(root,args.out))
         if args.completed_implementation_verification:
             if not all((args.selected_screen, args.selected_shard_prefix, args.selected_selection, args.selected_validation)):
                 raise RecordValidationError("implementation-verification final requires all selected screen, shard, selection, and validation refs")
@@ -983,6 +1009,12 @@ def _dispatch(args: argparse.Namespace, root: Path) -> ArtifactRef | dict[str, o
             if not all((args.selected_screen, args.selected_shard_prefix, args.fallback_validation)):
                 raise RecordValidationError("full-multiplier final requires selected screen, shard, and fallback validation refs")
             return finalize_synthetic_full_multiplier_report(_ref(root,args.selected_screen,"power_report"), _shards(root,args.selected_shard_prefix), _ref(root,args.fallback_validation,"power_report"), config, run_root=root,out=_out(root,args.out))
+        if args.roster_bound_no_go:
+            if not all((args.selected_validation, args.tier_receipt)):
+                raise RecordValidationError("roster-bound no-go requires terminal validation and both-tier receipt refs")
+            if args.terminal_stage not in (None, "validation") or args.reason not in (None, "power_or_type_i_gate_failed"):
+                raise RecordValidationError("roster-bound no-go is only a validation-stage power/type-I terminal")
+            return finalize_roster_bound_power_no_go(_ref(root,args.selected_validation,"power_report"), config, tier_receipt_ref=_ref(root,args.tier_receipt,"power_validation_numeric_receipt"), run_root=root,out=_out(root,args.out))
         if args.synthetic_validation_failed:
             if not all((args.terminal_attempt, args.terminal_stage, args.reason)):
                 raise RecordValidationError("synthetic failed final requires terminal attempt, stage, and closed reason")

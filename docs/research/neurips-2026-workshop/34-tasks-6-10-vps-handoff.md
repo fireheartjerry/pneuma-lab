@@ -1419,3 +1419,29 @@ release preparation only; Step 14 remains `launch_blocked` pending real P0
 power/tier, packet, assignment, detectability, unblind, and authority-bound
 release receipts. No scientific workload, benchmark/model run, pilot, unblind,
 analysis, or claim promotion occurred.
+
+## Action-019 qualification closure and Action-020 implementation slice — 2026-08-04
+
+The stale action-018 section above is historical. It is superseded for current
+infrastructure status by action-019, whose closure is
+`62-pre-experiment-qualification-closure-20260804.md`: the approved two-L40S
+Spot qualification passed exactly once, with successful fixture workers,
+recovery evidence, and complete teardown. It does not authorize the official
+study and was not reused as official evidence.
+
+Action-020 completes the local implementation path after that qualification.
+The new production run specification, real model/benchmark adapters, raw
+worker contracts, provider-neutral durable controller, ceremony verifier, and
+roster-bound C120/C160 finalizer are implemented and focused-tested. Local
+mock execution is explicitly non-scientific; official mode requires a fresh
+signed authorization bound to the exact run specification. The `combine-tiers`
+CLI route only combines supplied tier receipts; it does not run a grid.
+
+The current state is: Tasks 6–9 and the production path are
+`implementation_complete; E2E_pending`; Task 10 is implementation/release
+preparation and `E2E_pending`; bounded Step 4A remains implementation
+verification only; official Step 4B/P0 remains unrun and separately
+authorized. The next work is fresh external input/roster/ceremony/power,
+spend/quota, signed official authorization, packet/assignment/detectability/
+blinding receipts, and hostile Step-14 release review—not another
+qualification launch. No scientific workload or receipt was created here.

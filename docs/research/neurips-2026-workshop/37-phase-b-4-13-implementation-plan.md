@@ -1276,3 +1276,22 @@ Step 14 follows all of the above and is out of scope here.
 - **Step 14 hostile launch review.** Out of scope.
 - **Step 4B.** Not executed, not authorized, no evidence fabricated or
   pre-staged for it, and no gate of it weakened.
+
+## 2026-08-04 implementation-status addendum
+
+Action-019 is the passed two-L40S qualification closure; action-018 remains a
+historical post-launch no-go. The post-qualification Action-020 slice now
+contains the real configuration-driven production execution contracts,
+provider-neutral durable controller, raw worker evidence validation, ceremony
+receipt verifier, and roster-bound C120/C160 power/tier finalization machinery.
+These components are `implementation_complete` with official E2E pending. The
+qualification lane is therefore no longer a current semantic blocker, but its
+receipt still cannot satisfy official P0/Step-4B authority. Fresh scientific
+inputs, live ceremony, both tier validations, signed official authorization,
+release review, and the separately authorized real workload remain required.
+
+The earlier Phase-A collision note that `power.py` and
+`branch_controller.py` are "wrapped, never modified" is historical planning
+guidance for the preserved Step 4A lineage, not a current blocker on the
+Action-020 roster-bound finalizers. Those finalizers are separately scoped,
+schema-validated, and do not rewrite or promote any earlier receipt.

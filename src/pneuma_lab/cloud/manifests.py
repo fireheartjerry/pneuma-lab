@@ -43,6 +43,11 @@ _SCHEMA_BY_KIND = {
     "cloud_step5b_lifecycle_receipt": "cloud-step5b-lifecycle-receipt.schema.json",
     "cloud_isolation_qualification_receipt": "cloud-isolation-qualification-receipt.schema.json",
     "cloud_production_role_receipt": "cloud-production-role-receipt.schema.json",
+    "cloud_production_run_spec": "cloud-production-run-spec.schema.json",
+    "cloud_production_worker_evidence": "cloud-production-worker-evidence.schema.json",
+    "cloud_production_raw_worker_output": "cloud-production-raw-worker-output.schema.json",
+    "cloud_production_controller_state": "cloud-production-controller-state.schema.json",
+    "cloud_official_study_authorization": "cloud-official-study-authorization.schema.json",
     "cloud_lease_contention_qualification_receipt": "cloud-lease-contention-qualification-receipt.schema.json",
     "cloud_lease_contention_cleanup_receipt": "cloud-lease-contention-cleanup-receipt.schema.json",
     "cloud_batch_array_qualification_receipt": "cloud-batch-array-qualification-receipt.schema.json",
@@ -133,6 +138,36 @@ def validate_production_role_receipt(record: Mapping[str, Any]) -> dict[str, Any
     """Validate one role hand-off receipt without promoting it to science."""
 
     return _validate(record, expected_kind="cloud_production_role_receipt")
+
+
+def validate_production_run_spec(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate a production run binding without authorizing its execution."""
+
+    return _validate(record, expected_kind="cloud_production_run_spec")
+
+
+def validate_production_worker_evidence(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate raw worker evidence before any separate scientific admission."""
+
+    return _validate(record, expected_kind="cloud_production_worker_evidence")
+
+
+def validate_production_raw_worker_output(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate raw worker payload shape without interpreting scientific outcomes."""
+
+    return _validate(record, expected_kind="cloud_production_raw_worker_output")
+
+
+def validate_production_controller_state(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate durable production state without treating it as execution proof."""
+
+    return _validate(record, expected_kind="cloud_production_controller_state")
+
+
+def validate_official_study_authorization(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate the separate official-study authority shape."""
+
+    return _validate(record, expected_kind="cloud_official_study_authorization")
 
 
 def validate_experiment_manifest(record: Mapping[str, Any]) -> dict[str, Any]:

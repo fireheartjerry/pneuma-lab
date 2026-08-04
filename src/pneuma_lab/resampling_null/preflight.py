@@ -50,16 +50,30 @@ class ConfirmationPreflightUnavailable(RecordValidationError):
     """Raised while no reviewed live ceremony adapter is installed."""
 
 
+DRAND_MAINNET_CHAIN_HASH = "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce"
+_CEREMONY_CAPABILITY_TOKEN = object()
+
+
 class ConfirmationRosterCeremonyCapability:
-    """Opaque live-only ceremony capability; no core mint path exists."""
+    """Opaque capability minted only after the receipt contract verifies."""
 
-    __slots__ = ()
+    __slots__ = ("_source_sha256s", "_receipt_sha256")
 
-    def __new__(cls) -> ConfirmationRosterCeremonyCapability:
-        raise TypeError(
-            "ceremony capabilities have no public constructor; "
-            "the reviewed live adapter is unavailable"
-        )
+    def __new__(
+        cls,
+        token: object | None = None,
+        source_sha256s: tuple[str, str, str, str, str, str, str] | None = None,
+        receipt_sha256: str | None = None,
+    ) -> ConfirmationRosterCeremonyCapability:
+        if token is not _CEREMONY_CAPABILITY_TOKEN or source_sha256s is None or receipt_sha256 is None:
+            raise TypeError(
+                "ceremony capabilities have no public constructor; "
+                "the reviewed live adapter must mint them"
+            )
+        instance = cast(ConfirmationRosterCeremonyCapability, object.__new__(cls))
+        instance._source_sha256s = source_sha256s
+        instance._receipt_sha256 = receipt_sha256
+        return instance
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         del cls, kwargs
@@ -67,13 +81,20 @@ class ConfirmationRosterCeremonyCapability:
 
     @property
     def source_sha256s(self) -> tuple[str, str, str, str, str, str, str]:
-        raise ConfirmationPreflightUnavailable(
-            "no registered live ceremony capability exists"
-        )
+        return self._source_sha256s
+
+    @property
+    def receipt_sha256(self) -> str:
+        return self._receipt_sha256
 
 
 class ConfirmationPreflightRegistry:
-    """Fail-closed core placeholder for the separately reviewed live adapter."""
+    """Verify externally produced Sigstore/drand/Node ceremony evidence.
+
+    The registry never contacts a service and never selects a roster.  The
+    separate live ceremony runner must provide the exact source bytes and a
+    receipt signed by the public key declared by the manifest-owned policy.
+    """
 
     __slots__ = ()
 
@@ -92,8 +113,16 @@ class ConfirmationPreflightRegistry:
         eligibility_source: Path,
         ceremony_policy_source: Path,
         study_id: str,
+        ceremony_receipt_source: Path | None = None,
     ) -> ConfirmationRosterCeremonyCapability:
-        del (
+        if ceremony_receipt_source is None:
+            raise ConfirmationPreflightUnavailable(
+                "eligible confirmation is unavailable: no reviewed official "
+                "Sigstore/drand/Node live receipt was supplied"
+            )
+        if type(study_id) is not str or not study_id:
+            raise RecordValidationError("ceremony study_id must be non-empty exact text")
+        source_paths = (
             qualification_universe_source,
             selection_program_source,
             precommit_source,
@@ -101,12 +130,271 @@ class ConfirmationPreflightRegistry:
             reveal_source,
             eligibility_source,
             ceremony_policy_source,
-            study_id,
         )
-        raise ConfirmationPreflightUnavailable(
-            "eligible confirmation is unavailable: no reviewed official "
-            "Sigstore/drand/Node live adapter is installed"
+        source_raw = tuple(
+            _read_ceremony_source(path, field=f"ceremony source[{index}]")
+            for index, path in enumerate(source_paths)
         )
+        source_sha256s = tuple(
+            hashlib.sha256(raw).hexdigest() for raw in source_raw
+        )
+        policy = _load_canonical_ceremony_object(
+            source_raw[6], source=ceremony_policy_source, field="ceremony policy"
+        )
+        policy_fields = {
+            "record_kind", "schema_version", "study_id", "qualification_universe_sha256",
+            "selection_program_sha256", "precommit_sha256", "drand", "sigstore", "node",
+            "public_key_ed25519_hex",
+        }
+        policy = _closed_mapping(policy, fields=policy_fields, path="ceremony policy")
+        if policy["record_kind"] != "resampling_roster_ceremony_policy_v1" or policy["schema_version"] != "1" or policy["study_id"] != study_id:
+            raise RecordValidationError("ceremony policy has wrong identity or study_id")
+        for field, expected in (
+            ("qualification_universe_sha256", source_sha256s[0]),
+            ("selection_program_sha256", source_sha256s[1]),
+            ("precommit_sha256", source_sha256s[2]),
+        ):
+            if policy[field] != expected:
+                raise RecordValidationError(f"ceremony policy {field} does not bind source bytes")
+            _sha256(policy[field], path=f"ceremony policy.{field}")
+        drand = _closed_mapping(
+            policy["drand"],
+            fields={"chain_hash", "scheme", "client_version", "group_hash", "genesis_time", "period"},
+            path="ceremony policy.drand",
+        )
+        if drand["chain_hash"] != DRAND_MAINNET_CHAIN_HASH or drand["scheme"] != "pedersen-bls-chained" or drand["client_version"] != "drand-client==1.4.2":
+            raise RecordValidationError("ceremony policy drand contract differs from the registered mainnet contract")
+        _sha256(drand["group_hash"], path="ceremony policy.drand.group_hash")
+        if type(drand["genesis_time"]) is not int or type(drand["period"]) is not int or drand["genesis_time"] < 0 or drand["period"] <= 0:
+            raise RecordValidationError("ceremony policy drand timing is invalid")
+        sigstore = _closed_mapping(
+            policy["sigstore"],
+            fields={"contract_id", "verifier_source_sha256", "required_rekor_log", "bundle_format"},
+            path="ceremony policy.sigstore",
+        )
+        if sigstore != {
+            "contract_id": "sigstore-bundle-verification-v1",
+            "verifier_source_sha256": sigstore["verifier_source_sha256"],
+            "required_rekor_log": "rekor-public-good",
+            "bundle_format": "sigstore-bundle-v0.3",
+        }:
+            raise RecordValidationError("ceremony policy Sigstore contract is not registered")
+        _sha256(sigstore["verifier_source_sha256"], path="ceremony policy.sigstore.verifier_source_sha256")
+        node = _closed_mapping(
+            policy["node"],
+            fields={"contract_id", "program_sha256", "runtime", "output_schema"},
+            path="ceremony policy.node",
+        )
+        if node["contract_id"] != "node-roster-selection-v1" or node["runtime"] != "nodejs-22" or node["output_schema"] != "resampling-eligibility-manifest-v1":
+            raise RecordValidationError("ceremony policy Node contract is not registered")
+        _sha256(node["program_sha256"], path="ceremony policy.node.program_sha256")
+        public_key = policy["public_key_ed25519_hex"]
+        _lower_hex(public_key, field="ceremony policy.public_key_ed25519_hex", byte_count=32)
+
+        receipt_raw = _read_ceremony_source(ceremony_receipt_source, field="ceremony receipt")
+        receipt = _load_canonical_ceremony_object(receipt_raw, source=ceremony_receipt_source, field="ceremony receipt")
+        receipt_fields = {
+            "record_kind", "schema_version", "study_id", "qualification_universe_sha256",
+            "selection_program_sha256", "precommit_sha256", "anchor_sha256", "reveal_sha256",
+            "eligibility_manifest_sha256", "ceremony_policy_sha256", "sigstore", "drand", "node",
+            "signature_ed25519_hex",
+        }
+        receipt = _closed_mapping(receipt, fields=receipt_fields, path="ceremony receipt")
+        if receipt["record_kind"] != "resampling_roster_ceremony_receipt_v1" or receipt["schema_version"] != "1" or receipt["study_id"] != study_id:
+            raise RecordValidationError("ceremony receipt has wrong identity or study_id")
+        expected_bindings = {
+            "qualification_universe_sha256": source_sha256s[0],
+            "selection_program_sha256": source_sha256s[1],
+            "precommit_sha256": source_sha256s[2],
+            "anchor_sha256": source_sha256s[3],
+            "reveal_sha256": source_sha256s[4],
+            "eligibility_manifest_sha256": source_sha256s[5],
+            "ceremony_policy_sha256": source_sha256s[6],
+        }
+        for field, expected in expected_bindings.items():
+            if receipt[field] != expected:
+                raise RecordValidationError(f"ceremony receipt {field} does not bind exact source bytes")
+            _sha256(receipt[field], path=f"ceremony receipt.{field}")
+        verify_ed25519_canonical_json(
+            receipt,
+            public_key_ed25519_hex=cast(str, public_key),
+            signature_ed25519_hex=cast(str, receipt["signature_ed25519_hex"]),
+            signature_field="signature_ed25519_hex",
+        )
+        receipt_sigstore = _closed_mapping(
+            receipt["sigstore"],
+            fields={"verified", "bundle_sha256", "rekor_entry_sha256", "artifact_sha256", "verifier_source_sha256"},
+            path="ceremony receipt.sigstore",
+        )
+        if receipt_sigstore["verified"] is not True or receipt_sigstore["verifier_source_sha256"] != sigstore["verifier_source_sha256"]:
+            raise RecordValidationError("ceremony receipt Sigstore verification is not bound to policy")
+        for field in ("bundle_sha256", "rekor_entry_sha256", "artifact_sha256", "verifier_source_sha256"):
+            _sha256(receipt_sigstore[field], path=f"ceremony receipt.sigstore.{field}")
+        receipt_drand = _closed_mapping(
+            receipt["drand"],
+            fields={"verified", "chain_hash", "round", "randomness_hex", "randomness_sha256", "proof_sha256"},
+            path="ceremony receipt.drand",
+        )
+        if receipt_drand["verified"] is not True or receipt_drand["chain_hash"] != drand["chain_hash"]:
+            raise RecordValidationError("ceremony receipt drand proof is not bound to the registered chain")
+        _nonnegative_int(receipt_drand["round"], path="ceremony receipt.drand.round")
+        randomness = _lower_hex(receipt_drand["randomness_hex"], field="ceremony receipt.drand.randomness_hex", byte_count=32)
+        if hashlib.sha256(randomness).hexdigest() != receipt_drand["randomness_sha256"]:
+            raise RecordValidationError("ceremony receipt drand randomness digest differs")
+        _sha256(receipt_drand["randomness_sha256"], path="ceremony receipt.drand.randomness_sha256")
+        _sha256(receipt_drand["proof_sha256"], path="ceremony receipt.drand.proof_sha256")
+        receipt_node = _closed_mapping(
+            receipt["node"],
+            fields={"verified", "program_sha256", "output_sha256"},
+            path="ceremony receipt.node",
+        )
+        if receipt_node["verified"] is not True or receipt_node["program_sha256"] != node["program_sha256"] or receipt_node["output_sha256"] != source_sha256s[5]:
+            raise RecordValidationError("ceremony receipt Node output is not bound to policy and eligibility")
+        _sha256(receipt_node["program_sha256"], path="ceremony receipt.node.program_sha256")
+        _sha256(receipt_node["output_sha256"], path="ceremony receipt.node.output_sha256")
+
+        eligibility = _load_canonical_ceremony_object(
+            source_raw[5], source=eligibility_source, field="eligibility manifest"
+        )
+        if eligibility.get("record_kind") != "resampling_eligibility_manifest_v1" or eligibility.get("schema_version") != "1" or eligibility.get("study_id") != study_id:
+            raise RecordValidationError("ceremony receipt rejects non-live or synthetic eligibility authority")
+        beacon = eligibility.get("beacon_receipt")
+        if not isinstance(beacon, Mapping) or beacon.get("chain_hash") != DRAND_MAINNET_CHAIN_HASH or beacon.get("randomness_hex") != receipt_drand["randomness_hex"]:
+            raise RecordValidationError("eligibility beacon does not match the verified drand receipt")
+        if eligibility.get("precommit_sha256") != receipt["precommit_sha256"]:
+            raise RecordValidationError("eligibility precommit does not match the verified ceremony receipt")
+        return ConfirmationRosterCeremonyCapability(
+            _CEREMONY_CAPABILITY_TOKEN,
+            cast(tuple[str, str, str, str, str, str, str], source_sha256s),
+            hashlib.sha256(receipt_raw).hexdigest(),
+        )
+
+    def claim_roster_ceremony_from_manifest(
+        self,
+        *,
+        eligibility_source: Path,
+        ceremony_policy_source: Path,
+        ceremony_receipt_source: Path,
+        study_id: str,
+    ) -> ConfirmationRosterCeremonyCapability:
+        """Verify the manifest-owned compact bundle at the authority boundary.
+
+        The full ceremony adapter above accepts the seven independently
+        archived upstream source files.  A sealed study manifest may retain
+        only the compact policy, eligibility output, and signed verification
+        receipt; this method verifies that compact bundle without inventing or
+        re-fetching the omitted source bytes.
+        """
+
+        eligibility_raw = _read_ceremony_source(eligibility_source, field="eligibility manifest")
+        policy_raw = _read_ceremony_source(ceremony_policy_source, field="ceremony policy")
+        receipt_raw = _read_ceremony_source(ceremony_receipt_source, field="ceremony receipt")
+        eligibility = _load_canonical_ceremony_object(eligibility_raw, source=eligibility_source, field="eligibility manifest")
+        policy = _load_canonical_ceremony_object(policy_raw, source=ceremony_policy_source, field="ceremony policy")
+        receipt = _load_canonical_ceremony_object(receipt_raw, source=ceremony_receipt_source, field="ceremony receipt")
+        if eligibility.get("record_kind") != "resampling_eligibility_manifest_v1" or eligibility.get("schema_version") != "1" or eligibility.get("study_id") != study_id:
+            raise RecordValidationError("manifest ceremony bundle rejects synthetic or IV eligibility")
+        if policy.get("record_kind") != "resampling_roster_ceremony_policy_v1" or policy.get("schema_version") != "1" or policy.get("study_id") != study_id:
+            raise RecordValidationError("manifest ceremony policy has wrong identity")
+        if receipt.get("record_kind") != "resampling_roster_ceremony_receipt_v1" or receipt.get("schema_version") != "1" or receipt.get("study_id") != study_id:
+            raise RecordValidationError("manifest ceremony receipt has wrong identity")
+        policy_map = _closed_mapping(
+            policy,
+            fields={"record_kind", "schema_version", "study_id", "qualification_universe_sha256", "selection_program_sha256", "precommit_sha256", "drand", "sigstore", "node", "public_key_ed25519_hex"},
+            path="ceremony policy",
+        )
+        receipt_map = _closed_mapping(
+            receipt,
+            fields={"record_kind", "schema_version", "study_id", "qualification_universe_sha256", "selection_program_sha256", "precommit_sha256", "anchor_sha256", "reveal_sha256", "eligibility_manifest_sha256", "ceremony_policy_sha256", "sigstore", "drand", "node", "signature_ed25519_hex"},
+            path="ceremony receipt",
+        )
+        policy_digest = hashlib.sha256(policy_raw).hexdigest()
+        eligibility_digest = hashlib.sha256(eligibility_raw).hexdigest()
+        if receipt_map["eligibility_manifest_sha256"] != eligibility_digest or receipt_map["ceremony_policy_sha256"] != policy_digest:
+            raise RecordValidationError("manifest ceremony receipt does not bind manifest-owned bytes")
+        for field in ("qualification_universe_sha256", "selection_program_sha256", "precommit_sha256"):
+            if receipt_map[field] != policy_map[field]:
+                raise RecordValidationError(f"manifest ceremony {field} differs between policy and receipt")
+            _sha256(policy_map[field], path=f"ceremony policy.{field}")
+        drand = _closed_mapping(policy_map["drand"], fields={"chain_hash", "scheme", "client_version", "group_hash", "genesis_time", "period"}, path="ceremony policy.drand")
+        if drand["chain_hash"] != DRAND_MAINNET_CHAIN_HASH or drand["scheme"] != "pedersen-bls-chained" or drand["client_version"] != "drand-client==1.4.2":
+            raise RecordValidationError("manifest ceremony drand policy is not the registered mainnet contract")
+        _sha256(drand["group_hash"], path="ceremony policy.drand.group_hash")
+        sigstore = _closed_mapping(policy_map["sigstore"], fields={"contract_id", "verifier_source_sha256", "required_rekor_log", "bundle_format"}, path="ceremony policy.sigstore")
+        if sigstore["contract_id"] != "sigstore-bundle-verification-v1" or sigstore["required_rekor_log"] != "rekor-public-good" or sigstore["bundle_format"] != "sigstore-bundle-v0.3":
+            raise RecordValidationError("manifest ceremony Sigstore policy is not registered")
+        node = _closed_mapping(policy_map["node"], fields={"contract_id", "program_sha256", "runtime", "output_schema"}, path="ceremony policy.node")
+        if node["contract_id"] != "node-roster-selection-v1" or node["runtime"] != "nodejs-22" or node["output_schema"] != "resampling-eligibility-manifest-v1":
+            raise RecordValidationError("manifest ceremony Node policy is not registered")
+        _lower_hex(policy_map["public_key_ed25519_hex"], field="ceremony policy.public_key_ed25519_hex", byte_count=32)
+        verify_ed25519_canonical_json(
+            receipt_map,
+            public_key_ed25519_hex=cast(str, policy_map["public_key_ed25519_hex"]),
+            signature_ed25519_hex=cast(str, receipt_map["signature_ed25519_hex"]),
+            signature_field="signature_ed25519_hex",
+        )
+        receipt_sigstore = _closed_mapping(receipt_map["sigstore"], fields={"verified", "bundle_sha256", "rekor_entry_sha256", "artifact_sha256", "verifier_source_sha256"}, path="ceremony receipt.sigstore")
+        if receipt_sigstore["verified"] is not True or receipt_sigstore["verifier_source_sha256"] != sigstore["verifier_source_sha256"]:
+            raise RecordValidationError("manifest ceremony Sigstore receipt is not verified under policy")
+        for field in ("bundle_sha256", "rekor_entry_sha256", "artifact_sha256", "verifier_source_sha256"):
+            _sha256(receipt_sigstore[field], path=f"ceremony receipt.sigstore.{field}")
+        receipt_drand = _closed_mapping(receipt_map["drand"], fields={"verified", "chain_hash", "round", "randomness_hex", "randomness_sha256", "proof_sha256"}, path="ceremony receipt.drand")
+        if receipt_drand["verified"] is not True or receipt_drand["chain_hash"] != DRAND_MAINNET_CHAIN_HASH:
+            raise RecordValidationError("manifest ceremony drand receipt is not verified under policy")
+        randomness = _lower_hex(receipt_drand["randomness_hex"], field="ceremony receipt.drand.randomness_hex", byte_count=32)
+        if hashlib.sha256(randomness).hexdigest() != receipt_drand["randomness_sha256"]:
+            raise RecordValidationError("manifest ceremony drand randomness digest differs")
+        _nonnegative_int(receipt_drand["round"], path="ceremony receipt.drand.round")
+        for field in ("randomness_sha256", "proof_sha256"):
+            _sha256(receipt_drand[field], path=f"ceremony receipt.drand.{field}")
+        receipt_node = _closed_mapping(receipt_map["node"], fields={"verified", "program_sha256", "output_sha256"}, path="ceremony receipt.node")
+        if receipt_node["verified"] is not True or receipt_node["program_sha256"] != node["program_sha256"] or receipt_node["output_sha256"] != eligibility_digest:
+            raise RecordValidationError("manifest ceremony Node receipt is not bound to the eligibility output")
+        _sha256(receipt_node["program_sha256"], path="ceremony receipt.node.program_sha256")
+        _sha256(receipt_node["output_sha256"], path="ceremony receipt.node.output_sha256")
+        beacon = eligibility.get("beacon_receipt")
+        if not isinstance(beacon, Mapping) or beacon.get("chain_hash") != DRAND_MAINNET_CHAIN_HASH or beacon.get("randomness_hex") != receipt_drand["randomness_hex"]:
+            raise RecordValidationError("manifest eligibility beacon differs from verified drand")
+        if eligibility.get("precommit_sha256") != receipt_map["precommit_sha256"]:
+            raise RecordValidationError("manifest eligibility precommit differs from ceremony receipt")
+        source_sha256s = (
+            cast(str, policy_map["qualification_universe_sha256"]),
+            cast(str, policy_map["selection_program_sha256"]),
+            cast(str, policy_map["precommit_sha256"]),
+            cast(str, receipt_map["anchor_sha256"]),
+            cast(str, receipt_map["reveal_sha256"]),
+            eligibility_digest,
+            policy_digest,
+        )
+        return ConfirmationRosterCeremonyCapability(
+            _CEREMONY_CAPABILITY_TOKEN,
+            source_sha256s,
+            hashlib.sha256(receipt_raw).hexdigest(),
+        )
+
+
+def _read_ceremony_source(path: Path, *, field: str) -> bytes:
+    if not isinstance(path, Path):
+        raise RecordValidationError(f"{field} must be a pathlib.Path")
+    try:
+        if path.is_symlink() or not path.is_file():
+            raise RecordValidationError(f"{field} must be one regular non-symlink file")
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise RecordValidationError(f"cannot read {field}") from exc
+    if not raw:
+        raise RecordValidationError(f"{field} must not be empty")
+    return raw
+
+
+def _load_canonical_ceremony_object(
+    raw: bytes, *, source: Path, field: str
+) -> Mapping[str, object]:
+    value = _load_json_bytes(raw, source=source)
+    if not isinstance(value, Mapping) or canonical_json_bytes(value, indent=None) != raw:
+        raise RecordValidationError(f"{field} must be one compact canonical JSON object")
+    _require_canonical_text(value)
+    return cast(Mapping[str, object], value)
 
 
 def _lower_hex(value: object, *, field: str, byte_count: int) -> bytes:
@@ -755,6 +1043,7 @@ __all__ = [
     "ConfirmationPreflightRegistry",
     "ConfirmationPreflightUnavailable",
     "ConfirmationRosterCeremonyCapability",
+    "DRAND_MAINNET_CHAIN_HASH",
     "import_assignment_program",
     "import_closed_json",
     "import_task_registry",

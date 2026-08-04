@@ -1,0 +1,205 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://pneuma-lab.local/schemas/cloud-production-run-spec.schema.json",
+    "title": "Cloud Production Run Specification",
+    "description": "Immutable, provider-neutral binding for one eventual official study execution. It is a plan and never an authorization by itself.",
+    "type": "object",
+    "x-pneuma-schema-kind": "cloud-manifest",
+    "x-pneuma-version": "0.1.0",
+    "required": [
+        "record_kind", "schema_version", "action_id", "study_id", "run_mode", "code_commit",
+        "image_bindings", "execution_surface_ref", "input_lock_ref", "model",
+        "benchmarks", "task_manifest_ref", "roster_ref", "assignment_ref", "rng",
+        "worker_topology", "budget", "output", "analysis_graph_ref",
+        "official_authorization_ref", "official_key_registry_ref", "model_server", "benchmark_adapter"
+    ],
+    "properties": {
+        "record_kind": {"const": "cloud_production_run_spec"},
+        "schema_version": {"const": "0.1.0"},
+        "action_id": {"$ref": "#/$defs/nonempty"},
+        "study_id": {"$ref": "#/$defs/nonempty"},
+        "run_mode": {"enum": ["official", "local_mock"]},
+        "code_commit": {"$ref": "#/$defs/commit"},
+        "image_bindings": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "uniqueItems": true,
+            "items": {"$ref": "#/$defs/image_binding"}
+        },
+        "execution_surface_ref": {"$ref": "#/$defs/file_ref"},
+        "input_lock_ref": {"$ref": "#/$defs/file_ref"},
+        "model": {"$ref": "#/$defs/model"},
+        "benchmarks": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {"$ref": "#/$defs/benchmark"}
+        },
+        "task_manifest_ref": {"$ref": "#/$defs/file_ref"},
+        "roster_ref": {"$ref": "#/$defs/file_ref"},
+        "assignment_ref": {"$ref": "#/$defs/file_ref"},
+        "rng": {"$ref": "#/$defs/rng"},
+        "worker_topology": {"$ref": "#/$defs/topology"},
+        "budget": {"$ref": "#/$defs/budget"},
+        "output": {"$ref": "#/$defs/output"},
+        "analysis_graph_ref": {"$ref": "#/$defs/file_ref"},
+        "official_authorization_ref": {
+            "oneOf": [{"$ref": "#/$defs/file_ref"}, {"type": "null"}]
+        },
+        "official_key_registry_ref": {
+            "oneOf": [{"$ref": "#/$defs/file_ref"}, {"type": "null"}]
+        },
+        "model_server": {"$ref": "#/$defs/model_server"},
+        "benchmark_adapter": {"$ref": "#/$defs/benchmark_adapter"}
+    },
+    "allOf": [
+        {
+            "if": {"properties": {"run_mode": {"const": "official"}}},
+            "then": {"properties": {"official_authorization_ref": {"$ref": "#/$defs/file_ref"}}}
+        },
+        {
+            "if": {"properties": {"run_mode": {"const": "local_mock"}}},
+            "then": {"properties": {"official_authorization_ref": {"type": "null"}, "official_key_registry_ref": {"type": "null"}}}
+        },
+        {
+            "if": {"properties": {"run_mode": {"const": "official"}}},
+            "then": {"required": ["official_key_registry_ref"], "properties": {"official_key_registry_ref": {"$ref": "#/$defs/file_ref"}}}
+        }
+    ],
+    "additionalProperties": false,
+    "$defs": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "nonempty": {"type": "string", "minLength": 1},
+        "relative_path": {
+            "type": "string",
+            "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$"
+        },
+        "file_ref": {
+            "type": "object",
+            "required": ["role", "relative_path", "sha256", "byte_count", "media_type"],
+            "properties": {
+                "role": {"$ref": "#/$defs/nonempty"},
+                "relative_path": {"$ref": "#/$defs/relative_path"},
+                "sha256": {"$ref": "#/$defs/sha256"},
+                "byte_count": {"type": "integer", "minimum": 0},
+                "media_type": {"$ref": "#/$defs/nonempty"}
+            },
+            "additionalProperties": false
+        },
+        "image_binding": {
+            "type": "object",
+            "required": ["role", "image_digest"],
+            "properties": {
+                "role": {"enum": ["controller", "model-server", "benchmark-worker"]},
+                "image_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+            },
+            "additionalProperties": false
+        },
+        "model": {
+            "type": "object",
+            "required": ["repository", "revision", "tokenizer_revision", "serving_engine", "serving_engine_version", "sampling"],
+            "properties": {
+                "repository": {"const": "Qwen/Qwen3.6-35B-A3B-FP8"},
+                "revision": {"$ref": "#/$defs/commit"},
+                "tokenizer_revision": {"$ref": "#/$defs/commit"},
+                "serving_engine": {"const": "vllm"},
+                "serving_engine_version": {"const": "0.19.0"},
+                "sampling": {
+                    "type": "object",
+                    "required": ["temperature", "top_p", "top_k", "reasoning_parser", "tool_call_parser"],
+                    "properties": {
+                        "temperature": {"type": "number", "minimum": 0, "maximum": 2},
+                        "top_p": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+                        "top_k": {"type": "integer", "minimum": 0},
+                        "reasoning_parser": {"const": "qwen3"},
+                        "tool_call_parser": {"const": "qwen3_coder"}
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "benchmark": {
+            "type": "object",
+            "required": ["benchmark_id", "repository", "revision", "dataset_repository", "dataset_revision", "task_manifest_sha256", "task_manifest_size_bytes"],
+            "properties": {
+                "benchmark_id": {"enum": ["swe_multilang", "tau2"]},
+                "repository": {"$ref": "#/$defs/nonempty"},
+                "revision": {"$ref": "#/$defs/commit"},
+                "dataset_repository": {"$ref": "#/$defs/nonempty"},
+                "dataset_revision": {"$ref": "#/$defs/commit"},
+                "task_manifest_sha256": {"$ref": "#/$defs/sha256"},
+                "task_manifest_size_bytes": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+        },
+        "rng": {
+            "type": "object",
+            "required": ["contract_id", "root_u64", "draw_domains", "seeds"],
+            "properties": {
+                "contract_id": {"const": "official-study-rng-v1"},
+                "root_u64": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+                "draw_domains": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/nonempty"}},
+                "seeds": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/sha256"}}
+            },
+            "additionalProperties": false
+        },
+        "topology": {
+            "type": "object",
+            "required": ["worker_ids", "instance_type", "vcpus_per_worker", "gpus_per_worker", "allocation_contract_id"],
+            "properties": {
+                "worker_ids": {"const": ["worker-0", "worker-1"]},
+                "instance_type": {"const": "g6e.2xlarge"},
+                "vcpus_per_worker": {"const": 8},
+                "gpus_per_worker": {"const": 1},
+                "allocation_contract_id": {"const": "canonical-round-robin-two-worker-v1"}
+            },
+            "additionalProperties": false
+        },
+        "budget": {
+            "type": "object",
+            "required": ["max_usd", "max_duration_seconds", "max_attempts", "spot_only"],
+            "properties": {
+                "max_usd": {"type": "number", "exclusiveMinimum": 0},
+                "max_duration_seconds": {"type": "integer", "exclusiveMinimum": 0},
+                "max_attempts": {"const": 1},
+                "spot_only": {"const": true}
+            },
+            "additionalProperties": false
+        },
+        "output": {
+            "type": "object",
+            "required": ["root", "worker_evidence_template", "controller_state_path"],
+            "properties": {
+                "root": {"$ref": "#/$defs/relative_path"},
+                "worker_evidence_template": {"$ref": "#/$defs/relative_path"},
+                "controller_state_path": {"$ref": "#/$defs/relative_path"}
+            },
+            "additionalProperties": false
+        },
+        "model_server": {
+            "type": "object",
+            "required": ["endpoint", "launch_argv", "readiness_timeout_seconds", "request_timeout_seconds"],
+            "properties": {
+                "endpoint": {"type": "string", "pattern": "^https?://[^\\s]+$"},
+                "launch_argv": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/nonempty"}},
+                "readiness_timeout_seconds": {"type": "integer", "exclusiveMinimum": 0},
+                "request_timeout_seconds": {"type": "integer", "exclusiveMinimum": 0}
+            },
+            "additionalProperties": false
+        },
+        "benchmark_adapter": {
+            "type": "object",
+            "required": ["adapter_id", "entrypoint", "timeout_seconds"],
+            "properties": {
+                "adapter_id": {"$ref": "#/$defs/nonempty"},
+                "entrypoint": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/nonempty"}},
+                "timeout_seconds": {"type": "integer", "exclusiveMinimum": 0}
+            },
+            "additionalProperties": false
+        }
+    }
+}

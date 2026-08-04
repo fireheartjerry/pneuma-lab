@@ -213,6 +213,9 @@
                 "tier_membership_sha256": {
                     "$ref": "#/$defs/sha256"
                 },
+                "power_tier": {
+                    "oneOf": [{"type": "null"}, {"enum": [120, 160]}]
+                },
                 "grid_ref": {
                     "$ref": "#/$defs/artifact_ref"
                 },
@@ -410,6 +413,9 @@
                 },
                 "tier_membership_sha256": {
                     "$ref": "#/$defs/sha256"
+                },
+                "power_tier": {
+                    "oneOf": [{"type": "null"}, {"enum": [120, 160]}]
                 },
                 "grid_ref": {
                     "$ref": "#/$defs/artifact_ref"
@@ -751,6 +757,9 @@
                 "tier_membership_sha256": {
                     "$ref": "#/$defs/sha256"
                 },
+                "power_tier": {
+                    "oneOf": [{"type": "null"}, {"enum": [120, 160]}]
+                },
                 "grid_ref": {
                     "$ref": "#/$defs/artifact_ref"
                 },
@@ -923,6 +932,9 @@
                 "tier_membership_sha256": {
                     "$ref": "#/$defs/sha256"
                 },
+                "power_tier": {
+                    "oneOf": [{"type": "null"}, {"enum": [120, 160]}]
+                },
                 "grid_ref": {
                     "$ref": "#/$defs/artifact_ref"
                 },
@@ -1047,6 +1059,9 @@
                 },
                 "tier_membership_sha256": {
                     "$ref": "#/$defs/sha256"
+                },
+                "power_tier": {
+                    "oneOf": [{"type": "null"}, {"enum": [120, 160]}]
                 },
                 "grid_ref": {
                     "$ref": "#/$defs/artifact_ref"
@@ -1472,6 +1487,9 @@
                 },
                 "tier_membership_sha256": {
                     "$ref": "#/$defs/sha256"
+                },
+                "power_tier": {
+                    "oneOf": [{"type": "null"}, {"enum": [120, 160]}]
                 },
                 "grid_ref": {
                     "$ref": "#/$defs/artifact_ref"

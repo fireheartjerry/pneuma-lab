@@ -114,6 +114,8 @@ AUTHORITY_ASSET_ROLE_MEDIA: Mapping[str, str] = MappingProxyType(
         "source_revision": "application/octet-stream",
         "deep_authority_asset": "application/json",
         "power_authority": "application/vnd.pneuma.power-authority+json",
+        "roster_ceremony_policy": "application/json",
+        "roster_ceremony_receipt": "application/json",
     }
 )
 

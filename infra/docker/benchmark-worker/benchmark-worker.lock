@@ -1,2 +1,5 @@
-# The sealed role probe imports only the Python standard library.  It does not
-# install or execute a benchmark verifier during this build-only action.
+# The role package imports only dependencies already present in the exact
+# digest-pinned vLLM base: jsonschema for manifest validation and cryptography
+# for Ed25519 authority.  It does not install or execute a benchmark verifier
+# during this build-only action; the Dockerfile fails closed if that closure is
+# absent.

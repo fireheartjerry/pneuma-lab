@@ -93,6 +93,8 @@ RESAMPLING_SCHEMA_FILES = (
     "resampling-timing-no-go.schema.json",
     "resampling-unblind-receipt.schema.json",
     "resampling-artifact-root.schema.json",
+    "resampling-ceremony-policy.schema.json",
+    "resampling-ceremony-receipt.schema.json",
 )
 
 CLOUD_SCHEMA_FILES = (
@@ -126,6 +128,11 @@ CLOUD_SCHEMA_FILES = (
     "cloud-step5b-lifecycle-receipt.schema.json",
     "cloud-isolation-qualification-receipt.schema.json",
     "cloud-production-role-receipt.schema.json",
+    "cloud-production-run-spec.schema.json",
+    "cloud-production-worker-evidence.schema.json",
+    "cloud-production-raw-worker-output.schema.json",
+    "cloud-production-controller-state.schema.json",
+    "cloud-official-study-authorization.schema.json",
     "cloud-lease-contention-qualification-receipt.schema.json",
     "cloud-lease-contention-cleanup-receipt.schema.json",
     "cloud-batch-array-qualification-receipt.schema.json",

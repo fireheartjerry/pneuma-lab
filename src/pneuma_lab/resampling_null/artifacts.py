@@ -61,6 +61,8 @@ SCHEMA_BY_KIND = {
     "resampling_power_report": "resampling-power-report.schema.json",
     "resampling_unblind_receipt": "resampling-unblind-receipt.schema.json",
     "resampling_artifact_root": "resampling-artifact-root.schema.json",
+    "resampling_roster_ceremony_policy_v1": "resampling-ceremony-policy.schema.json",
+    "resampling_roster_ceremony_receipt_v1": "resampling-ceremony-receipt.schema.json",
 }
 
 _SCIENTIFIC_REF_KEYS = frozenset(
@@ -1661,6 +1663,7 @@ def seal_study_manifest(
     *,
     eligibility_manifest_source: Path | None = None,
     roster_ceremony_policy_source: Path | None = None,
+    roster_ceremony_receipt_source: Path | None = None,
     run_root: Path,
     out: Path,
 ) -> ArtifactRef:
@@ -1732,6 +1735,12 @@ def seal_study_manifest(
             "eligibility_manifest_source and roster_ceremony_policy_source "
             "must be supplied together"
         )
+    if roster_ceremony_receipt_source is not None and (
+        eligibility_manifest_source is None or roster_ceremony_policy_source is None
+    ):
+        raise ValueError(
+            "roster_ceremony_receipt_source requires eligibility and ceremony policy sources"
+        )
 
     fixed_inputs = (
         (tasks_source, "task-registry", "task_registry"),
@@ -1800,6 +1809,18 @@ def seal_study_manifest(
                 subtree="roster-ceremony-policy",
                 role="roster_ceremony_policy",
             ),
+            *(
+                [
+                    _plan_source_copy(
+                        roster_ceremony_receipt_source,
+                        run_root=root,
+                        subtree="roster-ceremony-receipt",
+                        role="roster_ceremony_receipt",
+                    )
+                ]
+                if roster_ceremony_receipt_source is not None
+                else []
+            ),
         ]
     provider_copy = next(
         copy for copy in copies if copy.ref.role == "provider_lane_plan"
@@ -1848,6 +1869,11 @@ def seal_study_manifest(
         "roster_ceremony_policy_ref": (
             _ref_mapping(by_role["roster_ceremony_policy"])
             if conditional_copies
+            else None
+        ),
+        "roster_ceremony_receipt_ref": (
+            _ref_mapping(by_role["roster_ceremony_receipt"])
+            if "roster_ceremony_receipt" in by_role
             else None
         ),
         "assignment_program_ref": _ref_mapping(by_role["assignment_program"]),
@@ -3807,7 +3833,16 @@ def _validate_power_identities(
         authority = load_power_authority(authority_ref, run_root=run_root)
         grid_ref = ArtifactRef(**cast(dict[str, Any], dict(payload["grid_ref"])))
         topology_ref = ArtifactRef(**cast(dict[str, Any], dict(payload["screen_topology_ref"])))
-        load_power_config(authority_ref, grid_ref, topology_ref, run_root=run_root)
+        tier = payload.get("power_tier") if authority.authority_kind == "roster_bound_selection" else None
+        power_config = load_power_config(
+            authority_ref,
+            grid_ref,
+            topology_ref,
+            run_root=run_root,
+            tier=tier if type(tier) is int else None,
+        )
+        if authority.authority_kind == "roster_bound_selection" and power_config.tier != tier:
+            raise RecordValidationError("roster power report is not bound to one explicit C120/C160 tier")
         if payload["decision_authority"] != authority.authority_kind:
             raise RecordValidationError("power decision_authority is not derived from authority_ref")
         _require_artifact_ref_equal(
@@ -3817,9 +3852,7 @@ def _validate_power_identities(
         )
         if payload["tier_membership_sha256"] != authority.tier_membership_sha256:
             raise RecordValidationError("power tier_membership_sha256 is not derived from authority_ref")
-        if payload["rng_contract_sha256"] != load_power_config(
-            authority_ref, grid_ref, topology_ref, run_root=run_root
-        ).rng_contract_sha256:
+        if payload["rng_contract_sha256"] != power_config.rng_contract_sha256:
             raise RecordValidationError("power rng_contract_sha256 differs from frozen grid contract")
         if payload["grid_content_sha256"] != grid_content_sha256(
             grid_ref, run_root=run_root, authority_kind=authority.authority_kind,
@@ -3827,8 +3860,10 @@ def _validate_power_identities(
             raise RecordValidationError("power grid_content_sha256 differs from closed grid bytes")
         if payload["stage"] == "shard":
             from .power import _load_power_grid
-            layout = _roster_group_sizes(authority, run_root=run_root)
-            joint_group_labels = _roster_joint_group_labels(authority, run_root=run_root)
+            layout = _roster_group_sizes(authority, run_root=run_root, tier=power_config.tier)
+            joint_group_labels = _roster_joint_group_labels(
+                authority, run_root=run_root, tier=power_config.tier
+            )
             grid = _load_power_grid(grid_ref, run_root=run_root, authority_kind=authority.authority_kind)
             for result in cast(list[Mapping[str, object]], payload["cell_results"]):
                 validate_power_execution_receipt(result, authority=authority,

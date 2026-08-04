@@ -2921,6 +2921,8 @@ AUTHORITY_ASSET_DECODER_BY_ROLE: Mapping[
                     "power_screen_topology",
                     "required_document_kinds",
                     "roster",
+                    "roster_ceremony_policy",
+                    "roster_ceremony_receipt",
                     "storage_policy_contract",
                     "synthetic_verifier_source",
                     "synthetic_verifier_report",

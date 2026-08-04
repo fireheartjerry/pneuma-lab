@@ -77,3 +77,13 @@ and complete teardown. The actual-receipt hostile review is
 The official study remains separately authorized work and is not cleared by
 this checklist. The remaining unchecked items are scientific P0/Step-14
 authority and release requirements, not another qualification launch.
+
+## Action-020 implementation closure
+
+The code paths named by this checklist are now locally implemented:
+production run specification and adapters, raw worker evidence, durable
+controller/provider seam, ceremony verifier, and C120/C160 finalization.
+They remain `E2E_pending` because no official input lock, live ceremony, power
+grid, tier receipt, official authorization, scientific workload, unblind, or
+release review has occurred. Action-019 is infrastructure qualification only;
+it is not an official-study receipt and cannot clear the unchecked items above.

@@ -7600,3 +7600,27 @@ post-launch terminal no-go. Tasks 6–10 remain
   `docs/research/neurips-2026-workshop/62-pre-experiment-qualification-closure-20260804.md`
   (SHA-256
   `4bcbd1e52b98c036c2d817a234a79631ab213165c7978527bbd5408675150cb3`).
+
+## Action-020 — official-study implementation closure — 2026-08-04
+
+This append-only entry records a local implementation slice after the passed
+action-019 qualification. It did not create a cloud resource, call AWS,
+build/push an image, run a model or benchmark, run a pilot or P0 grid, conduct
+a live ceremony, unblind, analyze, or mint scientific authority/claims.
+
+Implemented and directly focused-tested: canonical production run and
+official-authorization contracts; pinned model/benchmark/task/topology/input/
+roster/assignment/RNG/output/analysis bindings; real vLLM and benchmark adapter
+interfaces; explicit local mock/non-scientific mode; raw/evidence validation;
+provider-neutral controller idempotency, observation-error retention, and
+teardown; Sigstore/drand/Node receipt verification; and roster-bound C120/C160
+receipt combination, exact tier selection, formal no-go, finalizers, and CLI
+routes. The qualification-only `verify`/`e2e` paths remain explicitly labelled
+and were not used as production evidence.
+
+Validation commands were bounded to the focused cloud/resampling/schema tests,
+compile/static/status/diff checks recorded with the implementation commit. The
+new closure document is
+`docs/research/neurips-2026-workshop/63-official-study-implementation-closure-20260804.md`.
+Implementation is complete; official E2E and scientific authority remain
+pending the fresh external actions listed there.

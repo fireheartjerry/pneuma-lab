@@ -1,11 +1,10 @@
 """Content-addressed runtime for the three production image roles.
 
 The default ``verify`` protocol is the small Step 7B image probe.  The
-``e2e`` protocol exercises the role hand-off used by the production-surface
-qualification: a controller dispatches one sealed request, a model-server
-returns one deterministic content-addressed response, and a benchmark worker
-closes the request with a terminal receipt.  This is an infrastructure
-qualification adapter, not model efficacy or benchmark evidence.
+``e2e`` protocol is retained as an explicitly qualification-only harness.
+The ``production`` protocol consumes the immutable run specification and
+sends the registered task surface through the real model and benchmark
+adapters.  It is a runtime path, not authorization to launch it.
 """
 
 from __future__ import annotations
@@ -16,6 +15,10 @@ import json
 import re
 from pathlib import Path
 from typing import Any
+
+from .production_evidence import ProductionWorkerExecutor, launch_model_server, write_worker_result
+from .production_controller import ProductionOrchestrator, ProductionStateStore
+from .production_run import ProductionRunSpec, canonical_digest, task_rows, work_ids_for_worker
 
 _ROLES = frozenset({"controller", "model-server", "benchmark-worker"})
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
@@ -179,14 +182,124 @@ def _e2e(role: str, harness: dict[str, Any], harness_sha256: str, input_path: Pa
     return 0
 
 
+def _production(
+    role: str,
+    spec_path: Path | None,
+    spec_sha256: str | None,
+    *,
+    worker_id: str | None,
+    output_path: Path | None,
+    raw_output_path: Path | None,
+    run_root: Path,
+) -> int:
+    """Run one production role without ever falling back to the fixture path."""
+
+    if spec_path is None or spec_sha256 is None:
+        return _failure(role, "production_run_spec_required")
+    try:
+        spec = ProductionRunSpec.load(spec_path, expected_sha256=spec_sha256)
+        if spec.run_mode == "official":
+            # A real official job must carry its own cryptographically verified
+            # authority.  Merely selecting ``--protocol production`` cannot
+            # turn a qualification action or local mock into official evidence.
+            spec.verify_official_authorization(run_root=run_root)
+        if role == "controller":
+            rows = task_rows(spec, run_root=run_root)
+            allocation = {
+                worker: list(
+                    work_ids_for_worker(spec, worker_id=worker, run_root=run_root)
+                )
+                for worker in spec.worker_ids
+            }
+            state_ref = spec.value["output"]["controller_state_path"]
+            state_path = run_root / str(state_ref)
+            store = ProductionStateStore(
+                state_path,
+                action_id=str(spec.value["action_id"]),
+                run_spec_sha256=spec.digest,
+                binding={"action_id": spec.value["action_id"], "run_spec_sha256": spec.digest},
+            )
+            orchestrator = ProductionOrchestrator(
+                store,
+                action_id=str(spec.value["action_id"]),
+                run_spec_sha256=spec.digest,
+                allocation=allocation,
+            )
+            orchestrator.prepare()
+            print(
+                _canonical(
+                    {
+                        "record_kind": "cloud_production_dispatch_plan",
+                        "schema_version": "0.1.0",
+                        "run_spec_sha256": spec.digest,
+                        "task_count": len(rows),
+                        "allocation": allocation,
+                        "execution_class": (
+                            "official_candidate"
+                            if spec.run_mode == "official"
+                            else "local_mock_non_scientific"
+                        ),
+                    }
+                )
+            )
+            return 0
+        if role == "model-server":
+            launch_model_server(spec, run_root=run_root)
+            return 0
+        if worker_id is None or output_path is None or raw_output_path is None:
+            return _failure(role, "production_worker_outputs_required")
+        result = ProductionWorkerExecutor(spec, run_root=run_root).execute(worker_id)
+        evidence = write_worker_result(
+            result,
+            evidence_path=output_path,
+            raw_path=raw_output_path,
+            run_root=run_root,
+        )
+        print(
+            _canonical(
+                {
+                    "record_kind": "cloud_production_worker_terminal",
+                    "schema_version": "0.1.0",
+                    "run_spec_sha256": spec.digest,
+                    "worker_id": worker_id,
+                    "evidence_sha256": canonical_digest(evidence),
+                    "state": evidence["state"],
+                }
+            )
+        )
+        return 0
+    except Exception as exc:
+        return _failure(role, type(exc).__name__)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("role", choices=sorted(_ROLES))
-    parser.add_argument("--harness", required=True, type=Path)
-    parser.add_argument("--harness-sha256", required=True)
-    parser.add_argument("--protocol", choices=("verify", "e2e"), default="verify")
+    parser.add_argument("--harness", type=Path)
+    parser.add_argument("--harness-sha256")
+    parser.add_argument("--protocol", choices=("verify", "e2e", "production"), default="verify")
     parser.add_argument("--input", type=Path)
+    parser.add_argument("--run-spec", type=Path)
+    parser.add_argument("--run-spec-sha256")
+    parser.add_argument("--worker-id")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--raw-output", type=Path)
+    parser.add_argument("--run-root", type=Path, default=Path.cwd())
     args = parser.parse_args(argv)
+    if args.protocol == "production":
+        if args.run_spec_sha256 is not None and not _DIGEST.fullmatch(args.run_spec_sha256):
+            parser.error("--run-spec-sha256 must be lowercase SHA-256")
+        return _production(
+            args.role,
+            args.run_spec,
+            args.run_spec_sha256,
+            worker_id=args.worker_id,
+            output_path=args.output,
+            raw_output_path=args.raw_output,
+            run_root=args.run_root,
+        )
+    if args.harness is None or args.harness_sha256 is None:
+        parser.error("--harness and --harness-sha256 are required for qualification protocols")
     if not _DIGEST.fullmatch(args.harness_sha256):
         parser.error("--harness-sha256 must be lowercase SHA-256")
     read = _read_harness(args.harness, args.harness_sha256)
