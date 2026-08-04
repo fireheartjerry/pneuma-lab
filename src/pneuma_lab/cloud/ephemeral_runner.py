@@ -107,6 +107,32 @@ ABSENT_PROVIDER_ERROR_CODES = frozenset(
 )
 CLOUDTRAIL_SUBMIT_EVIDENCE_TIMEOUT_SECONDS = 300
 CLOUDTRAIL_SUBMIT_EVIDENCE_POLL_SECONDS = 5
+BATCH_OBSERVATION_TIMEOUT_SECONDS = 3600
+BATCH_OBSERVATION_POLL_SECONDS = 5
+PROVIDER_READ_RETRY_TIMEOUT_SECONDS = 120
+TRANSIENT_PROVIDER_ERROR_CODES = frozenset(
+    {
+        "InternalException",
+        "InternalServerError",
+        "JobNotFoundException",
+        "RequestLimitExceeded",
+        "ResourceNotFoundException",
+        "ServerException",
+        "ServiceException",
+        "ServiceUnavailableException",
+        "ThrottlingException",
+        "TooManyRequestsException",
+    }
+)
+TRANSIENT_PROVIDER_ERROR_MARKERS = (
+    "Could not connect to the endpoint URL",
+    "Connection reset",
+    "ConnectionResetError",
+    "EndpointConnectionError",
+    "ReadTimeoutError",
+    "Read timed out",
+    "timed out",
+)
 
 
 def _require_complete_provider_absence(
@@ -158,6 +184,25 @@ class QualificationExecutionError(CloudManifestError):
     def __init__(self, message: str, *, context: Mapping[str, Any]) -> None:
         super().__init__(message)
         self.context = dict(context)
+
+
+class ProviderSubprocessError(CloudManifestError):
+    """A sanitized provider CLI failure with retry classification."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        operation: str,
+        error_code: str | None,
+        stderr_sha256: str,
+        retryable: bool,
+    ) -> None:
+        super().__init__(message)
+        self.operation = operation
+        self.error_code = error_code
+        self.stderr_sha256 = stderr_sha256
+        self.retryable = retryable
 
 
 def require_fresh_qualification_action(
@@ -271,6 +316,28 @@ def _provider_error_code(result: subprocess.CompletedProcess[bytes]) -> str | No
         return match.group(1)
     match = re.match(r"\s*([A-Za-z0-9_.]+):", detail)
     return match.group(1) if match is not None else None
+
+
+def _provider_subprocess_error(
+    args: Sequence[str], result: subprocess.CompletedProcess[bytes]
+) -> ProviderSubprocessError:
+    stderr = result.stderr.decode("utf-8", errors="replace").strip()
+    error_code = _provider_error_code(result)
+    retryable = error_code in TRANSIENT_PROVIDER_ERROR_CODES or any(
+        marker in stderr for marker in TRANSIENT_PROVIDER_ERROR_MARKERS
+    )
+    operation = " ".join(args[:2]) if len(args) >= 2 else "aws provider call"
+    stderr_sha256 = hashlib.sha256(stderr.encode("utf-8")).hexdigest()
+    return ProviderSubprocessError(
+        (
+            f"provider subprocess failed for {operation} "
+            f"(error_code={error_code or 'unknown'}, stderr_sha256={stderr_sha256})"
+        ),
+        operation=operation,
+        error_code=error_code,
+        stderr_sha256=stderr_sha256,
+        retryable=retryable,
+    )
 
 
 def _validate_kms_verification(record: Mapping[str, Any]) -> dict[str, Any]:
@@ -1063,46 +1130,88 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         return _validate_kms_verification(verification)
 
     def _call(self, *args: str) -> Any:
+        argv = [
+            "aws",
+            *args,
+            "--region",
+            self.region,
+            "--output",
+            "json",
+            "--no-cli-pager",
+        ]
         result = self.run(
-            [
-                "aws",
-                *args,
-                "--region",
-                self.region,
-                "--output",
-                "json",
-                "--no-cli-pager",
-            ],
+            argv,
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        if result.returncode != 0:
+            raise _provider_subprocess_error(args, result)
         return _json_result(result)
+
+    def _call_with_retry(self, *args: str, deadline: float) -> Any:
+        """Retry only classified transient read failures before a deadline."""
+
+        while True:
+            try:
+                return self._call(*args)
+            except ProviderSubprocessError as exc:
+                remaining = deadline - time.monotonic()
+                if not exc.retryable or remaining <= 0:
+                    raise
+                time.sleep(min(BATCH_OBSERVATION_POLL_SECONDS, remaining))
+
+    def _describe_batch_jobs(
+        self, job_ids: Sequence[str], *, deadline: float
+    ) -> Mapping[str, Any]:
+        response = self._call_with_retry(
+            "batch",
+            "describe-jobs",
+            "--jobs",
+            *job_ids,
+            deadline=deadline,
+        )
+        if not isinstance(response, Mapping):
+            raise CloudManifestError("Batch describe-jobs returned a non-object response")
+        return response
 
     def _call_absence(
         self,
         *args: str,
         missing_codes: frozenset[str] = ABSENT_PROVIDER_ERROR_CODES,
     ) -> Any:
-        result = self.run(
-            [
-                "aws",
-                *args,
-                "--region",
-                self.region,
-                "--output",
-                "json",
-                "--no-cli-pager",
-            ],
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        if result.returncode != 0:
+        deadline = time.monotonic() + PROVIDER_READ_RETRY_TIMEOUT_SECONDS
+        argv = [
+            "aws",
+            *args,
+            "--region",
+            self.region,
+            "--output",
+            "json",
+            "--no-cli-pager",
+        ]
+        while True:
+            result = self.run(
+                argv,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if result.returncode == 0:
+                return _json_result(result)
             if _provider_error_code(result) in missing_codes:
                 return {}
-            raise CloudManifestError("provider absence read failed")
-        return _json_result(result)
+            error = _provider_subprocess_error(args, result)
+            remaining = deadline - time.monotonic()
+            if not error.retryable or remaining <= 0:
+                raise ProviderSubprocessError(
+                    f"provider absence read failed: {error}",
+                    operation=error.operation,
+                    error_code=error.error_code,
+                    stderr_sha256=error.stderr_sha256,
+                    retryable=error.retryable,
+                ) from error
+            time.sleep(min(BATCH_OBSERVATION_POLL_SECONDS, remaining))
 
     def preflight(self, tags: Mapping[str, str]) -> Mapping[str, Any]:
         absence = self.verify_absence(tags)
@@ -1266,7 +1375,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                 ]
                 if next_token is not None:
                     arguments.extend(("--next-token", next_token))
-                response = self._call(*arguments)
+                response = self._call_with_retry(*arguments, deadline=deadline)
                 page = response.get("Events", [])
                 if not isinstance(page, list):
                     raise CloudManifestError("CloudTrail lookup returned invalid Events")
@@ -1348,8 +1457,8 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             # SubmitJob accepted it and the job record carries it.  Read the
             # provider's authoritative job detail instead of converting that
             # telemetry omission into an early teardown/no-go.
-            detail_response = self._call(
-                "batch", "describe-jobs", "--jobs", parent_job_id
+            detail_response = self._describe_batch_jobs(
+                (parent_job_id,), deadline=deadline
             )
             detail_rows = detail_response.get("jobs", [])
             if not isinstance(detail_rows, list) or len(detail_rows) != 1:
@@ -1420,13 +1529,24 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
     def collect_admission(self, parent_job_id: str) -> Mapping[str, Any]:
         if not isinstance(parent_job_id, str) or not parent_job_id:
             raise CloudManifestError("Batch admission requires a nonempty parent job id")
-        deadline = time.monotonic() + 3600
+        deadline = time.monotonic() + BATCH_OBSERVATION_TIMEOUT_SECONDS
         while True:
-            parent_response = self._call(
-                "batch", "describe-jobs", "--jobs", parent_job_id
+            parent_response = self._describe_batch_jobs(
+                (parent_job_id,), deadline=deadline
             )
             parent_rows = parent_response.get("jobs", [])
-            if not isinstance(parent_rows, list) or len(parent_rows) != 1:
+            if not isinstance(parent_rows, list):
+                raise CloudManifestError(
+                    "Batch describe-jobs returned an invalid array parent collection"
+                )
+            if not parent_rows:
+                if time.monotonic() >= deadline:
+                    raise CloudManifestError(
+                        "Batch describe-jobs did not expose the submitted array parent before the bounded observation deadline"
+                    )
+                time.sleep(BATCH_OBSERVATION_POLL_SECONDS)
+                continue
+            if len(parent_rows) != 1:
                 raise CloudManifestError(
                     "Batch describe-jobs did not return exactly one array parent"
                 )
@@ -1448,11 +1568,17 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             children: list[dict[str, Any]] = []
             for index in (0, 1):
                 expected_child_id = f"{parent_job_id}:{index}"
-                detail = self._call(
-                    "batch", "describe-jobs", "--jobs", f"{parent_job_id}:{index}"
+                detail = self._describe_batch_jobs(
+                    (f"{parent_job_id}:{index}",), deadline=deadline
                 )
                 rows = detail.get("jobs", [])
-                if not isinstance(rows, list) or len(rows) != 1:
+                if not isinstance(rows, list):
+                    raise CloudManifestError(
+                        "Batch describe-jobs returned an invalid array child collection"
+                    )
+                if not rows:
+                    break
+                if len(rows) != 1:
                     raise CloudManifestError(
                         "Batch describe-jobs did not return exactly one array child"
                     )
@@ -1480,6 +1606,13 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                         failure_kind="batch_identity_binding_failure",
                     )
                 children.append(child)
+            if len(children) != 2:
+                if time.monotonic() >= deadline:
+                    raise CloudManifestError(
+                        "Batch describe-jobs did not expose both submitted array children before the bounded observation deadline"
+                    )
+                time.sleep(BATCH_OBSERVATION_POLL_SECONDS)
+                continue
             if parent.get("status") == "FAILED" or any(
                 child.get("status") == "FAILED" for child in children
             ):

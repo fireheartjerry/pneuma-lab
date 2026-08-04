@@ -15,6 +15,7 @@ from pneuma_lab.cloud.authorization_keys import canonical_ledger_digest
 from pneuma_lab.cloud.authorization_keys import canonical_bytes, signed_body
 from pneuma_lab.cloud.ephemeral_runner import (
     AwsCliAdapter,
+    ProviderSubprocessError,
     QualificationExecutionError,
     RunnerConfig,
     TerraformAdapter,
@@ -2525,6 +2526,7 @@ def test_concrete_cli_rejects_submit_event_binding_drift(
 
 def test_concrete_cli_adapter_accepts_only_two_succeeded_first_attempt_children(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
     source = tmp_path / "input.json"
     source.write_text("{}", encoding="utf-8")
@@ -2551,7 +2553,22 @@ def test_concrete_cli_adapter_accepts_only_two_succeeded_first_attempt_children(
         def get_object(self, bucket, key):
             return raw_objects[f"s3://{bucket}/{key}"]
 
+    read_attempts = 0
+
+    monkeypatch.setattr(
+        "pneuma_lab.cloud.ephemeral_runner.time.sleep", lambda _: None
+    )
+
     def run(argv, **kwargs):
+        nonlocal read_attempts
+        read_attempts += 1
+        if read_attempts == 1:
+            return subprocess.CompletedProcess(
+                argv,
+                254,
+                b"",
+                b"ServerException: transient Batch read failure",
+            )
         job_id = argv[argv.index("--jobs") + 1]
         if job_id == "parent":
             payload = {"jobs": [{"jobId": "parent", "status": "SUCCEEDED"}]}
@@ -2761,3 +2778,102 @@ def test_concrete_cli_recovery_rejects_a_bare_describe_success() -> None:
     )
     with pytest.raises(CloudManifestError, match="materialize|restore|boundary"):
         adapter.run_partition_recovery("parent")
+
+
+def test_concrete_cli_retries_transient_read_without_repeating_submit(
+    monkeypatch,
+) -> None:
+    calls: list[list[str]] = []
+    describe_attempts = 0
+
+    def run(argv, **kwargs):
+        nonlocal describe_attempts
+        calls.append(argv)
+        if "describe-jobs" not in argv:
+            raise AssertionError("the read-retry seam must not submit a job")
+        describe_attempts += 1
+        if describe_attempts == 1:
+            return subprocess.CompletedProcess(
+                argv,
+                254,
+                b"",
+                b"ServerException: transient Batch read failure",
+            )
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            b'{"jobs":[{"jobId":"parent","status":"RUNNABLE"}]}',
+            b"",
+        )
+
+    monkeypatch.setattr(
+        "pneuma_lab.cloud.ephemeral_runner.time.sleep", lambda _: None
+    )
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    response = adapter._call_with_retry(
+        "batch", "describe-jobs", "--jobs", "parent", deadline=10**20
+    )
+    assert response["jobs"][0]["jobId"] == "parent"
+    assert describe_attempts == 2
+    assert all("submit-job" not in call for call in calls)
+
+    def nonretryable(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            argv,
+            254,
+            b"",
+            b"ClientException: invalid parameter",
+        )
+
+    failing = AwsCliAdapter(
+        nonretryable,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    with pytest.raises(ProviderSubprocessError) as raised:
+        failing._call_with_retry(
+            "batch", "describe-jobs", "--jobs", "parent", deadline=10**20
+        )
+    assert raised.value.error_code == "ClientException"
+    assert raised.value.retryable is False
+
+
+def test_concrete_cli_submit_failure_is_typed_and_never_retried() -> None:
+    calls: list[list[str]] = []
+    tags = {
+        "QualificationPurpose": "dual-l40s-admission-only",
+        "QualificationTopology": "two-g6e-2xlarge-l40s",
+        "QualificationManagedBy": "pneuma-ephemeral-runner-v1",
+        "QualificationAction": "qual-1",
+        "QualificationActionId": "qual-1",
+        "QualificationCode": "fixture-only-qualification-code",
+    }
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(
+            argv,
+            254,
+            b"",
+            b"ThrottlingException: transient submit failure",
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    with pytest.raises(ProviderSubprocessError, match="ThrottlingException"):
+        adapter.submit_array(size=2, timeout_seconds=3600, attempts=1, tags=tags)
+    assert len(calls) == 1
+    assert "submit-job" in calls[0]
