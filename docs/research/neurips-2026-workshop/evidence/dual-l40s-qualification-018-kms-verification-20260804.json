@@ -1,0 +1,9 @@
+{
+  "admission_signature_valid": true,
+  "envelope_signature_valid": true,
+  "key_id_sha256": "700c2c40771961c8d12a85704a6b0e968b29c5d3cc9f86bb9fafa37e1894f3b8",
+  "public_key_sha256": "307e29c0b3f786d2f59f760f3f8c35162a7641fc57070ef72240ca796763b921",
+  "registry_key_id": "pneuma-kms-20260801-r1",
+  "signing_algorithm": "ED25519_SHA_512",
+  "verification_sha256": "c74da234caf19f14e81fdf8a2f71bad8083e03bd09257895893473d2d0532537"
+}
