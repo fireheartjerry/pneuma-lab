@@ -7491,3 +7491,45 @@ post-launch terminal no-go. Tasks 6–10 remain
   retaining only the expected policy hash and sanitized inventory hash. A
   mismatch fails closed and still enters destroy/absence cleanup. Focused cloud
   tests pass; the official P0/Step 4B study remains excluded.
+
+## EJ-20260804-dual-l40s-qualification-018-terminal-no-go
+
+- **Fresh gates:** Action `dual-l40s-qualification-018` used immutable image
+  `sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e`.
+  The 17-case IAM simulation, post-apply policy readback, exact profile-to-role
+  chain, four-AZ plan, 16 Spot-vCPU bound, and explicit
+  `ED25519_SHA_512` KMS verification were green. Plan hashes were saved
+  `b9f4473e890ea6e9e91e3700c954f6f2a2011557da6aadd18ba105cf5c5f869c`, raw
+  show `17c37a1fa57ac8eec0cf219603092d025510f9c336f418cf125e00d74331e211`,
+  and composite `33af0b173b7071ec9ede0780eb08810c6d13cb21548ccf8154f09bdcfd772bde`.
+- **Single launch:** CloudTrail proves exactly one size-two `SubmitJob`, event
+  ID SHA-256 `532012010fadec2ac7fa8c5019c6833714d29e706bb696453a5c5809deedf495`,
+  one attempt, and no retry. The runner then received
+  `ProviderSubprocessError` for `batch describe-jobs`, error code `unknown`,
+  stderr SHA-256
+  `c537fe804f9d57c406ae22cacdd051d8ab40d0c15995d726b3c7ff428fb2aaf2`.
+- **Independent observation:** Later AWS reads showed the original parent and
+  both original children `SUCCEEDED` once. Worker identity hashes were
+  `1ec91865249a62ac3d9cf6f99fbe2da1dba47d101f4080f84e0583cb32bd1178` and
+  `7db3c3801867170ebb5a5cbd6ea7a4c456c525480a401cc6dafdf4e34ad19abb`;
+  raw artifact hashes were
+  `46a8b755f9b5acd37ef143d799d00c8211300965f074da913955b6168fd9315c` and
+  `bbff8c9dc8215109a8997cfc1313e2fc818ebea8580fc0c5bf82ad5636a9ec42`.
+  Worker durations were 6.614 and 6.691 seconds. The runner did not complete
+  its required admission/artifact/recovery receipt, so this is a terminal
+  no-go, not a qualification pass; recovery was not run.
+- **Teardown:** Explicit disable/drain and locked Terraform destroy completed.
+  Final provider absence file SHA-256 is
+  `59f0087cfe42c5cb20e522689f4ea4637d0f7e1cd33c3054c669a5ba24e63050`, with
+  canonical absence SHA-256
+  `3b92c804efdf40c74b9b0bda3786a681de7bc3e989c4b2c8f2884e122cd4408b`.
+  Two raw objects and inactive job-definition history are retained evidence.
+- **Repair and review:** Commit `1c8ef21` adds bounded retries for unclassified
+  Batch observation failures and a focused regression. The actual-receipt
+  hostile review is
+  `evidence/dual-l40s-qualification-018-hostile-launch-review-20260804.json`
+  (SHA-256
+  `9b37d72ff33e95e88aabe46d729d3cd4b9fd80f84587c6355fe07899ca694218`). No
+  AWS relaunch or scientific workload occurred. Tasks 6–10 remain
+  `implementation_complete; E2E_pending`; Task 10 remains release preparation;
+  Step 14 remains `launch_blocked`.

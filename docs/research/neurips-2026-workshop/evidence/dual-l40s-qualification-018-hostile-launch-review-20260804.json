@@ -1,0 +1,97 @@
+{
+  "record_kind": "dual_l40s_qualification_hostile_launch_review",
+  "schema_version": "0.1.0",
+  "action_id": "dual-l40s-qualification-018",
+  "review_date": "2026-08-04",
+  "review_scope": "pre-experiment infrastructure qualification only",
+  "verdict": "post_launch_terminal_no_go",
+  "qualification_passed": false,
+  "official_study_boundary": "preserved",
+  "actual_receipts": {
+    "execution_receipt": "evidence/dual-l40s-qualification-018-execution-receipt-20260804.json",
+    "execution_receipt_sha256": "738af3190c747da28b0308ad5179965bb3b3224481e56141b41396ea0cc4bdeb",
+    "provider_absence": "evidence/dual-l40s-qualification-018-final-provider-absence-20260804.json",
+    "provider_absence_sha256": "59f0087cfe42c5cb20e522689f4ea4637d0f7e1cd33c3054c669a5ba24e63050",
+    "cloudtrail_submit_event_id_sha256": "532012010fadec2ac7fa8c5019c6833714d29e706bb696453a5c5809deedf495",
+    "raw_describe_jobs_sha256": "b1fe4718ebf0d313588a4e01799e06fb735d806121e6f224a385e02367518f1d",
+    "raw_describe_instances_sha256": "ebcb681af6bf41da66fe250f1e549027f9fa6c9761fa9150f498744036d98e01",
+    "raw_output_listing_sha256": "c9023e41ac7aa42cdbcf1ab9523c6695ec641784f457c4639beed780a733dc0a"
+  },
+  "findings": [
+    {
+      "id": "F-018-01",
+      "severity": "pass",
+      "finding": "Pre-launch plan, managed GPU AMI path, four-AZ subnet map, provider identity chain, immutable image, least-privilege IAM simulation, post-apply IAM readback, and KMS ED25519_SHA_512 verification were green.",
+      "evidence": {
+        "saved_plan_sha256": "b9f4473e890ea6e9e91e3700c954f6f2a2011557da6aadd18ba105cf5c5f869c",
+        "terraform_show_sha256": "17c37a1fa57ac8eec0cf219603092d025510f9c336f418cf125e00d74331e211",
+        "terraform_binding_sha256": "33af0b173b7071ec9ede0780eb08810c6d13cb21548ccf8154f09bdcfd772bde",
+        "iam_simulation_matrix_sha256": "559d67ebf6cd5b0b549994879589e3c76240fa01c03af1cbc00bbae816cdb87",
+        "image_digest": "sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e",
+        "kms_verification_sha256": "c74da234caf19f14e81fdf8a2f71bad8083e03bd09257895893473d2d0532537"
+      }
+    },
+    {
+      "id": "F-018-02",
+      "severity": "terminal",
+      "finding": "Exactly one CloudTrail-proven size-two Batch submission occurred. The concrete runner then received an unclassified provider subprocess failure while observing Batch jobs.",
+      "evidence": {
+        "submit_count": 1,
+        "parent_job_id_sha256": "23dec859ef1c01cfbabf97d680eef627517838a243224ca4e7ddc6c386450ba3",
+        "array_size": 2,
+        "attempts_per_child": 1,
+        "error_type": "ProviderSubprocessError",
+        "operation": "batch describe-jobs",
+        "error_code": "unknown",
+        "stderr_sha256": "c537fe804f9d57c406ae22cacdd051d8ab40d0c15995d726b3c7ff428fb2aaf2",
+        "retry_after_launch": false
+      }
+    },
+    {
+      "id": "F-018-03",
+      "severity": "terminal",
+      "finding": "Later independent AWS reads show the original parent and both original children succeeded once and two distinct workers published the fixed fixture artifacts, but the runner did not complete its required admission, artifact verification, or recovery receipt. The protocol therefore cannot call this a qualification pass.",
+      "evidence": {
+        "parent_status": "SUCCEEDED",
+        "child_statuses": ["SUCCEEDED", "SUCCEEDED"],
+        "worker_identity_sha256": [
+          "1ec91865249a62ac3d9cf6f99fbe2da1dba47d101f4080f84e0583cb32bd1178",
+          "7db3c3801867170ebb5a5cbd6ea7a4c456c525480a401cc6dafdf4e34ad19abb"
+        ],
+        "raw_artifact_sha256": [
+          "46a8b755f9b5acd37ef143d799d00c8211300965f074da913955b6168fd9315c",
+          "bbff8c9dc8215109a8997cfc1313e2fc818ebea8580fc0c5bf82ad5636a9ec42"
+        ],
+        "observed_worker_duration_seconds": [6.614, 6.691],
+        "recovery_run": false,
+        "recovery_reason": "Admission did not reach two successful children."
+      }
+    },
+    {
+      "id": "F-018-04",
+      "severity": "pass",
+      "finding": "Teardown was completed after explicit disable/drain and locked Terraform destroy; the fresh provider absence proof is green. The two raw action-scoped objects and inactive AWS job-definition history are intentional retained evidence, not live resources.",
+      "evidence": {
+        "canonical_absence_sha256": "3b92c804efdf40c74b9b0bda3786a681de7bc3e989c4b2c8f2884e122cd4408b",
+        "active_resources_absent": true,
+        "output_objects_retained": 2,
+        "retry_count": 0
+      }
+    },
+    {
+      "id": "F-018-05",
+      "severity": "repair",
+      "finding": "The source repair adds bounded retries for unclassified Batch observation failures, with a focused regression. This repair is committed and pushed; it does not authorize a second launch and does not alter the sealed action-018 verdict.",
+      "evidence": {
+        "repair_commit": "1c8ef21",
+        "regression": "tests/cloud/test_ephemeral_runner.py::test_concrete_cli_retries_unclassified_batch_observation_failure"
+      }
+    }
+  ],
+  "remaining_blockers": [
+    "B-NEURIPS-DUAL-L40S-QUALIFICATION: action-018 did not complete the runner-owned recovery receipt, so canonical qualification remains unpassed.",
+    "B-NEURIPS-STEP14-REVIEW: real P0 power/tier, packet, assignment, detectability, and unblind authority receipts remain absent.",
+    "B-NEURIPS-EXPERIMENT-EXECUTION: no separately authorized official P0/Step-4B launch exists in this lane."
+  ],
+  "scientific_workload_executed": false
+}

@@ -1385,3 +1385,37 @@ fresh successor `dual-l40s-qualification-018`, then execute at most one
 two-worker fixture launch. Official P0/Step 4B, benchmark/model workload,
 pilot, unblind, analysis, and claim promotion remain excluded; Step 14 stays
 `launch_blocked`.
+
+## Latest infrastructure closure — action-018 — 2026-08-04
+
+Action-018 passed its fresh pre-launch semantic, provider, image, IAM, plan,
+post-apply policy-readback, and KMS gates and reached exactly one CloudTrail-
+proven size-two Batch submission. The concrete runner then encountered an
+unclassified provider subprocess failure while reading `batch describe-jobs`.
+No retry occurred. The observed error is retained by type, operation, error
+code, and stderr digest; no unsupported capacity or AWS root cause is claimed.
+
+Independent later AWS reads found the original parent and both children
+`SUCCEEDED` once, with distinct worker identity hashes and two published
+fixture-only raw artifacts. This does not retroactively make the action pass:
+the runner did not complete its required admission, artifact-verification, or
+freeze/restore recovery receipt. The schema-bound execution receipt therefore
+records a post-launch terminal no-go. The raw artifacts are retained for
+forensics.
+
+The action was explicitly disabled/drained and destroyed under the Terraform
+lock. Fresh provider absence is sealed at
+`evidence/dual-l40s-qualification-018-final-provider-absence-20260804.json`;
+only the retained raw objects and inactive AWS job-definition history remain.
+The actual-receipt hostile review is sealed at
+`evidence/dual-l40s-qualification-018-hostile-launch-review-20260804.json`.
+
+The runner repair in pushed commit `1c8ef21` retries unclassified Batch
+observation failures within the existing bounded deadline, with a focused
+regression. This is source/readiness closure only; action-018 is exhausted and
+was not relaunched. Tasks 6–10 remain
+`implementation_complete; E2E_pending`; Task 10 remains implementation and
+release preparation only; Step 14 remains `launch_blocked` pending real P0
+power/tier, packet, assignment, detectability, unblind, and authority-bound
+release receipts. No scientific workload, benchmark/model run, pilot, unblind,
+analysis, or claim promotion occurred.
