@@ -1244,15 +1244,25 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             raise _provider_subprocess_error(args, result)
         return _json_result(result)
 
-    def _call_with_retry(self, *args: str, deadline: float) -> Any:
-        """Retry only classified transient read failures before a deadline."""
+    def _call_with_retry(
+        self,
+        *args: str,
+        deadline: float,
+        retry_unclassified: bool = False,
+    ) -> Any:
+        """Retry bounded read failures before a deadline.
+
+        Batch observation uses ``retry_unclassified`` because the service has
+        emitted transient control-plane errors without a parseable AWS code;
+        the caller still supplies the hard observation deadline.
+        """
 
         while True:
             try:
                 return self._call(*args)
             except ProviderSubprocessError as exc:
                 remaining = deadline - time.monotonic()
-                if not exc.retryable or remaining <= 0:
+                if (not exc.retryable and not retry_unclassified) or remaining <= 0:
                     raise
                 time.sleep(min(BATCH_OBSERVATION_POLL_SECONDS, remaining))
 
@@ -1265,6 +1275,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "--jobs",
             *job_ids,
             deadline=deadline,
+            retry_unclassified=True,
         )
         if not isinstance(response, Mapping):
             raise CloudManifestError("Batch describe-jobs returned a non-object response")

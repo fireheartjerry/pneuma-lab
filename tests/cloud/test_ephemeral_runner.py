@@ -2889,6 +2889,43 @@ def test_concrete_cli_retries_transient_read_without_repeating_submit(
     assert raised.value.retryable is False
 
 
+def test_concrete_cli_retries_unclassified_batch_observation_failure(
+    monkeypatch,
+) -> None:
+    attempts = 0
+
+    def run(argv, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return subprocess.CompletedProcess(
+                argv,
+                254,
+                b"",
+                b"transient Batch observation read failure",
+            )
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            b'{"jobs":[{"jobId":"parent","status":"SUCCEEDED"}]}',
+            b"",
+        )
+
+    monkeypatch.setattr(
+        "pneuma_lab.cloud.ephemeral_runner.time.sleep", lambda _: None
+    )
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    response = adapter._describe_batch_jobs(("parent",), deadline=10**20)
+    assert response["jobs"][0]["jobId"] == "parent"
+    assert attempts == 2
+
+
 def test_provider_error_code_does_not_call_aws_cli_usage_prefix_a_provider_code() -> None:
     result = subprocess.CompletedProcess(
         ["aws", "batch", "describe-jobs"],
