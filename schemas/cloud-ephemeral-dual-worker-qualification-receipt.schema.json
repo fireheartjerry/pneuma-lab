@@ -127,6 +127,22 @@
         "action_policy_sha256": {"$ref": "#/$defs/digest"},
         "iam_simulation_matrix_sha256": {"$ref": "#/$defs/digest"},
         "iam_policy_inventory_sha256": {"$ref": "#/$defs/digest"},
+        "post_apply_iam_binding": {
+          "type": "object",
+          "required": [
+            "status",
+            "expected_policy_sha256",
+            "observed_policy_sha256",
+            "policy_inventory_sha256"
+          ],
+          "properties": {
+            "status": {"const": "pass"},
+            "expected_policy_sha256": {"$ref": "#/$defs/digest"},
+            "observed_policy_sha256": {"$ref": "#/$defs/digest"},
+            "policy_inventory_sha256": {"$ref": "#/$defs/digest"}
+          },
+          "additionalProperties": false
+        },
         "kms_verification_sha256": {"$ref": "#/$defs/digest"}
       },
       "additionalProperties": false

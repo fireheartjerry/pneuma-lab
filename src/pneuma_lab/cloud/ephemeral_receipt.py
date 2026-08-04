@@ -10,7 +10,10 @@ from typing import Any
 
 from .authorization_keys import authorization_body_digest
 from .errors import CloudManifestError
-from .ephemeral_runner import _validate_kms_verification
+from .ephemeral_runner import (
+    _validate_kms_verification,
+    _validate_post_apply_iam_binding,
+)
 from .iam_simulation import validate_iam_simulation_matrix, validate_policy_inventory
 from .manifests import validate_ephemeral_dual_worker_qualification_receipt
 from .qualification_execution import (
@@ -430,6 +433,15 @@ def build_ephemeral_qualification_receipt(
     if not isinstance(kms_verification, Mapping):
         raise CloudManifestError("execution context lacks live KMS verification evidence")
     kms_verification = _validate_kms_verification(kms_verification)
+    post_apply_iam_binding = context.get("post_apply_iam_binding")
+    if not isinstance(post_apply_iam_binding, Mapping):
+        raise CloudManifestError(
+            "execution context lacks the live post-apply IAM binding readback"
+        )
+    post_apply_iam_binding = _validate_post_apply_iam_binding(
+        post_apply_iam_binding,
+        expected_policy_sha256=authority.get("iam_policy_sha256"),
+    )
     evidence = context.get("evidence")
     evidence = evidence if isinstance(evidence, Mapping) else {}
     children = _children(evidence)
@@ -599,6 +611,7 @@ def build_ephemeral_qualification_receipt(
         authority_record["iam_policy_inventory_sha256"] = policy_inventory[
             "inventory_sha256"
         ]
+    authority_record["post_apply_iam_binding"] = post_apply_iam_binding
     receipt: dict[str, Any] = {
         "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt",
         "schema_version": "0.1.0",

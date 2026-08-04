@@ -360,6 +360,12 @@ def test_runner_receipt_builder_preserves_terminal_child_failure_evidence() -> N
             "parent_job_id": "parent",
             "plan": plan,
             "iam_simulation": iam_simulation,
+            "post_apply_iam_binding": {
+                "status": "pass",
+                "expected_policy_sha256": authority["iam_policy_sha256"],
+                "observed_policy_sha256": authority["iam_policy_sha256"],
+                "policy_inventory_sha256": "b" * 64,
+            },
             "kms_verification": kms_verification_record(),
             "projected_cost_usd": 4.48,
             "launch": {
@@ -406,6 +412,7 @@ def test_runner_receipt_builder_preserves_terminal_child_failure_evidence() -> N
         output_root=plan["output_path"],
     )
     assert receipt["status"] == "no_go"
+    assert receipt["authority"]["post_apply_iam_binding"]["status"] == "pass"
     assert receipt["authority"]["kms_verification_sha256"] == kms_verification_record()[
         "verification_sha256"
     ]
@@ -496,6 +503,12 @@ def test_terminal_no_go_receipt_retains_published_raw_artifacts(tmp_path: Path) 
             "parent_job_id": "parent",
             "plan": plan,
             "iam_simulation": iam_simulation,
+            "post_apply_iam_binding": {
+                "status": "pass",
+                "expected_policy_sha256": authority["iam_policy_sha256"],
+                "observed_policy_sha256": authority["iam_policy_sha256"],
+                "policy_inventory_sha256": "b" * 64,
+            },
             "kms_verification": kms_verification_record(),
             "projected_cost_usd": 4.48,
             "launch": {
@@ -536,6 +549,7 @@ def test_terminal_no_go_receipt_retains_published_raw_artifacts(tmp_path: Path) 
         output_root=plan["output_prefix"],
     )
     assert receipt["status"] == "no_go"
+    assert receipt["authority"]["post_apply_iam_binding"]["observed_policy_sha256"] == "a" * 64
     assert receipt["teardown"]["output_prefix_empty"] is False
     assert receipt["teardown"]["retained_raw_artifacts"] is True
     assert receipt["workers"]["raw_artifact_prefix_object_count"] == 2
