@@ -89,3 +89,20 @@ def test_surface_bootstrap_logs_into_ecr_without_persisting_credentials() -> Non
     assert "awscli2" not in user_data
     assert "rm -f \"$ROOT/image-refs.json\" /root/.docker/config.json" in user_data
     assert "--network none --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges" in user_data
+
+
+def test_iam_profile_propagation_error_is_narrowly_classified() -> None:
+    class _Error(Exception):
+        response = {
+            "Error": {
+                "Code": "InvalidParameterValue",
+                "Message": "Value ... for parameter iamInstanceProfile.name is invalid",
+            }
+        }
+
+    assert aws_surface_provider._is_iam_profile_propagation_error(_Error())
+
+    class _OtherError(Exception):
+        response = {"Error": {"Code": "InvalidParameterValue", "Message": "invalid instance type"}}
+
+    assert not aws_surface_provider._is_iam_profile_propagation_error(_OtherError())

@@ -16,6 +16,7 @@ from decimal import Decimal, ROUND_CEILING
 import hashlib
 import json
 import re
+import time
 from typing import Any, cast
 
 from .errors import CloudManifestError
@@ -44,6 +45,18 @@ def _json(value: object) -> str:
 
 def _sha(value: object) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
+
+
+def _is_iam_profile_propagation_error(exc: Exception) -> bool:
+    """Recognize the transient EC2/IAM eventual-consistency failure."""
+
+    response = getattr(exc, "response", {})
+    if not isinstance(response, Mapping):
+        return False
+    error = response.get("Error", {})
+    if not isinstance(error, Mapping):
+        return False
+    return error.get("Code") == "InvalidParameterValue" and "iamInstanceProfile" in str(error.get("Message", ""))
 
 
 def _name(value: str, *, max_length: int = 63) -> str:
@@ -257,19 +270,30 @@ class AwsSurfaceProvider(ProductionJobProvider):
             {"Key": "PneumaManaged", "Value": "production-surface-e2e"},
             {"Key": "PneumaEvidenceClass", "Value": "non-scientific"},
         ]
-        response = self.ec2.run_instances(
-            ImageId=AMI_ID,
-            InstanceType=INSTANCE_TYPE,
-            MinCount=1,
-            MaxCount=1,
-            ClientToken=client_token[:64],
-            IamInstanceProfile={"Name": profile},
-            NetworkInterfaces=[{"DeviceIndex": 0, "SubnetId": subnet_id, "Groups": [self.security_group_id], "AssociatePublicIpAddress": True, "DeleteOnTermination": True}],
-            BlockDeviceMappings=[{"DeviceName": "/dev/xvda", "Ebs": {"VolumeSize": 80, "VolumeType": "gp3", "Encrypted": True, "DeleteOnTermination": True}}],
-            MetadataOptions={"HttpTokens": "required", "HttpEndpoint": "enabled", "HttpPutResponseHopLimit": 1},
-            UserData=user_data,
-            TagSpecifications=[{"ResourceType": "instance", "Tags": tags}, {"ResourceType": "volume", "Tags": tags}],
-        )
+        run_kwargs = {
+            "ImageId": AMI_ID,
+            "InstanceType": INSTANCE_TYPE,
+            "MinCount": 1,
+            "MaxCount": 1,
+            "ClientToken": client_token[:64],
+            "IamInstanceProfile": {"Name": profile},
+            "NetworkInterfaces": [{"DeviceIndex": 0, "SubnetId": subnet_id, "Groups": [self.security_group_id], "AssociatePublicIpAddress": True, "DeleteOnTermination": True}],
+            "BlockDeviceMappings": [{"DeviceName": "/dev/xvda", "Ebs": {"VolumeSize": 80, "VolumeType": "gp3", "Encrypted": True, "DeleteOnTermination": True}}],
+            "MetadataOptions": {"HttpTokens": "required", "HttpEndpoint": "enabled", "HttpPutResponseHopLimit": 1},
+            "UserData": user_data,
+            "TagSpecifications": [{"ResourceType": "instance", "Tags": tags}, {"ResourceType": "volume", "Tags": tags}],
+        }
+        response = None
+        for attempt in range(4):
+            try:
+                response = self.ec2.run_instances(**run_kwargs)
+                break
+            except self.ec2.exceptions.ClientError as exc:
+                if not _is_iam_profile_propagation_error(exc) or attempt == 3:
+                    raise
+                time.sleep(2**attempt)
+        if response is None:
+            raise CloudManifestError("AWS instance submission produced no response")
         instance_id = cast(str, response["Instances"][0]["InstanceId"])
         self.instance_id = instance_id
         self.submission = ProductionSubmission(instance_id, (instance_id,))
