@@ -111,3 +111,21 @@ or begin the official study.
 **Current evidence:** the infrastructure closure is recorded in
 `58-pre-experiment-qualification-closure-20260803.md`; the canonical Step-14
 receipt remains `launch_blocked`.
+
+## Latest infrastructure disposition — action-015 — 2026-08-04
+
+Action-015 is the latest fresh qualification attempt and is sealed as a
+post-launch terminal no-go. It proves one exact size-two submission, followed
+by a provider subprocess failure before any child attempt; both children were
+later observed terminal with zero attempts. No worker identity, raw artifact,
+recovery receipt, or scientific evidence exists. The two short-lived
+provisioning instances were torn down and are not counted as worker success.
+
+The CloudTrail eventual-consistency and terminated-instance cleanup repairs
+are committed and focused-tested. The final provider-absence proof is
+`evidence/dual-l40s-qualification-015-final-provider-absence-20260803.json`;
+the action was not retried. This checklist remains unsigned and Step 14
+remains `launch_blocked`. The remaining blockers are the real canonical P0
+power/tier and packet/assignment/detectability/unblind/analysis authority
+receipts, followed by a fresh hostile release review. Qualification evidence
+does not authorize the official study.

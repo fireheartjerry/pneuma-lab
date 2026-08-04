@@ -93,3 +93,20 @@ attempt, repair and focused-test the CloudTrail eventual-consistency race and
 the cleanup `NoneType` failure; do not infer a root cause for the observed
 provider status. No official P0/Step 4B experiment, benchmark/model workload,
 pilot, unblind, analysis, or claim promotion occurred.
+
+## Qualification result update — action-015 — 2026-08-04
+
+Action-015 passed the topology, provider, image, IAM, plan, and KMS admission
+checks, then reached exactly one permitted size-two Batch submission. The
+runner received a provider subprocess failure before either child attempted a
+worker. Independent readback found zero attempts, no worker identities, no raw
+artifacts, and no recovery receipt. Two tagged `g6e.2xlarge` instances were
+briefly observed as Batch provisioning capacity rather than worker attempts.
+
+The action is exhausted with no retry. Batch was disabled/drained, locked
+Terraform destroy completed, and the final provider-absence proof is
+`evidence/dual-l40s-qualification-015-final-provider-absence-20260803.json`.
+The fixed topology therefore remains **unqualified**: this receipt establishes
+neither two-worker viability nor freeze/restore success. The observed provider
+failure is recorded without an invented root cause. No official P0/Step 4B,
+benchmark, pilot, model workload, unblind, analysis, or claim promotion ran.

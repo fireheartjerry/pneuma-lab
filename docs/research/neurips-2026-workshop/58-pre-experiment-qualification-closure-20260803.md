@@ -1,6 +1,87 @@
 # Pre-experiment AWS qualification closure — 2026-08-03
 
-## Verdict
+## Latest qualification verdict — action-015 — 2026-08-04
+
+**B — post-launch terminal no-go.** Fresh action
+`dual-l40s-qualification-015` reached exactly one permitted size-two Batch
+submission and then ended in a terminal no-go. The concrete runner received a
+provider subprocess failure before either child attempted a worker. Independent
+Batch readback found the parent and both children terminal with zero attempts;
+no worker identity, raw artifact, or recovery receipt exists. No retry occurred.
+
+This is not a qualification pass and it is not reported as a capacity-root
+cause: the retained evidence records the exact AWS facts and does not invent a
+deeper explanation. Two tagged `g6e.2xlarge` provisioning instances briefly
+launched during Batch scaling and were terminated during teardown; they were
+not worker attempts. No official P0/Step 4B experiment, benchmark/model
+workload, pilot, subject workload, unblind, scientific analysis, or claim
+promotion occurred.
+
+## Action-015 sealed facts
+
+- Immutable fixture-only image:
+  `sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b`.
+- IAM simulation: **17/17 live decisions passed**. The effective action-scoped
+  policy SHA-256 is
+  `499daf6b8cb34c786c7ba102e78c492997fa22314a5ebbb2f0c3e3b1a0b9f073`;
+  simulation matrix SHA-256 is
+  `cb7516ee7d2cadb30a4b8a1956ac2046e84038600f48792857ed4ccac0422586`;
+  the sanitized policy inventory SHA-256 is
+  `5fc67c1fdc710abfc54b3ad91c49a4c32dfc7e1c96fd24f866693cf2f3aa9d24`.
+- Exact plan binding: saved plan
+  `1c42b217e3821c9eaa8f32295a8dfb41630f34ad517215e4704dee54f760c9c8`, raw
+  Terraform show
+  `f1577f4b2157b3290d88b6b68f9ecc49c658f53f79b8703036457836de643639`, and
+  composite binding
+  `7f36da34a1e268344dd11a2a968c8c987065ba407d8beded7d88968e2accd729`.
+- Authority: signed package
+  `d37983eb32e69e7a686840dd1f1425011054db554a52a9c641fa8313e6257006`,
+  authority receipt
+  `e881bf775a7a7af4904f7dbe8f636e24c770437ac3a5eb8ca956f6b9497b4e7b`, and
+  KMS verification
+  `c74da234caf19f14e81fdf8a2f71bad8083e03bd09257895893473d2d0532537`;
+  both signatures verified with `ED25519_SHA_512`.
+- Spot projection: **USD 4.4842** for two `g6e.2xlarge` Spot workers at 3,600
+  seconds, below the USD 100 bound. Observed worker duration: **none**. The
+  two non-worker provisioning instances lasted 144 and 154 seconds.
+- Worker identity hashes: **none**. Raw artifact hashes: **none**; the output
+  prefix is empty. Recovery: **not run**, because no worker succeeded.
+
+## Action-015 launch and teardown proof
+
+CloudTrail proves exactly one `SubmitJob` event
+(`caf9015e-0675-4860-8a5f-045ea493c29a`) for parent
+`1d9cc37d-f926-4555-9d22-c9c9de36566e`, array size 2, and one permitted
+attempt. The runner receipt is
+`evidence/dual-l40s-qualification-015-execution-receipt-20260803.json`
+(SHA-256
+`c14a0fc3e7cce6f4e639aceaa80a84b6348457af923e8f663a142502ed3d15c7`); the
+terminal no-go is
+`evidence/dual-l40s-qualification-015-terminal-no-go-20260803.json` (SHA-256
+`3ae22bfd793ab9106798b155e9c491d66e6e9e195a9fe2a69c3a768cb3644a01`).
+
+The independent final provider-absence proof is
+`evidence/dual-l40s-qualification-015-final-provider-absence-20260803.json`
+(SHA-256
+`68f39ef2842241ed6efb1ad8f2f804248e3da6f9740f2253939c2103a1e8d463`). It
+proves the active queue, job definition, compute environment, launch template,
+instances, volumes, ENIs, security group, and output objects absent. AWS
+retains only terminal Batch history and the expected inactive job-definition
+history. The locked destroy completed after one verified stale state-lock
+cleanup. Raw evidence hashes are Batch
+`6dbafa1ecfb2ac95ccbbb3436786ae8ed7fea6070e284aea0baa2a696d256389`,
+CloudTrail `ac81bbab671c4860739c1063ea544b22e5fcda90c44101d49fa425e54510b7e5`,
+and S3 output listing
+`766fcfa0aa8769fac4710a48c5e30edc414d900d436d2f16a185438ae024c059`.
+
+The focused hostile review used the actual action-015 receipt, CloudTrail,
+Batch, EC2, IAM, plan, and absence evidence. It confirms a terminal no-go,
+keeps the observed provider subprocess failure separate from any unproven
+root cause, and leaves the official-study boundary intact. The CloudTrail
+polling and terminated-instance cleanup repairs are committed and focused-
+tested; they do not retroactively turn action-015 into a successful run.
+
+## Historical action-014 snapshot
 
 **B — post-launch terminal no-go.** Fresh action
 `dual-l40s-qualification-014` was launched exactly once. A later CloudTrail

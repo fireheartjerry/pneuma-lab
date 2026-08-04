@@ -1304,3 +1304,27 @@ authorized by this infrastructure result. Before any future qualification,
 the runner's CloudTrail eventual-consistency gate and cleanup `NoneType`
 failure must be repaired and focused-tested; the observed provider reason has
 no proven root cause and must not be rewritten as one.
+
+## Latest infrastructure closure — action-015 — 2026-08-04
+
+Action-015 supersedes action-014 as the latest qualification record and ended
+as a post-launch terminal no-go. The fresh plan, provider identity, image,
+least-privilege IAM simulation, and KMS gates were green. Exactly one
+CloudTrail-proven size-two `SubmitJob` occurred; the concrete runner then
+received a provider subprocess failure before either child attempted a worker.
+Both children were later observed terminal with zero attempts, and no worker
+identity, raw artifact, or recovery receipt exists. Two short-lived Batch
+provisioning instances were observed, but neither was a worker attempt.
+
+The action was disabled/drained and destroyed under the Terraform lock. Fresh
+provider absence is sealed at
+`evidence/dual-l40s-qualification-015-final-provider-absence-20260803.json`.
+The CloudTrail polling and cleanup-history repairs are now committed and
+focused-tested, but this does not make the topology qualified: canonical
+two-worker success, raw artifacts, and freeze/restore recovery remain absent.
+
+Tasks 6–9, including the reconciled Task 8 path, remain
+`implementation_complete; E2E_pending`. Task 10 remains implementation and
+release preparation only. Step 14 remains `launch_blocked` pending its real
+P0 power/tier, packet, assignment, detectability, unblind, and authority-bound
+release receipts. No scientific workload or claim promotion occurred.

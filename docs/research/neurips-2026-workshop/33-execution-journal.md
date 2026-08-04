@@ -7350,3 +7350,49 @@ post-launch terminal no-go. Tasks 6–10 remain
   review found no basis for a qualification claim and no proven root cause for
   the provider's `JobQueue deleted` reason. Action-014 is exhausted; no retry
   or official scientific work occurred.
+
+### EJ-20260804-dual-l40s-qualification-015-terminal-no-go
+
+- **Pre-launch closure:** Fresh action-015 passed the exact four-create managed
+  GPU/ECS-AMI plan, four-AZ and zero-ingress network checks, profile-to-single-
+  role chain, separate Batch service role, immutable image-016 binding, live
+  17/17 IAM simulation, and KMS `ED25519_SHA_512` verification. The saved
+  plan/show/composite hashes were
+  `1c42b217e3821c9eaa8f32295a8dfb41630f34ad517215e4704dee54f760c9c8`,
+  `f1577f4b2157b3290d88b6b68f9ecc49c658f53f79b8703036457836de643639`, and
+  `7f36da34a1e268344dd11a2a968c8c987065ba407d8beded7d88968e2accd729`.
+  The effective IAM policy and matrix hashes were
+  `499daf6b8cb34c786c7ba102e78c492997fa22314a5ebbb2f0c3e3b1a0b9f073` and
+  `cb7516ee7d2cadb30a4b8a1956ac2046e84038600f48792857ed4ccac0422586`.
+- **Single launch:** The concrete runner executed exactly once. CloudTrail
+  proves one `SubmitJob` event
+  (`caf9015e-0675-4860-8a5f-045ea493c29a`) for parent
+  `1d9cc37d-f926-4555-9d22-c9c9de36566e`, array size 2, and one permitted
+  attempt. The runner then received a provider subprocess failure before any
+  child attempt; no automatic retry was made. Independent Batch readback
+  found both children terminal with zero attempts. No worker identity, raw
+  artifact, or recovery receipt exists.
+- **Provider facts:** Two tagged `g6e.2xlarge` provisioning instances were
+  observed during Batch scaling, lasting 144 and 154 seconds; they were not
+  worker attempts. The action projection was USD 4.4842, with no worker
+  duration and no scientific workload. Raw Batch, CloudTrail, and S3 listing
+  hashes are respectively
+  `6dbafa1ecfb2ac95ccbbb3436786ae8ed7fea6070e284aea0baa2a696d256389`,
+  `ac81bbab671c4860739c1063ea544b22e5fcda90c44101d49fa425e54510b7e5`, and
+  `766fcfa0aa8769fac4710a48c5e30edc414d900d436d2f16a185438ae024c059`.
+- **Teardown:** Batch was disabled/drained and terminal jobs were retained as
+  evidence. The locked Terraform destroy completed after one verified stale
+  state-lock cleanup. Final provider absence is sealed in
+  `evidence/dual-l40s-qualification-015-final-provider-absence-20260803.json`
+  (SHA-256
+  `68f39ef2842241ed6efb1ad8f2f804248e3da6f9740f2253939c2103a1e8d463`).
+  The active queue, job definition, compute environment, launch template,
+  instances, volumes, ENIs, security group, and output objects are absent;
+  only expected AWS terminal/inactive history remains.
+- **Review and boundary:** The focused hostile review consumed the actual
+  action-015 runner receipt, CloudTrail, Batch, EC2, plan, IAM, and absence
+  evidence. It records a post-launch terminal no-go and does not invent a
+  provider root cause. CloudTrail polling and terminated-instance cleanup
+  repairs are committed and focused-tested. Tasks 6–10 remain
+  `implementation_complete; E2E_pending`, Task 10 is release preparation only,
+  and Step 14 remains `launch_blocked`; no official P0/Step 4B work occurred.
