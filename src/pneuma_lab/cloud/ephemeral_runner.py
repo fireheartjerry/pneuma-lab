@@ -145,8 +145,9 @@ def _require_complete_provider_absence(
     *,
     phase: str,
     allow_retained_raw_artifacts: bool = False,
+    expected_retained_artifact_count: int | None = None,
 ) -> dict[str, Any]:
-    """Require resource absence, allowing only retained failure evidence."""
+    """Require provider absence while accounting for retained fixture evidence."""
 
     if not isinstance(absence, Mapping):
         raise CloudManifestError(f"qualification {phase} absence proof is not an object")
@@ -174,6 +175,18 @@ def _require_complete_provider_absence(
         raise CloudManifestError(
             f"qualification {phase} output prefix is not empty"
         )
+    if expected_retained_artifact_count is not None:
+        if (
+            type(expected_retained_artifact_count) is not int
+            or expected_retained_artifact_count < 0
+        ):
+            raise CloudManifestError(
+                f"qualification {phase} expected retained artifact count is invalid"
+            )
+        if object_count != expected_retained_artifact_count:
+            raise CloudManifestError(
+                f"qualification {phase} retained artifact count differs from the exact evidence contract"
+            )
     return dict(absence)
 
 
@@ -1513,11 +1526,24 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             parse_s3_uri(worker_artifact_uri(self.output_root, index)).key: index
             for index in (0, 1)
         }
+        boundary_uri = self.output_root.rstrip("/") + "/interruption/boundary.json"
+        boundary = parse_s3_uri(boundary_uri)
+        allowed_keys = set(expected) | {boundary.key}
+        observed_keys: set[str] = set()
         observed: list[dict[str, Any]] = []
         for row in rows:
             if not isinstance(row, Mapping):
                 raise CloudManifestError("qualification artifact listing contains a non-object row")
             key = row.get("Key")
+            if not isinstance(key, str) or key not in allowed_keys:
+                raise CloudManifestError(
+                    "qualification artifact reconciliation found an unexpected output key"
+                )
+            if key in observed_keys:
+                raise CloudManifestError(
+                    "qualification artifact reconciliation found a duplicate output key"
+                )
+            observed_keys.add(key)
             if key in expected:
                 observed.append(
                     {
@@ -1531,11 +1557,17 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             raise CloudManifestError(
                 "qualification artifact reconciliation did not find both worker objects"
             )
+        boundary_sha256 = None
+        if boundary.key in observed_keys:
+            boundary_sha256 = hashlib.sha256(self.get_object(boundary_uri)).hexdigest()
         return {
             "object_count": len(rows),
             "worker_object_count": len(observed),
             "worker_indices": [row["worker_index"] for row in observed],
             "objects": observed,
+            "boundary_present": boundary.key in observed_keys,
+            "boundary_key": boundary.key,
+            "boundary_sha256": boundary_sha256,
         }
 
     def capture_submit_evidence(self, parent_job_id: str) -> Mapping[str, Any]:
@@ -2259,6 +2291,30 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         output_objects = output_listing.get("Contents", [])
         if not isinstance(output_objects, list):
             raise CloudManifestError("qualification output listing was not an object collection")
+        expected_worker_keys = {
+            parse_s3_uri(worker_artifact_uri(self.output_root, index)).key
+            for index in (0, 1)
+        }
+        boundary_uri = self.output_root.rstrip("/") + "/interruption/boundary.json"
+        boundary = parse_s3_uri(boundary_uri)
+        allowed_artifact_keys = expected_worker_keys | {boundary.key}
+        observed_artifact_keys: list[str] = []
+        for row in output_objects:
+            if not isinstance(row, Mapping):
+                raise CloudManifestError("qualification output listing contains a non-object row")
+            key = row.get("Key")
+            if not isinstance(key, str) or key not in allowed_artifact_keys:
+                raise CloudManifestError(
+                    "qualification output listing contains an unexpected action-scoped key"
+                )
+            if key in observed_artifact_keys:
+                raise CloudManifestError(
+                    "qualification output listing contains a duplicate action-scoped key"
+                )
+            observed_artifact_keys.append(key)
+        boundary_sha256 = None
+        if boundary.key in observed_artifact_keys:
+            boundary_sha256 = hashlib.sha256(self.get_object(boundary_uri)).hexdigest()
         inactive_rows = inactive_definition.get("jobDefinitions", [])
         if not isinstance(inactive_rows, list):
             raise CloudManifestError("inactive job-definition listing was not an object collection")
@@ -2362,6 +2418,9 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "artifact_prefix": {
                 "empty": not output_objects,
                 "object_count": len(output_objects),
+                "object_keys": sorted(observed_artifact_keys),
+                "boundary_key": boundary.key,
+                "boundary_sha256": boundary_sha256,
             },
         }
 
@@ -2574,6 +2633,31 @@ def _controller_failure_payload(exc: Exception) -> dict[str, Any]:
     if isinstance(exc, BatchAdmissionError):
         payload["failure_kind"] = exc.failure_kind
     return payload
+
+
+def _expected_retained_artifact_count(
+    evidence: Mapping[str, Any] | None,
+    recovery: Mapping[str, Any] | None,
+) -> int | None:
+    """Return the exact retained-prefix count once S3 reconciliation ran."""
+
+    if not isinstance(evidence, Mapping) or not isinstance(
+        evidence.get("artifact_reconciliation"), Mapping
+    ):
+        return None
+    raw = evidence.get("raw_evidence")
+    if not isinstance(raw, Mapping):
+        return None
+    raw_count = sum(
+        isinstance(raw.get(index) or raw.get(str(index)), (bytes, bytearray))
+        and bool(raw.get(index) or raw.get(str(index)))
+        for index in (0, 1)
+    )
+    if isinstance(recovery, Mapping) and recovery.get(
+        "restored_completed_boundary"
+    ) is True:
+        raw_count += 1
+    return raw_count
 
 
 def _controller_evidence_payload(evidence: Mapping[str, Any]) -> dict[str, Any]:
@@ -3107,11 +3191,35 @@ def execute(
             if not isinstance(observed_absence, Mapping):
                 raise CloudManifestError("qualification teardown absence is not an object")
             absence = observed_absence
+            expected_retained_artifact_count = _expected_retained_artifact_count(
+                evidence, recovery
+            )
             _require_complete_provider_absence(
                 absence,
                 phase="teardown",
-                allow_retained_raw_artifacts=failure_for_context is not None,
+                allow_retained_raw_artifacts=(
+                    failure_for_context is not None
+                    or expected_retained_artifact_count is not None
+                ),
+                expected_retained_artifact_count=expected_retained_artifact_count,
             )
+            artifact = absence.get("artifact_prefix")
+            if (
+                isinstance(artifact, Mapping)
+                and isinstance(recovery, Mapping)
+                and recovery.get("restored_completed_boundary") is True
+                and expected_retained_artifact_count is not None
+            ):
+                observed_boundary_sha256 = artifact.get("boundary_sha256")
+                expected_boundary_sha256 = recovery.get("boundary_sha256")
+                if (
+                    not isinstance(observed_boundary_sha256, str)
+                    or not isinstance(expected_boundary_sha256, str)
+                    or observed_boundary_sha256 != expected_boundary_sha256
+                ):
+                    raise CloudManifestError(
+                        "qualification teardown boundary artifact differs from recovery evidence"
+                    )
         except Exception as exc:
             cleanup_errors.append(exc)
         if cleanup_errors:

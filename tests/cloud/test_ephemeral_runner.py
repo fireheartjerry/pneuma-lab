@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from pneuma_lab.cloud.authorization_keys import canonical_ledger_digest
 from pneuma_lab.cloud.authorization_keys import canonical_bytes, signed_body
+from pneuma_lab.cloud.ephemeral_receipt import build_ephemeral_qualification_receipt
 from pneuma_lab.cloud.ephemeral_runner import (
     AwsCliAdapter,
     ProviderSubprocessError,
@@ -525,6 +526,7 @@ class FakeProvider(ReadOnlyProvider):
         self.calls.append("recovery")
         return {
             "restored_completed_boundary": True,
+            "boundary_sha256": "f" * 64,
             "operations": (
                 "describe_jobs_before",
                 "freeze_completed_boundary",
@@ -624,6 +626,16 @@ class RestartableFakeProvider(FakeProvider):
             "worker_indices": [0, 1],
         }
 
+    def verify_absence(self, tags):
+        self.calls.append("absence")
+        proof = self._absence_evidence()
+        proof["artifact_prefix"] = {
+            "empty": False,
+            "object_count": 3,
+            "boundary_sha256": "f" * 64,
+        }
+        return proof
+
 
 def authority(*args, **kwargs):
     assert kwargs["expected_manifest_sha256"] == terraform_plan_binding_digest(
@@ -668,6 +680,48 @@ def test_runner_verifies_real_plan_and_executes_exact_two_children() -> None:
     ]
     assert terraform.calls == ["apply:60s", "destroy:60s"]
     assert provider.calls[-2:] == ["disable-drain", "absence"]
+
+
+def test_runner_and_receipt_accept_exact_retained_success_evidence(
+    tmp_path: Path,
+) -> None:
+    provider = RestartableFakeProvider({})
+    terraform = FakeTerraform()
+    action_id = "qual-1"
+    result = execute(
+        RunnerConfig(
+            action_id,
+            "us-east-1",
+            require_receipt_evidence=True,
+            action_evidence_root=tmp_path / "evidence",
+            receipt_path=tmp_path / "receipt.json",
+            state_path=tmp_path / "controller-state.json",
+        ),
+        envelope={},
+        admission={},
+        key_registry={},
+        ledger_path=LEDGER,
+        account_plan=terraform_show(action_id=action_id),
+        provider=provider,
+        terraform=terraform,
+        verify_authority=authority,
+    )
+    receipt = build_ephemeral_qualification_receipt(
+        result,
+        action_id=action_id,
+        region="us-east-1",
+        authority={
+            "signed_package_sha256": "a" * 64,
+            "iam_policy_sha256": "a" * 64,
+            "envelope": {"body_sha256": "b" * 64, "signature_sha256": "c" * 64},
+            "admission": {"body_sha256": "d" * 64, "signature_sha256": "e" * 64},
+            "kms": {"signing_algorithm": "ED25519_SHA_512"},
+        },
+        output_root=terraform_show(action_id=action_id)["variables"]["output_path"]["value"],
+    )
+    assert receipt["status"] == "passed"
+    assert receipt["workers"]["raw_artifact_prefix_object_count"] == 3
+    assert receipt["teardown"]["retained_raw_artifacts"] is True
 
 
 def test_repeated_batch_observation_failures_resume_without_duplicate_submit(
@@ -2165,13 +2219,51 @@ def test_concrete_cli_absence_checks_all_ephemeral_resource_classes() -> None:
             "inactive_job_definition_history_retained_by_aws": False,
             "inactive_job_definition_arn_sha256": None,
         },
-        "artifact_prefix": {"empty": True, "object_count": 0},
+        "artifact_prefix": {
+            "empty": True,
+            "object_count": 0,
+            "object_keys": [],
+            "boundary_key": "runs/qual-1/interruption/boundary.json",
+            "boundary_sha256": None,
+        },
     }
     assert any(
         "Name=launch-template-name,Values=qual-1-worker-*" in call
         for call in calls
     )
     assert any("describe-network-interfaces" in call for call in calls)
+
+
+def test_concrete_cli_absence_rejects_unexpected_retained_output_key() -> None:
+    def run(argv, **kwargs):
+        payloads = {
+            "describe-job-queues": {"jobQueues": []},
+            "describe-compute-environments": {"computeEnvironments": []},
+            "describe-job-definitions": {"jobDefinitions": []},
+            "list-objects-v2": {
+                "Contents": [{"Key": "runs/qual-1/outputs/unexpected.json"}]
+            },
+            "describe-instances": {"Reservations": []},
+            "describe-volumes": {"Volumes": []},
+            "describe-launch-templates": {"LaunchTemplates": []},
+            "describe-network-interfaces": {"NetworkInterfaces": []},
+            "describe-security-groups": {"SecurityGroups": []},
+            "lookup-events": {"Events": []},
+        }
+        command = next(key for key in payloads if key in argv)
+        return subprocess.CompletedProcess(
+            argv, 0, json.dumps(payloads[command]).encode(), b""
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    with pytest.raises(CloudManifestError, match="unexpected action-scoped key"):
+        adapter.verify_absence({"QualificationActionId": "qual-1"})
 
 
 def test_concrete_cli_absence_ignores_terminated_instance_history() -> None:

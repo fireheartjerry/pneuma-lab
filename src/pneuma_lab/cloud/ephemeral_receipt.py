@@ -545,14 +545,6 @@ def build_ephemeral_qualification_receipt(
     object_count = artifact.get("object_count") if isinstance(artifact, Mapping) else None
     if type(object_count) is not int or object_count < 0:
         raise CloudManifestError("provider absence lacks an output object count")
-    if status == "passed" and (len(raw_rows) != 2 or object_count != 2):
-        raise CloudManifestError(
-            "qualification success requires exactly two raw output objects"
-        )
-    if status == "no_go" and object_count != len(raw_rows):
-        raise CloudManifestError(
-            "terminal no-go raw artifact count differs from provider output evidence"
-        )
     recovery = context.get("recovery")
     if status == "passed":
         if not isinstance(recovery, Mapping):
@@ -590,6 +582,25 @@ def build_ephemeral_qualification_receipt(
             "run": False,
             "reason": "Admission did not reach two successful children.",
         }
+    expected_retained_object_count = len(raw_rows) + (
+        1 if recovery_record.get("run") is True else 0
+    )
+    if status == "passed" and len(raw_rows) != 2:
+        raise CloudManifestError(
+            "qualification success requires exactly two raw output objects"
+        )
+    if object_count != expected_retained_object_count:
+        raise CloudManifestError(
+            "provider output object count differs from the exact retained evidence contract"
+        )
+    if recovery_record.get("run") is True:
+        boundary_sha256 = (
+            artifact.get("boundary_sha256") if isinstance(artifact, Mapping) else None
+        )
+        if boundary_sha256 != recovery_record.get("boundary_sha256"):
+            raise CloudManifestError(
+                "qualification recovery receipt lacks the persisted boundary artifact hash"
+            )
     authority_record = {
         "package_sha256": authority.get("signed_package_sha256"),
         "envelope_body_sha256": _authority_field(authority, "envelope", "body_sha256"),
@@ -652,7 +663,7 @@ def build_ephemeral_qualification_receipt(
             "recovery": recovery_record,
         },
         "teardown": _teardown(
-            absence, allow_retained_raw_artifacts=status == "no_go"
+            absence, allow_retained_raw_artifacts=object_count > 0
         ),
     }
     controller_state = context.get("controller_state")
