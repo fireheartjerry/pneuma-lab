@@ -6,11 +6,24 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+from pneuma_lab.cloud.errors import CloudManifestError
 from pneuma_lab.cloud.production_surface import require_production_execution_surface
-from scripts.research import run_production_surface_e2e
+from scripts.research import run_production_surface_aws, run_production_surface_e2e
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_aws_surface_evidence_is_scoped_to_one_action(tmp_path) -> None:
+    first = run_production_surface_aws._action_evidence_root(tmp_path, "surface-action-1")
+    second = run_production_surface_aws._action_evidence_root(tmp_path, "surface-action-2")
+
+    assert first != second
+    assert first == tmp_path / "evidence/production-surface-e2e/surface-action-1"
+    with pytest.raises(CloudManifestError, match="single safe path component"):
+        run_production_surface_aws._action_evidence_root(tmp_path, "../outside")
 
 
 def test_image_role_uses_sealed_entrypoint_without_duplicate_role(tmp_path, monkeypatch) -> None:

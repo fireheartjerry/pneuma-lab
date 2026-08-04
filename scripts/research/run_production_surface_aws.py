@@ -55,6 +55,12 @@ def _ref(package: Path, path: Path, *, role: str) -> dict[str, object]:
     return {"role": role, "relative_path": path.resolve().relative_to(package.resolve()).as_posix(), "sha256": _sha_bytes(raw), "byte_count": len(raw), "media_type": "application/json"}
 
 
+def _action_evidence_root(package: Path, action_id: str) -> Path:
+    if not action_id or any(separator in action_id for separator in ("/", "\\")) or action_id in {".", ".."}:
+        raise CloudManifestError("action_id must be a single safe path component")
+    return package / "evidence/production-surface-e2e" / action_id
+
+
 class _FailOnceObservation:
     def __init__(self, provider: AwsSurfaceProvider) -> None:
         self.provider = provider
@@ -86,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-observations", type=int, default=180)
     args = parser.parse_args(argv)
     package = args.package_dir.resolve()
+    e2e_root = _action_evidence_root(package, args.action_id)
     provider_binding_path = package / "inputs/provider-binding.json"
     provider_binding = validate_production_provider_binding(_load(provider_binding_path))
     input_lock = package / "inputs/input-lock.json"
@@ -103,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     }
     harness_raw = canonical_bytes(harness)
     harness_sha256 = _sha_bytes(harness_raw)
-    harness_path = package / "evidence/production-surface-e2e/harness.json"
+    harness_path = e2e_root / "harness.json"
     harness_path.parent.mkdir(parents=True, exist_ok=True)
     harness_path.write_bytes(harness_raw)
     preflight = collect_preflight(region="us-east-1", action_id=args.action_id)
@@ -112,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     preflight["action_id"] = args.action_id
     preflight["input_lock_sha256"] = input_lock_sha256
     preflight["provider_binding_sha256"] = _sha(provider_binding_path)
-    preflight_path = package / "evidence/production-surface-e2e/preflight.json"
+    preflight_path = e2e_root / "preflight.json"
     _write(preflight_path, preflight)
     config = AwsSurfaceConfig(
         action_id=args.action_id,
@@ -126,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         source_commit=args.source_commit,
     )
     provider = AwsSurfaceProvider(config)
-    state_path = package / "evidence/production-surface-e2e/controller-state.json"
+    state_path = e2e_root / "controller-state.json"
     binding = {"action_id": args.action_id, "run_spec_sha256": "0" * 64, "provider_binding_sha256": config.provider_binding_sha256, "evidence_class": "production_surface_non_scientific"}
     # The bounded fixture has no executable run-spec; the controller still
     # binds a stable content address for its own non-scientific action.
@@ -181,14 +188,14 @@ def main(argv: list[str] | None = None) -> int:
             expected = {"controller": "DISPATCHED", "model-server": "RESPONDED", "benchmark-worker": "COMPLETE"}[role]
             if validated["state"] != expected or validated["harness_sha256"] != harness_sha256:
                 raise CloudManifestError(f"{role} receipt does not bind the bounded harness")
-            receipt_path = package / f"evidence/production-surface-e2e/{role}.json"
+            receipt_path = e2e_root / f"{role}.json"
             _write(receipt_path, validated)
             receipt_paths[role] = receipt_path
         restarted.teardown(restarted_provider)
         teardown_record = restarted_provider.last_teardown
         if teardown_record is None or teardown_record.get("fresh_provider_absence") is not True:
             raise CloudManifestError("provider teardown did not prove fresh absence")
-        teardown_path = package / "evidence/production-surface-e2e/teardown.json"
+        teardown_path = e2e_root / "teardown.json"
         teardown_sha256 = _write(teardown_path, teardown_record)
         runtime_path = Path(__file__).resolve().parents[2] / "src/pneuma_lab/cloud/production_runtime.py"
         surface = build_surface_record(
@@ -202,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
             deployment_id=provider_binding["bounded_surface_deployment"]["deployment_id"],
             teardown_ref=teardown_sha256,
         )
-        surface_path = package / "evidence/production-surface-e2e/surface.json"
+        surface_path = e2e_root / "surface.json"
         surface_sha256 = _write(surface_path, surface)
         require_production_execution_surface(surface)
         for receipt in image_receipts:
@@ -226,8 +233,8 @@ def main(argv: list[str] | None = None) -> int:
             "teardown": {"status": "COMPLETE", "terminated": True, "network_deleted": True, "iam_deleted": True, "fresh_provider_absence": True, "retained_ecr_images": True},
         }
         validate_production_surface_e2e_receipt(e2e_receipt)
-        _write(package / "evidence/production-surface-e2e/receipt.json", e2e_receipt)
-        _write(package / "evidence/production-surface-e2e/status.json", {"status": "COMPLETE", "surface_sha256": surface_sha256, "teardown_sha256": teardown_sha256, "projected_usd": preflight["cost"]["projected_usd"], "actual_usd_upper_bound": preflight["cost"]["ceiling_usd"], "parent_job_id": parent_id, "scientific_workload": False})
+        _write(e2e_root / "receipt.json", e2e_receipt)
+        _write(e2e_root / "status.json", {"status": "COMPLETE", "surface_sha256": surface_sha256, "teardown_sha256": teardown_sha256, "projected_usd": preflight["cost"]["projected_usd"], "actual_usd_upper_bound": preflight["cost"]["ceiling_usd"], "parent_job_id": parent_id, "scientific_workload": False})
         print(json.dumps({"status": "COMPLETE", "surface_sha256": surface_sha256, "projected_usd": preflight["cost"]["projected_usd"], "actual_usd_upper_bound": preflight["cost"]["ceiling_usd"], "parent_job_id": parent_id}, sort_keys=True))
         return 0
     finally:
