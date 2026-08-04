@@ -2833,7 +2833,10 @@ def execute(
         # this path cannot apply, submit, or broaden the action.
         if (
             verify_authority is not require_preparation_admission
-            or "preparation authority has expired" not in str(exc)
+            or not (
+                "preparation authority has expired" in str(exc)
+                or "authorization expired at" in str(exc)
+            )
         ):
             raise
         submission_time = _historical_submission_time(
