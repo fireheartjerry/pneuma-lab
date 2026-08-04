@@ -1,0 +1,172 @@
+{
+  "account_id": "892077329800",
+  "action_class": "qualification_audit",
+  "action_id": "dual-l40s-qualification-016",
+  "bindings": {
+    "action_id": "dual-l40s-qualification-016",
+    "iam_policy_sha256": "2bc0004c4c623c587e4cf7d68ebe5656d8fe2be3568a4edbe200bee6f746d174",
+    "image_digest": "sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+    "input_lock_sha256": "05a813781d286fc33e6496cb3cf0638f84c6262c0205051c701fd34cf208e9a6",
+    "max_retries": 0,
+    "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-016/outputs/",
+    "projected_cost_usd": 4.4842,
+    "subnet_az_map": [
+      {
+        "availability_zone": "us-east-1a",
+        "subnet_id": "subnet-0da0658f2703d3e58"
+      },
+      {
+        "availability_zone": "us-east-1b",
+        "subnet_id": "subnet-0fb70ec94971ee036"
+      },
+      {
+        "availability_zone": "us-east-1c",
+        "subnet_id": "subnet-06bfd2d42e292f160"
+      },
+      {
+        "availability_zone": "us-east-1d",
+        "subnet_id": "subnet-0ef225f27b1e1f095"
+      }
+    ]
+  },
+  "iam": {
+    "all_expected_decisions_match": true,
+    "allowed": [
+      "input-read-protocol",
+      "input-read-architecture",
+      "input-read-authorization",
+      "input-read-image",
+      "input-read-input-lock",
+      "raw-write-worker-0",
+      "raw-write-worker-1"
+    ],
+    "check_count": 17,
+    "denied": [
+      "output-read-worker-0",
+      "output-read-worker-1",
+      "wrong-worker-output",
+      "other-action-input",
+      "unrelated-object",
+      "bucket-list",
+      "output-delete",
+      "output-abort",
+      "kms-decrypt",
+      "iam-policy-admin"
+    ],
+    "effective_policy_sha256": "2bc0004c4c623c587e4cf7d68ebe5656d8fe2be3568a4edbe200bee6f746d174",
+    "policy_inventory_sha256": "a0fe5ce76e4ea4dd369f3ca64c9be8fbb99c5a7ee04806fdaa17b43cdb242012",
+    "policy_source_role_arn_sha256": "2ea2fe8c81c71dc3eb8aa665a6d124ee5ec998f215f05a16c90355f561f5a8cf",
+    "resource_policy_present": false,
+    "resource_policy_sha256": null,
+    "simulation_matrix_sha256": "2527b9ec6431dff6331d6e39b9fc771da766a0b92a3d7b93e87ea81c13b29051"
+  },
+  "input_hashes": {
+    "architecture": "cd0558315f2eb67b1ef7eb68a0862a9457e3e3a9e914e2218cb1f6787928504a",
+    "authorization": "34296c109b1c92335d21fd51ae3cea4e35b14db31f3a56f135e6900388db35c1",
+    "code": "23e8b3efb4d19e4a4f597f958f15715191d1a624a2b01292a801e19763f148f2",
+    "image": "c795e49ffb52fdad608c20a2637da41d7bb11dfebe906d168ae9be16b3c458b8",
+    "input_lock": "05a813781d286fc33e6496cb3cf0638f84c6262c0205051c701fd34cf208e9a6",
+    "protocol": "baf53916f092e42028abd0bfcb13dc01041902e63422fca2abff3ea161657292"
+  },
+  "observed_at": "2026-08-04T01:16:54Z",
+  "plan": {
+    "approved_resource_addresses": [
+      "aws_batch_compute_environment.qualification",
+      "aws_launch_template.qualification",
+      "aws_batch_job_queue.qualification",
+      "aws_batch_job_definition.worker"
+    ],
+    "attempt_duration_seconds": 3600,
+    "command_override": false,
+    "custom_image_id": null,
+    "exactly_four_creates": true,
+    "execution_plan_sha256": "13e05eb678209592214900c29c793802e690be0c794f6d188265c2924cc5c621",
+    "instance_tag_binding": "dual-l40s-qualification-016",
+    "managed_gpu_ami_path": true,
+    "max_spot_vcpus": 16,
+    "no_other_resource_actions": true,
+    "retry_attempts": 1,
+    "saved_plan_path": "/tmp/pneuma-dual-l40s-qualification-016.tfplan",
+    "saved_plan_sha256": "9ddba5c7a5f81b6de34ab645e3df597f16d50465a8c3d69b8f5a6d0cadcbe78a",
+    "spot": true,
+    "terraform_plan_binding_sha256": "bf6c27cc323b5bcf17a7a84cbd7f2ea13c965ea08ba6de2425b3085144ed80d0",
+    "terraform_show_sha256": "89272b5d886cbaee117073b5c5ae5aed57738a503890f5178604bbd0a0538695",
+    "volume_tag_binding": "dual-l40s-qualification-016",
+    "worker_count": 2,
+    "worker_gpus": 1,
+    "worker_instance_type": "g6e.2xlarge",
+    "worker_memory_mib": 60000,
+    "worker_vcpus": 8
+  },
+  "provider": "aws",
+  "provider_checks": {
+    "batch_service_role_verified_separately": true,
+    "ecr_digest_verified": true,
+    "identity_verified": true,
+    "instance_profile_exactly_one_role_verified": true,
+    "offered_availability_zones": [
+      "us-east-1a",
+      "us-east-1b",
+      "us-east-1c",
+      "us-east-1d"
+    ],
+    "offered_instance_type": "g6e.2xlarge",
+    "profile_role_account_matches": true,
+    "projected_two_worker_3600_seconds_usd": 4.4842,
+    "projection_strictly_below_usd_100": true,
+    "provider_absence": {
+      "artifact_prefix": {
+        "empty": true,
+        "object_count": 0
+      },
+      "compute_environment": true,
+      "instances": true,
+      "job_definition": true,
+      "jobs": true,
+      "launch_template": true,
+      "network_interfaces": true,
+      "provider_history": {
+        "inactive_job_definition_arn_sha256": null,
+        "inactive_job_definition_history_retained_by_aws": false
+      },
+      "queue": true,
+      "security_group": true,
+      "volumes": true
+    },
+    "security_group_zero_ingress_verified": true,
+    "spot_price_max_usd_per_hour": 2.2421,
+    "spot_price_sample_count": 100,
+    "spot_quota_code": "L-3819A6DF",
+    "spot_vcpu_quota": 16.0,
+    "subnets_available_in_all_four_azs": true,
+    "vpc_and_subnets_match": true,
+    "worker_role_verified_separately": true
+  },
+  "qualification_only": true,
+  "quota_checks": [
+    {
+      "name": "Running On-Demand G and VT instances",
+      "quota_code": "L-DB2E81BA",
+      "value": 8.0
+    },
+    {
+      "name": "All G and VT Spot Instance Requests",
+      "quota_code": "L-3819A6DF",
+      "value": 16.0
+    }
+  ],
+  "record_kind": "cloud_qualification_read_only_plan",
+  "region": "us-east-1",
+  "schema_version": "0.1.0",
+  "scientific_boundary": {
+    "no_analysis": true,
+    "no_benchmark": true,
+    "no_claim_promotion": true,
+    "no_model_load": true,
+    "no_p0": true,
+    "no_pilot": true,
+    "no_step_4b": true,
+    "no_unblind": true
+  },
+  "status": "validated_read_only"
+}
