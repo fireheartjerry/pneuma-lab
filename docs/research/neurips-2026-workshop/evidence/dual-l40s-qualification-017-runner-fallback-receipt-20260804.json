@@ -1,0 +1,50 @@
+{
+  "action_id": "dual-l40s-qualification-017",
+  "context_sha256": "2b52e2e3dcf87becccb2cc9a2df036304031fb664883eca0b468fda01011da7b",
+  "context_summary": {
+    "absence": {},
+    "action_id": "dual-l40s-qualification-017",
+    "cleanup_failure": {
+      "error": "provider absence read failed: provider subprocess failed for batch describe-jobs (error_code=unknown, stderr_sha256=c537fe804f9d57c406ae22cacdd051d8ab40d0c15995d726b3c7ff428fb2aaf2)",
+      "type": "ProviderSubprocessError"
+    },
+    "evidence": {
+      "child_statuses": [
+        "FAILED",
+        "STARTING"
+      ],
+      "parent_status": "PENDING",
+      "worker_count": 0
+    },
+    "failure": {
+      "error": "fixed admission requires a succeeded array parent",
+      "type": "BatchAdmissionError"
+    },
+    "iam_policy_inventory_sha256": "58c14b6eae85b9c2edb1c8d51dc221fb261ef48cfaec862ff73efad9da72584c",
+    "iam_simulation_matrix_sha256": "63e69a131f243c6a9746b490286199c57d5943b2e1e287dd7a3d6b3336189295",
+    "kms_verification_sha256": "c74da234caf19f14e81fdf8a2f71bad8083e03bd09257895893473d2d0532537",
+    "launch": {
+      "array_size": 2,
+      "cloudtrail_submit_job_event_id_sha256": "225e0afc193863fa53fa5c448df3a3c60ca8daf1acab0c65d1df7b247e7334d8",
+      "retry_attempts": 1,
+      "submit_count_proven": 1,
+      "submit_event_time_utc": "2026-08-03T19:10:08-07:00"
+    },
+    "parent_job_id_present": true,
+    "plan": {
+      "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+      "saved_plan_sha256": "2af864ab9e8acaa6bcd85ba76901a847ee3400b8fb949fe34ed53aa061faff61",
+      "terraform_plan_binding_sha256": "8b20976851ef969d0b7ca88c179b9408e853de23d2bf43a30b336debaa89fbf5",
+      "terraform_show_sha256": "26b31bca4b07e3f9d9647a8fd2b77d3c0f22ea8622a6b9695f409d048632c023"
+    }
+  },
+  "no_retry_after_launch": true,
+  "qualification_only": true,
+  "receipt_build_error": "execution context lacks provider absence evidence",
+  "receipt_build_error_type": "CloudManifestError",
+  "receipt_written": true,
+  "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt_failure",
+  "schema_version": "0.1.0",
+  "status": "post_launch_receipt_no_go",
+  "terminal_outcome": "post_launch_terminal_no_go"
+}

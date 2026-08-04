@@ -1328,3 +1328,35 @@ Tasks 6–9, including the reconciled Task 8 path, remain
 release preparation only. Step 14 remains `launch_blocked` pending its real
 P0 power/tier, packet, assignment, detectability, unblind, and authority-bound
 release receipts. No scientific workload or claim promotion occurred.
+
+## Latest infrastructure closure — action-017 — 2026-08-04
+
+Action-017 was the single permitted fresh qualification launch and is a
+post-launch terminal no-go. Its pre-launch plan, exact profile-to-role chain,
+four-AZ map, immutable fixture image, least-privilege IAM simulation, and
+ED25519_SHA_512 authority verification were green. Exactly one CloudTrail-
+proven size-two Batch submission occurred with one attempt and a 3,600-second
+timeout. Both g6e.2xlarge workers started, published valid worker-indexed raw
+fixture artifacts, then exited 1; the parent and both children were `FAILED`.
+
+The concrete source-path defect was that the worker published its raw output
+and then attempted to retrieve that same output. The action-specific IAM
+contract correctly denies worker output reads, so the worker could not reach
+the success return. The exact worker stderr was not captured; this diagnosis
+is bound to the live source path, IAM simulation, and retained raw artifacts.
+The worker path is now repaired to return the already-published payload, and
+focused cloud regressions pass. The no-go receipt intentionally retains the
+two raw artifacts for forensic evidence while the final provider absence proof
+shows no active Batch, EC2, compute-environment, queue, job-definition, or
+launch-template resources remain. No retry or second launch occurred.
+
+Task 6 and Task 7 read-only Step 4A continuity checks both passed under the
+60-second process ceiling; they verified the preserved implementation-
+verification lineage only and did not run a scientific step. Focused Task 10
+release-preparation tests passed (`5 passed`). Tasks 6–10 remain
+`implementation_complete; E2E_pending`; Task 10 remains implementation and
+release preparation only. Step 14 remains `launch_blocked` pending fresh
+qualification success plus its real P0 power/tier, packet, assignment,
+detectability, unblind, and authority-bound release receipts. No scientific
+workload, benchmark/model run, pilot, unblind, analysis, or claim promotion
+occurred.

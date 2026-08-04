@@ -7396,3 +7396,72 @@ post-launch terminal no-go. Tasks 6–10 remain
   repairs are committed and focused-tested. Tasks 6–10 remain
   `implementation_complete; E2E_pending`, Task 10 is release preparation only,
   and Step 14 remains `launch_blocked`; no official P0/Step 4B work occurred.
+
+## EJ-20260804-dual-l40s-qualification-017-terminal-no-go
+
+- **Fresh bound preparation:** Action-017 used the exact four-create managed
+  GPU/ECS-AMI plan, four `us-east-1a/b/c/d` subnets, zero-ingress SG,
+  instance-profile-to-single-role chain, separate Batch service role, and
+  immutable image
+  `sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b`.
+  Saved-plan/show/composite hashes were
+  `2af864ab9e8acaa6bcd85ba76901a847ee3400b8fb949fe34ed53aa061faff61`,
+  `26b31bca4b07e3f9d9647a8fd2b77d3c0f22ea8622a6b9695f409d048632c023`, and
+  `8b20976851ef969d0b7ca88c179b9408e853de23d2bf43a30b336debaa89fbf5`.
+  The signed package SHA-256 was
+  `d5916ec911aca1e5bb4b5d36c7b2c3455aca7434bcd33fa63a0621cb6f836df9`;
+  KMS verification was green with `ED25519_SHA_512` and verification hash
+  `c74da234caf19f14e81fdf8a2f71bad8083e03bd09257895893473d2d0532537`.
+- **IAM:** The live effective worker-policy hash was
+  `2fe128c9c04d1123bfbe2e7fb31475a23d41fbbef51d5eabab309ce1d8a061f3`,
+  inventory hash `58c14b6eae85b9c2edb1c8d51dc221fb261ef48cfaec862ff73efad9da72584`,
+  and 17-case matrix hash
+  `63e69a131f243c6a9746b490286199c57d5943b2e1e287dd7a3d6b3336189295`.
+  All expected decisions matched: five input reads and two raw writes allowed;
+  output reads, wrong-worker output, other-action objects, listing, delete,
+  abort, decrypt, and IAM administration denied.
+- **Single launch:** Exactly one CloudTrail `SubmitJob` was observed, with
+  event-ID hash
+  `225e0afc193863fa53fa5c448df3a3c60ca8daf1acab0c65d1df7b247e7334d8`,
+  parent `b7fbe80e-0209-4271-a44d-72d04bfac427`, array size 2, one attempt, and
+  a 3,600-second timeout. No retry occurred. Both children ran one attempt,
+  then reached `FAILED` / `Essential container in task exited` / exit code 1;
+  the parent reached `FAILED` / `Array Child Job failed`.
+- **Evidence:** Worker 0 and worker 1 raw fixture objects were successfully
+  published and remain in S3 with SHA-256
+  `57deef42c0157e3f6ab4cd75c2cf001bb1428d0d0b5b9bcf6ed41ad27fe6cef7` and
+  `acc266c7c10428eab66cec4fe1e918a9b2f601f32d6071bb4689640bd2b55274`.
+  Their worker identity hashes are
+  `bd3c62e1d7273abf30b8601d07801eb9c0685ac9469a78d8245762b8ddaefa95` and
+  `66f6ecfd051a5ddd22f58efcfce62487742475fc280f473633a4b5f30c0eecff`.
+  Container attempt durations were 7.404 and 7.471 seconds. Freeze/restore
+  was not eligible because the parent did not succeed.
+- **Concrete repair diagnosis:** The live policy correctly denied worker
+  `s3:GetObject` on both output objects. The pre-action fixed worker path
+  published its raw bytes and then attempted to read the same output object,
+  converting successful fixture publication into exit 1. The worker-side read
+  was removed; host-side receipt assembly remains the reader. The exact worker
+  stderr was not captured, so the record does not invent an AWS error string.
+  Receipt construction and teardown were also repaired to retain raw artifacts
+  on a terminal no-go while still requiring complete active-resource absence.
+- **Teardown:** Queue/compute environment were disabled and drained; locked
+  Terraform destroy removed exactly four resources. Final absence proof
+  `evidence/dual-l40s-qualification-017-final-provider-absence-20260804.json`
+  has SHA-256
+  `1150fede46fc07da54a5a0038431b54416b18014e0d9201aaabf4392771205f1` and
+  canonical provider-absence SHA-256
+  `aaabd16593e0f31d3a1b906fb57072f383e6860e5e4dd4d223c9118e2517c36e`.
+  No active action resources remain; terminal Batch history and inactive
+  job-definition history are the only provider history, while the two raw
+  fixture objects are retained evidence.
+- **Verdict and boundary:** The schema-bound execution receipt is
+  `evidence/dual-l40s-qualification-017-execution-receipt-20260804.json`,
+  SHA-256 `c3c62e6d5e615d3c40cf02b490299a8ce5a13971ed8eb2086427bbeb936da77d`;
+  the terminal summary is
+  `evidence/dual-l40s-qualification-017-terminal-no-go-20260804.json`,
+  SHA-256 `4358a9c4cf9f38286ba997d2727acaab6203638848d38bca1c9794e2fcfe6043`.
+  Action-017 is a post-launch terminal no-go, not a qualification pass. No
+  benchmark/model workload, pilot, P0/Step 4B experiment, unblind, analysis,
+  or claim promotion occurred. The repaired source is focused-tested and
+  pushed, but a fresh successor image/action is required before any future
+  qualification launch.

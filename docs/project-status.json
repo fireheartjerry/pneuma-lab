@@ -530,6 +530,12 @@
                 "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-015-execution-receipt-20260803.json",
                 "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-015-terminal-no-go-20260803.json",
                 "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-015-final-provider-absence-20260803.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-017-read-only-plan-20260804.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-017-signing-package-20260804.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-017-authority-receipt-20260804.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-017-execution-receipt-20260804.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-017-terminal-no-go-20260804.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-017-final-provider-absence-20260804.json",
                 "docs/research/neurips-2026-workshop/58-pre-experiment-qualification-closure-20260803.md",
                 "docs/research/neurips-2026-workshop/59-unsigned-p0-step14-checklist-20260803.md"
             ],
@@ -1059,7 +1065,7 @@
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-            "summary": "The pinned ECS GPU AMI path, immutable fixture-only image-016 digest `sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b`, one-L40S per-worker contract, runtime/CLI/fixture publication checks, encrypted S3 publication, and provider teardown path are evidenced. Fresh action-015 passed plan, provider, IAM, image, and KMS gates, then reached one exact size-two Batch submission before a provider subprocess failure stopped the runner prior to any child attempt. Independent readback found zero attempts, no worker identities, no raw artifacts, and no recovery; final provider absence is green. CloudTrail polling and terminated-instance cleanup repairs are committed and focused-tested, but no successful two-worker Spot run, canonical partition/recovery, or Step 14 receipt exists. Benchmark/model execution, scientific lineage, and claim promotion remain unverified; no live qualification resources remain."
+            "summary": "The pinned ECS GPU AMI path, immutable fixture-only image-016 digest `sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b`, one-L40S per-worker contract, runtime/CLI/fixture publication checks, encrypted S3 publication, and provider teardown path are evidenced. Fresh action-017 passed plan, provider, IAM, image, and KMS gates, then reached one exact size-two Batch submission. Both children ran one attempt and exited 1 after publishing raw fixture artifacts; the parent failed, so qualification and freeze/restore did not pass. The concrete source mismatch—worker-side output read after write under a policy that correctly denies output reads—is repaired and focused-tested. Final provider absence is green with raw failure artifacts intentionally retained. No successful two-worker Spot run, canonical partition/recovery, or Step 14 receipt exists. Benchmark/model execution, scientific lineage, and claim promotion remain unverified; no live qualification resources remain."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
@@ -1067,7 +1073,7 @@
         },
         {
             "id": "B-NEURIPS-DUAL-L40S-QUALIFICATION",
-            "summary": "The dual-L40S qualification is not passed. Historical actions 011 and 014 ended as terminal no-goes; the latest action-015 receipt is docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-015-terminal-no-go-20260803.json. Action-015 passed fresh plan, provider, IAM, image, and KMS gates, then reached exactly one CloudTrail-proven size-two SubmitJob before the concrete runner received a provider subprocess failure prior to any child attempt. Independent Batch readback found both children terminal with zero attempts, no worker identities, no raw artifacts, and no recovery. Two short-lived g6e.2xlarge provisioning instances were torn down but are not worker success. The independent final provider-absence proof is docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-015-final-provider-absence-20260803.json. Image-build action-016 supplies immutable digest `sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b` and complete fixture/runtime/teardown evidence. CloudTrail polling and terminated-instance cleanup repairs are committed and focused-tested; no successful two-worker Spot run, canonical partition/recovery, scientific workload, Step 14, or official P0/Step 4B work exists."
+            "summary": "The dual-L40S qualification is not passed. Historical actions 011, 014, 015, and 016 ended as terminal no-goes; the latest action-017 receipt is docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-017-terminal-no-go-20260804.json. Action-017 passed fresh plan, provider, IAM, image, and KMS gates, then reached exactly one CloudTrail-proven size-two SubmitJob. Both children ran one attempt, published raw fixture artifacts, and exited 1; the parent failed, so no qualification pass or recovery drill exists. The source-level worker output-read mismatch is repaired and focused-tested; final provider absence is sealed while the two raw artifacts remain retained evidence. Image-build action-016 supplies immutable digest `sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b`. No successful two-worker Spot run, canonical partition/recovery, scientific workload, Step 14, or official P0/Step 4B work exists."
         },
         {
             "id": "B-NEURIPS-EXPERIMENT-EXECUTION",

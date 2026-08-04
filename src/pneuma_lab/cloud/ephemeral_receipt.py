@@ -284,6 +284,17 @@ def _child_status_rows(children: Sequence[Mapping[str, Any]]) -> list[dict[str, 
             status_reason = "no provider status reason recorded"
         container = child.get("container") or {}
         started = isinstance(container, Mapping) and bool(container.get("instanceId"))
+        if not started:
+            started = any(
+                isinstance(attempt, Mapping)
+                and (
+                    isinstance(attempt.get("startedAt"), (int, float))
+                    or bool(
+                        (attempt.get("container") or {}).get("containerInstanceArn")
+                    )
+                )
+                for attempt in attempts
+            )
         rows.append(
             {
                 "array_index": index,
@@ -306,7 +317,9 @@ def _durations(children: Sequence[Mapping[str, Any]]) -> list[float]:
     return durations
 
 
-def _teardown(absence: Mapping[str, Any]) -> dict[str, Any]:
+def _teardown(
+    absence: Mapping[str, Any], *, allow_retained_raw_artifacts: bool = False
+) -> dict[str, Any]:
     required = (
         "jobs",
         "instances",
@@ -324,7 +337,15 @@ def _teardown(absence: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(history, Mapping):
         raise CloudManifestError("provider absence lacks inactive job-definition history evidence")
     artifact = absence.get("artifact_prefix")
-    if not isinstance(artifact, Mapping) or artifact.get("empty") is not True:
+    if not isinstance(artifact, Mapping):
+        raise CloudManifestError("provider absence lacks an output-prefix proof")
+    object_count = artifact.get("object_count")
+    if type(object_count) is not int or object_count < 0:
+        raise CloudManifestError("provider absence has an invalid output object count")
+    empty = artifact.get("empty") is True
+    if empty and object_count != 0:
+        raise CloudManifestError("provider absence output-prefix count contradicts empty proof")
+    if not empty and not allow_retained_raw_artifacts:
         raise CloudManifestError("provider absence lacks an empty output-prefix proof")
     inactive_digest = history.get("inactive_job_definition_arn_sha256")
     if inactive_digest is not None:
@@ -343,12 +364,23 @@ def _teardown(absence: Mapping[str, Any]) -> dict[str, Any]:
         "volumes_absent": True,
         "network_interfaces_absent": True,
         "security_group_absent": True,
-        "output_prefix_empty": True,
+        "output_prefix_empty": empty,
+        "output_prefix_object_count": object_count,
+        "retained_raw_artifacts": not empty,
         "teardown_complete_except_provider_history": True,
         "absence_note": (
-            "AWS retains inactive job-definition provider history."
-            if history.get("inactive_job_definition_history_retained_by_aws")
-            else "No inactive job-definition history was returned."
+            (
+                "Action-scoped raw worker artifacts are retained as terminal evidence; "
+                "AWS also retains inactive job-definition provider history."
+                if history.get("inactive_job_definition_history_retained_by_aws")
+                else "Action-scoped raw worker artifacts are retained as terminal evidence."
+            )
+            if not empty
+            else (
+                "AWS retains inactive job-definition provider history."
+                if history.get("inactive_job_definition_history_retained_by_aws")
+                else "No inactive job-definition history was returned."
+            )
         ),
     }
 
@@ -505,6 +537,10 @@ def build_ephemeral_qualification_receipt(
         raise CloudManifestError(
             "qualification success requires exactly two raw output objects"
         )
+    if status == "no_go" and object_count != len(raw_rows):
+        raise CloudManifestError(
+            "terminal no-go raw artifact count differs from provider output evidence"
+        )
     recovery = context.get("recovery")
     if status == "passed":
         if not isinstance(recovery, Mapping):
@@ -602,7 +638,9 @@ def build_ephemeral_qualification_receipt(
             "raw_artifact_prefix_object_count": object_count,
             "recovery": recovery_record,
         },
-        "teardown": _teardown(absence),
+        "teardown": _teardown(
+            absence, allow_retained_raw_artifacts=status == "no_go"
+        ),
     }
     if status == "no_go":
         failure_kind = getattr(failure, "failure_kind", None)

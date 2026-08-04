@@ -542,3 +542,56 @@ requires a separately fresh, newly bound image-build action before any future
 Batch admission. This lane therefore closes honestly as a terminal no-go, not
 as a qualification pass; official P0/Step-4B work remains excluded and
 blocked.
+
+## Latest infrastructure disposition — action-017 — 2026-08-04
+
+Action-017 supersedes action-016 as the latest fresh qualification attempt. Its
+pre-launch gates were green: exact four-resource managed GPU-AMI plan, four AZs,
+zero-ingress SG, exact profile-to-role chain, 17-case least-privilege IAM
+simulation, immutable image, fresh Spot projection USD 4.4842, and live KMS
+`ED25519_SHA_512` verification. The exact saved-plan/show/composite hashes are
+`2af864ab9e8acaa6bcd85ba76901a847ee3400b8fb949fe34ed53aa061faff61`,
+`26b31bca4b07e3f9d9647a8fd2b77d3c0f22ea8622a6b9695f409d048632c023`, and
+`8b20976851ef969d0b7ca88c179b9408e853de23d2bf43a30b336debaa89fbf5`.
+
+The single permitted launch is a post-launch terminal no-go, not a
+qualification pass. CloudTrail proves exactly one size-two SubmitJob with one
+attempt. Both children reached one attempt and exited with status `FAILED`,
+provider reason `Essential container in task exited`, and exit code 1; the
+parent reached `FAILED`. Both raw fixture artifacts were nevertheless
+published and are retained with hashes
+`57deef42c0157e3f6ab4cd75c2cf001bb1428d0d0b5b9bcf6ed41ad27fe6cef7` and
+`acc266c7c10428eab66cec4fe1e918a9b2f601f32d6071bb4689640bd2b55274`.
+Worker identity hashes are
+`bd3c62e1d7273abf30b8601d07801eb9c0685ac9469a78d8245762b8ddaefa95` and
+`66f6ecfd051a5ddd22f58efcfce62487742475fc280f473633a4b5f30c0eecff`;
+container durations were 7.404 and 7.471 seconds. No freeze/restore drill ran
+because the parent did not succeed.
+
+The concrete source-level failure is closed: the fixed worker published its
+immutable output and then attempted a worker-side `GetObject` read that the
+correct least-privilege policy denied. The output-read denial is present in
+the live 17-case matrix, and the two objects prove publication succeeded. The
+worker-side read is removed; the host-side runner remains the sole output
+reader. The exact worker stderr was not captured, so no AWS error text is
+invented. Receipt and teardown validation were also repaired to preserve raw
+failure evidence while proving all active resources absent. Focused cloud tests,
+Ruff, schema validation, and graph refresh pass. No retry occurred.
+
+Locked Terraform destroy removed all four approved resources. Final provider
+absence is sealed in
+`evidence/dual-l40s-qualification-017-final-provider-absence-20260804.json`
+(SHA-256
+`1150fede46fc07da54a5a0038431b54416b18014e0d9201aaabf4392771205f1`;
+canonical absence SHA-256
+`aaabd16593e0f31d3a1b906fb57072f383e6860e5e4dd4d223c9118e2517c36e`). The
+schema-bound no-go receipt is
+`evidence/dual-l40s-qualification-017-execution-receipt-20260804.json`; the
+terminal summary is
+`evidence/dual-l40s-qualification-017-terminal-no-go-20260804.json`.
+
+The qualification lane therefore remains honestly incomplete: a fresh
+successor immutable image/action is required to prove both children
+`SUCCEEDED` exactly once and to run the recovery drill. This action does not
+authorize the official P0/Step 4B study, benchmark/model workload, pilot,
+unblind, analysis, or claim promotion. Step 14 remains `launch_blocked`.

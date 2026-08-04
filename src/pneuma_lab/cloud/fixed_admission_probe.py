@@ -28,7 +28,6 @@ from .qualification_execution import (
     materialize_authenticated_inputs,
     parse_s3_uri,
     publish_raw_measurement,
-    retrieve_raw_measurement,
     worker_artifact_uri,
 )
 
@@ -445,11 +444,11 @@ def run_fixed_worker(
         worker_index=int(raw_index),
         raw_bytes=payload,
     )
-    return retrieve_raw_measurement(
-        adapter,
-        artifact_prefix=prefix,
-        worker_index=int(raw_index),
-    )
+    # The worker is intentionally write-only for its action-scoped output
+    # object.  The host-side runner retrieves and hashes the immutable object
+    # after both children finish; reading it here would violate the signed
+    # least-privilege policy and turn a successful probe into an exit-1.
+    return payload
 
 
 def main(argv: Sequence[str] | None = None) -> int:

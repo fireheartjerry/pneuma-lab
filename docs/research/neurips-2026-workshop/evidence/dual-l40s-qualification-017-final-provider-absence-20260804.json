@@ -1,0 +1,111 @@
+{
+  "action_id": "dual-l40s-qualification-017",
+  "active_resources_absent": true,
+  "batch_history": {
+    "all_attempt_counts_zero": false,
+    "all_terminal": true,
+    "child_attempt_counts": [
+      1,
+      1
+    ],
+    "child_exit_codes": [
+      1,
+      1
+    ],
+    "child_statuses": [
+      "FAILED",
+      "FAILED"
+    ],
+    "job_ids": [
+      "b7fbe80e-0209-4271-a44d-72d04bfac427",
+      "b7fbe80e-0209-4271-a44d-72d04bfac427:0",
+      "b7fbe80e-0209-4271-a44d-72d04bfac427:1"
+    ],
+    "raw_describe_jobs_sha256": "37e1f9ae45483f983b261128605365d03d2e0851bfd313b23ebaa650ca0f9be9"
+  },
+  "cloudtrail_exact_action_event_count": 1,
+  "cloudtrail_exact_action_event_id_sha256": "225e0afc193863fa53fa5c448df3a3c60ca8daf1acab0c65d1df7b247e7334d8",
+  "instance_history": {
+    "active_instance_count": 0,
+    "raw_describe_instances_sha256": "b824bdb81d1bcd726fb21a8ffee93ab9ba2ddcbef646196f46106091be8160ab",
+    "terminated_provisioning_instances": [
+      {
+        "availability_zone": "us-east-1a",
+        "instance_id_sha256": "66f6ecfd051a5ddd22f58efcfce62487742475fc280f473633a4b5f30c0eecff",
+        "instance_type": "g6e.2xlarge",
+        "launch_time": "2026-08-04T02:11:29+00:00",
+        "state": "terminated",
+        "worker_attempt": true
+      },
+      {
+        "availability_zone": "us-east-1c",
+        "instance_id_sha256": "bd3c62e1d7273abf30b8601d07801eb9c0685ac9469a78d8245762b8ddaefa95",
+        "instance_type": "g6e.2xlarge",
+        "launch_time": "2026-08-04T02:10:43+00:00",
+        "state": "terminated",
+        "worker_attempt": true
+      }
+    ]
+  },
+  "job_ids": [
+    "b7fbe80e-0209-4271-a44d-72d04bfac427",
+    "b7fbe80e-0209-4271-a44d-72d04bfac427:0",
+    "b7fbe80e-0209-4271-a44d-72d04bfac427:1"
+  ],
+  "observed_at": "2026-08-04T02:38:43Z",
+  "output_prefix": {
+    "empty": false,
+    "object_count": 2,
+    "raw_listing_sha256": "a44397d47dedd744ba81549143f26b5d1a6755b50ee4f1a42d36d73285e29dc8",
+    "retained_raw_artifacts": [
+      {
+        "instance_id_sha256": "bd3c62e1d7273abf30b8601d07801eb9c0685ac9469a78d8245762b8ddaefa95",
+        "key_sha256": "96ca6785e1667cdca30b0dbcaf96d53d07d79d66c2079ed01830c0eebe52dbd9",
+        "raw_artifact_sha256": "57deef42c0157e3f6ab4cd75c2cf001bb1428d0d0b5b9bcf6ed41ad27fe6cef7",
+        "size_bytes": 8530,
+        "worker_index": 0
+      },
+      {
+        "instance_id_sha256": "66f6ecfd051a5ddd22f58efcfce62487742475fc280f473633a4b5f30c0eecff",
+        "key_sha256": "30f288d6fc4155b45e5569945c997adf1096e70ff41e3b061561ca7e49e29cf4",
+        "raw_artifact_sha256": "acc266c7c10428eab66cec4fe1e918a9b2f601f32d6071bb4689640bd2b55274",
+        "size_bytes": 8529,
+        "worker_index": 1
+      }
+    ]
+  },
+  "provider_absence": {
+    "artifact_prefix": {
+      "empty": false,
+      "object_count": 2
+    },
+    "compute_environment": true,
+    "instances": true,
+    "job_definition": true,
+    "jobs": true,
+    "launch_template": true,
+    "network_interfaces": true,
+    "provider_history": {
+      "inactive_job_definition_arn_sha256": "0b111aa87247480a46e46b872f2d5d13b148055c7804ca33d40b4d7398e0230b",
+      "inactive_job_definition_history_retained_by_aws": true
+    },
+    "queue": true,
+    "security_group": true,
+    "volumes": true
+  },
+  "provider_absence_canonical_sha256": "aaabd16593e0f31d3a1b906fb57072f383e6860e5e4dd4d223c9118e2517c36e",
+  "qualification_only": true,
+  "raw_cloudtrail_lookup_sha256": "814d6243a51ef980d27413d5e5f88ae088d5cfb7110f114eefbda23416740e10",
+  "record_kind": "cloud_qualification_final_provider_absence",
+  "region": "us-east-1",
+  "schema_version": "0.1.0",
+  "status": "complete_with_retained_raw_evidence",
+  "teardown": {
+    "active_resources_absent": true,
+    "inactive_job_definition_history_retained_by_aws": true,
+    "no_retry_after_launch": true,
+    "retained_raw_artifacts": true,
+    "terraform_destroy": "complete",
+    "terraform_destroy_lock": true
+  }
+}

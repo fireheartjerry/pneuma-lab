@@ -474,6 +474,7 @@ def test_fixed_entrypoint_materializes_bound_files_and_publishes_once(
 
     monkeypatch.setattr(dual_worker_admission_probe, "main", fake_probe)
     assert fixed_admission_probe.main(["--code", code_uri]) == 0
+    worker_get_calls = tuple(transport.get_calls)
 
     retrieved = retrieve_raw_measurement(
         client,
@@ -485,6 +486,10 @@ def test_fixed_entrypoint_materializes_bound_files_and_publishes_once(
     assert (
         transport.put_calls[0][1]
         == "runs/qualification/action/outputs/worker-1/raw-measurement.json"
+    )
+    assert all(
+        key != "runs/qualification/action/outputs/worker-1/raw-measurement.json"
+        for _, key in worker_get_calls
     )
 
 

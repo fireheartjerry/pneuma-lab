@@ -16,6 +16,7 @@ from pneuma_lab.cloud.ephemeral_receipt import (
     build_ephemeral_qualification_receipt,
     validate_authority_evidence,
 )
+from pneuma_lab.cloud.fixed_admission_probe import build_raw_measurement
 from pneuma_lab.cloud.iam_simulation import expected_checks, run_iam_simulation
 from pneuma_lab.cloud.manifests import (
     validate_ephemeral_dual_worker_qualification_receipt,
@@ -24,6 +25,8 @@ from pneuma_lab.cloud.qualification_execution import (
     BatchAdmissionError,
     terraform_plan_binding_digest,
 )
+
+from .test_qualification_execution import _rungs
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -407,3 +410,133 @@ def test_runner_receipt_builder_preserves_terminal_child_failure_evidence() -> N
         "verification_sha256"
     ]
     assert receipt["no_go_reason"]["child_statuses"][0]["status_reason"] == "JobQueue deleted"
+
+
+def test_terminal_no_go_receipt_retains_published_raw_artifacts(tmp_path: Path) -> None:
+    authority, _, _, _, plan = _authority_evidence_fixture()
+    plan = {
+        **plan,
+        "worker_role_arn": "arn:aws:iam::123456789012:role/worker",
+        "input_paths": {
+            "protocol": "s3://bucket/runs/qualification/dual-l40s-qualification-012/inputs/protocol.json",
+            "architecture": "s3://bucket/runs/qualification/dual-l40s-qualification-012/inputs/architecture.json",
+            "authorization": "s3://bucket/runs/qualification/dual-l40s-qualification-012/inputs/authorization.json",
+            "image": "s3://bucket/runs/qualification/dual-l40s-qualification-012/inputs/image.json",
+            "input_lock": "s3://bucket/runs/qualification/dual-l40s-qualification-012/inputs/input-lock.json",
+        },
+        "output_path": plan["output_prefix"],
+        "qualification_model": "fixture-only-cuda",
+        "qualification_model_revision": "fixture-only-v1",
+    }
+    checks = expected_checks(
+        input_paths=plan["input_paths"],
+        output_root=plan["output_path"],
+        iam_role_arn=plan["worker_role_arn"],
+    )
+
+    def simulate(*args: str) -> dict[str, list[dict[str, str]]]:
+        action = args[args.index("--action-names") + 1]
+        resource = args[args.index("--resource-arns") + 1]
+        expected = next(
+            row
+            for row in checks
+            if row["action"] == action and row["resource_arn"] == resource
+        )
+        return {
+            "EvaluationResults": [
+                {
+                    "EvalActionName": action,
+                    "EvalResourceName": resource,
+                    "EvalDecision": (
+                        "allowed" if expected["expected"] == "allowed" else "implicitDeny"
+                    ),
+                }
+            ]
+        }
+
+    iam_simulation = run_iam_simulation(
+        simulate,
+        plan=plan,
+        action_id="dual-l40s-qualification-012",
+        expected_policy_sha256=authority["iam_policy_sha256"],
+    )
+    paths = []
+    for index in range(6):
+        path = tmp_path / f"input-{index}.json"
+        path.write_text(f"input-{index}\n", encoding="utf-8")
+        paths.append(path)
+    raw = {}
+    for index in (0, 1):
+        record = build_raw_measurement(
+            code="signed-code",
+            worker_index=index,
+            instance_id=f"i-{index:016x}",
+            protocol_sha256="1" * 64,
+            architecture_sha256="2" * 64,
+            authorization_sha256="3" * 64,
+            image_sha256="4" * 64,
+            input_lock_sha256="5" * 64,
+            code_sha256="6" * 64,
+            input_paths=paths,
+            rungs=_rungs(),
+        )
+        raw[index] = canonical_bytes(record) + b"\n"
+    children = tuple(
+        {
+            "jobId": f"child-{index}",
+            "status": "FAILED",
+            "statusReason": "Essential container in task exited",
+            "arrayProperties": {"index": index},
+            "attempts": [{"container": {"exitCode": 1}}],
+        }
+        for index in (0, 1)
+    )
+    receipt = build_ephemeral_qualification_receipt(
+        {
+            "parent_job_id": "parent",
+            "plan": plan,
+            "iam_simulation": iam_simulation,
+            "kms_verification": kms_verification_record(),
+            "projected_cost_usd": 4.48,
+            "launch": {
+                "cloudtrail_submit_job_event_id_sha256": "5" * 64,
+                "submit_event_time_utc": "2026-08-03T09:34:48Z",
+                "submit_count_proven": 1,
+                "array_size": 2,
+                "retry_attempts": 1,
+            },
+            "evidence": {
+                "parent": {"status": "FAILED", "statusReason": "Array Child Job failed"},
+                "children": children,
+                "instance_ids": ("i-0000000000000000", "i-0000000000000001"),
+                "raw_evidence": raw,
+            },
+            "failure": BatchAdmissionError(
+                "children failed", parent={"status": "FAILED"}, children=children,
+            ),
+            "absence": {
+                key: True
+                for key in (
+                    "jobs", "instances", "volumes", "launch_template",
+                    "network_interfaces", "security_group", "job_definition",
+                    "queue", "compute_environment",
+                )
+            }
+            | {
+                "provider_history": {
+                    "inactive_job_definition_history_retained_by_aws": True,
+                    "inactive_job_definition_arn_sha256": "9" * 64,
+                },
+                "artifact_prefix": {"empty": False, "object_count": 2},
+            },
+        },
+        action_id="dual-l40s-qualification-012",
+        region="us-east-1",
+        authority=authority,
+        output_root=plan["output_prefix"],
+    )
+    assert receipt["status"] == "no_go"
+    assert receipt["teardown"]["output_prefix_empty"] is False
+    assert receipt["teardown"]["retained_raw_artifacts"] is True
+    assert receipt["workers"]["raw_artifact_prefix_object_count"] == 2
+    assert len(receipt["workers"]["raw_artifacts"]) == 2

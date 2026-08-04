@@ -1,0 +1,122 @@
+{
+  "action_id": "dual-l40s-qualification-017",
+  "authority": {
+    "action_policy_sha256": "2fe128c9c04d1123bfbe2e7fb31475a23d41fbbef51d5eabab309ce1d8a061f3",
+    "admission_body_sha256": "592befd40b02693325cd0d13862e8e3a8ac568012a05401a5e2ac2ce52f8a3d6",
+    "admission_signature_sha256": "527e8a97773704f41544e1a14d3be58d924d6d562b3d35cc4a3e0b3300df2409",
+    "envelope_body_sha256": "900403c064b1394e25179887158f9b4f723ba5b296b737577822b21e2b2f1307",
+    "envelope_signature_sha256": "0c837ba3f4aec62a39d5045783e57d76aef9e4c4151095536d0dc042fba558ce",
+    "iam_policy_inventory_sha256": "58c14b6eae85b9c2edb1c8d51dc221fb261ef48cfaec862ff73efad9da72584c",
+    "iam_simulation_matrix_sha256": "63e69a131f243c6a9746b490286199c57d5943b2e1e287dd7a3d6b3336189295",
+    "kms_verification_sha256": "c74da234caf19f14e81fdf8a2f71bad8083e03bd09257895893473d2d0532537",
+    "package_sha256": "d5916ec911aca1e5bb4b5d36c7b2c3455aca7434bcd33fa63a0621cb6f836df9",
+    "signature_algorithm": "ED25519_SHA_512"
+  },
+  "launch": {
+    "array_size": 2,
+    "child_job_id_sha256": [
+      "429ac6a42080afc6984b0aee88e31f59b3eeee862697d5c0b5476d745e36fd7d",
+      "df143e1953dfd39346dbcc690cbb1751e36c3d3d72b9c1a92ccf741d91fe35f6"
+    ],
+    "cloudtrail_submit_job_event_id_sha256": "225e0afc193863fa53fa5c448df3a3c60ca8daf1acab0c65d1df7b247e7334d8",
+    "image_digest": "sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+    "parent_job_id_sha256": "fc226d42f0bd962e395e8e9b31480beb69141ab904d632a26f1a5eed5104ed7e",
+    "qualification_model": "fixture-only-cuda",
+    "qualification_model_revision": "fixture-only-v1",
+    "retry_attempts": 1,
+    "submit_count_proven": 1,
+    "submit_event_time_utc": "2026-08-04T02:10:08Z"
+  },
+  "no_go_reason": {
+    "child_statuses": [
+      {
+        "array_index": 0,
+        "attempt_count": 1,
+        "status": "FAILED",
+        "status_reason": "Essential container in task exited",
+        "worker_started": true
+      },
+      {
+        "array_index": 1,
+        "attempt_count": 1,
+        "status": "FAILED",
+        "status_reason": "Essential container in task exited",
+        "worker_started": true
+      }
+    ],
+    "error": "fixed admission requires a succeeded array parent",
+    "error_type": "BatchAdmissionError",
+    "kind": "batch_children_failed_before_execution",
+    "no_retry_after_launch": true,
+    "parent_status": "FAILED",
+    "parent_status_reason": "Array Child Job failed",
+    "qualification_pass_impossible": true
+  },
+  "plan": {
+    "saved_plan_sha256": "2af864ab9e8acaa6bcd85ba76901a847ee3400b8fb949fe34ed53aa061faff61",
+    "terraform_plan_binding_sha256": "8b20976851ef969d0b7ca88c179b9408e853de23d2bf43a30b336debaa89fbf5",
+    "terraform_show_sha256": "26b31bca4b07e3f9d9647a8fd2b77d3c0f22ea8622a6b9695f409d048632c023"
+  },
+  "provider": "aws",
+  "qualification_only": true,
+  "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt",
+  "region": "us-east-1",
+  "schema_version": "0.1.0",
+  "spot_projection": {
+    "instance_type": "g6e.2xlarge",
+    "observed_worker_duration_note": "Durations are derived from the two Batch child timestamps.",
+    "observed_worker_duration_seconds": [
+      7.404,
+      7.471
+    ],
+    "projected_cost_usd": 4.4842,
+    "strictly_below_usd_100": true,
+    "worker_count": 2,
+    "worker_seconds_ceiling": 3600
+  },
+  "status": "no_go",
+  "teardown": {
+    "absence_note": "Action-scoped raw worker artifacts are retained as terminal evidence; AWS also retains inactive job-definition provider history.",
+    "active_job_definition_absent": true,
+    "compute_environment_absent": true,
+    "inactive_job_definition_arn_sha256": "0b111aa87247480a46e46b872f2d5d13b148055c7804ca33d40b4d7398e0230b",
+    "inactive_job_definition_history_retained_by_aws": true,
+    "instances_absent": true,
+    "launch_template_absent": true,
+    "live_jobs_absent": true,
+    "network_interfaces_absent": true,
+    "output_prefix_empty": false,
+    "output_prefix_object_count": 2,
+    "queue_absent": true,
+    "retained_raw_artifacts": true,
+    "security_group_absent": true,
+    "teardown_complete_except_provider_history": true,
+    "volumes_absent": true
+  },
+  "terminal_outcome": "post_launch_terminal_no_go",
+  "workers": {
+    "raw_artifact_prefix_object_count": 2,
+    "raw_artifacts": [
+      {
+        "sha256": "57deef42c0157e3f6ab4cd75c2cf001bb1428d0d0b5b9bcf6ed41ad27fe6cef7",
+        "size_bytes": 8530,
+        "uri": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-017/outputs/worker-0/raw-measurement.json",
+        "worker_index": 0
+      },
+      {
+        "sha256": "acc266c7c10428eab66cec4fe1e918a9b2f601f32d6071bb4689640bd2b55274",
+        "size_bytes": 8529,
+        "uri": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-017/outputs/worker-1/raw-measurement.json",
+        "worker_index": 1
+      }
+    ],
+    "recovery": {
+      "reason": "Admission did not reach two successful children.",
+      "run": false
+    },
+    "worker_identity_sha256": [
+      "bd3c62e1d7273abf30b8601d07801eb9c0685ac9469a78d8245762b8ddaefa95",
+      "66f6ecfd051a5ddd22f58efcfce62487742475fc280f473633a4b5f30c0eecff"
+    ]
+  }
+}

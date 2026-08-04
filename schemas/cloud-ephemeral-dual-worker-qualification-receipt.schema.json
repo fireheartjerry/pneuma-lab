@@ -222,7 +222,9 @@
         "volumes_absent": {"const": true},
         "network_interfaces_absent": {"const": true},
         "security_group_absent": {"const": true},
-        "output_prefix_empty": {"const": true},
+        "output_prefix_empty": {"type": "boolean"},
+        "output_prefix_object_count": {"type": "integer", "minimum": 0},
+        "retained_raw_artifacts": {"type": "boolean"},
         "teardown_complete_except_provider_history": {"const": true},
         "absence_note": {"type": "string", "minLength": 1}
       },

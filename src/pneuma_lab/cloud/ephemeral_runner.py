@@ -138,9 +138,12 @@ TRANSIENT_PROVIDER_ERROR_MARKERS = (
 
 
 def _require_complete_provider_absence(
-    absence: Mapping[str, Any], *, phase: str
+    absence: Mapping[str, Any],
+    *,
+    phase: str,
+    allow_retained_raw_artifacts: bool = False,
 ) -> dict[str, Any]:
-    """Require resource and output-prefix absence at every lifecycle boundary."""
+    """Require resource absence, allowing only retained failure evidence."""
 
     if not isinstance(absence, Mapping):
         raise CloudManifestError(f"qualification {phase} absence proof is not an object")
@@ -156,7 +159,15 @@ def _require_complete_provider_absence(
             f"qualification {phase} absence proof lacks an output-prefix record"
         )
     object_count = artifact.get("object_count")
-    if artifact.get("empty") is not True or type(object_count) is not int or object_count != 0:
+    if type(object_count) is not int or object_count < 0:
+        raise CloudManifestError(
+            f"qualification {phase} output-prefix record has an invalid object count"
+        )
+    if artifact.get("empty") is True and object_count != 0:
+        raise CloudManifestError(
+            f"qualification {phase} output-prefix record contradicts its object count"
+        )
+    if artifact.get("empty") is not True and not allow_retained_raw_artifacts:
         raise CloudManifestError(
             f"qualification {phase} output prefix is not empty"
         )
@@ -1629,8 +1640,36 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                         children, parent_status=parent.get("status")
                     )
                 except CloudManifestError as exc:
+                    # A failed fixture worker may have published its immutable
+                    # raw measurement before a later local lifecycle error.
+                    # Retrieve any such evidence for the terminal no-go
+                    # receipt, but never replace the concrete Batch failure
+                    # with a best-effort evidence-read failure.
+                    raw_evidence: dict[int, bytes] = {}
+                    instance_ids: list[str] = []
+                    for index in (0, 1):
+                        try:
+                            payload = retrieve_raw_measurement(
+                                self,
+                                artifact_prefix=self.output_root,
+                                worker_index=index,
+                            )
+                        except Exception:
+                            continue
+                        raw_evidence[index] = payload
+                        try:
+                            record = json.loads(payload.decode("utf-8"))
+                        except (UnicodeDecodeError, json.JSONDecodeError):
+                            continue
+                        instance_id = record.get("instance_id") if isinstance(record, Mapping) else None
+                        if isinstance(instance_id, str) and instance_id:
+                            instance_ids.append(instance_id)
                     raise BatchAdmissionError(
-                        str(exc), parent=parent, children=children
+                        str(exc),
+                        parent=parent,
+                        children=children,
+                        raw_evidence=raw_evidence,
+                        instance_ids=tuple(instance_ids),
                     ) from exc
             if parent.get("status") == "SUCCEEDED" and all(
                 child.get("status") == "SUCCEEDED" for child in children
@@ -2572,7 +2611,11 @@ def execute(
             "qualification teardown absence failed closed", context=context
         ) from exc
     try:
-        _require_complete_provider_absence(absence, phase="teardown")
+        _require_complete_provider_absence(
+            absence,
+            phase="teardown",
+            allow_retained_raw_artifacts=failure is not None,
+        )
     except Exception as exc:
         context = {
             "plan": dict(parsed_plan),

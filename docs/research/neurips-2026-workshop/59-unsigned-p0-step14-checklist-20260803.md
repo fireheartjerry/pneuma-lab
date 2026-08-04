@@ -129,3 +129,28 @@ remains `launch_blocked`. The remaining blockers are the real canonical P0
 power/tier and packet/assignment/detectability/unblind/analysis authority
 receipts, followed by a fresh hostile release review. Qualification evidence
 does not authorize the official study.
+
+## Latest infrastructure disposition — action-017 — 2026-08-04
+
+Action-017 is the latest fresh dual-L40S qualification attempt and is sealed as
+a post-launch terminal no-go. It proves one exact size-two SubmitJob with one
+attempt, but both children reached `FAILED` with exit code 1 and the parent
+reached `FAILED`. Two raw fixture artifacts and two worker identity hashes were
+retained; the fixed recovery drill was not eligible because the parent did not
+succeed. The source-level worker output-read mismatch is repaired and
+focused-tested, but action-017 is exhausted and was not retried.
+
+The final absence proof is
+`evidence/dual-l40s-qualification-017-final-provider-absence-20260804.json`;
+the schema-bound no-go receipt is
+`evidence/dual-l40s-qualification-017-execution-receipt-20260804.json`.
+All active qualification resources are absent; action-scoped raw evidence and
+AWS's terminal/inactive provider history are intentionally retained.
+
+Before the official study, the remaining infrastructure blocker is a fresh
+successor immutable image/action proving both children `SUCCEEDED` exactly
+once plus freeze/restore recovery. Separately, Step 14 remains `launch_blocked`
+until the real P0 power/tier, packet, assignment, detectability, unblind,
+analysis, and authority-bound release receipts exist. This checklist is
+unsigned and authorizes no experiment, benchmark/model workload, pilot,
+unblind, analysis, spend, or claim promotion.
