@@ -22,6 +22,8 @@ _QUALIFICATION_IMAGE_RUNTIME_PATHS = (
     "src/pneuma_lab/**",
     ":!src/pneuma_lab/cloud/ephemeral_runner.py",
     ":!src/pneuma_lab/cloud/images.py",
+    ":!src/pneuma_lab/cloud/ephemeral_receipt.py",
+    ":!schemas/cloud-ephemeral-dual-worker-qualification-receipt.schema.json",
 )
 
 
