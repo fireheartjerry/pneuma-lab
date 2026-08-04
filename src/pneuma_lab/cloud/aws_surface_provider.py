@@ -69,11 +69,13 @@ def render_surface_user_data(config: AwsSurfaceConfig) -> str:
 
     refs = {role: config.image_refs[role] for role in ("controller", "model-server", "benchmark-worker")}
     encoded_refs = base64.b64encode(canonical_bytes(refs)).decode("ascii")
+    registry = next(iter(refs.values())).split("/", 1)[0]
     return f"""#!/bin/bash
 set -euo pipefail
 export HOME=/root
 ACTION={config.action_id!r}
 ROOT=/var/lib/pneuma-surface
+REGISTRY={registry!r}
 mkdir -p "$ROOT/roles"
 chmod 700 "$ROOT"
 echo {config.harness_bytes_b64!r} | base64 -d > "$ROOT/harness.json"
@@ -82,9 +84,11 @@ cat > "$ROOT/status.json" <<'JSON'
 {{"record_kind":"cloud_production_surface_provider_status","schema_version":"0.1.0","action_id":{json.dumps(config.action_id)},"terminal":false,"state":"BOOTSTRAPPING","model_download":false,"benchmark_execution":false,"official_study":false,"canonical_p0_grid":false,"roster_ceremony":false,"unblind":false,"analysis":false}}
 JSON
 
-dnf install -y docker awscli2
+dnf install -y docker
+command -v aws >/dev/null 2>&1 || {{ echo 'Amazon Linux AWS CLI is unavailable' >&2; exit 21; }}
 systemctl enable --now docker
 echo {encoded_refs!r} | base64 -d > "$ROOT/image-refs.json"
+aws ecr get-login-password --region {config.region!r} | docker login --username AWS --password-stdin "$REGISTRY"
 for role in controller model-server benchmark-worker; do
   image=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$ROOT/image-refs.json" "$role")
   docker pull "$image"
@@ -118,6 +122,7 @@ for role in controller model-server benchmark-worker; do
   [[ "$rc" == "2" ]] || exit 31
   python3 -c 'import json,sys; value=json.load(open(sys.argv[1])); assert value.get("state")=="FAILED" and value.get("reason")=="harness_sha256_mismatch"' "$ROOT/roles/$role-wrong-hash.json"
 done
+rm -f "$ROOT/image-refs.json" /root/.docker/config.json
 
 python3 - "$ROOT/status.json" "$ROOT/roles" <<'PY'
 import hashlib, json, pathlib, sys
@@ -370,7 +375,10 @@ def collect_preflight(*, region: str = "us-east-1", action_id: str | None = None
     pricing = boto3.client("pricing", region_name="us-east-1")
     identity = sts.get_caller_identity()
     account = str(identity["Account"])
-    offerings = ec2.describe_instance_type_offerings(InstanceType=INSTANCE_TYPE, LocationType="availability-zone")["InstanceTypeOfferings"]
+    offerings = ec2.describe_instance_type_offerings(
+        LocationType="availability-zone",
+        Filters=[{"Name": "instance-type", "Values": [INSTANCE_TYPE]}],
+    )["InstanceTypeOfferings"]
     azs = sorted(item["Location"] for item in offerings if item.get("Location"))
     if not azs:
         raise CloudManifestError("fresh m7i.large capacity offering is absent")
