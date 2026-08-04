@@ -311,11 +311,17 @@ def _provider_error_code(result: subprocess.CompletedProcess[bytes]) -> str | No
     """Extract only an AWS CLI structured error code from stderr."""
 
     detail = result.stderr.decode("utf-8", errors="replace").strip()
+    # The AWS CLI itself prefixes usage failures with ``aws: error:``.  That
+    # token is not a provider error code and must not mask the real
+    # classification (or turn a transient read into a misleading
+    # ``error_code=aws`` receipt).
     match = re.search(r"\(([A-Za-z0-9_.]+)\)", detail)
     if match is not None:
         return match.group(1)
     match = re.match(r"\s*([A-Za-z0-9_.]+):", detail)
-    return match.group(1) if match is not None else None
+    if match is None or match.group(1).lower() in {"aws", "error", "usage"}:
+        return None
+    return match.group(1)
 
 
 def _provider_subprocess_error(

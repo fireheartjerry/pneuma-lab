@@ -20,6 +20,7 @@ from pneuma_lab.cloud.ephemeral_runner import (
     RunnerConfig,
     TerraformAdapter,
     _require_resource_contract,
+    _provider_error_code,
     execute,
     require_account_plan,
     require_fresh_qualification_action,
@@ -2844,6 +2845,16 @@ def test_concrete_cli_retries_transient_read_without_repeating_submit(
         )
     assert raised.value.error_code == "ClientException"
     assert raised.value.retryable is False
+
+
+def test_provider_error_code_does_not_call_aws_cli_usage_prefix_a_provider_code() -> None:
+    result = subprocess.CompletedProcess(
+        ["aws", "batch", "describe-jobs"],
+        2,
+        b"",
+        b"usage: aws [options] <command> <subcommand>\naws: error: argument --jobs: expected one argument\n",
+    )
+    assert _provider_error_code(result) is None
 
 
 def test_concrete_cli_submit_failure_is_typed_and_never_retried() -> None:

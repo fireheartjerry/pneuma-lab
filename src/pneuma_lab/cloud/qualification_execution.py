@@ -36,6 +36,8 @@ from .retrieval import require_authorized
 
 QUALIFICATION_CODE_ENV = "QUALIFICATION_CODE"
 QUALIFICATION_ACTION_ID_ENV = "QUALIFICATION_ACTION_ID"
+QUALIFICATION_MODEL_ENV = "QUALIFICATION_MODEL"
+QUALIFICATION_MODEL_REVISION_ENV = "QUALIFICATION_MODEL_REVISION"
 QUALIFICATION_FIXTURE_MODEL = "fixture-only-cuda"
 QUALIFICATION_FIXTURE_REVISION = "fixture-only-v1"
 RAW_MEASUREMENT_NAME = "raw-measurement.json"
@@ -61,6 +63,8 @@ _PARSED_QUALIFICATION_FIELDS = frozenset(
     {
         "action_id",
         "qualification_code",
+        "qualification_model",
+        "qualification_model_revision",
         "worker_instance_profile_name",
         "worker_instance_profile_arn",
         "worker_role_name",
@@ -1538,8 +1542,8 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         "QUALIFICATION_CODE": code,
         "QUALIFICATION_ACTION_ID": action_id,
         "QUALIFICATION_ARTIFACT_PREFIX": output_path,
-        "QUALIFICATION_MODEL": variable("qualification_model"),
-        "QUALIFICATION_MODEL_REVISION": variable("qualification_model_revision"),
+        QUALIFICATION_MODEL_ENV: variable("qualification_model"),
+        QUALIFICATION_MODEL_REVISION_ENV: variable("qualification_model_revision"),
         "QUALIFICATION_PROTOCOL": input_paths["protocol"],
         "QUALIFICATION_ARCHITECTURE": input_paths["architecture"],
         "QUALIFICATION_AUTHORIZATION": input_paths["authorization"],
@@ -1547,12 +1551,12 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
         "QUALIFICATION_INPUT_LOCK": input_paths["input_lock"],
         "QUALIFICATION_OUTPUT_ROOT": output_path,
     }
-    if expected_environment["QUALIFICATION_MODEL"] != QUALIFICATION_FIXTURE_MODEL:
+    if expected_environment[QUALIFICATION_MODEL_ENV] != QUALIFICATION_FIXTURE_MODEL:
         raise CloudManifestError(
             "planned qualification must bind the non-model CUDA fixture"
         )
     if (
-        expected_environment["QUALIFICATION_MODEL_REVISION"]
+        expected_environment[QUALIFICATION_MODEL_REVISION_ENV]
         != QUALIFICATION_FIXTURE_REVISION
     ):
         raise CloudManifestError(
@@ -1932,6 +1936,8 @@ def parse_terraform_show(document: Mapping[str, Any]) -> dict[str, Any]:
     parsed = {
         "action_id": action_id,
         "qualification_code": code,
+        "qualification_model": expected_environment[QUALIFICATION_MODEL_ENV],
+        "qualification_model_revision": expected_environment[QUALIFICATION_MODEL_REVISION_ENV],
         "worker_instance_profile_name": instance_profile_name,
         "worker_instance_profile_arn": instance_profile_arn,
         "worker_role_name": planned_worker_role_name,
