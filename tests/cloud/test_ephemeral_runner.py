@@ -2482,6 +2482,7 @@ def test_concrete_cli_absence_accepts_terminal_job_history_and_inactive_definiti
         output_root="s3://bucket/runs/qual-1",
     )
     adapter.parent_job_id = "parent"
+    adapter._observed_action_job_ids = {"parent", "parent:0", "parent:1"}
     adapter._drained_action_job_ids = {"parent", "parent:0", "parent:1"}
     absence = adapter.verify_absence({"QualificationActionId": "qual-1"})
     assert all(absence.values())

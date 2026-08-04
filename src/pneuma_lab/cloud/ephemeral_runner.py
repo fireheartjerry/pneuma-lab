@@ -2387,7 +2387,13 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             if isinstance(action_id, str) and action_id
             else set()
         )
-        expected_cloudtrail_ids = set(self._observed_action_job_ids)
+        # CloudTrail records the single array parent, while Batch exposes the
+        # parent plus its two synthetic child ids.  Compare the same identity
+        # level on both sides; treating child ids as additional submissions
+        # falsely blocks teardown after a successful array.
+        expected_cloudtrail_ids = {
+            job_id.split(":", 1)[0] for job_id in self._observed_action_job_ids
+        }
         if self.parent_job_id is None:
             jobs = not cloudtrail_job_ids
         elif expected_cloudtrail_ids:
