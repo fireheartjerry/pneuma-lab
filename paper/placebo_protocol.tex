@@ -48,6 +48,9 @@
 % ---------------------------------------------------------------------
 \newcommand{\result}[1]{\textcolor{red}{\textbf{[RESULT: #1]}}}
 \newcommand{\TODO}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
+\newcommand{\placeboexpanded}{%
+    \textbf{P}reregistered, \textbf{L}abel-Blind, \textbf{A}rm-Controlled
+    \textbf{C}ausal \textbf{E}valuation of \textbf{B}ehavioral \textbf{O}utcomes}
 \newcommand{\draftnotice}{%
     \begin{center}
     \fcolorbox{red}{white}{%
@@ -59,8 +62,8 @@
     \vspace{0.5em}
 }
 
-\title{Did Verification Help---or Did the Agent Just Get Another Try?\\
-       The PLACEBO Trial for Long-Horizon Tool Agents}
+\title{The PLACEBO Trial: Isolating the Causal Effect of\\
+       Verifier Feedback in Long-Horizon Agents}
 
 \author{Anonymous Author(s)}
 
@@ -76,8 +79,8 @@ have supplied useful evidence---or merely another chance to continue. A
 plausible report about the wrong task may also trigger useful reconsideration,
 and ordinary stochastic decoding can make two continuations from the same state
 disagree. We present the PLACEBO Trial, a preregistered application of the
-PLACEBO Protocol (Preregistered, Label-blind, Arm-controlled, Causal Evaluation
-of Behavioral Outcomes) designed to separate these explanations. At an exact
+PLACEBO Protocol---\placeboexpanded---designed to separate these explanations.
+At an exact
 tool boundary, one frozen task prefix branches into four budget-matched
 continuations: correct task-specific verifier evidence (\texttt{REAL}); a
 shape- and tokenizer-length-matched report from another task (\texttt{SHAM});
@@ -138,10 +141,10 @@ tool boundary deep inside a trajectory rather than a single generation.
 
 \paragraph{Contributions.}
 \begin{enumerate}
-    \item \textbf{The PLACEBO Protocol}: a four-arm, snapshot-paired design
-    that separates correct task-specific verifier content from a mismatched
-    report and from pooled no-feedback continuation, at an exact tool boundary
-    in a long-horizon trajectory (\S\ref{sec:protocol}).
+    \item \textbf{The PLACEBO causal contract}: a preregistered, label-blind,
+    arm-controlled, snapshot-paired design that separates task-specific
+    verifier content from a mismatched report and pooled no-feedback
+    continuation at an exact tool boundary (\S\ref{sec:protocol}).
     \item \textbf{A measured resolution floor}: the two no-feedback replicates
     are not a diagnostic, they are the yardstick. Their label-swapped contrast
     distribution supplies $r_{95}$, and no effect below it is reportable
@@ -244,6 +247,16 @@ difference into a verifier claim.
 % =====================================================================
 \section{The PLACEBO Protocol}
 \label{sec:protocol}
+
+\paragraph{The name is the contract.}
+PLACEBO expands to \placeboexpanded. The Protocol is the reusable design; the
+Trial is its registered instantiation for the frozen subject, roster, and two
+environments in this paper. Preregistration freezes the analysis and verdicts;
+label blinding conceals arm identity until unblinding; arm control separates
+content, packet form, and continuation; causal snapshot pairing holds the
+pre-intervention trajectory fixed; and evaluation of behavioral outcomes limits
+claims to registered, programmatically graded endpoints. Violating any term
+invalidates the corresponding PLACEBO claim.
 
 \subsection{Unit, trigger, and snapshot}
 
@@ -618,10 +631,11 @@ A verifier that appears to help may be supplying evidence, supplying an
 interruption, or supplying nothing but another draw from the same distribution.
 Distinguishing these requires controls that are not novel and an enforcement
 discipline that is rarely applied to long-horizon agents. The PLACEBO Protocol
-composes a matched sham, a paired no-feedback replicate, a measured resolution
-floor, sealed thresholds, and arm-blind publication into one contract, and
-commits in advance to reporting the verdict it produces---including the verdict
-that the question could not be resolved at this resolution.
+composes those controls into an enforceable contract: preregistration, label
+blinding, arm control, causal snapshot pairing, objective behavioral outcomes,
+sealed thresholds, and arm-blind publication. The Trial commits in advance to
+the verdict that contract produces---including that the question could not be
+resolved at this resolution.
 
 \bibliographystyle{plain}
 \bibliography{refs,placebo/refs-placebo}

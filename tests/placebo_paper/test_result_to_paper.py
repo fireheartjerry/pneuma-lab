@@ -325,3 +325,21 @@ def test_canonical_entrypoint_and_archived_sources() -> None:
     entrypoint = (PAPER / "main.tex").read_text(encoding="utf-8")
     assert "\\input{placebo_protocol.tex}" in entrypoint
     assert "Ten Conversations, Two Thousand Questions" not in entrypoint
+
+
+def test_placebo_acronym_is_the_manuscript_contract() -> None:
+    source = MANUSCRIPT.read_text(encoding="utf-8")
+    assert "\\title{The PLACEBO Trial: Isolating the Causal Effect of" in source
+    assert "\\newcommand{\\placeboexpanded}" in source
+    assert "The name is the contract." in source
+    assert source.count("\\placeboexpanded") >= 3
+    for component in (
+        "Preregistered",
+        "L}abel-Blind",
+        "A}rm-Controlled",
+        "C}ausal",
+        "E}valuation",
+        "B}ehavioral",
+        "O}utcomes",
+    ):
+        assert component in source

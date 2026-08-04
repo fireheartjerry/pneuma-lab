@@ -1,9 +1,10 @@
 # NeurIPS 2026 workshop submission
 
-The canonical submission is now the PLACEBO Trial: a causal study of whether
-task-specific verifier content helps long-horizon tool agents beyond another
-attempt, a plausible report from the wrong task, and ordinary resampling
-variation.
+The canonical submission is now **The PLACEBO Trial: Isolating the Causal Effect
+of Verifier Feedback in Long-Horizon Agents**. PLACEBO abbreviates
+**Preregistered, Label-Blind, Arm-Controlled Causal Evaluation of Behavioral
+Outcomes**; the acronym is the protocol's enforceable design contract, not a
+nickname for the sham arm.
 
 | Path | Role | State |
 | --- | --- | --- |
