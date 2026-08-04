@@ -1,0 +1,219 @@
+{
+  "account_id": "892077329800",
+  "action_class": "image_build",
+  "action_id": "qualification-image-build-017",
+  "authority": {
+    "admission_body_sha256": "9fceb74dca581dfd5f3ee991dd511df74a9f814ad0dce3991bca85df6608368a",
+    "admission_ledger_row": "CL-348",
+    "admission_signature_sha256": "4b186750cf44705a478d4b04e5a40806bd291ef69d45ed843a1f9afe640b42e5",
+    "envelope_body_sha256": "2a56a08d80a31b980a8bca20747f65a93ba6356d91664ec15faddc67c1809e36",
+    "envelope_ledger_row": "CL-347",
+    "envelope_signature_sha256": "bd15214482cf6c1b5892dc61b96d2e3df27391f6c330c7eec6af1e586c58d8bf",
+    "kms_algorithm": "ED25519_SHA_512",
+    "kms_verify": true,
+    "max_retries": 0,
+    "plan_sha256": "c4f1a12f494962baa9cbe4989affabb5e846ed8a613f67bf120e0a5850701738",
+    "signing_package_sha256": "ad4cf65f568d69f7f13ee76f264e1613bbbc87d5ab5fd4609831fce968c72146"
+  },
+  "builder": {
+    "ami_id": "ami-08bc385c9fc5afc94",
+    "bootstrap_elapsed_seconds": 436,
+    "bootstrap_ended_at": "2026-08-04T03:16:19Z",
+    "bootstrap_started_at": "2026-08-04T03:09:03Z",
+    "imds_http_tokens": "required",
+    "instance_id": "i-0b56dc9bb47a819ec",
+    "instance_state": "terminated",
+    "instance_type": "m7i.xlarge",
+    "launch_time": "2026-08-04T03:08:54+00:00",
+    "root_delete_on_termination": true,
+    "root_volume_encrypted": true,
+    "root_volume_gib": 650,
+    "security_group_id": "sg-02464c197998ddf0d",
+    "subnet_id": "subnet-0da0658f2703d3e58",
+    "timing_basis": "CloudTrail AssumeRole to final S3 output LastModified",
+    "vpc_id": "vpc-0baeaefeb8b57c19b"
+  },
+  "builder_output": {
+    "bootstrap_log_sha256": "933a79accaa5d26e03f60516990aa6bee9edb49754e239b81ddfdc09973a1b58",
+    "ecr_fixture_runtime_sha256": "371ae7e4d5ad8d38f1e0393e67a8dc724b1893469a8ad8d29acd666bed51c838",
+    "ecr_image_config_receipt_sha256": "cca6080eb1a4b68bf3319c4aabb93ef5628c568195556517854871e9462365e4",
+    "ecr_image_inspect_sha256": "237fde1b90716bf7a4a4dd169136d2833e55d176a054c978b4de4bce657d447d",
+    "ecr_metadata_sha256": "a8b208f1dc7006f756e8cedb3efa8a5f85a7eda492e4c979adcb1d6b1ff48c3e",
+    "ecr_pull_log_sha256": "b46eb62b214eac02338c87f47e82af24e03d21da55e97cde18373339a2db010a",
+    "fixture_receipt_sha256": "371ae7e4d5ad8d38f1e0393e67a8dc724b1893469a8ad8d29acd666bed51c838",
+    "image_digest": "sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e",
+    "image_inspect_sha256": "1cfe6d58c23c4e20d307923823518384118a94cf63e1551a4b0ea845d640fc91",
+    "output_object_hashes": {
+      "bootstrap-status.json": "ae1aa16f96c780000d939c0d3db1be34b22da1cf401b0828a3c39a0ef9038fb1",
+      "bootstrap.log": "933a79accaa5d26e03f60516990aa6bee9edb49754e239b81ddfdc09973a1b58",
+      "builder-identity.json": "8842d49ce37f4645126b2cc1e82c9463e54d38d2981c1460edabbe149393befb",
+      "docker-push.log": "fe7b78e6ed2a0be684272b7a3832b626889e9c3dbf9e37510b961e2c654ed176",
+      "docker-version.json": "e938e0d538bdd3771ce0de8d6069a603e9d1cf8388c403cd40cca53f8eb8b051",
+      "ecr-fixture-runtime.json": "371ae7e4d5ad8d38f1e0393e67a8dc724b1893469a8ad8d29acd666bed51c838",
+      "ecr-image-config-receipt.json": "cca6080eb1a4b68bf3319c4aabb93ef5628c568195556517854871e9462365e4",
+      "ecr-image-inspect.json": "237fde1b90716bf7a4a4dd169136d2833e55d176a054c978b4de4bce657d447d",
+      "ecr-image-metadata.json": "a8b208f1dc7006f756e8cedb3efa8a5f85a7eda492e4c979adcb1d6b1ff48c3e",
+      "ecr-image-pull.log": "b46eb62b214eac02338c87f47e82af24e03d21da55e97cde18373339a2db010a",
+      "ecr-login.txt": "8bd4a1179fd214d0c9cfa53d7bb46c2c347c664a5f05beb77eae4c096fd979d3",
+      "entrypoint-negative.json": "f65bf490e6adc15380ec5e343baa663ce62a6b1c7fc9349eec0311149b43b22b",
+      "entrypoint-negative.stderr": "2ee015deda9ec4b50fada4aa440e29e5ed127dda407b5ef845526f5a21821d39",
+      "entrypoint-negative.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fixture-runtime.json": "371ae7e4d5ad8d38f1e0393e67a8dc724b1893469a8ad8d29acd666bed51c838",
+      "image-aws-version.txt": "7462007a02bbe1c1b5f82d846bc3741de145798942896962d0b5e75a6aacce65",
+      "image-inspect.json": "1cfe6d58c23c4e20d307923823518384118a94cf63e1551a4b0ea845d640fc91",
+      "output-files.txt": "6833c3b310a92ba604ad2fc0541a908ebad65e37b67a90330e96e55588fd78bc",
+      "output-sha256sums.txt": "5e6d52dc74380fb5960931be4f962fe0a53e254f00f9e814e09f92e324081536",
+      "post-negative-check-sentinel.json": "66e368467a5d1c114d4898804b48bed91c4793794c512b97c81525819d0d71d2"
+    },
+    "output_sha256sums_sha256": "5e6d52dc74380fb5960931be4f962fe0a53e254f00f9e814e09f92e324081536",
+    "s3_prefix": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-017/outputs/",
+    "sentinel_sha256": "66e368467a5d1c114d4898804b48bed91c4793794c512b97c81525819d0d71d2",
+    "status_sha256": "ae1aa16f96c780000d939c0d3db1be34b22da1cf401b0828a3c39a0ef9038fb1"
+  },
+  "cost": {
+    "hard_ceiling_usd": 25.0,
+    "observed_builder_elapsed_seconds": 436,
+    "projected_usd": 6.0,
+    "settled_cost": "pending billing settlement"
+  },
+  "forbidden_actions": [
+    "terraform",
+    "batch",
+    "gpu",
+    "spot",
+    "model_download",
+    "model_load",
+    "benchmark",
+    "pilot",
+    "experiment",
+    "qualification_run"
+  ],
+  "local_checks": {
+    "aws_cli": {
+      "check": "pass",
+      "version": "aws-cli/2.36.15 Python/3.14.6 Linux/6.12.94-123.192.amzn2023.x86_64 exe/x86_64.ubuntu.22"
+    },
+    "base_digest_label": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90",
+    "dockerfile_hash": "pass",
+    "ecr_fixture_runtime_observed": {
+      "model_loaded": false,
+      "published_bytes": {
+        "0": 8250,
+        "1": 8250
+      },
+      "status": "pass",
+      "worker_indices": [
+        0,
+        1
+      ]
+    },
+    "ecr_image_inspect": "pass",
+    "ecr_pull": "pass",
+    "ecr_push": "pass",
+    "fixture_runtime": {
+      "all_five_inputs_materialized_as_readable_local_files": true,
+      "gpu": false,
+      "immutable_worker_indexed_artifacts": [
+        "worker-0",
+        "worker-1"
+      ],
+      "model_download": false,
+      "model_loaded": false,
+      "network": "none",
+      "published_bytes": {
+        "0": 8250,
+        "1": 8250
+      },
+      "retrieved_bytes_match": true,
+      "status": "pass",
+      "worker_indices": [
+        0,
+        1
+      ]
+    },
+    "fresh_ecr_fixture_runtime": {
+      "receipt_sha256": "7e12db819330ce8339c6b6afd92b60715aad44902c2f3061c4fcb103e69acfba",
+      "runtime_sha256": "371ae7e4d5ad8d38f1e0393e67a8dc724b1893469a8ad8d29acd666bed51c838",
+      "status": "pass",
+      "worker_indices": [
+        0,
+        1
+      ]
+    },
+    "fresh_ecr_image_config": {
+      "image_digest": "sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e",
+      "inspect_sha256": "237fde1b90716bf7a4a4dd169136d2833e55d176a054c978b4de4bce657d447d",
+      "receipt_sha256": "84071b564e96113f24d8505194b8f85e59b6d0674203db776d909bbfdae8d82f",
+      "status": "pass"
+    },
+    "fresh_ecr_image_digest": "sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e",
+    "fresh_ecr_read": "pass",
+    "fresh_ecr_sidecar_sha256": "66a17d2ceeb3e43792d0422d116d2056e825a160d5a0410629d6cc09e46b945b",
+    "image_cmd_override": "absent",
+    "image_entrypoint": "/opt/pneuma/fixed_admission_entrypoint.sh",
+    "image_entrypoint_check": "pass",
+    "image_source_revision_label": "8bf2470385f9ca8fb6cfa995c5bbb56e174e58de",
+    "negative_check": {
+      "network": "none",
+      "post_negative_check_sentinel": true,
+      "qualification_code_supplied": false,
+      "returncode": 2,
+      "status_receipt_written": true,
+      "stderr_contains": "QUALIFICATION_CODE"
+    },
+    "package_import": {
+      "pneuma_lab": "pass"
+    },
+    "post_push_config_sidecar": "pass",
+    "runtime_schema": "/opt/schemas/cloud-worker-admission-measurement.schema.json present",
+    "source_archive_roundtrip": "pass",
+    "source_revision_label": "8bf2470385f9ca8fb6cfa995c5bbb56e174e58de"
+  },
+  "provider": "aws",
+  "receipt_sha256": "3cd27384e0db22463b664b036ffd221e99a2700bade0a3d66a635f0febc75e86",
+  "record_kind": "cloud_qualification_image_build_receipt",
+  "region": "us-east-1",
+  "schema_version": "0.1.0",
+  "source": {
+    "archive_sha256": "d9d2391669629dcc4fc623eb2b57c485ce3b2ce51d1b84f87be8cb7acf2239b9",
+    "archive_size_bytes": 30863360,
+    "archive_uri": "s3://pneuma-phase-b-892077329800/runs/preparation/qualification-image-build-017/source.tar",
+    "base_digest": "sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90",
+    "bootstrap_rendered_sha256": "334c557628075faf384fa9eff2af5e7760db7d3bb99df58e70e38727c58755d8",
+    "bootstrap_template_sha256": "055e1949fc4c4a02eddf6e1b4b6f95cc9030dcb2e1f9ee8e631b2e3d541b07c5",
+    "commit": "8bf2470385f9ca8fb6cfa995c5bbb56e174e58de",
+    "dockerfile": "infra/docker/qualification-worker/Dockerfile",
+    "dockerfile_sha256": "3b970d926d34acd8225280a6cd0c520ce74f49a366030a71dfdfdda68cf56662"
+  },
+  "status": "COMPLETE",
+  "target": {
+    "ecr_image_digest": "sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e",
+    "fresh_read_digest_match": true,
+    "image_tag": "qualification-image-build-017-8bf2470",
+    "immutable_ecr_reference": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e",
+    "platform": "linux/amd64",
+    "repository_tag_mutability": "IMMUTABLE",
+    "repository_uri": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker",
+    "scan_on_push": true
+  },
+  "teardown": {
+    "absence_summary": {
+      "iam_role_absent": true,
+      "instance_profile_absent": true,
+      "live_action_instances": 0,
+      "security_group_absent": true,
+      "tagged_instance_ids": [
+        "i-0b56dc9bb47a819ec"
+      ],
+      "tagged_network_interfaces": 0,
+      "tagged_volumes": 0
+    },
+    "builder": "terminated",
+    "fresh_provider_absence": true,
+    "iam_role": "absent",
+    "instance_profile": "absent",
+    "network_interfaces": [],
+    "root_volume": "absent",
+    "security_group": "absent"
+  }
+}

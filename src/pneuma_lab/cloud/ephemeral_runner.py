@@ -301,6 +301,10 @@ class QualificationProvider(Protocol):
 
     def pricing_projection(self, *, worker_seconds: int) -> float: ...
 
+    def verify_post_apply_iam_binding(
+        self, *, plan: Mapping[str, Any], expected_policy_sha256: str
+    ) -> Mapping[str, Any]: ...
+
 
 class TerraformQualification(Protocol):
     def apply(self, *, lock_timeout: str, tags: Mapping[str, str]) -> None: ...
@@ -393,6 +397,38 @@ def _validate_kms_verification(record: Mapping[str, Any]) -> dict[str, Any]:
     expected = hashlib.sha256(canonical_bytes(unsigned)).hexdigest()
     if record["verification_sha256"] != expected:
         raise CloudManifestError("KMS verification digest is not derived from its bytes")
+    return dict(record)
+
+
+def _validate_post_apply_iam_binding(
+    record: Mapping[str, Any], *, expected_policy_sha256: str
+) -> dict[str, Any]:
+    """Validate the sanitized IAM readback performed immediately after apply."""
+
+    required = {
+        "status",
+        "expected_policy_sha256",
+        "observed_policy_sha256",
+        "policy_inventory_sha256",
+    }
+    if not isinstance(record, Mapping) or set(record) != required:
+        raise CloudManifestError(
+            "post-apply IAM binding evidence has an unregistered shape"
+        )
+    if (
+        record.get("status") != "pass"
+        or record.get("expected_policy_sha256") != expected_policy_sha256
+        or record.get("observed_policy_sha256") != expected_policy_sha256
+    ):
+        raise CloudManifestError(
+            "post-apply worker IAM policy differs from authority"
+        )
+    for field in ("expected_policy_sha256", "observed_policy_sha256", "policy_inventory_sha256"):
+        value = record.get(field)
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+            raise CloudManifestError(
+                f"post-apply IAM {field} is not a digest"
+            )
     return dict(record)
 
 
@@ -1060,6 +1096,46 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             resource_policy=resource_policy,
             policy_inventory=inventory,
         )
+
+    def verify_post_apply_iam_binding(
+        self, *, plan: Mapping[str, Any], expected_policy_sha256: str
+    ) -> Mapping[str, Any]:
+        """Re-read the effective worker-role policy after apply, before launch."""
+
+        inventory = self.capture_worker_policy_inventory(
+            plan=plan,
+            expected_policy_sha256=expected_policy_sha256,
+        )
+        rows = inventory.get("policies")
+        expected_identifier_sha256 = hashlib.sha256(
+            QUALIFICATION_WORKER_POLICY_NAME.encode("utf-8")
+        ).hexdigest()
+        matches = [
+            row
+            for row in rows
+            if isinstance(row, Mapping)
+            and row.get("source") == "inline"
+            and row.get("identifier_sha256") == expected_identifier_sha256
+            and row.get("document_sha256") == expected_policy_sha256
+        ]
+        if len(matches) != 1:
+            raise CloudManifestError(
+                "post-apply worker IAM policy does not match the signed binding"
+            )
+        inventory_sha256 = inventory.get("inventory_sha256")
+        if (
+            not isinstance(inventory_sha256, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", inventory_sha256)
+        ):
+            raise CloudManifestError(
+                "post-apply worker IAM inventory lacks a valid digest"
+            )
+        return {
+            "status": "pass",
+            "expected_policy_sha256": expected_policy_sha256,
+            "observed_policy_sha256": matches[0]["document_sha256"],
+            "policy_inventory_sha256": inventory_sha256,
+        }
 
     def capture_kms_verification(
         self,
@@ -2459,6 +2535,7 @@ def execute(
     evidence: Mapping[str, Any] | None = None
     recovery: Mapping[str, Any] | None = None
     iam_simulation: Mapping[str, Any] | None = None
+    post_apply_iam_binding: Mapping[str, Any] | None = None
     kms_verification: Mapping[str, Any] | None = None
     launch: dict[str, Any] = {
         # A requested submit contract is not proof of exactly one provider
@@ -2514,6 +2591,25 @@ def execute(
                 raise CloudManifestError("KMS verification evidence is not an object")
             kms_verification = _validate_kms_verification(observed_kms)
         terraform.apply(lock_timeout=config.lock_timeout, tags=tags)
+        if config.require_receipt_evidence:
+            verify_post_apply = getattr(provider, "verify_post_apply_iam_binding", None)
+            expected_policy_sha256 = execution_authority.get("iam_policy_sha256")
+            if not callable(verify_post_apply):
+                raise CloudManifestError(
+                    "concrete qualification provider lacks post-apply IAM readback"
+                )
+            if not isinstance(expected_policy_sha256, str):
+                raise CloudManifestError(
+                    "authority receipt lacks the action-specific IAM policy hash"
+                )
+            observed_post_apply = verify_post_apply(
+                plan=parsed_plan,
+                expected_policy_sha256=expected_policy_sha256,
+            )
+            post_apply_iam_binding = _validate_post_apply_iam_binding(
+                observed_post_apply,
+                expected_policy_sha256=expected_policy_sha256,
+            )
         ready = provider.wait_ready(tags)
         parent_job_id = provider.submit_array(
             size=2,
@@ -2601,6 +2697,7 @@ def execute(
             "evidence": evidence,
             "recovery": recovery,
             "iam_simulation": iam_simulation,
+            "post_apply_iam_binding": post_apply_iam_binding,
             "kms_verification": kms_verification,
             "launch": launch,
             "failure": failure,
@@ -2627,6 +2724,7 @@ def execute(
             "evidence": evidence,
             "recovery": recovery,
             "iam_simulation": iam_simulation,
+            "post_apply_iam_binding": post_apply_iam_binding,
             "kms_verification": kms_verification,
             "launch": launch,
             "failure": failure,
@@ -2647,6 +2745,7 @@ def execute(
         "evidence": evidence,
         "recovery": recovery,
         "iam_simulation": iam_simulation,
+        "post_apply_iam_binding": post_apply_iam_binding,
         "kms_verification": kms_verification,
         "launch": launch,
         "failure": failure,
@@ -2671,6 +2770,7 @@ def execute(
         "evidence": evidence,
         "recovery": recovery,
         "iam_simulation": iam_simulation,
+        "post_apply_iam_binding": post_apply_iam_binding,
         "kms_verification": kms_verification,
         "absence": dict(absence),
         "plan": dict(parsed_plan),

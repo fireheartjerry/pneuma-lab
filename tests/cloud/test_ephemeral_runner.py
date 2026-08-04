@@ -421,6 +421,15 @@ class FakeProvider(ReadOnlyProvider):
         self.calls.append("kms")
         return kms_verification_record()
 
+    def verify_post_apply_iam_binding(self, *, plan, expected_policy_sha256):
+        self.calls.append("iam-post-apply")
+        return {
+            "status": "pass",
+            "expected_policy_sha256": expected_policy_sha256,
+            "observed_policy_sha256": expected_policy_sha256,
+            "policy_inventory_sha256": "b" * 64,
+        }
+
     def submit_array(self, *, size, timeout_seconds, attempts, tags):
         self.calls.append(f"submit:{size}:{timeout_seconds}:{attempts}")
         return "parent"
@@ -634,7 +643,7 @@ def test_runner_retains_context_when_absence_validation_fails() -> None:
     assert terraform.calls == ["apply:60s", "destroy:60s"]
 
 
-def test_receipt_runner_captures_and_validates_live_iam_before_apply() -> None:
+def test_receipt_runner_captures_and_validates_live_iam_before_and_after_apply() -> None:
     provider, terraform = FakeProvider(), FakeTerraform()
     result = execute(
         RunnerConfig("qual-1", "us-east-1", require_receipt_evidence=True),
@@ -649,7 +658,38 @@ def test_receipt_runner_captures_and_validates_live_iam_before_apply() -> None:
     )
     assert result["iam_simulation"]["all_expected_decisions_match"] is True
     assert provider.calls.index("iam") < provider.calls.index("ready")
+    assert provider.calls.index("iam-post-apply") < provider.calls.index("ready")
     assert terraform.calls == ["apply:60s", "destroy:60s"]
+
+
+def test_receipt_runner_fails_closed_when_post_apply_iam_changes() -> None:
+    provider, terraform = FakeProvider(), FakeTerraform()
+
+    def changed_policy(*, plan, expected_policy_sha256):
+        provider.calls.append("iam-post-apply")
+        return {
+            "status": "pass",
+            "expected_policy_sha256": expected_policy_sha256,
+            "observed_policy_sha256": "c" * 64,
+            "policy_inventory_sha256": "b" * 64,
+        }
+
+    provider.verify_post_apply_iam_binding = changed_policy  # type: ignore[method-assign]
+    with pytest.raises(QualificationExecutionError) as raised:
+        execute(
+            RunnerConfig("qual-1", "us-east-1", require_receipt_evidence=True),
+            envelope={},
+            admission={},
+            key_registry={},
+            ledger_path=LEDGER,
+            account_plan=terraform_show(),
+            provider=provider,
+            terraform=terraform,
+            verify_authority=authority,
+        )
+    assert "post-apply worker IAM policy" in str(raised.value.__cause__)
+    assert terraform.calls == ["apply:60s", "destroy:60s"]
+    assert not any(call.startswith("submit:") for call in provider.calls)
 
 
 def test_exhausted_action_id_is_rejected_before_provider_calls(tmp_path: Path) -> None:

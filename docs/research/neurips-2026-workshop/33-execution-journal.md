@@ -7465,3 +7465,29 @@ post-launch terminal no-go. Tasks 6–10 remain
   or claim promotion occurred. The repaired source is focused-tested and
   pushed, but a fresh successor image/action is required before any future
   qualification launch.
+
+## EJ-20260804-qualification-image-build-017-complete
+
+- **Fresh immutable image:** The signed action-specific image-build authority
+  launched exactly one CPU-only `m7i.xlarge` builder. The strict fixture smoke
+  denied worker reads of `/outputs/worker-*`, and the builder passed the fixed
+  ENTRYPOINT/CMD, AWS CLI v2, package/schema import, network-none no-code
+  rejection, immutable ECR pull/inspect, post-push config/fixture sidecars, and
+  two-worker raw publication checks. Both fixture records were 8,250 bytes with
+  `model_loaded=false`; no model, benchmark, pilot, or scientific workload ran.
+- **Binding:** The retained receipt is
+  `evidence/qualification-image-build-017-receipt-20260804.json`, file SHA-256
+  `aca115cf02ac6e4657afa7d86c7331010ec3078124cf460cba1fd128ef41a6d7` and
+  self-bound receipt SHA-256 `3cd27384e0db22463b664b036ffd221e99a2700bade0a3d66a635f0febc75e86`.
+  It binds source commit `8bf2470385f9ca8fb6cfa995c5bbb56e174e58de`, the
+  signed plan `c4f1a12f494962baa9cbe4989affabb5e846ed8a613f67bf120e0a5850701738`, and immutable ECR digest
+  `sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e`.
+- **Teardown:** Builder `i-0b56dc9bb47a819ec` self-terminated. Fresh provider
+  reads prove zero live action instances, volumes, ENIs, and security groups,
+  with the temporary role/profile absent. The output prefix and immutable ECR
+  digest remain retained evidence for the next fresh qualification action.
+- **Launch-hardening repair:** The concrete runner now re-reads the effective
+  worker-role policy after locked Terraform apply and before Batch submission,
+  retaining only the expected policy hash and sanitized inventory hash. A
+  mismatch fails closed and still enters destroy/absence cleanup. Focused cloud
+  tests pass; the official P0/Step 4B study remains excluded.

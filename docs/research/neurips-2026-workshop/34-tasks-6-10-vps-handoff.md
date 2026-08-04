@@ -1360,3 +1360,28 @@ qualification success plus its real P0 power/tier, packet, assignment,
 detectability, unblind, and authority-bound release receipts. No scientific
 workload, benchmark/model run, pilot, unblind, analysis, or claim promotion
 occurred.
+
+## Latest pre-experiment infrastructure repair — image-017 and runner readback — 2026-08-04
+
+The repaired qualification-worker source passed a fresh strict CPU-only image
+build. Immutable ECR digest
+`sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e`
+is bound by `evidence/qualification-image-build-017-receipt-20260804.json`.
+The build passed fixed ENTRYPOINT/CMD, AWS CLI v2, package/schema import,
+network-none no-code rejection, immutable pull/inspect, sidecar self-binding,
+and the fixture smoke that explicitly fails on worker output reads. Builder
+teardown is complete with fresh provider absence; no qualification or
+scientific workload ran.
+
+The host-side ephemeral runner now performs a second effective worker-role
+policy readback immediately after locked Terraform apply and before any Batch
+readiness/submission call. It compares the exact action policy digest and
+retains only the expected/observed policy and inventory hashes; drift fails
+closed and still enters destroy/absence cleanup. Focused cloud tests pass.
+
+The next action must regenerate all action-specific inputs, least-privilege
+policy, saved plan/show/composite hashes, authority package, and admission for
+fresh successor `dual-l40s-qualification-018`, then execute at most one
+two-worker fixture launch. Official P0/Step 4B, benchmark/model workload,
+pilot, unblind, analysis, and claim promotion remain excluded; Step 14 stays
+`launch_blocked`.
