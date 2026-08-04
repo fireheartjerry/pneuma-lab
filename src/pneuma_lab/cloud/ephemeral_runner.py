@@ -1855,6 +1855,7 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             "describe-instances",
             "--filters",
             f"Name=tag:QualificationActionId,Values={tags['QualificationActionId']}",
+            "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down",
         )
         volumes = self._call_absence(
             "ec2",
@@ -1956,9 +1957,24 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                     row.get("status") in TERMINAL_BATCH_JOB_STATUSES
                     for row in described.values()
                 )
+        live_instances = []
+        reservations = instances.get("Reservations", [])
+        if isinstance(reservations, list):
+            for reservation in reservations:
+                if not isinstance(reservation, Mapping):
+                    continue
+                rows = reservation.get("Instances", [])
+                if not isinstance(rows, list):
+                    continue
+                live_instances.extend(
+                    row
+                    for row in rows
+                    if isinstance(row, Mapping)
+                    and (row.get("State") or {}).get("Name") != "terminated"
+                )
         return {
             "jobs": jobs,
-            "instances": not instances.get("Reservations"),
+            "instances": not live_instances,
             "volumes": not volumes.get("Volumes"),
             "launch_template": not launch_templates.get("LaunchTemplates"),
             "network_interfaces": not network_interfaces.get("NetworkInterfaces"),

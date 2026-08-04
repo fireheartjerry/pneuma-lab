@@ -1,0 +1,70 @@
+{
+  "action_id": "dual-l40s-qualification-015",
+  "active_resources_absent": true,
+  "batch_history": {
+    "job_ids": [
+      "1d9cc37d-f926-4555-9d22-c9c9de36566e",
+      "1d9cc37d-f926-4555-9d22-c9c9de36566e:0",
+      "1d9cc37d-f926-4555-9d22-c9c9de36566e:1"
+    ],
+    "raw_describe_jobs_sha256": "6dbafa1ecfb2ac95ccbbb3436786ae8ed7fea6070e284aea0baa2a696d256389",
+    "all_terminal": true,
+    "all_attempt_counts_zero": true
+  },
+  "instance_history": {
+    "active_instance_count": 0,
+    "terminated_provisioning_instances": [
+      {
+        "instance_id_sha256": "9f1f958f88e13c4e9c03f9815ba8809233d02c1deeaf396a75ff67f178ef651f",
+        "instance_type": "g6e.2xlarge",
+        "launch_time": "2026-08-04T00:22:24Z",
+        "termination_time": "2026-08-04T00:24:48Z",
+        "duration_seconds": 144,
+        "worker_attempt": false
+      },
+      {
+        "instance_id_sha256": "5dae1c9b2735a54758b3f71bdb928979de2be2172b95751cba08cb528492d865",
+        "instance_type": "g6e.2xlarge",
+        "launch_time": "2026-08-04T00:22:14Z",
+        "termination_time": "2026-08-04T00:24:48Z",
+        "duration_seconds": 154,
+        "worker_attempt": false
+      }
+    ],
+    "raw_describe_instances_sha256": "4e9b407d50fd4fc723d7973631de09cf71a7212700b1e3b5446562ace9b4315b"
+  },
+  "job_ids": [
+    "1d9cc37d-f926-4555-9d22-c9c9de36566e",
+    "1d9cc37d-f926-4555-9d22-c9c9de36566e:0",
+    "1d9cc37d-f926-4555-9d22-c9c9de36566e:1"
+  ],
+  "output_prefix": {
+    "empty": true,
+    "object_count": 0,
+    "raw_listing_sha256": "766fcfa0aa8769fac4710a48c5e30edc414d900d436d2f16a185438ae024c059"
+  },
+  "provider_absence": {
+    "artifact_prefix": {"empty": true, "object_count": 0},
+    "compute_environment": true,
+    "instances": true,
+    "job_definition": true,
+    "jobs": true,
+    "launch_template": true,
+    "network_interfaces": true,
+    "provider_history": {
+      "inactive_job_definition_arn_sha256": "33bfad0bb37c12cc7ccf3a7bff3566b33e69d60964e08b9747fcd1bc51d81154",
+      "inactive_job_definition_history_retained_by_aws": true
+    },
+    "queue": true,
+    "security_group": true,
+    "volumes": true
+  },
+  "provider_absence_canonical_sha256": "92526a17df16d7c155fa79989d52d157d1bb49ac886fdaf417ad96354ffaf6d4",
+  "qualification_only": true,
+  "raw_cloudtrail_lookup_sha256": "ac81bbab671c4860739c1063ea544b22e5fcda90c44101d49fa425e54510b7e5",
+  "record_kind": "cloud_qualification_final_provider_absence",
+  "region": "us-east-1",
+  "schema_version": "0.1.0",
+  "status": "complete",
+  "observed_at": "2026-08-04T00:37:39Z"
+}

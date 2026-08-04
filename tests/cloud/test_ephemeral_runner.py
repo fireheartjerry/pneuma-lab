@@ -1940,6 +1940,64 @@ def test_concrete_cli_absence_checks_all_ephemeral_resource_classes() -> None:
     assert any("describe-network-interfaces" in call for call in calls)
 
 
+def test_concrete_cli_absence_ignores_terminated_instance_history() -> None:
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        if "lookup-events" in argv:
+            payload = {"Events": []}
+        else:
+            command = next(
+                command
+                for command in (
+                    "describe-job-queues",
+                    "describe-compute-environments",
+                    "describe-job-definitions",
+                    "list-objects-v2",
+                    "describe-instances",
+                    "describe-volumes",
+                    "describe-launch-templates",
+                    "describe-network-interfaces",
+                    "describe-security-groups",
+                )
+                if command in argv
+            )
+            payload = {
+                "describe-job-queues": {"jobQueues": []},
+                "describe-compute-environments": {"computeEnvironments": []},
+                "describe-job-definitions": {"jobDefinitions": []},
+                "list-objects-v2": {"Contents": []},
+                "describe-instances": {
+                    "Reservations": [
+                        {"Instances": [{"State": {"Name": "terminated"}}]}
+                    ]
+                },
+                "describe-volumes": {"Volumes": []},
+                "describe-launch-templates": {"LaunchTemplates": []},
+                "describe-network-interfaces": {"NetworkInterfaces": []},
+                "describe-security-groups": {"SecurityGroups": []},
+            }[command]
+        return subprocess.CompletedProcess(
+            argv, 0, json.dumps(payload).encode(), b""
+        )
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="qual-1",
+        job_definition="qual-1-worker",
+        output_root="s3://bucket/runs/qual-1",
+    )
+    absence = adapter.verify_absence({"QualificationActionId": "qual-1"})
+    assert absence["instances"] is True
+    assert any(
+        "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down"
+        in call
+        for call in calls
+    )
+
+
 def test_concrete_cli_absence_accepts_deleted_queue_and_environment() -> None:
     def run(argv, **kwargs):
         if "describe-job-queues" in argv or "describe-compute-environments" in argv:

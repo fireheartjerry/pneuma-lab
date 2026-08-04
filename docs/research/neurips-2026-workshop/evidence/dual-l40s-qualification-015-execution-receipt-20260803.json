@@ -1,0 +1,47 @@
+{
+  "action_id": "dual-l40s-qualification-015",
+  "context_sha256": "2b03edc985d71cbe9cb8d5b9045c31afe8a9efe9357bce9a04232d006b66e73f",
+  "context_summary": {
+    "absence": {},
+    "action_id": "dual-l40s-qualification-015",
+    "cleanup_failure": {
+      "error": "provider absence read failed",
+      "type": "CloudManifestError"
+    },
+    "evidence": {
+      "child_statuses": [],
+      "parent_status": null,
+      "worker_count": 0
+    },
+    "failure": {
+      "error": "provider subprocess failed",
+      "type": "CloudManifestError"
+    },
+    "iam_policy_inventory_sha256": "5fc67c1fdc710abfc54b3ad91c49a4c32dfc7e1c96fd24f866693cf2f3aa9d24",
+    "iam_simulation_matrix_sha256": "cb7516ee7d2cadb30a4b8a1956ac2046e84038600f48792857ed4ccac0422586",
+    "kms_verification_sha256": "c74da234caf19f14e81fdf8a2f71bad8083e03bd09257895893473d2d0532537",
+    "launch": {
+      "array_size": 2,
+      "cloudtrail_submit_job_event_id_sha256": "b1a6c7e6e2cdbcd2f91552e8a24d295db4f8514c1b917868e463639031c46b0b",
+      "retry_attempts": 1,
+      "submit_count_proven": 1,
+      "submit_event_time_utc": "2026-08-03T17:11:18-07:00"
+    },
+    "parent_job_id_present": true,
+    "plan": {
+      "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+      "saved_plan_sha256": "1c42b217e3821c9eaa8f32295a8dfb41630f34ad517215e4704dee54f760c9c8",
+      "terraform_plan_binding_sha256": "7f36da34a1e268344dd11a2a968c8c987065ba407d8beded7d88968e2accd729",
+      "terraform_show_sha256": "f1577f4b2157b3290d88b6b68f9ecc49c658f53f79b8703036457836de643639"
+    }
+  },
+  "no_retry_after_launch": true,
+  "qualification_only": true,
+  "receipt_build_error": "execution receipt would not be fixture-only",
+  "receipt_build_error_type": "CloudManifestError",
+  "receipt_written": true,
+  "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt_failure",
+  "schema_version": "0.1.0",
+  "status": "post_launch_receipt_no_go",
+  "terminal_outcome": "post_launch_terminal_no_go"
+}

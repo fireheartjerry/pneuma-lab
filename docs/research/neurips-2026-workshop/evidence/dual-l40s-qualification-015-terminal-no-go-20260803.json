@@ -1,0 +1,66 @@
+{
+  "action_class": "qualification_audit",
+  "action_id": "dual-l40s-qualification-015",
+  "batch": {
+    "child_statuses": ["FAILED", "FAILED"],
+    "parent_job_id": "1d9cc37d-f926-4555-9d22-c9c9de36566e",
+    "parent_status": "FAILED",
+    "raw_artifact_hashes": [],
+    "raw_describe_jobs_sha256": "6dbafa1ecfb2ac95ccbbb3436786ae8ed7fea6070e284aea0baa2a696d256389",
+    "recovery": {"reason": "No child reached an attempt; fixed freeze/restore recovery was not eligible and was not run.", "status": "not_run"},
+    "rows": [
+      {"array_index": null, "attempt_count": 0, "instance_id_present": false, "job_id": "1d9cc37d-f926-4555-9d22-c9c9de36566e", "raw_artifact_not_observed": true, "status": "FAILED", "status_reason": "Array Child Job failed"},
+      {"array_index": 0, "attempt_count": 0, "instance_id_present": false, "job_id": "1d9cc37d-f926-4555-9d22-c9c9de36566e:0", "raw_artifact_not_observed": true, "status": "FAILED", "status_reason": "terminal qualification no-go teardown; no retry"},
+      {"array_index": 1, "attempt_count": 0, "instance_id_present": false, "job_id": "1d9cc37d-f926-4555-9d22-c9c9de36566e:1", "raw_artifact_not_observed": true, "status": "FAILED", "status_reason": "terminal qualification no-go teardown; no retry"}
+    ],
+    "worker_identity_hashes": []
+  },
+  "cloudtrail": {
+    "exact_action_events": [{"array_size": 2, "attempts": 1, "event_id": "caf9015e-0675-4860-8a5f-045ea493c29a", "event_name": "SubmitJob", "event_time": "2026-08-03T17:11:18-07:00", "job_definition": "dual-l40s-qualification-015-worker", "job_id": "1d9cc37d-f926-4555-9d22-c9c9de36566e", "job_queue": "dual-l40s-qualification-015", "timeout_seconds": 3600}],
+    "lookup_event_count_at_later_read": 1,
+    "raw_lookup_sha256": "ac81bbab671c4860739c1063ea544b22e5fcda90c44101d49fa425e54510b7e5",
+    "runner_check_lag_observed": false
+  },
+  "failure": {
+    "provider_observed_terminal_reason": "The concrete runner's Batch describe-jobs subprocess failed after the exact SubmitJob event and before any child attempt; the independent final read found both children FAILED after explicit no-retry teardown, with zero attempts, no worker identities, and no raw artifacts.",
+    "root_cause_not_invented": true,
+    "runner_cleanup_error": "provider absence read failed",
+    "runner_context_sha256": "2b03edc985d71cbe9cb8d5b9045c31afe8a9efe9357bce9a04232d006b66e73f",
+    "runner_error": "provider subprocess failed",
+    "runner_receipt_sha256": "c14a0fc3e7cce6f4e639aceaa80a84b6348457af923e8f663a142502ed3d15c7",
+    "runner_submit_count_proven": 1
+  },
+  "iam": {
+    "effective_policy_sha256": "499daf6b8cb34c786c7ba102e78c492997fa22314a5ebbb2f0c3e3b1a0b9f073",
+    "policy_inventory_sha256": "5fc67c1fdc710abfc54b3ad91c49a4c32dfc7e1c96fd24f866693cf2f3aa9d24",
+    "simulation_matrix_sha256": "cb7516ee7d2cadb30a4b8a1956ac2046e84038600f48792857ed4ccac0422586"
+  },
+  "no_retry_after_launch": true,
+  "observed_at": "2026-08-04T00:37:39Z",
+  "plan": {
+    "authority_receipt_sha256": "e881bf775a7a7af4904f7dbe8f636e24c770437ac3a5eb8ca956f6b9497b4e7b",
+    "image_digest": "sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+    "plan_sha256": "90b6896fd1eeb7a8651e84bc5121d6501a9c5ad494e52721da5ed4029cdda9ca",
+    "saved_plan_sha256": "1c42b217e3821c9eaa8f32295a8dfb41630f34ad517215e4704dee54f760c9c8",
+    "signed_package_sha256": "d37983eb32e69e7a686840dd1f1425011054db554a52a9c641fa8313e6257006",
+    "terraform_plan_binding_sha256": "7f36da34a1e268344dd11a2a968c8c987065ba407d8beded7d88968e2accd729",
+    "terraform_show_sha256": "f1577f4b2157b3290d88b6b68f9ecc49c658f53f79b8703036457836de643639"
+  },
+  "projection_usd": 4.4842,
+  "provider": "aws",
+  "qualification_only": true,
+  "record_kind": "cloud_qualification_terminal_no_go",
+  "region": "us-east-1",
+  "schema_version": "0.1.0",
+  "scientific_boundary": {"fixture_only": true, "no_analysis": true, "no_benchmark": true, "no_claim_promotion": true, "no_model_load": true, "no_p0": true, "no_pilot": true, "no_step_4b": true, "no_unblind": true},
+  "status": "post_launch_terminal_no_go",
+  "teardown": {
+    "active_resources_absent": true,
+    "complete": true,
+    "output_prefix_empty": true,
+    "provider_absence": {"proof_file": "dual-l40s-qualification-015-final-provider-absence-20260803.json", "status": "complete"},
+    "provider_absence_proof_sha256": "68f39ef2842241ed6efb1ad8f2f804248e3da6f9740f2253939c2103a1e8d463",
+    "terminal_batch_history_retained": true
+  },
+  "terminal_outcome": "external_provider_terminal_no_go"
+}
