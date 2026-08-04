@@ -802,6 +802,8 @@ def test_loaded_account_plan_preserves_raw_show_binding() -> None:
     assert parsed["terraform_plan_binding_sha256"] == terraform_plan_binding_digest(
         "a" * 64, "b" * 64
     )
+    assert parsed["qualification_model"] == "fixture-only-cuda"
+    assert parsed["qualification_model_revision"] == "fixture-only-v1"
 
 
 def test_concrete_runner_extracts_digest_from_raw_terraform_image_binding() -> None:

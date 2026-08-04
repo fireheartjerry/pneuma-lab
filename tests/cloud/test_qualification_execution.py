@@ -849,8 +849,6 @@ def test_provider_checks_are_explicit_and_plan_values_bind_action_id() -> None:
         }
     }
     plan = parse_terraform_show(document)
-    assert plan["qualification_model"] == "fixture-only-cuda"
-    assert plan["qualification_model_revision"] == "fixture-only-v1"
     transport = FakeAwsTransport()
     verified = verify_provider_bindings(adapter(transport), plan)
     assert verified["role"]["RoleName"] == "pneuma-worker"

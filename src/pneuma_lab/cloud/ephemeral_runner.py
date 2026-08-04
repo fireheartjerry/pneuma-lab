@@ -44,6 +44,8 @@ from .qualification_execution import (
     parse_s3_uri,
     parse_terraform_show,
     parse_terraform_show_json,
+    QUALIFICATION_FIXTURE_MODEL,
+    QUALIFICATION_FIXTURE_REVISION,
     require_two_succeeded_children,
     retrieve_raw_measurement,
     terraform_plan_binding_digest,
@@ -2203,6 +2205,21 @@ def require_account_plan(
     )
     parsed["image_digest"] = parsed["image"].rsplit("@", 1)[1]
     parsed["output_prefix"] = parsed["output_path"]
+    job_definition = parsed.get("job_definition")
+    if not isinstance(job_definition, Mapping):
+        raise CloudManifestError("account plan lacks its parsed job definition")
+    environment = job_definition.get("environment")
+    environment_values = {
+        row.get("name"): row.get("value")
+        for row in environment
+        if isinstance(row, Mapping) and isinstance(row.get("name"), str)
+    } if isinstance(environment, list) else {}
+    if environment_values.get("QUALIFICATION_MODEL") != QUALIFICATION_FIXTURE_MODEL:
+        raise CloudManifestError("account plan fixture model is not the registered non-model fixture")
+    if environment_values.get("QUALIFICATION_MODEL_REVISION") != QUALIFICATION_FIXTURE_REVISION:
+        raise CloudManifestError("account plan fixture revision is not the registered fixture revision")
+    parsed["qualification_model"] = environment_values["QUALIFICATION_MODEL"]
+    parsed["qualification_model_revision"] = environment_values["QUALIFICATION_MODEL_REVISION"]
     if ledger_path is not None:
         derive_spend_history_binding(ledger_path)
 
