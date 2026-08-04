@@ -2151,6 +2151,39 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
             )
         return indexed
 
+    def _disable_batch_resource(
+        self,
+        *,
+        update_args: tuple[str, ...],
+        describe_args: tuple[str, ...],
+        collection_key: str,
+    ) -> None:
+        """Disable a resource, accepting only an already-absent/deleting state."""
+
+        try:
+            self._call(*update_args)
+            return
+        except ProviderSubprocessError as mutation_error:
+            if mutation_error.error_code != "ClientException":
+                raise
+        try:
+            observed = self._call(*describe_args)
+        except ProviderSubprocessError as describe_error:
+            if describe_error.error_code == "ClientException":
+                return
+            raise
+        rows = observed.get(collection_key, []) if isinstance(observed, Mapping) else None
+        if not isinstance(rows, list):
+            raise CloudManifestError(
+                "Batch teardown state read returned an invalid resource collection"
+            )
+        if not rows or all(
+            isinstance(row, Mapping) and row.get("status") == "DELETING"
+            for row in rows
+        ):
+            return
+        raise mutation_error
+
     def disable_and_drain(self, tags: Mapping[str, str]) -> None:
         """Disable scheduling, then drain or terminate every submitted job."""
 
@@ -2166,21 +2199,39 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                     f"{self.parent_job_id}:1",
                 }
             )
-        self._call(
-            "batch",
-            "update-job-queue",
-            "--job-queue",
-            self.queue,
-            "--state",
-            "DISABLED",
+        self._disable_batch_resource(
+            update_args=(
+                "batch",
+                "update-job-queue",
+                "--job-queue",
+                self.queue,
+                "--state",
+                "DISABLED",
+            ),
+            describe_args=(
+                "batch",
+                "describe-job-queues",
+                "--job-queues",
+                self.queue,
+            ),
+            collection_key="jobQueues",
         )
-        self._call(
-            "batch",
-            "update-compute-environment",
-            "--compute-environment",
-            self.compute_environment,
-            "--state",
-            "DISABLED",
+        self._disable_batch_resource(
+            update_args=(
+                "batch",
+                "update-compute-environment",
+                "--compute-environment",
+                self.compute_environment,
+                "--state",
+                "DISABLED",
+            ),
+            describe_args=(
+                "batch",
+                "describe-compute-environments",
+                "--compute-environments",
+                self.compute_environment,
+            ),
+            collection_key="computeEnvironments",
         )
         if job_ids:
             ordered_job_ids = tuple(sorted(job_ids))

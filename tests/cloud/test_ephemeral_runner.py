@@ -2068,6 +2068,38 @@ def test_concrete_cli_cleanup_handles_empty_action_job_listing() -> None:
     }
 
 
+def test_concrete_cli_cleanup_is_idempotent_after_batch_resources_disappear() -> None:
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        if "list-jobs" in argv:
+            return subprocess.CompletedProcess(argv, 0, b'{"jobSummaryList":[]}', b"")
+        if "update-job-queue" in argv or "update-compute-environment" in argv:
+            return subprocess.CompletedProcess(
+                argv, 254, b"", b"ClientException: resource is already gone"
+            )
+        if "describe-job-queues" in argv:
+            return subprocess.CompletedProcess(argv, 0, b'{"jobQueues":[]}', b"")
+        if "describe-compute-environments" in argv:
+            return subprocess.CompletedProcess(
+                argv, 0, b'{"computeEnvironments":[]}', b""
+            )
+        return subprocess.CompletedProcess(argv, 0, b"{}", b"")
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="q",
+        job_definition="d",
+        output_root="s3://bucket/runs/qual-1",
+        compute_environment="ce",
+    )
+    adapter.disable_and_drain({"QualificationActionId": "qual-1"})
+    assert any("describe-job-queues" in call for call in calls)
+    assert any("describe-compute-environments" in call for call in calls)
+
+
 def test_concrete_cli_rejects_partial_drain_describe_results() -> None:
     def run(argv, **kwargs):
         if "describe-jobs" in argv:
