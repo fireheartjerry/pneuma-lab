@@ -1,0 +1,58 @@
+{
+  "action_class": "qualification_audit",
+  "action_id": "dual-l40s-qualification-016",
+  "admission": {
+    "body_sha256": "2b7ccd14520baa42c959ba3b310ae087a32b37c6512eb4715bfcd0ebc89cfb10",
+    "expires_timestamp": "2026-08-04T09:00:00Z",
+    "ledger_row_id": "CL-339",
+    "ledger_row_sha256": "6c62a5d0670970c0be88694b862f8ca6324ab869687ab0622f235f855f38da0d",
+    "signature_sha256": "92637604262b23c3293bfd6d6d302f293eb85c2b5e419fd4890d5e71b190e323"
+  },
+  "envelope": {
+    "body_sha256": "930c7b9f2edb6bac548d76cc95a26f8f73868df3aa91042eb73c6a64415437a2",
+    "expires_timestamp": "2026-08-04T09:00:00Z",
+    "ledger_row_id": "CL-338",
+    "ledger_row_sha256": "a3b2a7db9bafdc81590561b2e83b812c484efea2afefad1dc1bd3377ed2278a6",
+    "signature_sha256": "49c8b605cc35dab090d16ec24a01965064749acb3785a46ddc8488fe00b60693"
+  },
+  "four_az_map_sha256": "2ed7bef4c572de3db37ec73ed06605f554e3df4ee2305776fce2b6374a3f5687",
+  "iam_policy_inventory_sha256": "a0fe5ce76e4ea4dd369f3ca64c9be8fbb99c5a7ee04806fdaa17b43cdb242012",
+  "iam_policy_sha256": "2bc0004c4c623c587e4cf7d68ebe5656d8fe2be3568a4edbe200bee6f746d174",
+  "iam_simulation_matrix_sha256": "2527b9ec6431dff6331d6e39b9fc771da766a0b92a3d7b93e87ea81c13b29051",
+  "image_build_receipt_sha256": "0d6ea9d714855a93947459eab41186bd68ac5bb4e315b7118b76889b28e9a7ac",
+  "image_digest": "sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+  "input_lock_sha256": "05a813781d286fc33e6496cb3cf0638f84c6262c0205051c701fd34cf208e9a6",
+  "kms": {
+    "admission_signature_valid": true,
+    "envelope_signature_valid": true,
+    "key_alias": "alias/pneuma-approver",
+    "registry_key_id": "pneuma-kms-20260801-r1",
+    "signing_algorithm": "ED25519_SHA_512"
+  },
+  "max_retries": 0,
+  "observed_at": "2026-08-04T01:20:02Z",
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-016/outputs/",
+  "plan_sha256": "13e05eb678209592214900c29c793802e690be0c794f6d188265c2924cc5c621",
+  "projected_cost_usd": 4.4842,
+  "provider": "aws",
+  "qualification_only": true,
+  "record_kind": "cloud_qualification_authority_receipt",
+  "region": "us-east-1",
+  "saved_plan_sha256": "9ddba5c7a5f81b6de34ab645e3df597f16d50465a8c3d69b8f5a6d0cadcbe78a",
+  "schema_version": "0.1.0",
+  "scientific_boundary": {
+    "fixture_only": true,
+    "no_analysis": true,
+    "no_benchmark": true,
+    "no_claim_promotion": true,
+    "no_model_load": true,
+    "no_p0": true,
+    "no_pilot": true,
+    "no_step_4b": true,
+    "no_unblind": true
+  },
+  "signed_package_sha256": "9dd68a47b145b6e53ccf148740aeaa9e25c8c44bf50bf527c52c2a344269b1a6",
+  "status": "authorized_and_verified",
+  "terraform_plan_binding_sha256": "bf6c27cc323b5bcf17a7a84cbd7f2ea13c965ea08ba6de2425b3085144ed80d0",
+  "terraform_show_sha256": "89272b5d886cbaee117073b5c5ae5aed57738a503890f5178604bbd0a0538695"
+}
