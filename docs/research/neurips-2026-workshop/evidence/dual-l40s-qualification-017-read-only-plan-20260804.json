@@ -1,0 +1,215 @@
+{
+  "account_id": "892077329800",
+  "action_class": "qualification_audit",
+  "action_id": "dual-l40s-qualification-017",
+  "bindings": {
+    "action_id": "dual-l40s-qualification-017",
+    "iam_policy_sha256": "2fe128c9c04d1123bfbe2e7fb31475a23d41fbbef51d5eabab309ce1d8a061f3",
+    "image_digest": "sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+    "max_retries": 0,
+    "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-017/outputs/",
+    "projected_cost_usd": 4.4842,
+    "subnet_az_map": [
+      {
+        "availability_zone": "us-east-1a",
+        "subnet_id": "subnet-0da0658f2703d3e58"
+      },
+      {
+        "availability_zone": "us-east-1b",
+        "subnet_id": "subnet-0fb70ec94971ee036"
+      },
+      {
+        "availability_zone": "us-east-1c",
+        "subnet_id": "subnet-06bfd2d42e292f160"
+      },
+      {
+        "availability_zone": "us-east-1d",
+        "subnet_id": "subnet-0ef225f27b1e1f095"
+      }
+    ]
+  },
+  "cost_ceiling_usd": 100.0,
+  "iam": {
+    "all_expected_decisions_match": true,
+    "allowed": [
+      "input-read-protocol",
+      "input-read-architecture",
+      "input-read-authorization",
+      "input-read-image",
+      "input-read-input-lock",
+      "raw-write-worker-0",
+      "raw-write-worker-1"
+    ],
+    "check_count": 17,
+    "denied": [
+      "output-read-worker-0",
+      "output-read-worker-1",
+      "wrong-worker-output",
+      "other-action-input",
+      "unrelated-object",
+      "bucket-list",
+      "output-delete",
+      "output-abort",
+      "kms-decrypt",
+      "iam-policy-admin"
+    ],
+    "effective_policy_sha256": "2fe128c9c04d1123bfbe2e7fb31475a23d41fbbef51d5eabab309ce1d8a061f3",
+    "policy_inventory_sha256": "58c14b6eae85b9c2edb1c8d51dc221fb261ef48cfaec862ff73efad9da72584c",
+    "policy_source_role_arn_sha256": "2ea2fe8c81c71dc3eb8aa665a6d124ee5ec998f215f05a16c90355f561f5a8cf",
+    "resource_policy_present": false,
+    "resource_policy_sha256": null,
+    "simulation_matrix_sha256": "63e69a131f243c6a9746b490286199c57d5943b2e1e287dd7a3d6b3336189295"
+  },
+  "iam_policy_sha256": "2fe128c9c04d1123bfbe2e7fb31475a23d41fbbef51d5eabab309ce1d8a061f3",
+  "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+  "input_hashes": {
+    "architecture": "21ea4f157b572c2e0ed99bb62b961dd4f10a9b7393c1293bd97d8cf7e1815d8d",
+    "authorization": "1d206384e669fab1aaa9dc64d1f1e5cbc028e202b6299481b997ee280156e708",
+    "code": "e6380ae67ad190a82e6fcb2d38eb20ce70ee2749ed916677c7f0a24debb66417",
+    "image": "82237d4039d198e1122e72ddd265e752b2c7441285d7143b602080af7347084f",
+    "input_lock": "ebcc08b60bccdc619f38c358bbccf7902afd050ec4375084a3ae38bbf73baab6",
+    "protocol": "f1f7d0c5c019f39ba792bde818f3a013cfef53359818898f70b6f4de23fb76ff"
+  },
+  "input_lock_sha256": "ebcc08b60bccdc619f38c358bbccf7902afd050ec4375084a3ae38bbf73baab6",
+  "max_retries": 0,
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-017/outputs/",
+  "plan": {
+    "approved_resource_addresses": [
+      "aws_batch_compute_environment.qualification",
+      "aws_launch_template.qualification",
+      "aws_batch_job_queue.qualification",
+      "aws_batch_job_definition.worker"
+    ],
+    "attempt_duration_seconds": 3600,
+    "command_override": false,
+    "custom_image_id": null,
+    "exactly_four_creates": true,
+    "execution_plan_sha256": "e6f13e80c18d62c5cfbdbddff800f2e3d7adf5a4c937740dc044c2825c17b546",
+    "instance_tag_binding": "dual-l40s-qualification-017",
+    "managed_gpu_ami_path": true,
+    "max_spot_vcpus": 16,
+    "no_other_resource_actions": true,
+    "retry_attempts": 1,
+    "saved_plan_path": "/tmp/pneuma-dual-l40s-qualification-017.tfplan",
+    "saved_plan_sha256": "2af864ab9e8acaa6bcd85ba76901a847ee3400b8fb949fe34ed53aa061faff61",
+    "spot": true,
+    "terraform_plan_binding_sha256": "8b20976851ef969d0b7ca88c179b9408e853de23d2bf43a30b336debaa89fbf5",
+    "terraform_show_sha256": "26b31bca4b07e3f9d9647a8fd2b77d3c0f22ea8622a6b9695f409d048632c023",
+    "volume_tag_binding": "dual-l40s-qualification-017",
+    "worker_count": 2,
+    "worker_gpus": 1,
+    "worker_instance_type": "g6e.2xlarge",
+    "worker_memory_mib": 60000,
+    "worker_vcpus": 8
+  },
+  "projected_cost_usd": 4.4842,
+  "provider": "aws",
+  "provider_checks": {
+    "batch_service_role_verified_separately": true,
+    "ecr_digest_verified": true,
+    "identity_verified": true,
+    "instance_profile_exactly_one_role_verified": true,
+    "offered_availability_zones": [
+      "us-east-1a",
+      "us-east-1b",
+      "us-east-1c",
+      "us-east-1d"
+    ],
+    "offered_instance_type": "g6e.2xlarge",
+    "profile_role_account_matches": true,
+    "projected_two_worker_3600_seconds_usd": 4.4842,
+    "projection_strictly_below_usd_100": true,
+    "provider_absence": {
+      "artifact_prefix": {
+        "empty": true,
+        "object_count": 0
+      },
+      "compute_environment": true,
+      "instances": true,
+      "job_definition": true,
+      "jobs": true,
+      "launch_template": true,
+      "network_interfaces": true,
+      "provider_history": {
+        "inactive_job_definition_arn_sha256": null,
+        "inactive_job_definition_history_retained_by_aws": false
+      },
+      "queue": true,
+      "security_group": true,
+      "volumes": true
+    },
+    "security_group_zero_ingress_verified": true,
+    "spot_price_max_usd_per_hour": 2.2421,
+    "spot_price_sample_count": 100,
+    "spot_quota_code": "L-3819A6DF",
+    "spot_vcpu_quota": 16.0,
+    "subnets_available_in_all_four_azs": true,
+    "vpc_and_subnets_match": true,
+    "worker_role_verified_separately": true
+  },
+  "qualification_code": "fixture-only-qualification-code-017",
+  "qualification_model": "fixture-only-cuda",
+  "qualification_model_revision": "fixture-only-v1",
+  "qualification_only": true,
+  "quota_checks": [
+    {
+      "name": "Running On-Demand G and VT instances",
+      "quota_code": "L-DB2E81BA",
+      "value": 8.0
+    },
+    {
+      "name": "All G and VT Spot Instance Requests",
+      "quota_code": "L-3819A6DF",
+      "value": 16.0
+    }
+  ],
+  "record_kind": "cloud_qualification_read_only_plan",
+  "region": "us-east-1",
+  "saved_plan_sha256": "2af864ab9e8acaa6bcd85ba76901a847ee3400b8fb949fe34ed53aa061faff61",
+  "schema_version": "0.1.0",
+  "scientific_boundary": {
+    "no_analysis": true,
+    "no_benchmark": true,
+    "no_claim_promotion": true,
+    "no_model_load": true,
+    "no_p0": true,
+    "no_pilot": true,
+    "no_step_4b": true,
+    "no_unblind": true
+  },
+  "status": "validated_read_only",
+  "subnet_az_map": [
+    {
+      "availability_zone": "us-east-1a",
+      "subnet_id": "subnet-0da0658f2703d3e58"
+    },
+    {
+      "availability_zone": "us-east-1b",
+      "subnet_id": "subnet-0fb70ec94971ee036"
+    },
+    {
+      "availability_zone": "us-east-1c",
+      "subnet_id": "subnet-06bfd2d42e292f160"
+    },
+    {
+      "availability_zone": "us-east-1d",
+      "subnet_id": "subnet-0ef225f27b1e1f095"
+    }
+  ],
+  "terraform_directory": "infra/terraform/qualification",
+  "terraform_plan_binding_sha256": "8b20976851ef969d0b7ca88c179b9408e853de23d2bf43a30b336debaa89fbf5",
+  "terraform_show_sha256": "26b31bca4b07e3f9d9647a8fd2b77d3c0f22ea8622a6b9695f409d048632c023",
+  "worker_contract": {
+    "attempt_duration_seconds": 3600,
+    "attempts": 1,
+    "command_override": false,
+    "count": 2,
+    "gpus_per_worker": 1,
+    "instance_type": "g6e.2xlarge",
+    "managed_gpu_ami_path": true,
+    "max_spot_vcpus": 16,
+    "memory_mib_per_worker": 60000,
+    "spot": true,
+    "vcpus_per_worker": 8
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "account_id": "892077329800",
+  "action_class": "qualification_audit",
+  "action_id": "dual-l40s-qualification-017",
+  "bindings": {
+    "action_id": "dual-l40s-qualification-017",
+    "iam_policy_sha256": "2fe128c9c04d1123bfbe2e7fb31475a23d41fbbef51d5eabab309ce1d8a061f3",
+    "image_digest": "sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+    "max_retries": 0,
+    "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-017/outputs/",
+    "projected_cost_usd": 4.4842,
+    "subnet_az_map": [
+      {
+        "availability_zone": "us-east-1a",
+        "subnet_id": "subnet-0da0658f2703d3e58"
+      },
+      {
+        "availability_zone": "us-east-1b",
+        "subnet_id": "subnet-0fb70ec94971ee036"
+      },
+      {
+        "availability_zone": "us-east-1c",
+        "subnet_id": "subnet-06bfd2d42e292f160"
+      },
+      {
+        "availability_zone": "us-east-1d",
+        "subnet_id": "subnet-0ef225f27b1e1f095"
+      }
+    ]
+  },
+  "cost_ceiling_usd": 100.0,
+  "iam_policy_sha256": "2fe128c9c04d1123bfbe2e7fb31475a23d41fbbef51d5eabab309ce1d8a061f3",
+  "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+  "input_hashes": {
+    "architecture": "21ea4f157b572c2e0ed99bb62b961dd4f10a9b7393c1293bd97d8cf7e1815d8d",
+    "authorization": "1d206384e669fab1aaa9dc64d1f1e5cbc028e202b6299481b997ee280156e708",
+    "code": "e6380ae67ad190a82e6fcb2d38eb20ce70ee2749ed916677c7f0a24debb66417",
+    "image": "82237d4039d198e1122e72ddd265e752b2c7441285d7143b602080af7347084f",
+    "input_lock": "ebcc08b60bccdc619f38c358bbccf7902afd050ec4375084a3ae38bbf73baab6",
+    "protocol": "f1f7d0c5c019f39ba792bde818f3a013cfef53359818898f70b6f4de23fb76ff"
+  },
+  "input_lock_sha256": "ebcc08b60bccdc619f38c358bbccf7902afd050ec4375084a3ae38bbf73baab6",
+  "max_retries": 0,
+  "output_prefix": "s3://pneuma-phase-b-892077329800/runs/qualification/dual-l40s-qualification-017/outputs/",
+  "plan_sha256": "6fd2a1ec19096d9a85c10ebc7fa61bb9d20c0d0fae1d8eb5fbe763e6be4d17a4",
+  "projected_cost_usd": 4.4842,
+  "provider": "aws",
+  "qualification_code": "fixture-only-qualification-code-017",
+  "qualification_model": "fixture-only-cuda",
+  "qualification_model_revision": "fixture-only-v1",
+  "record_kind": "cloud_qualification_execution_plan",
+  "region": "us-east-1",
+  "saved_plan_path": "/tmp/pneuma-dual-l40s-qualification-017.tfplan",
+  "saved_plan_sha256": "2af864ab9e8acaa6bcd85ba76901a847ee3400b8fb949fe34ed53aa061faff61",
+  "schema_version": "0.1.0",
+  "subnet_az_map": [
+    {
+      "availability_zone": "us-east-1a",
+      "subnet_id": "subnet-0da0658f2703d3e58"
+    },
+    {
+      "availability_zone": "us-east-1b",
+      "subnet_id": "subnet-0fb70ec94971ee036"
+    },
+    {
+      "availability_zone": "us-east-1c",
+      "subnet_id": "subnet-06bfd2d42e292f160"
+    },
+    {
+      "availability_zone": "us-east-1d",
+      "subnet_id": "subnet-0ef225f27b1e1f095"
+    }
+  ],
+  "terraform_directory": "infra/terraform/qualification",
+  "terraform_plan_binding_sha256": "8b20976851ef969d0b7ca88c179b9408e853de23d2bf43a30b336debaa89fbf5",
+  "terraform_show_sha256": "26b31bca4b07e3f9d9647a8fd2b77d3c0f22ea8622a6b9695f409d048632c023",
+  "worker_contract": {
+    "attempt_duration_seconds": 3600,
+    "attempts": 1,
+    "command_override": false,
+    "count": 2,
+    "gpus_per_worker": 1,
+    "instance_type": "g6e.2xlarge",
+    "managed_gpu_ami_path": true,
+    "max_spot_vcpus": 16,
+    "memory_mib_per_worker": 60000,
+    "spot": true,
+    "vcpus_per_worker": 8
+  }
+}
