@@ -1,0 +1,47 @@
+{
+  "action_id": "dual-l40s-qualification-016",
+  "context_sha256": "5da14a541f7a39aae7cc3f1df64a035f408cf85432629d9c3c23570d99c34f3f",
+  "context_summary": {
+    "absence": {},
+    "action_id": "dual-l40s-qualification-016",
+    "cleanup_failure": {
+      "error": "provider absence read failed: provider subprocess failed for batch list-jobs (error_code=aws, stderr_sha256=c537fe804f9d57c406ae22cacdd051d8ab40d0c15995d726b3c7ff428fb2aaf2)",
+      "type": "ProviderSubprocessError"
+    },
+    "evidence": {
+      "child_statuses": [],
+      "parent_status": null,
+      "worker_count": 0
+    },
+    "failure": {
+      "error": "provider subprocess failed for batch describe-jobs (error_code=aws, stderr_sha256=c537fe804f9d57c406ae22cacdd051d8ab40d0c15995d726b3c7ff428fb2aaf2)",
+      "type": "ProviderSubprocessError"
+    },
+    "iam_policy_inventory_sha256": "a0fe5ce76e4ea4dd369f3ca64c9be8fbb99c5a7ee04806fdaa17b43cdb242012",
+    "iam_simulation_matrix_sha256": "2527b9ec6431dff6331d6e39b9fc771da766a0b92a3d7b93e87ea81c13b29051",
+    "kms_verification_sha256": "c74da234caf19f14e81fdf8a2f71bad8083e03bd09257895893473d2d0532537",
+    "launch": {
+      "array_size": 2,
+      "cloudtrail_submit_job_event_id_sha256": "e5cf62c8a3f171a5840dabe667246313f00e3919ff549acc463a1b97c08a0f29",
+      "retry_attempts": 1,
+      "submit_count_proven": 1,
+      "submit_event_time_utc": "2026-08-03T18:23:06-07:00"
+    },
+    "parent_job_id_present": true,
+    "plan": {
+      "image": "892077329800.dkr.ecr.us-east-1.amazonaws.com/pneuma-c160-worker@sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+      "saved_plan_sha256": "9ddba5c7a5f81b6de34ab645e3df597f16d50465a8c3d69b8f5a6d0cadcbe78a",
+      "terraform_plan_binding_sha256": "bf6c27cc323b5bcf17a7a84cbd7f2ea13c965ea08ba6de2425b3085144ed80d0",
+      "terraform_show_sha256": "89272b5d886cbaee117073b5c5ae5aed57738a503890f5178604bbd0a0538695"
+    }
+  },
+  "no_retry_after_launch": true,
+  "qualification_only": true,
+  "receipt_build_error": "execution receipt would not be fixture-only",
+  "receipt_build_error_type": "CloudManifestError",
+  "receipt_written": true,
+  "record_kind": "cloud_ephemeral_dual_worker_qualification_receipt_failure",
+  "schema_version": "0.1.0",
+  "status": "post_launch_receipt_no_go",
+  "terminal_outcome": "post_launch_terminal_no_go"
+}

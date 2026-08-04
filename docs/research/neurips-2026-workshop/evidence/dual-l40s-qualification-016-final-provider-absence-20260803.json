@@ -1,0 +1,73 @@
+{
+  "action_id": "dual-l40s-qualification-016",
+  "active_resources_absent": true,
+  "batch_history": {
+    "all_attempt_counts_zero": false,
+    "all_terminal": true,
+    "job_ids": [
+      "317fe37c-6f39-4e6d-a262-357c579e6317",
+      "317fe37c-6f39-4e6d-a262-357c579e6317:0",
+      "317fe37c-6f39-4e6d-a262-357c579e6317:1"
+    ],
+    "raw_describe_jobs_sha256": "ad0d474a5937483e8aa28adb28b58ed2b09bcafc5076f9dc73aed275f328a6fe"
+  },
+  "instance_history": {
+    "active_instance_count": 0,
+    "raw_describe_instances_sha256": "bb533566df9c7734fb0e960d72ebbdea63b7d775ab004683ac0b84bccbde60e7",
+    "terminated_provisioning_instances": [
+      {
+        "duration_seconds": 356,
+        "instance_id_sha256": "4dd092331cfbea2f1f5e9e5e0ad28edb782a2efe215b3350146fac655bb066d8",
+        "instance_type": "g6e.2xlarge",
+        "launch_time": "2026-08-04T01:24:36Z",
+        "termination_time": "2026-08-04T01:30:32Z",
+        "worker_attempt": true
+      },
+      {
+        "duration_seconds": 345,
+        "instance_id_sha256": "55b3a00949488497210c55efc8b6deea30fa49921cba9114b020118b575ee8e7",
+        "instance_type": "g6e.2xlarge",
+        "launch_time": "2026-08-04T01:24:47Z",
+        "termination_time": "2026-08-04T01:30:32Z",
+        "worker_attempt": true
+      }
+    ]
+  },
+  "job_ids": [
+    "317fe37c-6f39-4e6d-a262-357c579e6317",
+    "317fe37c-6f39-4e6d-a262-357c579e6317:0",
+    "317fe37c-6f39-4e6d-a262-357c579e6317:1"
+  ],
+  "observed_at": "2026-08-04T01:45:26Z",
+  "output_prefix": {
+    "empty": true,
+    "object_count": 0,
+    "raw_listing_sha256": "bcd841750fa4fc2ac34eb086f3cc161be28e66672d89f8c6cd4d4e0744b6134a"
+  },
+  "provider_absence": {
+    "artifact_prefix": {
+      "empty": true,
+      "object_count": 0
+    },
+    "compute_environment": true,
+    "instances": true,
+    "job_definition": true,
+    "jobs": true,
+    "launch_template": true,
+    "network_interfaces": true,
+    "provider_history": {
+      "inactive_job_definition_arn_sha256": "2eb91e7e9d6c084e469cb7fb4d4c85e351e890255379128785de0c07dc073722",
+      "inactive_job_definition_history_retained_by_aws": true
+    },
+    "queue": true,
+    "security_group": true,
+    "volumes": true
+  },
+  "provider_absence_canonical_sha256": "d08a4e50c24c709005ec0b8f427da35314d9b860635097e0c014a60accd0d563",
+  "qualification_only": true,
+  "raw_cloudtrail_lookup_sha256": "5fda8d91901381523ca9569265ec369071539665e7f6aacd3795b87643c13a0d",
+  "record_kind": "cloud_qualification_final_provider_absence",
+  "region": "us-east-1",
+  "schema_version": "0.1.0",
+  "status": "complete"
+}

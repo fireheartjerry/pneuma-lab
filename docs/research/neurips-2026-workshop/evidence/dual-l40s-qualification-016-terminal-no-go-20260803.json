@@ -1,0 +1,123 @@
+{
+  "action_class": "qualification_audit",
+  "action_id": "dual-l40s-qualification-016",
+  "batch": {
+    "child_statuses": [
+      "FAILED",
+      "FAILED"
+    ],
+    "parent_job_id": "317fe37c-6f39-4e6d-a262-357c579e6317",
+    "parent_status": "FAILED",
+    "raw_artifact_hashes": [],
+    "raw_describe_jobs_sha256": "ad0d474a5937483e8aa28adb28b58ed2b09bcafc5076f9dc73aed275f328a6fe",
+    "recovery": {
+      "reason": "No successful child reached the fixed completion boundary; freeze/restore recovery was not eligible and was not run.",
+      "status": "not_run"
+    },
+    "rows": [
+      {
+        "array_index": null,
+        "attempt_count": 0,
+        "instance_id_present": false,
+        "job_id": "317fe37c-6f39-4e6d-a262-357c579e6317",
+        "raw_artifact_not_observed": true,
+        "status": "FAILED",
+        "status_reason": "Array Child Job failed"
+      },
+      {
+        "array_index": 0,
+        "attempt_count": 1,
+        "instance_id_present": false,
+        "job_id": "317fe37c-6f39-4e6d-a262-357c579e6317:0",
+        "raw_artifact_not_observed": true,
+        "status": "FAILED",
+        "status_reason": "terminal qualification no-go teardown"
+      },
+      {
+        "array_index": 1,
+        "attempt_count": 1,
+        "instance_id_present": false,
+        "job_id": "317fe37c-6f39-4e6d-a262-357c579e6317:1",
+        "raw_artifact_not_observed": true,
+        "status": "FAILED",
+        "status_reason": "terminal qualification no-go teardown"
+      }
+    ],
+    "worker_identity_hashes": []
+  },
+  "cloudtrail": {
+    "exact_action_events": [
+      {
+        "array_size": 2,
+        "attempts": 1,
+        "event_id": "0787b71b-9ced-490b-9a8f-0940b7d750a1",
+        "event_name": "SubmitJob",
+        "event_time": "2026-08-03T18:23:06-07:00",
+        "job_definition": "dual-l40s-qualification-016-worker",
+        "job_id": "317fe37c-6f39-4e6d-a262-357c579e6317",
+        "job_queue": "dual-l40s-qualification-016",
+        "timeout_seconds": 3600
+      }
+    ],
+    "lookup_event_count_at_later_read": 7,
+    "raw_lookup_sha256": "5fda8d91901381523ca9569265ec369071539665e7f6aacd3795b87643c13a0d",
+    "runner_check_lag_observed": false
+  },
+  "failure": {
+    "provider_observed_terminal_reason": "After exactly one SubmitJob, the runner received a provider subprocess failure during Batch describe-jobs and then failed its first cleanup absence read. The stderr bytes are retained only by digest; the exact AWS-side error text is not claimed. Independent readback found both children terminal after explicit teardown, with no worker identity fields and no raw artifacts.",
+    "root_cause_not_invented": true,
+    "runner_cleanup_error": "provider absence read failed",
+    "runner_context_sha256": "5da14a541f7a39aae7cc3f1df64a035f408cf85432629d9c3c23570d99c34f3f",
+    "runner_error": "provider subprocess failed for batch describe-jobs",
+    "runner_error_stderr_sha256": "c537fe804f9d57c406ae22cacdd051d8ab40d0c15995d726b3c7ff428fb2aaf2",
+    "runner_receipt_sha256": "c9802ab466b0a7ae9397a2032dbc42909866d63a0ad7e8c20a8dab9a9db12f6c",
+    "runner_submit_count_proven": 1
+  },
+  "iam": {
+    "effective_policy_sha256": "2bc0004c4c623c587e4cf7d68ebe5656d8fe2be3568a4edbe200bee6f746d174",
+    "policy_inventory_sha256": "a0fe5ce76e4ea4dd369f3ca64c9be8fbb99c5a7ee04806fdaa17b43cdb242012",
+    "simulation_matrix_sha256": "2527b9ec6431dff6331d6e39b9fc771da766a0b92a3d7b93e87ea81c13b29051"
+  },
+  "no_retry_after_launch": true,
+  "observed_at": "2026-08-04T01:45:26Z",
+  "plan": {
+    "authority_receipt_sha256": "66c1ca03765f1392cb56c5e4e91ace7983c1e75e1a89c4a6ff0cf8183bb605b0",
+    "image_digest": "sha256:f69107dd1b518668346d44637f6bb67870fb790457f56e286c99e6574c17775b",
+    "plan_sha256": "13e05eb678209592214900c29c793802e690be0c794f6d188265c2924cc5c621",
+    "saved_plan_sha256": "9ddba5c7a5f81b6de34ab645e3df597f16d50465a8c3d69b8f5a6d0cadcbe78a",
+    "signed_package_sha256": "9dd68a47b145b6e53ccf148740aeaa9e25c8c44bf50bf527c52c2a344269b1a6",
+    "terraform_plan_binding_sha256": "bf6c27cc323b5bcf17a7a84cbd7f2ea13c965ea08ba6de2425b3085144ed80d0",
+    "terraform_show_sha256": "89272b5d886cbaee117073b5c5ae5aed57738a503890f5178604bbd0a0538695"
+  },
+  "projection_usd": 4.4842,
+  "provider": "aws",
+  "qualification_only": true,
+  "record_kind": "cloud_qualification_terminal_no_go",
+  "region": "us-east-1",
+  "schema_version": "0.1.0",
+  "scientific_boundary": {
+    "fixture_only": true,
+    "no_analysis": true,
+    "no_benchmark": true,
+    "no_claim_promotion": true,
+    "no_model_load": true,
+    "no_p0": true,
+    "no_pilot": true,
+    "no_step_4b": true,
+    "no_unblind": true
+  },
+  "status": "post_launch_terminal_no_go",
+  "teardown": {
+    "active_resources_absent": true,
+    "complete": true,
+    "locked_terraform_destroy": "terraform destroy -input=false -auto-approve -lock=true -lock-timeout=60s",
+    "output_prefix_empty": true,
+    "provider_absence": {
+      "proof_file": "dual-l40s-qualification-016-final-provider-absence-20260803.json",
+      "status": "complete"
+    },
+    "provider_absence_proof_sha256": "64a130c8fecd35300e1caa9fbea12a75885e18d96caec7ef46229423583d7e7e",
+    "terminal_batch_history_retained": true
+  },
+  "terminal_outcome": "external_provider_terminal_no_go"
+}
