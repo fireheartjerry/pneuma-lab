@@ -22,6 +22,7 @@ from pneuma_lab.cloud.ephemeral_runner import (
     _require_resource_contract,
     _provider_error_code,
     execute,
+    _historical_submission_time,
     require_account_plan,
     require_fresh_qualification_action,
     terraform_mutation_commands,
@@ -58,6 +59,63 @@ ROLE_ARNS = {
 PROFILE_ARNS = {
     "pneuma-worker": "arn:aws:iam::123456789012:instance-profile/pneuma-worker"
 }
+
+
+def test_historical_submission_time_reconciles_persisted_parent(tmp_path: Path) -> None:
+    state_path = tmp_path / "controller-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "action_id": "dual-l40s-qualification-019",
+                "events": [
+                    {
+                        "phase": "submitted",
+                        "payload": {
+                            "parent_job_id": "parent-019",
+                        },
+                    },
+                    {
+                        "phase": "observing",
+                        "payload": {
+                            "parent_job_id": "parent-019",
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class Provider:
+        parent_job_id = None
+        _observed_action_job_ids = set()
+        _last_submit_tags = None
+
+        def capture_submit_evidence(self, parent_job_id):
+            assert parent_job_id == "parent-019"
+            return {
+                "submit_count_proven": 1,
+                "array_size": 2,
+                "retry_attempts": 1,
+                "submit_event_time_utc": "2026-08-04T06:04:12Z",
+            }
+
+    provider = Provider()
+    observed = _historical_submission_time(
+        state_path,
+        action_id="dual-l40s-qualification-019",
+        provider=provider,
+        tags={"QualificationActionId": "dual-l40s-qualification-019"},
+    )
+
+    assert observed is not None
+    assert observed.isoformat() == "2026-08-04T06:04:12+00:00"
+    assert provider.parent_job_id == "parent-019"
+    assert provider._observed_action_job_ids == {
+        "parent-019",
+        "parent-019:0",
+        "parent-019:1",
+    }
 
 
 def kms_verification_record() -> dict[str, object]:

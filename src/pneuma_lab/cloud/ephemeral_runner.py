@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 import base64
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -2656,6 +2657,101 @@ def _bind_provider_parent(
         setattr(provider, "_last_submit_tags", dict(tags))
 
 
+def _historical_submission_time(
+    state_path: Path,
+    *,
+    action_id: str,
+    provider: QualificationProvider,
+    tags: Mapping[str, Any],
+) -> datetime | None:
+    """Return the CloudTrail submission time for a persisted launch.
+
+    A valid authority can expire while a submitted Batch array is waiting for
+    observation or teardown.  Resuming that already-authorized launch is a
+    read-only operation; it must validate the original authority at the
+    launch time rather than require a new authority (or submit a new array).
+    The durable state only supplies the parent id; CloudTrail remains the
+    authoritative source for the submission timestamp and exact one-use
+    launch evidence.
+    """
+
+    if not state_path.is_file():
+        return None
+    try:
+        persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CloudManifestError(
+            "persisted qualification state cannot be read for authority resumption"
+        ) from exc
+    if not isinstance(persisted, Mapping) or persisted.get("action_id") != action_id:
+        raise CloudManifestError(
+            "persisted qualification state is not bound to the requested action"
+        )
+    events = persisted.get("events")
+    if not isinstance(events, list):
+        raise CloudManifestError("persisted qualification state lacks its event chain")
+    post_submit_phases = {
+        "submitted",
+        "launch_reconciled",
+        "observing",
+        "observation_pending",
+        "admission_reconciled",
+        "artifact_reconciled",
+        "recovering",
+        "recovery_pending",
+        "recovery_reconciled",
+        "workload_terminal",
+        "teardown_started",
+        "teardown_failed",
+        "teardown_complete",
+    }
+    parent_job_id: str | None = None
+    for event in reversed(events):
+        if not isinstance(event, Mapping) or event.get("phase") not in post_submit_phases:
+            continue
+        payload = event.get("payload")
+        candidate = payload.get("parent_job_id") if isinstance(payload, Mapping) else None
+        if isinstance(candidate, str) and candidate:
+            parent_job_id = candidate
+            break
+    if parent_job_id is None:
+        return None
+    _bind_provider_parent(provider, parent_job_id, tags=tags)
+    capture = getattr(provider, "capture_submit_evidence", None)
+    if not callable(capture):
+        raise CloudManifestError(
+            "persisted qualification launch lacks CloudTrail reconciliation"
+        )
+    observed = capture(parent_job_id)
+    if not isinstance(observed, Mapping):
+        raise CloudManifestError("CloudTrail submission evidence is not an object")
+    if (
+        observed.get("submit_count_proven") != 1
+        or observed.get("array_size") != 2
+        or observed.get("retry_attempts") != 1
+    ):
+        raise CloudManifestError(
+            "persisted qualification launch does not prove the fixed one-use array"
+        )
+    event_time = observed.get("submit_event_time_utc")
+    if not isinstance(event_time, str) or not event_time:
+        raise CloudManifestError(
+            "CloudTrail submission evidence lacks its event timestamp"
+        )
+    try:
+        parsed = datetime.fromisoformat(event_time.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise CloudManifestError(
+            "CloudTrail submission timestamp is not ISO-8601"
+        ) from exc
+    if parsed.tzinfo is None:
+        raise CloudManifestError("CloudTrail submission timestamp lacks a timezone")
+    parsed = parsed.astimezone(timezone.utc)
+    if parsed > datetime.now(timezone.utc):
+        raise CloudManifestError("CloudTrail submission timestamp is in the future")
+    return parsed
+
+
 def execute(
     config: RunnerConfig,
     *,
@@ -2707,21 +2803,53 @@ def execute(
             "qualification projection must be strictly below USD 100"
         )
     require_cost_ceiling(projected_cost_usd=projected)
-    authority_result = verify_authority(
-        envelope,
-        admission,
-        key_registry=key_registry,
-        ledger_path=ledger_path,
-        expected_action_id=config.action_id,
-        expected_action_class="qualification_audit",
-        expected_provider="aws",
-        expected_region=config.region,
-        expected_manifest_sha256=parsed_plan["terraform_plan_binding_sha256"],
-        expected_input_lock_sha256=parsed_plan.get("input_lock_sha256"),
-        expected_projected_cost_usd=projected,
-        expected_max_retries=MAX_RETRIES,
-        spend_history_sha256=spend_history_sha256,
-    )
+    tags = dict(QUALIFICATION_TAGS)
+    tags["QualificationAction"] = config.action_id
+    tags["QualificationActionId"] = config.action_id
+    tags["QualificationCode"] = str(parsed_plan["qualification_code"])
+    authority_arguments = {
+        "key_registry": key_registry,
+        "ledger_path": ledger_path,
+        "expected_action_id": config.action_id,
+        "expected_action_class": "qualification_audit",
+        "expected_provider": "aws",
+        "expected_region": config.region,
+        "expected_manifest_sha256": parsed_plan["terraform_plan_binding_sha256"],
+        "expected_input_lock_sha256": parsed_plan.get("input_lock_sha256"),
+        "expected_projected_cost_usd": projected,
+        "expected_max_retries": MAX_RETRIES,
+        "spend_history_sha256": spend_history_sha256,
+    }
+    try:
+        authority_result = verify_authority(
+            envelope,
+            admission,
+            **authority_arguments,
+        )
+    except CloudManifestError as exc:
+        # Once a Batch array is submitted, an expired envelope is no longer a
+        # reason to stop read-only reconciliation.  Revalidate the exact
+        # original signatures and bindings at the CloudTrail submission time;
+        # this path cannot apply, submit, or broaden the action.
+        if (
+            verify_authority is not require_preparation_admission
+            or "preparation authority has expired" not in str(exc)
+        ):
+            raise
+        submission_time = _historical_submission_time(
+            config.state_path,
+            action_id=config.action_id,
+            provider=provider,
+            tags=tags,
+        )
+        if submission_time is None:
+            raise
+        authority_result = require_preparation_admission(
+            envelope,
+            admission,
+            **authority_arguments,
+            clock=lambda: submission_time,
+        )
     if not isinstance(authority_result, Mapping):
         raise CloudManifestError("authority verifier did not return an object")
     execution_authority = (
@@ -2730,10 +2858,6 @@ def execute(
     if not isinstance(execution_authority, Mapping):
         raise CloudManifestError("execution authority evidence is not an object")
 
-    tags = dict(QUALIFICATION_TAGS)
-    tags["QualificationAction"] = config.action_id
-    tags["QualificationActionId"] = config.action_id
-    tags["QualificationCode"] = str(parsed_plan["qualification_code"])
     immutable_binding = _controller_binding(
         config=config,
         plan=parsed_plan,
