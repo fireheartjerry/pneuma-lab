@@ -3036,6 +3036,17 @@ def execute(
                 return dict(payload)
         return {}
 
+    def latest_payload_with_field(phase: str, field: str) -> dict[str, Any]:
+        """Find the newest phase payload that still carries durable evidence."""
+
+        for event in reversed(controller.snapshot.events):
+            if event.get("phase") != phase:
+                continue
+            payload = event.get("payload")
+            if isinstance(payload, Mapping) and field in payload:
+                return dict(payload)
+        return {}
+
     if state_was_resumed:
         controller.start_or_resume()
         preflight_payload = latest_payload("prepared")
@@ -3331,7 +3342,7 @@ def execute(
     # S3, and the persisted outcome, then retry only the idempotent teardown.
     phase = controller.snapshot.phase
     if phase in {"teardown_started", "teardown_failed"}:
-        outcome_payload = latest_payload("teardown_started")
+        outcome_payload = latest_payload_with_field("teardown_started", "outcome")
         if outcome_payload.get("outcome") == "no_go":
             failure_record = outcome_payload.get("failure")
             failure = CloudManifestError(
@@ -3339,7 +3350,11 @@ def execute(
                 if isinstance(failure_record, Mapping)
                 else "qualification lifecycle reached a terminal no-go"
             )
-        recovery_record = outcome_payload.get("recovery")
+        recovery_payload = latest_payload_with_field("teardown_started", "recovery")
+        recovery_record = recovery_payload.get("recovery")
+        if not isinstance(recovery_record, Mapping):
+            recovery_payload = latest_payload("recovery_reconciled")
+            recovery_record = recovery_payload.get("recovery")
         if isinstance(recovery_record, Mapping):
             recovery = dict(recovery_record)
         if parent_job_id is not None:
