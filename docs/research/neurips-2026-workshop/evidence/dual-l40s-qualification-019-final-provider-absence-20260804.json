@@ -1,0 +1,69 @@
+{
+  "record_kind": "cloud_qualification_final_provider_absence",
+  "schema_version": "0.1.0",
+  "action_id": "dual-l40s-qualification-019",
+  "region": "us-east-1",
+  "qualification_only": true,
+  "status": "complete_with_retained_raw_evidence",
+  "observed_at": "2026-08-04T16:08:01Z",
+  "parent_job_id_sha256": "8ef5717400cafb86ed87672438d4e52535c5df1abcd5e95203ba8a7964aa1555",
+  "batch_history": {
+    "all_terminal": true,
+    "child_statuses": ["SUCCEEDED", "SUCCEEDED"],
+    "child_attempt_counts": [1, 1],
+    "array_size": 2,
+    "submit_count_proven": 1,
+    "retry_after_launch": false,
+    "child_job_id_sha256": [
+      "2da2e8241806622d92d3c198e8f60a198b3c007a1b1963f5ec668c2e6a726ac1",
+      "63f5d11764f15a24fc7bbaa19fcba861fd331320894e58e27f1a9ca86fdded9c"
+    ]
+  },
+  "provider_absence": {
+    "jobs": true,
+    "instances": true,
+    "volumes": true,
+    "launch_template": true,
+    "network_interfaces": true,
+    "security_group": true,
+    "job_definition": true,
+    "queue": true,
+    "compute_environment": true,
+    "provider_history": {
+      "inactive_job_definition_history_retained_by_aws": true,
+      "inactive_job_definition_arn_sha256": "4182234c53cffa9e7a79e32e6722b616a867b52b2ca35e9c4e8ca078c580d1d8"
+    },
+    "artifact_prefix": {
+      "empty": false,
+      "object_count": 3,
+      "object_keys": [
+        "runs/qualification/dual-l40s-qualification-019/outputs/interruption/boundary.json",
+        "runs/qualification/dual-l40s-qualification-019/outputs/worker-0/raw-measurement.json",
+        "runs/qualification/dual-l40s-qualification-019/outputs/worker-1/raw-measurement.json"
+      ],
+      "boundary_key": "runs/qualification/dual-l40s-qualification-019/outputs/interruption/boundary.json",
+      "boundary_sha256": "279734994f5e32893f275cd65f36410627d42a739ad0c102bf7da222d78ad88b"
+    }
+  },
+  "retained_raw_artifacts": [
+    {
+      "worker_index": 0,
+      "size_bytes": 8530,
+      "sha256": "793e77f6a4e7e5456e885888c38a2f1c63abe0553fdbd879ee29e7eabfad9743"
+    },
+    {
+      "worker_index": 1,
+      "size_bytes": 8528,
+      "sha256": "6613dbf8f72e99532ba2c5d5be56b92135d5abaf646b044cb2e4084bf7f50a69"
+    }
+  ],
+  "teardown": {
+    "disable_and_drain": "complete",
+    "terraform_destroy": "complete",
+    "terraform_destroy_lock": true,
+    "active_resources_absent": true,
+    "retained_raw_artifacts": true,
+    "inactive_job_definition_history_retained_by_aws": true,
+    "no_retry_after_launch": true
+  }
+}

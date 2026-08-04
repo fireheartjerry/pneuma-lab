@@ -545,13 +545,19 @@
                 "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-018-execution-receipt-20260804.json",
                 "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-018-final-provider-absence-20260804.json",
                 "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-018-hostile-launch-review-20260804.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-019-execution-plan-20260804.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-019-signing-package-20260804.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-019-authority-receipt-20260804.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-019-execution-receipt-20260804.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-019-final-provider-absence-20260804.json",
+                "docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-019-hostile-launch-review-20260804.json",
                 "docs/research/neurips-2026-workshop/58-pre-experiment-qualification-closure-20260803.md",
                 "docs/research/neurips-2026-workshop/59-unsigned-p0-step14-checklist-20260803.md",
                 "docs/research/neurips-2026-workshop/60-pre-experiment-qualification-closure-20260804.md",
-                "docs/research/neurips-2026-workshop/61-unsigned-p0-step14-checklist-20260804.md"
+                "docs/research/neurips-2026-workshop/61-unsigned-p0-step14-checklist-20260804.md",
+                "docs/research/neurips-2026-workshop/62-pre-experiment-qualification-closure-20260804.md"
             ],
             "blockers": [
-                "B-NEURIPS-DUAL-L40S-QUALIFICATION",
                 "B-NEURIPS-STEP14-REVIEW",
                 "B-NEURIPS-EXPERIMENT-EXECUTION"
             ]
@@ -1076,15 +1082,11 @@
         },
         {
             "id": "B-NEURIPS-CLOUD-SEMANTICS-VERIFICATION",
-            "summary": "The pinned ECS GPU AMI path, immutable fixture-only image-017 digest `sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e`, one-L40S per-worker contract, runtime/CLI/fixture publication checks, encrypted S3 publication, post-apply IAM readback, and provider teardown path are evidenced. Fresh action-018 passed plan, provider, IAM, image, and KMS gates, then reached exactly one CloudTrail-proven size-two Batch submission. The concrete runner encountered an unclassified `batch describe-jobs` provider subprocess failure; no retry occurred. Later independent reads found the original parent and both children `SUCCEEDED` once with distinct worker identities and two raw fixture artifacts, but the runner did not complete its required admission/artifact/recovery receipt, so qualification remains not passed. The bounded observation-retry repair is committed and focused-tested. Final provider absence is green with raw evidence intentionally retained. No successful runner-owned freeze/restore receipt, canonical official-study lineage, benchmark/model execution, scientific analysis, or claim promotion exists; no live qualification resources remain."
+            "summary": "The pre-experiment cloud semantics lane is now qualified by fresh action-019: the managed GPU AMI path, immutable fixture-only image, exact profile-to-role chain, least-privilege IAM simulation, four-AZ plan, one-use size-two Batch launch, two successful fixture workers, recovery boundary, and complete provider absence are evidenced. This blocker remains only as a broader Task 6–10 scientific E2E/lineage status; it does not require another qualification launch and does not authorize the official study."
         },
         {
             "id": "B-NEURIPS-STEP14-REVIEW",
             "summary": "The required pre-experiment hostile launch review ran against ten digest-bound reviewer transcripts and failed closed with verdict launch_blocked. The citation repair and primary-source verification removed the citation blockers; three grounded blockers remain: no real authority-backed power report/tier receipt, and missing packet/assignment/detectability/unblind receipts from the Step 14 index. The campaign-spec builder now requires the canonical p0-power-report.json and p0-core-receipt.json paths rather than treating the prose design brief as power evidence, and currently fails closed because both are absent. The compact receipt is docs/research/neurips-2026-workshop/evidence/step14-launch-review-20260802.json. No experiment or provider action is authorized."
-        },
-        {
-            "id": "B-NEURIPS-DUAL-L40S-QUALIFICATION",
-            "summary": "The dual-L40S qualification is not passed. Historical actions 011, 014, 015, 016, and 017 ended as terminal no-goes; the latest action-018 execution receipt is docs/research/neurips-2026-workshop/evidence/dual-l40s-qualification-018-execution-receipt-20260804.json. Action-018 passed fresh plan, provider, IAM, image, post-apply binding, and KMS gates, then reached exactly one CloudTrail-proven size-two SubmitJob. The runner encountered an unclassified Batch observation provider failure and did not retry. Later independent reads found the original parent and both children succeeded once, with distinct worker identities and two raw fixture artifacts, but the runner did not complete its required admission/artifact/recovery receipt, so the action remains a post-launch terminal no-go rather than a qualification pass. The observation-retry repair is committed and focused-tested; final provider absence is sealed with retained evidence. No successful runner-owned freeze/restore receipt, scientific workload, Step 14, or official P0/Step 4B work exists."
         },
         {
             "id": "B-NEURIPS-EXPERIMENT-EXECUTION",

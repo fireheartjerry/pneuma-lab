@@ -1,0 +1,89 @@
+{
+  "record_kind": "dual_l40s_qualification_hostile_launch_review",
+  "schema_version": "0.1.0",
+  "action_id": "dual-l40s-qualification-019",
+  "review_date": "2026-08-04",
+  "review_scope": "pre-experiment infrastructure qualification only",
+  "verdict": "qualification_passed",
+  "qualification_passed": true,
+  "official_study_boundary": "preserved",
+  "actual_receipts": {
+    "execution_receipt": "evidence/dual-l40s-qualification-019-execution-receipt-20260804.json",
+    "execution_receipt_sha256": "a68a6eef44f75af7d8fd61660355887b90b03fa1a678e77836932cef335f4ba2",
+    "provider_absence": "evidence/dual-l40s-qualification-019-final-provider-absence-20260804.json",
+    "provider_absence_sha256": "50690d50a1cb3e85f486a363b29620f4b991aa5a8c6569040ead777b52eb0fad",
+    "execution_plan_sha256": "df17c25859caa4369cb62d663bfd94bec5f3f614916c12503b27442631909ca7",
+    "signing_package_sha256": "96ffa5d0c2549af42a9acdb1a999f23c3bc2a0aa0011ec81e8e1e30f7e827bdc",
+    "authority_receipt": "evidence/dual-l40s-qualification-019-authority-receipt-20260804.json"
+  },
+  "findings": [
+    {
+      "id": "F-019-01",
+      "severity": "pass",
+      "finding": "The exact four-resource managed GPU plan, four-AZ subnet map, zero-ingress security group, profile-to-single-role chain, separate Batch service role, immutable image, 16 Spot-vCPU bound, and post-apply binding were green.",
+      "evidence": {
+        "saved_plan_sha256": "baaa7620c4384d248244cece1f511de7731deb7fb5ad44231cf4d9626513a8f5",
+        "terraform_show_sha256": "ab65b5cb5078c47190385004f314723e6e3b75a9649768c2cf4849cd790a5554",
+        "terraform_binding_sha256": "ada75565fcdd702df65977b6f440a6246dcedd3112b94f6f417b730a6b32be64",
+        "image_digest": "sha256:75ed10fa3237b12e122e7b5947b7b68639da6043571b3c6024fc436c686c212e",
+        "iam_simulation": "17/17 pass",
+        "iam_policy_sha256": "cd551ea6b3b689140b3cb8d4865b6c272b692d6bf7616930419b65c29583b81b",
+        "iam_matrix_sha256": "56ce5ae76f537b836ee7f4dae2e8b9832fd0ba2c1149627c53e59429b2ed3144",
+        "kms_algorithm": "ED25519_SHA_512",
+        "kms_verification_sha256": "c74da234caf19f14e81fdf8a2f71bad8083e03bd09257895893473d2d0532537"
+      }
+    },
+    {
+      "id": "F-019-02",
+      "severity": "pass",
+      "finding": "Exactly one size-two Batch array was submitted. The parent and both children succeeded once, with one attempt per child and two distinct worker identities.",
+      "evidence": {
+        "submit_count": 1,
+        "array_size": 2,
+        "retry_after_launch": false,
+        "parent_job_id_sha256": "8ef5717400cafb86ed87672438d4e52535c5df1abcd5e95203ba8a7964aa1555",
+        "cloudtrail_submit_event_id_sha256": "1326517e41c839f2ff609a1734ec5e87b823c69674cac679d574061490d4f677",
+        "worker_identity_sha256": [
+          "338386d03bda4d128982d42653c80d371523898f2145d72cf9763322aec7becb",
+          "7e3f481b03527e6787216ddd09623bdaaf882d74459766df81710f7f2cd8743a"
+        ]
+      }
+    },
+    {
+      "id": "F-019-03",
+      "severity": "pass",
+      "finding": "Both worker-indexed raw artifacts were retrieved and hash-checked; the fixed freeze/restore recovery boundary was recorded.",
+      "evidence": {
+        "worker_0_raw_sha256": "793e77f6a4e7e5456e885888c38a2f1c63abe0553fdbd879ee29e7eabfad9743",
+        "worker_1_raw_sha256": "6613dbf8f72e99532ba2c5d5be56b92135d5abaf646b044cb2e4084bf7f50a69",
+        "recovery_boundary_sha256": "279734994f5e32893f275cd65f36410627d42a739ad0c102bf7da222d78ad88b",
+        "observed_worker_duration_seconds": [6.583, 6.631]
+      }
+    },
+    {
+      "id": "F-019-04",
+      "severity": "pass",
+      "finding": "Disable/drain, locked Terraform destroy, and fresh provider absence reads completed. Retained raw evidence and AWS inactive job-definition history are explicitly expected and are not live resources.",
+      "evidence": {
+        "provider_absence_sha256": "50690d50a1cb3e85f486a363b29620f4b991aa5a8c6569040ead777b52eb0fad",
+        "active_resources_absent": true,
+        "retained_object_count": 3,
+        "inactive_job_definition_history_retained_by_aws": true
+      }
+    },
+    {
+      "id": "F-019-05",
+      "severity": "boundary",
+      "finding": "This is infrastructure qualification evidence only. It does not establish a P0 power result, scientific result, unblind, benchmark/model result, or claim.",
+      "evidence": {
+        "scientific_workload_executed": false,
+        "step14_status": "launch_blocked"
+      }
+    }
+  ],
+  "remaining_blockers": [
+    "B-NEURIPS-STEP14-REVIEW: fresh authority-backed P0 power/tier, packet, assignment, detectability, unblind, and release receipts remain absent.",
+    "B-NEURIPS-EXPERIMENT-EXECUTION: no separately authorized official P0/Step-4B launch, scientific analysis, or claim promotion exists in this lane."
+  ],
+  "scientific_workload_executed": false
+}

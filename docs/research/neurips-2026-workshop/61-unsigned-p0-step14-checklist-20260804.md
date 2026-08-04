@@ -7,15 +7,14 @@ receipt in the canonical index.
 
 ## Infrastructure boundary
 
-- [ ] Obtain a future canonical dual-L40S qualification receipt that completes
-  the runner-owned admission, both worker artifact checks, and freeze/restore
-  recovery. Action-018 is a terminal no-go and is exhausted; do not reuse its
-  action ID, plan, envelope, admission, or ledger row.
-- [ ] Recheck the repaired bounded Batch observation retry path, image digest,
-  exact profile-to-role chain, action-specific IAM policy, saved-plan/show/
-  composite bytes, and KMS signatures immediately before any future
-  qualification action.
-- [ ] Preserve the fixed fixture-only, zero-ingress, four-AZ, two-worker,
+- [x] Obtain the canonical dual-L40S qualification receipt. Fresh action-019
+  completed the runner-owned admission, both worker artifact checks, and the
+  freeze/restore recovery exactly once. Action-018 remains historical and was
+  not reused.
+- [x] Recheck the repaired bounded Batch observation path, image digest, exact
+  profile-to-role chain, action-specific IAM policy, saved-plan/show/composite
+  bytes, and KMS signatures immediately before action-019 launch.
+- [x] Preserve the fixed fixture-only, zero-ingress, four-AZ, two-worker,
   zero-retry contract and complete locked teardown/absence proof.
 
 ## 1. P0 power and tier
@@ -71,9 +70,10 @@ receipt in the canonical index.
 ## Current evidence
 
 The latest infrastructure record is
-`60-pre-experiment-qualification-closure-20260804.md`: action-018 ended as a
-post-launch terminal no-go after exactly one real submission, with complete
-teardown and no scientific workload. The hostile review is
-`evidence/dual-l40s-qualification-018-hostile-launch-review-20260804.json`.
+`62-pre-experiment-qualification-closure-20260804.md`: action-019 passed with
+one exact real submission, two successful fixture workers, recovery evidence,
+and complete teardown. The actual-receipt hostile review is
+`evidence/dual-l40s-qualification-019-hostile-launch-review-20260804.json`.
 The official study remains separately authorized work and is not cleared by
-this checklist.
+this checklist. The remaining unchecked items are scientific P0/Step-14
+authority and release requirements, not another qualification launch.
