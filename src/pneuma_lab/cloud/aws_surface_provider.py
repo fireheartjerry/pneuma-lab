@@ -303,13 +303,16 @@ class AwsSurfaceProvider(ProductionJobProvider):
         instance_id = submission.parent_job_id
         self.instance_id = instance_id
         if self.command_id is None:
-            command = self.ssm.send_command(
-                InstanceIds=[instance_id],
-                DocumentName="AWS-RunShellScript",
-                Parameters={"commands": ["if test -f /var/lib/pneuma-surface/status.json; then cat /var/lib/pneuma-surface/status.json; else echo '{\"terminal\":false,\"state\":\"WAITING\"}'; fi"]},
-                TimeoutSeconds=30,
-                Comment="Pneuma bounded production-surface status read",
-            )
+            try:
+                command = self.ssm.send_command(
+                    InstanceIds=[instance_id],
+                    DocumentName="AWS-RunShellScript",
+                    Parameters={"commands": ["if test -f /var/lib/pneuma-surface/status.json; then cat /var/lib/pneuma-surface/status.json; else echo '{\"terminal\":false,\"state\":\"WAITING\"}'; fi"]},
+                    TimeoutSeconds=30,
+                    Comment="Pneuma bounded production-surface status read",
+                )
+            except self.ssm.exceptions.InvalidInstanceId:
+                return {"terminal": False, "provider_state": "SSM_INSTANCE_PENDING"}
             self.command_id = cast(str, command["Command"]["CommandId"])
         try:
             invocation = self.ssm.get_command_invocation(CommandId=self.command_id, InstanceId=instance_id)
@@ -340,10 +343,15 @@ class AwsSurfaceProvider(ProductionJobProvider):
             groups = self.ec2.describe_security_groups(Filters=[{"Name": f"tag:{_TAG_KEY}", "Values": [self.config.action_id]}])["SecurityGroups"]
             self.security_group_id = groups[0]["GroupId"] if groups else None
         if self.security_group_id:
-            try:
-                self.ec2.delete_security_group(GroupId=self.security_group_id)
-            except self.ec2.exceptions.ClientError:
-                pass
+            for attempt in range(6):
+                try:
+                    self.ec2.delete_security_group(GroupId=self.security_group_id)
+                    break
+                except self.ec2.exceptions.ClientError as exc:
+                    error = exc.response.get("Error", {})
+                    if error.get("Code") != "DependencyViolation" or attempt == 5:
+                        break
+                    time.sleep(2**attempt)
         try:
             self.iam.remove_role_from_instance_profile(InstanceProfileName=self.profile_name, RoleName=self.role_name)
         except self.iam.exceptions.NoSuchEntityException:
