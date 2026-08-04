@@ -30,8 +30,12 @@ class MemoryTransport:
     def __init__(self, objects: dict[tuple[str, str], bytes]) -> None:
         self.objects = dict(objects)
         self.puts: list[tuple[str, str, bytes]] = []
+        self.output_get_attempts: list[tuple[str, str]] = []
 
     def get_object(self, bucket: str, key: str) -> bytes:
+        if "/outputs/worker-" in key:
+            self.output_get_attempts.append((bucket, key))
+            raise AssertionError("worker fixture attempted a forbidden output read")
         return self.objects[(bucket, key)]
 
     def put_object(
@@ -169,6 +173,11 @@ def main() -> int:
     }
     if len(transport.puts) != 2 or {key for _, key, _ in transport.puts} != expected_keys:
         raise RuntimeError("fixture image check did not publish exactly one object per worker")
+    if transport.output_get_attempts:
+        raise RuntimeError(
+            "fixture image check attempted a forbidden worker output read: "
+            f"{transport.output_get_attempts!r}"
+        )
     for bucket, key, published in transport.puts:
         if bucket != "fixture-bucket":
             raise RuntimeError("fixture image check published to the wrong bucket")
