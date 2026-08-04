@@ -1851,11 +1851,17 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
         require_two_succeeded_children(
             children, parent_status=parent.get("status")
         )
-        instance_ids_by_index: dict[int, str] = {}
+        # AWS Batch's managed ECS response does not expose the EC2 host as
+        # ``container.instanceId``.  It exposes ``containerInstanceArn``
+        # instead, while the immutable worker artifact records the actual
+        # instance id from IMDS.  Keep the provider identity as useful
+        # context for partial failures, but bind the successful worker
+        # identity to the validated raw artifact that the receipt already
+        # hashes.
+        provider_identity_by_index: dict[int, str] = {}
         for child in children:
             array = child.get("arrayProperties") or {}
             index = array.get("index") if isinstance(array, Mapping) else None
-            instance_id = (child.get("container") or {}).get("instanceId")
             if type(index) is not int or index not in (0, 1):
                 raise BatchAdmissionError(
                     "worker identity lacks a valid array index",
@@ -1863,33 +1869,15 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                     children=children,
                     failure_kind="worker_identity_binding_failure",
                 )
-            if not isinstance(instance_id, str) or not instance_id:
-                raise BatchAdmissionError(
-                    "worker identity missing from Batch detail",
-                    parent=parent,
-                    children=children,
-                    failure_kind="worker_identity_binding_failure",
-                )
-            if index in instance_ids_by_index:
-                raise BatchAdmissionError(
-                    "worker identity repeats an array index",
-                    parent=parent,
-                    children=children,
-                    failure_kind="worker_identity_binding_failure",
-                )
-            instance_ids_by_index[index] = instance_id
-        if set(instance_ids_by_index) != {0, 1}:
-            raise BatchAdmissionError(
-                "worker identities do not cover both array indexes",
-                parent=parent,
-                children=children,
-                failure_kind="worker_identity_binding_failure",
-            )
-        instance_ids = (
-            instance_ids_by_index[0],
-            instance_ids_by_index[1],
-        )
+            container = child.get("container") or {}
+            if isinstance(container, Mapping):
+                provider_identity = container.get("instanceId")
+                if not isinstance(provider_identity, str) or not provider_identity:
+                    provider_identity = container.get("containerInstanceArn")
+                if isinstance(provider_identity, str) and provider_identity:
+                    provider_identity_by_index[index] = provider_identity
         raw: dict[int, bytes] = {}
+        instance_ids_by_index: dict[int, str] = {}
         for index in (0, 1):
             try:
                 raw[index] = retrieve_raw_measurement(
@@ -1897,15 +1885,44 @@ class AwsCliAdapter(ObjectAwsCliAdapter):
                     artifact_prefix=self.output_root,
                     worker_index=index,
                 )
+                record = json.loads(raw[index].decode("utf-8"))
+                raw_instance_id = record.get("instance_id")
+                if not isinstance(raw_instance_id, str) or not raw_instance_id:
+                    raise CloudManifestError(
+                        "validated raw worker artifact lacks its instance identity"
+                    )
+                instance_ids_by_index[index] = raw_instance_id
             except Exception as exc:
                 raise BatchAdmissionError(
                     "raw worker artifact retrieval failed",
                     parent=parent,
                     children=children,
                     raw_evidence=raw,
-                    instance_ids=instance_ids,
+                    instance_ids=tuple(
+                        instance_ids_by_index.get(
+                            candidate,
+                            provider_identity_by_index.get(candidate, ""),
+                        )
+                        for candidate in sorted(
+                            set(instance_ids_by_index) | set(provider_identity_by_index)
+                        )
+                        if instance_ids_by_index.get(
+                            candidate,
+                            provider_identity_by_index.get(candidate),
+                        )
+                    ),
                     failure_kind="raw_artifact_retrieval_failure",
                 ) from exc
+        instance_ids = (instance_ids_by_index[0], instance_ids_by_index[1])
+        if len(set(instance_ids)) != 2:
+            raise BatchAdmissionError(
+                "raw worker artifacts do not contain two distinct worker identities",
+                parent=parent,
+                children=children,
+                raw_evidence=raw,
+                instance_ids=instance_ids,
+                failure_kind="worker_identity_binding_failure",
+            )
         return {
             "parent_status": parent.get("status"),
             "children": tuple(children),

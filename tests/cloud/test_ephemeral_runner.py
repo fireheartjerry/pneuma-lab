@@ -2807,6 +2807,75 @@ def test_concrete_cli_adapter_accepts_only_two_succeeded_first_attempt_children(
         failed.collect_admission("parent")
 
 
+def test_concrete_cli_adapter_binds_managed_ecs_identity_to_raw_worker_id(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "input.json"
+    source.write_text("{}", encoding="utf-8")
+    raw_objects = {}
+    for index in (0, 1):
+        measurement = build_raw_measurement(
+            code="signed-code",
+            worker_index=index,
+            instance_id=f"i-0123456789abcdef{index}",
+            protocol_sha256="a" * 64,
+            architecture_sha256="b" * 64,
+            authorization_sha256="c" * 64,
+            image_sha256="d" * 64,
+            input_lock_sha256="e" * 64,
+            code_sha256="f" * 64,
+            input_paths=[source],
+            rungs=_rungs(),
+        )
+        raw_objects[worker_artifact_uri("s3://bucket/runs/qual-ecs", index)] = (
+            canonical_bytes(measurement) + b"\n"
+        )
+
+    class Objects:
+        def get_object(self, bucket, key):
+            return raw_objects[f"s3://{bucket}/{key}"]
+
+    def run(argv, **kwargs):
+        requested = argv[argv.index("--jobs") + 1]
+        if requested == "parent":
+            payload = {"jobs": [{"jobId": "parent", "status": "SUCCEEDED"}]}
+        else:
+            index = int(requested.rsplit(":", 1)[1])
+            payload = {
+                "jobs": [
+                    {
+                        "jobId": requested,
+                        "status": "SUCCEEDED",
+                        "arrayProperties": {"index": index},
+                        "attempts": [{}],
+                        "container": {
+                            "containerInstanceArn": (
+                                f"arn:aws:ecs:us-east-1:123456789012:container-instance/{index}"
+                            )
+                        },
+                    }
+                ]
+            }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(payload).encode(), b"")
+
+    adapter = AwsCliAdapter(
+        run,
+        region="us-east-1",
+        queue="q",
+        job_definition="d",
+        output_root="s3://bucket/runs/qual-ecs",
+        transport=Objects(),
+    )
+
+    evidence = adapter.collect_admission("parent")
+
+    assert evidence["instance_ids"] == (
+        "i-0123456789abcdef0",
+        "i-0123456789abcdef1",
+    )
+    assert set(evidence["raw_evidence"]) == {0, 1}
+
+
 def test_concrete_cli_rejects_batch_child_id_drift() -> None:
     def run(argv, **kwargs):
         requested = argv[argv.index("--jobs") + 1]
