@@ -1,5 +1,5 @@
 % =====================================================================
-% The PLACEBO Protocol -- NeurIPS 2026 workshop submission (double-blind).
+% Canonical PLACEBO Trial manuscript -- NeurIPS 2026 workshop submission.
 % Workshop: "Who Verifies the Agents? Toward Reliable Agent Development"
 % Page limit: 4-9 pages of body, EXCLUDING references and appendices.
 % Deadline: 2026-08-29, 23:59 AoE. Submission via OpenReview.
@@ -20,16 +20,19 @@
 % or (b) emitted by the result-to-paper pipeline from a verified sealed Task 10
 % package. Nothing is hand-entered. See the result-to-paper pipeline under src/.
 %
-% This file is NEW. It does not modify main.tex, placebo.tex, or
-% neurips_2026.sty.
+% paper/main.tex is the conventional build entrypoint and inputs this file.
+% The retired drafts remain in Git history; neurips_2026.sty is untouched.
 % =====================================================================
 
 \documentclass{article}
 
 \usepackage[dblblindworkshop]{neurips_2026}
 
+\workshoptitle{Who Verifies the Agents? Toward Reliable Agent Development}
+
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
+\usepackage{float}
 \usepackage{hyperref}
 \usepackage{url}
 \usepackage{booktabs}
@@ -56,15 +59,10 @@
     \vspace{0.5em}
 }
 
-\title{The PLACEBO Protocol: Separating Verifier Content from\\
-       Another Attempt in Long-Horizon Tool Agents}
+\title{Did Verification Help---or Did the Agent Just Get Another Try?\\
+       The PLACEBO Trial for Long-Horizon Tool Agents}
 
-\author{%
-    Anonymous Author(s)\\
-    Affiliation\\
-    Address\\
-    \texttt{email}\\
-}
+\author{Anonymous Author(s)}
 
 \begin{document}
 
@@ -73,43 +71,37 @@
 \draftnotice
 
 \begin{abstract}
-When a coding agent succeeds after receiving verifier feedback, the natural
-reading is that the feedback helped. Three cheaper explanations survive that
-observation: the agent would have succeeded on any continuation from the same
-state, a plausible-looking report of the wrong findings would have worked just
-as well, and the apparent gain is inside the noise that stochastic decoding
-produces between two identical continuations. Placebo, shape-matched, and
-compute-matched controls are established tools for separating these, and we
-claim no novelty for them. We claim their composition and enforcement in a
-setting where they have not been applied. We describe \emph{the PLACEBO
-Protocol}---Preregistered, Label-blind, Arm-controlled, Causal Evaluation of
-Behavioral Outcomes---and preregister \emph{the PLACEBO Trial}, its first
-application. From one frozen prefix per task, taken at an exact tool boundary,
-the protocol branches four continuations under identical budgets: a correct
-task-specific verifier packet (\texttt{REAL}); a shape- and
-tokenizer-length-matched packet derived from a different task
-(\texttt{SHAM}); and two exchangeable no-feedback replicates
-(\texttt{NONE}, \texttt{RESAMPLE}) whose paired disagreement is measured rather
-than assumed to be zero. Co-primary estimands are the content effect
-$\Delta_{\text{content}}$ and the causal excess $\Delta_{\text{excess}}$, both
-of which must clear a resolution floor estimated from the no-feedback pair
-itself. Outcomes are objective binary endpoints in two materially different
-environments---repository repair and stateful tool/API dialogue. Arm labels
-never reach the analyst before a hash-gated unblind ceremony, thresholds and
-verdict rules are sealed beforehand, and negative and unresolved verdicts are
-publishable by construction. This manuscript reports the protocol and its
-falsification conditions. \result{no arm outcome exists at submission of this
-draft}
+When a long-horizon agent succeeds after verifier feedback, the feedback may
+have supplied useful evidence---or merely another chance to continue. A
+plausible report about the wrong task may also trigger useful reconsideration,
+and ordinary stochastic decoding can make two continuations from the same state
+disagree. We present the PLACEBO Trial, a preregistered application of the
+PLACEBO Protocol (Preregistered, Label-blind, Arm-controlled, Causal Evaluation
+of Behavioral Outcomes) designed to separate these explanations. At an exact
+tool boundary, one frozen task prefix branches into four budget-matched
+continuations: correct task-specific verifier evidence (\texttt{REAL}); a
+shape- and tokenizer-length-matched report from another task (\texttt{SHAM});
+and two exchangeable no-feedback replicates (\texttt{NONE},
+\texttt{RESAMPLE}). The no-feedback pair supplies an observed resampling
+resolution floor rather than an assumed zero-noise baseline. Co-primary
+estimands compare \texttt{REAL} with \texttt{SHAM} and with pooled no-feedback
+continuation. We evaluate objective binary outcomes in multilingual repository
+repair and stateful tool/API dialogue, while keeping arm labels hidden until a
+hash-gated unblind ceremony. Placebo, shape-matched, and compute-matched
+controls are established; our candidate contribution is their composition and
+mechanical enforcement for multi-step tool-agent trajectories. \result{selected
+roster tier, co-primary estimates, resolution floor, and registered verdict}
 \end{abstract}
 
 % =====================================================================
-\section{The observation that is not evidence}
+\section{Introduction}
 \label{sec:intro}
 
-An agent works on a repository issue, runs the test suite, receives a report
-of failing assertions, revises its patch, and passes. Reported as an ablation,
-this is a verifier effect. It is also consistent with at least three
-alternatives that cost nothing to propose and are rarely measured.
+An agent works on a repository issue, runs the test suite, receives a report of
+failing assertions, revises its patch, and passes. That trajectory is evidence
+that the full feedback procedure helped relative to stopping. It does not show
+that the verifier's task-specific content caused the improvement. Three
+competing explanations remain.
 
 \textbf{Another attempt.} The agent received a continuation, not just
 information. Sampling four more tokens from a state that was one revision away
@@ -121,7 +113,7 @@ evidence with an additional opportunity.
 structured artifact, and an implicit instruction to reconsider. Work on
 prompting and on retrieval has repeatedly found that the shape of an
 intervention carries effect independent of whether its content is correct
-\cite{min_rethinkingdemonstrations_2022,cuconasu_powerofnoise_2024}. An agent
+\cite{min_rethinkingdemonstrations_2022,iscan_formnotcontent_2026}. An agent
 handed a well-formed report of the wrong task's failures may still stop,
 re-read its diff, and fix the bug it already knew about.
 
@@ -166,8 +158,16 @@ tool boundary deep inside a trajectory rather than a single generation.
 \end{enumerate}
 
 % =====================================================================
-\section{Closest prior art, and what is left}
+\section{Related Work}
 \label{sec:related}
+
+\paragraph{Verifier feedback and self-repair.}
+Reflection and execution-feedback methods can improve agents over repeated
+attempts, but the intervention typically bundles diagnostic content with a new
+generation opportunity \cite{shinn_reflexion_2023,gehring_rlef_2024}. PLACEBO
+does not ask whether that bundle is useful. It asks which part of the bundle is
+causal once the retry opportunity, packet form, and post-trigger decoding
+variation are controlled on the same tasks.
 
 \paragraph{Placebo and shape-matched controls in code tasks.}
 Three 2026 studies isolate exposure from falsification, form from content, and
@@ -190,7 +190,9 @@ as a \emph{method} for improving or diagnosing agents. PLACEBO treats it as a
 \emph{control}: the resampled branch is not an intervention to be improved but
 the measuring stick against which an intervention is judged. The distinction
 matters because a method paper has no reason to characterise the resampling
-distribution, and a control paper has no other job.
+distribution, and a control paper has no other job. Their shared limitation for
+causal evaluation is that neither uses exchangeable same-prefix branches to
+estimate a resolution threshold for verifier content.
 
 \paragraph{Unreliable and adversarial feedback.}
 Work on how unreliable tool feedback degrades agents
@@ -232,6 +234,13 @@ two materially different domains, (vi) preregistered inference with sealed
 thresholds, and (vii) arm-blind sealed evidence publication has not previously
 been applied together. Each element separately is prior art.
 
+\paragraph{Gap.}
+However, no cited study identifies whether task-specific verifier content has a
+causal effect that exceeds both a matched packet and same-prefix resampling
+variation on long-horizon trajectories. This gap motivates the PLACEBO Trial:
+the study is designed to answer that question without promoting an unresolved
+difference into a verifier claim.
+
 % =====================================================================
 \section{The PLACEBO Protocol}
 \label{sec:protocol}
@@ -267,12 +276,13 @@ replace the fixed-roster result.
 
 \begin{table}[t]
 \centering
+\small
 \caption{The four arms. Every arm receives identical post-trigger caps on model
 calls, generated tokens, tool calls, wall clock, disk, and network. There is no
 best-of selection; the endpoint is the direct result of the single
 continuation.}
 \label{tab:arms}
-\begin{tabular}{llll}
+\begin{tabular}{@{}lp{0.34\linewidth}p{0.17\linewidth}p{0.16\linewidth}@{}}
 \toprule
 arm & injected evidence & continuation & role \\
 \midrule
@@ -339,27 +349,28 @@ confirmation rather than inviting a rewrite after outcomes are visible.
 \label{sec:environments}
 
 \paragraph{Environments.}
-Repository repair uses the MultiLang split of a live, continuously refreshed
-repair benchmark across eight languages, pinned to immutable harness, dataset,
-and launcher revisions. Stateful tool/API work uses the objective text subset
-of a conversational agent benchmark at a pinned tag, restricted to tasks with
-deterministic evaluators: all natural-language-assertion and
-language-model-judged components are excluded, so every endpoint is decided by
-a program. Domains, languages, and issue families are blocking factors. The two
-environments receive equal weight and are never pooled as one exchangeable
-population.
+Repository repair uses a pinned revision of SWE-bench-Live MultiLang, a
+live-updatable issue-resolution benchmark spanning eight programming languages
+\cite{swebench_live_2025}. Stateful tool/API work uses the objective text subset
+of $\tau$-bench at a pinned release, where agents interact with simulated users,
+domain policies, and stateful API tools \cite{tau_bench_2024}. We exclude every
+natural-language-assertion and language-model-judged component, so each primary
+endpoint is decided by executable benchmark state. Domains, languages, and
+issue families are blocking factors. The environments receive equal weight and
+are never pooled as one exchangeable population.
 
 \paragraph{Subject.}
-One frozen open-weight mixture-of-experts model at a pinned revision, served in
-its official FP8 form under a pinned inference stack with a pinned tokenizer,
-chat template, reasoning parser, and tool-call parser. A BF16 run is a
+The frozen primary subject is Qwen3.6-35B-A3B-FP8 at an immutable model and
+tokenizer revision \cite{qwen36_modelcard_2026}, served through a pinned vLLM
+stack \cite{kwon_pagedattention_2023} with a frozen chat template, reasoning
+parser, and tool-call parser. A BF16 run is a
 \emph{different subject} and may appear only as a separately reported
 precision/provider replication; the two are never pooled. A byte-equality
 reproducibility gate---fixed execution order, fixed concurrency, batch-invariant
 kernels, per-call seeds---must pass, or serving is declared infeasible rather
-than accepted with caveats. Topology is frozen as a four-rung candidate ladder
-with a deterministic selection rule that may never consult efficacy, arm
-effects, or any outcome signal.
+than accepted with caveats. A preregistered topology ladder is resolved by OOM,
+parity, and throughput admission before confirmation; the selection rule may
+never consult efficacy, arm effects, or any outcome signal.
 
 \paragraph{Outcome.}
 The primary outcome is the benchmark's objective binary endpoint: for repair,
@@ -436,7 +447,8 @@ decision is an intersection--union test and needs no multiplicity correction
 \cite{berger_intersectionunion_1982}. Average-effect inference uses a
 benchmark-stratified, task-cluster Romano--Wolf multiplier max-$t$ procedure
 with $99{,}999$ frozen Rademacher draws, giving simultaneous one-sided lower
-bounds $L_k$. These bounds are asymptotically valid and Neyman-conservative
+bounds $L_k$ \cite{romano_wolf_stepdown_2005,chernozhukov_multiplier_2013}.
+These bounds are asymptotically valid and Neyman-conservative
 under independent randomised task blocks; they are not finite-sample exact, and
 the paper will not describe them as though they were.
 
@@ -469,47 +481,46 @@ tiers and both environments, and remains a blocking gate.
 \result{selected roster tier}
 
 % =====================================================================
+\section{Results}
+\label{sec:results}
+
+This pre-results version exposes the final table shapes but contains no outcome
+value. The result-to-paper pipeline fills them only from a verified, sealed
+evidence package after the registered unblind ceremony.
+
+\result{eligible, scheduled, triggered, and valid task counts}
+\input{placebo/generated/table-primary.tex}
+\input{placebo/generated/table-resolution.tex}
+\input{placebo/generated/table-environments.tex}
+\result{leave-one-group-out sensitivities and differential failure by arm}
+\result{registered terminal verdict}
+
+% =====================================================================
 \section{Blinding, authority, and the evidence contract}
 \label{sec:blinding}
 
-Capability separation is enforced, not requested. The power process sees
-manifest authority, the nuisance grid, and topology, and never an endpoint. The
-scheduling process sees the revealed schedule seed, manifest, and completed
-power final, and never the assignment master key, verifier output, arms, or
-outcomes. The assignment process reads the master key only after prefixes and
-verifier artifacts are frozen, and cannot read branch outcomes. Workers receive
-one opaque per-slot capability plus the frozen snapshot, seeds, and caps---never
-an arm label, a donor identity, the ledger, or another branch. Raw packets are
-encrypted; a worker decrypts only its own slot's packet.
+Capability separation keeps endpoints away from power and scheduling, the
+assignment key away from outcomes, and arm labels, donor identities, and other
+branches away from workers. Each worker receives one opaque per-slot capability
+and decrypts only its own packet. The analyst sees an arm-blind projection of
+outcomes and resource counters, with packets, grades, paths, donors, and hidden
+identities removed.
 
-The analyst receives a blinded projection stripped to success, prefix success,
-finite reward, an infrastructure bit, and resource counters. The projection
-forbids references, paths, packets, grades, sources, arms, donors, keys, and
-hidden identities. Unblinding is a single ceremony: a hash-gated unblinder
-consumes a single-use secret handle, verifies the commitment and context,
-derives exactly one subkey, and recomputes a framed permit HMAC over the study
-identifier, manifest, schedule, prefix index, ledger, projection, analysis
-freeze, and expected task count \emph{before} parsing the ledger. The analyst
-holds no unblinding key until the analysis source and its expected outputs are
-sealed. The first post-unblind run is the record; corrections append a deviation
-artifact and never overwrite.
+Unblinding is a single hash-gated ceremony after the analysis source and its
+expected outputs are sealed. The permit binds the study manifest, schedule,
+prefix index, assignment ledger, blinded projection, analysis freeze, and
+expected task count; the first post-unblind run is the record, and corrections
+append rather than overwrite. Roster, schedule, and assignment randomness are
+separately precommitted before execution and bound to a public randomness
+beacon, preventing a favourable reshuffle after the fact.
 
-Three values---a roster nonce, the schedule seed, and the assignment master
-key---are committed separately before ranking and before any prefix executes,
-with the commitment externally timestamped ahead of a public randomness beacon
-round. The final roster seed derives from the precommit, the revealed nonce, and
-the authenticated beacon output, so the roster cannot be reshuffled after the
-fact.
-
-Interruption is treated as a first-class failure mode. Every completed model
-response and tool result is content-addressed, uploaded, hash-verified, and
-followed by an atomic completion marker before the next boundary; a local
-marker alone is insufficient. A resume must match its prior boundary receipt,
-and a mismatch invalidates the entire four-arm block rather than silently
-replacing one arm.
+Every completed response and tool result is content-addressed and atomically
+receipted at a tool boundary. A resumed branch must match its prior receipt;
+otherwise the entire four-arm block is invalid rather than silently replacing
+one arm.
 
 % =====================================================================
-\section{Verdicts, failure handling, and what would falsify us}
+\section{Interpretation, verdicts, and falsification}
 \label{sec:verdicts}
 
 Seven verdicts are preregistered, and all seven are publishable. None permits
@@ -517,10 +528,11 @@ changing an endpoint or deleting a failed block.
 
 \begin{table}[t]
 \centering
+\small
 \caption{Preregistered verdicts. The taxonomy is fixed before execution, so a
 disappointing result cannot be reclassified into a better one.}
 \label{tab:verdicts}
-\begin{tabular}{ll}
+\begin{tabular}{@{}p{0.34\linewidth}p{0.62\linewidth}@{}}
 \toprule
 verdict & trigger \\
 \midrule
@@ -550,10 +562,9 @@ arm-visible snapshot differs in bytes, tokens, or state; if a real-correctness,
 sham-collision, or detectability gate fails; if differential infrastructure
 failure exceeds two percentage points; if throughput cannot finish by the
 registered date; if the power simulation misses 80\% at the minimum tier; or if
-verified funding misses the exact worst case. With zero available credit the
-fallback is a methods-and-feasibility report using the validated controller and
-a clearly labelled small-model pilot---not the powered cross-environment
-result.
+verified funding misses the exact worst case. A funding, admission, or runtime
+failure yields the registered feasibility verdict; no small-model or reduced
+roster substitute can be promoted as the powered cross-environment result.
 
 \paragraph{Explicit non-claims.} PLACEBO does not show that verification helps
 every model or scaffold; does not identify the effect of a human expert
@@ -575,6 +586,11 @@ the manuscript. Table and figure sources, the claim--evidence matrix, and the
 artifact appendix are generated, not written. The analysis code, its expected
 outputs, and the roster are hash-bound before unblinding.
 
+The production controller and dual-worker cloud path were separately exercised
+with a non-scientific fixture before this trial. That qualification establishes
+launch, recovery, evidence capture, and teardown mechanics only; it contributes
+no task outcome and cannot support an efficacy claim.
+
 \paragraph{Limitations.}
 Inference is conditional on the realised prefixes and measures post-trigger
 continuation variation, not whole-run randomness or an unrestricted population
@@ -588,25 +604,12 @@ average-effect bounds are asymptotic. Roster feasibility is unverified at the
 time of writing and may force a tier reduction or a no-go.
 
 \paragraph{Ethics and compute.}
-No human subjects and no personal data. All environments and model weights are
-public and used under their stated licences; upstream repository contents are
-not thereby relicensed. Compute is budgeted with registered per-tier caps and a
-watchdog that meters every billing dimension; the study has no authority to
-exceed a cap and no result depends on doing so.
-
-% =====================================================================
-\section{Planned results}
-\label{sec:results}
-
-This section is a slot. It will be filled only by the result-to-paper pipeline
-from a verified sealed package, and it contains no hand-entered value.
-
-\result{co-primary point estimates, simultaneous lower bounds, and Fisher p-values}
-\result{observed discordance q0 and resolution floor r95}
-\result{decomposition: sham-packet, continuation, and total gains}
-\result{per-environment estimates and leave-one-group-out sensitivities}
-\result{differential infrastructure failure across arms}
-\result{final verdict from the preregistered taxonomy}
+No human subjects and no personal data. An external input enters the trial only
+after its licence and provenance receipts pass; an upstream repository's
+presence in a benchmark does not relicense its contents. Compute is budgeted
+with registered per-tier caps and a watchdog that meters every billing
+dimension; exceeding a cap is a failed run, never an analytical degree of
+freedom.
 
 % =====================================================================
 \section{Conclusion}

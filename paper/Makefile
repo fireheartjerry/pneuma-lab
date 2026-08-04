@@ -11,6 +11,8 @@
 JOB = main
 ARTIFACT_EXTS = aux fdb_latexmk fls log out bbl blg synctex.gz toc
 ARTIFACTS = $(foreach ext,$(ARTIFACT_EXTS),$(JOB).$(ext))
+PAPER_DEPS = refs.bib placebo/refs-placebo.bib neurips_2026.sty \
+	placebo_protocol.tex $(wildcard placebo/generated/*.tex)
 
 # Strings that must never appear in a submitted double-blind PDF.
 BLIND_FORBIDDEN = Pneuma
@@ -19,7 +21,7 @@ BLIND_FORBIDDEN = Pneuma
 
 all: $(JOB).pdf
 
-$(JOB).pdf: $(JOB).tex refs.bib neurips_2026.sty
+$(JOB).pdf: $(JOB).tex $(PAPER_DEPS)
 	latexmk -pdf -halt-on-error -interaction=nonstopmode $(JOB).tex
 
 clean:

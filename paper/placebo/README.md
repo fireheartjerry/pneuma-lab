@@ -1,15 +1,15 @@
-# PLACEBO paper materials
+# PLACEBO Trial paper materials
 
-Everything in this directory, plus `paper/placebo_protocol.tex`, is new on the
-`codex/placebo-paper-review` branch. `paper/main.tex`, `paper/placebo.tex`, and
-`paper/neurips_2026.sty` are **not modified** by this branch, and a test asserts
-it.
+`paper/placebo_protocol.tex` is the maintained manuscript, and `paper/main.tex`
+is its conventional build entrypoint. The retired `paper/placebo.tex` draft and
+the upstream `paper/neurips_2026.sty` remain unchanged.
 
 | path | what it is |
 | --- | --- |
-| `../placebo_protocol.tex` | the pre-results, double-blind manuscript |
-| `refs-placebo.bib` | new references only; `../refs.bib` is shared and untouched |
-| `citation-queue.json` | citation verification state; one entry is unresolved and blocks |
+| `../placebo_protocol.tex` | canonical pre-results, double-blind manuscript |
+| `refs-placebo.bib` | PLACEBO-specific records; `../refs.bib` is the shared library |
+| `citation-queue.json` | primary-record checks; every entry is verified |
+| `source-ledger.md` | all 26 active citation keys and the claim each supports |
 | `claims.json` | declared claims and the receipt that would support each |
 | `generated/` | emitted tables, figure data, claim matrix, artifact appendix — never hand-edited |
 
@@ -28,11 +28,9 @@ python -m pneuma_lab.placebo_paper admit --package <dir>
 
 ## State
 
-The preflight **blocks**, and should. No arm has been run, no evidence package
-exists, and the closest-prior-art citation is unresolved. See
-`docs/research/placebo-paper/00-result-to-paper-pipeline.md` for the current
-failure list and what discharges each item.
-
-No PDF has been built: this environment has no LaTeX toolchain, so page count,
-font embedding, PDF metadata, and text-layer anonymity are `pending`, not
-passing.
+The scientific preflight **blocks**, and should. No arm result or sealed
+evidence package exists, so the draft notice and result slots remain visible.
+The citation blocker is closed, and the canonical source compiles to 8 body
+pages plus 2 reference pages. See
+`docs/research/placebo-paper/00-result-to-paper-pipeline.md` for the live failure
+list and what discharges each item.

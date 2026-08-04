@@ -15,8 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from pneuma_lab.placebo_paper import admit, run, write_assets
-from pneuma_lab.placebo_paper import checks
+from pneuma_lab.placebo_paper import admit, checks, run, write_assets
 from pneuma_lab.placebo_paper.cli import main as cli_main
 from pneuma_lab.placebo_paper.errors import (
     MissingReceipt,
@@ -204,12 +203,22 @@ def test_number_provenance_catches_a_hand_entered_measured_value() -> None:
 
 
 def test_bibliography_check_blocks_on_the_unresolved_citation_queue() -> None:
+    queue = {
+        "entries": [
+            {"key": "synthetic_unresolved_source", "state": "unresolved"}
+        ]
+    }
+    result = checks.check_bibliography("", [], queue)
+    assert result.status == "fail"
+    assert any("synthetic_unresolved_source" in item for item in result.findings)
+
+
+def test_live_citation_queue_is_fully_verified() -> None:
     queue = json.loads(
         (PAPER / "placebo" / "citation-queue.json").read_text(encoding="utf-8")
     )
     result = checks.check_bibliography("", [], queue)
-    assert result.status == "fail"
-    assert any("try_again_dont_look_back_2026" in item for item in result.findings)
+    assert result.status == "pass", result.findings
 
 
 def test_every_manuscript_citation_resolves_to_a_bib_entry() -> None:
@@ -249,7 +258,8 @@ def test_preflight_blocks_the_pre_results_manuscript() -> None:
     )
     assert not report.submission_ready
     names = {item.name for item in report.failures}
-    assert {"placeholders", "bibliography", "evidence_package"} <= names
+    assert {"placeholders", "evidence_package"} <= names
+    assert "bibliography" not in names
 
 
 def test_preflight_reports_a_rejected_package_by_reason() -> None:
@@ -297,8 +307,8 @@ def test_cli_render_writes_the_scaffold(tmp_path: Path, capsys) -> None:
 # --------------------------------------------------------------------------
 
 
-def test_protected_paper_sources_are_untouched_by_this_branch() -> None:
-    """main.tex, placebo.tex, and the style file are off limits."""
+def test_canonical_entrypoint_and_archived_sources() -> None:
+    """main.tex selects the trial; the retired draft and style stay untouched."""
 
     import subprocess
 
@@ -309,5 +319,9 @@ def test_protected_paper_sources_are_untouched_by_this_branch() -> None:
         text=True,
         check=False,
     ).stdout.split()
-    for protected in ("paper/main.tex", "paper/placebo.tex", "paper/neurips_2026.sty"):
+    for protected in ("paper/placebo.tex", "paper/neurips_2026.sty"):
         assert protected not in changed, f"{protected} must not be modified"
+
+    entrypoint = (PAPER / "main.tex").read_text(encoding="utf-8")
+    assert "\\input{placebo_protocol.tex}" in entrypoint
+    assert "Ten Conversations, Two Thousand Questions" not in entrypoint

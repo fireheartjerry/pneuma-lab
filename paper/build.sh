@@ -6,15 +6,15 @@
 #     ./build.sh clean    remove LaTeX build artifacts (keeps the PDF)
 #     ./build.sh distclean  remove build artifacts and the PDF
 #
-#     JOB=placebo ./build.sh    build the placebo study draft instead
+#     JOB=placebo_protocol ./build.sh    build the canonical source directly
 #
 # Prefers latexmk (handles the bibtex/rerun loop). Falls back to a manual
 # pdflatex/bibtex/pdflatex/pdflatex sequence when latexmk is unavailable.
 
 set -eu
 
-# Which document to build. Override to build a sibling document that shares
-# refs.bib and the style file, e.g. JOB=placebo ./build.sh
+# Which document to build. main.tex is a thin canonical entrypoint; override
+# with JOB=placebo_protocol to inspect the maintained source directly.
 JOB="${JOB:-main}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
@@ -52,9 +52,7 @@ if command -v latexmk >/dev/null 2>&1; then
 elif command -v pdflatex >/dev/null 2>&1; then
     pdflatex -halt-on-error -interaction=nonstopmode "$JOB.tex"
     if command -v bibtex >/dev/null 2>&1; then
-        # refs.bib is empty until the verified-bibliography pass lands, so a
-        # bibtex failure here is non-fatal.
-        bibtex "$JOB" || echo "bibtex reported an issue (expected while refs.bib is empty)"
+        bibtex "$JOB"
     fi
     pdflatex -halt-on-error -interaction=nonstopmode "$JOB.tex"
     pdflatex -halt-on-error -interaction=nonstopmode "$JOB.tex"
